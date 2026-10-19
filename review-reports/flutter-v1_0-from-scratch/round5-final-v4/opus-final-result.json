@@ -1,0 +1,165 @@
+{
+  "summary": "Final bounded check of the v3-to-v4 edits in the Flutter v1.0 series",
+  "agentCount": 4,
+  "logs": [],
+  "result": [
+    {
+      "key": "edits",
+      "checked": [
+        "Commit c2ab6e71: the reworded sentence 'for a v0.9 payload that sets none this only adds a `hidden` that resolves to null' matches the diff (`hidden` added as Behavior.dynamic in _withAccessibility) and the test that expects a read-only null `hidden`.",
+        "Commit d8950bbb: 'When both checks fail, the errors reported are those of the check with none made' and the doc comment 'When both fail, the errors are those with none replaced' match argumentErrors. When the v1.0 pass fails it falls through and returns _errorsOf(validity: false).",
+        "Commit 5e8e8920: 'accepts ... `posterUrl` but ignores them' is true. At this commit text_field.dart, slider.dart and video.dart never read placeholder, steps or posterUrl, and TextField still reads validationRegexp. The new README sentence that `getRendererDataModel()` needs a version once surfaces of both versions send their data model matches processor.dart, which throws A2uiValidationError when the surfaces' versions differ and no version is given. The message line about it matches the README.",
+        "Commit 1e5e96a2: the change is only a rewrap, and the content is unchanged.",
+        "Commit 386f7688: the escaped-backtick half of the new bullet is accurate, because _codeSpan is applied before _escape.",
+        "Commit ebed4179: the reworded sentence says the docs of `isValid`, `validationErrors` and the Button builder now cover `error` severity only. This matches component_props.dart and the new button.dart doc. The button code disables on !isValid and uses validationErrors.firstOrNull as its tooltip. The brief says Button shows a warning or info hint as its tooltip, but the code at this commit does not do that, and the message correctly says 'A Button shows no hint'.",
+        "Commit ca3bd1de: 'changes only payloads whose v0.9 meaning is undefined' is accurate. 'the v0.9 `and`, `or` and `not`, whose argument check rejects such an object' matches the v0.9 catalog, whose operands are DynamicBoolean. It also matches commit 2's test, which expects A2uiExpressionError from a v0.9 `not` given {'valid': false}.",
+        "Commit 28988a09: the Slider part of the changed sentence matches slider.dart, where the label and value Row is above the Slider and the error or hint Text is below it.",
+        "All 12 messages: no semicolons, no padded em dashes, no Co-Authored-By, no mention of feat/flutter-adapter-v1_0 or d88d4be6, and each ends with '⚠️ Agent-generated'. Checked with grep over git show output.",
+        "No probe worktrees were created, and no tests were run."
+      ],
+      "problems": [
+        {
+          "key": "edits",
+          "title": "Live-region limit reads as if a CheckBox's check message is not announced, which contradicts the README in the same commit",
+          "severity": "should-fix",
+          "commit": "28988a09",
+          "evidence": "The v4 message adds the check message for the Slider only: \"On a Slider the region is a parent node that takes in the label and value text above the control and any check message below it, so changes to these are announced. On a Button or CheckBox the text sits in the control's own node below the region, so its changes are not announced. The README says this.\" The README hunk in the same commit says something broader: \"label: a Text's text, a TextField's label, a Slider's label and value, or the check message under a CheckBox, ChoicePicker or Slider, but not a Button's child text, a CheckBox's label or a TextField's value.\" The code agrees with the README. In check_box.dart only the Checkbox and its label Text are inside MergeSemantics. The error or hint Text is a sibling below it in the Column, so it merges into NodeView's container node, as the Slider's message does. The ChoicePicker's message Text is placed the same way. So \"the text\" of a CheckBox is not all in the control's node, and the message never mentions ChoicePicker.",
+          "fix": "Replace the last two sentences of that bullet with: \"On a Slider the region is a parent node that takes in the label and value text above the control, and on a CheckBox, ChoicePicker or Slider it takes in the check message below the control, so changes to these are announced. A Button's child text and a CheckBox's label sit in the control's own node below the region, so their changes are not announced. The README says this.\"",
+          "status": "confirmed",
+          "votes": [
+            {
+              "verdict": "confirmed",
+              "severity": "should-fix",
+              "reasoning": "I tried to refute this and could not. The commit message is imprecise about the CheckBox, and the README in the same commit has it right.\n\nWhat 28988a09 says:\n- The message's known-limits bullet credits the check message below the control only to the Slider: \"On a Slider the region is a parent node that takes in the label and value text above the control and any check message below it, so changes to these are announced.\"\n- It then says: \"On a Button or CheckBox the text sits in the control's own node below the region, so its changes are not announced.\"\n- Read after the Slider sentence, a cold reader takes this to mean nothing on a CheckBox is announced, its check message included. The message never mentions ChoicePicker.\n- The README hunk in the same commit lists \"the check message under a CheckBox, ChoicePicker or Slider\" as announced, and excludes only \"a Button's child text, a CheckBox's label or a TextField's value\".\n\nWhat the code does:\n- In dart/a2ui_flutter/lib/src/catalog/basic/check_box.dart, MergeSemantics wraps only the Row that holds the Checkbox and its label Text.\n- The error or hint Text is a sibling below it in the Column.\n- choice_picker.dart puts its error or hint Text in a Column the same way (lines 160-168).\n- NodeView's Semantics(container: true, liveRegion: true) therefore takes that Text into its own label.\n\nProbe (a throwaway worktree at 28988a09, since removed):\n- I rendered a v1.0 CheckBox with accessibility.live \"polite\" and a failing check whose message is \"Must subscribe.\", then ran it with flutter test.\n- The node that holds the message text is id 5, with label \"Must subscribe.\" and isLiveRegion true.\n- The CheckBox's own node is id 6, a child of id 5, and is not a live region.\n- So the check message is in the live region's label and is announced. Only the CheckBox's label sits below the region.\n\nWhy should-fix and not blocker: the code and README are correct. The message misstates which CheckBox text is affected and leaves out ChoicePicker, so a porter reading only the message would get the behavior wrong. The proposed fix is accurate:\n\n\"On a Slider the region is a parent node that takes in the label and value text above the control, and on a CheckBox, ChoicePicker or Slider it takes in the check message below the control, so changes to these are announced. A Button's child text and a CheckBox's label sit in the control's own node below the region, so their changes are not announced. The README says this.\""
+            },
+            {
+              "verdict": "confirmed",
+              "severity": "should-fix",
+              "reasoning": "I read the 28988a09 message, its README hunk and, at that commit, check_box.dart, choice_picker.dart, slider.dart and node_view.dart. I wrote no probe and ran nothing, so this verdict rests on the code alone.\n\nWhat the code does: NodeView wraps every component in Semantics(container: label != null || description != null || live != null, liveRegion: live) (node_view.dart, around lines 111-115), so a component with `live` set gets its own container node. In buildCheckBox, only the Checkbox and its label Text are inside MergeSemantics. The error or hint Text is a sibling of that MergeSemantics in the Column, so it merges into NodeView's live-region container node, the same way the Slider's error or hint Text does. In _ChoicePicker.build, the error or hint Text is also a plain child of the Column, so it lands in the container node too.\n\nSo the README in the same commit is right: the region announces \"the check message under a CheckBox, ChoicePicker or Slider, but not a Button's child text, a CheckBox's label\". The message is less precise. It credits the check message only to the Slider, then says \"On a Button or CheckBox the text sits in the control's own node below the region, so its changes are not announced.\" For a CheckBox that is true only of its label, not its check message. A porter would read it as saying a CheckBox's check message is not announced, which contradicts the README and the code. The message also never mentions ChoicePicker.\n\nSeverity: \"the text\" can be read as \"the label text\", so the sentence is imprecise and incomplete rather than plainly false. That makes it should-fix, not blocker. The proposed rewrite is accurate: the check message goes into the region for CheckBox, ChoicePicker and Slider, and a Button's child text and a CheckBox's label stay in the control's own node."
+            }
+          ]
+        },
+        {
+          "key": "edits",
+          "title": "The new 'best effort' bullet says an indented '#' line still reads as a heading, but that is true only for a one-line body Text",
+          "severity": "nit",
+          "commit": "386f7688",
+          "evidence": "Message: \"a `#` line indented four spaces still reads as a heading.\" In text.dart, buildText runs `_heading` on `text.trim()` only when the style is null and the text has no newline, so only a one-line body Text loses the indentation and is treated as a heading. In multi-line text, or in a caption or v0.9 heading Text, the line goes to `_markers`, whose first pattern is `^ {0,3}(?:#{1,6}[ \\t]+|...)` with multiLine. That pattern does not match four spaces, so the `#` is kept as written. The other half of the sentence is accurate: `_codeSpan` runs before `_escape`, so an escaped backtick pair still matches as a code span.",
+          "fix": "\"The stripping is best effort. An escaped backtick pair can still read as a code span, and a one-line body Text that is a `#` line indented four spaces still reads as a heading.\"",
+          "status": "nit",
+          "votes": []
+        }
+      ]
+    },
+    {
+      "key": "readme-claims",
+      "checked": [
+        "Claim 1 (dart/a2ui_flutter/README.md L291-293, 'Once surfaces of both versions send their data model, getRendererDataModel() needs a version'): read MessageProcessor.getRendererDataModel in dart/a2ui_core/lib/src/processing/processor.dart L1237-1278 at 28988a09, then probed it in a throwaway worktree at 28988a09. I set up one processor with basicCatalog() and the v0.9 basicCatalog(), a v0.9 surface 'old' with sendDataModel true and data {a:1}, and a v1.0 surface 'new' with sendDataModel true and data {b:2}. Calling getRendererDataModel() with no version threw A2uiValidationError [VALIDATION_FAILED] 'Multiple protocol versions detected among active surfaces: v0.9, v1.0. Specify a target protocol version in getRendererDataModel(version).' With version v1.0 it returned {version: v1.0, surfaces: {new: {b: 2}}}, and with v0.9 it returned {version: v0.9, surfaces: {old: {a: 1}}}. The claim is accurate.",
+        "Claim 2 (README L221-225, a live region announces 'the check message under a CheckBox, ChoicePicker or Slider'): rendered each component on a v1.0 basic-catalog surface with accessibility.live 'polite' and a check bound to a failing warning result {valid:false, severity:'warning', message:'First message.'}, dumped the semantics tree, set the message to 'Second message.', pumped, and dumped it again. For each of the three there is exactly one isLiveRegion node. Its label was 'First message.' before the change and 'Second message.' after it for CheckBox and ChoicePicker. For Slider it was 'Volume\\n3\\nFirst message.' before and contained 'Second message.' after, which the assertion checked. All 4 probe tests passed. The claim is accurate.",
+        "In the same dumps, the CheckBox label 'Subscribe' sits in the CheckBox's own merge-boundary node below the live region, not in the region's label. This matches the README's 'but not ... a CheckBox's label'.",
+        "Removed the probe worktree with git worktree remove --force. The review checkout at 28988a09 was not modified (git status is clean)."
+      ],
+      "problems": []
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Check"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Verify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "check:edits",
+      "phaseIndex": 1,
+      "phaseTitle": "Check",
+      "agentId": "a348c263e32f1404b",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792444458427,
+      "queuedAt": 1792444458410,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are an independent, blind checker. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v4-ctx/brief.md and follow its BOUNDARY (read only /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series and /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v4-ct…",
+      "promptFramed": true,
+      "lastProgressAt": 1792444577461,
+      "tokens": 112782,
+      "toolCalls": 19,
+      "durationMs": 119034,
+      "resultPreview": "{\"problems\":[{\"title\":\"Live-region limit reads as if a CheckBox's check message is not announced, which contradicts the README in the same commit\",\"severity\":\"should-fix\",\"commit\":\"28988a09\",\"evidence\":\"The v4 message adds the check message for the Slider only: \\\"On a Slider the region is a parent node that takes in the label and value text above the control and any check message below it, so chan…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "check:readme-claims",
+      "phaseIndex": 1,
+      "phaseTitle": "Check",
+      "agentId": "a17f1e4fffae76e42",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792444458427,
+      "queuedAt": 1792444458410,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are an independent, blind checker. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v4-ctx/brief.md and follow its BOUNDARY (read only /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series and /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v4-ct…",
+      "promptFramed": true,
+      "lastProgressAt": 1792444535902,
+      "tokens": 81996,
+      "toolCalls": 16,
+      "durationMs": 76329,
+      "resultPreview": "{\"problems\":[],\"checked\":[\"Claim 1 (dart/a2ui_flutter/README.md L291-293, 'Once surfaces of both versions send their data model, getRendererDataModel() needs a version'): read MessageProcessor.getRendererDataModel in dart/a2ui_core/lib/src/processing/processor.dart L1237-1278 at 28988a09, then probed it in a throwaway worktree at 28988a09. I set up one processor with basicCatalog() and the v0.9 ba…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "verify:edits#1",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "ac1828001170bbd43",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792444579410,
+      "queuedAt": 1792444579384,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "confirmed",
+      "promptPreview": "You are an independent skeptic. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v4-ctx/brief.md and follow its BOUNDARY and probe rules. Try to REFUTE this problem reported against the v4 series in /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series. Return confirmed only if real.\n\nSkeptic 1. [28988a09] Live-region l…",
+      "promptFramed": true,
+      "lastProgressAt": 1792444653475,
+      "tokens": 76161,
+      "toolCalls": 14,
+      "durationMs": 74064,
+      "resultPreview": "{\"verdict\":\"confirmed\",\"severity\":\"should-fix\",\"reasoning\":\"I tried to refute this and could not. The commit message is imprecise about the CheckBox, and the README in the same commit has it right.\\n\\nWhat 28988a09 says:\\n- The message's known-limits bullet credits the check message below the control only to the Slider: \\\"On a Slider the region is a parent node that takes in the label and value te…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "verify:edits#2",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "a5c5503e9a3e1c400",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792444579410,
+      "queuedAt": 1792444579385,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "confirmed",
+      "promptPreview": "You are an independent skeptic. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v4-ctx/brief.md and follow its BOUNDARY and probe rules. Try to REFUTE this problem reported against the v4 series in /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series. Return confirmed only if real.\n\nSkeptic 2. [28988a09] Live-region l…",
+      "promptFramed": true,
+      "lastProgressAt": 1792444606101,
+      "tokens": 70136,
+      "toolCalls": 6,
+      "durationMs": 25727,
+      "resultPreview": "{\"verdict\":\"confirmed\",\"severity\":\"should-fix\",\"reasoning\":\"I read the 28988a09 message, its README hunk and, at that commit, check_box.dart, choice_picker.dart, slider.dart and node_view.dart. I wrote no probe and ran nothing, so this verdict rests on the code alone.\\n\\nWhat the code does: NodeView wraps every component in Semantics(container: label != null || description != null || live != null,…"
+    }
+  ],
+  "totalTokens": 341075,
+  "totalToolCalls": 55
+}

@@ -1,0 +1,627 @@
+[CONFIRMED] [1c39f45a] [commit-3-1c39f45a] verifier-max=should-fix :: The reason for a catalog-only `v0_9/basic_catalog.dart` library does not answer the blueprint's packaging model or the TS `./v0_9` entries
+    WHERE: message paragraph 2, sentence 1; blueprints/codebases/dart/a2ui_flutter/codebase.blueprint.md Package layout bullet
+    FIX: Replace the sentence with: "Blueprint section 1 describes a `./v0_9` entry point as a compatibility alias that re-exports the root runtime, as the React and Lit `./v0_9` entries do. This package has no earlier v0.9 entry point to keep, and its catalog was already a library of its own beside the version-agnostic `package:a2ui_flutter/a2ui_flutter.dart`. So the v0.9 library keeps that shape under `v0_9/`, as web_core's `./v0_9/basic_catalog` does, and holds only the catalog." Optionally add a clause to the codebase blueprint's Package layout bullet saying the v0.9 library holds only the catalog 
+    - confirmed/should-fix: Replace message paragraph 2, sentence 1 with: "Blueprint section 1 calls a `./v0_9` entry point a compatibility alias that re-exports the root runtime, as the React and Lit `./v0_9` entries do. This package has no earlier v0.9 entry point to keep, and its runtime in `package:a2ui_flutter/a2ui_flutter.dart` already renders both versions. So the v0.9 library holds only the catalog, as web_core's `./
+    - confirmed/nit: In 1c39f45a, replace message paragraph 2, sentence 1 with: "The runtime stays in the version-agnostic `package:a2ui_flutter/a2ui_flutter.dart`, and the package has no earlier `v0_9` import to keep, so the v0.9 path holds only the catalog, as web_core's `./v0_9/basic_catalog` does, rather than an alias that re-exports the runtime like the React and Lit `./v0_9` entries." Leave the codebase blueprin
+
+[CONFIRMED] [1c39f45a] [porting] verifier-max=should-fix :: Cherry-picking 1c39f45a onto a tree that has v1.0 at basic_catalog.dart silently deletes and renames files, with no conflict markers
+    WHERE: lib/basic_catalog.dart -> lib/v0_9/basic_catalog.dart, lib/src/catalog/basic/basic_catalog.dart -> basic_catalog_v0_9.dart; BREAKING CHANGE footer
+    FIX: Fold 1c39f45a into 75437a8f. Measured from main, the combined diff modifies lib/basic_catalog.dart and src/basic_catalog.dart and adds the v0_9 files, so there is no deletion for git to pair into a rename. The interim no-basic_catalog.dart state and its footer also go away. If the commit stays separate, its message should at least list every file it moves and edits (see the doc-edits nit) so that a porter checks the staged D and R entries.
+    - confirmed/should-fix: Fold 1c39f45a into 75437a8f as one `feat(a2ui_flutter)!:` commit. Probe result on d88d4be6: lib/basic_catalog.dart and src/catalog/basic/basic_catalog.dart become UU conflicts instead of a silent D and R. Rewrite the combined message's BREAKING CHANGE footer to describe the end state. For example: "BREAKING CHANGE: `package:a2ui_flutter/basic_catalog.dart` now exports the v1.0 basic catalog. Impor
+    - confirmed/should-fix: Fold 1c39f45a into 75437a8f. Measured from main, the folded commit modifies lib/basic_catalog.dart and lib/src/catalog/basic/basic_catalog.dart and adds the v0_9 files. A probe cherry-pick onto d88d4be6 shows UU on both basic_catalog.dart paths and AA on basic_catalog_v0_9.dart, with no staged D or R. In the folded message:
+- drop the interim footer "no longer exists until the v1.0 catalog takes i
+
+[CONFIRMED] [1c39f45a] [commit-3-1c39f45a] verifier-max=nit :: The list of exported names leaves out `A2uiMarkdownBuilder`
+    WHERE: message paragraph 1, last sentence
+    FIX: "Nothing else changes: the library exports the same names (`basicCatalog()`, `BasicComponents`, `A2uiMarkdown` and `A2uiMarkdownBuilder`)." Or simply "the library exports the same names."
+    - confirmed/nit: Nothing else changes: the library exports the same names (`basicCatalog()`, `BasicComponents`, `A2uiMarkdown` and `A2uiMarkdownBuilder`).
+    - confirmed/nit: Nothing else changes: the library exports the same `basicCatalog()`, `BasicComponents`, `A2uiMarkdown` and `A2uiMarkdownBuilder`.
+
+[CONFIRMED] [1c39f45a] [commit-3-1c39f45a] verifier-max=nit :: No reason is given for renaming the src file
+    WHERE: message paragraph 1, sentence 3
+    FIX: "... and its source to `lib/src/catalog/basic/basic_catalog_v0_9.dart`, so that the v1.0 catalog's source can take `basic_catalog.dart` beside it."
+    - confirmed/nit: "... and its source to `lib/src/catalog/basic/basic_catalog_v0_9.dart`, so that the v1.0 catalog's source can take `basic_catalog.dart` beside it."
+    - confirmed/nit: "... `package:a2ui_flutter/basic_catalog.dart` moves to `package:a2ui_flutter/v0_9/basic_catalog.dart`, and its source to `lib/src/catalog/basic/basic_catalog_v0_9.dart`, which leaves `basic_catalog.dart` beside it for the v1.0 catalog's source."
+
+[CONFIRMED] [1c39f45a] [porting] verifier-max=nit :: 1c39f45a gives no reason for differing from the blueprint's packaging line about `./v0_9`
+    WHERE: message, paragraph 2
+    FIX: Add: 'The blueprint's packaging model (section 1) describes `./v0_9` as a compatibility alias that re-exports the runtime. a2ui_flutter had no v0.9 entry point to keep working, so `v0_9/basic_catalog.dart` mirrors `basic_catalog.dart` and holds the catalog only.' Change 'Nothing else changes' to 'The library's contents do not change' and add 'The README, CHANGELOG and codebase blueprint name the new path.'
+    - confirmed/nit: Paragraph 2 becomes: "The runtime stays in `package:a2ui_flutter/a2ui_flutter.dart`, which is version-agnostic, so the v0.9 path holds only the catalog. The blueprint's packaging model (section 1) describes `./v0_9` as a compatibility alias that re-exports the runtime. a2ui_flutter is unreleased and had no v0.9 entry point to keep working, so `v0_9/basic_catalog.dart` mirrors `basic_catalog.dart` 
+    - confirmed/nit: In paragraph 2, after the first sentence, add: "The blueprint's packaging model (section 1) treats `./v0_9` as a compatibility alias that re-exports the root runtime, for packages that already shipped one. a2ui_flutter never had a v0.9 entry point to keep working, so `v0_9/basic_catalog.dart` mirrors the primary `basic_catalog.dart` and holds only the catalog." In paragraph 1, change "Nothing else
+
+[CONFIRMED] [1c39f45a / 75437a8f] [gap-changelog-blueprint-final-state] verifier-max=nit :: At release, the Breaking line hides that the old import still compiles and now silently gives the v1.0 catalog
+    WHERE: dart/a2ui_flutter/CHANGELOG.md:21-23
+    FIX: Fold the two lines into one: "**Breaking:** `package:a2ui_flutter/basic_catalog.dart` now implements the v1.0 basic catalog under the same names, so a v0.9 app still compiles but its surfaces no longer find their catalog. Import the v0.9 catalog from `package:a2ui_flutter/v0_9/basic_catalog.dart`." In 75437a8f, edit the 1c39f45a line instead of adding a second one.
+    - refuted/nit: Optional, nit only. In 75437a8f, replace the two CHANGELOG entries with: "**Breaking:** `package:a2ui_flutter/basic_catalog.dart` now implements the v1.0 basic catalog under the same names, so a v0.9 app that keeps that import compiles but its v0.9 surfaces fail with an unsupported-catalog error. Import the v0.9 catalog from `package:a2ui_flutter/v0_9/basic_catalog.dart`." Leave the 1c39f45a entry
+    - confirmed/nit: The proposed fold works. In 75437a8f, replace the 1c39f45a line instead of adding a second one, for example: "- **Breaking:** `package:a2ui_flutter/basic_catalog.dart` now implements the v1.0 basic catalog under the same names, so a v0.9 app still compiles but its v0.9 surfaces no longer find their catalog. Import the v0.9 catalog from `package:a2ui_flutter/v0_9/basic_catalog.dart`." Leave the 1c3
+    - confirmed/nit: In 75437a8f, replace the added CHANGELOG line with: "- `package:a2ui_flutter/basic_catalog.dart` implements the v1.0 basic catalog under the same names, so v0.9 code that still imports it compiles but registers the v1.0 catalog." Leave the 1c39f45a Breaking line unchanged.
+
+[CONFIRMED] [1c39f45a..a465dc4a] [gap-changelog-blueprint-final-state] verifier-max=nit :: The a2ui_flutter Unreleased list breaks the file's newest-first order, and the series orders its two CHANGELOGs in opposite directions
+    WHERE: dart/a2ui_flutter/CHANGELOG.md:21-35; dart/a2ui_core/CHANGELOG.md:5-13
+    FIX: In each a2ui_flutter commit, insert the line directly under `## Unreleased`, as a2ui_core does. The final order is then a465dc4a's line first and 1c39f45a's Breaking line just above the #3235 line. Alternatively, if Breaking-first is intended, state that convention and keep both files consistent.
+    - confirmed/nit: The proposed fix is right. In each a2ui_flutter commit after 1c39f45a, insert the new line directly under `## Unreleased`. Inserting it only below the Breaking line also works, if Breaking-first is the convention you want. Then the series lines read newest-first above the #3235 line, matching a2ui_core. If you choose Breaking-first, state the convention once and move a2ui_core's lines the same way
+    - refuted/none: No change. If consistency is wanted anyway, keep the a2ui_flutter **Breaking:** line first and leave the rest as is. Do not move it to the bottom of the series block.
+    - confirmed/nit: In 75437a8f and each later a2ui_flutter commit, insert the new CHANGELOG line directly under the "**Breaking:** The v0.9 basic catalog moved..." line instead of under the previous series line. At a465dc4a the list then reads: Breaking, accessibility.live/hidden, asBoolean, warning/info hints, Text Markdown markers, Video.posterUrl, Slider steps, TextField placeholder, v1.0 TextField validationRege
+
+[CONFIRMED] [21c0fa12] [commit-7-21c0fa12] verifier-max=nit :: Message omits that the shared builder now reads `steps` on v0.9 too, and what happens there
+    WHERE: message, first paragraph ("v1.0 adds `steps` to Slider ..."); lib/src/catalog/basic/slider.dart
+    FIX: Add a sentence at the end of the first paragraph, matching 294112c1: "The shared builder reads `steps` on both versions. The v0.9 Slider schema does not allow it, so a2ui_core rejects it there."
+    - confirmed/nit: The proposed fix is correct. Append to the end of the message's first paragraph: "The shared builder reads `steps` on both versions. The v0.9 Slider schema does not allow it, so a2ui_core rejects it there."
+    - confirmed/nit: Optional, for consistency with 294112c1. End the first paragraph (or put after the third) with: "The shared builder reads `steps` on both versions. The v0.9 Slider schema does not allow it, so a2ui_core rejects it there."
+
+[CONFIRMED] [21c0fa12] [commit-7-21c0fa12] verifier-max=nit :: No reason given for ignoring `steps` on an empty or non-finite range, and no test for it
+    WHERE: message, second paragraph ("`steps` is ignored when the range is empty or not finite."); slider.dart guard `range > 0 && range.isFinite`
+    FIX: "`steps` is ignored when the range is empty, where the step formula would divide by zero, or not finite, where the slider is disabled." Optionally add a v1.0 test with `min == max` and `steps` that checks `divisions` is null and that a move writes `min`.
+    - confirmed/nit: Replace the sentence with: "`steps` is ignored when the range is empty, where the step formula would divide by zero, or not finite, where the slider is already disabled." Optionally, add a v1.0 test that uses `min == max` and `steps`, checks that `divisions` is null, and checks that `onChanged!(min)` writes `min`.
+    - confirmed/nit: Replace the sentence with: "`steps` is ignored when the range is empty, where there is nothing to divide and the step formula would divide by zero, or not finite, where the slider is disabled." Leave out the optional test, because the brief limits this review to the series.
+
+[CONFIRMED] [294112c1] [commit-6-294112c1] verifier-max=nit :: "v1.0 makes `label` required" implies a change, but v0.9 TextField already requires `label`
+    WHERE: commit message, paragraph 2, sentence 2
+    FIX: "TextField requires `label`, so with the label left to rest the placeholder would stay invisible until the field takes focus."
+    - confirmed/nit: Replace "v1.0 makes `label` required on TextField, so with the label left to rest the placeholder would stay invisible until the field takes focus." with "TextField requires `label`, so with the label left to rest the placeholder would stay invisible until the field takes focus."
+    - confirmed/nit: Replace "v1.0 makes `label` required on TextField, so with the label left to rest the placeholder would stay invisible until the field takes focus." with "TextField requires `label`, so with the label left to rest the placeholder would stay invisible until the field takes focus."
+
+[CONFIRMED] [294112c1] [commit-6-294112c1] verifier-max=nit :: The general Material claim is imprecise when there is no label
+    WHERE: commit message, paragraph 2, sentence 1
+    FIX: "Material hides hint text while a label rests inside the empty field, where the hint would be."
+    - confirmed/nit: Replace "Material shows hint text only while the label floats above the field, and a resting label sits where the hint would be." with "Material hides hint text while a label rests inside the empty field, where the hint would be."
+    - confirmed/nit: Replace the first sentence of paragraph 2 ("Material shows hint text only while the label floats above the field, and a resting label sits where the hint would be.") with: "Material hides hint text while a label rests inside the empty field, where the hint would be." Leave the rest of the paragraph unchanged.
+
+[CONFIRMED] [294112c1] [porting] verifier-max=nit :: 294112c1 says v1.0 'makes' label required, but v0.9 already required it
+    WHERE: message, paragraph 2
+    FIX: 'TextField requires `label`, so with the label left to rest the placeholder would stay invisible until the field takes focus.'
+    - confirmed/nit: TextField requires `label`, so with the label left to rest the placeholder would stay invisible until the field takes focus.
+    - confirmed/nit: TextField requires `label`, so with the label left to rest the placeholder would stay invisible until the field takes focus.
+
+[CONFIRMED] [294112c1, 21c0fa12, 6a244423] [gap-changelog-blueprint-final-state] verifier-max=nit :: The v1.0-only CHANGELOG lines are not marked v1.0, unlike the TextField validationRegexp line
+    WHERE: dart/a2ui_flutter/CHANGELOG.md:25-27
+    FIX: "The v1.0 TextField shows its `placeholder`.", "The v1.0 Slider moves in its `steps`." and "The v1.0 Video shows its `posterUrl` ...".
+    - refuted/none: None needed. If version tags were wanted anyway, they would also have to go on line 31 (warning/info severity) and line 34 (accessibility.live) to stay consistent, not only on lines 25-27.
+    - confirmed/nit: In each commit's own CHANGELOG hunk: 294112c1 "- The v1.0 TextField shows its `placeholder`.", 21c0fa12 "- The v1.0 Slider moves in its `steps`.", 6a244423 "- The v1.0 Video shows its `posterUrl` until playback starts."
+    - confirmed/nit: Proposed fix is right. In 294112c1, 21c0fa12 and 6a244423 respectively, write the CHANGELOG lines as: "- The v1.0 TextField shows its `placeholder`.", "- The v1.0 Slider moves in its `steps`.", "- The v1.0 Video shows its `posterUrl` until playback starts."
+
+[CONFIRMED] [546f2111] [commit-5-546f2111] verifier-max=nit :: "The builder now takes the pattern as a parameter" can be read as a change to the public builder signature, and "checks none" can be read as "runs no checks"
+    WHERE: message, second paragraph
+    FIX: "A private `_build` now takes the pattern as a parameter. `buildTextField`, used by the v1.0 catalog, passes none. `buildTextFieldV0_9`, used by the v0.9 catalog, passes `validationRegexp`, so v0.9 behaves as before."
+    - confirmed/nit: The public builders keep their signatures. They now share a private `_build` that takes the pattern as a parameter. `buildTextField`, used by the v1.0 catalog, passes no pattern, so it shows only `checks` failures. `buildTextFieldV0_9`, used by the v0.9 catalog, passes `validationRegexp`, so v0.9 behaves as before.
+    - confirmed/nit: Replace the second paragraph with: "A private `_build` now takes the pattern as a parameter. `buildTextField`, used by the v1.0 catalog, passes none. `buildTextFieldV0_9`, used by the v0.9 catalog, passes `validationRegexp`, so v0.9 checks it as before."
+
+[CONFIRMED] [6a244423] [commit-8-6a244423] verifier-max=should-fix :: A poster that fails to load hides the ready video's first frame, and the message gives no reason for it
+    WHERE: message, para 2, last sentence; media.dart `child: started || (ready && !hasPoster)` and `errorBuilder: (context, error, stackTrace) => blank`
+    FIX: Either fall back to the video once it is ready, with `errorBuilder: (context, error, stackTrace) => ready ? VideoPlayer(controller!) : blank` and the message sentence "A poster that fails to load shows the empty frame until the video is ready, then the video frame, as with no poster." Or keep the code and give the reason in the message, e.g. "A poster that fails to load shows the empty frame, even once the video is ready, because <reason>."
+    - confirmed/nit: Prefer the code fix. In media.dart, change the poster's error builder to `errorBuilder: (context, error, stackTrace) => ready ? VideoPlayer(controller!) : blank,`. Then replace the last sentence of message paragraph 2 with: "A poster that fails to load shows the empty frame until the video is ready, then the video frame, as with no poster and as an HTML `<video>` does when its poster cannot be fet
+    - confirmed/should-fix: The reviewer's first option is the right fix. In media.dart, change the poster's error fallback so a broken poster falls back to the video once it is ready:
+
+`errorBuilder: (context, error, stackTrace) => ready ? VideoPlayer(controller!) : blank,`
+
+Optionally, add a test to v1_0_test.dart: a poster that returns 404 plus an initialized video should give a frame containing a VideoPlayer.
+
+Replace th
+
+[CONFIRMED] [6a244423] [commit-8-6a244423] verifier-max=should-fix :: Message does not say the shared builder now reads posterUrl on v0.9 too
+    WHERE: message (missing paragraph); video.dart `posterUrl: props.string('posterUrl')`
+    FIX: Add: "The shared builder reads `posterUrl` on both versions. The v0.9 Video schema does not allow it, so a2ui_core rejects it there."
+    - confirmed/should-fix: Add a final paragraph before the trailer: "The shared builder reads `posterUrl` on both versions. The v0.9 Video schema does not allow it, so a2ui_core rejects it there."
+    - confirmed/nit: Add before the trailer: "The shared builder reads `posterUrl` on both versions. The v0.9 Video schema does not allow it, so a2ui_core rejects it there." (Optionally apply the matching sentence for `steps` to 21c0fa12 for consistency.)
+
+[CONFIRMED] [6a244423] [gap-video-poster-html-claim] verifier-max=should-fix :: Scrubbing before play diverges from HTML, and the message does not mention it
+    WHERE: message title and paragraph 1 ("until playback starts"). The behaviour comes from media.dart `started` (`value!.position > Duration.zero`) together with `VideoProgressIndicator(controller, allowScrubbing: true)`.
+    FIX: Smallest fix, in the message: add "Scrubbing away from 0:00 also hides the poster. Because the progress bar reports no seeks, the player goes by position, so a scrub back to 0:00 before any play shows the poster again, where HTML keeps the frame after any seek." Also change "until playback starts" in paragraph 1 to "until playback starts or the video moves off 0:00". Alternative, in the code, to match HTML: latch `_played` once `value.position > Duration.zero` is seen, and keep the message as it is.
+    - confirmed/should-fix: Preferred, in the code: treat any position past zero as having played. In `_build`, after computing `value`, add `if (ready && value!.position > Duration.zero) _played = true;` and make `started = ready && (_played || playing);`. This is safe to do in build because `_played` only feeds this build and is reset in `_open()`.
+
+Then fix the message to match:
+- Title: `feat(a2ui_flutter): show Video.po
+    - confirmed/nit: Add one sentence to paragraph 2 of the 6a244423 message, after the HTML sentence: "A scrub before play also hides the poster, but because the progress bar reports no seeks, the player goes by position, so a scrub back to 0:00 shows the poster again." Leave the title and paragraph 1 as they are. A code fix that latches `_played` once the position goes above 0 would match HTML exactly. It would need
+
+[CONFIRMED] [6a244423] [gap-video-poster-html-claim] verifier-max=should-fix :: No reason given for fitting the poster to cover when HTML and Flutter default to contain
+    WHERE: message paragraph 1: "The media player shows an `http` or `https` poster in the video frame, fitted to cover it, until playback starts." Code: `Image.network(poster, fit: BoxFit.cover, ...)` in media.dart.
+    FIX: Give the reason, for example: "fitted to cover it rather than letterboxed as HTML does, so the frame shows no empty bars around a poster whose shape differs from the 16:9 placeholder or the video". Or switch to `BoxFit.contain` to match HTML and say so.
+    - confirmed/should-fix: The proposed fix holds, with two refinements.
+
+1. To keep cover, name the comparison and the reason, for example: "...in the video frame, fitted to cover it so the frame shows no bars around a poster whose shape differs from the 16:9 placeholder or the video. The web renderers pass the URL to `<video poster>`, which shows the whole poster."
+
+2. To match HTML instead, use `BoxFit.contain` and put t
+    - confirmed/should-fix: Replace the second sentence of paragraph 1 with: "The media player shows an `http` or `https` poster in the video frame until playback starts, fitted to cover it so the frame shows no empty bars, where an HTML `<video>` letterboxes a poster whose shape differs from the frame." Alternatively, switch to `BoxFit.contain` behind the placeholder `ColoredBox` (so the bars match the placeholder colour) a
+
+[CONFIRMED] [6a244423] [commit-8-6a244423] verifier-max=nit :: Scrubbing before play also drops the poster, and scrubbing back to 0:00 restores it, which the message does not mention
+    WHERE: message, para 1 "until playback starts" and para 2 "as an HTML `<video poster>` does"; media.dart `started = ready && (_played || playing || value!.position > Duration.zero)`
+    FIX: Either set `_played = true` on a seek as well, or add to the message: "Scrubbing before playback also hides the poster while the position is past 0:00."
+    - confirmed/nit: The smallest fix is to the message. Append to paragraph 2: "Scrubbing before playback also hides the poster, but only while the position is past 0:00, so scrubbing back to 0:00 shows it again." If HTML parity is wanted instead, put the latch in code. Add a listener on the controller in the URL-setup path that sets `_played = true` once `value.position > Duration.zero || value.isPlaying`, and drop 
+    - confirmed/nit: Smallest fix (message only): in para 1 change "until playback starts" to "until playback starts or the position moves past 0:00", and add to para 2: "Scrubbing before playback also hides the poster while the position is past 0:00." Optionally make the same wording change in the CHANGELOG line and in the `buildVideo` doc comment.
+
+Code alternative, which matches HTML, where a seek clears the show-p
+
+[CONFIRMED] [6a244423] [commit-8-6a244423] verifier-max=nit :: "as an HTML `<video poster>` does" can be read as describing the rejected behaviour
+    WHERE: message, para 2, first sentence
+    FIX: "... so a pause at 0:00, or one before the first position update, keeps the video frame, as an HTML `<video poster>` does, rather than bringing the poster back."
+    - confirmed/nit: The player remembers that the current media has been played, so a pause at 0:00, or one before the first position update, keeps the video frame, as an HTML `<video poster>` does, rather than bringing the poster back.
+    - confirmed/nit: The player remembers that the current media has been played, so a pause at 0:00, or one before the first position update, keeps the video frame, as an HTML `<video poster>` does, rather than bringing the poster back.
+
+[CONFIRMED] [6a244423] [gap-changelog-blueprint-final-state] verifier-max=nit :: The Video CHANGELOG line and 6a244423's title omit that seeking before playback also removes the poster
+    WHERE: dart/a2ui_flutter/CHANGELOG.md:27; media.dart `started` and VideoProgressIndicator(allowScrubbing: true)
+    FIX: CHANGELOG: "Video shows its `posterUrl` until playback starts, the user seeks, or the video fails." In the message, add "A seek before playback shows the video frame at that position."
+    - confirmed/nit: Smallest fix, message only. After "A new URL starts over." add: "A seek before playback shows the video frame at that position, and a seek back to 0:00 before playback brings the poster back." The CHANGELOG line can stay, or become "Video shows its `posterUrl` until playback starts or the user seeks." Leave out the failure clause, since the body and video.dart already say it.
+
+Alternative fix in c
+    - confirmed/nit: In the 6a244423 message, change the first paragraph's sentence to: "The media player shows an `http` or `https` poster in the video frame, fitted to cover it, until playback starts or the user seeks." In the second paragraph, add: "A seek before playback shows the frame at that position. Seeking back to 0:00 before playing brings the poster back." Optionally change the CHANGELOG line to "Video sho
+
+[CONFIRMED] [6a244423] [gap-video-poster-html-claim] verifier-max=nit :: The HTML comparison reads two ways, and the nearer reading says something false about HTML
+    WHERE: message, paragraph 2, lines 1-3: "The player remembers that the current media has been played, so a pause at 0:00, or one before the first position update, keeps the video frame rather than bringing the poster back, as an HTML `<video poster>` does."
+    FIX: Replace with: "Like an HTML `<video poster>`, the player does not bring the poster back once the current media has been played, even on a pause at 0:00 or a pause before the first position update."
+    - confirmed/nit: Replace paragraph 2's first sentence with: "Like an HTML `<video poster>`, the player keeps the video frame once the current media has been played, even on a pause at 0:00 or one before the first position update, rather than bringing the poster back." (The reviewer's version is also acceptable.)
+    - confirmed/nit: Replace the first sentence of paragraph 2 with: "Like an HTML `<video poster>`, the player does not bring the poster back once the current media has been played: it remembers the play, so a pause at 0:00, or one before the first position update, keeps the video frame." To avoid a colon, use two sentences: "Like an HTML `<video poster>`, the player does not bring the poster back once the current me
+
+[CONFIRMED] [75437a8f] [gap-readme-cross-commit] verifier-max=should-fix :: The Protocol v0.9 section tells a dual-version host which data model key to use, but not how to advertise capabilities to a v0.9 agent. The Quick Start call lists the v0.9 catalog under "v1.0"
+    WHERE: dart/a2ui_flutter/README.md, Protocol v0.9, last paragraph ("To serve both versions, register a catalog of each with one processor ... a v0.9 agent reads `processor.getRendererDataModel(version: A2uiProtocolVersion.v0_9)` as `a2uiClientDataModel`."), read with Quick Start lines 100-102 (`getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v1_0])).toJson()` as `a2uiRendererCapabilities`)
+    FIX: Append to the paragraph: "and `processor.getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v0_9])).toJson()` as `a2uiClientCapabilities`. Each version's entry lists every registered catalog, whatever its protocol version."
+    - confirmed/should-fix: Append to the last paragraph of the Protocol v0.9 section: "and `processor.getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v0_9])).toJson()` as `a2uiClientCapabilities`. Each version's entry lists every registered catalog, whatever its protocol version." The proposed fix is correct as given.
+    - confirmed/should-fix: End the Protocol v0.9 paragraph with: "...a v0.9 agent reads `processor.getRendererDataModel(version: A2uiProtocolVersion.v0_9)` as `a2uiClientDataModel` and `processor.getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v0_9])).toJson()` as `a2uiClientCapabilities`. Each version's entry lists every registered catalog, whatever its protocol version." Make the README change i
+
+[CONFIRMED] [75437a8f] [commit-4-75437a8f] verifier-max=nit :: Codebase blueprint edit goes unmentioned, and its module-blueprint pin is only bumped in commit 12
+    WHERE: blueprints/codebases/dart/a2ui_flutter/codebase.blueprint.md (Package layout and Basic catalog schemas bullets) and the message
+    FIX: Move the `module_blueprint_commit: b1dd650750c6072b4a42f95b03420273d099965e` hunk from a465dc4a into this commit (or into 1c39f45a, which first cites section 5), and drop the matching sentence from a465dc4a. Add to this message: "The codebase blueprint names both catalog libraries and both schema sources, drops the `theme/` folder that the v1.0 framework adapter blueprint no longer lists, and pins that blueprint (b1dd6507)."
+    - confirmed/nit: Leave `module_blueprint_commit` in a465dc4a. Add one sentence to 75437a8f's message, for example: "The codebase blueprint names both catalog libraries and both `BasicCatalog` schema sources, and drops `theme/` from the folders it lists as absent, since the framework adapter blueprint's package layout no longer has one." Optionally move the `theme/` drop into a465dc4a next to the pin bump, since it
+    - confirmed/nit: Keep the `module_blueprint_commit` bump in a465dc4a. That commit is where the adapter meets b1dd6507 section 3 (accessibility live and hidden), so moving the pin earlier would claim compliance the code does not yet have.
+
+1. Move the `theme/` removal to a465dc4a. In 75437a8f, leave the absent-folder list as "no `surface/`, `nodes/`, `binding/` or `theme/` folders" (keep only the library and schema
+
+[CONFIRMED] [75437a8f] [commit-4-75437a8f] verifier-max=nit :: Paragraph about later commits breaks the 'this diff only' rule and leaves out two of them
+    WHERE: message, paragraph 4 ('The builders are unchanged here. The commits that follow add the v1.0-only behaviour: ...')
+    FIX: Describe the state at this commit: "The builders are unchanged, so on a v1.0 surface they do not yet show `placeholder`, `steps` or `posterUrl`, warning and info check results, or accessibility `live` and `hidden`. A boolean property bound to a validation result reads as unset, Text shows Markdown markers as written, and TextField still checks `validationRegexp`, which v1.0 removed."
+    - confirmed/nit: Replace paragraph 4 with: "The builders are unchanged, so on a v1.0 surface they do not yet show `placeholder`, `steps` or `posterUrl`, warning and info check results, or accessibility `live` and `hidden`. A boolean property bound to a validation result reads as unset, and TextField still checks `validationRegexp`, which v1.0 removed." This omits the Markdown sentence because that gap is shared wi
+    - confirmed/nit: Replace paragraph 4 with a statement of the state at this commit, limited to the v1.0-only gaps: "The builders are unchanged, so on a v1.0 surface they do not show `placeholder`, `steps` or `posterUrl`, failing `warning` and `info` check results, or accessibility `live` and `hidden`, and TextField still checks `validationRegexp`, which v1.0 removed." Leave out the Markdown and ValidationResult-as-
+
+[CONFIRMED] [75437a8f] [commit-4-75437a8f] verifier-max=nit :: "Two of them" is ambiguous between the v1.0 and v0.9 example sets
+    WHERE: message, paragraph 5
+    FIX: "Two of the v1.0 ones, 09_login-form and 32_advanced-form-validator, need the a2ui_core fix for validation results in function arguments (7f5e2045)."
+    - confirmed/nit: Replace "Two of them, 09_login-form and 32_advanced-form-validator, need the a2ui_core fix for validation results in function arguments." with "Two of the v1.0 ones, 09_login-form and 32_advanced-form-validator, need the a2ui_core fix for validation results in function arguments." Do not add the commit hash, which changes when the series is ported or rebased.
+    - confirmed/nit: "Two of the v1.0 ones, 09_login-form and 32_advanced-form-validator, need the a2ui_core fix for validation results in function arguments."
+
+[CONFIRMED] [75437a8f] [commit-4-75437a8f] verifier-max=nit :: A test assertion that belongs to the hints commit
+    WHERE: dart/a2ui_flutter/test/v1_0_test.dart, 'a false boolean result acts as an error'
+    FIX: Remove the `helperText` line from this commit and add it in eee3bf4d with the warning-hint tests.
+    - confirmed/nit: In 75437a8f, delete `expect(decoration(tester).helperText, isNull);` from the test 'a false boolean result acts as an error' in dart/a2ui_flutter/test/v1_0_test.dart. In eee3bf4d, add the same line back to that existing test, after the `errorText` assertion, as part of that commit's test diff.
+    - confirmed/nit: The proposed fix is right. In 75437a8f, delete `expect(decoration(tester).helperText, isNull);` from 'a false boolean result acts as an error'. In eee3bf4d, add that line back to the same test, after the `errorText` expectation. No commit message changes.
+
+[CONFIRMED] [75437a8f] [commit-4-75437a8f] verifier-max=nit :: README's both-versions advice covers only the v0.9 agent
+    WHERE: dart/a2ui_flutter/README.md, 'Protocol v0.9' last paragraph and Quick Start bullets
+    FIX: End that paragraph with: "and a v1.0 agent reads it with `version: A2uiProtocolVersion.v1_0`. Advertise both versions in `CapabilitiesOptions.versions`."
+    - confirmed/nit: End the 'Protocol v0.9' paragraph with: "and a v1.0 agent reads `processor.getRendererDataModel(version: A2uiProtocolVersion.v1_0)` as `a2uiRendererDataModel`. Advertise both versions in `CapabilitiesOptions.versions`."
+    - confirmed/nit: In dart/a2ui_flutter/README.md, end the "To serve both versions" paragraph with: "...and a v0.9 agent reads `processor.getRendererDataModel(version: A2uiProtocolVersion.v0_9)` as `a2uiClientDataModel`. A v1.0 agent then reads it with `version: A2uiProtocolVersion.v1_0`, since the call without a version throws once surfaces of both versions send their data model. Advertise both versions in `Capabil
+
+[CONFIRMED] [75437a8f] [porting] verifier-max=nit :: 75437a8f bundles a README rewrite, mostly about the runtime, and the harness change with the catalog
+    WHERE: dart/a2ui_flutter/README.md (+134/-?), test/support/surface_harness.dart, codebase.blueprint.md
+    FIX: Move the README rewrite into its own `docs(a2ui_flutter): ...` commit after 75437a8f, with the bullet list as its message. Move the harness into its own commit as in the v1_0_test finding. Add one sentence about the codebase blueprint: 'The codebase blueprint records the two catalog entry points and that schemas come from `BasicCatalog.v1_0()` and `BasicCatalog.v0_9()`.'
+    - confirmed/nit: Do not split the README or the harness out of 75437a8f. Add one sentence to the message, for example after the paragraph on the BasicTheme: "The codebase blueprint now names both basic catalog entry points, `package:a2ui_flutter/basic_catalog.dart` for v1.0 and `package:a2ui_flutter/v0_9/basic_catalog.dart` for v0.9, and records that the component schemas come from `BasicCatalog.v1_0()` and `Basic
+    - refuted/nit: Keep the README, harness and tests in 75437a8f. Only add one sentence to the message, for example before the README list: "The codebase blueprint now names both catalog entry points and says the schemas come from `BasicCatalog.v1_0()` and `BasicCatalog.v0_9()`, and the CHANGELOG lists the v1.0 catalog."
+    - confirmed/nit: Keep the README and harness changes in 75437a8f. Do not split them out. Add one sentence to the message, after the README bullets: "The codebase blueprint names both basic catalog entry points and takes component schemas from `BasicCatalog.v1_0()` and `BasicCatalog.v0_9()`." If wanted, also add: "The CHANGELOG lists the new v1.0 basic catalog."
+
+[CONFIRMED] [75437a8f] [porting] verifier-max=nit :: 75437a8f's message describes the commits that follow it
+    WHERE: message, paragraph 4
+    FIX: 'The builders are unchanged here, so a v1.0 component's v1.0-only properties are not read yet, and the v1.0 TextField still checks `validationRegexp`.'
+    - confirmed/nit: Replace paragraph 4 with: "The builders are unchanged here, so the v1.0 components do not yet read `placeholder`, `steps` or `posterUrl`, show warning and info check results, or map `accessibility.live` and `hidden`, and the v1.0 TextField still checks `validationRegexp`."
+    - confirmed/nit: Replace paragraph 4 with: "The builders are unchanged here, so the v1.0 TextField still checks `validationRegexp`, and the v1.0-only `placeholder`, `steps` and `posterUrl` are not read." Or keep only the first sentence: "The builders are unchanged here." Either way, drop the sentence about the commits that follow.
+
+[CONFIRMED] [75437a8f] [gap-readme-cross-commit] verifier-max=nit :: The v1.0 custom-catalog section offers the deprecated `catalogSchema` as the catalog's "document"
+    WHERE: dart/a2ui_flutter/README.md, Defining Custom Components: "An agent that does not use `a2ui_core` can be given its document, `jsonEncode(demoCatalog.catalogSchema)`."
+    FIX: "... can be given its document, `jsonEncode(demoCatalog.toJson())`." To keep the self-contained form, write instead: "... a self-contained schema of it, `jsonEncode(demoCatalog.validationSchema)`."
+    - confirmed/nit: In 75437a8f, dart/a2ui_flutter/README.md, Defining Custom Components: "Advertise the catalog by its id. An agent that does not use `a2ui_core` can be given its document, `jsonEncode(demoCatalog.toJson())`."
+    - confirmed/nit: In 75437a8f, dart/a2ui_flutter/README.md (Defining Custom Components), change the last sentence to: "An agent that does not use `a2ui_core` can be given its document, `jsonEncode(demoCatalog.toJson())`." To offer the self-contained form instead, write: "... a self-contained schema of it, `jsonEncode(demoCatalog.validationSchema)`."
+
+[CONFIRMED] [7f5e2045] [commit-2-7f5e2045] verifier-max=blocker :: The "protocol's ValidationResult shape" in the message, CHANGELOG and doc comment contradicts the spec, and the code rejects results the spec says to coerce
+    WHERE: Message paragraph 2. dart/a2ui_core/lib/src/resolution/data_context.dart `_withValidities` / `_validationResultKeys` and the `argumentErrors` doc comment. CHANGELOG entry. test/catalog_json_test.dart "A map with keys beyond the result's is checked as it is."
+    FIX: Code: make the map case match spec rule 1 and validityOf, a map whose `valid` is a bool whatever its other keys: `{'valid': final bool valid} => valid,` with no key restriction. Drop `_validationResultKeys`, and change the catalog_json_test expectation so a map with extra keys is read by its validity. Message: "The check now reads each validation result, at any depth, as its `valid` boolean, the value the spec coerces it to as a DynamicBoolean: a ValidationResult, or a map with a boolean `valid`, which the spec allows to carry other properties." If the restriction is kept on purpose, the messa
+    - confirmed/blocker: Code (data_context.dart):
+- Make the map case `{'valid': final bool valid} => valid,` with no key restriction, matching spec rule 1 and `ValidationResult.validityOf`.
+- Delete `_validationResultKeys`.
+- In catalog_json_test.dart, change "A map with keys beyond the result's is checked as it is" to expect that `{'valid': true, 'extra': 1}` is read as its validity, so `invoke` returns the argument un
+    - confirmed/blocker: Code: in `_withValidities`, change the map arm to `{'valid': final bool valid} => valid,` and drop the `when` guard and `_validationResultKeys`. Change the second expectation in catalog_json_test.dart so that `{'valid': true, 'extra': 1}` nested in an object argument is checked as its validity and passes: `invoke` returns the argument unchanged. Optionally add a basic_catalog test that `not` over 
+
+[CONFIRMED] [7f5e2045] [commit-2-7f5e2045] verifier-max=blocker :: "Since #2995" is wrong for callRendererFunction, whose argument check came with #3086
+    WHERE: Message paragraph 1, first sentence
+    FIX: "Since #2995 and #3086, `Catalog.invoke` and a `callRendererFunction` check a function's resolved arguments against its argument schema through `argumentErrors`."
+    - confirmed/blocker: Since #2995, `Catalog.invoke` checks a function's resolved arguments against its argument schema, and since #3086 a `callRendererFunction` does too, both through `argumentErrors`.
+    - confirmed/blocker: Since #2995 and #3086, `Catalog.invoke` and a `callRendererFunction` check a function's resolved arguments against its argument schema through `argumentErrors`.
+
+[CONFIRMED] [7f5e2045] [commit-2-7f5e2045] verifier-max=blocker :: formatString is the wrong example: its only argument is a DynamicString and the check rejects a ValidationResult there
+    WHERE: Message paragraph 3
+    FIX: "... and a function such as `formatDate`, whose `value` is a DynamicValue, takes a ValidationResult in a position that is not boolean."
+    - confirmed/blocker: Change the sentence to: "... because the basic `and`, `or` and `not` read their operands through `ValidationResult.validityOf`, and a function such as `formatDate`, whose `value` is a DynamicValue, takes a ValidationResult in a position that is not boolean." Or drop the formatString clause and keep only the `and`/`or`/`not` reason.
+    - confirmed/blocker: In paragraph 3 of the 7f5e2045 message, replace "and a function such as `formatString` takes a ValidationResult in a position that is not boolean." with "and a function such as `formatDate`, whose `value` is a DynamicValue, can take a ValidationResult in a position that is not boolean."
+
+[CONFIRMED] [7f5e2045] [gap-changelog-blueprint-final-state] verifier-max=blocker :: 7f5e2045 coerces validation-result maps on v0.9 too, where the basic and/or/not do not read validity, so an EXPRESSION_ERROR becomes a silent wrong result
+    WHERE: dart/a2ui_core/lib/src/resolution/data_context.dart:1198-1240 (argumentErrors/_withValidities); message paragraph 3; dart/a2ui_core/CHANGELOG.md:5-10
+    FIX: Apply `_withValidities` only when the catalog is v1.0 or later, e.g. `final checked = protocolVersion is v1.0+ ? {...withValidities...} : args;`, and add a v0.9 test that still expects EXPRESSION_ERROR. In the message write "because the v1.0 basic `and`, `or` and `not` read their operands through `ValidationResult.validityOf`" and add "v0.9 catalogs are unaffected: their `and`, `or` and `not` read a `valid` map as an object." Start the CHANGELOG line with "On a v1.0 catalog, `argumentErrors` ...".
+    - confirmed/blocker: In `argumentErrors`, apply the coercion only when the catalog targets v1.0 or later. For example: `final bool coerce = protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false; final Map<String, dynamic> checked = coerce ? {for (final e in args.entries) e.key: _withValidities(e.value)} : args;`. Treating an unversioned catalog as not coerced keeps the old behaviour there. Update the doc comme
+    - confirmed/blocker: Code, in `argumentErrors` (data_context.dart), coerce only when the catalog is v1.0 or later:
+
+```dart
+final A2uiProtocolVersion? version = protocolVersion;
+final bool readsValidity =
+    version != null && version.isAtLeast(A2uiProtocolVersion.v1_0);
+final Map<String, dynamic> checked = readsValidity
+    ? {
+        for (final MapEntry<String, dynamic> entry in args.entries)
+          entry.key: 
+
+[CONFIRMED] [7f5e2045] [commit-2-7f5e2045] verifier-max=should-fix :: The coercion applies to every position and every protocol version, which breaks object-typed arguments and v0.9, and the message does not say so
+    WHERE: data_context.dart `argumentErrors`/`_withValidities`. Message paragraphs 2-3.
+    FIX: Preferred: apply the map case only on a v1.0 context, or only where the resolved argument schema admits a boolean. Smallest message fix: add "The coercion is not directed by the schema or the protocol version, so a result-shaped object passed to an object-typed parameter is checked as a boolean, and a v0.9 catalog reads such an object as its validity in the check." Also add a test that pins whichever behaviour is chosen.
+    - confirmed/should-fix: Smallest acceptable fix (message only, plus a pinning test): add to paragraph 3: "The coercion is not directed by the argument's schema or the surface's protocol version. A data object of the result shape passed to an object-typed parameter is checked as a boolean and fails, and in the v0.9 catalog such an object passes the check as its validity although v0.9 `not`, `and` and `or` read it as truth
+    - confirmed/should-fix: Smallest fix: add to the end of paragraph 3: "The coercion is not directed by the argument's schema or the protocol version. A result-shaped object passed to an object-typed parameter is checked as a boolean and fails. On a v0.9 surface, such an object passed to `not`, `and` or `or` now passes the check where it used to raise EXPRESSION_ERROR, and the v0.9 functions still read it through `isTruthy
+
+[CONFIRMED] [7f5e2045] [commit-2-7f5e2045] verifier-max=nit :: "failed the DynamicBoolean schema the same way" is inaccurate: a data-bound map fails the schema, it does not throw "Unknown JSON type"
+    WHERE: Message paragraph 1, last sentence
+    FIX: "A data-bound result object, such as `{\"valid\": false}`, failed the DynamicBoolean schema, with the same EXPRESSION_ERROR."
+    - confirmed/nit: A data-bound result object, such as `{"valid": false}`, failed the DynamicBoolean schema instead, with the same EXPRESSION_ERROR.
+    - confirmed/nit: Replace the last sentence of paragraph 1 with: "A data-bound result object, such as `{\"valid\": false}`, failed the DynamicBoolean schema instead, with the same EXPRESSION_ERROR and disabled Button."
+
+[CONFIRMED] [a465dc4a] [commit-12-a465dc4a] verifier-max=blocker :: Live-region limit is wrong for TextField (and the README's 'not to a control's' is wrong for TextField and Slider)
+    WHERE: Message, first 'Known limits' bullet; dart/a2ui_flutter/README.md new sentence after '## Summary'
+    FIX: Message: "A live region announces changes to its own label. A Button's child text and a CheckBox's label sit in the control's own semantics node below the region, so changes to them are not announced. A TextField's region is the field's own node, so a change of its label is announced but a change of its value is not." README: "... is a live region, which announces changes to its own label, such as a Text's text or a TextField's label, but not to a Button's child text, a CheckBox's label or a TextField's value."
+    - confirmed/blocker: Message, first Known limits bullet: "A live region announces changes to its own label. A Button's child text and a CheckBox's label sit in the control's own semantics node below the region, so changes to them are not announced. A TextField's region is the field's own node, so a change to its label is announced but a change to its value is not." README, replacing "which announces changes to its own
+    - confirmed/blocker: Message, first Known-limits bullet: "A live region announces changes to its own label. On a Button or CheckBox the text sits in the control's own semantics node below the region, so changes to it are not announced. On a TextField or Slider the region is the control's own node, so changes to its label are announced (and to a Slider's displayed value), but a TextField's typed value is not."
+README s
+
+[CONFIRMED] [a465dc4a] [commit-12-a465dc4a] verifier-max=blocker :: 'Known limits, in the README and the codebase blueprint' is false for two of the three limits
+    WHERE: Message line "Known limits, in the README and the codebase blueprint:"
+    FIX: Either add the Modal limit to the README's 'Not supported yet' list ("Hiding an open Modal sheet with `accessibility.hidden`. It hides the trigger only."), or reword the message: "Known limits (the first two in the README, the second also in the codebase blueprint):".
+    - confirmed/blocker: Preferred: add the Modal limit to the README's "Not supported yet" list in this commit, for example "- Hiding an open Modal sheet with `accessibility.hidden`. The sheet is drawn in the Overlay, so it hides only the trigger." Then reword the message line to "Known limits, all in the README, the second also in the codebase blueprint:". Alternative with no doc change: "Known limits (the first two in 
+    - confirmed/blocker: Smallest fix is in the message only. Replace the heading with: "Known limits (the first two in the README, the second also in the codebase blueprint):". The alternative is to add the Modal limit to the README's "Not supported yet" list, for example "- Hiding an open Modal's sheet with `accessibility.hidden`. It hides the trigger only." Then the heading becomes "Known limits, all in the README, the
+
+[CONFIRMED] [a465dc4a] [commit-12-a465dc4a] verifier-max=should-fix :: v0.9 surfaces now also get live and hidden, and the message does not say so
+    WHERE: Message opening paragraph ("v1.0 adds `live` ... and `hidden` ...")
+    FIX: Add: "NodeView renders both versions, so a v0.9 component that carries these off-schema keys gets them too. A bound `hidden` resolves only on v1.0, where the schema declares it."
+    - confirmed/nit: Add after the bullet list in the message: "NodeView renders both versions, so a v0.9 component that carries these off-schema keys gets them too. A bound `hidden` resolves only on v1.0, where the schema declares it."
+    - confirmed/should-fix: Add after the bulleted list in the a465dc4a message: "NodeView renders both versions, so a v0.9 component that carries `live` or `hidden` gets the same semantics, though the v0.9 schema does not declare them. A bound `hidden` resolves only on v1.0, the only version where a2ui_core binds it."
+
+[CONFIRMED] [a465dc4a] [commit-12-a465dc4a] verifier-max=should-fix :: Explicit-label deviation in the codebase blueprint understates what lands off the focusable element
+    WHERE: blueprints/codebases/dart/a2ui_flutter/codebase.blueprint.md, new **Accessibility** bullet
+    FIX: "**Accessibility**: `NodeView` applies a component's `accessibility` attributes on a semantics node around the component's widget. On a Button, CheckBox or Slider that node is a parent of the focusable control, so `label`, `description` and `live` land there, and on a TextField or Text the explicit label is joined to the widget's own label rather than replacing it."
+    - confirmed/should-fix: Replace the bullet with: "- **Accessibility**: `NodeView` applies a component's `accessibility` attributes on a semantics node around the component's widget, so an explicit `label` does not replace the label a control takes from its own text. On a Button, CheckBox or Slider that node is a parent of the focusable control, so `label`, `description` and `live` land there. On a TextField or Text the e
+    - confirmed/should-fix: Codebase blueprint bullet: "**Accessibility**: `NodeView` applies a component's `accessibility` attributes on a semantics node around the component's widget. On a Button, CheckBox or Slider that node is a parent of the control's own node, so `label`, `description` and `live` land there rather than on the focusable control, and on a TextField or Text the explicit label is joined to the widget's own
+
+[CONFIRMED] [a465dc4a] [commit-12-a465dc4a] verifier-max=nit :: No reason given for bumping module_blueprint_commit here, and the bump makes this commit carry the whole series' conformance claim
+    WHERE: Message last paragraph; codebase.blueprint.md frontmatter
+    FIX: Add the reason: "Accessibility is the last v1.0 requirement of the framework adapter blueprint this series meets, so the codebase blueprint now pins ... This pin relies on the earlier commits of the series (the v1.0 catalog, check hints, placeholder, steps and posterUrl)." Or move the frontmatter hunk into its own `docs(a2ui_flutter)` commit at the end of the series.
+    - confirmed/nit: Replace the last paragraph's first sentence with: "With `live` and `hidden` mapped, the renderer covers the v1.0 framework adapter blueprint, so the codebase blueprint now pins its current commit (b1dd6507, the v1.0 alignment of b161f9bd plus later path-only edits) and records the explicit-label behaviour as a local deviation." Keep the frontmatter hunk in this commit and don't move it earlier.
+    - confirmed/nit: Leave the frontmatter hunk in a465dc4a and change only the message's last paragraph to: "Accessibility is the last v1.0 requirement of the framework adapter blueprint that this series meets, so the codebase blueprint now pins the current framework adapter blueprint commit (b1dd6507, the v1.0 alignment of b161f9bd plus later path-only edits) and records the explicit-label behaviour as a local devia
+
+[CONFIRMED] [a465dc4a] [gap-changelog-blueprint-final-state] verifier-max=nit :: a465dc4a also applies accessibility.live and hidden on v0.9 surfaces, which neither the message nor the CHANGELOG says
+    WHERE: dart/a2ui_flutter/lib/src/node_view.dart _buildResolved; message paragraph 1; dart/a2ui_flutter/CHANGELOG.md:34-35
+    FIX: Add to the message: "NodeView reads both on every version. v0.9's AccessibilityAttributes does not forbid other keys, so a v0.9 component that carries them gets the same semantics." Change the CHANGELOG line to say "on every protocol version", or gate the mapping on the surface's version and say so.
+    - confirmed/nit: Add to the end of message paragraph 1 (after "...keeps the subtree's state."): "NodeView reads both on every protocol version. v0.9's AccessibilityAttributes does not forbid other keys, so a v0.9 component that carries a literal `live` or `hidden` gets the same semantics. A bound `hidden` on v0.9 is not resolved by a2ui_core and has no effect." Leave the CHANGELOG line as is: it names no version a
+    - confirmed/nit: Add one sentence to the a465dc4a message after the bullet list, before "The semantics widgets stay in the tree ...": "NodeView reads both on either version, as it does `label` and `description`. v0.9's AccessibilityAttributes does not forbid other keys, so a v0.9 component carrying a literal `live` or `hidden` gets the same semantics, while a bound v0.9 `hidden` stays unresolved and reads as not h
+
+[CONFIRMED] [a465dc4a] [gap-changelog-blueprint-final-state] verifier-max=nit :: The live-region CHANGELOG line overstates what `live` does
+    WHERE: dart/a2ui_flutter/CHANGELOG.md:34
+    FIX: "An `accessibility.live` of `polite` or `assertive` makes a component a live region, announced politely, and ...".
+    - confirmed/nit: In dart/a2ui_flutter/CHANGELOG.md: "- An `accessibility.live` of `polite` or `assertive` makes a component a live region, and its `accessibility.hidden` excludes it and its subtree from semantics." (Optionally add ", announced politely" after "live region" if the assertive downgrade should be recorded there as well.)
+    - confirmed/nit: In dart/a2ui_flutter/CHANGELOG.md, replace the two lines with:
+- An `accessibility.live` of `polite` or `assertive` makes a component a live
+  region, and an `accessibility.hidden` that is true excludes it and its
+  subtree from semantics.
+
+[CONFIRMED] [a86dd818] [commit-11-a86dd818] verifier-max=blocker :: The DateTimeInput `enableTime` example is wrong: v1.0 types it as a literal boolean, so a `@call` there fails schema validation and never reaches asBoolean
+    WHERE: commit message, paragraph 1, last sentence
+    FIX: Replace the sentence with: "A boolean property bound to a v1.0 validation rule, such as a CheckBox `value` set by `{"@call": "required", ...}` or bound to a path holding `{"valid": true}`, therefore fell back to its default." Optionally add: "CheckBox `value` is the only basic catalog component property that v1.0 types as a DynamicBoolean, apart from `accessibility.hidden`."
+    - confirmed/blocker: Replace the last sentence of paragraph 1 with: "A boolean property bound to a v1.0 validation rule, such as a CheckBox `value` set by `{"@call": "required", ...}` or bound to a path holding `{"valid": true}`, therefore fell back to its default." The optional extra sentence is accurate if wanted: "CheckBox `value` is the only basic catalog component property that v1.0 types as a DynamicBoolean, apa
+    - confirmed/blocker: Replace the last sentence of paragraph 1 with: "A boolean property bound to a v1.0 validation rule, such as a CheckBox `value` set by `{"@call": "required", ...}` or bound to a path holding `{"valid": true}`, therefore fell back to its default." Optionally, in the first sentence, change "a DynamicBoolean, such as a boolean component property," to "a DynamicBoolean, such as a CheckBox `value`,", be
+
+[CONFIRMED] [a86dd818] [porting] verifier-max=should-fix :: a86dd818 does not compile without eee3bf4d: its test needs the `hide ValidationResult` import that eee3bf4d adds
+    WHERE: dart/a2ui_flutter/test/component_props_test.dart:283 (the import hunk is in eee3bf4d)
+    FIX: Move the `hide ValidationResult` import hunk from eee3bf4d into a86dd818, and move a86dd818 before eee3bf4d. It is a fix that is independent of the hints feature, so this order also reads better. eee3bf4d then needs no import change.
+    - confirmed/should-fix: Move the `import 'package:json_schema_builder/json_schema_builder.dart'\n    hide ValidationResult;` hunk from eee3bf4d into a86dd818, and put a86dd818 before eee3bf4d. eee3bf4d's import hunk then goes away (git merges it cleanly). The only conflict to resolve is between the two adjacent CHANGELOG bullets. Neither message needs to change.
+    - confirmed/should-fix: The proposed fix is correct. Move the import hunk from eee3bf4d into a86dd818, so that a86dd818's component_props_test.dart changes `import 'package:json_schema_builder/json_schema_builder.dart';` to `import 'package:json_schema_builder/json_schema_builder.dart'\n    hide ValidationResult;`. Then reorder so a86dd818 comes before eee3bf4d. eee3bf4d then needs no import change. Resolve any CHANGELOG
+
+[CONFIRMED] [d7e5f437] [commit-1-d7e5f437] verifier-max=should-fix :: "so they are unaffected" is false for v0.9 components whose schema omits accessibility
+    WHERE: commit message, paragraph 2, last sentence ("v0.9 components declare `accessibility` through ComponentCommon, whose v0.9 schema has no `hidden`, so they are unaffected.")
+    FIX: Replace the sentence with: "v0.9 components that declare `accessibility` through ComponentCommon, as every basic catalog component does, keep the v0.9 schema, which has no `hidden`, so they are unaffected. A v0.9 component whose schema omits `accessibility` gets the injected behavior and now resolves `hidden` too, as it already resolved `label` and `description`."
+    - confirmed/should-fix: Replace the last sentence of paragraph 2 with: "v0.9 basic catalog components declare `accessibility` through ComponentCommon, whose v0.9 schema has no `hidden`, so they are unaffected. A v0.9 component whose schema leaves out `accessibility` gets the injected `hidden` along with `label` and `description`, which changes nothing for a valid v0.9 payload, since v0.9 defines no `hidden`."
+    - confirmed/should-fix: Replace the last sentence of paragraph 2 with: "v0.9 components that declare `accessibility` through ComponentCommon, as the basic catalog's do, keep the v0.9 schema, which has no `hidden`, so they are unaffected. A v0.9 component whose schema omits `accessibility` gets the injected behavior, so a `hidden` sent to it now resolves too, as `label` and `description` already did."
+
+[CONFIRMED] [d7e5f437] [gap-changelog-blueprint-final-state] verifier-max=should-fix :: d7e5f437 says v0.9 components are unaffected, but a v0.9 component whose schema omits accessibility now resolves hidden
+    WHERE: message paragraph 2, last sentence; dart/a2ui_core/lib/src/resolution/generic_binder.dart:116 and 606-626
+    FIX: Replace the sentence with: "v0.9 basic components declare `accessibility` through ComponentCommon, whose v0.9 schema has no `hidden`, so they are unaffected. A v0.9 component whose schema omits `accessibility` gets `hidden` resolved like a v1.0 one."
+    - confirmed/should-fix: Replace the last sentence of paragraph 2 with: "v0.9 basic catalog components declare `accessibility` through ComponentCommon, whose v0.9 schema has no `hidden`, so they are unaffected. A v0.9 component whose schema omits `accessibility` now gets `hidden` resolved as well, as it already got `label` and `description`."
+    - confirmed/should-fix: Replace the last sentence of paragraph 2 with: "A v0.9 component that declares `accessibility` through ComponentCommon keeps `hidden` static, since the v0.9 schema has no `hidden`. One whose schema omits `accessibility` gets the same added behavior as a v1.0 component, so a `hidden` it carries now resolves too, as its `label` and `description` already did."
+
+[CONFIRMED] [d7e5f437] [commit-1-d7e5f437] verifier-max=nit :: "no renderer could read it" overstates the problem, and the message does not cite the blueprint rule that motivates the change
+    WHERE: commit message, paragraph 1, last clause
+    FIX: Change the clause to: "... reached `node.props` as the raw `{"@path": ...}` map rather than resolved, as the framework adapter blueprint (Accessibility) says `hidden` arrives."
+    - confirmed/nit: Replace the end of paragraph 1 ("...reached `node.props` as the raw `{"@path": ...}` map and no renderer could read it.") with: "...reached `node.props` as the raw `{"@path": ...}` map instead of as a resolved binding, unlike `label` and `description`." Adding "as the framework adapter blueprint's Accessibility section says all three arrive" is optional, since the spec reason the message already g
+    - confirmed/nit: Replace the last clause of paragraph 1 with: "...but the binder left it static, so a `hidden` bound to a data path reached `node.props` as the raw `{"@path": ...}` map, not resolved, as the framework adapter blueprint (Accessibility) says `hidden` arrives."
+
+[CONFIRMED] [eee3bf4d] [commit-10-eee3bf4d] verifier-max=should-fix :: "Hints appear only on v1.0 surfaces" is false: a v0.9 check bound to a validation-result object shows a hint
+    WHERE: message, paragraph 3, last sentence
+    FIX: Replace the sentence with: "v0.9's basic functions return booleans, so a v0.9 surface shows a hint only when a check's condition resolves to a validation result object, which is off-schema there." Or drop the sentence.
+    - confirmed/should-fix: Replace the last sentence of paragraph 3 with: "The hint applies on both versions. v0.9's basic functions return booleans, so a v0.9 surface shows a hint only when a check's condition resolves to a validation result, which is off-schema there." Or drop the sentence.
+    - confirmed/should-fix: Replace the last sentence of paragraph 3 with: "A v0.9 check's condition is a DynamicBoolean, so a v0.9 surface shows a hint only when a binding or custom function returns a validation result, which its schema does not allow." Or simply drop the sentence.
+
+[CONFIRMED] [eee3bf4d] [commit-10-eee3bf4d] verifier-max=should-fix :: Message mentions the other Flutter v1.0 branch
+    WHERE: message, paragraph 3, second sentence
+    FIX: "Material has no warning color, and the TypeScript web elements show no hints to match."
+    - confirmed/should-fix: Replace "Material has no warning color, and neither the TypeScript web elements nor the other Flutter v1.0 work show hints at all." with "Material has no warning color, and the TypeScript renderers show no hints to match."
+    - confirmed/should-fix: Replace the second sentence of paragraph 3 with: "Material has no warning color, and the TypeScript web elements show no hints to match." The paragraph then reads: "Warnings and info notes look the same. Material has no warning color, and the TypeScript web elements show no hints to match. v0.9 checks return booleans, so hints appear only on v1.0 surfaces."
+
+[CONFIRMED] [eee3bf4d] [commit-10-eee3bf4d] verifier-max=should-fix :: Message paraphrases the blueprint without "styled by severity", the very part the commit departs from
+    WHERE: message, paragraph 1, last sentence, and paragraph 3, first sentence
+    FIX: Quote the full clause ("... as non-blocking hints styled by severity"), then open paragraph 3 with: "Warnings and info notes look the same, a departure from the blueprint's styling by severity: Material has no warning color ..."
+    - confirmed/should-fix: Paragraph 1, last sentence: "The framework adapter blueprint (section 5) says the inputs SHOULD render failing `warning` and `info` results as non-blocking hints styled by severity." Paragraph 3, opening: "Warnings and info notes look the same, a departure from the blueprint's styling by severity. Material has no warning color, and the TypeScript web elements show no hints at all." This drops the 
+    - confirmed/nit: Paragraph 1, last sentence: "The framework adapter blueprint (section 5) says the inputs SHOULD render failed `warning` and `info` results as non-blocking hints styled by severity." Paragraph 3, first two sentences: "Warnings and info notes look the same, a departure from the blueprint's styling by severity: Material's ColorScheme has no warning color, and the TypeScript web elements show no hints
+
+[CONFIRMED] [eee3bf4d] [commit-10-eee3bf4d] verifier-max=should-fix :: No reason given for the Button showing no hint
+    WHERE: message, paragraph 2, last sentence; button.dart
+    FIX: Give the reason, for example: "A hint does not block, so a Button stays enabled. It shows no hint, because its only message slot is the tooltip it shows on a disabled button." Use whatever the real reason is. Otherwise, show the hint as a Tooltip too and say so.
+    - confirmed/should-fix: The preferred fix is code plus a message change, because it meets the blueprint's SHOULD with the stock widget already in use. In button.dart, set `final String? reason = props.isValid ? checkHint(props) : props.validationErrors.firstOrNull;` (import check_hint.dart), and update the doc comment to say the tooltip shows the first error while disabled, or else a warning or info hint. Add a v1_0_test
+    - confirmed/should-fix: Replace the last sentence of paragraph 2 with a sentence that gives the real reason Button shows no hint. A likely candidate, if it is the author's reason: "A hint does not block, so a Button stays enabled. It shows no hint, because a form puts the same check on the input, which already shows it, and a tooltip on an enabled button would repeat it out of sight." Avoid the proposed wording that the 
+
+[CONFIRMED] [eee3bf4d] [porting] verifier-max=should-fix :: eee3bf4d's message mentions the other Flutter branch
+    WHERE: message, paragraph 3
+    FIX: 'Warnings and info notes look the same. Material has no warning color, and the TypeScript web elements do not show hints at all.'
+    - confirmed/should-fix: Replace the second sentence of paragraph 3 with: "Material has no warning color, and the TypeScript web elements do not show hints at all." The full paragraph then reads: "Warnings and info notes look the same. Material has no warning color, and the TypeScript web elements do not show hints at all. v0.9 checks return booleans, so hints appear only on v1.0 surfaces."
+    - confirmed/should-fix: Replace paragraph 3's second sentence with: "Material has no warning color, and the TypeScript web elements do not show hints at all." The rest of the paragraph stays as it is ("Warnings and info notes look the same." before it, the v0.9 sentence after it).
+
+[CONFIRMED] [eee3bf4d] [porting] verifier-max=should-fix :: eee3bf4d paraphrases the blueprint without 'styled by severity', the one part the commit does not follow
+    WHERE: message, paragraph 1 and paragraph 3
+    FIX: 'The framework adapter blueprint (section 5) says the inputs SHOULD show failing `warning` and `info` results as non-blocking hints styled by severity.' Then in paragraph 3: 'Warnings and info notes look the same, unlike the blueprint's styling by severity, because Material has no warning color.'
+    - confirmed/should-fix: Paragraph 1, last sentence: "The framework adapter blueprint (section 5) says the inputs SHOULD show failing `warning` and `info` results as non-blocking hints styled by severity." Paragraph 3, first two sentences: "Warnings and info notes look the same, unlike the blueprint's styling by severity. Material has no warning color, and the TypeScript web elements show no hints at all." This also drops
+    - confirmed/nit: Paragraph 1: "The framework adapter blueprint (section 5) says the inputs SHOULD show failing `warning` and `info` results as non-blocking hints styled by severity." Paragraph 3: "Warnings and info notes look the same, unlike the blueprint's styling by severity, because Material has no warning color, and the TypeScript web elements show no hints at all. v0.9 checks return booleans, so hints appear
+
+[CONFIRMED] [eee3bf4d] [commit-10-eee3bf4d] verifier-max=nit :: Tests cover only warning severity, not info
+    WHERE: test/v1_0_test.dart, the two new testWidgets
+    FIX: Use `'severity': 'info'` in one of the two tests, for example the multi-input one.
+    - confirmed/nit: The proposed fix works, but the test name has to change with it. In the multi-input testWidgets in test/v1_0_test.dart, set the data model's `'warning'` entry to `'severity': 'info'`, and optionally rename the key to `'info'` and the bound path to `/info`. Rename the test to "the other inputs show an info result as a hint, and an error in its place" so its name matches its data. The TextField test
+    - confirmed/nit: The proposed fix is right. In the second new testWidgets ('the other inputs show a warning result as a hint, and an error in its place'), set the `/warning` data-model entry to `'severity': 'info'`, and rename the test and the data key to say info, for example 'the other inputs show an info result as a hint, and an error in its place' with the `/warning` binding renamed to `/info`. The first test 
+
+[CONFIRMED] [eee3bf4d] [gap-readme-cross-commit] verifier-max=nit :: The hint sentence says every input shows a hint, but Button, which the README lists as an input, shows none
+    WHERE: dart/a2ui_flutter/README.md, Basic Catalog Components: "Inputs show a failing check of `warning` or `info` severity as a hint under them."
+    FIX: "Inputs other than Button show a failing check of `warning` or `info` severity as a hint under them."
+    - confirmed/nit: In dart/a2ui_flutter/README.md (eee3bf4d), change "Inputs show a failing check of `warning` or `info` severity as a hint under them." to "Inputs other than Button show a failing check of `warning` or `info` severity as a hint under them."
+    - confirmed/nit: In dart/a2ui_flutter/README.md (eee3bf4d): "Inputs other than Button show a failing check of `warning` or `info` severity as a hint under them." (The proposed fix is fine as written.)
+
+[CONFIRMED] [eee3bf4d] [gap-changelog-blueprint-final-state] verifier-max=nit :: The hint CHANGELOG line is vague, and the blueprint deviations it embodies (same style, Button shows none) are not recorded
+    WHERE: dart/a2ui_flutter/CHANGELOG.md:31-32; blueprints/codebases/dart/a2ui_flutter/codebase.blueprint.md overrides list; eee3bf4d message para 2-3
+    FIX: CHANGELOG: "... and the basic inputs other than Button show the first failing check of `warning` or `info` severity as a hint while they have no error." Add a codebase-blueprint override line: "**Check hints**: warning and info hints share one style, and Button shows none." Give a reason for the Button choice in the message, and change the v0.9 sentence to "v0.9 basic functions return booleans, so ...".
+    - confirmed/nit: In the message, replace "A hint does not block: a Button stays enabled and shows nothing." with a sentence that gives the reason for Button. For example: "A hint does not block: a Button stays enabled, and it shows no hint, because <reason, e.g. a tooltip on an enabled button reads as help text for its action rather than a note on its checks>." (Use the author's actual reason.)
+
+Open the styling p
+    - confirmed/nit: CHANGELOG.md: "- `ComponentProps.validationResults` holds the failing checks, and the basic inputs other than Button show the first one of `warning` or `info` severity as a hint while they have no error."
+README.md: "Inputs other than Button show a failing check of `warning` or `info` severity as a hint under them."
+Commit message: add the reason Button shows no hint, for example "A Button shows n
+
+[CONFIRMED] [efc9dd3f] [commit-9-efc9dd3f] verifier-max=should-fix :: The closing-# claim covers only a single-line body heading, but the message presents it as a general rule. Caption, heading-variant and multi-line Text keep the closing sequence.
+    WHERE: message, third bullet of 'Choices' and second paragraph ('without heading and quote markers'). Code: text.dart, _withoutClosingHashes is called only on the `heading != null` path.
+    FIX: Narrow the sentence: "A one-line heading in a body Text also loses its closing `#` sequence, but only when whitespace precedes it, so `# Learn C#` keeps its `#`. Other Text keeps a closing sequence." Alternatively, make the code match the general claim by also stripping closing sequences in `_withoutMarkers`, for example with a multiLine `[ \t]+#+[ \t]*$` on heading lines.
+    - confirmed/should-fix: Replace the third bullet with: "- A one-line heading in a body Text also loses its closing `#` sequence, but only when whitespace precedes it, so `# Learn C#` keeps its `#`. A heading line in multi-line text, or in a heading or caption Text, keeps its closing sequence." Optionally, change "heading and quote markers" in the second paragraph to "opening heading markers and one level of quote marker"
+    - confirmed/nit: Replace the third Choices bullet with: "A one-line body Text that is a heading also loses its closing `#` sequence, but only when whitespace precedes it, so `# Learn C#` keeps its `#`. Other Text keeps a closing sequence." Optionally, in the second paragraph, change "heading and quote markers" to "opening heading markers and one quote marker per line".
+
+[CONFIRMED] [efc9dd3f] [commit-9-efc9dd3f] verifier-max=nit :: Three guides ask for the stripping, not two. The v0.9 guide, which matches the catalog id this renderer serves, is left out.
+    WHERE: message, first sentence
+    FIX: "The v0.9, v0.9.1 and v1.0 basic catalog implementation guides ask a renderer that cannot render Text as Markdown to strip common Markdown markers."
+    - confirmed/nit: The v0.9, v0.9.1 and v1.0 basic catalog implementation guides ask a renderer that cannot render Text as Markdown to strip common Markdown markers.
+    - confirmed/nit: "The v0.9, v0.9.1 and v1.0 basic catalog implementation guides ask a renderer that cannot render Text as Markdown to strip common Markdown markers."
+
+[CONFIRMED] [efc9dd3f] [commit-9-efc9dd3f] verifier-max=nit :: Image syntax keeps its alt text, but the message mentions only the link text
+    WHERE: message, second paragraph; text.dart `_markers` link entry
+    FIX: "link and image syntax (keeping the link text and the image's alt text)"
+    - confirmed/nit: In the message's second paragraph: "link and image syntax (keeping the link text and the image's alt text)"
+    - confirmed/nit: In the second paragraph, change "link and image syntax (keeping the link text)" to "link and image syntax (keeping the link text and the image's alt text)".
+
+[CONFIRMED] [efc9dd3f] [commit-9-efc9dd3f] verifier-max=nit :: Two of the five texts in the timing test are 48,000 characters, not 50,000
+    WHERE: message, first bullet of 'Choices'
+    FIX: "A test renders lines of about 50,000 characters of unclosed `[`, links, emphasis and heading spaces in under five seconds."
+    - confirmed/nit: A test renders lines of about 50,000 characters of unclosed `[`, links, emphasis and heading spaces in under five seconds.
+    - confirmed/nit: Proposed fix is fine: "A test renders lines of about 50,000 characters of unclosed `[`, links, emphasis and heading spaces in under five seconds."
+
+[CONFIRMED] [efc9dd3f] [commit-9-efc9dd3f] verifier-max=nit :: Two choices are stated without their reason: the h5 cap for level 6, and body style for headings inside multi-line text
+    WHERE: message, second paragraph ('`h5` for level 6') and fourth bullet ('keeps the body style')
+    FIX: Add short clauses: "`h5` for level 6, the smallest heading variant" and "A heading line inside multi-line text loses its `#` but keeps the body style, since one Text has one style."
+    - confirmed/nit: Second paragraph: "...takes the style of that heading level, `h5` for level 6 because the v0.9 heading variants stop at `h5`, so v1.0 headings still look like headings." Last bullet: "A heading line inside multi-line text loses its `#` but keeps the body style, since one Text has one style."
+    - confirmed/nit: Second paragraph: "A body Text that is a single heading line also takes the style of that heading level, so v1.0 headings still look like headings. Level 6 takes `h5`, the smallest heading variant the catalog defines."
+
+Fourth bullet: "Lists, tables and fenced code are left as written. A heading line inside multi-line text loses its `#` but keeps the body style. The fallback builds one plain Text,
+
+[CONFIRMED] [efc9dd3f] [commit-9-efc9dd3f] verifier-max=nit :: The README sentence overstates the heading styling and sits in the paragraph about functions
+    WHERE: dart/a2ui_flutter/README.md:211-214
+    FIX: Move the sentence after the A2uiMarkdown example at README:123 and word it: "Without an `A2uiMarkdown`, Text shows its text without common Markdown markers, and a body Text that is one heading line, such as `## Summary`, takes the style of that heading level."
+    - confirmed/nit: In dart/a2ui_flutter/README.md, restore the locale paragraph to end at "`en-US` by default." Add the following after the A2uiMarkdown code block at README:123, before "## Defining Custom Components": "Without an `A2uiMarkdown`, Text shows its text without common Markdown markers, and a body Text that is one heading line, such as `## Summary`, takes the style of that heading level." Another option 
+    - confirmed/nit: In efc9dd3f, revert the README hunk in the functions/locale paragraph so it ends "en-US by default." again. Add this paragraph after the A2uiMarkdown example at README:123: "A Text that no `A2uiMarkdown` renders, which includes every heading and caption Text, shows its text without common Markdown markers. A body Text that is one heading line, such as `## Summary`, also takes the style of that hea
+
+[REFUTED] [1c39f45a] [commit-3-1c39f45a] verifier-max=nit :: "Primary entry point" is ambiguous in a Dart package
+    WHERE: message paragraph 1, sentence 2
+    FIX: "This frees the primary catalog entry point for the v1.0 catalog: ..."
+    - confirmed/nit: This frees the primary catalog entry point for the v1.0 catalog: `package:a2ui_flutter/basic_catalog.dart` moves to `package:a2ui_flutter/v0_9/basic_catalog.dart`, ...
+    - refuted/none: None needed. If the author wants to repeat the term anyway: "This frees the primary catalog entry point for the v1.0 catalog: ..."
+    - refuted/none: No change needed. If the author wants the term to match sentence 1 word for word, use: "This frees the primary catalog entry point for the v1.0 catalog: ..."
+
+[REFUTED] [1c39f45a] [commit-3-1c39f45a] verifier-max=nit :: The message does not mention the README, CHANGELOG and codebase blueprint edits
+    WHERE: message paragraphs 1-2
+    FIX: Append to paragraph 2: "The README, the CHANGELOG and the codebase blueprint name the new path."
+    - refuted/none: I read the diff of 1c39f45a. The three doc hunks only swap the old import path for the new one. README.md L194 and the "Package layout" bullet in codebase.blueprint.md change `package:a2ui_flutter/basic_catalog.dart` to `package:a2ui_flutter/v0_9/basic_catalog.dart`. CHANGELOG.md adds "**Breaking:** The v0.9 basic catalog moved to `package:a2ui_flutter/v0_9/basic_catalog.dart`, under the same name
+    - confirmed/nit: Append to paragraph 2: "The README and the codebase blueprint name the new path, and the CHANGELOG records the break."
+    - refuted/none: The finding describes the diff correctly. Commit 1c39f45a changes README.md L194, adds a "**Breaking:**" CHANGELOG entry, and edits the Package layout bullet in codebase.blueprint.md. Each of these edits only replaces the old import path `package:a2ui_flutter/basic_catalog.dart` with the new `package:a2ui_flutter/v0_9/basic_catalog.dart`, or records that move. They follow mechanically from the ren
+
+[REFUTED] [1c39f45a (pin bump currently in a465dc4a)] [gap-changelog-blueprint-final-state] verifier-max=none :: The module_blueprint_commit pin lags the section numbers and rules that 1c39f45a, 75437a8f and eee3bf4d already follow
+    WHERE: blueprints/codebases/dart/a2ui_flutter/codebase.blueprint.md:4; messages 1c39f45a para 1, 75437a8f para 1, eee3bf4d para 1
+    FIX: Move the `module_blueprint_commit: b1dd6507...` hunk from a465dc4a into 1c39f45a, the first commit that follows b1dd6507's §5. Add one sentence there: "The codebase blueprint now pins b1dd6507, the framework adapter blueprint's v1.0 alignment (b161f9bd) plus path-only edits, whose section 5 this layout follows." Then drop the pin sentence from a465dc4a.
+    - refuted/none: The finding's facts are right, but its conclusion is wrong. I checked:
+- Every commit from d7e5f437 to a86dd818 pins 8d75b7901. a465dc4a moves the pin to b1dd6507.
+- In 8d75b7901, §5 is "Node Dispatcher Mechanics (`NodeView`)", the basic catalog is §4.4, §2 lists `theme/`, and there is no `v0_9` subpath rule or warning/info hint rule.
+- In b1dd6507, §5 is "Basic Catalog Implementation" and has bot
+    - refuted/none: No change. Keep the `module_blueprint_commit` bump in a465dc4a. Under the repo's rule in blueprints/skills/a2ui-implement-feature-from-blueprint/SKILL.md Step 3, the pin advances only once the codebase is up to date with that blueprint commit, and a465dc4a is the first commit where it is. The section citations in 1c39f45a, 75437a8f and eee3bf4d already refer to the blueprint text in the tree at ea
+
+[REFUTED] [21c0fa12] [commit-7-21c0fa12] verifier-max=nit :: Message does not say that `steps` also turns on Flutter's discrete value bubble and tick marks
+    WHERE: message, first and second paragraphs
+    FIX: Append to the first paragraph: "As with any discrete Flutter Slider, it shows the value above the thumb while dragging and draws tick marks where they fit."
+    - confirmed/nit: Append one sentence to the end of the first paragraph, after "A value with no fraction is written as an int, as before.": "Like any discrete Flutter Slider, it then shows its value above the thumb while dragging." Leave tick marks out, because paragraph 2 already covers them.
+    - refuted/none: No change needed. If the author wants it anyway, the smallest addition is to append this to the first paragraph: "Like the whole-range path, it shows the value above the thumb while dragging." Tick marks are already covered in the second paragraph.
+    - refuted/none: The Flutter facts in the finding are correct. I checked them against the Flutter on PATH (3.47.2 stable). In slider.dart:847, `defaultShowValueIndicator` is `ShowValueIndicator.onlyForDiscrete`. Line 1059 shows the indicator only when `widget.divisions != null`. Line 1830 draws tick marks only when `adjustedTrackWidth / divisions! >= 3.0 * tickMarkWidth`. At 21c0fa12 the builder passes `label: val
+
+[REFUTED] [294112c1] [commit-6-294112c1] verifier-max=nit :: Test name promises "beside its label" but the test asserts only the placeholder's opacity
+    WHERE: dart/a2ui_flutter/test/v1_0_test.dart, 'TextField shows its placeholder beside its label'
+    FIX: Rename it to 'TextField shows its placeholder while its label is set', or add `expect(find.text('Zip'), findsOneWidget);`.
+    - confirmed/nit: Keep the test name and add one line after the opacity check:
+
+    expect(find.text('Zip'), findsOneWidget);
+
+Alternatively, rename the test to 'TextField shows its placeholder while it has a label'. Do not add a `harness.errors` check: pumpSurface already throws processing errors, and most neighbouring tests do not check errors either.
+    - refuted/none: No change needed. If wanted anyway, rename the test to 'TextField shows its placeholder while its label is set'. Adding a label assertion is not needed, because the commit does not change how the label is shown.
+    - refuted/none: I read commit 294112c1 (message, text_field.dart hunk and the new test) and the whole of test/v1_0_test.dart at that commit. I did not run a probe, because the claim is about what the test asserts, and the source settles that.
+
+1. The test name fits what the test is guarding. The commit adds `floatingLabelBehavior: always` while a placeholder is set. The risk it addresses is a resting label hiding
+
+[REFUTED] [294112c1] [commit-6-294112c1] verifier-max=none :: Message does not say an empty placeholder counts as unset
+    WHERE: commit message, paragraph 2, last-but-one sentence; text_field.dart `hasPlaceholder`
+    FIX: "While a placeholder that is not empty is set, the label therefore always floats. An empty placeholder is treated as none, since it would float the label for nothing to show."
+    - refuted/none: I read the commit (git show 294112c1) and checked the finding against the brief's rules. I did not need a probe, because the behaviour is clear from the diff.
+
+The code is as the finding says: `hasPlaceholder = placeholder != null && placeholder.isNotEmpty`, and both `hintText` and `floatingLabelBehavior` depend on it. An empty placeholder therefore gets no hint and no forced float.
+
+The message i
+    - refuted/none: None required. If tightening is wanted: "While the placeholder is not empty, the label therefore always floats." (no extra sentence, since an empty placeholder is handled like the adjacent empty label, which the existing code already treats as absent).
+
+[REFUTED] [546f2111] [commit-5-546f2111] verifier-max=none :: Message leaves out the README and CHANGELOG edits
+    WHERE: message, second paragraph; dart/a2ui_flutter/README.md L242-246, CHANGELOG.md L24
+    FIX: Add one sentence at the end of the second paragraph: "The README lists the check among the v0.9 differences, and the CHANGELOG notes it."
+    - refuted/none: The fact is right: 546f2111 touches CHANGELOG.md and README.md, and its message mentions neither. It is still not a problem under the author's rules or the series' own practice.
+
+1. **The rule does not ask for this.** brief.md says the message "describes the diff of that commit and nothing else" and that every claim must be true. That rule bans content from outside the diff and false claims. It do
+    - refuted/none: The facts are right but the conclusion isn't. 546f2111 does add one CHANGELOG line and change the README's list of v0.9 differences to include "TextField checks `validationRegexp`", and its message names neither file.
+
+Under the brief's rules that is not a defect. The rule says "the message describes the diff of that commit and nothing else". That forbids claims about anything outside the diff. It
+
+[REFUTED] [546f2111] [porting] verifier-max=none :: 546f2111's message leaves out its README edit
+    WHERE: message
+    FIX: Add: 'The README lists `validationRegexp` among the v0.9 catalog's differences.'
+    - refuted/none: I read `git show 546f2111`. The finding's facts are right. The README hunk adds "TextField checks `validationRegexp`" to the list of v0.9 differences, and the message does not mention it. The message also leaves out the CHANGELOG line and the new test in `v1_0_test.dart`.
+
+By the author's rules in brief.md, that is not a defect:
+- **The rules ban false claims and material outside the diff, not omi
+    - refuted/none: I read the brief and `git show 546f2111`. The commit touches five files: text_field.dart, basic_catalog_v0_9.dart, a test, a CHANGELOG line ("The v1.0 TextField does not check `validationRegexp`, which v1.0 removed.") and a README sentence that adds "TextField checks `validationRegexp`" to the v0.9 differences. Both doc hunks restate the behaviour the message already describes: "`buildTextFieldV0_
+
+[REFUTED] [546f2111, 294112c1, 21c0fa12, 6a244423, eee3bf4d, a465dc4a (cause: 75437a8f)] [porting] verifier-max=none :: Every feature commit's tests are in test/v1_0_test.dart, which needs 75437a8f's harness change, so none of them ports alone with its tests
+    WHERE: dart/a2ui_flutter/test/v1_0_test.dart and test/support/surface_harness.dart
+    FIX: Split the surface_harness.dart hunk of 75437a8f (raw `processMessages(messages)` plus `moreCatalogs`) into its own commit ahead of 75437a8f, for example `test(a2ui_flutter): process harness messages under their own version`, and create test/v1_0_test.dart there with its first test. A porter can then take that one commit and pick each feature with its tests. On d88d4be6 the two harness designs merge cleanly: keep its `version`/`defaultVersion` parameter and add the series' `moreCatalogs` and raw processing. I did that and all 384 tests passed at the end.
+    - refuted/none: The feature commits do depend on 75437a8f, but that comes from what they test, not from where the commit boundary sits. The proposed split would not let them port alone.
+
+1. **The tests need more than the harness.** Every feature test in test/v1_0_test.dart calls the file-local helpers `_pump`, `_createSurface` and `_bind`, which 75437a8f defines. `_pump` renders on `basicCatalog()`, the v1.0 basi
+    - refuted/nit: No series change needed. A porter going commit by commit takes 75437a8f's new file test/v1_0_test.dart, which applies cleanly as an add. On d88d4be6 its `_pump` changes to `pumpSurface(tester, [...], catalog: catalog ?? basicCatalog(), version: A2uiProtocolVersion.v1_0)`, using the target's existing `version` parameter instead of porting the raw-processMessages harness hunk. After that, each featu
+
+[REFUTED] [6a244423] [commit-8-6a244423] verifier-max=nit :: Two of the message's behavioural claims have no test
+    WHERE: test/v1_0_test.dart, the two new Video tests
+    FIX: Add one test that binds `url` to the data model, plays, changes the URL and expects `posterImage` again. Add another that uses `ImageServer({})` (404), calls `settleImages`, and expects a ColoredBox with no `videocam_off` in the frame.
+    - refuted/none: The finding is accurate as far as it goes, but it is not a problem under the brief's rules. Neither of those two behaviours has a test, either at 6a244423 or at the series head a465dc4a. A grep for poster in dart/a2ui_flutter/test finds only the two v1_0_test.dart tests. Neither changes the URL or serves a failing poster. The existing video_test.dart test 'replaces the player when the bound url ch
+    - confirmed/nit: The proposed fix is correct. Add both tests to 6a244423 in test/v1_0_test.dart.
+
+(1) 'Video shows its poster again for a new URL':
+- Pump a Video with 'url': _bind('/clip') and dataModel {'clip': 'https://example.com/a.mp4'}, plus a posterUrl.
+- Call platform.initialize(0), tap play, then tap pause.
+- Update /clip to 'https://example.com/b.mp4' and pump.
+- Expect posterImage findsOneWidget.
+
+(2) '
+    - refuted/none: The finding is accurate about the facts but is not a problem under brief.md, so I am refuting it.
+
+The facts check out. At 6a244423, test/v1_0_test.dart adds two Video tests. Neither one changes the URL after play, and neither one serves a poster that fails: both use `ImageServer({}, fallback: widePng)`. No later commit in cbaa5ee62..a465dc4a adds a poster test either. A grep at HEAD finds only th
+
+[REFUTED] [6a244423] [commit-8-6a244423] verifier-max=none :: Poster is excluded from semantics without a word in the message
+    WHERE: media.dart `excludeFromSemantics: true`; message
+    FIX: Add: "The poster is hidden from semantics, since Video has no description to label it."
+    - refuted/none: I read the commit, its message, image.dart at 6a244423, the v1 basic catalog's Video schema and node_view.dart. The facts in the finding are right: media.dart:134 sets `excludeFromSemantics: true` on the poster. Video in catalogs/basic/v1/catalog.json has only `url`, `posterUrl` and `weight`, with no `description`. Image excludes itself only when `description` is empty (image.dart:44). The message
+    - refuted/none: The facts in the finding are correct. media.dart builds the poster as `Image.network(poster, fit: BoxFit.cover, excludeFromSemantics: true, ...)`, and image.dart:43-44 sets `semanticLabel: description, excludeFromSemantics: description.isEmpty`. The v1.0 catalog's Video (catalogs/basic/v1/catalog.json) has only `url`, `posterUrl` and `weight`, with no `description`, so the poster can never carry a
+
+[REFUTED] [75437a8f] [commit-4-75437a8f] verifier-max=nit :: README and CHANGELOG say the whole v1.0 catalog is implemented, which is not yet true at this commit
+    WHERE: dart/a2ui_flutter/README.md 'Basic Catalog Components' and CHANGELOG.md
+    FIX: Either accept it as transient and say so in the message ("the README describes the finished catalog"), or list the missing v1.0 props under 'Not supported yet' here and remove each item in the commit that adds it.
+    - refuted/none: The finding is correct about the code: at 75437a8f the builders are the v0.9 ones, so placeholder, steps and posterUrl are ignored, and TextField still checks validationRegexp. It is wrong that this makes the README or CHANGELOG false, and it is not a problem under the author's rules.
+
+1. The two claims are true at the catalog level. At 75437a8f, BasicComponents in lib/src/catalog/basic/basic_cata
+    - confirmed/nit: Leave the README and CHANGELOG alone. Adding the missing props to "Not supported yet" and then removing them commit by commit is churn across five commits for a temporary state. Instead, add one sentence to the existing paragraph in the message: "The builders are unchanged here, and the README and CHANGELOG describe the catalog as the following commits complete it. Those commits add the v1.0-only 
+    - refuted/none: The finding's facts hold. At 75437a8f the README says "`basicCatalog()` builds all of it" and the CHANGELOG adds "`package:a2ui_flutter/basic_catalog.dart` implements the v1.0 basic catalog." The builders are unchanged at that commit. The v1.0 TextField schema in catalogs/basic/v1/catalog.json has no `unevaluatedProperties: false`, so a v1.0 `validationRegexp` would still pass validation and be en
+
+[REFUTED] [75437a8f] [commit-4-75437a8f] verifier-max=none :: Message leaves several small hunks unmentioned and blurs the README's schema advice
+    WHERE: message, final paragraphs, against lib/basic_catalog.dart, CHANGELOG.md, examples_test.dart and README.md
+    FIX: Add: "The new library also exports `A2uiMarkdown`, as the v0.9 one does." Change the README bullet to: "Custom components go in a catalog of their own, with dynamic values from `CommonSchemasV1` and other shared types as relative `common_types.json` references." Extend the activation bullet: "..., so builders call them from gesture handlers, and the Security section says v1.0 `openUrl` runs only from a tap."
+    - refuted/none: I checked both parts of the finding against commit 75437a8f and they don't hold up.
+
+1) The README schema bullet is accurate. The message says custom components go "with relative `common_types.json` references". In a2ui_core at this commit, `CommonSchemasV1` builds each schema with `_withRef`, which sets `'commonTypesRef': 'common_types.json#/$defs/<Name>'` (common_schemas.dart:17-26). The referen
+    - refuted/none: I read the commit with `git show 75437a8f`, along with the cited hunks, a2ui_core's `common_schemas.dart` and the `Catalog` serialisation code in `catalog.dart`.
+
+**The schema-advice claim is wrong.** `CommonSchemasV1` schemas are built by `_withRef`, which adds `commonTypesRef: 'common_types.json#/$defs/<Name>'` (`common_schemas.dart` L17-L26). That is a relative `common_types.json` reference. Th
+
+[REFUTED] [7f5e2045] [commit-2-7f5e2045] verifier-max=none :: Subject line is 80 characters
+    WHERE: Message subject
+    FIX: "fix(a2ui_core): check validation result arguments as their validity"
+    - refuted/none: The count is right: the subject of 7f5e2045, "fix(a2ui_core): check validation results in function arguments as their validity", is 80 characters. But it is not a problem by the rules that apply here.
+
+1. The author's rules in brief.md do not limit subject length. They cover accuracy, reasons, no semicolons, no padded em dashes, the trailer, and Conventional Commits with `!`.
+2. The repository doe
+    - refuted/none: None needed. Keep the current subject. If someone insists on a shorter one, "fix(a2ui_core): read nested validation results as booleans in arg checks" keeps the meaning, but the repo does not require it.
+
+[REFUTED] [a465dc4a] [commit-12-a465dc4a] verifier-max=nit :: The forced container for a live node and the choice of liveRegion over an assertive announcement are not explained
+    WHERE: Message first bullet; node_view.dart `container: label != null || description != null || live != null`
+    FIX: Add: "A live component gets a semantics node of its own, so the flag does not spread to an ancestor's node." And: "An assertive announcement through SemanticsService would need the adapter to detect each change itself, so `assertive` maps to the same flag." (or whatever the actual reason is).
+    - confirmed/nit: Leave out the container sentence. After "so both announce politely." add one sentence, worded so it does not invent a reason the author did not have, for example: "An assertive announcement through `SemanticsService.sendAnnouncement` would need NodeView to detect each change to the text itself, so `assertive` stays on the region flag the blueprint's Semantics mapping gives."
+    - refuted/none: I read commit a465dc4a and the Flutter SDK sources on PATH (semantics_event.dart, semantics_service.dart, semantics.dart). The finding has two parts, and neither is a real gap.
+
+1. Why `assertive` is not an assertive announcement. The message already gives the reason: "Flutter's `Semantics.liveRegion` is a single flag with no assertive level, so both announce politely." That is true. `liveRegion` 
+    - refuted/none: I read the commit (a465dc4a) and Flutter's semantics_service.dart and semantics_event.dart in the SDK on PATH (~/Documents/GitHub/flutter). I ran no probe because the finding is about what the message says, not about behaviour.
+
+1. The assertive choice is already explained. The message says: "Flutter's `Semantics.liveRegion` is a single flag with no assertive level, so both announce politely." Tha
+
+[REFUTED] [a465dc4a] [commit-12-a465dc4a] verifier-max=nit :: No test that toggling hidden or live keeps the subtree's state
+    WHERE: dart/a2ui_flutter/test/v1_0_test.dart, 'accessibility' group
+    FIX: Extend node_view_test's state test (Probe component) to add `'hidden': true` and `'live': 'polite'` in a later update and expect `log.probeStates == ['root']`.
+    - refuted/none: No change needed. Optional, outside this review's scope: in node_view_test's accessibility group, add an update to `{'label': 'p', 'accessibility': {'hidden': true, 'live': 'polite'}}` and then to `{'hidden': false}`, and expect `log.probeStates == ['root']`. This passes at a465dc4a.
+    - confirmed/nit: The proposed fix is correct as stated, and it belongs in a465dc4a. In node_view_test.dart, either extend the existing state test or add a sibling test: add('root', 'Probe', {'label': 'p'}), pump, then update('root', {'label': 'p', 'accessibility': {'hidden': true, 'live': 'polite'}}), pump, then update('root', {'label': 'p', 'accessibility': {'hidden': false}}), pump, then expect(log.probeStates, 
+    - refuted/none: I read the a465dc4a diff to node_view.dart and v1_0_test.dart, and grepped every test under dart/a2ui_flutter/test for hidden, live and probeStates. The narrow fact is correct: no test toggles `hidden` or `live` and then checks that the subtree's state survives. The only state test that touches accessibility is node_view_test.dart:433, 'keeps the implementation state when a label is added'. The bo
+
+[REFUTED] [a465dc4a (also 1c39f45a, 75437a8f, eee3bf4d)] [porting] verifier-max=none :: The blueprint pin is bumped only in a465dc4a, but earlier commits already cite blueprint text that exists only after the bump
+    WHERE: blueprints/codebases/dart/a2ui_flutter/codebase.blueprint.md `module_blueprint_commit`
+    FIX: Move the `module_blueprint_commit: b1dd6507...` hunk into 1c39f45a (or 75437a8f) and add: 'The codebase blueprint now pins the framework adapter blueprint at b1dd6507, the v1.0 alignment of b161f9bd plus later path-only edits.' Remove that sentence from a465dc4a.
+    - refuted/none: No hunk move. Keep the `module_blueprint_commit` bump in a465dc4a, the last commit, where the codebase first complies with b161f9bd. Optionally reword its last paragraph to: "With live and hidden mapped, the adapter now covers the v1.0 alignment of the framework adapter blueprint, so the codebase blueprint pins b1dd6507 (b161f9bd plus later path-only edits) and records the explicit-label behaviour
+    - refuted/none: No hunk move. Keep the pin bump in a465dc4a, the commit that completes the v1.0 work and records the remaining deviation. Optional wording for that commit's message: "With the v1.0 work complete, the codebase blueprint now pins the framework adapter blueprint at b1dd6507 (the v1.0 alignment of b161f9bd plus later path-only edits) and records the explicit-label behaviour as a local deviation."
+
+[REFUTED] [a86dd818] [commit-11-a86dd818] verifier-max=none :: The message does not say why the map rule is looser than the spec's and commit 7f5e2045's shape
+    WHERE: commit message, paragraph 2
+    FIX: Add one sentence to paragraph 2, for example: "It takes validityOf's rule, under which any map with a `valid` key counts, rather than the stricter shape the argument check uses, so that a property reads a value the way `and`, `or` and `not` read it as an operand."
+    - refuted/none: The facts in the finding are correct, but the message already gives the reason it asks for. At a86dd818, `asBoolean` falls through to `ValidationResult.validityOf` (dart/a2ui_core/lib/src/core/validation_result.dart:82-87). That function treats any map with a `valid` key as `map['valid'] == true`, so `{"valid": "yes"}` reads as false. 7f5e2045 does use a stricter shape for the argument-schema chec
+    - refuted/none: I read the a86dd818 message and diff, `ValidationResult.validityOf` in dart/a2ui_core/lib/src/core/validation_result.dart (L82-87), the 7f5e2045 message, and spec section "DynamicBoolean and CheckRule Coercion" (a2ui_protocol.md L1115-1126). The facts in the finding are right. validityOf accepts any map with a `valid` key and returns `map['valid'] == true`. 7f5e2045's argument check uses a stricte
+
+[REFUTED] [a86dd818] [commit-11-a86dd818] verifier-max=none :: No test renders the case the message motivates, a v1.0 CheckBox bound to a validation result
+    WHERE: dart/a2ui_flutter/test/component_props_test.dart
+    FIX: Optionally add to test/v1_0_test.dart a testWidgets that renders a CheckBox with `value: {"@call": "required", "args": {"value": "x"}}` and expects the Checkbox to be checked. Without this commit it renders unchecked.
+    - refuted/none: The factual part is true. Commit a86dd818 adds only one unit test in dart/a2ui_flutter/test/component_props_test.dart, and no widget test renders a CheckBox or DateTimeInput bound to `{"@call": "required"}`. I grepped `git show a86dd818:dart/a2ui_flutter/test/v1_0_test.dart`. Its only `'@call': 'required'` (line 191) is the form checks test, not a boolean property.
+
+It is still not a problem by th
+    - refuted/none: None needed. If an end-to-end check in this same commit is wanted anyway, a CheckBox widget test like the one proposed would do. The next commit (a465dc4a) already covers the same `asBoolean` path at widget level through `accessibility.hidden`.
+
+[REFUTED] [d7e5f437] [commit-1-d7e5f437] verifier-max=none :: A literal or absent hidden also changes shape in node.props, and the message only implies it
+    WHERE: commit message, paragraph 2 ("on a v1.0 component it reaches `node.props` as a binding to its value"), and the CHANGELOG entry
+    FIX: Add after that sentence: "A literal `hidden` now arrives as a read-only binding rather than a bare bool, and an omitted one as a null binding, as `label` and `description` already do."
+    - refuted/none: The finding's facts are right, but the message already states them. In the diff, `_withAccessibility` in generic_binder.dart changes `hidden` from absent in the envelope shape, which made it Behavior.static and passed the raw value through, to `BehaviorNode(Behavior.dynamic)`, the same as `label` and `description`. So a literal `hidden: true` was a bare bool before and is a ResolvedBinding(true) n
+    - refuted/none: I read the commit, its message and the binder hunk at d7e5f437 and its parent. I did not run a probe. The reviewer's description of the behaviour matches the code. Adding `'hidden': BehaviorNode(Behavior.dynamic)` to the `_withAccessibility` shape means a literal `hidden` now becomes a ResolvedBinding, and an omitted one becomes a read-only null binding, as `label` and `description` already do. Th
+
+[REFUTED] [eee3bf4d] [commit-10-eee3bf4d] verifier-max=nit :: No reason given for showing only the first hint
+    WHERE: message, paragraph 2
+    FIX: Append: "one at a time, as the inputs show errors".
+    - confirmed/nit: Replace the sentence in paragraph 2 with: "Like its errors, each basic input shows only the first failing `warning` or `info` message, as a hint where its error would go, and only while it has no error: TextField and DateTimeInput as their decoration's helper text, CheckBox, ChoicePicker and Slider as small text under the control."
+    - refuted/none: No change needed. If the author wants it anyway, the smallest edit is: "Each basic input shows the first failing `warning` or `info` message as a hint, one at a time as it shows errors, where its error would go, ..."
+    - refuted/none: I checked the commit (eee3bf4d), the new check_hint.dart, the input builders and blueprint section 5 (line 324). The message is accurate. It says "the first failing `warning` or `info` message", which is what checkHint does: it filters validationResults by severity and returns `.firstOrNull`. The message also says the hint goes "where its error would go, and only while it has no error". That slot 
+
+[REFUTED] [eee3bf4d] [commit-10-eee3bf4d] verifier-max=none :: Message omits the json_schema_builder ValidationResult name clash that the diff documents and works around
+    WHERE: message; README.md L192-195; test/component_props_test.dart import
+    FIX: Add to paragraph 2: "The type is a2ui_core's ValidationResult, which clashes with json_schema_builder's, so the README tells catalog authors to hide the latter, as the test now does."
+    - refuted/none: The facts in the finding hold. json_schema_builder 0.1.7 declares `class ValidationResult` at lib/src/validation_result.dart:51. a2ui_core declares its own at dart/a2ui_core/lib/src/core/validation_result.dart:22. a2ui_flutter.dart exports src/component_props.dart, whose new `validationResults` getter returns a2ui_core's type. The test import adds `hide ValidationResult`, the README adds the match
+    - refuted/none: The facts in the finding are correct. json_schema_builder declares `class ValidationResult` (0.1.7 lib/src/validation_result.dart:51, and also in 0.1.3 and 0.1.6). The new `ComponentProps.validationResults` returns a2ui_core's `List<ValidationResult>`. The test import adds `hide ValidationResult`, and the README hunk adds the matching advice.
+
+Leaving this out of the message breaks none of the bri
+
+[REFUTED] [efc9dd3f] [commit-9-efc9dd3f] verifier-max=nit :: Some of the marker removal is untested: image syntax, `__` bold, and the v1.0 catalog path
+    WHERE: dart/a2ui_flutter/test/catalog/basic/markdown_test.dart
+    FIX: Add `'![alt](u) __bold__': 'alt bold'` to the `cases` map. Optionally, render one `# Title` Text through the v1.0 `basicCatalog()` in a v1.0 test.
+    - refuted/none: None needed. If wanted, the proposed one-line case `'![alt](u) __bold__': 'alt bold'` is correct and passes at efc9dd3f.
+    - confirmed/nit: Add `'![alt](u) __bold__': 'alt bold'` to the `cases` map in the 'removes markdown markers without a builder' test in dart/a2ui_flutter/test/catalog/basic/markdown_test.dart. I checked that the commit's patterns produce exactly 'alt bold'. Drop the optional v1.0 `basicCatalog()` test. `buildText` is shared and does not depend on the catalog, and examples_test.dart already renders the v1.0 heading 
+    - refuted/none: None needed. Optional, outside this review's scope: add `'![alt](u) __bold__': 'alt bold'` to the `cases` map in dart/a2ui_flutter/test/catalog/basic/markdown_test.dart. Skip the v1.0-catalog test, because both catalogs bind the same buildText.
+

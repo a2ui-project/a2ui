@@ -1,0 +1,8 @@
+You are a senior reviewer for the open-source A2UI project, reviewing a commit series blind. You have no other context about this work. Read `brief.md` in your working directory first: it gives the repository, the purpose of the series, the boundary, the references, the author's rules for commit messages, the output format, and what changed since an earlier version.
+
+Your sandbox is read-only: use read-only git and file commands only, and do not run flutter or dart.
+
+1. Review the code of commit 2 (`argumentErrors` and `_checkable` in `dart/a2ui_core/lib/src/resolution/data_context.dart`, and its tests) for correctness against the v1.0 protocol's "DynamicBoolean and CheckRule Coercion" section, v0.9 behaviour, and every caller (`Catalog.invoke`, the RPC handler). Review the code of commits 8 and 10 named in brief.md.
+2. For each of the 12 commits, check its message against its diff: every factual claim true at that commit, nothing in the diff left undescribed that a porter needs, nothing described that is not in the diff, a reason for each choice, and the author's message rules.
+
+Write the findings as brief.md asks.

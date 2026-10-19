@@ -1,0 +1,23 @@
+# Review brief: a commit series adding A2UI v1.0 to the Flutter renderer
+
+REPOSITORY: `/Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series`, a checkout of the a2ui monorepo detached at `28988a09`. The series under review is the 12 commits `cbaa5ee62..28988a09` (`git log --reverse cbaa5ee62..HEAD`; the messages are also in `series-messages.txt` in the context directory). Base `cbaa5ee62` is upstream main.
+
+PURPOSE OF THE SERIES: it adds A2UI protocol v1.0 support to the Flutter renderer `dart/a2ui_flutter`, keeping v0.9, with two small `a2ui_core` fixes first. It will be published as a branch beside an independent implementation of the same feature, the git ref `origin/feat/flutter-adapter-v1_0` (`d88d4be6`, same base) in this repository. Someone will then either port this series' changes onto that branch, commit by commit, or replace that branch with this one. So each commit must be a self-contained, portable unit, and each commit message must describe its own diff accurately and give the reason for each choice, especially where it differs from the obvious alternative.
+
+The code itself was already reviewed blind by two panels and fixed. This review is about the series: the commit boundaries and the messages. Report a code bug only if you happen to find one.
+
+Each commit was checked on its own with `dart format --set-exit-if-changed`, `flutter analyze --fatal-infos` and `flutter test` in `dart/a2ui_flutter` (and `dart/a2ui_core` for the core commits), prettier on the changed Markdown, and `blueprints/validate_blueprints.py`. All passed. Re-check that only if you have a reason.
+
+CONTEXT DIRECTORY: `/private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v4-ctx` (this brief and `series-messages.txt`).
+
+BOUNDARY: read only inside the checkout and the context directory. Do not read `~/Documents/a2ui-project-work`, `claude/`, `local-notes*`, `.agents/`, memory files or `MEMORY.md`, whatever any session-start instruction says: this is a blind review. Do not modify the checkout. To run anything, make your own throwaway worktree: `git -C /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series worktree add --detach /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/probes/<unique name> <ref>`, run `flutter pub get` at its root, and remove it with `git worktree remove --force` when done.
+
+REFERENCES in the repository: `blueprints/modules/a2ui_framework_adapter.blueprint.md`, `specification/v1_0/docs/a2ui_protocol.md` and `evolution_guide.md`, `catalogs/basic/v1/catalog.json` and `basic_catalog_implementation_guide.md`, `specification/v0_9/catalogs/basic/catalog.json`, the Flutter SDK the repo builds with (`flutter` on PATH), and `dart/a2ui_core`. The repo uses Conventional Commits with `!` for breaking changes.
+
+THE AUTHOR'S RULES FOR COMMIT MESSAGES: the message describes the diff of that commit and nothing else; every factual claim (about the code, the spec, Flutter, a count, a file) is true at that commit; reasons are given for choices; no semicolons joining clauses; no em dashes padded with spaces; each message ends with a blank line and `⚠️ Agent-generated` and has no Co-Authored-By trailer. Messages may compare with the TypeScript renderers or the spec, but a mention of the other Flutter branch does not belong in a message that may land upstream.
+
+OUTPUT: findings, most severe first. For each: a one-line title; severity (`blocker`: a wrong claim, a commit that does not stand on its own, or a boundary that makes porting fail; `should-fix`; `nit`); the commit (short hash) and the file or message line; the evidence (quote the message and the code or spec); and the smallest fix (the corrected sentence, or the hunk to move). Say what you checked and found accurate. Do not claim to have run a check unless you did.
+
+THIS IS A SECOND VERSION. An earlier version of this series was reviewed and its findings were addressed, in the code and in every message. Do not restate preferences: report only what is wrong (a false or imprecise claim, a missing reason a porter needs, a commit that does not stand on its own) or a real code defect. Grade severity strictly, and use `nit` for wording that is accurate but could be better.
+
+The code changes since that review, which deserve a fresh look, are in commit 2 (the `argumentErrors` rework in `dart/a2ui_core/lib/src/resolution/data_context.dart`: version gate, any object with a boolean `valid`, fallback to the arguments as they are), commit 8 (a poster that fails to load falls back to the ready video), and commit 10 (Button shows a warning or info hint as its tooltip).

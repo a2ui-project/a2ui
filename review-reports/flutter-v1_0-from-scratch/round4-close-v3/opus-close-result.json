@@ -1,0 +1,331 @@
+{
+  "summary": "Targeted closing check of the v3 series: earlier findings resolved, edits introduce no new errors",
+  "agentCount": 5,
+  "logs": [],
+  "result": [
+    {
+      "key": "resolve-core",
+      "resolved": [
+        "Commit 1, round-3 unverified nit (\"changes nothing for a valid v0.9 payload\"): the sentence now says that a `hidden` resolving to null is added, which matches the code (the `'hidden': BehaviorNode(Behavior.dynamic)` shape entry) and the updated test `_expectReadOnlyNull(accessibility['hidden'])`. A small residue is reported above as a nit.",
+        "Commit 1, round-3 unverified nit (CHANGELOG conflict when ported): no change needed. Its own fix said so, and the conflict is a keep-both resolution.",
+        "Commit 2, round-3 confirmed should-fix and Astra finding 1 (the fallback is all or nothing): v3 narrows the message to \"When the arguments fail with every replacement made, they are all checked again with none made ... still matches, unless another value in the same call needs the replacement.\" The argumentErrors doc now says \"or else with none replaced\". Probe at 5a3c5c0b with a custom v1.0 `echo` taking {flag: boolean, status: object{valid, note}}: flag only and status only each match, and both together throw at #root[\"flag\"]. That is exactly what the message now says.",
+        "Commit 2, round-3 confirmed should-fix (`grouping` given a validation result is read as truthy): fixed in code. functions.dart passes `ValidationResult.validityOf(args['grouping']) ?? args['grouping']` for formatNumber and formatCurrency, and the message, the CHANGELOG and the function-map doc now say so. I probed it at 5a3c5c0b with v10.invoke and value 1234567. grouping false, ValidationResult(valid:false), {valid:false} and {valid:false, severity:'warning'} all give 1234567 and $1234567.00. true, absent, ValidationResult(valid:true) and {valid:true, message} all give 1,234,567 and $1,234,567.00. {valid:'no'} and {other:1} still fail with EXPRESSION_ERROR, because the check only replaces a boolean `valid`. Through expression resolution, grouping {@path} on {valid:false} gives 1234567, grouping required('') gives 1234567, and grouping not(required('')) gives 1,234,567. v0.9 is unchanged: grouping false gives 1234567, and {valid:false} still raises EXPRESSION_ERROR. In the v1.0 catalog's functions, `grouping` is the only DynamicBoolean argument besides those of and/or/not. The function-map doc's \"a map carrying a `valid` key\" matches validityOf, which reads any map with a `valid` key as `valid == true`. basic_catalog_test.dart and catalog_json_test.dart pass, and `dart analyze --fatal-infos lib` is clean at 5a3c5c0b. The new unit test calls `execute` directly, so it skips the argument check, but the invoke path is the one I probed.",
+        "Astra finding 4 (custom functions still receive objects): deliberately left. The message states the behaviour and the reason: \"Only the check uses the replacement: the function receives each argument as it was resolved\" and \"Passing plain booleans to functions ... would need the coercion directed by each argument's schema.\" The CHANGELOG tells catalog authors the same: \"The function still receives each argument as it was resolved\". The probe confirms that `echo` receives the ValidationResult unchanged.",
+        "Commit 2's new message text follows the author's rules: no semicolons, no padded em dashes, ends with ⚠️ Agent-generated, and has no Co-Authored-By. Its claims (\"since a validation result can now reach it\", that v0.9 replaces nothing, that a ValidationResult is checked as its JSON object on every catalog) match the code."
+      ],
+      "problems": [
+        {
+          "key": "resolve-core",
+          "title": "argumentErrors still reports a valid ValidationResult operand as an error when the call fails, and neither the doc nor the message says so (round-3 unverified nit, still open)",
+          "severity": "nit",
+          "commit": "5a3c5c0b",
+          "evidence": "On a v1.0 catalog, when both passes fail, `argumentErrors` returns the errors of the pass with nothing replaced. Probe at 5a3c5c0b: `v10.invoke('and', {'values': [ValidationResult(valid: true), 5]}, ctx)` throws `... matched 0 at path #root[\"values\"][\"0\"]; Expected to match exactly one schema, but matched 0 at path #root[\"values\"][\"1\"]`, so it blames values[0], which the replacement accepted. The doc says it returns \"The ways [args] fail [fn]'s argument schema\". Neither the message nor the doc says that the reported errors come from the check with nothing replaced, so this round-3 nit is neither fixed nor left with a reason.",
+          "fix": "Either return the errors of the replacement pass when both fail on a v1.0 catalog (`final List<ValidationError> replaced = ...; if (replaced.isEmpty) return replaced;` ... `return replaced;` after the second pass also fails), or add to the doc comment: \"When both checks fail, the errors returned are those of the check with none replaced.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "resolve-core",
+          "title": "Commit 1's v0.9 sentence dropped the \"absent\" qualifier, so it is false for a v0.9 payload that carries `hidden`",
+          "severity": "nit",
+          "commit": "16027e76",
+          "evidence": "The message says: \"v0.9 defines no `hidden`, so for a v0.9 payload this only adds a `hidden` that resolves to null.\" The v0.9 AccessibilityAttributes in specification/v0_9/json/common_types.json has no `additionalProperties: false`, and a component whose schema leaves out `accessibility` does not check it at all. So a v0.9 payload `{\"accessibility\": {\"hidden\": true}}` now reaches node.props as a binding to `true` instead of the raw `true` that the old static shape passed through. It does not resolve to null. The round-3 fix said \"an absent `hidden`\", and v3 left that word out.",
+          "fix": "\"v0.9 defines no `hidden`, so for a v0.9 payload, which carries none, this only adds a `hidden` that resolves to null.\"",
+          "status": "nit",
+          "votes": []
+        }
+      ]
+    },
+    {
+      "key": "resolve-flutter",
+      "resolved": [
+        "Finding 4 (c05d3462): the porting note now says the library rename applies cleanly and the source rename conflicts where basic_catalog_v0_9.dart exists, which matches round 3's cherry-pick probe",
+        "Finding 5 (df55bee2): the message now says that at this commit placeholder, steps and posterUrl are accepted but have no effect, that validationRegexp is still checked, and that each gets its own commit (validationRegexp in 78951779, placeholder in 4fea88f8, steps in 8b9e7c59, posterUrl in 3de96089)",
+        "Finding 6 (df55bee2): \"registers the catalogs\" is now \"adds the v1.0 catalog\"",
+        "Finding 8 (78951779): the message now names the new private `_build`",
+        "Findings 9 and 10 (8b9e7c59): \"keeps more grid values exact\", and the Flutter condition is quoted with `divisions!`",
+        "Finding 11 (b1a14ae8): the message now says \"a caption Text, and a v0.9 heading Text\", consistent with the v1.0 Text.variant enum [caption, body]",
+        "Finding 14 (e179af70): the message now says no basic validation function produces a hint on either version",
+        "Finding 21 and the commit 10 consistency check (e179af70): button.dart is no longer touched and the Button test asserts no Tooltip. The message, the README (\"Inputs other than Button show...\"), the CHANGELOG (\"basic inputs other than Button\") and the codebase blueprint (\"A Button shows none: a Tooltip that came and went with a hint would remount the enabled button and drop its focus\") all agree. 8c25c42a keeps the same README wording. The blueprint's SHOULD (L324) makes this a recorded departure, as the message says.",
+        "Finding 15 (0e51cf7e): the accessibility.hidden clause is removed",
+        "Finding 16 (0e51cf7e): a reason for applying the rule on v0.9 is now given (static asBoolean, no version to gate on), with the contrast to v0.9 and/or/not. A wording nit remains, listed above.",
+        "Findings 17 and 18 and Astra finding 2 (8c25c42a): my semantics probe at 8c25c42a confirms the message and README for TextField (the region is the control's own node, label announced, typed value separate), Slider (a parent region whose label holds the label and value text), Button and CheckBox (their text sits in the control node below the region). The README now lists a Slider's label and value. The omission of check messages is listed above.",
+        "Finding 19 (8c25c42a): the Modal limit now says \"content\" rather than \"sheet\"",
+        "Astra finding 3 (df55bee2, 8c25c42a): the codebase blueprint now records the \"Theme on v1.0\" deviation (core's _createSurfaceV1Keys excludes theme, against blueprint L418 \"Theme ignored\"), and commit 4's message says so",
+        "Mechanical checks over the 12 v3 messages: no Co-Authored-By trailer, no semicolons joining clauses, no padded em dashes. Commit 11's statement that it depends on the `hide ValidationResult` import from e179af70 still holds."
+      ],
+      "problems": [
+        {
+          "key": "resolve-flutter",
+          "title": "README live-region list (and the Slider sentence in the message) leave out the check message under CheckBox and Slider, which is in the region and is announced",
+          "severity": "nit",
+          "commit": "8c25c42a",
+          "evidence": "README: \"announces changes to its own label: a Text's text, a TextField's label, or a Slider's label and value, but not a Button's child text, a CheckBox's label or a TextField's value.\" Message: \"On a Slider the region is a parent node that takes in the label and value text above the control\". Probe at 8c25c42a (v1.0, accessibility.live polite, check bound to /check, semantics dump): CheckBox region node #5 [LIVE] label='' at first, then 'HINTMSG' after /check becomes a warning result, then 'ERRMSG' after it becomes an error. Slider region label 'Lab1\\n3', then 'Lab1\\n3\\nHINTMSG', then 'Lab1\\n3\\nERRMSG'. The error/hint Text in check_box.dart and slider.dart sits outside the control's own node (outside MergeSemantics for CheckBox), so it merges into the region. A reader of the enumerated README list will think a live CheckBox announces nothing. The rest of the description matches the probe: TextField region is the control's own node (LIVE+textField, label 'Lab1', value 'typed1' separate), Button text sits in the child button node below an empty LIVE node, CheckBox label 'Lab1' sits in the merged child node.",
+          "fix": "README: \"... a Text's text, a TextField's label, a Slider's label and value, or the check message shown under a CheckBox, ChoicePicker or Slider, but not a Button's child text, a CheckBox's label or a TextField's value.\" Message: \"On a Slider the region is a parent node that takes in the label and value text above the control and any check message below it, so changes to these are announced.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "resolve-flutter",
+          "title": "Button doc comment still says any failing check disables it, which commit 10 makes untrue to its own message",
+          "severity": "nit",
+          "commit": "e179af70",
+          "evidence": "dart/a2ui_flutter/lib/src/catalog/basic/button.dart (unchanged in v3): \"While a check fails it is disabled, with the first failing check's message as its tooltip.\" The code uses props.isValid and validationErrors.firstOrNull, which commit 10 redocuments as `error` severity only, and its message says \"A hint does not block, so a Button stays enabled.\" v2 of this commit updated this doc. v3 dropped the whole button.dart hunk, including the doc fix.",
+          "fix": "Add to e179af70: \"/// `action` when pressed. While a check fails with `error` severity it is disabled, with that check's message as its tooltip.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "resolve-flutter",
+          "title": "README dual-version paragraph still omits that the v1.0 side must also pass a version to getRendererDataModel (round-3 finding 7, left without a stated reason)",
+          "severity": "nit",
+          "commit": "df55bee2",
+          "evidence": "README L51 Quick Start: `'a2uiRendererDataModel': ?processor.getRendererDataModel()`. README L284-287 tells only the v0.9 agent to pass `version: A2uiProtocolVersion.v0_9`. processor.dart L1262-1268 throws A2uiValidationError \"Multiple protocol versions detected among active surfaces\" when version is omitted and sendDataModel surfaces of both versions exist. Unchanged in v3, and no message gives a reason for leaving it.",
+          "fix": "README v0.9 section: \"A v0.9 agent reads `processor.getRendererDataModel(version: A2uiProtocolVersion.v0_9)` as `a2uiClientDataModel`, and a v1.0 agent then needs `version: A2uiProtocolVersion.v1_0`, since without a version the call throws when surfaces of both versions send their data model.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "resolve-flutter",
+          "title": "Markdown stripping nits 12 and 13 still present, with no reason stated",
+          "severity": "nit",
+          "commit": "b1a14ae8",
+          "evidence": "text.dart L96 `_codeSpan = RegExp(r'`([^`\\n]+)`')` runs before `_escape`, and L58 matches `_heading` (L77, `^ {0,3}...`) against `text.trim()`. Probe at 8c25c42a on a v1.0 body Text: r'use \\`x\\` here' renders 'use \\x\\ here', and '    # indented code' renders 'indented code' at fontSize 32. The message says escapes are kept literal, and does not say these corners are accepted. Both are edge cases of best-effort stripping.",
+          "fix": "Either use `text.trimRight()` (or strip only line breaks) before `_heading`, and `RegExp(r'(?<!\\\\)`([^`\\n]+)`')` for `_codeSpan`, with test cases, or add one bullet to the message's Choices: \"Stripping is best effort: an escaped backtick pair can still read as a code span, and an indented `#` line still reads as a heading.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "resolve-flutter",
+          "title": "\"changes no valid v0.9 payload\" contradicts the next sentence",
+          "severity": "nit",
+          "commit": "0e51cf7e",
+          "evidence": "\"v0.9 gives an object in a boolean property no meaning, so reading one by its `valid` changes no valid v0.9 payload. A v0.9 boolean property holding a `{\"valid\": ...}` object read as null before.\" A v0.9 CheckBox `value` bound to a data-model path holding {\"valid\": true} passes schema validation (the data model is untyped), and round 3's probe showed it now reads checked where it read unchecked. So a valid payload does render differently. Only its meaning is undefined.",
+          "fix": "\"... so reading one by its `valid` changes only payloads whose v0.9 meaning is undefined.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "resolve-flutter",
+          "title": "Commit 7 message has a 119-character line, introduced by the v3 rewording",
+          "severity": "nit",
+          "commit": "8b9e7c59",
+          "evidence": "\"exact: 10 steps over 0 to 1 give 0.3 rather than 0.30000000000000004. A value with no fraction is written as an int, as\" (119 chars). All other body lines in the series wrap at 72 or below, apart from one 74-character code quote.",
+          "fix": "Rewrap the paragraph: \"...keeps more grid values\\nexact: 10 steps over 0 to 1 give 0.3 rather than\\n0.30000000000000004. A value with no fraction is written as an int, as\\nbefore.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "resolve-flutter",
+          "title": "\"accepts ... Slider `steps` ... without showing them\" is loose for a property that is applied, not shown",
+          "severity": "nit",
+          "commit": "df55bee2",
+          "evidence": "\"at this commit a v1.0 surface accepts TextField `placeholder`, Slider `steps` and Video `posterUrl` without showing them\". steps changes how the slider moves and is never displayed.",
+          "fix": "\"... accepts TextField `placeholder`, Slider `steps` and Video `posterUrl` but ignores them ...\"",
+          "status": "nit",
+          "votes": []
+        }
+      ]
+    },
+    {
+      "key": "edits",
+      "resolved": [
+        "Tree comparison: each v3 commit's tree differs from the v2 commit at the same position only where v2-to-v3.txt says. Position 1 is identical. Position 2 adds the a2ui_core CHANGELOG, v1_0/functions.dart grouping, data_context.dart doc and basic_catalog_test.dart changes, carried unchanged through positions 3-12. Position 4 adds the codebase-blueprint 'Theme on v1.0' line. Position 10 adds button.dart, the v1_0_test.dart Tooltip assertion, README, CHANGELOG and the blueprint 'Check hints' line. Position 12 changes only the README live-region sentence. Positions 3, 5-9 and 11 have no changes of their own. The interdiffs a199fa91->62794f33 and e179af70->0e51cf7e have the same stat. Commit 8 has no code change since v2, which matches v2-to-v3.txt.",
+        "Commit 2 (5a3c5c0b): the new paragraph matches argumentErrors. It runs one pass with validity:true over all arguments and, if that fails, one pass with validity:false, so \"unless another value in the same call needs the replacement\" holds. formatNumber and formatCurrency now pass ValidationResult.validityOf(grouping) ?? grouping. grouping is a DynamicBoolean in catalogs/basic/v1/catalog.json. Before this commit a result could not reach grouping, so \"now\" is accurate. The doc comment and CHANGELOG agree.",
+        "Commit 3 (c05d3462): the porting note is accurate. In a throwaway worktree I cherry-picked it onto d88d4be6. Git renamed lib/basic_catalog.dart to lib/v0_9/basic_catalog.dart with no conflict, deleted lib/src/catalog/basic/basic_catalog.dart, and reported an add/add (AA) conflict on basic_catalog_v0_9.dart. The worktree was then removed.",
+        "Commit 4 (df55bee2): the module blueprint row 'Theme ignored' (line 418) exists. _createSurfaceV1Keys in a2ui_core messages.dart excludes theme. The codebase blueprint line is added, and 'Each has a commit of its own' holds (commits 5-8).",
+        "Commit 5 (78951779): the private _build(context, props, pattern) is new at this commit, and buildTextField passes null.",
+        "Commit 7 (8b9e7c59): the quoted Flutter condition matches slider.dart:1830 exactly, including `divisions!`.",
+        "Commit 9 (b1a14ae8): v1.0 Text variants are caption and body only, v0.9 has h1-h5, and text.dart sends only body Text to A2uiMarkdown, so 'a caption Text, and a v0.9 heading Text' is correct.",
+        "Commit 10 (e179af70): Button has no hint and shows a Tooltip only while !isValid, and the test asserts that no Tooltip appears for a warning. Switching between `button` and `Tooltip(child: button)` changes the widget type in that slot, which remounts the button and its internal focus node, so the stated reason holds. No v1.0 basic function sets a severity (function_support.dart:147-150). README and CHANGELOG now say 'other than Button'.",
+        "Commit 11 (0e51cf7e): asBoolean is static, and the removed hidden clause no longer refers to code from a later commit.",
+        "Commit 12 (8c25c42a): the Slider builds its label and value Texts in a Column above the Flutter Slider, which makes its own container node. NodeView's container Semantics therefore takes in that text, so the Slider sentence and the README match. The CheckBox label is inside a MergeSemantics with the Checkbox. Modal uses OverlayPortal, so 'content' drawn in the Overlay is right.",
+        "Style: all 12 v3 messages have no semicolons, no space-padded em dashes, no Co-Authored-By, end with a blank line then '⚠️ Agent-generated', and none names the other Flutter branch or its ref."
+      ],
+      "problems": [
+        {
+          "key": "edits",
+          "title": "Commit 11 says the v0.9 and, or and not read a {\"valid\": ...} object as truthy, but the v0.9 argument check rejects that object first",
+          "severity": "should-fix",
+          "commit": "0e51cf7e",
+          "evidence": "New v3 sentence: \"This differs from the v0.9 `and`, `or` and `not`, which read such an object as truthy.\" Since commit 2 (5a3c5c0b), `argumentErrors` replaces nothing on a v0.9 catalog, and the v0.9 `and`/`not` args are DynamicBoolean (specification/v0_9/catalogs/basic/catalog.json). So a `{\"valid\": ...}` operand fails the argument check and never reaches the function body. Commit 2's own test pins this: basic_catalog_test.dart `'a v0.9 invoke checks a result object as an object'` expects `v09.invoke('not', {'value': {'valid': false}}, ...)` to throw `A2uiExpressionError`. Only the body's `isTruthy` (function_support.dart:74) would read a map as truthy, and no payload reaches it. Commit 2's message uses the same wording as a hypothetical (\"would pass an operand the function then reads as truthy\"). Commit 11 states it as current behavior.",
+          "fix": "Replace the sentence with: \"This differs from the v0.9 `and`, `or` and `not`, whose argument check rejects such an object.\"",
+          "status": "confirmed",
+          "votes": [
+            {
+              "verdict": "confirmed",
+              "severity": "should-fix",
+              "reasoning": "I tried to refute this and could not. Commit 0e51cf7e says: \"This differs from the v0.9 `and`, `or` and `not`, which read such an object as truthy.\" It states this as current behaviour, but no payload can reach that behaviour.\n\n1. **The v0.9 argument check rejects the object first.** In `data_context.dart:1200-1216`, `argumentErrors` makes the validity replacement only when `protocolVersion.isAtLeast(v1_0)`. On v0.9 it checks with `validity: false`, so a `{\"valid\": false}` map is checked as an object.\n2. **The v0.9 schema does not accept an object like that.** The arguments of `and`, `or` and `not` are DynamicBoolean (`specification/v0_9/catalogs/basic/catalog.json`). DynamicBoolean is a oneOf of boolean, DataBinding or FunctionCall (`common_types.json:147`), and `{\"valid\": false}` matches none of them.\n3. **Both execution paths run that check first.** `Catalog.invoke` (`data_context.dart:1164-1173`) throws `A2uiExpressionError` before `fn.execute`. The RPC handler (`rpc_handler.dart:392-403`) throws `invalidFunctionCall` before `fn.execute`. Those are the only two `.execute(` calls in a2ui_core/lib or a2ui_flutter/lib.\n4. **Commit 2's test pins the rejection.** `basic_catalog_test.dart:458`, 'a v0.9 invoke checks a result object as an object', expects `v09.invoke('not', {'value': {'valid': false}}, ...)` to throw `A2uiExpressionError`.\n\n**What does read the map as truthy:** the function bodies, called directly. The test at `basic_catalog_test.dart:487` ('v0.9 treats a {valid} map as a plain, truthy object') does this through `_call`, which calls `catalog.functions[name]!.execute` and skips `invoke`. That is the only sense in which the sentence holds. Commit 2's message is careful about this: it frames the truthy reading as what would happen (\"would pass an operand the function then reads as truthy\"). Commit 11 drops that framing and reads as a description of what v0.9 does with such a payload today, which is wrong. A payload gets EXPRESSION_ERROR, not truthy.\n\n**Why should-fix and not blocker:** the claim is literally true of the bodies, and the code is unaffected. But a reader would come away with the wrong idea of what v0.9 does with such a payload.\n\n**Fix:** use the proposed sentence: \"This differs from the v0.9 `and`, `or` and `not`, whose argument check rejects such an object.\""
+            },
+            {
+              "verdict": "confirmed",
+              "severity": "should-fix",
+              "reasoning": "Confirmed. The new sentence in commit 11 (0e51cf7e) says: \"This differs from the v0.9 `and`, `or` and `not`, which read such an object as truthy.\" At 0e51cf7e and at HEAD 8c25c42a, an object like that never gets to those function bodies.\n\nHow I checked (I read the code and the existing test, but did not run anything):\n- **Argument check runs first on both call paths.** In `dart/a2ui_core/lib/src/resolution/data_context.dart`, `invoke` (L1164-1173) calls `argumentErrors` and throws `A2uiExpressionError` before `fn.execute`. The RPC path in `rpc_handler.dart` (L392-403) does the same check before `fn.execute`. These are the only two callers of `.execute(` in `a2ui_core/lib`.\n- **No replacement on v0.9.** `argumentErrors` (L1204-1210) replaces values only when `protocolVersion` is at least v1_0. On v0.9 the check uses `_checkable(validity: false)`, which leaves a `{'valid': ...}` map as it is.\n- **The v0.9 schema rejects the object.** In `specification/v0_9/catalogs/basic/catalog.json`, the `not` arg `value` and the `and`/`or` `values.items` are all `$ref ... DynamicBoolean`, so the map fails the check.\n- **A test pins this.** `basic_catalog_test.dart` L458-468, \"a v0.9 invoke checks a result object as an object\", expects `v09.invoke('not', {'value': {'valid': false}}, ...)` to throw `A2uiExpressionError`. The test is still present at HEAD.\n- **Only unreachable code reads it as truthy.** The `isTruthy` in `function_support.dart` L74 would read a map as truthy, but no payload gets there. Commit 2's message (5a3c5c0b) words this as a hypothetical (\"would pass an operand the function then reads as truthy\"). Commit 11 states it as current behaviour.\n\nSo a porter reading commit 11 would think a v0.9 `not({\"valid\": false})` evaluates to false. It actually fails with EXPRESSION_ERROR.\n\nOn severity: the brief's own scale lists \"a wrong claim\" under blocker. The false claim here is a side contrast, though, and the rest of the commit (the code, the test and the core rule it describes) is accurate, so should-fix is a fair grade. Either way the problem is real.\n\nThe proposed fix is accurate: \"This differs from the v0.9 `and`, `or` and `not`, whose argument check rejects such an object.\""
+            }
+          ]
+        },
+        {
+          "key": "edits",
+          "title": "Commit 1's new v0.9 sentence ignores a v0.9 payload that writes hidden itself",
+          "severity": "nit",
+          "commit": "16027e76",
+          "evidence": "v3: \"v0.9 defines no `hidden`, so for a v0.9 payload this only adds a `hidden` that resolves to null.\" The v0.9 AccessibilityAttributes schema (specification/v0_9/json/common_types.json) is not closed, so a v0.9 payload may carry `hidden`. On a component whose schema leaves out `accessibility`, a written `hidden`, bound or literal, is now resolved instead of passing through raw. Commit 12 (8c25c42a) acknowledges the same case: \"a v0.9 payload that writes one as a literal gets it.\"",
+          "fix": "\"v0.9 defines no `hidden`, so for a v0.9 payload that sets none this only adds a `hidden` that resolves to null.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "edits",
+          "title": "Commit 7's edited sentence was not rewrapped and leaves a 119-character body line",
+          "severity": "nit",
+          "commit": "8b9e7c59",
+          "evidence": "Message line: \"exact: 10 steps over 0 to 1 give 0.3 rather than 0.30000000000000004. A value with no fraction is written as an int, as\" (119 chars). Every other body line in the series wraps at about 72 characters.",
+          "fix": "Rewrap the paragraph: \"...keeps more grid values\\nexact: 10 steps over 0 to 1 give 0.3 rather than 0.30000000000000004.\\nA value with no fraction is written as an int, as before.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "edits",
+          "title": "Commit 4's new sentence says Slider steps are not \"shown\", but steps change how the slider moves, not what it shows",
+          "severity": "nit",
+          "commit": "df55bee2",
+          "evidence": "v3: \"a v1.0 surface accepts TextField `placeholder`, Slider `steps` and Video `posterUrl` without showing them\". At df55bee2 the slider builder ignores `steps`, so the slider does not snap. Nothing about it is hidden from view.",
+          "fix": "\"...accepts TextField `placeholder`, Slider `steps` and Video `posterUrl` but ignores them, and its TextField still checks `validationRegexp`.\"",
+          "status": "nit",
+          "votes": []
+        },
+        {
+          "key": "edits",
+          "title": "Commit 10's Button doc comment went back to \"While a check fails it is disabled\", which the commit's own severity split makes imprecise",
+          "severity": "nit",
+          "commit": "e179af70",
+          "evidence": "v3 reverted button.dart to: \"While a check fails it is disabled, with the first failing check's message as its tooltip.\" The code is `props.isValid ? null : props.validationErrors.firstOrNull`, and the commit message says a failing `warning`/`info` check leaves `isValid` true and the Button enabled. The tooltip is the first failing error check, not the first failing check. v2 had corrected this wording, and v3 dropped the correction along with the tooltip-hint code. The base already had the wording, so this is not a regression of the series.",
+          "fix": "In button.dart: \"While a check fails with `error` severity it is disabled, with that check's message as its tooltip.\"",
+          "status": "nit",
+          "votes": []
+        }
+      ]
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Check"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Verify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "check:resolve-core",
+      "phaseIndex": 1,
+      "phaseTitle": "Check",
+      "agentId": "a7463e831f797580a",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792443794764,
+      "queuedAt": 1792443794745,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are an independent, blind checker. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v3-ctx/brief.md first and follow its BOUNDARY (read only /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series and /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad…",
+      "promptFramed": true,
+      "lastProgressAt": 1792443963417,
+      "tokens": 108149,
+      "toolCalls": 20,
+      "durationMs": 168653,
+      "resultPreview": "{\"problems\":[{\"title\":\"argumentErrors still reports a valid ValidationResult operand as an error when the call fails, and neither the doc nor the message says so (round-3 unverified nit, still open)\",\"severity\":\"nit\",\"commit\":\"5a3c5c0b\",\"evidence\":\"On a v1.0 catalog, when both passes fail, `argumentErrors` returns the errors of the pass with nothing replaced. Probe at 5a3c5c0b: `v10.invoke('and', …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "check:resolve-flutter",
+      "phaseIndex": 1,
+      "phaseTitle": "Check",
+      "agentId": "a384ab481ddc3f4af",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792443794764,
+      "queuedAt": 1792443794745,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are an independent, blind checker. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v3-ctx/brief.md first and follow its BOUNDARY (read only /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series and /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad…",
+      "promptFramed": true,
+      "lastProgressAt": 1792444015934,
+      "tokens": 125692,
+      "toolCalls": 29,
+      "durationMs": 220143,
+      "resultPreview": "{\"problems\":[{\"title\":\"README live-region list (and the Slider sentence in the message) leave out the check message under CheckBox and Slider, which is in the region and is announced\",\"severity\":\"nit\",\"commit\":\"8c25c42a\",\"evidence\":\"README: \\\"announces changes to its own label: a Text's text, a TextField's label, or a Slider's label and value, but not a Button's child text, a CheckBox's label or a…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "check:edits",
+      "phaseIndex": 1,
+      "phaseTitle": "Check",
+      "agentId": "a00971521ff911b19",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792443794764,
+      "queuedAt": 1792443794745,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are an independent, blind checker. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v3-ctx/brief.md first and follow its BOUNDARY (read only /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series and /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad…",
+      "promptFramed": true,
+      "lastProgressAt": 1792444086867,
+      "tokens": 135341,
+      "toolCalls": 35,
+      "durationMs": 291074,
+      "resultPreview": "{\"problems\":[{\"title\":\"Commit 11 says the v0.9 and, or and not read a {\\\"valid\\\": ...} object as truthy, but the v0.9 argument check rejects that object first\",\"severity\":\"should-fix\",\"commit\":\"0e51cf7e\",\"evidence\":\"New v3 sentence: \\\"This differs from the v0.9 `and`, `or` and `not`, which read such an object as truthy.\\\" Since commit 2 (5a3c5c0b), `argumentErrors` replaces nothing on a v0.9 catal…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "verify:edits:Commit 11 says the v0.9 and, o#1",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "ab72c3694f0360c50",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792444088722,
+      "queuedAt": 1792444088695,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "confirmed",
+      "promptPreview": "You are an independent skeptic. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v3-ctx/brief.md and follow its BOUNDARY and probe rules. Try to REFUTE this problem reported against the v3 series (cbaa5ee62..8c25c42a in /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series). Read the commit, its message and the code it …",
+      "promptFramed": true,
+      "lastProgressAt": 1792444137769,
+      "tokens": 71415,
+      "toolCalls": 11,
+      "durationMs": 49046,
+      "resultPreview": "{\"verdict\":\"confirmed\",\"severity\":\"should-fix\",\"reasoning\":\"I tried to refute this and could not. Commit 0e51cf7e says: \\\"This differs from the v0.9 `and`, `or` and `not`, which read such an object as truthy.\\\" It states this as current behaviour, but no payload can reach that behaviour.\\n\\n1. **The v0.9 argument check rejects the object first.** In `data_context.dart:1200-1216`, `argumentErrors` …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "verify:edits:Commit 11 says the v0.9 and, o#2",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "ae3a480b33e8bf1a4",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792444088723,
+      "queuedAt": 1792444088696,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "confirmed",
+      "promptPreview": "You are an independent skeptic. Read /private/tmp/claude-501/-Users-andrewkolos--claude-spares-spare-N0Eizm/ecd37fe7-1966-4f12-adf9-9b62bdc047f8/scratchpad/v3-ctx/brief.md and follow its BOUNDARY and probe rules. Try to REFUTE this problem reported against the v3 series (cbaa5ee62..8c25c42a in /Users/andrewkolos/Documents/GitHub/A2UI-review-v1-series). Read the commit, its message and the code it …",
+      "promptFramed": true,
+      "lastProgressAt": 1792444139132,
+      "tokens": 74694,
+      "toolCalls": 9,
+      "durationMs": 49099,
+      "resultPreview": "{\"verdict\":\"confirmed\",\"severity\":\"should-fix\",\"reasoning\":\"Confirmed. The new sentence in commit 11 (0e51cf7e) says: \\\"This differs from the v0.9 `and`, `or` and `not`, which read such an object as truthy.\\\" At 0e51cf7e and at HEAD 8c25c42a, an object like that never gets to those function bodies.\\n\\nHow I checked (I read the code and the existing test, but did not run anything):\\n- **Argument ch…"
+    }
+  ],
+  "totalTokens": 515291,
+  "totalToolCalls": 104
+}
