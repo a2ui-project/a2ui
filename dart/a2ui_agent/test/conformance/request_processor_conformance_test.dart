@@ -34,15 +34,11 @@ void main() {
         test(
           testCase['name']! as String,
           skip: _skipReason(testCase, version),
-          () => version.run(
-            () => switch (testCase['action']) {
-              'create_format' => _createFormat(testCase, version),
-              'create_processor' => _createProcessor(testCase, version),
-              _ => throw UnsupportedError(
-                'Unknown action ${testCase['action']}',
-              ),
-            },
-          ),
+          () => switch (testCase['action']) {
+            'create_format' => _createFormat(testCase, version),
+            'create_processor' => _createProcessor(testCase, version),
+            _ => throw UnsupportedError('Unknown action ${testCase['action']}'),
+          },
         );
       }
     });

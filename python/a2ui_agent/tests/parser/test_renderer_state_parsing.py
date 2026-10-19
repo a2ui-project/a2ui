@@ -383,3 +383,102 @@ def test_the_last_message_of_a_block_is_checked_when_it_closes():
     stream.feed("<a2ui-json>" + body[:-2])
     with pytest.raises(A2uiValidationError, match="Unrecognized component"):
         stream.feed(body[-2:] + "</a2ui-json>")
+
+
+def _canvas(parser: DirectJsonParser) -> RendererState:
+    """A canvas state holding surface `s` with `root -> a`."""
+    state = RendererState([_BASIC])
+    parser.parse_response(
+        _block(_CREATE, _update(_column("a"), _text("a"))), state=state
+    )
+    return state
+
+
+_CHANGE_A = _update({"id": "a", "component": "Text", "text": "Changed"})
+
+
+def test_a_failed_stream_does_not_hold_what_it_emitted_against_later_turns():
+    parser = DirectJsonParser([_BASIC])
+    state = _canvas(parser)
+    stream = parser.open_stream(state=state)
+
+    emitted = stream.feed("<a2ui-json>[" + json.dumps(_update(_text("orphan"))))
+    assert _emitted(emitted)
+    with pytest.raises(A2uiIntegrityError, match="'orphan' is not reachable"):
+        stream.feed("]</a2ui-json>")
+
+    # The renderer holds the orphan, and no message can remove it.
+    assert "orphan" in _component_ids(state)
+    parser.parse_response(_block(_CHANGE_A), state=state)
+    assert _components(state)["a"]["text"] == "Changed"
+
+
+def test_a_stream_cut_off_inside_a_block_does_not_hold_what_it_emitted():
+    parser = DirectJsonParser([_BASIC])
+    state = _canvas(parser)
+    stream = parser.open_stream(state=state)
+
+    assert _emitted(
+        stream.feed("<a2ui-json>[" + json.dumps(_update(_text("orphan"))) + ",")
+    )
+    with pytest.raises(A2uiParseError, match="ended inside"):
+        stream.close()
+
+    parser.parse_response(_block(_CHANGE_A), state=state)
+    assert _components(state)["a"]["text"] == "Changed"
+
+
+def test_a_failed_tree_check_keeps_only_the_text_in_partial_results():
+    parser = DirectJsonParser([_BASIC])
+    state = RendererState([_BASIC])
+
+    with pytest.raises(A2uiIntegrityError, match="Dangling reference") as excinfo:
+        parser.parse_response(
+            "Here.\n" + _block(_CREATE, _update(_column("missing"))), state=state
+        )
+
+    partial = getattr(excinfo.value, "partial_results")
+    assert all(isinstance(p, TextPart) for p in partial)
+    assert _text_of(partial) == "Here."
+    assert state.surface_ids == []
+
+
+class _TruncationTolerantParser(DirectJsonParser):
+    """Compiles a cut-off block as far as it goes, as Express does."""
+
+    def compile(self, format_content: str, *, is_final: bool = True) -> list[Any]:
+        del is_final
+        return super().compile(format_content)
+
+
+def test_a_truncated_block_does_not_hold_its_components_against_later_turns():
+    parser = _TruncationTolerantParser([_BASIC])
+    state = _canvas(parser)
+
+    parser.parse_response(
+        "<a2ui-json>" + json.dumps([_update(_text("orphan"))]), state=state
+    )
+
+    assert "orphan" in _component_ids(state)
+    parser.parse_response(_block(_CHANGE_A), state=state)
+    assert _components(state)["a"]["text"] == "Changed"
+
+
+def test_a_chunk_that_finishes_a_block_then_fails_keeps_its_emitted_surfaces():
+    """The rollback restores what the finished block emitted earlier."""
+    parser = DirectJsonParser([_BASIC])
+    state = _canvas(parser)
+    stream = parser.open_stream(state=state)
+
+    assert _emitted(stream.feed("<a2ui-json>[" + json.dumps(_update(_text("b"))) + ","))
+    with pytest.raises(A2uiValidationError, match="Unrecognized component"):
+        stream.feed(
+            json.dumps(_update(_column("a", "b")))
+            + "]</a2ui-json>"
+            + _block(_update({"id": "x", "component": "Unknown"}))
+        )
+
+    # `b` was emitted, but the update that attached it was undone.
+    assert "b" in _component_ids(state)
+    parser.parse_response(_block(_CHANGE_A), state=state)
+    assert _components(state)["a"]["text"] == "Changed"
