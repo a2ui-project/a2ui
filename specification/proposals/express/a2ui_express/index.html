@@ -1445,7 +1445,7 @@
 </span></code></pre></div>
 <p>The decompiler writes a <code>catalogId</code> only when the component or function name is defined in more than one active catalog (or differs from the single registered catalog). The v0.9 and v0.9.1 schemas allow <code>catalogId</code> only on <code>createSurface</code>, so for those targets the compiler rejects multiple catalogs and per-component or per-function <code>catalogId</code> overrides.</p>
 <blockquote>
-<p><strong>Note:</strong> The multi-catalog behavior described above is implemented in the Python SDK only for now. TypeScript and Dart Express compilers currently fall back to the first catalog for surfaces and do not tag components; see the TypeScript (<code>typescript/a2ui_agent/tests/conformance/KNOWN_FAILURES.md</code>) and Dart (<code>dart/a2ui_agent/test/conformance/conformance_test.dart</code>) known-gaps entries for current conformance status and tracking.</p>
+<p><strong>Note:</strong> The multi-catalog behavior described above is implemented in the Python and TypeScript SDKs. The Dart Express compiler does not yet support v1.0 (<code>dart/a2ui_agent/lib/src/inference_formats/express/compiler.dart</code>); see <code>dart/a2ui_agent/test/conformance/multi_catalog_formats_conformance_test.dart</code> for current conformance status.</p>
 </blockquote>
 <h4 id="deleting-a-surface">Deleting a surface<a class="headerlink" href="#deleting-a-surface" title="Permanent link">¶</a></h4>
 <p>When the compiler encounters the standalone <code>deleteSurface</code> command, it produces a standard <code>deleteSurface</code> lifecycle message:</p>
