@@ -14,9 +14,9 @@
 
 """What a check found about a surface's component graph, for checking the next batch.
 
-`SurfaceComponentsModel.validate_components_update` uses a `GraphIndex` under a
-validation config that defers the graph checks, so that a batch is checked
-against the components it changes rather than the whole surface.
+`SurfaceComponentsModel.validate_components_update` uses a `ComponentGraphBound`
+under a validation config that defers the graph checks, so that a batch is
+checked against the components it changes rather than the whole surface.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from .validation_helpers import (
     composition_api,
 )
 
-__all__ = ["GraphIndex"]
+__all__ = ["ComponentGraphBound"]
 
 
 class _AnyId:
@@ -71,10 +71,10 @@ def declared_children(model: ComponentModel) -> list[str]:
     return [ref_id for ref_id, _ in model.get_child_references()]
 
 
-class GraphIndex:
+class ComponentGraphBound:
     """The references of a surface's components and a bound on their depth.
 
-    The index describes a graph that passed the composition and topology
+    The bound describes a graph that passed the composition and topology
     checks. It holds the children and parents of each component, for the
     composition check and for the topology check, the position of each
     component on the surface, and for each component an upper bound on the
@@ -107,21 +107,21 @@ class GraphIndex:
         self._next_order = 0
 
     @classmethod
-    def of(cls, components: Mapping[str, ComponentModel]) -> GraphIndex:
-        """Returns the index of a graph that passed the checks, in surface order.
+    def of(cls, components: Mapping[str, ComponentModel]) -> ComponentGraphBound:
+        """Returns the bound of a graph that passed the checks, in surface order.
 
         A graph with a cycle among components the topology check does not
-        reach can pass it. Its index has no bound, so `admits` refuses every
+        reach can pass it. Its bound does not hold, so `admits` refuses every
         batch.
         """
-        index = cls()
+        bound = cls()
         for comp_id, model in components.items():
-            index._order[comp_id] = index._next_order
-            index._next_order += 1
-            index._set_children(comp_id, possible_children(model))
-            index._set_declared(comp_id, declared_children(model))
-        index._compute_heights(components.keys())
-        return index
+            bound._order[comp_id] = bound._next_order
+            bound._next_order += 1
+            bound._set_children(comp_id, possible_children(model))
+            bound._set_declared(comp_id, declared_children(model))
+        bound._compute_heights(components.keys())
+        return bound
 
     def _set_children(self, comp_id: str, children: list[str]) -> None:
         for child in self._children.get(comp_id, ()):
@@ -181,7 +181,7 @@ class GraphIndex:
         """Checks the composition constraints the batch can change.
 
         `held` is the surface before the batch, which passed the check when
-        this index was made. A component whose type, children, children's
+        this bound was made. A component whose type, children, children's
         types and parent are unchanged still passes, so only the others are
         checked, in surface order, which makes the first failure the one
         `validate_composition_constraints` reports for the whole surface.
@@ -274,14 +274,14 @@ class GraphIndex:
         limit: int,
         held: Callable[[str], bool],
     ) -> bool:
-        """Whether this index shows the graph with the batch passes the topology check.
+        """Whether this bound shows the graph with the batch passes the topology check.
 
         The graph passes when it has no self-reference, no cycle and no chain
         of more than `limit` references, which the bound shows when it holds
         after the batch. `held` tells whether the graph holds an id after the
-        batch. On True the index describes the graph with the batch. False
-        means the index cannot show that the graph passes, not that it fails,
-        and leaves the index unusable.
+        batch. On True the bound describes the graph with the batch. False
+        means the bound cannot show that the graph passes, not that it fails,
+        and leaves the bound unusable.
         """
         if self._max_height > limit:
             return False
