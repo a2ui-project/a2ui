@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
+import json
 import logging
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any
 
 from a2a.server.agent_execution import RequestContext
 from google.adk.a2a.converters.request_converter import AgentRunRequest
@@ -26,10 +28,14 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
 from google.adk.runners import Runner
+from typing_extensions import override
 
 from a2ui.a2a import try_activate_a2ui_extension
 from a2ui.adk import A2uiEventConverter
-from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.constants import (
+    A2UI_CLIENT_CAPABILITIES_KEY,
+    A2UI_RENDERER_CAPABILITIES_KEY,
+)
 from a2ui.core import A2uiError
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor
@@ -41,10 +47,9 @@ logger = logging.getLogger(__name__)
 
 _A2UI_ENABLED_KEY = "system:a2ui_enabled"
 _A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
-_A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 _A2UI_RULES_KEY = "system:a2ui_rules"
 _A2UI_VERSION_KEY = "system:a2ui_version"
-_A2UI_RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
+_A2UI_NEGOTIATION_KEY = "system:a2ui_negotiation"
 
 
 def _capabilities_key(version: ProtocolVersion) -> str:
@@ -54,7 +59,20 @@ def _capabilities_key(version: ProtocolVersion) -> str:
     """
     if version in (ProtocolVersion.V0_8, ProtocolVersion.V0_9):
         return A2UI_CLIENT_CAPABILITIES_KEY
-    return _A2UI_RENDERER_CAPABILITIES_KEY
+    return A2UI_RENDERER_CAPABILITIES_KEY
+
+
+def _negotiation_key(version: ProtocolVersion | None, capabilities: Any | None) -> str:
+    """Returns a digest of what the request's A2UI session state follows from.
+
+    The state follows from the negotiated version and the client's
+    capabilities alone, so two requests with the same digest get the same
+    state.
+    """
+    negotiation = [version.value if version else None, capabilities]
+    return hashlib.sha256(
+        json.dumps(negotiation, sort_keys=True, default=str).encode()
+    ).hexdigest()
 
 
 def get_a2ui_catalogs(ctx: ReadonlyContext):
@@ -67,18 +85,6 @@ def get_a2ui_catalogs(ctx: ReadonlyContext):
         The active A2UI catalogs, or an empty list if none are found.
     """
     return ctx.state.get(_A2UI_CATALOGS_KEY) or []
-
-
-def get_a2ui_examples(ctx: ReadonlyContext):
-    """Retrieves the A2UI examples from the session state.
-
-    Args:
-        ctx: The ReadonlyContext for resolving the examples.
-
-    Returns:
-        The A2UI examples or None if not found.
-    """
-    return ctx.state.get(_A2UI_EXAMPLES_KEY)
 
 
 def get_a2ui_enabled(ctx: ReadonlyContext):
@@ -160,23 +166,45 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
         # The processor lives for this request only. What the request needs
         # from it replaces the values of the previous request, so a request
         # without A2UI doesn't get the UI instruction or catalog of an earlier
-        # one.
-        processor = self._create_processor(context, active_ui_version)
+        # one. A request that negotiates as the previous one did finds its
+        # values in the session state already, so it adds no event to the
+        # session.
+        capabilities = self._client_capabilities(context, active_ui_version)
+        negotiation = _negotiation_key(active_ui_version, capabilities)
+        if session.state.get(_A2UI_NEGOTIATION_KEY) == negotiation:
+            return session
+        state_delta = self._a2ui_state(
+            active_ui_version,
+            self._create_processor(active_ui_version, capabilities),
+        )
+        state_delta[_A2UI_NEGOTIATION_KEY] = negotiation
         await runner.session_service.append_event(
             session,
             Event(
                 invocation_id=new_invocation_context_id(),
                 author="system",
-                actions=EventActions(
-                    state_delta=self._a2ui_state(active_ui_version, processor)
-                ),
+                actions=EventActions(state_delta=state_delta),
             ),
         )
 
         return session
 
+    @staticmethod
+    def _client_capabilities(
+        context: RequestContext, version: ProtocolVersion | None
+    ) -> Any | None:
+        """Returns the capabilities that the client sent for `version`, if any."""
+        if not version:
+            return None
+        metadata = (
+            context.message.metadata
+            if context.message and context.message.metadata
+            else {}
+        )
+        return metadata.get(_capabilities_key(version))
+
     def _create_processor(
-        self, context: RequestContext, version: ProtocolVersion | None
+        self, version: ProtocolVersion | None, capabilities: Any | None
     ) -> A2uiRequestProcessor | None:
         """Negotiates the request's processor from the client's capabilities.
 
@@ -186,12 +214,6 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
         """
         if not version:
             return None
-        metadata = (
-            context.message.metadata
-            if context.message and context.message.metadata
-            else {}
-        )
-        capabilities = metadata.get(_capabilities_key(version))
         try:
             return self._agent.create_processor(version, capabilities)
         except A2uiError as e:
@@ -207,14 +229,11 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
                 _A2UI_ENABLED_KEY: False,
                 _A2UI_VERSION_KEY: "",
                 _A2UI_CATALOGS_KEY: [],
-                _A2UI_EXAMPLES_KEY: "",
                 _A2UI_RULES_KEY: "",
             }
         return {
             _A2UI_ENABLED_KEY: True,
             _A2UI_VERSION_KEY: version.value,
             _A2UI_CATALOGS_KEY: processor.active_catalogs,
-            # TODO: Load examples from files.
-            _A2UI_EXAMPLES_KEY: "",
             _A2UI_RULES_KEY: processor.format.prompt_generator.generate_base_rules(),
         }

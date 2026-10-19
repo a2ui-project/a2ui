@@ -5,7 +5,7 @@ create a simple "MCP Apps Proxy" agent that is hosted as an A2A server.
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - [UV](https://docs.astral.sh/uv/)
 - Access to an LLM and API Key
 
@@ -35,8 +35,8 @@ create a simple "MCP Apps Proxy" agent that is hosted as an A2A server.
 
 ## How the agent negotiates A2UI
 
-The agent holds one `A2uiGenerator` for each protocol version (v0.8, v0.9 and
-v1.0), each with the MCP App catalog of that version in
+The agent holds one `A2uiGenerator` for each protocol version (v0.9 and v1.0),
+each with the MCP App catalog of that version in
 [`catalogs/`](catalogs/). The agent card lists the generators' catalogs. Every
 component on this agent's surfaces comes from the MCP App catalog, so a v1.0
 surface needs no other catalog, and the v1.0 catalog drops the `Column` that the
@@ -44,12 +44,14 @@ v0.9 catalog carries.
 
 For each request, the executor ([`agent_executor.py`](agent_executor.py))
 creates an `A2uiRequestProcessor` from the client's capabilities: the
-`a2uiClientCapabilities` message metadata for v0.8 and v0.9, and
+`a2uiClientCapabilities` message metadata for v0.9, and
 `a2uiRendererCapabilities` for v1.0. It writes the negotiated version, the
 format rules of the processor and the negotiated catalog into the session
 state. The instruction and the A2UI event converter read them from there, and
 the tools write their A2UI messages in v1.0 when the request negotiated it and
-in v0.9 otherwise.
+in v0.9 otherwise. The agent doesn't speak v0.8, so a client that offers only
+v0.8 gets text answers. A request that negotiates as the previous request in
+the session did reuses the session state and adds no event to the session.
 
 The capabilities are keyed by protocol version, for example
 `{"v1.0": {"supportedCatalogIds": [...]}}`, and the agent passes them to

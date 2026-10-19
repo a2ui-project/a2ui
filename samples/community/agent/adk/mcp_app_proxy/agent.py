@@ -119,13 +119,11 @@ class McpAppProxyAgent:
         self._memory_service = InMemoryMemoryService()
         self._artifact_service = InMemoryArtifactService()
 
+        # The tools write their A2UI messages in v0.9 or v1.0, so the agent
+        # doesn't speak v0.8.
         self._generators: dict[ProtocolVersion, A2uiGenerator] = {
             version: self._build_generator(version)
-            for version in [
-                ProtocolVersion.V0_8,
-                ProtocolVersion.V0_9,
-                ProtocolVersion.V1_0,
-            ]
+            for version in [ProtocolVersion.V0_9, ProtocolVersion.V1_0]
         }
         self._runner = self._build_runner()
         self._agent_card = self._build_agent_card()

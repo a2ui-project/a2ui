@@ -33,7 +33,8 @@ dependencies = [
     "uvicorn",
     "starlette",
     "mcp",
-    "anyio"
+    "anyio",
+    "typing-extensions>=4.4.0",
 ]
 
 [project.scripts]

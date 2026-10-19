@@ -2807,6 +2807,7 @@ dependencies = [
     { name = "mcp" },
     { name = "python-dotenv" },
     { name = "starlette" },
+    { name = "typing-extensions" },
     { name = "uvicorn" },
 ]
 
@@ -2824,6 +2825,7 @@ requires-dist = [
     { name = "mcp" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "starlette" },
+    { name = "typing-extensions", specifier = ">=4.4.0" },
     { name = "uvicorn" },
 ]
 
