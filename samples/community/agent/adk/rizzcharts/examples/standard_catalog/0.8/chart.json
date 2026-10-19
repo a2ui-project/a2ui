@@ -28,7 +28,7 @@
           "component": {
             "Text": {
               "text": {
-                "path": "/chart.title"
+                "path": "/chart/title"
               },
               "usageHint": "h2"
             }
@@ -42,7 +42,7 @@
               "children": {
                 "template": {
                   "componentId": "category-item-template",
-                  "dataBinding": "/chart.items"
+                  "dataBinding": "/chart/items"
                 }
               }
             }
@@ -72,7 +72,7 @@
           "component": {
             "Text": {
               "text": {
-                "path": "/label"
+                "path": "label"
               }
             }
           }
@@ -82,7 +82,7 @@
           "component": {
             "Text": {
               "text": {
-                "path": "/value"
+                "path": "value"
               }
             }
           }
@@ -93,51 +93,84 @@
   {
     "dataModelUpdate": {
       "surfaceId": "sales-dashboard",
-      "path": "/",
+      "path": "/chart",
       "contents": [
         {
-          "key": "chart.title",
+          "key": "title",
           "valueString": "Sales by Category"
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "sales-dashboard",
+      "path": "/chart/items",
+      "contents": [
+        {
+          "key": "0",
+          "valueMap": [
+            {
+              "key": "label",
+              "valueString": "Apparel"
+            },
+            {
+              "key": "value",
+              "valueNumber": 41
+            }
+          ]
         },
         {
-          "key": "chart.items[0].label",
-          "valueString": "Apparel"
+          "key": "1",
+          "valueMap": [
+            {
+              "key": "label",
+              "valueString": "Home Goods"
+            },
+            {
+              "key": "value",
+              "valueNumber": 15
+            }
+          ]
         },
         {
-          "key": "chart.items[0].value",
-          "valueNumber": 41
+          "key": "2",
+          "valueMap": [
+            {
+              "key": "label",
+              "valueString": "Electronics"
+            },
+            {
+              "key": "value",
+              "valueNumber": 28
+            }
+          ]
         },
         {
-          "key": "chart.items[1].label",
-          "valueString": "Home Goods"
+          "key": "3",
+          "valueMap": [
+            {
+              "key": "label",
+              "valueString": "Health & Beauty"
+            },
+            {
+              "key": "value",
+              "valueNumber": 10
+            }
+          ]
         },
         {
-          "key": "chart.items[1].value",
-          "valueNumber": 15
-        },
-        {
-          "key": "chart.items[2].label",
-          "valueString": "Electronics"
-        },
-        {
-          "key": "chart.items[2].value",
-          "valueNumber": 28
-        },
-        {
-          "key": "chart.items[3].label",
-          "valueString": "Health & Beauty"
-        },
-        {
-          "key": "chart.items[3].value",
-          "valueNumber": 10
-        },
-        {
-          "key": "chart.items[4].label",
-          "valueString": "Other"
-        },
-        {
-          "key": "chart.items[4].value",
-          "valueNumber": 6
+          "key": "4",
+          "valueMap": [
+            {
+              "key": "label",
+              "valueString": "Other"
+            },
+            {
+              "key": "value",
+              "valueNumber": 6
+            }
+          ]
         }
       ]
     }

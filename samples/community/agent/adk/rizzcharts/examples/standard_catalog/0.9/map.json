@@ -39,7 +39,7 @@
           "direction": "vertical",
           "children": {
             "componentId": "location-card-template",
-            "path": "/mapConfig.locations"
+            "path": "/mapConfig/locations"
           }
         },
         {
@@ -56,7 +56,7 @@
           "id": "location-name",
           "component": "Text",
           "text": {
-            "path": "/name"
+            "path": "name"
           },
           "variant": "h4"
         },
@@ -64,7 +64,7 @@
           "id": "location-description",
           "component": "Text",
           "text": {
-            "path": "/description"
+            "path": "description"
           }
         }
       ]
@@ -76,18 +76,28 @@
       "surfaceId": "la-map-view",
       "path": "/",
       "value": {
-        "mapConfig.locations[0].name": "Google Store Santa Monica",
-        "mapConfig.locations[0].description": "Your local destination for Google hardware.",
-        "mapConfig.locations[1].name": "Griffith Observatory",
-        "mapConfig.locations[1].description": "A public observatory with views of the Hollywood Sign.",
-        "mapConfig.locations[2].name": "Hollywood Sign Viewpoint",
-        "mapConfig.locations[2].description": "Iconic landmark in the Hollywood Hills.",
-        "mapConfig.locations[3].name": "Crypto.com Arena",
-        "mapConfig.locations[3].description": "Multi-purpose sports and entertainment arena.",
-        "mapConfig.locations[4].name": "LACMA",
-        "mapConfig.locations[4].description": "Los Angeles County Museum of Art.",
-        "mapConfig.locations[5].name": "Venice Beach Boardwalk",
-        "mapConfig.locations[5].description": "Famous oceanfront promenade."
+        "mapConfig": {
+          "locations": [
+            {
+              "name": "Google Store Santa Monica",
+              "description": "Your local destination for Google hardware."
+            },
+            {
+              "name": "Griffith Observatory",
+              "description": "A public observatory with views of the Hollywood Sign."
+            },
+            {
+              "name": "Hollywood Sign Viewpoint",
+              "description": "Iconic landmark in the Hollywood Hills."
+            },
+            {
+              "name": "Crypto.com Arena",
+              "description": "Multi-purpose sports and entertainment arena."
+            },
+            {"name": "LACMA", "description": "Los Angeles County Museum of Art."},
+            {"name": "Venice Beach Boardwalk", "description": "Famous oceanfront promenade."}
+          ]
+        }
       }
     }
   }

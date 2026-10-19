@@ -33,13 +33,13 @@
           "component": "GoogleMap",
           "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
           "center": {
-            "@path": "/mapConfig.center"
+            "@path": "/mapConfig/center"
           },
           "zoom": {
-            "@path": "/mapConfig.zoom"
+            "@path": "/mapConfig/zoom"
           },
           "pins": {
-            "@path": "/mapConfig.locations"
+            "@path": "/mapConfig/locations"
           }
         }
       ]
@@ -51,31 +51,26 @@
       "surfaceId": "la-map-view",
       "path": "/",
       "value": {
-        "mapConfig.center.lat": 34.0522,
-        "mapConfig.center.lng": -118.2437,
-        "mapConfig.zoom": 11,
-        "mapConfig.locations[0].lat": 34.0135,
-        "mapConfig.locations[0].lng": -118.4947,
-        "mapConfig.locations[0].name": "Google Store Santa Monica",
-        "mapConfig.locations[0].description": "Your local destination for Google hardware.",
-        "mapConfig.locations[0].background": "#4285F4",
-        "mapConfig.locations[0].borderColor": "#FFFFFF",
-        "mapConfig.locations[0].glyphColor": "#FFFFFF",
-        "mapConfig.locations[1].lat": 34.1341,
-        "mapConfig.locations[1].lng": -118.3215,
-        "mapConfig.locations[1].name": "Griffith Observatory",
-        "mapConfig.locations[2].lat": 34.134,
-        "mapConfig.locations[2].lng": -118.3397,
-        "mapConfig.locations[2].name": "Hollywood Sign Viewpoint",
-        "mapConfig.locations[3].lat": 34.0453,
-        "mapConfig.locations[3].lng": -118.2673,
-        "mapConfig.locations[3].name": "Crypto.com Arena",
-        "mapConfig.locations[4].lat": 34.0639,
-        "mapConfig.locations[4].lng": -118.3592,
-        "mapConfig.locations[4].name": "LACMA",
-        "mapConfig.locations[5].lat": 33.985,
-        "mapConfig.locations[5].lng": -118.4729,
-        "mapConfig.locations[5].name": "Venice Beach Boardwalk"
+        "mapConfig": {
+          "center": {"lat": 34.0522, "lng": -118.2437},
+          "zoom": 11,
+          "locations": [
+            {
+              "lat": 34.0135,
+              "lng": -118.4947,
+              "name": "Google Store Santa Monica",
+              "description": "Your local destination for Google hardware.",
+              "background": "#4285F4",
+              "borderColor": "#FFFFFF",
+              "glyphColor": "#FFFFFF"
+            },
+            {"lat": 34.1341, "lng": -118.3215, "name": "Griffith Observatory"},
+            {"lat": 34.134, "lng": -118.3397, "name": "Hollywood Sign Viewpoint"},
+            {"lat": 34.0453, "lng": -118.2673, "name": "Crypto.com Arena"},
+            {"lat": 34.0639, "lng": -118.3592, "name": "LACMA"},
+            {"lat": 33.985, "lng": -118.4729, "name": "Venice Beach Boardwalk"}
+          ]
+        }
       }
     }
   }

@@ -46,13 +46,13 @@
           "component": {
             "GoogleMap": {
               "center": {
-                "path": "/mapConfig.center"
+                "path": "/mapConfig/center"
               },
               "zoom": {
-                "path": "/mapConfig.zoom"
+                "path": "/mapConfig/zoom"
               },
               "pins": {
-                "path": "/mapConfig.locations"
+                "path": "/mapConfig/locations"
               }
             }
           }
@@ -63,107 +63,150 @@
   {
     "dataModelUpdate": {
       "surfaceId": "la-map-view",
-      "path": "/",
+      "path": "/mapConfig",
       "contents": [
         {
-          "key": "mapConfig.center.lat",
-          "valueNumber": 34.0522
+          "key": "center",
+          "valueMap": [
+            {
+              "key": "lat",
+              "valueNumber": 34.0522
+            },
+            {
+              "key": "lng",
+              "valueNumber": -118.2437
+            }
+          ]
         },
         {
-          "key": "mapConfig.center.lng",
-          "valueNumber": -118.2437
-        },
-        {
-          "key": "mapConfig.zoom",
+          "key": "zoom",
           "valueNumber": 11
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "la-map-view",
+      "path": "/mapConfig/locations",
+      "contents": [
+        {
+          "key": "0",
+          "valueMap": [
+            {
+              "key": "lat",
+              "valueNumber": 34.0135
+            },
+            {
+              "key": "lng",
+              "valueNumber": -118.4947
+            },
+            {
+              "key": "name",
+              "valueString": "Google Store Santa Monica"
+            },
+            {
+              "key": "description",
+              "valueString": "Your local destination for Google hardware."
+            },
+            {
+              "key": "background",
+              "valueString": "#4285F4"
+            },
+            {
+              "key": "borderColor",
+              "valueString": "#FFFFFF"
+            },
+            {
+              "key": "glyphColor",
+              "valueString": "#FFFFFF"
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[0].lat",
-          "valueNumber": 34.0135
+          "key": "1",
+          "valueMap": [
+            {
+              "key": "lat",
+              "valueNumber": 34.1341
+            },
+            {
+              "key": "lng",
+              "valueNumber": -118.3215
+            },
+            {
+              "key": "name",
+              "valueString": "Griffith Observatory"
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[0].lng",
-          "valueNumber": -118.4947
+          "key": "2",
+          "valueMap": [
+            {
+              "key": "lat",
+              "valueNumber": 34.134
+            },
+            {
+              "key": "lng",
+              "valueNumber": -118.3397
+            },
+            {
+              "key": "name",
+              "valueString": "Hollywood Sign Viewpoint"
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[0].name",
-          "valueString": "Google Store Santa Monica"
+          "key": "3",
+          "valueMap": [
+            {
+              "key": "lat",
+              "valueNumber": 34.0453
+            },
+            {
+              "key": "lng",
+              "valueNumber": -118.2673
+            },
+            {
+              "key": "name",
+              "valueString": "Crypto.com Arena"
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[0].description",
-          "valueString": "Your local destination for Google hardware."
+          "key": "4",
+          "valueMap": [
+            {
+              "key": "lat",
+              "valueNumber": 34.0639
+            },
+            {
+              "key": "lng",
+              "valueNumber": -118.3592
+            },
+            {
+              "key": "name",
+              "valueString": "LACMA"
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[0].background",
-          "valueString": "#4285F4"
-        },
-        {
-          "key": "mapConfig.locations[0].borderColor",
-          "valueString": "#FFFFFF"
-        },
-        {
-          "key": "mapConfig.locations[0].glyphColor",
-          "valueString": "#FFFFFF"
-        },
-        {
-          "key": "mapConfig.locations[1].lat",
-          "valueNumber": 34.1341
-        },
-        {
-          "key": "mapConfig.locations[1].lng",
-          "valueNumber": -118.3215
-        },
-        {
-          "key": "mapConfig.locations[1].name",
-          "valueString": "Griffith Observatory"
-        },
-        {
-          "key": "mapConfig.locations[2].lat",
-          "valueNumber": 34.134
-        },
-        {
-          "key": "mapConfig.locations[2].lng",
-          "valueNumber": -118.3397
-        },
-        {
-          "key": "mapConfig.locations[2].name",
-          "valueString": "Hollywood Sign Viewpoint"
-        },
-        {
-          "key": "mapConfig.locations[3].lat",
-          "valueNumber": 34.0453
-        },
-        {
-          "key": "mapConfig.locations[3].lng",
-          "valueNumber": -118.2673
-        },
-        {
-          "key": "mapConfig.locations[3].name",
-          "valueString": "Crypto.com Arena"
-        },
-        {
-          "key": "mapConfig.locations[4].lat",
-          "valueNumber": 34.0639
-        },
-        {
-          "key": "mapConfig.locations[4].lng",
-          "valueNumber": -118.3592
-        },
-        {
-          "key": "mapConfig.locations[4].name",
-          "valueString": "LACMA"
-        },
-        {
-          "key": "mapConfig.locations[5].lat",
-          "valueNumber": 33.985
-        },
-        {
-          "key": "mapConfig.locations[5].lng",
-          "valueNumber": -118.4729
-        },
-        {
-          "key": "mapConfig.locations[5].name",
-          "valueString": "Venice Beach Boardwalk"
+          "key": "5",
+          "valueMap": [
+            {
+              "key": "lat",
+              "valueNumber": 33.985
+            },
+            {
+              "key": "lng",
+              "valueNumber": -118.4729
+            },
+            {
+              "key": "name",
+              "valueString": "Venice Beach Boardwalk"
+            }
+          ]
         }
       ]
     }
