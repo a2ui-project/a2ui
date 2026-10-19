@@ -319,7 +319,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('throws ExpressForbiddenDatabindingError on static property receiving data binding', () => {
       const compiler = new ExpressCompiler([customCatalog], 'v1.0');
-      expect(() => compiler.compile('root = Chart([1, 2], $/caption)')).toThrow(
+      expect(() => compiler.compile('root = Gauge($/value)')).toThrow(
         ExpressForbiddenDatabindingError,
       );
     });

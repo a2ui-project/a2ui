@@ -171,7 +171,7 @@ root = TextField("Zip", $/zip, checks=[?required, ?regex(r"^[0-9]{5}$", "Five di
               'value': {'path': '/zip'},
             },
           },
-          'message': 'Required check failed.',
+          'message': 'Required check failed',
         },
         {
           'condition': {
@@ -192,7 +192,7 @@ root = TextField("Zip", $/zip, checks=[?required, ?regex(r"^[0-9]{5}$", "Five di
               'max': 5,
             },
           },
-          'message': 'Length check failed.',
+          'message': 'Length check failed',
         },
       ]);
     });
@@ -380,6 +380,17 @@ surface("s1")
       );
       expect(snippet, contains('• formatString(value)'));
       expect(snippet, contains('• openUrl(url)'));
+    });
+
+    test('describes each function', () {
+      expect(
+        processor().promptSnippet,
+        contains(
+          '• required(value)\n'
+          '  - Description: Checks that the value is not null, undefined, or '
+          'empty.',
+        ),
+      );
     });
 
     test('describes only the statements of the allowed messages', () {

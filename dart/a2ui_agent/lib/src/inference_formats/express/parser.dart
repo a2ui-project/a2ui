@@ -44,9 +44,7 @@ final RegExp _token = RegExp(
 /// Reads Express blocks from an LLM response and compiles them into messages
 /// of the protocol version the catalogs target.
 ///
-/// Compiling and decompiling for v1.0 catalogs is not implemented yet and
-/// throws [UnimplementedError]; finding, wrapping and unwrapping blocks does
-/// not depend on the version.
+/// Finding, wrapping and unwrapping blocks does not depend on the version.
 class ExpressParser extends Parser {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.

@@ -509,6 +509,27 @@ void main() {
       );
     });
 
+    test('reads a fenced block streamed a character at a time', () {
+      final response =
+          '<a2ui-json>\n```json\n[${create('s')}, '
+          '${update('s', [
+            {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+          ])}]\n```\n</a2ui-json>';
+      expect(
+        [for (final List<Object?> step in stream(response.split(''))) ...step],
+        [
+          [created('s')],
+          [
+            jsonDecode(
+              update('s', [
+                {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+              ]),
+            ),
+          ],
+        ],
+      );
+    });
+
     test('checks a streamed component against the catalog its surface '
         'names', () {
       final List<List<Object?>> steps = stream([
