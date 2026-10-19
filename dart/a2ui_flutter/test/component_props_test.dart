@@ -285,6 +285,18 @@ void main() {
       expect(ComponentProps.asString(double.infinity), 'Infinity');
     });
 
+    test('reads a validation result as a boolean by its validity', () {
+      expect(
+        ComponentProps.asBoolean(
+          const ResolvedBinding<Object?>(ValidationResult(valid: false)),
+        ),
+        isFalse,
+      );
+      expect(ComponentProps.asBoolean({'valid': true}), isTrue);
+      expect(ComponentProps.asBoolean({'other': true}), isNull);
+      expect(ComponentProps.asBoolean('true'), isNull);
+    });
+
     test('converts booleans and leaves collections unconverted', () {
       expect(ComponentProps.asString(true), 'true');
       expect(
