@@ -19,10 +19,10 @@ import {describe, it} from 'node:test';
 
 import {Catalog} from '../catalog/types.js';
 import {A2uiRecursionError, A2uiValidationError} from '../errors.js';
-import {ComponentModel} from '../state/component-model.js';
+import {MessageProcessor} from '../processing/message-processor.js';
 import {ValidationConfig} from '../validation/integrity-checker.js';
 import {ComponentGraphBound} from './component-graph-bound.js';
-import {MessageProcessor} from './message-processor.js';
+import {ComponentModel} from './component-model.js';
 
 /** The config an agent's renderer state uses: the graph checks are deferred. */
 const DEFERRED: ValidationConfig = {

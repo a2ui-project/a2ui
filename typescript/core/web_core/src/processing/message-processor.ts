@@ -25,8 +25,8 @@ import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
 
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
+import {ComponentGraphBound, ComponentsWatcher} from '../state/component-graph-bound.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
-import {ComponentGraphBound, ComponentsWatcher} from './component-graph-bound.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,

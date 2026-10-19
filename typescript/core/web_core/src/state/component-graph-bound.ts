@@ -16,8 +16,8 @@
 
 import {Catalog} from '../catalog/types.js';
 import {Subscription} from '../common/events.js';
-import {ComponentModel} from '../state/component-model.js';
-import {SurfaceComponentsModel} from '../state/surface-components-model.js';
+import {ComponentModel} from './component-model.js';
+import {SurfaceComponentsModel} from './surface-components-model.js';
 
 /**
  * What a check found about a surface's component graph, which had no
@@ -33,7 +33,7 @@ import {SurfaceComponentsModel} from '../state/surface-components-model.js';
  * revisited.
  *
  * This is the TypeScript form of the bound the Dart `SurfaceComponentsModel`
- * keeps (dart/a2ui_core/lib/src/core/component_model.dart).
+ * keeps (dart/a2ui_core/lib/src/core/component_graph_bound.dart).
  */
 export class ComponentGraphBound {
   /** The ids each component references, held or not, in order. */
