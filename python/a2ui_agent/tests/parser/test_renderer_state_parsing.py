@@ -339,6 +339,17 @@ def test_a_bound_state_normalizes_protocol_version_spelling():
     assert processor.state is state
 
 
+def test_accepts_state_tells_whether_a_state_fits_the_active_catalogs():
+    other = Catalog(catalog_id="other", protocol_version="0.9")
+    processor = A2uiRequestProcessor([_BASIC, other])
+
+    assert processor.accepts_state(processor.create_state())
+    assert processor.accepts_state(RendererState([_BASIC, other]))
+    # The order decides which catalog a surface resolves to.
+    assert not processor.accepts_state(RendererState([other, _BASIC]))
+    assert not processor.accepts_state(RendererState([_BASIC]))
+
+
 def test_a_stream_that_raises_has_ended():
     stream = DirectJsonParser([_BASIC]).open_stream()
     stream.feed("<a2ui-json>" + json.dumps([_CREATE, _update(_column("a"))]))

@@ -51,7 +51,8 @@ class A2uiRequestProcessor:
             state: The renderer state a canvas agent keeps for the
                 conversation. `parse_response` and `open_stream` use it when
                 a call passes none. Without one, each call checks the response
-                against a new state, as a chat agent wants.
+                against a new state, as a chat agent wants. A processor bound
+                to a state serves only that conversation.
 
         Raises:
             A2uiCatalogError: If no active catalogs are provided, or if `state`
@@ -171,19 +172,30 @@ class A2uiRequestProcessor:
         self._check_state(state)
         return state
 
+    def accepts_state(self, state: RendererState) -> bool:
+        """Whether the processor can check responses against a renderer state.
+
+        A state is accepted when it holds the processor's active catalogs, in
+        the same order, since the order decides which catalog a surface
+        resolves to. A state made with `create_state` is always accepted. An
+        agent that keeps a state per conversation calls this to tell whether
+        the state still fits the request's catalogs, and makes a new one with
+        `create_state` when it doesn't.
+        """
+        return _catalog_keys(state.catalogs) == _catalog_keys(self._active_catalogs)
+
     def _check_state(self, state: RendererState | None) -> None:
-        if state is None:
+        if state is None or self.accepts_state(state):
             return
-        held = [
-            (c.catalog_id, to_protocol_version(c.protocol_version).value)
-            for c in state.catalogs
-        ]
-        active = [
-            (c.catalog_id, to_protocol_version(c.protocol_version).value)
-            for c in self._active_catalogs
-        ]
-        if held != active:
-            raise A2uiCatalogError(
-                f"The renderer state holds catalogs {held}, but the processor's"
-                f" active catalogs are {active}."
-            )
+        raise A2uiCatalogError(
+            f"The renderer state holds catalogs {_catalog_keys(state.catalogs)},"
+            " but the processor's active catalogs are"
+            f" {_catalog_keys(self._active_catalogs)}."
+        )
+
+
+def _catalog_keys(catalogs: Sequence[CatalogApi]) -> list[tuple[str, str]]:
+    """The id and normalized protocol version of each catalog, in order."""
+    return [
+        (c.catalog_id, to_protocol_version(c.protocol_version).value) for c in catalogs
+    ]
