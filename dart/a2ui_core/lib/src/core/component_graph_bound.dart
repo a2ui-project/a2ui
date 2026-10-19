@@ -46,27 +46,36 @@ class ComponentGraphBound {
     // Children before parents, which ends since the graph has no cycle. A
     // component waits on the stack until its children have their heights.
     for (final String start in graph.keys) {
-      final stack = <String>[start];
+      if (bound._heights.containsKey(start)) continue;
+      final stack = <({String id, int childIndex, int height})>[
+        (id: start, childIndex: 0, height: 0),
+      ];
       while (stack.isNotEmpty) {
-        final String id = stack.last;
-        if (bound._heights.containsKey(id)) {
-          stack.removeLast();
-          continue;
-        }
+        final ({String id, int childIndex, int height}) frame = stack.last;
+        final List<String> children =
+            bound._children[frame.id] ?? const <String>[];
+        int childIndex = frame.childIndex;
+        int height = frame.height;
         var ready = true;
-        var height = 0;
-        for (final String child in bound._children[id]!) {
+        while (childIndex < children.length) {
+          final String child = children[childIndex];
+          childIndex++;
           if (!graph.containsKey(child)) continue;
           final int? below = bound._heights[child];
           if (below == null) {
+            stack[stack.length - 1] = (
+              id: frame.id,
+              childIndex: childIndex - 1,
+              height: height,
+            );
+            stack.add((id: child, childIndex: 0, height: 0));
             ready = false;
-            stack.add(child);
-          } else if (below >= height) {
-            height = below + 1;
+            break;
           }
+          if (below >= height) height = below + 1;
         }
         if (!ready) continue;
-        bound._heights[id] = height;
+        bound._heights[frame.id] = height;
         if (height > bound._maxHeight) bound._maxHeight = height;
         stack.removeLast();
       }
@@ -135,14 +144,14 @@ class ComponentGraphBound {
     for (final MapEntry(key: String id, value: (String type, source))
         in batch.entries) {
       _setChildren(id, type, source, refFields);
-      if (_children[id]!.contains(id)) return false;
+      if ((_children[id] ?? const <String>[]).contains(id)) return false;
     }
     // Raises the bound of each component above one whose bound rose, until
     // none rises. A cycle would raise its bounds past any limit.
     final rising = ListQueue<String>();
     for (final String id in batch.keys) {
       var height = 0;
-      for (final String child in _children[id]!) {
+      for (final String child in _children[id] ?? const <String>[]) {
         final int below = _heights[child] ?? 0;
         if (holds(child) && below >= height) height = below + 1;
       }
@@ -151,7 +160,7 @@ class ComponentGraphBound {
     }
     while (rising.isNotEmpty) {
       final String id = rising.removeFirst();
-      final int height = _heights[id]!;
+      final int height = _heights[id] ?? 0;
       if (height > limit) return false;
       if (height > _maxHeight) _maxHeight = height;
       for (final String parent in _parents[id] ?? const <String>{}) {
