@@ -81,16 +81,91 @@ void main() {
     );
 
     for (final v in variants) {
-      expect(find.text('# $v'), findsOneWidget);
+      expect(find.text(v), findsOneWidget);
     }
     expect(find.textContaining('md:'), findsNothing);
   });
 
-  testWidgets('shows markdown as written without a builder', (tester) async {
+  testWidgets('removes markdown markers without a builder', (tester) async {
+    const cases = {
+      '**bold** and *italic* and _under_ and `code`':
+          'bold and italic and '
+          'under and code',
+      '## Sub\n\n> quoted [link](https://a.b) ~~gone~~':
+          'Sub\n\nquoted link '
+          'gone',
+      '- item_one\n- 2 * 3 * 4': '- item_one\n- 2 * 3 * 4',
+      '**`config.yaml`** and ~~**old**~~': 'config.yaml and old',
+      '`**kwargs` and `__init__`': '**kwargs and __init__',
+      r'\*not italic\* \# not heading': '*not italic* # not heading',
+    };
     await pumpComponents(tester, [
-      {'id': 'root', 'component': 'Text', 'text': '**a**'},
+      {
+        'id': 'root',
+        'component': 'Column',
+        'children': [for (var i = 0; i < cases.length; i++) 't$i'],
+      },
+      for (final (int i, String text) in cases.keys.indexed)
+        {'id': 't$i', 'component': 'Text', 'text': text},
     ], catalog: _catalog);
 
-    expect(find.text('**a**'), findsOneWidget);
+    for (final String plain in cases.values) {
+      expect(find.text(plain), findsOneWidget);
+    }
+  });
+
+  testWidgets('styles a one-line markdown heading by its level without a '
+      'builder', (tester) async {
+    await pumpComponents(tester, [
+      {
+        'id': 'root',
+        'component': 'Column',
+        'children': ['h2', 'h6', 'h1'],
+      },
+      {'id': 'h2', 'component': 'Text', 'text': '  ## Title ##\n'},
+      {'id': 'h6', 'component': 'Text', 'text': '###### Small'},
+      {'id': 'h1', 'component': 'Text', 'text': '# Learn C#'},
+    ], catalog: _catalog);
+
+    final TextTheme theme = Theme.of(
+      tester.element(find.text('Title')),
+    ).textTheme;
+    expect(
+      tester.widget<Text>(find.text('Title')).style?.fontSize,
+      theme.headlineMedium!.fontSize,
+    );
+    expect(
+      tester.widget<Text>(find.text('Small')).style?.fontSize,
+      theme.titleMedium!.fontSize,
+    );
+    expect(
+      tester.widget<Text>(find.text('Learn C#')).style?.fontSize,
+      theme.headlineLarge!.fontSize,
+    );
+  });
+
+  testWidgets('removes markers in time linear in the text', (tester) async {
+    String repeat(String s, int n) => List.filled(n, s).join();
+    final List<String> texts = [
+      repeat('[', 50000),
+      repeat('[a](', 12500),
+      repeat(' *a', 16000),
+      repeat(' _a', 16000),
+      '# a${repeat(' ', 50000)}x',
+    ];
+    final stopwatch = Stopwatch()..start();
+    await pumpComponents(tester, [
+      {
+        'id': 'root',
+        'component': 'Column',
+        'children': [for (var i = 0; i < texts.length; i++) 't$i'],
+      },
+      for (final (int i, String text) in texts.indexed)
+        {'id': 't$i', 'component': 'Text', 'text': text},
+    ], catalog: _catalog);
+
+    // Quadratic patterns take tens of seconds on these texts.
+    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
+    expect(find.byType(Text), findsNWidgets(texts.length));
   });
 }
