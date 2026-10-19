@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add `yarn test:timing`, which runs the timing cases of `conformance/core/message_processor_scaling.yaml` apart from `yarn test`.
+
 ## 0.14.0
 
 - Catalogs can reference components, property subschemas and definitions in peer catalogs with cross-catalog `$ref`s, such as `other_catalog.json#/components/Text`. `Catalog.peerCatalogs` lists the peers a catalog resolves such references against. `Catalog.withPeerCatalogs(peers)` returns a new catalog linked to `peers`, with its own `validationSchema`, `componentRefMap` and entry Zod schemas, and leaves the receiver unchanged; a pruned peer also links the catalog it was pruned from. `linkCatalogs(catalogs, extraPeers?)` returns copies of `catalogs` linked to each other and to `extraPeers`, returning a catalog with no reference into another catalog document as is. `MessageProcessor` works with linked copies and never changes the catalogs passed to it. A reference's document matches a peer whose `catalogId` or `$id` equals it or ends with it as a path suffix (or the other way around), then, failing that, a peer with the same file name; a bare `catalog.json`, or a path ending in `/catalog.json` that no peer matches exactly, refers to the referencing catalog itself. `inlinePeerAndLocalRefs` inlines local and peer references in a schema.

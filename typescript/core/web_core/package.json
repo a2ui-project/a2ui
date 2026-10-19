@@ -142,6 +142,7 @@
     "build:tsc": "wireit",
     "test": "wireit",
     "test:conformance": "wireit",
+    "test:timing": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
     "generate-zod-schemas": "wireit",
     "compile": "tsc",
@@ -258,6 +259,12 @@
       ],
       "output": []
     },
+    "test:timing": {
+      "command": "node --expose-gc --test --test-concurrency=1 \"tests/timing/**/*_test.mjs\"",
+      "dependencies": [
+        "build"
+      ]
+    },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
     },
@@ -287,6 +294,7 @@
   "author": "Google",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@a2ui/conformance-timing": "workspace:*",
     "@angular/core": "^21.2.5",
     "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^28.0.3",
