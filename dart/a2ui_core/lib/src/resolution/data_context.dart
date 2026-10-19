@@ -15,12 +15,14 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 
 import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/data_model.dart';
 import '../core/surface_model.dart';
+import '../core/validation_result.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
@@ -1188,13 +1190,40 @@ extension CatalogInvokerExtension
   }
 
   /// The ways [args] fail [fn]'s argument schema, or an empty list when they
-  /// match. Null arguments are left unchecked, as in [invoke].
+  /// match. Null arguments are left unchecked, as in [invoke], and a
+  /// [ValidationResult] is checked as its JSON object.
+  ///
+  /// In a catalog for v1.0 or later, a validation result may also stand for
+  /// its validity, as a DynamicBoolean coerces one: the arguments match when
+  /// they do with every [ValidationResult], and every object with a boolean
+  /// `valid`, replaced by that boolean, or else with none replaced. When both
+  /// fail, the errors are those with none replaced.
   List<ValidationError> argumentErrors(
     FunctionImplementation fn,
     Map<String, dynamic> args,
   ) {
-    final Set<String> unresolved = {
+    final A2uiProtocolVersion? version = protocolVersion;
+    if (version != null && version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+      final List<ValidationError> errors = _errorsOf(fn, {
+        for (final MapEntry<String, dynamic> entry in args.entries)
+          entry.key: _checkable(entry.value, validity: true),
+      });
+      if (errors.isEmpty) return errors;
+    }
+    return _errorsOf(fn, {
       for (final MapEntry<String, dynamic> entry in args.entries)
+        entry.key: _checkable(entry.value, validity: false),
+    });
+  }
+
+  /// The ways [args] fail [fn]'s argument schema, leaving null arguments
+  /// unchecked.
+  List<ValidationError> _errorsOf(
+    FunctionImplementation fn,
+    Map<String, Object?> args,
+  ) {
+    final Set<String> unresolved = {
+      for (final MapEntry<String, Object?> entry in args.entries)
         if (entry.value == null) entry.key,
     };
     final Map<String, Object?> schema = _resolvedArgumentSchema(fn);
@@ -1208,8 +1237,27 @@ extension CatalogInvokerExtension
             if (!unresolved.contains(key)) key,
         ],
     }).validateSync({
-      for (final MapEntry<String, dynamic> entry in args.entries)
+      for (final MapEntry<String, Object?> entry in args.entries)
         if (entry.value != null) entry.key: entry.value,
     });
   }
+
+  /// [value] with each [ValidationResult] in it, at any depth, replaced by its
+  /// JSON object or, when [validity] is true, by its validity, as is each
+  /// object with a boolean `valid` then.
+  static Object? _checkable(Object? value, {required bool validity}) =>
+      switch (value) {
+        ValidationResult(:final bool valid) =>
+          validity ? valid : value.toJson(),
+        {'valid': final bool valid} when validity => valid,
+        final List<Object?> list => [
+            for (final Object? item in list)
+              _checkable(item, validity: validity),
+          ],
+        final Map<String, Object?> map => <String, Object?>{
+            for (final MapEntry<String, Object?> entry in map.entries)
+              entry.key: _checkable(entry.value, validity: validity),
+          },
+        _ => value,
+      };
 }
