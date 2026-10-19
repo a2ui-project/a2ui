@@ -239,7 +239,9 @@ ResponsePart = Union[TextPart, A2uiPart]
 
 Base interface for response parsers across all inference format strategies.
 
-The optional `state` argument of the parsing methods, and of `A2uiRequestProcessor` and `A2uiGenerator.create_processor`, is meant to be passed by name in languages that have named arguments.
+The optional `state` argument of the parsing methods, and of `A2uiRequestProcessor` and `A2uiGenerator.create_processor`, is a named argument in languages that have them: keyword-only in Python, a named optional parameter in Dart (where every optional parameter is named), and an options object or trailing optional parameter where the language has neither.
+
+The signatures below are written in Python, and the error types they name are the A2UI errors every SDK defines. Where a docstring names a language error, such as Python's `NotImplementedError`, an SDK raises its own language's equivalent.
 
 A parser knows only its own format. It reads its own sentinel tags and treats everything else in a response as conversational text, including a block in another format's tags: a model that shows the other notation in prose has written text, not a payload, and adding a format must not require changing the parsers of the existing ones.
 
@@ -300,7 +302,9 @@ class Parser(ABC):
         pass
 
     @abstractmethod
-    def compile(self, format_content: str) -> list[AgentToRendererMessage]:
+    def compile(
+        self, format_content: str, is_final: bool = True
+    ) -> list[AgentToRendererMessage]:
         """Translates a raw format content string into A2UI messages.
 
         Compiling reports what the notation itself gets wrong, such as text that is not JSON
@@ -310,9 +314,17 @@ class Parser(ABC):
 
         Args:
             format_content: The uncompiled raw payload string (e.g. raw JSON or DSL expression).
+            is_final: False for a block that the end of the response cut off before its close
+                tag, as `RawResponsePart.is_final` reports it. A format that can read part of
+                a block, such as Express, compiles such a block as far as it goes and ignores
+                the syntax errors the cut causes. Direct JSON raises A2uiParseError instead.
 
         Returns:
             List of compiled AgentToRendererMessage objects.
+
+        Raises:
+            A2uiParseError: If the text cannot be read, or the block is cut off and the format
+                cannot read part of a block.
         """
         pass
 
@@ -342,6 +354,13 @@ class Parser(ABC):
         the response touched are checked once every block is applied. The messages are
         applied all or nothing: if any check fails, the state is left as it was.
 
+        A block that the end of the response cut off (`is_final` False) is compiled with
+        `compile(block, is_final=False)`. If it compiles, it is applied, and the surfaces it
+        touched skip check_topology and are marked checked with `mark_checked`, since a cut
+        block may name children that never arrived. A surface that a complete block of the
+        same response also touched skips the check too. A cut Direct JSON block raises,
+        since Direct JSON `compile` refuses one.
+
         Args:
             content: Complete raw text response emitted by the LLM.
             wrapped: Whether the output is expected to be wrapped inside format sentinel tags.
@@ -354,8 +373,12 @@ class Parser(ABC):
             List of ResponsePart objects (TextPart / A2uiPart).
 
         Raises:
-            A2uiError: If a block cannot be read or a message is rejected. Any other failure
-                to compile is raised as a compilation error.
+            A2uiError: If a block cannot be read or a message is rejected. Every failure is
+                an A2uiError: an error of another type raised while compiling is wrapped in
+                A2uiCompilationError. The error carries `partial_results`, the parts the
+                response yields before the failure: when a block fails, the parts before
+                that block; when the tree check fails, only the text parts. None of them has
+                been applied to the state.
         """
         pass
 
@@ -388,7 +411,8 @@ class Parser(ABC):
                 to, as for parse_response. A new, empty state when None.
 
         Raises:
-            NotImplementedError: If this format does not support streaming.
+            NotImplementedError: If this format does not support streaming (the language's
+                unsupported-operation error).
         """
         raise NotImplementedError
 ```
@@ -403,8 +427,16 @@ class ResponseStream(ABC):
 
     Each message the stream emits has been applied to its state, in the order emitted, and
     no other message has, so the state mirrors what a renderer that received the emitted
-    parts holds. A streamed response cannot be rolled back, since the renderer has already
-    received what was emitted.
+    parts holds. What earlier chunks emitted cannot be rolled back, since the renderer has
+    already received it. Each feed runs inside a transaction of the state, so the one
+    thing a failure undoes is what the failing chunk applied, which it never returned.
+
+    When the stream fails, in feed or in close, the surfaces that the open block had
+    already emitted messages to are marked checked with `RendererState.mark_checked`: the
+    renderer holds those messages, and the tree check of a later turn on the same state
+    must not require the components this response added to be reachable. A failing feed
+    marks the surfaces emitted to before that chunk, since what the chunk applied is
+    undone. Blocks that closed before the failure have had their tree checked already.
 
     Each chunk is read and checked for what it adds, so a stream takes time in proportion
     to the response; see "Cost of a response".
@@ -421,8 +453,10 @@ class ResponseStream(ABC):
         """Reads the next chunk and returns the parts that became ready since the last one.
 
         If it raises, the stream has ended: a response cannot be read further once part of
-        it is rejected, and a later feed raises too. A chunk that raises returns nothing, so
-        what it applied is undone and the state holds only what earlier chunks emitted.
+        it is rejected, and a later feed raises too, with an error that says the stream has
+        ended. A chunk that raises returns nothing, so what it applied is undone, including
+        a block that closed earlier in the same chunk, and the state holds only what earlier
+        chunks emitted.
 
         Raises:
             A2uiParseError: If a block cannot be read.
@@ -527,8 +561,13 @@ class RendererState:
 
         If the block raises, the state is restored to what it was when the block started.
         Opening a transaction copies nothing, and undoing one costs what was applied inside
-        it. Transactions nest. Languages without context managers take a synchronous callback
-        instead.
+        it. Transactions nest: an inner transaction that fails restores the state to where
+        the inner one started, and the outer one goes on.
+
+        Languages without context managers take a callback instead, and return what the
+        callback returns. The callback must be synchronous: a callback that returns a
+        promise or future is rejected and what it applied is undone, since the state cannot
+        keep a transaction open across an await while other code applies to it.
         """
         pass
 
@@ -541,21 +580,46 @@ class RendererState:
         rewriting its parent's children, is accepted: the protocol has no message that
         removes one component, so replacing part of a canvas always leaves such components
         behind. A surface with no components yet passes.
+
+        Each id is checked once, however often it is listed. An id the state does not hold,
+        a surface deleted since, and a surface the state assumes (see validate_payload) are
+        skipped. Every id that is not assumed is then marked checked, as by mark_checked.
+        """
+        pass
+
+    def mark_checked(self, surface_ids: Iterable[str]) -> None:
+        """Marks the surfaces' trees as checked without checking them.
+
+        A later check_topology then requires only the components added or replaced after
+        this call to be reachable. parse_response calls it for the surfaces of a block that
+        the end of the response cut off, and a stream calls it for the surfaces it had
+        emitted to when it fails. Like any other change, it is undone when the transaction
+        it was made in fails.
         """
         pass
 ```
 
 The processor inside the state applies messages with references, a missing root and orphans allowed, and unknown components and functions still rejected; `check_topology` runs the graph checks the protocol requires once a response is complete.
 
-Undoing costs what the undone messages changed, not the size of the surfaces they touched:
+Undoing costs what the undone messages changed, not the size of the surfaces they touched. A state keeps an undo log:
 
 1. The processor checks a message whole before it changes a surface, so a rejected message changes nothing.
 2. Each applied message records what it replaced: the components it added or replaced, and the data model value at its path. A failed transaction or `apply` reverts those records in reverse order.
-3. A deleted surface is the one change recorded whole. It is restored by replaying it through the processor, which also restores the children its components find through other catalogs.
+3. Core updates a component in place when a message names an existing id with the same type and catalog, so the record holds a copy of the component's previous properties, not a reference to the object the update then changes.
+4. A deleted surface is the one change recorded whole. It is restored by replaying it through the processor, which also restores the children its components find through other catalogs. The replay keeps each component's own `catalogId`, so a v1.0 surface whose components come from several catalogs comes back as it was, and it restores the v0.8 updates buffered for the surface.
+5. The log also records the state's own bookkeeping: the components changed since the surface's tree was last checked (what `check_topology` holds a later turn to), the effect of `mark_checked`, the surfaces a payload state assumes, and the v0.8 updates buffered before `beginRendering`.
+6. A transaction is a position in the log. A failed transaction reverts the log to its own position, so a failed inner transaction undoes only what was applied inside it, and the outer one goes on.
 
 A state must not copy a surface each time a message is applied or a transaction opens. A stream applies each message on its own and reads each chunk inside a transaction, so such a copy makes a response of n messages to one surface take time that grows with the square of n.
 
-An update to a surface the state never saw created is rejected, as the renderer would reject it. A v0.8 renderer buffers the updates that arrive before `beginRendering`, so a v0.8 state holds such updates and checks them once the surface begins rendering.
+An update to a surface the state never saw created is rejected, as the renderer would reject it.
+
+A v0.8 renderer buffers the `surfaceUpdate` and `dataModelUpdate` messages that arrive for a surface before its `beginRendering`, so a v0.8 state does the same. It is the one case where the state holds messages rather than surfaces:
+
+1. An update to a surface that has not begun rendering is checked when it arrives against the catalog its components resolve to, chosen as for an assumed surface (see `validate_payload`), and buffered.
+2. When `beginRendering` arrives, the buffered updates are checked again, in order, against the catalog it names, and the surface then holds them.
+3. A second `beginRendering` for a surface that is rendering is rejected, as the core processor rejects it. The v0.8 specification does not say whether a renderer accepts one.
+4. `check_topology` rejects a surface whose updates are still buffered when the response ends, so a v0.8 chat response that sends updates without `beginRendering` is rejected, as a v0.9 response that updates a surface it never created is. A payload state is the exception: it assumes such a surface, as `validate_payload` describes, and skips its tree.
 
 #### `validate_payload` (`a2ui.utils`)
 
@@ -567,26 +631,47 @@ def validate_payload(
     """Checks one payload the way a renderer holding the catalogs would."""
 ```
 
-`validate_payload` checks one payload with no record of earlier ones, such as the argument of a tool call. It runs on a short-lived `RendererState` that assumes a surface the payload updates without creating already exists: the state creates an empty placeholder for it on the first catalog that defines the update's components and accepts it. Each component is still checked against that catalog, but the surface's tree is not, since the surface may already hold components the check never saw. A surface the payload creates is checked in full. It builds one processor per call, not one per surface or candidate catalog.
+`validate_payload` checks one payload with no record of earlier ones, such as the argument of a tool call. The payload has any shape core's `AgentToRendererMessagePayload` accepts, including one message on its own. It builds one processor per call, not one per surface or candidate catalog, and runs on a short-lived payload state: a `RendererState` that assumes a surface the payload updates without creating already exists.
+
+1. A surface is assumed when the payload updates it before any message of the payload creates or deletes it. A surface an earlier message deleted is not assumed, and neither is one that a later message creates before any delete. A v0.8 surface is assumed until its `beginRendering`, since a v0.8 renderer buffers the updates before it.
+2. The candidate catalogs for an assumed surface are those that define every component type in the payload's updates to that surface, up to its next create or delete. A component that names its own `catalogId` does not count. The candidates are tried in priority order, and the surface gets an empty placeholder on the first one that accepts the updates. When no catalog defines every type, the first catalog is used, so the error names a type it lacks.
+3. Each component is still checked against the catalog it resolves to, but an assumed surface's tree is not, since the surface may already hold components the check never saw. A surface the payload creates is checked in full.
 
 #### Chat and canvas
 
 How long a state lives is the one difference between the two ways an agent shows UI, and the caller chooses it:
 
 1. In a chat, each turn shows new UI. The agent passes no state, and each response is checked against a new, empty one, so a response that updates a surface it never created is rejected.
-2. In a canvas, turns update the surfaces earlier turns created. The agent creates one state per conversation, typically with `A2uiRequestProcessor.create_state()`, and passes it on every turn, streamed or not.
+2. In a canvas, turns update the surfaces earlier turns created. The agent creates one state per conversation, typically with `A2uiRequestProcessor.create_state()`, and passes it on every turn, streamed or not. Before each turn it checks the state with `A2uiRequestProcessor.accepts_state`, and starts a new state when the client's catalogs have changed.
 
 A whole response is applied inside a transaction. A streamed response applies each message as it is emitted, so the state matches what the client received even when the response fails part way.
 
 #### Cost of a response
 
-Parsing a response whole, and streaming it in chunks of a few tokens, take time in proportion to the response, in a chat turn on a new state and in a canvas turn alike. Streaming costs at most a fixed multiple of parsing the same response whole. The timing suites `conformance/agent/direct_json/scaling.yaml`, `conformance/agent/express/scaling.yaml` and `conformance/core/message_processor_scaling.yaml` check this. It holds when:
+Parsing a response whole, and streaming it in chunks of a few tokens, take time in proportion to the response, in a chat turn on a new state and in a canvas turn alike. Streaming costs at most a fixed multiple of parsing the same response whole. The timing suites `conformance/agent/direct_json/scaling.yaml`, `conformance/agent/express/scaling.yaml` and `conformance/core/message_processor_scaling.yaml` check this.
 
-1. A stream reads each chunk once. The scan for the close tag and the read of the open block resume where the previous chunk left them, and a message that has closed is not read or checked again.
-2. A message that grows in place is checked for what it gains: an `updateComponents` for the components it adds, and an `updateDataModel` for the lists and maps its value gains. The `updateDataModel` is applied again once it closes.
-3. `apply` and `transaction` cost what they change, as `RendererState` describes.
-4. The core processor checks an `updateComponents` against what it changes rather than walking the whole surface; see [`a2ui_core.blueprint.md`](a2ui_core.blueprint.md).
-5. Only `check_topology` walks a whole surface: once for a response parsed whole, and once for each block of a stream that touches the surface.
+Every SDK must meet three requirements for this to hold. Any one of them left out makes a response of n messages to one surface take time that grows with the square of n:
+
+1. Core: under a `ValidationConfig` that defers the graph checks, the processor checks an `updateComponents` against the components it changes. It does not copy the surface's components or walk the whole surface for each message; see [`a2ui_core.blueprint.md`](a2ui_core.blueprint.md).
+2. `RendererState`: `apply` and `transaction` cost what they change. The state keeps an undo log, as `RendererState` describes, and never copies a surface when a message is applied or a transaction opens.
+3. `ResponseStream`: a stream reads each chunk once. The scan for the close tag and the read of the open block resume where the previous chunk left them. A message that has closed is not read or checked again. A message that grows in place is checked for what it gains: an `updateComponents` for the components it adds, and an `updateDataModel` for the lists and maps its value gains. The `updateDataModel` is applied again once it closes.
+
+Only `check_topology` walks a whole surface: once for a response parsed whole, and once for each block of a stream that touches the surface.
+
+#### Where the SDKs differ
+
+The SDK pull requests that implement this interface are Python [#3270](https://github.com/a2ui-project/a2ui/pull/3270), TypeScript [#3279](https://github.com/a2ui-project/a2ui/pull/3279) and Dart [#3277](https://github.com/a2ui-project/a2ui/pull/3277). They differ from this document, and from each other, in these places. Each is a gap to fix in the SDK, and its entry is removed once the SDKs follow the rule:
+
+1. Rollback: all three copy a surface the first time a transaction changes it, rather than keeping an undo log (requirement 2 of "Cost of a response").
+2. Core: the Python and TypeScript processors copy every component of the surface and check the whole graph on each `updateComponents`. The Dart processor checks what the update changes (requirement 1).
+3. Stream reads: Python and TypeScript scan the open block for the close tag from its start, and read the whole open block again, on every chunk. Dart resumes both, but builds a new string of the whole block text for every chunk. All three apply a growing message again whole rather than checking what it gains (requirement 3).
+4. Emission: Python and TypeScript emit every message except `createSurface`, `deleteSurface` and v0.8's `beginRendering` while it grows, including `callRendererFunction`. Dart holds every message except `updateComponents` and `updateDataModel` until it closes, as `DirectJsonResponseStream` describes.
+5. `compile`: Dart's has no `is_final` argument, so a cut Express block raises rather than compiling as far as it goes. Python's Direct JSON `compile` returns plain mappings rather than messages, and `parse_response` converts them.
+6. Errors: Dart lets an error that is not an A2UI error escape from `compile`, such as a `StateError` from the Express compiler, and its errors carry no `partial_results`.
+7. `transaction`: Dart does not reject a callback that returns a future.
+8. v0.8: only Python implements a v0.8 state. It accepts a response whose v0.8 updates are never followed by `beginRendering`, since it treats the surface as assumed and skips its tree.
+9. `validate_payload`: Python accepts one message on its own. TypeScript rejects anything but a list, and Dart's signature takes a list of messages.
+10. `accepts_state`: Python compares normalized protocol versions. TypeScript and Dart compare the version strings, so a v0.9.1 state is refused by a v0.9 processor, although `RendererState` treats the two as one version.
 
 ---
 
@@ -817,7 +902,10 @@ class A2uiGenerator:
                 with non-nullable types enforces this in the signature.
             inference_format_factory: Optional override format factory for this processor.
             state: The renderer state a canvas agent keeps for the conversation, bound to the
-                processor.
+                processor. The client may have changed its catalogs since the state was
+                created, so an agent that is not sure the state still fits creates the
+                processor without one, checks the state with accepts_state, and passes it to
+                parse_response or open_stream (see the code example in section 5).
 
         Returns:
             Pre-negotiated client-bound A2uiRequestProcessor instance.
@@ -854,8 +942,8 @@ class A2uiRequestProcessor:
 
         Raises:
             A2uiCatalogError: If no catalogs are given, or `state` holds other catalogs, in
-                another order or of other versions. The order matters because it is the
-                priority order the state resolves catalogs in.
+                another order or of other versions, as accepts_state decides. The order
+                matters because it is the priority order the state resolves catalogs in.
         """
         pass
 
@@ -886,6 +974,21 @@ class A2uiRequestProcessor:
 
     def create_state(self) -> RendererState:
         """Creates an empty renderer state that holds the active catalogs."""
+        pass
+
+    def accepts_state(self, state: RendererState) -> bool:
+        """Reports whether a renderer state holds this processor's catalogs.
+
+        True when the state holds the same catalogs, by catalog id and protocol version, in
+        the same order. Versions are compared as RendererState compares them, so v0.9 and
+        v0.9.1 match. A processor raises A2uiCatalogError when it is bound to, or handed,
+        a state for which this is False.
+
+        A canvas agent creates a processor for each request, and the client may change its
+        catalogs between requests. The agent calls this before binding the state it keeps
+        for the conversation, and starts a new state with create_state when it returns
+        False, since the surfaces the old state holds were built from other catalogs.
+        """
         pass
 
     def parse_response(
@@ -1125,7 +1228,7 @@ class DirectJsonParser(Parser):
         pass
 ```
 
-`DirectJsonResponseStream` heals the partial JSON of each chunk, healing the values of `progressive_keys` in real time. It emits a message once the message reads and its state accepts it, and again each time a later chunk changes it. Only `updateComponents` and `updateDataModel` are emitted while they grow. Any other message, such as `createSurface`, `deleteSurface` or `callRendererFunction`, is held until its object closes, so it is emitted once. A message the state rejects, such as an update to a surface that does not exist yet, is held back with the messages after it, and the block raises when it closes. From v1.0 a component is held until its object closes, so an `updateComponents` whose components have closed cannot change, and the chunk that closes a rejected one raises.
+`DirectJsonResponseStream` heals the partial JSON of each chunk, healing the values of `progressive_keys` in real time. It emits a message once the message reads and its state accepts it, and again each time a later chunk changes it. Only `updateComponents` and `updateDataModel` (v0.8's `surfaceUpdate` and `dataModelUpdate`) are emitted while they grow. Any other message, such as `createSurface`, v0.8's `beginRendering`, `deleteSurface` or `callRendererFunction`, is held until its object closes, so it is emitted once, and the messages after it wait with it. A message the state rejects, such as an update to a surface that does not exist yet, is held back with the messages after it, and the block raises when it closes. From v1.0 a component is held until its object closes, so an `updateComponents` whose components have closed cannot change, and the chunk that closes a rejected one raises.
 
 The stream checks each message against the state rather than building a processor per message, and keeps no copy of the surfaces of its own. It reads each chunk once, as "Cost of a response" requires: it resumes after the last message that closed, and checks a growing message for what it gains. When a block closes, the messages it holds are applied in full and the trees of the surfaces it touched are checked.
 
@@ -1185,19 +1288,27 @@ generator = A2uiGenerator(
 )
 
 # 2. In Request Handler: Negotiate this request's processor from the capabilities the client sent.
-#    A canvas agent binds the RendererState it keeps for the conversation; a chat agent binds none.
-processor = generator.create_processor(renderer_capabilities, state=conversation_state)
+processor = generator.create_processor(renderer_capabilities)
+
+#    A canvas agent keeps one RendererState for the conversation and passes it on every
+#    turn; a chat agent passes none, so conversation_state stays None. The client may have
+#    changed its catalogs since the state was created, and a state for other catalogs is
+#    refused, so a canvas agent checks it and starts a new one when it no longer fits.
+if is_canvas and (
+    conversation_state is None or not processor.accepts_state(conversation_state)
+):
+    conversation_state = processor.create_state()
 
 # 3. Invoke LLM to generate the output
 llm_output_text = myagent.call_llm(processor.prompt_snippet, request_context)
 
 # 4. Parse and validate output using the processor
-response_parts = processor.parse_response(llm_output_text)
+response_parts = processor.parse_response(llm_output_text, state=conversation_state)
 
 # 5. Deliver A2UI payloads to the renderer
 
 # Streaming instead of step 4: each part is sent as soon as it is checked.
-stream = processor.open_stream()
+stream = processor.open_stream(state=conversation_state)
 for chunk in myagent.stream_llm(processor.prompt_snippet, request_context):
     send(stream.feed(chunk))
 send(stream.close())
@@ -1226,7 +1337,9 @@ There is no `express/response_streaming.yaml`, because Express does not stream. 
 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 
-A `compile` or `decompile` case checks a block on its own, the way `validate_payload` does, so a surface the block only updates is assumed to exist. A `parse_response` or streaming case is read as one chat turn, against a renderer that holds no surfaces, so a case that updates a surface creates it in its input. A streaming case ends with `close()`, which must return nothing more.
+A `compile` or `decompile` case checks a block on its own, the way `validate_payload` does, so a surface the block only updates is assumed to exist. A `parse_response` or streaming case is read as one chat turn, against a renderer that holds no surfaces, so a case that updates a surface creates it in its input. The streaming action is still named `parse_chunk`, after the method the cases were first written against: a harness calls `open_stream`, then `feed` for each step, then `close()`, which must return nothing more. A case whose last step expects an error ends there, without `close()`. The header of `response_streaming.yaml` and the conformance README state this.
+
+No suite covers `RendererState` itself, a canvas turn (a response checked against a state that earlier turns built), or `validate_payload` yet. These rules are checked only by each SDK's unit tests until such suites are added, which is a follow-up.
 
 For complete setup instructions, test harness requirements, suite descriptions, and schema definitions, see [Conformance README](../../conformance/README.md).
 
