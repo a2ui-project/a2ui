@@ -22,7 +22,7 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
-import {loadConformanceSuite, measureGrowth, readRepositoryJson} from '@a2ui/conformance-timing';
+import {loadConformanceSuite, measureGrowth, readRepositoryJson} from './timing.mjs';
 
 import {Catalog, MessageProcessor, RELAXED_VALIDATION} from '../../dist/src/index.js';
 

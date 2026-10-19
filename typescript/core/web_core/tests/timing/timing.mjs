@@ -29,7 +29,10 @@ import {fileURLToPath} from 'node:url';
 import yaml from 'js-yaml';
 
 /** The repository root. */
-export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+export const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../../..',
+);
 
 /** The directory holding the language-agnostic conformance suites. */
 export const CONFORMANCE_DIR = path.join(REPO_ROOT, 'conformance');

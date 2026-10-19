@@ -175,17 +175,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/conformance-timing@workspace:*, @a2ui/conformance-timing@workspace:typescript/conformance_timing":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/conformance-timing@workspace:typescript/conformance_timing"
-  dependencies:
-    eslint: "npm:^10.4.1"
-    gts: "npm:^7.0.0"
-    js-yaml: "npm:^4.3.0"
-    prettier: "npm:^3.8.4"
-  languageName: unknown
-  linkType: soft
-
 "@a2ui/editor@workspace:tools/editor":
   version: 0.0.0-use.local
   resolution: "@a2ui/editor@workspace:tools/editor"
@@ -518,7 +507,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/web_core@workspace:typescript/core/web_core"
   dependencies:
-    "@a2ui/conformance-timing": "workspace:*"
     "@angular/core": "npm:^21.2.5"
     "@lit/context": "npm:^1.1.6"
     "@preact/signals-core": "npm:^1.14.2"

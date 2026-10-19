@@ -24,7 +24,7 @@ import {
   median,
   readRepositoryJson,
   writePayload,
-} from './index.mjs';
+} from './timing.mjs';
 
 /** Spins for about `ms` milliseconds. */
 function busy(ms) {
