@@ -241,8 +241,8 @@ agent you trust.
 `package:a2ui_flutter/v0_9/basic_catalog.dart` implements the
 [v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
 under the same names, with the v0.9 differences: Text has the `h1` to `h5`
-variants, and the components take the surface theme's `primaryColor` as the
-Material theme's primary color.
+variants, TextField checks `validationRegexp`, and the components take the
+surface theme's `primaryColor` as the Material theme's primary color.
 
 A v0.9 surface has one catalog, so a custom v0.9 component goes in a catalog
 with the basic components and functions it needs, under your own id:
