@@ -24,12 +24,8 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 /// The basic catalog under its own id, with the custom components the
 /// examples name: `CustomGrid` and `CustomSlider`.
-final CatalogImplementation demoCatalog = CatalogImplementation(
-  id: BasicCatalog.v0_9Id,
+final CatalogImplementation demoCatalog = basicCatalog().copyWith(
   components: [...BasicComponents.all, customGrid, customSlider],
-  functions: BasicCatalog.v0_9().functions.values.toList(),
-  themeSchema: BasicComponents.api.themeSchema,
-  definitions: BasicComponents.api.definitions,
 );
 
 final Schema _dynamicNumber = Schema.fromMap({
