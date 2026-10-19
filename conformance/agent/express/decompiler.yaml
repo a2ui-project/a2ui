@@ -218,18 +218,18 @@
   action: decompile
   args:
     format: express
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
   messages:
     - version: "v1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
-          catalogId: "conformance/simplified"
-          "@call": "openUrl"
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
           args:
-            url: "https://example.com"
+            message: "Saved"
   expect_contains:
-    - 'openUrl("https://example.com")'
+    - 'notify("Saved")'
   expect_round_trip: true
 
 - name: test_decompile_express_quotes_a_map_key_that_is_not_an_identifier

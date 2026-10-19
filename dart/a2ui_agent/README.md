@@ -6,11 +6,10 @@ LLM's response into A2UI messages.
 
 The package follows the
 [agent SDK blueprint](../../blueprints/modules/a2ui_agent.blueprint.md). It
-implements the whole API of the blueprint for A2UI protocol v0.9, with two
-inference formats: direct JSON, the default, which can be read as it streams,
-and [Express](../../specification/proposals/express/README.md), a compact
-notation read once the response is complete. Protocol v1.0 is declared and
-partly implemented; see [Status](#status).
+implements the whole API of the blueprint for A2UI protocols v0.9 and v1.0,
+with two inference formats: direct JSON, the default, which can be read as it
+streams, and [Express](../../specification/proposals/express/README.md), a
+compact notation read once the response is complete.
 
 The protocol version is the one the catalogs target. A v1.0 catalog document
 declares it as `protocolVersion`; a v0.9 document declares none, so a catalog
@@ -46,27 +45,35 @@ Implemented:
   decompiles payloads. The direct JSON parser also reads a streamed response
   through `parseChunk`.
 
-For protocol v1.0, catalogs load, negotiate with the renderer's v1.0
-capabilities, and are described by the direct JSON prompt. The rest throws
-`UnimplementedError` for v1.0 catalogs until it is implemented:
+What v1.0 adds to both formats:
 
-- the Express prompt;
-- compiling Express and direct JSON into v1.0 messages, including streaming
-  direct JSON, and decompiling them into Express;
-- checking v1.0 examples and responses, which `a2ui_core`'s
-  `MessageProcessor.forAgent` will do once it checks a `callRendererFunction`.
+- A `createSurface` carries the surface's components and initial data model,
+  and a data binding or a function call is written with `@path` or `@call`.
+- A component or a function call may name its own catalog. With several
+  catalogs a surface names none, and each component and call names its own,
+  as [multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
+  describes. In Express, a name that several catalogs declare takes a
+  `catalogId` argument.
+- A `callRendererFunction` asks the renderer to run a function.
+  A parser and `processor.parseResponse` accept a call only to a function
+  whose `allowedCallers` lets the agent call it and that needs no user
+  activation, as `a2ui_core`'s `MessageProcessor.forAgent` checks, so
+  `parseChunk` never emits a call the renderer would reject. In Express it is a
+  function call written as a statement of its own, and the prompt names the
+  functions that can be called this way.
+- The direct JSON parser holds a streamed component back until its object
+  closes, since the component's `catalogId` may come last.
+- The Express prompt carries each catalog's `instructions`, with the JSON
+  examples in them written in Express.
 
 Not supported:
 
 - Protocol versions other than v0.9 and v1.0.
 - A request without renderer capabilities in `createProcessor`, which
   requires them, as in the blueprint.
-- In Express, standalone function calls such as `openUrl("...")` on a line of
-  their own, since v0.9 has no message for them, and properties every
-  component shares, such as `weight`. Decompiling messages that use what
-  Express cannot write throws `A2uiValidationError`.
-- Function descriptions in the Express prompt, since `a2ui_core`'s
-  `FunctionApi` does not keep them.
+- In Express for v0.9, function calls written as statements of their own,
+  such as `openUrl("...")`, since v0.9 has no message for them. Decompiling
+  messages that use what Express cannot write throws `A2uiValidationError`.
 
 ## Usage
 
@@ -116,17 +123,15 @@ They are written against v1.0, and each runs twice: as written in v1.0, and
 lowered to v0.9, where the harness lowers what a case hands the package to
 v0.9 and lifts what it returns back to v1.0 before comparing; see
 [test/conformance/suites.dart](test/conformance/suites.dart). Cases that need
-something v0.9 or this API does not have are skipped with the reason, and a
-v1.0 case that reaches a part not implemented yet is skipped naming that
-part. [conformance/agent/multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
+something v0.9 or this API does not have are skipped with the reason.
+[conformance/agent/multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
 runs as written in v1.0 only.
 
 The other tests cover what the suites do not: the published basic catalogs,
 decisions of this package, errors, and a round trip of every basic catalog
-example through both formats. Tests of v1.0 behavior that is not implemented
-yet are skipped.
+example through both formats.
 
 [e2e_test](e2e_test) runs an agent turn in each format against a real Gemini
-model, and a direct JSON turn read as it streams, for v0.9; the v1.0 turns are
-skipped until v1.0 is implemented. It needs an API key, so it
-lives in a separate package and runs in a separate CI pipeline.
+model, and a direct JSON turn read as it streams, for v0.9 and v1.0. It needs
+an API key, so it lives in a separate package and runs in a separate CI
+pipeline.
