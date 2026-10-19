@@ -225,6 +225,10 @@ class DirectJsonParser extends Parser {
   /// The messages of the current block emitted so far.
   final List<AgentToRendererMessage> _emitted = [];
 
+  /// How many of [_emitted] had closed when they were emitted, so that no
+  /// later chunk can change them.
+  int _settled = 0;
+
   /// Finds the close tag of the current block as its text arrives.
   _BlockScanner _scanner = _BlockScanner(0);
 
@@ -297,6 +301,7 @@ class DirectJsonParser extends Parser {
         _inBlock = false;
         _block = '';
         _emitted.clear();
+        _settled = 0;
         _scanner = _BlockScanner(0);
         _readCache = PartialReadCache();
         _readStart = null;
@@ -361,11 +366,20 @@ class DirectJsonParser extends Parser {
     // Built from the reader, so that catalogs it cannot read throw rather
     // than pass for a message that has not arrived in full.
     final _StreamedChecks checks = _checks ??= _StreamedChecks(_reader);
-    _emitChanged(parts, checks.update(envelopes), streamed: true);
+    // The messages emitted closed cannot have changed, so only the ones
+    // after them are compared.
+    _emitChanged(
+      parts,
+      checks.update(envelopes, from: _settled),
+      from: _settled,
+      streamed: true,
+    );
+    _settled = checks.closedCount;
   }
 
   /// Emits the messages of [messages] that differ from the ones emitted at
-  /// the same place before.
+  /// the same place before. [messages] are the messages of the block from
+  /// the one at [from] on.
   ///
   /// The checks of a streamed block return a message that has not changed
   /// as the same object, so [streamed] messages are compared by identity.
@@ -374,10 +388,12 @@ class DirectJsonParser extends Parser {
   void _emitChanged(
     List<ResponsePart> parts,
     List<AgentToRendererMessage> messages, {
+    int from = 0,
     bool streamed = false,
   }) {
     final changed = <AgentToRendererMessage>[];
-    for (final (int i, AgentToRendererMessage message) in messages.indexed) {
+    for (var i = from; i < from + messages.length; i++) {
+      final AgentToRendererMessage message = messages[i - from];
       if (i < _emitted.length) {
         final AgentToRendererMessage emitted = _emitted[i];
         if (identical(emitted, message) ||
@@ -403,7 +419,8 @@ class DirectJsonParser extends Parser {
 /// components, and for the last one it checked when that one has grown,
 /// since applying them over the ones checked before leaves the surface as
 /// applying the whole message would. An `updateDataModel` that grows is
-/// checked again whole when it changes.
+/// checked again only for the lists and maps its value gains, and applied
+/// once it closes.
 ///
 /// A message that has not changed since the last chunk is returned as the
 /// same object.
@@ -429,8 +446,8 @@ class _StreamedChecks {
   /// the checks, or null.
   AgentToRendererMessage? _growing;
 
-  /// The JSON of the message [_growing] was read from, less its components
-  /// for an `updateComponents`.
+  /// The JSON of the message [_growing] was read from, less what it grows
+  /// by; see [_restOf].
   String? _growingJson;
 
   /// The JSON of the last component of the `updateComponents` [_growing] was
@@ -446,19 +463,26 @@ class _StreamedChecks {
   /// compile.
   bool _stalled = false;
 
+  /// How many messages have closed and passed the checks.
+  int get closedCount => _closed.length;
+
   /// Checks what [envelopes], the messages of the block read so far, add to
-  /// the ones checked before, and returns the messages that may be emitted.
+  /// the ones checked before, and returns the messages that may be emitted,
+  /// from the one at [from] on.
   ///
   /// Throws what [DirectJsonParser.compile] throws for a v1.0
   /// `updateComponents` whose components have closed.
-  List<AgentToRendererMessage> update(List<PartialMessage> envelopes) {
+  List<AgentToRendererMessage> update(
+    List<PartialMessage> envelopes, {
+    int from = 0,
+  }) {
     for (int i = _closed.length; !_stalled && i < envelopes.length; i++) {
       final (:Object? message, :bool closed) = envelopes[i];
       // Held until it closes, and nothing after it is emitted ahead of it.
       if (!closed && !_growsInPlace(message)) break;
       final AgentToRendererMessage read;
       try {
-        read = _check(message);
+        read = _check(message, closed: closed);
       } on A2uiError {
         if (_reader.version.isAtLeast(A2uiProtocolVersion.v1_0) &&
             _hasClosedComponents(message)) {
@@ -486,23 +510,34 @@ class _StreamedChecks {
       _growingLast = null;
       _growingIds = {};
     }
-    return [..._closed, ?_growing];
+    return [..._closed.skip(from), ?_growing];
   }
 
   /// Reads and checks [envelope], the message after [_closed], over the
-  /// messages checked before, and returns it read.
+  /// messages checked before, and returns it read. [closed] says whether
+  /// its JSON value has closed.
   ///
   /// A rejected message leaves the checks as they were, so the next chunk
   /// can check it again.
-  AgentToRendererMessage _check(Object? envelope) {
+  AgentToRendererMessage _check(Object? envelope, {required bool closed}) {
     final AgentToRendererMessage? growing = _growing;
-    if (growing is UpdateComponentsMessage) {
-      final String? rest = _restOf(envelope);
-      if (rest != null && rest == _growingJson) {
-        return _checkAdded(growing, envelope! as Map<String, Object?>);
-      }
-    } else if (growing != null && jsonEncode(envelope) == _growingJson) {
-      return growing;
+    final String? rest = growing == null ? null : _restOf(envelope);
+    switch ((growing, envelope)) {
+      case (
+            final UpdateComponentsMessage growing,
+            final Map<String, Object?> message,
+          )
+          when rest != null && rest == _growingJson:
+        return _checkAdded(growing, message);
+      case (
+            final UpdateDataModelMessage growing,
+            final Map<String, Object?> message,
+          )
+          when growing.hasValue && rest != null && rest == _growingJson:
+        return _checkGrown(growing, message, closed: closed);
+      case (final AgentToRendererMessage growing, _)
+          when rest == null && jsonEncode(envelope) == _growingJson:
+        return growing;
     }
     final AgentToRendererMessage read = _reader.read(envelope, _surfaces);
     _checker.add(read);
@@ -549,6 +584,35 @@ class _StreamedChecks {
     return message;
   }
 
+  /// Checks the value of [envelope], the `updateDataModel` [growing] was
+  /// read from on an earlier chunk, and returns the message it makes now.
+  ///
+  /// Only the value can have changed, and of what a renderer checks only the
+  /// depth of the value depends on it, so only the lists and maps the value
+  /// has gained are checked. The value is applied once the message has
+  /// [closed], since no message after it can be checked before then.
+  AgentToRendererMessage _checkGrown(
+    UpdateDataModelMessage growing,
+    Map<String, Object?> envelope, {
+    required bool closed,
+  }) {
+    final Object? value = _dataModelBodyOf(envelope)!['value'];
+    final message = _sameJson(value, growing.value)
+        ? growing
+        : UpdateDataModelMessage(
+            version: growing.version,
+            surfaceId: growing.surfaceId,
+            path: growing.path,
+            value: value,
+          );
+    if (closed) {
+      _checker.add(message);
+    } else if (!identical(message, growing)) {
+      _checker.checkGrown(message, grownFrom: growing);
+    }
+    return message;
+  }
+
   /// Releases the surfaces the messages checked so far create.
   void dispose() => _checker.dispose();
 }
@@ -568,15 +632,58 @@ Map<String, Object?>? _bodyOf(Object? envelope) => switch (envelope) {
   _ => null,
 };
 
-/// The JSON of [envelope], an `updateComponents` with a list of components,
-/// less its components, or null for any other message.
+/// The body of [envelope] if it is an `updateDataModel` with a value, or
+/// null.
+Map<String, Object?>? _dataModelBodyOf(Object? envelope) => switch (envelope) {
+  {'updateDataModel': final Map<String, Object?> body}
+      when body.containsKey('value') =>
+    body,
+  _ => null,
+};
+
+/// The JSON of [envelope] less what it grows by: the components of an
+/// `updateComponents` with a list of components, or the value of an
+/// `updateDataModel` that has one. Null for any other message, and for an
+/// envelope that is not a `Map<String, Object?>`.
 String? _restOf(Object? envelope) {
-  final Map<String, Object?>? body = _bodyOf(envelope);
-  if (body == null) return null;
-  return jsonEncode({
-    ...envelope! as Map<String, Object?>,
-    'updateComponents': {...body}..remove('components'),
-  });
+  if (envelope is! Map<String, Object?>) return null;
+  String without(String type, Map<String, Object?> body, String field) =>
+      jsonEncode({
+        ...envelope,
+        type: {...body}..remove(field),
+      });
+
+  if (_bodyOf(envelope) case final Map<String, Object?> body) {
+    return without('updateComponents', body, 'components');
+  }
+  if (_dataModelBodyOf(envelope) case final Map<String, Object?> body) {
+    return without('updateDataModel', body, 'value');
+  }
+  return null;
+}
+
+/// Whether [a] and [b] are the same JSON value. A list or map that is the
+/// same object in both, as a read through a cache returns one that closed,
+/// is not read.
+bool _sameJson(Object? a, Object? b) {
+  if (identical(a, b)) return true;
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_sameJson(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (a is Map && b is Map) {
+    if (a.length != b.length) return false;
+    for (final MapEntry<Object?, Object?> entry in a.entries) {
+      if (!b.containsKey(entry.key) || !_sameJson(entry.value, b[entry.key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return a == b;
 }
 
 /// Whether [envelope] is a message a renderer applies again as it grows, so

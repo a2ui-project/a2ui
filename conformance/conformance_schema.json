@@ -21,6 +21,8 @@
       {"$ref": "#/$defs/DecompileTest"},
       {"$ref": "#/$defs/ParseResponseTest"},
       {"$ref": "#/$defs/ParseChunkTest"},
+      {"$ref": "#/$defs/MeasureGrowthTest"},
+      {"$ref": "#/$defs/MeasureOverheadTest"},
       {"$ref": "#/$defs/CreateFormatTest"},
       {"$ref": "#/$defs/CreateProcessorTest"},
       {"$ref": "#/$defs/EvaluateFunctionTest"},
@@ -1297,6 +1299,122 @@
         }
       },
       "required": ["action", "args", "steps"]
+    },
+    "PayloadTemplate": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The text of a payload of size n, written as segments that are joined in order. A string is copied as it is. A `repeat` is its text written n times, with each `{i}` in it replaced by the number of the copy, counting from 0, and `separator` between the copies.",
+      "items": {
+        "oneOf": [
+          {"type": "string"},
+          {
+            "type": "object",
+            "properties": {
+              "repeat": {"type": "string"},
+              "separator": {"type": "string", "default": ""}
+            },
+            "required": ["repeat"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "MeasuredArgs": {
+      "type": "object",
+      "description": "What the timed operation is built from: a format from `format`, `catalog` and `progressive_keys`, or a processor from the case's `catalogPaths` and `validation_config`. The format and the catalogs are built before the timing starts, and each timed run creates a new parser from the format, or a new processor.",
+      "properties": {
+        "format": {"$ref": "#/$defs/InferenceFormatName"},
+        "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+        "progressive_keys": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The string keys whose value a direct JSON parser may close early while it is still arriving."
+        },
+        "validation_config": {
+          "enum": ["none", "relaxed"],
+          "description": "The checks the processor makes. `none` is a processor without a validation config, as a renderer has by default, which checks each batch of components for duplicate ids and against its catalog. `relaxed` also checks the graph each batch leaves behind for cycles and depth, while allowing orphans, references to components that have not arrived and a missing root, as a surface arriving over several messages needs."
+        }
+      },
+      "additionalProperties": false
+    },
+    "MeasuredOperation": {
+      "enum": ["parse_chunk", "compile", "process_messages"],
+      "description": "The call a timing case times. `parse_chunk` hands a new parser the response `<a2ui-json>`, payload, `</a2ui-json>`, in chunks of `chunk_size` characters. `compile` hands a new parser the payload whole. `process_messages` hands a new processor the messages of the payload, a JSON list decoded before the timing starts, in one call."
+    },
+    "MeasureGrowthTest": {
+      "type": "object",
+      "description": "Timing one operation on the payload written at two sizes, to show that its cost grows in proportion to the payload rather than with its square.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "measure_growth"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "For `process_messages`, the catalogs the processor holds, as paths relative to the repository root."
+        },
+        "args": {"$ref": "#/$defs/MeasuredArgs"},
+        "operation": {"$ref": "#/$defs/MeasuredOperation"},
+        "chunk_size": {"type": "integer", "minimum": 1},
+        "payload": {"$ref": "#/$defs/PayloadTemplate"},
+        "sizes": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "The two sizes n the payload is written at, the smaller first."
+        },
+        "max_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 1,
+          "description": "The largest the median time at the second size may be, as a multiple of the median time at the first."
+        }
+      },
+      "required": ["name", "action", "args", "operation", "payload", "sizes", "max_ratio"],
+      "allOf": [
+        {
+          "if": {"properties": {"operation": {"const": "parse_chunk"}}},
+          "then": {"required": ["chunk_size"]}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "MeasureOverheadTest": {
+      "type": "object",
+      "description": "Timing streaming a payload against compiling it whole, to show that streaming costs at most a fixed multiple of compiling.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "measure_overhead"},
+        "args": {"$ref": "#/$defs/MeasuredArgs"},
+        "operation": {"const": "parse_chunk"},
+        "baseline": {"const": "compile"},
+        "chunk_size": {"type": "integer", "minimum": 1},
+        "payload": {"$ref": "#/$defs/PayloadTemplate"},
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The size n the payload is written at."
+        },
+        "max_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 1,
+          "description": "The largest the median time of `operation` may be, as a multiple of the median time of `baseline`."
+        }
+      },
+      "required": [
+        "name",
+        "action",
+        "args",
+        "operation",
+        "baseline",
+        "chunk_size",
+        "payload",
+        "size",
+        "max_ratio"
+      ],
+      "additionalProperties": false
     },
     "CreateFormatTest": {
       "type": "object",

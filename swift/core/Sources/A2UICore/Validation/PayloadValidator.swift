@@ -35,8 +35,10 @@ public final class PayloadValidator: Sendable {
   /// The component envelope keys that a v1.0 component schema may not declare.
   private static let envelopeKeys = ["id", "component", "catalogId", "metadata"]
 
-  /// The envelope keys that the shared `ComponentCommon` definition declares.
-  private static let componentCommonKeys: Set<String> = ["id", "catalogId", "metadata"]
+  /// The keys that the shared `ComponentCommon` definition declares.
+  private static let componentCommonKeys: Set<String> = [
+    "id", "catalogId", "accessibility", "metadata",
+  ]
 
   /// The envelope keys each component schema declares, by component name. Computed once from
   /// v1.0, where undeclared envelope keys are left out of the instance checked by the schema.
@@ -52,6 +54,17 @@ public final class PayloadValidator: Sendable {
     }
     return catalog.isAtLeastV10
   }
+
+  /// `AccessibilityAttributes` from the v0.9.1 and v1.0 common types. Both reference a bundled
+  /// common type, so building them can only fail on a developer error.
+  private static let v09AccessibilitySchema = try! Schema(
+    rawSchema: .object(["$ref": .string(A2UICommonSchema.uri(for: "AccessibilityAttributes"))]),
+    context: A2UISchemaRegistry.makeContext()
+  )
+  private static let v10AccessibilitySchema = try! Schema(
+    rawSchema: .object(["$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))]),
+    context: A2UISchemaRegistry.makeContext()
+  )
 
   /// Creates a payload validator scoped to a single catalog.
   ///
@@ -203,7 +216,19 @@ public final class PayloadValidator: Sendable {
       )
     }
 
+    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
+    // When it doesn't, check it against `AccessibilityAttributes` and leave it out of the
+    // component schema check, so a closed schema doesn't reject it.
     var schemaTargetDict = component
+    if !Self.schemaDeclaresProperty(
+      "accessibility",
+      in: componentAPI.schema.jsonValue,
+      root: componentAPI.schema.jsonValue,
+      visitedRefs: []
+    ), let accessibility = schemaTargetDict.removeValue(forKey: "accessibility") {
+      try validateAccessibility(accessibility)
+    }
+
     if enforceIdentifiers {
       let declaredKeys =
         declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: componentAPI.schema.jsonValue)
@@ -870,6 +895,35 @@ public final class PayloadValidator: Sendable {
   }
 
   // MARK: - Helpers
+
+  /// Checks a component's `accessibility` against `AccessibilityAttributes`.
+  ///
+  /// - Throws: `A2UIValidationError` with a detail per failure, at a path under `accessibility`.
+  private func validateAccessibility(_ accessibility: JSONValue) throws {
+    let version =
+      config.protocolVersion
+      ?? catalog.a2uiProtocolVersion
+      ?? (catalog.isAtLeastV10 ? .v10 : .v091)
+    let schema: Schema
+    switch version {
+    case .v09, .v091:
+      schema = Self.v09AccessibilitySchema
+    case .v10:
+      schema = Self.v10AccessibilitySchema
+    }
+    let result = schema.validate(accessibility)
+    guard !result.isValid else { return }
+
+    let message = "Field 'accessibility' must match AccessibilityAttributes"
+    let details = (result.errors ?? []).flatMap { extractLeafErrors(from: $0) }.map { leaf in
+      A2UIErrorDetail(
+        path: "accessibility\(leaf.instanceLocation.jsonPointerString)",
+        code: "invalid_value",
+        message: leaf.message.isEmpty ? message : leaf.message
+      )
+    }
+    throw A2UIValidationError(message, details: details)
+  }
 
   private func extractLeafErrors(
     from error: JSONSchema.ValidationError
