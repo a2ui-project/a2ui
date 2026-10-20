@@ -92,8 +92,10 @@ const INDEX = /^(0|[1-9][0-9]*)$/;
  * Being atomic costs what the messages change, not the size of the surfaces they touch.
  * While an `apply` or a transaction is open, the state keeps an undo log: each message
  * records what it replaced, and a failure reverts those records, latest first. A deleted
- * surface is the one change recorded whole, and it is restored by replaying it through the
- * processor. No surface is copied when a message is applied or a transaction opens.
+ * surface is the one change recorded whole, and it is restored straight into the model. No
+ * surface is copied when a message is applied or a transaction opens. A rollback leaves the
+ * state as it was, down to the order of each surface's components and of each data model
+ * object's keys.
  *
  * The state holds the surfaces as they now stand, not the messages that built them.
  *
@@ -115,20 +117,33 @@ export class RendererState {
   private readonly log: Undo[] = [];
   /** How many `apply` calls and transactions are open. */
   private open = 0;
+  /** How many promises that transaction functions returned are still running. */
+  private runaway = 0;
 
   /**
    * Creates the empty state of a renderer that holds the catalogs.
    *
    * @param catalogs The active catalogs, which must target compatible protocol versions.
    *     Each surface is checked against the catalog its `catalogId` names.
-   * @throws {A2uiCatalogError} If no catalogs are given, if two share an id, or if their
-   *     messages state different versions, for example v0.9 and v1.0 catalogs.
+   * @throws {A2uiCatalogError} If no catalogs are given, if two share an id, if their
+   *     messages state different versions, for example v0.9 and v1.0 catalogs, or if they
+   *     target a protocol version the state does not support, such as v0.8.
    */
   constructor(catalogs: CatalogApi[]) {
     if (!catalogs || catalogs.length === 0) {
       throw new A2uiCatalogError('A renderer state requires at least one catalog.');
     }
-    this.releaseLine = toReleaseLine(checkParserCatalogs(catalogs));
+    const wireVersion = checkParserCatalogs(catalogs);
+    this.releaseLine = toReleaseLine(wireVersion);
+    if (!Object.prototype.hasOwnProperty.call(MESSAGE_VERSIONS, this.releaseLine)) {
+      throw new A2uiCatalogError(
+        `The catalogs target ${wireVersion}, which a renderer state does not support. It supports ${Object.values(
+          MESSAGE_VERSIONS,
+        )
+          .flat()
+          .join(', ')}.`,
+      );
+    }
     this._catalogs = linkCatalogs(catalogs);
     this.processor = new MessageProcessor(this._catalogs as never, undefined, {
       validationConfig: IN_PROGRESS_VALIDATION,
@@ -179,6 +194,7 @@ export class RendererState {
    *     error, or a subclass such as `A2uiIntegrityError`, describes the first problem found.
    */
   apply(payload: unknown): string[] {
+    this.checkNoRunaway();
     const messages = extractMessages(payload);
     messages.forEach((message, index) => this.checkMessage(message, index));
     const touched = new Set<string>();
@@ -207,6 +223,7 @@ export class RendererState {
    * @throws {A2uiValidationError} If a surface's tree is incomplete or invalid.
    */
   checkTopology(surfaceIds: Iterable<string>): void {
+    this.checkNoRunaway();
     const ids = [...new Set(surfaceIds)];
     for (const surfaceId of ids) {
       if (this.assumed.has(surfaceId)) continue;
@@ -260,18 +277,39 @@ export class RendererState {
    * to where the inner one started, and the outer one goes on. `fn` must be synchronous: a
    * transaction cannot span an `await`.
    *
+   * A JavaScript caller can still pass a function that returns a promise. The transaction
+   * then restores the state and throws, but the promise keeps running, and nothing it does
+   * after its first `await` could be rolled back. So until it settles, `apply`,
+   * `transaction` and `checkTopology` throw `TypeError`, whoever calls them, and a rejection
+   * of the promise is handled, since the caller never got the promise to handle it.
+   *
    * @returns What `fn` returns.
    * @throws {TypeError} If `fn` returns a promise, which the type of `fn` rejects at compile
-   *   time. The state is restored first.
+   *   time. The state is restored first. Also thrown while such a promise is running.
    */
   transaction<T>(fn: (state: this) => T extends PromiseLike<unknown> ? never : T): T {
+    this.checkNoRunaway();
     return this.frame(() => {
       const result: T = fn(this);
       if (isPromiseLike(result)) {
+        this.runaway++;
+        const settled = () => {
+          this.runaway--;
+        };
+        Promise.resolve(result).then(settled, settled);
         throw new TypeError('A renderer state transaction must be synchronous.');
       }
       return result;
     });
+  }
+
+  /** Throws while a promise that a transaction function returned is still running. */
+  private checkNoRunaway(): void {
+    if (this.runaway > 0) {
+      throw new TypeError(
+        'A renderer state takes no changes while a promise that a transaction function returned is still running.',
+      );
+    }
   }
 
   /**
@@ -279,7 +317,8 @@ export class RendererState {
    *
    * The frame is a position in the undo log. A failure reverts the log to it, so a failed
    * inner frame undoes only what was changed inside it. Once the outermost frame ends,
-   * nothing can be undone any more, and the log is cleared.
+   * nothing can be undone any more, and the log is cleared. The error `fn` threw propagates,
+   * even if an undo fails too.
    */
   private frame<T>(fn: () => T): T {
     const mark = this.log.length;
@@ -295,10 +334,19 @@ export class RendererState {
     }
   }
 
-  /** Undoes the changes logged after a position, latest first. */
+  /**
+   * Undoes the changes logged after a position, latest first.
+   *
+   * Every record is undone even if one throws, so that one failure doesn't leave the
+   * changes logged before it in place. A record that throws is dropped.
+   */
   private revert(mark: number): void {
     while (this.log.length > mark) {
-      this.log.pop()!();
+      try {
+        this.log.pop()!();
+      } catch {
+        // Keep undoing; the caller rethrows the error that started the rollback.
+      }
     }
   }
 
@@ -362,7 +410,11 @@ export class RendererState {
     try {
       this.processUnlogged([message]);
     } catch (e) {
-      undo?.();
+      try {
+        undo?.();
+      } catch {
+        // The error that rejected the message is the one to report.
+      }
       throw e;
     }
     if (undo) this.record(undo);
@@ -406,6 +458,13 @@ export class RendererState {
    * The core updates a component in place when the update keeps its type and catalog, so
    * the record holds a copy of the component's previous properties, not the object the
    * update replaces them with.
+   *
+   * When an update changes a component's type or catalog, the core replaces the component
+   * with a new one, which goes last in the surface's order. The order is visible: the tree
+   * check reports the first problem it meets in it. So for such a component the record also
+   * holds its position, and the undo puts the old component back there. Finding a position
+   * costs one pass over the surface's components, made only for a message that changes a
+   * type or catalog.
    */
   private componentsRestorer(body: Message): Undo | undefined {
     const model = this.processor.model;
@@ -420,6 +479,7 @@ export class RendererState {
       copy: Record<string, unknown>;
       metadata: Record<string, unknown> | undefined;
     }> = [];
+    const replaced = new Set<string>();
     for (const component of body.components as unknown[]) {
       const id = (component as Message | null)?.id;
       if (typeof id !== 'string') continue;
@@ -431,13 +491,23 @@ export class RendererState {
         copy: existing ? structuredClone(existing.properties) : {},
         metadata: existing ? structuredClone(existing.metadata) : undefined,
       });
+      if (existing && this.replaces(component as Message, existing, surface)) replaced.add(id);
     }
     if (previous.length === 0) return undefined;
+    const positions = new Map<string, number>();
+    if (replaced.size > 0) {
+      let index = 0;
+      for (const id of surface.componentsModel.keys) {
+        if (replaced.has(id)) positions.set(id, index);
+        index++;
+      }
+    }
     return () => {
-      // Found again by id: undoing a later delete replays the surface into new objects.
+      // Found again by id: undoing a later delete restores the surface into new objects.
       const components = model.getSurface(surfaceId)?.componentsModel;
       if (!components) return;
-      for (const {id, existing, properties, copy, metadata} of previous.reverse()) {
+      const restored: Array<[number, ComponentModel]> = [];
+      for (const {id, existing, properties, copy, metadata} of [...previous].reverse()) {
         const current = components.get(id);
         if (!existing) {
           components.removeComponent(id);
@@ -450,12 +520,37 @@ export class RendererState {
           // The update replaced the component with one of another type or catalog, and the
           // core disposed of the old one.
           components.removeComponent(id);
-          components.addComponent(
+          restored.push([
+            positions.get(id) ?? Infinity,
             new ComponentModel(id, existing.type, copy, existing.catalog, metadata),
-          );
+          ]);
         }
       }
+      // Once every replacement is removed, the components left are in their old order, so
+      // putting the old ones back from the first position on puts each where it was.
+      restored.sort(([a], [b]) => a - b);
+      for (const [index, component] of restored) {
+        components.insertComponent(component, index);
+      }
     };
+  }
+
+  /**
+   * Whether an update to a component makes the core replace it with a new one, as it does
+   * when the update changes the component's type or catalog. Mirrors how the core resolves
+   * the catalog of a component update.
+   */
+  private replaces(update: Message, existing: ComponentModel, surface: SurfaceModel): boolean {
+    const type = typeof update.component === 'string' ? update.component : existing.type;
+    if (type !== existing.type) return true;
+    const atLeastV1 = this.releaseLine !== 'v0.9';
+    const catalogId = update.catalogId;
+    if (typeof catalogId === 'string' && (catalogId !== '' || atLeastV1)) {
+      return catalogId !== existing.catalog.id;
+    }
+    // Below v1.0 an update that names no catalog keeps the component's own; from v1.0 it
+    // moves the component to the surface's default catalog.
+    return atLeastV1 && surface.defaultCatalog?.id !== existing.catalog.id;
   }
 
   /**
@@ -465,6 +560,11 @@ export class RendererState {
    * the index it sets, so the record is taken at the first segment of the path that does not
    * hold a container yet. The value there is replaced, not changed in place, and every later
    * change to it has a record of its own, so the record holds the value itself.
+   *
+   * The undo leaves the data as it was, as `JSON.stringify` shows it: a hole in a list stays
+   * a hole, and a key the message deleted goes back to its place among its object's keys.
+   * Finding that place costs one pass over the object's keys, made only for a message that
+   * deletes a key.
    */
   private dataModelRestorer(body: Message): Undo | undefined {
     const model = this.processor.model;
@@ -489,6 +589,13 @@ export class RendererState {
       }
       const parentTokens = tokens.slice(0, depth);
       const length = Array.isArray(parent) ? parent.length : 0;
+      // Setting a key to nothing deletes it, and putting it back would put it last.
+      const deletes =
+        exists &&
+        !Array.isArray(parent) &&
+        depth === tokens.length - 1 &&
+        (body.value === undefined || body.value === null);
+      const position = deletes ? Object.keys(parent).indexOf(token) : -1;
       return () => {
         const dataModel = model.getSurface(surfaceId)?.dataModel;
         if (!dataModel) return;
@@ -499,10 +606,12 @@ export class RendererState {
           if (exists) {
             container[Number(token)] = child;
           } else {
+            // Within the old length the index was a hole, and past it the list was shorter.
+            delete container[Number(token)];
             container.length = length;
           }
         } else if (exists) {
-          (container as Message)[token] = child;
+          restoreKey(container as Message, token, child, position);
         } else {
           delete (container as Message)[token];
         }
@@ -516,55 +625,57 @@ export class RendererState {
   /**
    * Records a surface that a message deletes, whole.
    *
-   * It is restored by replaying it through the processor. A component whose catalog is not
-   * the surface's default names its own, so a surface whose components come from several
-   * catalogs comes back as it was. The properties and the data model are copied, since the
-   * surface is disposed of once deleted.
+   * It is restored straight into the model, not replayed through the processor: the
+   * processor accepted the surface one message at a time, and replayed as one message it
+   * could reject what it accepted, such as a data model deeper than one message may be. Each
+   * component keeps its catalog, its place in the surface's order, its properties and its
+   * metadata, and the data model its root, whatever JSON value that is. The properties and
+   * the data model are copied, since the surface is disposed of once deleted.
    */
   private surfaceRestorer(surface: SurfaceModel): Undo {
     const surfaceId = surface.id;
     const defaultCatalog = surface.defaultCatalog;
-    const theme = surface.theme as Message | undefined;
-    const operations: Message[] = [
-      {
-        type: 'createSurface',
-        surfaceId,
-        catalogId: defaultCatalog?.id,
-        theme: theme && Object.keys(theme).length > 0 ? structuredClone(theme) : undefined,
-        sendDataModel: surface.sendDataModel,
-        rootId: surface.rootId,
-        metadata: structuredClone(surface.metadata),
-        version: surface.protocolVersion,
-      },
-    ];
-    const components: Message[] = [];
-    for (const component of surface.componentsModel.values) {
-      const item: Message = {
-        ...structuredClone(component.properties),
-        id: component.id,
-        component: component.type,
-      };
-      if (component.metadata !== undefined) item.metadata = structuredClone(component.metadata);
-      if (component.catalog !== defaultCatalog) item.catalogId = component.catalog.id;
-      components.push(item);
-    }
-    if (components.length > 0) {
-      operations.push({type: 'updateComponents', surfaceId, components});
-    }
-    const data: unknown = surface.dataModel.get('/');
-    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-      operations.push({
-        type: 'updateDataModel',
-        surfaceId,
-        path: '/',
-        value: structuredClone(data),
-      });
-    }
+    const availableCatalogs = new Map(surface.availableCatalogs);
+    const theme: unknown = structuredClone(surface.theme);
+    const sendDataModel = surface.sendDataModel;
+    const rootId = surface.rootId;
+    const metadata = structuredClone(surface.metadata);
+    const protocolVersion = surface.protocolVersion;
+    const components = [...surface.componentsModel.values].map(component => ({
+      id: component.id,
+      type: component.type,
+      properties: structuredClone(component.properties),
+      catalog: component.catalog,
+      metadata: structuredClone(component.metadata),
+    }));
+    const data: unknown = structuredClone(surface.dataModel.get('/'));
     return () => {
-      if (this.processor.model.getSurface(surfaceId)) return;
-      for (const op of operations) {
-        this.processor.processOperation(op as never);
+      const model = this.processor.model;
+      if (model.getSurface(surfaceId)) return;
+      const restored = new SurfaceModel(
+        surfaceId,
+        defaultCatalog,
+        availableCatalogs,
+        theme,
+        sendDataModel,
+        undefined,
+        rootId,
+        metadata,
+        protocolVersion,
+      );
+      restored.dataModel.set('/', data);
+      for (const component of components) {
+        restored.componentsModel.addComponent(
+          new ComponentModel(
+            component.id,
+            component.type,
+            component.properties,
+            component.catalog,
+            component.metadata,
+          ),
+        );
       }
+      model.addSurface(restored);
     };
   }
 
@@ -828,14 +939,37 @@ function toPointer(tokens: string[]): string {
   return '/' + tokens.map(token => token.replace(/~/g, '~0').replace(/\//g, '~1')).join('/');
 }
 
-/** Returns whether a container holds a segment of a path, and its value. */
+/**
+ * Returns whether a container holds a segment of a path, and its value. A hole in a list
+ * holds nothing.
+ */
 function childOf(container: object, token: string): [boolean, unknown] {
   if (Array.isArray(container)) {
     if (!INDEX.test(token)) return [false, undefined];
     const index = Number(token);
-    return index < container.length ? [true, container[index]] : [false, undefined];
+    return Object.prototype.hasOwnProperty.call(container, index)
+      ? [true, container[index]]
+      : [false, undefined];
   }
   return Object.prototype.hasOwnProperty.call(container, token)
     ? [true, (container as Message)[token]]
     : [false, undefined];
+}
+
+/**
+ * Sets a key of an object back to its value. A key that is missing goes back to `position`
+ * among the object's keys, or last if the position is unknown.
+ */
+function restoreKey(container: Message, key: string, value: unknown, position: number): void {
+  if (position < 0 || Object.prototype.hasOwnProperty.call(container, key)) {
+    container[key] = value;
+    return;
+  }
+  const after = Object.keys(container).slice(position);
+  const values = after.map(k => container[k]);
+  for (const k of after) delete container[k];
+  container[key] = value;
+  after.forEach((k, i) => {
+    container[k] = values[i];
+  });
 }

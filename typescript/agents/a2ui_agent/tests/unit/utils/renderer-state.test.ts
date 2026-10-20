@@ -24,6 +24,7 @@ import {
   RendererState,
   validatePayload,
 } from '../../../src/index.js';
+import {Catalog} from '../../../src/internal/web-core.js';
 import {BASIC_CATALOG_IDS, loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 
 type Message = Record<string, unknown>;
@@ -478,7 +479,226 @@ describe('RendererState', () => {
     expect(catalogOf('root')).toBe('urn:primary');
     expect(catalogOf('b')).toBe('urn:extra');
   });
+
+  it('restores a data model root that is not an object after an undone delete', () => {
+    for (const root of ['hello', '', 42, 0, false, [], ['x']]) {
+      const state = canvas();
+      state.apply(DATA('/', root));
+
+      rolledBack(state, () => state.apply(DELETE));
+
+      expect(state.getSurface('s')?.dataModel.get('/')).toEqual(root);
+    }
+    const state = canvas();
+    state.apply(DATA('/', 'hello'));
+    rolledBack(state, () => state.apply(DELETE));
+    // The renderer rejects a write through a primitive root, and so does the restored state.
+    expect(() => state.apply(DATA('/a', 1))).toThrow(/root is a primitive/);
+  });
+
+  it('restores a deleted surface whose data model is deeper than one message may be', () => {
+    const state = canvas();
+    const path = '/' + Array.from({length: 60}, () => 'a').join('/');
+    // Each message nests the value one level deeper than the last; one message holding the
+    // whole value would exceed the depth limit on messages.
+    for (let depth = 1; depth <= 60; depth++) {
+      state.apply(DATA(path.slice(0, depth * 2), {}));
+    }
+    state.apply(DATA(path, 'leaf'));
+    const before = structuredClone(state.getSurface('s')?.dataModel.get('/'));
+
+    rolledBack(state, () => state.apply(DELETE));
+
+    expect(state.getSurface('s')?.dataModel.get('/')).toEqual(before);
+    expect(state.getSurface('s')?.dataModel.get(path)).toBe('leaf');
+  });
+
+  it('restores the order of the components after an undone deleteSurface', () => {
+    const state = new RendererState([BASIC]);
+    turn(state, CREATE, update(column(['b', 'a']), text('b'), text('a')));
+    const before = order(state);
+
+    rolledBack(state, () => state.apply(DELETE));
+
+    expect(order(state)).toEqual(before);
+  });
+
+  it('keeps the position of a component whose type change is undone', () => {
+    const state = new RendererState([BASIC]);
+    state.apply([CREATE, update(column(['a', 'b']), column(['x'], 'a'), column(['y'], 'b'))]);
+    const before = order(state);
+    const firstProblem = () => {
+      try {
+        state.checkTopology(['s']);
+        return undefined;
+      } catch (e) {
+        return (e as Error).message;
+      }
+    };
+    const problemBefore = firstProblem();
+
+    rolledBack(state, () => state.apply(update({id: 'a', component: 'Card', child: 'b'})));
+
+    expect(order(state)).toEqual(before);
+    expect(firstProblem()).toBe(problemBefore);
+  });
+
+  it('keeps the positions of several components whose type changes one message undoes', () => {
+    const state = new RendererState([BASIC]);
+    turn(
+      state,
+      CREATE,
+      update(column(['a', 'b', 'c', 'd']), ...['a', 'b', 'c', 'd'].map(id => text(id))),
+    );
+    const before = order(state);
+
+    rolledBack(state, () =>
+      state.apply(
+        update(
+          {id: 'c', component: 'Divider'},
+          text('b', 'Changed in place'),
+          {id: 'a', component: 'Divider'},
+          text('new'),
+        ),
+      ),
+    );
+
+    expect(order(state)).toEqual(before);
+    expect(textOf(state, 'b')).toBe('Hi');
+  });
+
+  it('keeps the position of a v1.0 component whose catalog change is undone', () => {
+    const primary = v10Catalog('urn:primary', 'Panel', 'Badge');
+    const extra = v10Catalog('urn:extra', 'Badge');
+    const state = new RendererState([primary, extra]);
+    const v10Update = (...components: Component[]): Message => ({
+      version: 'v1.0',
+      updateComponents: {surfaceId: 's', components},
+    });
+    state.apply([
+      {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'urn:primary'}},
+      v10Update(
+        {id: 'root', component: 'Panel', text: 'Hi'},
+        {id: 'b', component: 'Badge', text: 'New', catalogId: 'urn:extra'},
+        {id: 'c', component: 'Panel', text: 'Last'},
+      ),
+    ]);
+    const before = order(state);
+
+    // From v1.0 an update that names no catalog moves the component to the default one.
+    rolledBack(state, () => state.apply(v10Update({id: 'b', component: 'Badge', text: 'Moved'})));
+
+    expect(order(state)).toEqual(before);
+    expect(state.getSurface('s')?.componentsModel.get('b')?.catalog.id).toBe('urn:extra');
+  });
+
+  it('puts a deleted data model key back where it was', () => {
+    const state = canvas();
+    state.apply(DATA('/', {first: 1, middle: 2, last: 3}));
+
+    rolledBack(state, () => state.apply(DATA('/middle', null)));
+
+    expect(Object.keys(state.getSurface('s')?.dataModel.get('/') as object)).toEqual([
+      'first',
+      'middle',
+      'last',
+    ]);
+  });
+
+  it('keeps a hole in a padded list when a write through it is undone', () => {
+    const state = canvas();
+    state.apply(DATA('/list/2', 'c'));
+    const list = () => state.getSurface('s')?.dataModel.get('/list') as unknown[];
+    expect(0 in list()).toBe(false);
+
+    rolledBack(state, () => {
+      state.apply(DATA('/list/0/name', 'a'));
+      state.apply(DATA('/list/1', 'b'));
+    });
+
+    expect(list()).toHaveLength(3);
+    expect(0 in list()).toBe(false);
+    expect(1 in list()).toBe(false);
+    expect(JSON.stringify(state.getSurface('s')?.dataModel.get('/'))).toBe(
+      '{"list":[null,null,"c"]}',
+    );
+  });
+
+  it('refuses changes from an asynchronous transaction after it is rejected', async () => {
+    const state = canvas();
+    const before = snapshot(state);
+    let resume!: () => void;
+    const gate = new Promise<void>(resolve => (resume = resolve));
+    let late: unknown;
+
+    expect(() =>
+      // @ts-expect-error The type of `fn` rejects a promise; JavaScript callers hit the runtime check.
+      state.transaction(async () => {
+        await gate;
+        try {
+          state.apply(update(text('a', 'Late')));
+        } catch (e) {
+          late = e;
+          // A rejection nobody can handle, since the caller never got the promise.
+          throw e;
+        }
+      }),
+    ).toThrow(TypeError);
+    resume();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(late).toBeInstanceOf(TypeError);
+    expect(snapshot(state)).toEqual(before);
+    // Once the promise has settled, the state takes changes again.
+    turn(state, update(text('a', 'Now')));
+    expect(textOf(state, 'a')).toBe('Now');
+  });
+
+  it('keeps undoing when one undo fails, and rethrows the original error', () => {
+    const state = canvas();
+    const surface = state.getSurface('s')!;
+    const removeComponent = surface.componentsModel.removeComponent;
+
+    expect(() =>
+      state.transaction(() => {
+        state.apply(DATA('/name', 'Ada'));
+        state.apply(update(column(['a', 'b']), text('b')));
+        surface.componentsModel.removeComponent = () => {
+          throw new Error('undo failed');
+        };
+        throw new Error('the response is rejected');
+      }),
+    ).toThrow('the response is rejected');
+    surface.componentsModel.removeComponent = removeComponent;
+
+    // The undo logged before the failing one still ran.
+    expect(surface.dataModel.get('/')).toEqual({});
+  });
+
+  it('rejects catalogs of a protocol version it does not support', () => {
+    const v08 = new Catalog('urn:x', 'v0.8', []);
+
+    expect(() => new RendererState([v08])).toThrow(A2uiCatalogError);
+    expect(() =>
+      validatePayload([v08], [{version: 'v0.8', deleteSurface: {surfaceId: 's'}}]),
+    ).toThrow(A2uiCatalogError);
+  });
 });
+
+/** Runs `fn` in a transaction that then fails, so that everything `fn` applied is rolled back. */
+function rolledBack(state: RendererState, fn: () => void): void {
+  expect(() =>
+    state.transaction(() => {
+      fn();
+      throw new Error('the response is rejected');
+    }),
+  ).toThrow('the response is rejected');
+}
+
+/** The ids of a surface's components, in the order the surface holds them. */
+function order(state: RendererState, surfaceId = 's'): string[] {
+  return [...state.getSurface(surfaceId)!.componentsModel.keys];
+}
 
 function DATA(path: string, value: unknown): Message {
   return {version: 'v0.9', updateDataModel: {surfaceId: 's', path, value}};
