@@ -14,10 +14,19 @@
 
 from __future__ import annotations
 
+from . import decision as decision
 from . import direct_json as direct_json
 from . import express as express
 from ._shared import to_message_dicts
 from ._shared import to_message_models
+from .decision import CatalogDecisionGraph
+from .decision import DecisionBackend
+from .decision import DecisionSynthesizer
+from .decision import SynthesisConfig
+from .decision import SynthesisOutput
+from .decision import SynthesisStage
+from .decision import TemplateRegistry
+from .decision import calibrate_thresholds
 from .direct_json import DirectJsonDecompiler
 from .direct_json import DirectJsonFormat
 from .direct_json import DirectJsonFormatFactory
@@ -41,6 +50,9 @@ __all__ = [
     "AtomFormatFactory",
     "AtomParser",
     "AtomPromptGenerator",
+    "CatalogDecisionGraph",
+    "DecisionBackend",
+    "DecisionSynthesizer",
     "DirectJsonDecompiler",
     "DirectJsonFormat",
     "DirectJsonFormatFactory",
@@ -54,6 +66,12 @@ __all__ = [
     "ExpressFormatFactory",
     "ExpressParser",
     "ExpressPromptGenerator",
+    "SynthesisConfig",
+    "SynthesisOutput",
+    "SynthesisStage",
+    "TemplateRegistry",
+    "calibrate_thresholds",
+    "decision",
     "direct_json",
     "express",
     "to_message_dicts",
