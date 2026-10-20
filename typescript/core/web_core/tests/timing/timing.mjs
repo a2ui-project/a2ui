@@ -41,6 +41,17 @@ export const CONFORMANCE_DIR = path.join(REPO_ROOT, 'conformance');
 export const DEFAULT_RUNS = 5;
 
 /**
+ * Options of the timing functions.
+ *
+ * @typedef {object} TimingOptions
+ * @property {number} [runs] How many timed runs each operation gets;
+ *     `DEFAULT_RUNS` when omitted.
+ * @property {() => number} [now] The clock, in milliseconds;
+ *     `performance.now()` when omitted. A test passes a fake clock that the
+ *     operations it times advance, which makes its times exact.
+ */
+
+/**
  * Reads a conformance suite.
  *
  * @param {string} suite Path of the suite relative to `conformance/`, such as
@@ -100,13 +111,14 @@ export function writePayload(template, size) {
  * to this one.
  *
  * @param {() => void} body The code to time.
+ * @param {() => number} now The clock, in milliseconds.
  * @returns {number} The elapsed time.
  */
-function time(body) {
+function time(body, now) {
   if (typeof globalThis.gc === 'function') globalThis.gc();
-  const start = performance.now();
+  const start = now();
   body();
-  return performance.now() - start;
+  return now() - start;
 }
 
 /**
@@ -129,18 +141,23 @@ export function median(times) {
  *
  * @param {() => void} measured The operation whose time is the numerator.
  * @param {() => void} baseline The operation whose time is the denominator.
- * @param {{runs?: number}} [options] How many timed runs each gets.
+ * @param {TimingOptions} [options] How many timed runs each gets, and the
+ *     clock.
  * @returns {{measuredMs: number, baselineMs: number, ratio: number}} The
  *     median times in milliseconds and their ratio.
  */
-export function compareMedianTimes(measured, baseline, {runs = DEFAULT_RUNS} = {}) {
+export function compareMedianTimes(
+  measured,
+  baseline,
+  {runs = DEFAULT_RUNS, now = () => performance.now()} = {},
+) {
   baseline();
   measured();
   const baselineTimes = [];
   const measuredTimes = [];
   for (let run = 0; run < runs; run++) {
-    baselineTimes.push(time(baseline));
-    measuredTimes.push(time(measured));
+    baselineTimes.push(time(baseline, now));
+    measuredTimes.push(time(measured, now));
   }
   const measuredMs = median(measuredTimes);
   const baselineMs = median(baselineTimes);
@@ -156,7 +173,8 @@ export function compareMedianTimes(measured, baseline, {runs = DEFAULT_RUNS} = {
  * @param {(payload: string, size: number) => () => void} prepare Returns the
  *     operation to time on the case's payload written at `size`. Work done in
  *     `prepare`, such as decoding the payload, is not timed.
- * @param {{runs?: number}} [options] How many timed runs each size gets.
+ * @param {TimingOptions} [options] How many timed runs each size gets, and
+ *     the clock.
  * @returns {{sizes: number[], medianMs: number[], ratio: number}} The sizes,
  *     the median time at each, and the ratio of the two.
  */
@@ -186,7 +204,8 @@ export function measureGrowth(testCase, prepare, options) {
  *     `operation` to time on the payload.
  * @param {(payload: string) => () => void} prepareBaseline Returns the
  *     `baseline` to time on the payload.
- * @param {{runs?: number}} [options] How many timed runs each gets.
+ * @param {TimingOptions} [options] How many timed runs each gets, and the
+ *     clock.
  * @returns {{medianMs: number[], ratio: number}} The median times of the
  *     baseline and the operation, and their ratio.
  */
