@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
+  `a2ui.constants`, the message metadata key under which the v1.0 A2A
+  extension sends the renderer capabilities. v0.8 and v0.9 use
+  `A2UI_CLIENT_CAPABILITIES_KEY`.
 - Add `RendererState` to `a2ui.utils`. A `RendererState` is the agent's mirror
   of the surfaces a renderer holds: it wraps one `MessageProcessor` and checks
   each outbound message against everything sent before it, so a canvas agent
@@ -83,6 +87,9 @@
   per response are removed. To migrate:
   - `Parser.parse_chunk(chunk, wrapped)`: open a stream with
     `parser.open_stream(wrapped=...)` and call `feed(chunk)`, then `close()`.
+  - `A2uiRequestProcessor.create_parser()`: use the `processor.parser`
+    property, which returns the one parser the processor reuses, or
+    `processor.parse_response` and `processor.open_stream`.
   - The `parser` property of `DirectJsonFormat`, `ExpressFormat`,
     `ElementalFormat` and `AtomFormat`: use `create_parser()`.
   - `validate_payload(..., surface_catalog_ids=...)`: check the payload
