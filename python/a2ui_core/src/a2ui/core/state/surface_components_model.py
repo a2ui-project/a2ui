@@ -222,10 +222,18 @@ class SurfaceComponentsModel:
 
         Args:
             new_components: The inbound component models.
-            root_id: The surface root component id.
-            config: Validation settings; validation is skipped when None.
+            root_id: The surface root component id. A config whose `root_id`
+                is not the default `"root"` overrides it.
+            config: Validation settings. When None, only the composition
+                constraints are checked.
         """
+        if config is not None and config.root_id != "root":
+            root_id = config.root_id
         if config is None:
+            prospective_components = dict(self._components)
+            for comp_model in new_components:
+                prospective_components[comp_model.id] = comp_model
+            validate_composition_constraints(prospective_components, root_id=root_id)
             return
 
         seen_ids: set[str] = set()
@@ -280,12 +288,14 @@ class SurfaceComponentsModel:
             config.allow_orphan_components or config.allow_missing_root
         )
         if deferred and bound is not None:
-            if not bound.composition_holds(batch, self._components):
+            if not bound.composition_holds(batch, self._components, root_id):
                 # The whole-surface check decides, and raises the error it
                 # reports for the surface.
                 prospective_components = dict(self._components)
                 prospective_components.update(batch)
-                validate_composition_constraints(prospective_components)
+                validate_composition_constraints(
+                    prospective_components, root_id=root_id
+                )
             if (
                 not config.allow_missing_root
                 and root_id not in batch
@@ -302,7 +312,7 @@ class SurfaceComponentsModel:
                 limit,
                 lambda comp_id: comp_id in batch or comp_id in self._components,
             ):
-                bound.record_batch(batch, self._components)
+                bound.record_batch(batch)
                 self._keep_bound(bound, new_components)
                 return
             # The bound cannot show that the graph passes; walk all of it.
@@ -312,7 +322,7 @@ class SurfaceComponentsModel:
         else:
             prospective_components = dict(self._components)
             prospective_components.update(batch)
-            validate_composition_constraints(prospective_components)
+            validate_composition_constraints(prospective_components, root_id=root_id)
             validate_component_integrity(
                 prospective_components, root_id=root_id, config=config
             )
@@ -325,19 +335,7 @@ class SurfaceComponentsModel:
     def _keep_bound(
         self, bound: ComponentGraphBound, new_components: list[ComponentModel]
     ) -> None:
-        """Keeps the bound of the graph a checked batch leaves, until it is applied.
-
-        A component replaced by one of another type or catalog moves to the end
-        of the surface when it is applied, which changes the order the bound
-        records, so the bound is not kept then.
-        """
-        for comp_model in new_components:
-            existing = self._components.get(comp_model.id)
-            if existing is not None and (
-                existing.type != comp_model.type
-                or existing.catalog is not comp_model.catalog
-            ):
-                return
+        """Keeps the bound of the graph a checked batch leaves, until it is applied."""
         self._bound = bound
         self._bound_batch = new_components
 

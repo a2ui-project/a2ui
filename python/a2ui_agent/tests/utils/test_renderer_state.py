@@ -603,7 +603,7 @@ _PARENTS_CATALOG = Catalog.from_json(
                 "type": "object",
                 "properties": {"child": {"$ref": "#/$defs/ComponentId"}},
             },
-            "Header": {"type": "object", "allowedParents": ["Box"]},
+            "Header": {"type": "object", "allowedParents": ["Box", "Card"]},
             "Leaf": {"type": "object"},
         },
     },
@@ -641,8 +641,8 @@ def test_a_rollback_keeps_the_position_of_a_component_replaced_by_another_type()
             raise RuntimeError("the response is rejected")
 
     assert _order(state) == ["card", "box", "h"]
-    # `allowedParents` takes the last parent in component order, so 'h' is
-    # still under 'box', and an unrelated update is accepted.
+    # 'h' is back under both 'card' and 'box', each of which its
+    # `allowedParents` admits, so an unrelated update is accepted.
     state.apply(_parents_update({"id": "x", "component": "Leaf"}))
 
 

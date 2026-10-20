@@ -30,9 +30,10 @@ const Map<String, String> _functionsExpectedFailures = {};
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
 /// `core/message_processor_v1_0.yaml`, the `process_messages` cases of
-/// `core/reserved_keys.yaml`, and the `validate` cases of
-/// `core/functions.yaml`, `core/expressions.yaml`, `core/index_function.yaml`,
-/// and `core/multi_catalog.yaml`, which render basic-catalog components.
+/// `core/reserved_keys.yaml` and `core/composition_constraints.yaml`, and the
+/// `validate` cases of `core/functions.yaml`, `core/expressions.yaml`,
+/// `core/index_function.yaml`, and `core/multi_catalog.yaml`, which render
+/// basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
   _registerSuite('core/message_processor_v1_0.yaml');
@@ -40,6 +41,10 @@ void main() {
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
     expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerSuite(
+    'core/composition_constraints.yaml',
+    onlyAction: 'process_messages',
   );
   _registerSuite(
     'core/functions.yaml',
@@ -613,11 +618,14 @@ Matcher _matchesError(Map<String, Object?> expectError) {
       isA<A2uiError>().having(
         (e) => e.message,
         'message',
-        matches(RegExp(pattern, caseSensitive: false)),
+        anyOf(
+          contains(message),
+          matches(RegExp(pattern, caseSensitive: false)),
+        ),
       ),
     );
   }
-  return matcher;
+  return allOf(matcher, matchesErrorFields(expectError));
 }
 
 String _align(String pattern) {

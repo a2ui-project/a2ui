@@ -59,6 +59,12 @@
   document that is not available locally fails validation with an
   unresolvable-reference error instead of being downloaded
   ([#3554](https://github.com/a2ui-project/a2ui/pull/3554)).
+- `validate_composition_constraints` and `SurfaceComponentsModel.validate_components_update`
+  now apply the `"Surface"` `allowedParents` rule only to the surface's root
+  component (`root_id`, `"root"` by default), even when another component also
+  references it, and check every parent edge when a component has multiple
+  parents (#3354). Non-root components that nothing references are no longer
+  checked against `"Surface"`.
 - `SchemaValidator.evolve` no longer raises `TypeError` (`_registry`) for a
   subschema that declares its own `$schema`, and keeps the validator's
   registry.

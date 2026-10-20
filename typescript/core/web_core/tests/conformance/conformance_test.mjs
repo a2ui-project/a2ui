@@ -2305,10 +2305,24 @@ function validateProcessMessagesTestCase(testCase) {
         );
       }
     }
+    if (expectedErr.code) {
+      if (
+        !err.message.includes(expectedErr.code) &&
+        err.name !== expectedErr.code &&
+        err.code !== expectedErr.code
+      ) {
+        throw new Error(
+          `Expected error matching '${expectedErr.code}' but received: ${err.message}`,
+        );
+      }
+    }
     if (expectedErr.message) {
       const expectedMsg = expectedErr.message;
+      const normalizedActual = err.message.replaceAll('"', "'").replaceAll("','", "', '");
+      const normalizedExpected = expectedMsg.replaceAll('"', "'").replaceAll("','", "', '");
       const matches =
         err.message.includes(expectedMsg) ||
+        normalizedActual.includes(normalizedExpected) ||
         (expectedMsg.includes('Unsupported protocol version') &&
           (err.message.includes('Invalid enum value') ||
             err.message.includes('Unsupported protocol version'))) ||
@@ -2325,7 +2339,9 @@ function validateProcessMessagesTestCase(testCase) {
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      let stepMsgs = step.messages || (step.payload ? [step.payload] : []);
+      let stepMsgs =
+        step.messages ||
+        (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
       if (!stepMsgs && step.message) stepMsgs = [step.message];
       stepMsgs = normalizeMsgs(stepMsgs);
 

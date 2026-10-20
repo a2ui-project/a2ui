@@ -801,3 +801,180 @@ def test_uax31_identifier_helpers():
     assert_uax31_identifier("@index", "function identifier", allow_leading_at=True)
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
         assert_uax31_identifier("bad-fn!", "function identifier")
+
+
+def test_composition_constraints_surface_and_multiple_parents():
+    from a2ui.core.catalog import Catalog
+    from a2ui.core.exceptions import A2uiIntegrityError, A2uiValidationError
+    from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
+    from a2ui.core.validation import (
+        RELAXED_VALIDATION,
+        STRICT_VALIDATION,
+        ValidationConfig,
+    )
+
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "custom",
+            "protocolVersion": "v1.0",
+            "components": {
+                "Box": {
+                    "type": "object",
+                    "properties": {
+                        "children": {"$ref": "#/$defs/ChildList"},
+                    },
+                },
+                "Card": {
+                    "type": "object",
+                    "allowedParents": ["Box"],
+                    "properties": {
+                        "children": {"$ref": "#/$defs/ChildList"},
+                    },
+                },
+                "Header": {
+                    "type": "object",
+                    "allowedParents": ["Box"],
+                },
+            },
+        },
+        catalog_id="custom",
+        protocol_version="v1.0",
+    )
+
+    # 1. Container rewritten to drop a child: unreferenced non-root component is
+    # not checked against "Surface" when orphans are allowed (default/relaxed).
+    for options in (
+        None,
+        MessageProcessorOptions(validation_config=RELAXED_VALIDATION),
+    ):
+        proc = MessageProcessor([catalog], options=options)
+        proc.process_messages([
+            {
+                "version": "v1.0",
+                "createSurface": {
+                    "surfaceId": "s1",
+                    "catalogId": "custom",
+                    "components": [
+                        {"id": "root", "component": "Box", "children": ["h"]},
+                        {"id": "h", "component": "Header"},
+                    ],
+                },
+            },
+            {
+                "version": "v1.0",
+                "updateComponents": {
+                    "surfaceId": "s1",
+                    "components": [
+                        {"id": "root", "component": "Box", "children": []},
+                    ],
+                },
+            },
+        ])
+        surface = proc.model.get_surface("s1")
+        assert surface is not None
+        assert surface.components_model.get("root").properties == {"children": []}
+        assert surface.components_model.get("h").type == "Header"
+
+    # In strict mode, the dropped child is reported as an orphan by topology
+    # validation rather than failing UNALLOWED_PARENT against "Surface".
+    strict_proc = MessageProcessor(
+        [catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    strict_proc.process_messages([{
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "custom",
+            "components": [
+                {"id": "root", "component": "Box", "children": ["h"]},
+                {"id": "h", "component": "Header"},
+            ],
+        },
+    }])
+    with pytest.raises(A2uiIntegrityError, match="not reachable from 'root'"):
+        strict_proc.process_messages([{
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [
+                    {"id": "root", "component": "Box", "children": []},
+                ],
+            },
+        }])
+
+    # 2. Root component referenced by another component is still checked against
+    # "Surface" (for both default "root" and a custom root_id).
+    proc_root_ref = MessageProcessor([catalog])
+    with pytest.raises(
+        A2uiValidationError,
+        match=(
+            r"Component 'root' \(Card\) cannot be placed under parent 'Surface'"
+            r" \(Surface\)"
+        ),
+    ) as exc_info:
+        proc_root_ref.process_messages([{
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": "custom",
+                "components": [
+                    {"id": "root", "component": "Card"},
+                    {"id": "box", "component": "Box", "children": ["root"]},
+                ],
+            },
+        }])
+    assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)
+
+    scm_custom_root = SurfaceComponentsModel(default_catalog=catalog)
+    with pytest.raises(
+        A2uiValidationError,
+        match=(
+            r"Component 'main_root' \(Card\) cannot be placed under parent 'Surface'"
+            r" \(Surface\)"
+        ),
+    ):
+        scm_custom_root.validate_components_update(
+            [
+                ComponentModel("main_root", "Card", catalog, {}),
+                ComponentModel("box", "Box", catalog, {"children": ["main_root"]}),
+            ],
+            config=ValidationConfig(
+                root_id="main_root",
+                allow_orphan_components=True,
+            ),
+        )
+
+    # 3. Component with multiple parents checks every parent edge regardless of
+    # component order.
+    for children_order in (
+        [
+            {"id": "root", "component": "Box", "children": ["card", "b"]},
+            {"id": "card", "component": "Card", "children": ["h"]},
+            {"id": "b", "component": "Box", "children": ["h"]},
+            {"id": "h", "component": "Header"},
+        ],
+        [
+            {"id": "root", "component": "Box", "children": ["b", "card"]},
+            {"id": "b", "component": "Box", "children": ["h"]},
+            {"id": "card", "component": "Card", "children": ["h"]},
+            {"id": "h", "component": "Header"},
+        ],
+    ):
+        proc_multi = MessageProcessor([catalog])
+        with pytest.raises(
+            A2uiValidationError,
+            match=(
+                r"Component 'h' \(Header\) cannot be placed under parent 'card'"
+                r" \(Card\)"
+            ),
+        ) as exc_info:
+            proc_multi.process_messages([{
+                "version": "v1.0",
+                "createSurface": {
+                    "surfaceId": "s1",
+                    "catalogId": "custom",
+                    "components": children_order,
+                },
+            }])
+        assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)

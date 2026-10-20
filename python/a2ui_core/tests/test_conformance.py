@@ -505,6 +505,22 @@ def assert_raises(expect_error: Any):
     with pytest.raises(expected_class) as excinfo:
         yield
 
+    if isinstance(expect_error, dict) and expect_error.get("code"):
+        expected_code = expect_error["code"]
+        err_details = getattr(excinfo.value, "details", [])
+        err_code = getattr(excinfo.value, "code", None)
+        assert (
+            err_code == expected_code
+            or expected_code in str(excinfo.value)
+            or (
+                err_details
+                and any(getattr(d, "code", None) == expected_code for d in err_details)
+            )
+        ), (
+            f"Expected error code '{expected_code}' not found in exception"
+            f" '{excinfo.value}'"
+        )
+
     if message:
         msg_norm = message.lower()
         err_details = getattr(excinfo.value, "details", [])
