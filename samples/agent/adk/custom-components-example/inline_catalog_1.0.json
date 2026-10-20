@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/agent/adk/custom-components-example/inline_catalog_1.0.json",
+  "protocolVersion": "1.0",
+  "catalogId": "https://a2ui.org/samples/agent/adk/custom-components-example/inline_catalog_1.0.json",
+  "title": "Custom components",
+  "description": "The custom components of the contact lookup sample: an org chart and a web frame. A renderer sends this catalog inline, next to the basic catalog, and a surface mixes the two.",
+  "instructions": "This catalog holds only OrgChart and WebFrame. Build the rest of the UI, such as layout, text and buttons, from the basic catalog, which is the surface's default catalog. Give each OrgChart and WebFrame component a `catalogId` that names this catalog.",
+  "components": {
+    "OrgChart": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "OrgChart"
+        },
+        "chain": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": ["title", "name"]
+              }
+            },
+            {
+              "$ref": "common_types.json#/$defs/DataBinding"
+            }
+          ]
+        },
+        "action": {
+          "$ref": "common_types.json#/$defs/Action"
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": ["component", "chain"]
+    },
+    "WebFrame": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "WebFrame"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html": {
+          "type": "string"
+        },
+        "height": {
+          "type": "number"
+        },
+        "interactionMode": {
+          "type": "string",
+          "enum": ["readOnly", "interactive"]
+        },
+        "allowedEvents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": ["component"],
+      "anyOf": [
+        {
+          "required": ["url"]
+        },
+        {
+          "required": ["html"]
+        }
+      ]
+    }
+  },
+  "functions": {}
+}

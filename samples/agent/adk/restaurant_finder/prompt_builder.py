@@ -12,9 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
+import json
+import os
+
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.schema import ProtocolVersion
-from a2ui.processor import A2uiRequestProcessor, CatalogConfig
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
+from a2ui.parser import to_message_models
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
 
 ROLE_DESCRIPTION = (
@@ -25,11 +30,11 @@ ROLE_DESCRIPTION = (
 UI_DESCRIPTION = """
 -   If the query is for a list of restaurants, use the restaurant data you have already received from the `get_restaurants` tool to populate the `updateDataModel` message.
 -   IMPORTANT: When using updateDataModel to update items, you MUST specify `path: "/items"` in `updateDataModel`, and the `value` MUST be an array of restaurants.
+-   IMPORTANT: In v0.8, write the restaurants with a `dataModelUpdate` whose `path` is `"/items"` and whose `contents` has one `valueMap` entry per restaurant, keyed "0", "1", and so on. v0.8 allows only one level of `valueMap`.
 -   IMPORTANT: Always specify the path when using updateDataModel. The part message is ignored when the path is missing.
--   If the number of restaurants is 5 or fewer, you MUST use the `SINGLE_COLUMN_LIST_EXAMPLE` template.
--   If the number of restaurants is more than 5, you MUST use the `TWO_COLUMN_LIST_EXAMPLE` template.
--   If the query is to book a restaurant (e.g., "USER_WANTS_TO_BOOK..."), you MUST use the `BOOKING_FORM_EXAMPLE` template.
--   If the query is a booking submission (e.g., "User submitted a booking..."), you MUST use the `CONFIRMATION_EXAMPLE` template.
+-   Show 5 or fewer restaurants in a single column, and more than 5 in two columns.
+-   If the query is to book a restaurant (e.g., "USER_WANTS_TO_BOOK..."), show a booking form.
+-   If the query is a booking submission (e.g., "User submitted a booking..."), show a confirmation.
 """
 
 
@@ -53,27 +58,49 @@ def get_text_prompt() -> str:
     """
 
 
-if __name__ == "__main__":
-    from a2ui.utils import load_examples
+def load_example_turns(
+    version: ProtocolVersion,
+) -> list[list[AgentToRendererMessage]]:
+    """Reads the example responses of a protocol version, one turn per file.
 
-    # Example of how to use A2uiRequestProcessor to generate a system prompt
-    # In your actual application, you would call this from your main agent logic.
-    version = ProtocolVersion.V0_9
-    catalog = CatalogConfig(BasicCatalog(version)).transformed_catalog
-    processor = A2uiRequestProcessor([catalog])
-    examples = load_examples(
-        processor.active_catalogs,
-        f"examples/{to_version_number(version)}",
-        validate=True,
+    The generator that holds them checks them against each request's
+    catalogs, and the format writes them into `processor.prompt_snippet`.
+    """
+    examples_dir = os.path.join(
+        os.path.dirname(__file__), "examples", to_version_number(version)
     )
-    prompt_parts = [
+    turns: list[list[AgentToRendererMessage]] = []
+    for path in sorted(glob.glob(os.path.join(examples_dir, "*.json"))):
+        with open(path, encoding="utf-8") as f:
+            turns.append(to_message_models(json.load(f)))
+    return turns
+
+
+def get_ui_prompt(processor: A2uiRequestProcessor) -> str:
+    """Constructs the system prompt for one UI request.
+
+    Args:
+        processor: The request's processor. Its prompt snippet describes the
+            catalogs it negotiated with the client, and lists the examples.
+    """
+    return "\n\n".join([
         ROLE_DESCRIPTION,
         f"## UI Description:\n{UI_DESCRIPTION}",
         processor.prompt_snippet,
-    ]
-    if examples:
-        prompt_parts.append(f"### Examples:\n{examples}")
-    restaurant_prompt = "\n\n".join(prompt_parts)
+    ])
+
+
+if __name__ == "__main__":
+    # Builds the prompt for a client that renders the basic catalog, the way
+    # the agent does for each request.
+    version = ProtocolVersion.V0_9
+    generator = A2uiGenerator(
+        [CatalogConfig(BasicCatalog(version))], examples=load_example_turns(version)
+    )
+    processor = generator.create_processor(
+        {version.value: {"supportedCatalogIds": [BasicCatalog(version).catalog_id]}}
+    )
+    restaurant_prompt = get_ui_prompt(processor)
 
     print(restaurant_prompt)
 

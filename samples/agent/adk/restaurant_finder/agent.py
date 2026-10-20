@@ -13,8 +13,7 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from collections.abc import AsyncIterable
-import json
+from collections.abc import AsyncIterable, AsyncIterator, Iterable, Mapping
 import logging
 import os
 from typing import Any
@@ -33,33 +32,78 @@ from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.models import Gemini
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.sessions import InMemorySessionService, Session
 from google.genai import types
-import jsonschema
 
 from a2ui.a2a import (
+    create_a2ui_part,
     get_a2ui_agent_extension,
-    parse_response_to_parts,
     stream_response_to_parts,
+    to_a2a_parts,
 )
-from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.constants import (
+    A2UI_CLOSE_TAG,
+    A2UI_CREATE_SURFACE_KEY,
+    A2UI_DELETE_SURFACE_KEY,
+    A2UI_OPEN_TAG,
+    A2UI_SURFACE_ID_KEY,
+    A2UI_VERSION_KEY,
+)
+from a2ui.core import A2uiError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
-from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.utils import to_version_number
-from prompt_builder import (
-    ROLE_DESCRIPTION,
-    UI_DESCRIPTION,
-    get_text_prompt,
-)
+from prompt_builder import get_text_prompt, get_ui_prompt, load_example_turns
 from tools import get_restaurants
 
 logger = logging.getLogger(__name__)
 
+MAX_ATTEMPTS = 2
+# How many conversations' surfaces to keep in memory.
+_MAX_TRACKED_SESSIONS = 1000
+
+
+def _text_parts(text: str) -> list[Part]:
+    return [Part(root=TextPart(text=text))]
+
+
+def _message_surface(part: Part, key: str) -> str | None:
+    """Returns the surface of an A2UI message part of one type, if it is one."""
+    if not isinstance(part.root, DataPart):
+        return None
+    body = part.root.data.get(key)
+    if not isinstance(body, Mapping):
+        return None
+    surface_id = body.get(A2UI_SURFACE_ID_KEY)
+    return surface_id if isinstance(surface_id, str) else None
+
+
+def _delete_surface_part(surface_id: str, version: ProtocolVersion) -> Part:
+    """Creates the part of a message that deletes a surface."""
+    message: dict[str, Any] = {
+        A2UI_DELETE_SURFACE_KEY: {A2UI_SURFACE_ID_KEY: surface_id}
+    }
+    if version != ProtocolVersion.V0_8:
+        message = {A2UI_VERSION_KEY: version.value, **message}
+    part: Part = create_a2ui_part(message, version=version)
+    return part
+
 
 class RestaurantAgent:
-    """An agent that finds restaurants based on user criteria."""
+    """An agent that finds restaurants based on user criteria.
+
+    The agent holds one generator for each protocol version it speaks. Each
+    request negotiates its own processor from the client's capabilities, and
+    the prompt, the parser and validation use the catalogs it holds.
+
+    Each response shows new UI on fixed surfaces, such as `default` for the
+    results, so it is checked on its own. The client still holds the surfaces
+    of earlier responses, and creating a surface it holds is an error from
+    v0.9 on. So the agent remembers which surfaces each conversation's client
+    holds, and sends `deleteSurface` before a response creates one of them
+    again. When an attempt fails after part of it was sent, the agent deletes
+    the surfaces that attempt created before it retries.
+    """
 
     SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
@@ -67,56 +111,46 @@ class RestaurantAgent:
         self.base_url = base_url
         self._agent_name = "Restaurant Agent"
         self._user_id = "remote_agent"
-        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
-
-        self._generators: dict[str, A2uiGenerator] = {}
-        self._processors: dict[str, A2uiRequestProcessor] = {}
-        self._ui_runners: dict[str, Runner] = {}
-        self._parsers = OrderedDict()
-        self._max_parsers = 1000  # Max active sessions to keep in memory
-
-        for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
-            generator = self._build_generator(version)
-            processor = self._build_processor(version, generator)
-            self._generators[version] = generator
-            self._processors[version] = processor
-            agent = self._build_llm_agent(
-                processor, examples_path=f"examples/{to_version_number(version)}"
+        # Shared by the text runner and the runner of each UI request, so a
+        # conversation keeps its history across requests.
+        self._session_service = InMemorySessionService()
+        self._artifact_service = InMemoryArtifactService()
+        self._memory_service = InMemoryMemoryService()
+        self._text_runner = self._build_runner(get_text_prompt())
+        self._generators: dict[ProtocolVersion, A2uiGenerator] = {
+            version: A2uiGenerator(
+                [CatalogConfig(BasicCatalog(version))],
+                examples=load_example_turns(version),
             )
-            self._ui_runners[version] = self._build_runner(agent)
-
+            for version in [
+                ProtocolVersion.V0_8,
+                ProtocolVersion.V0_9,
+                ProtocolVersion.V1_0,
+            ]
+        }
+        # The surfaces that each conversation's client holds. The least
+        # recently used conversations are dropped once there are more than
+        # `_MAX_TRACKED_SESSIONS`.
+        self._client_surfaces: OrderedDict[str, set[str]] = OrderedDict()
         self._agent_card = self._build_agent_card()
 
     @property
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def _build_generator(self, version: str) -> A2uiGenerator:
-        return A2uiGenerator([CatalogConfig(BasicCatalog(version))])
-
-    def _build_processor(
-        self, version: str, generator: A2uiGenerator
-    ) -> A2uiRequestProcessor:
-        return generator.create_processor({
-            f"v{to_version_number(version)}": {
-                "supportedCatalogIds": [
-                    c.transformed_catalog.catalog_id for c in generator.catalogs
-                ]
-            }
-        })
+    def get_processing_message(self) -> str:
+        return "Finding restaurants that match your criteria..."
 
     def _build_agent_card(self) -> AgentCard:
-        extensions = []
-        if self._processors:
-            for version, processor in self._processors.items():
-                ext = get_a2ui_agent_extension(
-                    version,
-                    supported_catalog_ids=[
-                        c.catalog_id for c in processor.active_catalogs
-                    ],
-                )
-                extensions.append(ext)
-
+        extensions = [
+            get_a2ui_agent_extension(
+                version,
+                supported_catalog_ids=[
+                    c.transformed_catalog.catalog_id for c in generator.catalogs
+                ],
+            )
+            for version, generator in self._generators.items()
+        ]
         capabilities = AgentCapabilities(
             streaming=True,
             extensions=extensions,
@@ -143,138 +177,141 @@ class RestaurantAgent:
             skills=[skill],
         )
 
-    def _build_runner(self, agent: LlmAgent) -> Runner:
-        return Runner(
-            app_name=self._agent_name,
-            agent=agent,
-            artifact_service=InMemoryArtifactService(),
-            session_service=InMemorySessionService(),
-            memory_service=InMemoryMemoryService(),
-        )
-
-    def get_processing_message(self) -> str:
-        return "Finding restaurants that match your criteria..."
-
-    def _build_llm_agent(
-        self,
-        processor: A2uiRequestProcessor | None = None,
-        examples_path: str | None = None,
-    ) -> LlmAgent:
-        """Builds the LLM agent for the restaurant agent."""
-        from a2ui.utils import load_examples
-
+    def _build_runner(self, instruction: str) -> Runner:
+        """Builds a runner whose LLM agent follows the instruction."""
         model_env = (
             os.getenv("MODEL_NAME") or os.getenv("LITELLM_MODEL") or "gemini-3.6-flash"
         )
-        model_name = model_env.split("/")[-1]
-
-        if processor:
-            prompt_parts = [
-                ROLE_DESCRIPTION,
-                f"## UI Description:\n{UI_DESCRIPTION}",
-                processor.prompt_snippet,
-            ]
-            examples = load_examples(
-                processor.active_catalogs, examples_path, validate=True
-            )
-            if examples:
-                prompt_parts.append(f"### Examples:\n{examples}")
-            instruction = "\n\n".join(prompt_parts)
-        else:
-            instruction = get_text_prompt()
-
-        return LlmAgent(
+        agent = LlmAgent(
             model=Gemini(
-                model=model_name,
+                model=model_env.split("/")[-1],
                 # Retry transient backend errors (429, 5xx), which the model
                 # returns under load.
                 retry_options=types.HttpRetryOptions(attempts=3, initial_delay=2.0),
             ),
             name="restaurant_agent",
             description="An agent that finds restaurants and helps book tables.",
-            instruction=instruction,
+            # A function returns the instruction, so that ADK sends it as it
+            # is. ADK reads `{name}` in an instruction string as a state
+            # variable, and the prompt shows such text, like `{XID_Start}` in
+            # the v1.0 schemas.
+            instruction=lambda _: instruction,
             tools=[get_restaurants],
         )
+        return Runner(
+            app_name=self._agent_name,
+            agent=agent,
+            artifact_service=self._artifact_service,
+            session_service=self._session_service,
+            memory_service=self._memory_service,
+        )
 
-    async def stream(
-        self,
-        query,
-        session_id,
-        ui_version: str | None = None,
-        use_streaming: bool = True,
-    ) -> AsyncIterable[dict[str, Any]]:
-        session_state = {"base_url": self.base_url, "expression": "{expression}"}
-
-        # Determine which runner to use based on whether the a2ui extension is active.
-        if ui_version:
-            runner = self._ui_runners[ui_version]
-            processor = self._processors[ui_version]
-            selected_catalog = (
-                processor.active_catalogs[0] if processor.active_catalogs else None
-            )
-        else:
-            runner = self._text_runner
-            processor = None
-            selected_catalog = None
-
-        session = await runner.session_service.get_session(
+    async def _get_session(self, session_id: str) -> Session:
+        session = await self._session_service.get_session(
             app_name=self._agent_name,
             user_id=self._user_id,
             session_id=session_id,
         )
         if session is None:
-            session = await runner.session_service.create_session(
+            session = await self._session_service.create_session(
                 app_name=self._agent_name,
                 user_id=self._user_id,
-                state=session_state,
+                state={"base_url": self.base_url},
                 session_id=session_id,
             )
         elif "base_url" not in session.state:
             session.state["base_url"] = self.base_url
+        return session
 
-        # --- Begin: UI Validation and Retry Logic ---
-        max_retries = 1  # Total 2 attempts
-        attempt = 0
+    def _surfaces_of(self, session_id: str) -> set[str]:
+        """Returns the surfaces that the conversation's client holds."""
+        surfaces = self._client_surfaces.setdefault(session_id, set())
+        self._client_surfaces.move_to_end(session_id)
+        if len(self._client_surfaces) > _MAX_TRACKED_SESSIONS:
+            self._client_surfaces.popitem(last=False)
+        return surfaces
+
+    @staticmethod
+    def _prepare_parts(
+        parts: Iterable[Part], surfaces: set[str], version: ProtocolVersion
+    ) -> list[Part]:
+        """Returns the parts to send, and records the surfaces they change.
+
+        A `deleteSurface` goes before each `createSurface` for a surface that
+        the client already holds. v0.8 has no `createSurface`, and a v0.8
+        renderer accepts a second `beginRendering`, so v0.8 parts are sent as
+        they are.
+        """
+        prepared: list[Part] = []
+        for part in parts:
+            created = _message_surface(part, A2UI_CREATE_SURFACE_KEY)
+            if created is not None:
+                if created in surfaces:
+                    prepared.append(_delete_surface_part(created, version))
+                surfaces.add(created)
+            deleted = _message_surface(part, A2UI_DELETE_SURFACE_KEY)
+            if deleted is not None:
+                surfaces.discard(deleted)
+            prepared.append(part)
+        return prepared
+
+    async def stream(
+        self,
+        query: str,
+        session_id: str,
+        ui_version: ProtocolVersion | None = None,
+        client_ui_capabilities: Mapping[str, Any] | None = None,
+        use_streaming: bool = True,
+    ) -> AsyncIterable[dict[str, Any]]:
+        """Answers one request, as text or, if `ui_version` is set, with UI.
+
+        A client that sends no renderer capabilities, or none that the agent
+        can use, gets a text answer. With `use_streaming`, the parts of the
+        response are sent as the model writes them. Otherwise the whole
+        response is validated first and sent in the final item.
+        """
+        session = await self._get_session(session_id)
+        processor: A2uiRequestProcessor | None = None
+        if ui_version and client_ui_capabilities is not None:
+            try:
+                # Checks the generator's examples against the request's
+                # catalogs too.
+                processor = self._generators[ui_version].create_processor(
+                    client_ui_capabilities
+                )
+            except A2uiError as e:
+                logger.error(
+                    f"--- RestaurantAgent.stream: Cannot set up the UI: {e} ---"
+                )
+        if ui_version and processor is not None:
+            # The prompt shows the catalogs and examples of this request.
+            runner = self._build_runner(get_ui_prompt(processor))
+            surfaces = self._surfaces_of(session_id)
+        else:
+            if ui_version:
+                logger.warning(
+                    "--- RestaurantAgent.stream: No usable renderer capabilities."
+                    " Answering in text. ---"
+                )
+            runner = self._text_runner
+
         current_query_text = query
-
-        # Ensure schema was loaded
-        if ui_version and (
-            not selected_catalog or not selected_catalog.validation_schema
-        ):
-            logger.error(
-                "--- RestaurantAgent.stream: A2UI_SCHEMA is not loaded. "
-                "Cannot perform UI validation. ---"
-            )
-            yield {
-                "is_task_complete": True,
-                "parts": [
-                    Part(
-                        root=TextPart(
-                            text=(
-                                "I'm sorry, I'm facing an internal configuration error"
-                                " with my UI components. Please contact support."
-                            )
-                        )
-                    )
-                ],
-            }
-            return
-
-        while attempt <= max_retries:
-            attempt += 1
+        for attempt in range(1, MAX_ATTEMPTS + 1):
             logger.info(
-                f"--- RestaurantAgent.stream: Attempt {attempt}/{max_retries + 1} "
+                f"--- RestaurantAgent.stream: Attempt {attempt}/{MAX_ATTEMPTS} "
                 f"for session {session_id} ---"
             )
-
-            current_message = types.Content(
+            message = types.Content(
                 role="user", parts=[types.Part.from_text(text=current_query_text)]
             )
+            received: list[str] = []
 
-            full_content_list = []
-            parts_streamed = False
-
-            async def token_stream():
+            async def token_stream() -> AsyncIterator[str]:
+                # In SSE mode, ADK sends the text in partial events, and then
+                # the whole text again in a final event. Only the partial text
+                # is sent on, so the parser sees each character once. v1.0
+                # rejects a second `createSurface` for the same surface.
+                saw_partial = False
                 async for event in runner.run_async(
                     user_id=self._user_id,
                     session_id=session.id,
@@ -285,130 +322,111 @@ class RestaurantAgent:
                             else run_config.StreamingMode.NONE
                         )
                     ),
-                    new_message=current_message,
+                    new_message=message,
                 ):
+                    is_partial = bool(event.partial)
+                    if not is_partial and saw_partial:
+                        saw_partial = False
+                        continue
+                    saw_partial = saw_partial or is_partial
                     if event.content and event.content.parts:
                         for p in event.content.parts:
                             if p.text:
-                                full_content_list.append(p.text)
+                                received.append(p.text)
                                 yield p.text
 
-            if processor and selected_catalog:
-                if session_id in self._parsers:
-                    self._parsers.move_to_end(session_id)
-                else:
-                    self._parsers[session_id] = processor.create_parser()
-                    if len(self._parsers) > self._max_parsers:
-                        self._parsers.popitem(last=False)
-
-                async for part in stream_response_to_parts(
-                    self._parsers[session_id],
-                    token_stream(),
-                    version=ui_version,
-                ):
-                    parts_streamed = True
-                    yield {
-                        "is_task_complete": False,
-                        "parts": [part],
-                    }
-            else:
+            if processor is None or ui_version is None:
                 async for token in token_stream():
-                    yield {
-                        "is_task_complete": False,
-                        "updates": token,
-                    }
-
-            final_response_content = "".join(full_content_list)
-
-            is_valid = False
-            error_message = ""
-
-            if ui_version and processor:
-                logger.info(
-                    "--- RestaurantAgent.stream: Validating UI response (Attempt"
-                    f" {attempt})... ---"
-                )
-                try:
-                    response_parts = processor.parse_response(final_response_content)
-
-                    for part in response_parts:
-                        if not isinstance(part, A2uiPart):
-                            continue
-
-                        logger.info(
-                            "--- RestaurantAgent.stream: UI JSON successfully parsed"
-                            " AND validated against schema. Validation OK (Attempt"
-                            f" {attempt}). ---"
-                        )
-                        is_valid = True
-
-                except (
-                    ValueError,
-                    json.JSONDecodeError,
-                    jsonschema.exceptions.ValidationError,
-                ) as e:
-                    logger.warning(
-                        f"--- RestaurantAgent.stream: A2UI validation failed: {e}"
-                        f" (Attempt {attempt}) ---"
-                    )
-                    logger.warning(
-                        "--- Failed response content:"
-                        f" {final_response_content[:500]}... ---"
-                    )
-                    error_message = f"Validation failed: {e}."
-
-            else:  # Not using UI, so text is always "valid"
-                is_valid = True
-
-            if is_valid:
-                logger.info(
-                    "--- RestaurantAgent.stream: Response is valid. Sending final"
-                    f" response (Attempt {attempt}). ---"
-                )
-                final_parts = parse_response_to_parts(
-                    final_response_content, fallback_text="OK.", version=ui_version
-                )
-
+                    yield {"is_task_complete": False, "updates": token}
                 yield {
                     "is_task_complete": True,
-                    "parts": [] if (use_streaming and parts_streamed) else final_parts,
+                    "parts": _text_parts("".join(received) or "OK."),
                 }
-                return  # We're done, exit the generator
+                return
 
-            # --- If we're here, it means validation failed ---
-
-            if attempt <= max_retries:
+            # Each message is validated before it is sent, so the client only
+            # gets valid UI. A failure ends the attempt. Each attempt is
+            # checked against a new state, which holds what the attempt sent.
+            state = processor.create_state()
+            sent_ui = False
+            final_parts: list[Part] = []
+            error: str | None = None
+            try:
+                if use_streaming:
+                    async for part in stream_response_to_parts(
+                        processor.open_stream(state=state),
+                        token_stream(),
+                        version=ui_version,
+                    ):
+                        sent_ui = sent_ui or isinstance(part.root, DataPart)
+                        yield {
+                            "is_task_complete": False,
+                            "parts": self._prepare_parts([part], surfaces, ui_version),
+                        }
+                else:
+                    async for _ in token_stream():
+                        pass
+                    final_parts = self._prepare_parts(
+                        to_a2a_parts(
+                            processor.parse_response("".join(received), state=state),
+                            version=ui_version,
+                        ),
+                        surfaces,
+                        ui_version,
+                    )
+                    sent_ui = any(isinstance(p.root, DataPart) for p in final_parts)
+            except A2uiError as e:
+                error = f"Validation failed: {e}."
                 logger.warning(
-                    "--- RestaurantAgent.stream: Retrying..."
-                    f" ({attempt}/{max_retries + 1}) ---"
+                    f"--- RestaurantAgent.stream: A2UI validation failed: {e}"
+                    f" (Attempt {attempt}) ---"
                 )
-                # Prepare the query for the retry
-                current_query_text = (
-                    f"Your previous response was invalid. {error_message} You MUST"
-                    " generate a valid response that strictly follows the A2UI JSON"
-                    " SCHEMA. The response MUST be a JSON list of A2UI messages."
-                    f" Ensure each JSON part is wrapped in '{A2UI_OPEN_TAG}' and"
-                    f" '{A2UI_CLOSE_TAG}' tags. Please retry the original request:"
-                    f" '{query}'"
+            if error is None and not sent_ui:
+                error = "It had no A2UI messages."
+                logger.warning(
+                    "--- RestaurantAgent.stream: Response had no A2UI messages"
+                    f" (Attempt {attempt}) ---"
                 )
-                # Loop continues...
 
-        # --- If we're here, it means we've exhausted retries ---
+            if error is not None:
+                logger.warning(
+                    f"--- Failed response content: {''.join(received)[:500]}... ---"
+                )
+                # The client holds what a streamed attempt sent before it
+                # failed. Its surfaces are deleted, so that the next attempt
+                # can create them again and none is left half built.
+                cleanup = [
+                    _delete_surface_part(surface_id, ui_version)
+                    for surface_id in state.surface_ids
+                ]
+                surfaces.difference_update(state.surface_ids)
+                if use_streaming and cleanup:
+                    yield {"is_task_complete": False, "parts": cleanup}
+                current_query_text = (
+                    f"Your previous response was invalid. {error}"
+                    " You MUST generate a valid response that strictly follows the"
+                    " A2UI JSON SCHEMA. The response MUST be a JSON list of A2UI"
+                    f" messages. Ensure each JSON part is wrapped in '{A2UI_OPEN_TAG}'"
+                    f" and '{A2UI_CLOSE_TAG}' tags. Please retry the original"
+                    f" request: '{query}'"
+                )
+                continue
+
+            logger.info(
+                "--- RestaurantAgent.stream: Response is valid. Sending final"
+                f" response (Attempt {attempt}). ---"
+            )
+            yield {"is_task_complete": True, "parts": final_parts}
+            return
+
         logger.error(
             "--- RestaurantAgent.stream: Max retries exhausted. Sending text-only"
             " error. ---"
         )
         yield {
             "is_task_complete": True,
-            "parts": [
-                Part(
-                    root=TextPart(
-                        text=(
-                            "I'm sorry, I'm having trouble generating the interface for"
-                            " that request right now. Please try again in a moment."
-                        )
-                    )
-                )
-            ],
+            "parts": _text_parts(
+                "I'm sorry, I'm having trouble generating the interface for that"
+                " request right now. Please try again in a moment."
+            ),
         }
-        # --- End: UI Validation and Retry Logic ---

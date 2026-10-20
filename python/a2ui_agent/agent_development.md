@@ -436,6 +436,15 @@ if state is None or not processor.accepts_state(state):
     state = states[session_id] = processor.create_state()
 ```
 
+The [custom-components-example](../../samples/agent/adk/custom-components-example)
+sample keeps a state per conversation this way.
+
+The model doesn't know which surfaces earlier turns left on the client, and
+creating one of them again is an error, so tell it. The sample lists
+`state.surface_ids` in the system prompt and in the message that asks for a
+retry, and asks the model to update those surfaces, or to send `deleteSurface`
+before it creates one of them again.
+
 ## Use Cases
 
 ### 1. Simple Agents with Static Schemas
