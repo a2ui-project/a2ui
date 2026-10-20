@@ -97,6 +97,14 @@ describe('DirectJsonParser', () => {
     ]);
   });
 
+  it('compiles a block that holds one message on its own', () => {
+    const parser = new DirectJsonParser([basicCatalogV10]);
+    const payload = `{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}`;
+    expect(parser.compile(payload)).toEqual([
+      {version: 'v1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
+    ]);
+  });
+
   it('supports streaming', () => {
     expect(new DirectJsonParser([basicCatalogV10]).supportsStreaming).toBe(true);
   });
