@@ -32,7 +32,7 @@ const KNOWN_FAILURES = new Map<string, string>([]);
 describe('Conformance: catalog_transformer.yaml', () => {
   for (const testCase of loadCases([conformancePath('agent/catalog_transformer.yaml')])) {
     registerCase(testCase, KNOWN_FAILURES, async () => {
-      const args = testCase.args as {
+      const args = (testCase.args ?? {}) as {
         catalog: string;
         transformers?: Array<{
           component_pruning?: string[] | null;
@@ -48,12 +48,12 @@ describe('Conformance: catalog_transformer.yaml', () => {
         typeof doc.catalogId === 'string' ? undefined : args.catalog,
       ).load();
       for (const transformer of args.transformers ?? []) {
-        if ('component_pruning' in transformer && transformer.component_pruning !== undefined) {
+        if (transformer?.component_pruning !== undefined) {
           transformed = new ComponentPruningTransformer(transformer.component_pruning).transform(
             transformed,
           );
         }
-        if ('function_pruning' in transformer && transformer.function_pruning !== undefined) {
+        if (transformer?.function_pruning !== undefined) {
           transformed = new FunctionPruningTransformer(transformer.function_pruning).transform(
             transformed,
           );
