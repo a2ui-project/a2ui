@@ -29,6 +29,14 @@ _CAMEL_BOUNDARY_RE = re.compile(r"([a-z0-9])([A-Z])")
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
+def _safe_nonneg_float(value: Any) -> float:
+    """Converts `value` to a non-negative float, returning 0.0 on conversion error."""
+    try:
+        return max(0.0, float(value))
+    except (ValueError, TypeError):
+        return 0.0
+
+
 def _normalize_probabilities(
     raw_probs: Mapping[str, Any],
     candidates: tuple[str, ...],
@@ -36,11 +44,11 @@ def _normalize_probabilities(
     """Filters candidate probabilities and normalizes weights when sum > 1.0."""
     if not candidates:
         return {}
-    filtered = {c: max(0.0, float(raw_probs.get(c, 0.0))) for c in candidates}
+    filtered = {c: _safe_nonneg_float(raw_probs.get(c, 0.0)) for c in candidates}
     total = sum(filtered.values())
     if total <= 0.0:
         return {c: 0.0 for c in candidates}
-    raw_total = sum(max(0.0, float(v)) for v in raw_probs.values())
+    raw_total = sum(_safe_nonneg_float(v) for v in raw_probs.values())
     if total <= 1.0 and raw_total <= 1.0 + 1e-6:
         return filtered
     return {c: val / total for c, val in filtered.items()}
@@ -283,7 +291,9 @@ class StepZeroLogprobBackend:
         default_floor = (min(matched.values()) - 10.0) if matched else -20.0
         logits = {c: matched.get(c, default_floor) for c in query.candidates}
         z_sorted = sorted(logits.values(), reverse=True)
-        top_logit_margin = z_sorted[0] - z_sorted[1] if len(z_sorted) >= 2 else 0.0
+        top_logit_margin = (
+            z_sorted[0] - z_sorted[1] if len(z_sorted) >= 2 else float("inf")
+        )
         z_max = z_sorted[0]
         exp_scores = {
             c: math.exp((z - z_max) / self._temperature) for c, z in logits.items()

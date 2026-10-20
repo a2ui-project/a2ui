@@ -131,7 +131,10 @@ def _select_optional_pointer(
         ]
         if not matched:
             return None
-        chosen = matched[0]
+        chosen = max(
+            matched,
+            key=lambda p: len(slot_tokens & _tokenize_identifier(p.path)),
+        )
         used_paths.add(chosen.path)
         return chosen.path
     chosen = _best_pointer_by_tokens(unused, slot_tokens)
@@ -195,11 +198,11 @@ def _default_arg_value(
 ) -> Any:
     """Builds a schema-valid argument value for a check function parameter."""
     if _schema_allows_binding(param_schema):
-        path = (
-            pointers[0].path
-            if pointers
-            else (param_name if relative else f"/{param_name}")
-        )
+        if pointers:
+            chosen = _best_pointer_by_tokens(pointers, _tokenize_identifier(param_name))
+            path = chosen.path
+        else:
+            path = param_name if relative else f"/{param_name}"
         return _make_data_binding(path, is_v10=is_v10)
     prim_type = param_schema.get("type")
     if prim_type in ("number", "integer"):
@@ -265,7 +268,9 @@ def _build_checks(
         condition["catalogId"] = fn_cat_id
     return [{
         "condition": condition,
-        "message": f"{chosen_fn.capitalize()} check failed",
+        "message": (
+            f"{chosen_fn[0].upper() + chosen_fn[1:] if chosen_fn else ''} check failed"
+        ),
     }]
 
 
@@ -368,10 +373,12 @@ class DecisionSynthesizer:
         *,
         surface_id: str | None = None,
         mutable_paths: Collection[str] = (),
+        config: SynthesisConfig | None = None,
     ) -> SynthesisOutput:
         """Synthesizes validated A2UI messages without mutating the template registry."""
+        active_config = config if config is not None else self.config
         target_surface_id = (
-            surface_id if surface_id is not None else self.config.default_surface_id
+            surface_id if surface_id is not None else active_config.default_surface_id
         )
         pointers = inspect_payload_pointers(payload, mutable_paths=mutable_paths)
         has_mutable = bool(mutable_paths) or any(p.mutable_hint for p in pointers)
@@ -382,6 +389,7 @@ class DecisionSynthesizer:
             pointers,
             target_surface_id=target_surface_id,
             has_mutable=has_mutable,
+            config=active_config,
         )
         if stage1_out is not None:
             return stage1_out
@@ -392,6 +400,7 @@ class DecisionSynthesizer:
             pointers,
             target_surface_id=target_surface_id,
             has_mutable=has_mutable,
+            config=active_config,
         )
 
     async def _try_template_stage(
@@ -402,6 +411,7 @@ class DecisionSynthesizer:
         *,
         target_surface_id: str,
         has_mutable: bool,
+        config: SynthesisConfig,
     ) -> SynthesisOutput | None:
         """Executes Stage 1 template matching and risk-tiered confidence gating."""
         pointer_paths = [p.path for p in pointers]
@@ -417,7 +427,7 @@ class DecisionSynthesizer:
                 context={"pointers": pointer_paths},
             )
         )
-        if not _passes_calibration_gate(dist, self.config):
+        if not _passes_calibration_gate(dist, config):
             return None
 
         top_id, top_prob = dist.top_choice()
@@ -426,9 +436,9 @@ class DecisionSynthesizer:
             return None
 
         threshold = (
-            self.config.mutable_confidence_threshold
+            config.mutable_confidence_threshold
             if (has_mutable or template.is_mutable)
-            else self.config.template_confidence_threshold
+            else config.template_confidence_threshold
         )
         if top_prob < threshold:
             return None
@@ -455,11 +465,12 @@ class DecisionSynthesizer:
         *,
         target_surface_id: str,
         has_mutable: bool,
+        config: SynthesisConfig,
     ) -> SynthesisOutput:
         """Executes Stage 2 catalog-guided synthesis or Stage 3 abstain fallback."""
         root_candidates = (
             (self.graph.leaf_candidates() or self.graph.root_candidates())
-            if self.config.max_tree_depth <= 1
+            if config.max_tree_depth <= 1
             else self.graph.root_candidates()
         )
         if not root_candidates:
@@ -486,8 +497,8 @@ class DecisionSynthesizer:
         root_spec = self.graph.get_component(top_name)
 
         if (
-            not _passes_calibration_gate(dist, self.config)
-            or top_prob < self.config.abstain_threshold
+            not _passes_calibration_gate(dist, config)
+            or top_prob < config.abstain_threshold
             or root_spec is None
         ):
             return SynthesisOutput(
@@ -497,7 +508,7 @@ class DecisionSynthesizer:
                 entropy=entropy,
             )
 
-        if self._should_wrap_in_switcher(dist, root_spec, entropy):
+        if self._should_wrap_in_switcher(dist, root_spec, entropy, config=config):
             return await self._synthesize_multi_view_switcher(
                 intent,
                 payload,
@@ -507,9 +518,10 @@ class DecisionSynthesizer:
                 has_mutable=has_mutable,
                 confidence=top_prob,
                 entropy=entropy,
+                config=config,
             )
 
-        if not root_spec.is_container or self.config.max_tree_depth <= 1:
+        if not root_spec.is_container or config.max_tree_depth <= 1:
             return self._synthesize_leaf_fast_path(
                 root_spec,
                 intent,
@@ -519,6 +531,7 @@ class DecisionSynthesizer:
                 has_mutable=has_mutable,
                 confidence=top_prob,
                 entropy=entropy,
+                config=config,
             )
 
         return await self._synthesize_container_tree(
@@ -530,6 +543,7 @@ class DecisionSynthesizer:
             has_mutable=has_mutable,
             confidence=top_prob,
             entropy=entropy,
+            config=config,
         )
 
     def _should_wrap_in_switcher(
@@ -537,15 +551,17 @@ class DecisionSynthesizer:
         dist: DecisionDistribution,
         root_spec: ComponentNodeSpec,
         entropy: float,
+        *,
+        config: SynthesisConfig,
     ) -> bool:
         """Checks whether high-entropy multi-view switcher wrapping applies."""
-        if self.config.max_tree_depth <= 1:
+        if config.max_tree_depth <= 1:
             return False
         if root_spec.is_multi_view_switcher:
             return False
         if not self.graph.multi_view_switchers():
             return False
-        if entropy < (1.0 - self.config.entropy_switch_margin):
+        if entropy < (1.0 - config.entropy_switch_margin):
             return False
         viable_count = sum(1 for p in dist.probabilities.values() if p >= 0.25)
         return viable_count >= 2
@@ -601,14 +617,15 @@ class DecisionSynthesizer:
         has_mutable: bool,
         confidence: float,
         entropy: float,
+        config: SynthesisConfig,
     ) -> SynthesisOutput:
         """Wraps competing candidate views in a multi-view switcher."""
         switcher = self.graph.multi_view_switchers()[0]
-        max_views = min(2, self.config.max_children_per_container)
+        max_views = min(2, config.max_children_per_container)
         views = self._select_competing_views(dist, switcher.name)[:max_views]
         if (
             self._switcher_requires_mutable_gate(switcher, views, has_mutable)
-            and confidence < self.config.mutable_confidence_threshold
+            and confidence < config.mutable_confidence_threshold
         ):
             return SynthesisOutput(
                 stage=SynthesisStage.ABSTAIN_FALLBACK,
@@ -618,7 +635,7 @@ class DecisionSynthesizer:
             )
 
         is_v10 = _is_v10(self.graph.protocol_version)
-        allow_actions = confidence >= self.config.mutable_confidence_threshold
+        allow_actions = confidence >= config.mutable_confidence_threshold
         root_comp = self._init_component_dict(switcher, "root")
         _bind_non_child_slots(
             root_comp, switcher, intent, pointers, is_v10=is_v10, relative=False
@@ -639,6 +656,7 @@ class DecisionSynthesizer:
                 pointers,
                 depth=2,
                 allow_actions=allow_actions,
+                config=config,
             )
             child_components.extend(built)
             item: dict[str, Any] = {}
@@ -682,11 +700,12 @@ class DecisionSynthesizer:
         has_mutable: bool,
         confidence: float,
         entropy: float,
+        config: SynthesisConfig,
     ) -> SynthesisOutput:
         """Executes Stage 2A 1-pass leaf component synthesis."""
         if (
             root_spec.has_action_slot or has_mutable
-        ) and confidence < self.config.mutable_confidence_threshold:
+        ) and confidence < config.mutable_confidence_threshold:
             return SynthesisOutput(
                 stage=SynthesisStage.ABSTAIN_FALLBACK,
                 messages=[],
@@ -723,11 +742,12 @@ class DecisionSynthesizer:
         has_mutable: bool,
         confidence: float,
         entropy: float,
+        config: SynthesisConfig,
     ) -> SynthesisOutput:
         """Executes Stage 2B 2-pass container and child slot synthesis."""
         if (
             root_spec.has_action_slot or has_mutable
-        ) and confidence < self.config.mutable_confidence_threshold:
+        ) and confidence < config.mutable_confidence_threshold:
             return SynthesisOutput(
                 stage=SynthesisStage.ABSTAIN_FALLBACK,
                 messages=[],
@@ -735,7 +755,7 @@ class DecisionSynthesizer:
                 entropy=entropy,
             )
 
-        allow_actions = confidence >= self.config.mutable_confidence_threshold
+        allow_actions = confidence >= config.mutable_confidence_threshold
         components = await self._build_component_subtree(
             root_spec,
             "root",
@@ -743,6 +763,7 @@ class DecisionSynthesizer:
             pointers,
             depth=1,
             allow_actions=allow_actions,
+            config=config,
         )
         messages = self._build_validated_messages(
             target_surface_id, components, payload
@@ -796,9 +817,10 @@ class DecisionSynthesizer:
         *,
         depth: int,
         allow_actions: bool,
+        config: SynthesisConfig,
     ) -> ComponentNodeSpec:
         """Replaces a container `spec` with a leaf when `depth` hits `max_tree_depth`."""
-        if not spec.is_container or depth < self.config.max_tree_depth:
+        if not spec.is_container or depth < config.max_tree_depth:
             return spec
         leaf_pool = [
             c
@@ -818,10 +840,15 @@ class DecisionSynthesizer:
         *,
         depth: int = 1,
         allow_actions: bool = True,
+        config: SynthesisConfig,
     ) -> list[dict[str, Any]]:
         """Builds a component and any child components required by its container slots."""
         effective_spec = self._coerce_to_leaf_if_depth_reached(
-            spec, pointers, depth=depth, allow_actions=allow_actions
+            spec,
+            pointers,
+            depth=depth,
+            allow_actions=allow_actions,
+            config=config,
         )
         if not effective_spec.is_container:
             return [
@@ -841,10 +868,7 @@ class DecisionSynthesizer:
         child_counter = 0
 
         for slot in effective_spec.slots:
-            if (
-                not slot.required
-                and len(children) >= self.config.max_children_per_container
-            ):
+            if not slot.required and len(children) >= config.max_children_per_container:
                 continue
             if slot.kind == SlotKind.CHILD_LIST:
                 child_counter += 1
@@ -873,9 +897,7 @@ class DecisionSynthesizer:
                 comp[slot.name] = child_id
                 children.append(child_comp)
             elif slot.kind == SlotKind.NAMED_CHILD_ARRAY:
-                remaining = max(
-                    1, self.config.max_children_per_container - len(children)
-                )
+                remaining = max(1, config.max_children_per_container - len(children))
                 named_items, named_children = await self._build_named_child_array(
                     effective_spec.name,
                     slot,

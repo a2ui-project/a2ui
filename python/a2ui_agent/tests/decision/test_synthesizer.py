@@ -672,3 +672,80 @@ async def test_switcher_mutable_gate_and_tree_limits_and_static_primitives() -> 
     ]
     assert len(deck_comps[0]["tabs"]) == 1
     assert len(deck_comps) == 2
+
+
+@pytest.mark.asyncio
+async def test_any_slot_ranking_and_check_arg_binding_and_camelcase_checks() -> None:
+    """Verifies token-overlap ranking for 'any' slots, check arg pointer selection, camelCase check messages, and per-call config overrides."""
+    schema: dict[str, Any] = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/catalogs/review_fixes/v1/catalog.json",
+        "protocolVersion": "1.0",
+        "components": {
+            "OrderInspector": {
+                "type": "object",
+                "allOf": [{"$ref": "common_types.json#/$defs/Checkable"}],
+                "properties": {
+                    "component": {"const": "OrderInspector"},
+                    "title": {"$ref": "common_types.json#/$defs/DynamicString"},
+                    "summaryPayload": {"$ref": "common_types.json#/$defs/DynamicValue"},
+                },
+                "required": ["component", "title"],
+            },
+        },
+        "functions": {
+            "isValidTickerSymbol": {
+                "type": "object",
+                "properties": {
+                    "call": {"const": "isValidTickerSymbol"},
+                    "args": {
+                        "type": "object",
+                        "properties": {
+                            "tickerSymbol": {
+                                "$ref": "common_types.json#/$defs/DynamicString"
+                            },
+                        },
+                        "required": ["tickerSymbol"],
+                    },
+                    "returnType": {"const": "boolean"},
+                },
+                "required": ["call", "args", "returnType"],
+            },
+        },
+    }
+    cat = Catalog.from_json(schema)
+    synth = DecisionSynthesizer(
+        [cat],
+        DeterministicMockBackend(scripted={"root_component": {"OrderInspector": 0.60}}),
+        config=SynthesisConfig(abstain_threshold=0.70),
+    )
+    payload = {
+        "unrelatedObject": {},
+        "title": "Order View",
+        "summaryPayload": {},
+        "tickerSymbol": "GOOG",
+    }
+
+    # Default config has abstain_threshold=0.70, so 0.60 abstains.
+    abstained = await synth.synthesize("inspect order", payload)
+    assert abstained.stage == SynthesisStage.ABSTAIN_FALLBACK
+
+    # Per-call config override allows 0.60 without mutating synth.config.
+    override_cfg = SynthesisConfig(abstain_threshold=0.50)
+    out = await synth.synthesize("inspect order", payload, config=override_cfg)
+    assert synth.config.abstain_threshold == pytest.approx(0.70)
+    assert out.stage == SynthesisStage.FAST_1PASS_LEAF
+
+    comp = to_message_dicts(out.messages)[1]["updateComponents"]["components"][0]
+    # Optional DynamicValue ('any') slot selects /summaryPayload over /unrelatedObject.
+    assert comp["summaryPayload"] == {"@path": "/summaryPayload"}
+    # Check function argument 'tickerSymbol' binds to /tickerSymbol instead of first pointer,
+    # and camelCase function name 'isValidTickerSymbol' is preserved in message.
+    assert comp["checks"] == [{
+        "condition": {
+            "@call": "isValidTickerSymbol",
+            "args": {"tickerSymbol": {"@path": "/tickerSymbol"}},
+        },
+        "message": "IsValidTickerSymbol check failed",
+    }]
+    validate_payload([cat], out.messages)

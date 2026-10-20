@@ -47,6 +47,7 @@ class SynthesizerLike(Protocol):
         *,
         surface_id: str | None = None,
         mutable_paths: Collection[str] = (),
+        config: SynthesisConfig | None = None,
     ) -> SynthesisOutput:
         """Synthesizes an A2UI surface output for the given intent and payload."""
         ...
@@ -159,21 +160,23 @@ async def _collect_evaluated_outputs(
     synthesizer: SynthesizerLike,
     dataset: Sequence[LabeledDecisionExample],
 ) -> list[tuple[SynthesisOutput, LabeledDecisionExample]]:
-    """Evaluates dataset examples with permissive thresholds and restores config."""
-    original_config = getattr(synthesizer, "config", None)
-    if isinstance(original_config, SynthesisConfig):
-        synthesizer.config = _build_permissive_config(original_config)
-    try:
-        evaluated: list[tuple[SynthesisOutput, LabeledDecisionExample]] = []
-        for ex in dataset:
-            output = await synthesizer.synthesize(
-                ex.intent, ex.payload, mutable_paths=ex.mutable_paths
-            )
-            evaluated.append((output, ex))
-        return evaluated
-    finally:
-        if isinstance(original_config, SynthesisConfig):
-            synthesizer.config = original_config
+    """Evaluates dataset examples with a permissive per-call config override."""
+    base_config = getattr(synthesizer, "config", None)
+    permissive_config = (
+        _build_permissive_config(base_config)
+        if isinstance(base_config, SynthesisConfig)
+        else _build_permissive_config(SynthesisConfig())
+    )
+    evaluated: list[tuple[SynthesisOutput, LabeledDecisionExample]] = []
+    for ex in dataset:
+        output = await synthesizer.synthesize(
+            ex.intent,
+            ex.payload,
+            mutable_paths=ex.mutable_paths,
+            config=permissive_config,
+        )
+        evaluated.append((output, ex))
+    return evaluated
 
 
 async def calibrate_thresholds(

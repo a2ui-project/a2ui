@@ -229,7 +229,8 @@ async def test_step_zero_logprob_backend_missing_and_empty_candidates() -> None:
             DecisionQuery(task="t", prompt="p", candidates=("OnlyOne",))
         )
         assert dist_single.probabilities == {"OnlyOne": pytest.approx(1.0)}
-        assert dist_single.top_logit_margin == pytest.approx(0.0)
+        assert dist_single.top_logit_margin is not None
+        assert math.isinf(dist_single.top_logit_margin)
 
         dist_missing = await backend.predict(
             DecisionQuery(task="t", prompt="p", candidates=("MissingA", "MissingB"))
@@ -397,3 +398,38 @@ async def test_step_zero_logprob_backend_caps_logprobs_at_20_and_closes_owned_cl
     s2 = owned_step._get_client()
     assert s1 is s2
     await owned_step.aclose()
+
+
+@pytest.mark.asyncio
+async def test_normalize_probabilities_ignores_non_numeric_values() -> None:
+    """Safely ignores non-numeric probability values during normalization."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "probabilities": {
+                    "ValidCard": "0.75",
+                    "InvalidCard": "not-a-number",
+                    "NullMeta": None,
+                    "ObjectMeta": {"nested": 1},
+                },
+                "calibrated": True,
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        backend = JevHttpBackend("http://jev.local/predict", client=client)
+        dist = await backend.predict(
+            DecisionQuery(
+                task="root_component",
+                prompt="p",
+                candidates=("ValidCard", "InvalidCard"),
+            )
+        )
+    assert dist.probabilities == {
+        "ValidCard": pytest.approx(0.75),
+        "InvalidCard": pytest.approx(0.0),
+    }

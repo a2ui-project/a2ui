@@ -41,6 +41,7 @@ class _FakeSynthesizer:
         self.config = SynthesisConfig()
         self._scripted = dict(scripted_outputs)
         self.calls: list[tuple[str, tuple[str, ...]]] = []
+        self.seen_configs: list[SynthesisConfig | None] = []
 
     async def synthesize(
         self,
@@ -49,9 +50,11 @@ class _FakeSynthesizer:
         *,
         surface_id: str | None = None,
         mutable_paths: Collection[str] = (),
+        config: SynthesisConfig | None = None,
     ) -> SynthesisOutput:
         del payload, surface_id
         self.calls.append((intent, tuple(mutable_paths)))
+        self.seen_configs.append(config)
         return self._scripted[intent]
 
 
@@ -311,6 +314,13 @@ async def test_calibrate_thresholds_restores_config_and_matches_template_root() 
     ]
     res = await calibrate_thresholds(synth, dataset, target_precision=1.0)
     assert synth.config == original_cfg
+    assert all(
+        cfg is not None
+        and cfg.abstain_threshold == 0.0
+        and cfg.template_confidence_threshold == 0.0
+        and cfg.mutable_confidence_threshold == 0.0
+        for cfg in synth.seen_configs
+    )
     assert res.achieved_precision == pytest.approx(1.0)
     assert res.achieved_coverage == pytest.approx(0.5)
     assert res.recommended_abstain_threshold == pytest.approx(0.40)
