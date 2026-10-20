@@ -76,6 +76,7 @@ __metadata:
   resolution: "@a2ui/angular-explorer@workspace:typescript/renderers/angular/a2ui_explorer"
   dependencies:
     "@a2ui/angular": "workspace:*"
+    "@a2ui/catalog-mcp": "workspace:*"
     "@a2ui/markdown-it": "npm:*"
     "@a2ui/web_core": "workspace:*"
     "@angular/build": "npm:^21.2.5"
