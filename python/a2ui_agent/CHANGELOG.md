@@ -18,7 +18,11 @@
   whose updates are still buffered, waiting for its `beginRendering`. An
   update to a surface the state never saw created is rejected, as the renderer
   would reject it. The state holds the surfaces as they now stand, not the
-  messages that built them.
+  messages that built them. A rollback puts each component back in its place
+  in the surface's order, which `allowedParents` reads, restores a deleted
+  surface without checking it again (including a data model root such as
+  `[]` or `0`), and finishes even if one undo step fails, so that the
+  caller's error propagates.
 - `validate_payload` runs the payload through a short-lived `RendererState`
   instead of building a new `MessageProcessor` for each surface and
   candidate catalog. Its results are unchanged, except that a v0.8 update
