@@ -19,7 +19,9 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 import contextlib
 import copy
+import logging
 import re
+import sys
 from typing import Any, ClassVar, TypeAlias, cast
 
 from pydantic import BaseModel
@@ -38,7 +40,7 @@ from a2ui.core import (
     ValidationConfig,
     link_catalogs,
 )
-from a2ui.core.common import to_protocol_version
+from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.processing import (
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
@@ -97,6 +99,8 @@ _IN_PROGRESS_VALIDATION = ValidationConfig(
 # Undoes one change to a state. The state's undo log is a list of these.
 _Undo: TypeAlias = Callable[[], None]
 
+_logger = logging.getLogger(__name__)
+
 # A list index in a JSON Pointer, as `DataModel` reads one.
 _INDEX = re.compile(r"^(?:0|[1-9][0-9]*)$")
 
@@ -128,9 +132,11 @@ class RendererState:
     records what it replaced (the components it added or replaced, with a
     copy of the properties of a component updated in place, and the data
     model value at its path), and so does each change to the state's own
-    bookkeeping. A deleted surface is recorded whole and restored by
-    replaying it through the processor. An `apply` or transaction is a
-    position in the log, and a failed one reverts the log to its position.
+    bookkeeping. A deleted surface is recorded whole and restored straight
+    into the model. Components come back in their order, which checks such
+    as `allowedParents` read. An `apply` or transaction is a position in the
+    log, and a failed one reverts the log to its position, finishing even if
+    one undo fails, so that the caller's error propagates.
     No surface is copied when a message is applied or a transaction opens.
 
     The state holds the surfaces as they now stand, not the messages that
@@ -347,9 +353,14 @@ class RendererState:
                 self._log.clear()
 
     def _revert(self, mark: int) -> None:
-        """Undoes the changes logged after a position, latest first."""
+        """Undoes the changes logged after a position, latest first.
+
+        It never stops part way: an undo that fails is logged and skipped,
+        and the others still run, so that the caller's error propagates
+        rather than the undo's.
+        """
         while len(self._log) > mark:
-            self._log.pop()()
+            _undo_now(self._log.pop())
 
     def _record(self, undo: _Undo) -> None:
         """Logs how to undo a change, if an `apply` or transaction is open."""
@@ -447,7 +458,7 @@ class RendererState:
                 self._processor.process_operation(op)
             except BaseException:
                 if not existed:
-                    undo()
+                    _undo_now(undo)
                 raise
             self._record(undo)
         elif isinstance(op, InternalDeleteSurfaceOp):
@@ -461,7 +472,7 @@ class RendererState:
             try:
                 self._processor.process_operation(op)
             except BaseException:
-                undo()
+                _undo_now(undo)
                 raise
             self._record(undo)
         else:
@@ -473,7 +484,13 @@ class RendererState:
 
         The core updates a component in place when the update keeps its type
         and catalog, so the record holds a copy of the component's previous
-        properties, not the object the update changes.
+        properties, not the object the update changes. An update that changes
+        the type or catalog removes the component and adds the new one at the
+        end, as a renderer does. The order matters to checks that read it
+        (`allowedParents` takes a component's last parent in that order), so
+        the record also holds the position of each component the update may
+        replace. Finding it costs time in proportion to the surface, but only
+        for such an update.
         """
         model = self._processor.model
         surface_id = op.surface_id
@@ -481,39 +498,56 @@ class RendererState:
         if surface is None:
             return lambda: None
         components_model = surface.components_model
-        previous: list[tuple[str, ComponentModel | None, dict[str, Any] | None]] = []
+        previous: dict[str, tuple[ComponentModel | None, dict[str, Any] | None]] = {}
+        replaced: list[str] = []
         for comp in op.components:
             comp_id = comp.get("id") if isinstance(comp, Mapping) else None
-            if not isinstance(comp_id, str):
+            if not isinstance(comp_id, str) or comp_id in previous:
                 continue
             existing = components_model.get(comp_id)
-            properties = (
-                copy.deepcopy(existing.properties) if existing is not None else None
-            )
-            previous.append((comp_id, existing, properties))
+            properties = None
+            if existing is not None:
+                properties = copy.deepcopy(existing.properties)
+                if _may_replace(surface, existing, comp):
+                    replaced.append(comp_id)
+            previous[comp_id] = (existing, properties)
+        positions: dict[str, int] = {}
+        if replaced:
+            wanted = set(replaced)
+            for position, comp_id in enumerate(components_model.keys):
+                if comp_id in wanted:
+                    positions[comp_id] = position
 
         def undo() -> None:
-            # Found again by id: undoing a later delete replays the surface
+            # Found again by id: undoing a later delete restores the surface
             # into new objects.
             surface = model.get_surface(surface_id)
             if surface is None:
                 return
             components_model = surface.components_model
-            for comp_id, existing, properties in reversed(previous):
+            restored: list[tuple[int, ComponentModel]] = []
+            for comp_id, (existing, properties) in previous.items():
                 current = components_model.get(comp_id)
                 if existing is None:
                     components_model.remove_component(comp_id)
-                elif current is existing:
-                    existing.properties = cast(dict[str, Any], properties)
+                elif current is not None and _same_kind(current, existing):
+                    current.properties = cast(dict[str, Any], properties)
                 else:
                     # The update replaced the component with one of another
                     # type or catalog, and the core disposed of the old one.
                     components_model.remove_component(comp_id)
-                    components_model.add_component(
+                    restored.append((
+                        positions.get(comp_id, sys.maxsize),
                         ComponentModel(
                             comp_id, existing.type, existing.catalog, properties
-                        )
-                    )
+                        ),
+                    ))
+            # The other components kept their order, so putting each one back
+            # at its position, in the order of the positions, restores the
+            # order before the update.
+            restored.sort(key=lambda entry: entry[0])
+            for position, component in restored:
+                components_model.insert_component(position, component)
 
         return undo
 
@@ -556,29 +590,27 @@ class RendererState:
                 token,
                 exists,
                 child,
+                deletes=op.value is None and depth == len(tokens) - 1,
             )
         return lambda: None
 
     def _delete_surface(self, surface_id: str) -> None:
         """Deletes a surface, logging it whole.
 
-        A deleted surface is the one change recorded whole. It is restored by
-        replaying it through the processor, which keeps each component's own
-        catalog. The v0.8 buffer and the bookkeeping are restored by their own
-        records.
+        A deleted surface is the one change recorded whole. It is restored
+        straight into the model, with each component's own catalog and in its
+        order, rather than replayed through the processor, whose checks could
+        reject a surface that many messages built, such as a data model deeper
+        than one message may carry. The v0.8 buffer and the bookkeeping are
+        restored by their own records.
         """
         model = self._processor.model
         surface = model.get_surface(surface_id)
         if surface is None:
             return
-        replay = _replay_operations(surface)
+        restore = _surface_restorer(surface)
         model.delete_surface(surface_id)
-
-        def undo() -> None:
-            for op in replay:
-                self._processor.process_operation(op)
-
-        self._record(undo)
+        self._record(lambda: model.add_surface(restore()))
 
     def _apply_message(self, payload: list[dict[str, Any]], index: int) -> str | None:
         """Applies the message at an index and returns the surface it targets."""
@@ -819,54 +851,88 @@ def _as_validation_error() -> Iterator[None]:
         raise A2uiValidationError(str(e), details=e.details) from e
 
 
-def _replay_operations(surface: SurfaceModel) -> list[InternalOperation]:
-    """The operations that build a surface again through the processor.
+def _surface_restorer(surface: SurfaceModel) -> Callable[[], SurfaceModel]:
+    """Returns how to build a surface again as it now stands.
 
-    A component whose catalog is not the surface's default names its own, so
-    a surface whose components come from several catalogs comes back as it
-    was. The properties and the data model are copied, since deleting the
-    surface disposes of it.
+    The properties, the theme and the data model are copied, since deleting
+    the surface disposes of it. The data model root is restored whatever it
+    is, including a falsy one such as `[]` or `0`. Nothing is checked again:
+    the processor accepted all of it when it arrived.
     """
+    surface_id = surface.id
     default_catalog = surface.default_catalog
-    version = surface.protocol_version
-    operations: list[InternalOperation] = [
-        InternalCreateSurfaceOp(
-            surface_id=surface.id,
-            catalog_id=(
-                default_catalog.catalog_id if default_catalog is not None else None
-            ),
-            theme=copy.deepcopy(surface.theme) or None,
-            send_data_model=surface.send_data_model,
-            root=surface.root_id,
-            version=str(getattr(version, "value", version)) if version else None,
-        )
+    available_catalogs = dict(surface.available_catalogs)
+    theme = copy.deepcopy(surface.theme)
+    send_data_model = surface.send_data_model
+    root_id = surface.root_id
+    protocol_version = surface.protocol_version
+    components = [
+        (c.id, c.type, c.catalog, copy.deepcopy(c.properties))
+        for c in surface.components_model.values
     ]
-    components: list[dict[str, Any]] = []
-    for component in surface.components_model.values:
-        item = {
-            **copy.deepcopy(component.properties),
-            "id": component.id,
-            "component": component.type,
-        }
-        if component.catalog is not default_catalog:
-            item["catalogId"] = component.catalog.catalog_id
-        components.append(item)
-    if components:
-        operations.append(
-            InternalUpdateComponentsOp(surface_id=surface.id, components=components)
+    data = copy.deepcopy(surface.data_model.get("/"))
+
+    def restore() -> SurfaceModel:
+        restored = SurfaceModel(
+            surface_id=surface_id,
+            default_catalog=default_catalog,
+            available_catalogs=available_catalogs,
+            theme=theme,
+            send_data_model=send_data_model,
+            root_id=root_id,
+            protocol_version=protocol_version,
         )
-    data = surface.data_model.get("/")
-    if data:
-        operations.append(
-            InternalUpdateDataModelOp(
-                surface_id=surface.id, value=copy.deepcopy(data), path="/"
+        restored.data_model.set("/", data)
+        for comp_id, comp_type, catalog, properties in components:
+            restored.components_model.add_component(
+                ComponentModel(comp_id, comp_type, catalog, properties)
             )
-        )
-    return operations
+        return restored
+
+    return restore
+
+
+def _undo_now(undo: _Undo) -> None:
+    """Runs one undo while an error propagates, logging the undo's own error.
+
+    The caller re-raises the error that made it undo, so an undo that fails
+    must not replace it, nor stop the undos after it.
+    """
+    try:
+        undo()
+    except Exception:  # pylint: disable=broad-exception-caught
+        _logger.exception("A RendererState rollback step failed.")
 
 
 def _discard(_: object) -> None:
     """Drops a value, so that an undo that pops returns nothing."""
+
+
+def _may_replace(
+    surface: SurfaceModel, existing: ComponentModel, update: Mapping[str, Any]
+) -> bool:
+    """Whether an update may replace a component rather than update it in place.
+
+    The core replaces a component when the update changes its type or its
+    catalog. This follows how the core resolves both, and errs toward True.
+    """
+    new_type = update.get("component")
+    if new_type and new_type != existing.type:
+        return True
+    catalog_id = update.get("catalogId")
+    if catalog_id is not None:
+        return bool(catalog_id != existing.catalog.catalog_id)
+    version = surface.protocol_version
+    if not version or not is_at_least_version(version, ProtocolVersion.V1_0):
+        # Before v1.0, an update that names no catalog keeps the component's.
+        return False
+    # From v1.0, it resolves to the surface's default catalog.
+    return existing.catalog is not surface.default_catalog
+
+
+def _same_kind(current: ComponentModel, previous: ComponentModel) -> bool:
+    """Whether the core would update one component into the other in place."""
+    return current.type == previous.type and current.catalog is previous.catalog
 
 
 def _pointer_tokens(path: str) -> list[str]:
@@ -892,6 +958,8 @@ def _child_restorer(
     token: str,
     exists: bool,
     value: Any,
+    *,
+    deletes: bool = False,
 ) -> _Undo:
     """Returns how to restore one entry of a data model container.
 
@@ -905,10 +973,18 @@ def _child_restorer(
       token: The entry's key or list index.
       exists: Whether the container holds the entry now.
       value: The entry's value now, which is copied.
+      deletes: Whether the change deletes the entry. A deleted key is put
+        back at its position among its siblings, which is found now, at a
+        cost in proportion to their number.
     """
     old_value = copy.deepcopy(value) if exists else None
     # Setting an index past the end pads the list up to it.
     length = len(parent) if isinstance(parent, list) else 0
+    position = (
+        list(parent).index(token)
+        if deletes and exists and isinstance(parent, dict)
+        else None
+    )
 
     def undo() -> None:
         surface = get_surface()
@@ -918,7 +994,9 @@ def _child_restorer(
         for parent_token in parent_tokens:
             container = _child(container, parent_token)[1]
         if isinstance(container, dict):
-            if exists:
+            if position is not None and token not in container:
+                _insert_key(container, position, token, old_value)
+            elif exists:
                 container[token] = old_value
             else:
                 container.pop(token, None)
@@ -929,6 +1007,14 @@ def _child_restorer(
                 del container[length:]
 
     return undo
+
+
+def _insert_key(container: dict[str, Any], position: int, key: str, value: Any) -> None:
+    """Adds a key to a dict at a position in its order, keeping the dict object."""
+    entries = list(container.items())
+    entries.insert(position, (key, value))
+    container.clear()
+    container.update(entries)
 
 
 def _extract_messages(payload: _MessagePayload) -> list[dict[str, Any]]:
