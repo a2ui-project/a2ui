@@ -190,4 +190,13 @@ struct FormatStringFunctionTests {
     )
     #expect(result == .string("Hello "))
   }
+
+  @Test func serializesDataModelObjectWithLegacyDirectiveKeysOnV10Surface() throws {
+    dataModel.set("/literalObj", value: .object(["path": .string("/user/name")]))
+    let result = try function.evaluate(
+      arguments: ["value": .string("${/literalObj}")],
+      context: v10Context
+    )
+    #expect(result == .string("{\"path\":\"/user/name\"}"))
+  }
 }

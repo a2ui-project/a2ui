@@ -20,14 +20,6 @@ import Testing
 
 /// Runs the shared `conformance/core/expressions.yaml` suite.
 struct ExpressionsConformanceTests {
-  /// `validate` cases that expect a payload error for a malformed template. Swift parses
-  /// `formatString` templates when it renders them, not while it processes the payload, so these
-  /// payloads are accepted.
-  private static let templateValidationGaps: Set<String> = [
-    "test_expression_parser_syntax_error_unclosed_brace",
-    "test_expression_parser_max_depth_exceeded_error",
-  ]
-
   /// `validate` cases whose output depends on the host locale until #3144 is fixed.
   private static let hostLocaleDependent: Set<String> = [
     "test_expression_parser_nested_function_call"
@@ -114,11 +106,7 @@ struct ExpressionsConformanceTests {
 
     for testCase in testCases where testCase.action == "validate" {
       executed += 1
-      if Self.templateValidationGaps.contains(testCase.name) {
-        withKnownIssue("Swift does not validate formatString templates in payloads") {
-          try runValidateCase(testCase)
-        }
-      } else if Self.hostLocaleDependent.contains(testCase.name) {
+      if Self.hostLocaleDependent.contains(testCase.name) {
         // Only a locale mismatch is known. Raw directive JSON (`{"call":…}`) in the output is a
         // real interpolation failure and must still fail the test.
         try withKnownIssue("#3144: formatCurrency uses the host locale", isIntermittent: true) {
@@ -140,29 +128,58 @@ struct ExpressionsConformanceTests {
       catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
       validationConfig: ValidationConfig(targetVersion: "v1.0")
     )
+    // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
+    // rather than being thrown out of `processMessages`.
+    var capturedErrors: [RendererError] = []
+    processor.outboundListener = { message in
+      MainActor.assumeIsolated {
+        if case .error(let error) = message {
+          capturedErrors.append(error)
+        }
+      }
+    }
 
     for (stepIndex, step) in testCase.steps.enumerated() {
       guard let payload = step.payload else {
         continue
       }
+      capturedErrors.removeAll()
 
-      if let expectedError = step.expectError ?? testCase.expectError {
+      let isFinalStep = stepIndex == testCase.steps.count - 1
+      if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
+        var errorMessages: [String] = []
         do {
           try processor.processMessages(payload)
-          Issue.record("\(testCase.name): expected an error at step \(stepIndex)")
         } catch {
           let message = (error as? (any A2UIError))?.message ?? error.localizedDescription
-          if let expectedMessage = expectedError.message {
-            #expect(
-              message.localizedCaseInsensitiveContains(expectedMessage),
-              "\(testCase.name): message '\(message)' does not contain '\(expectedMessage)'"
-            )
+          errorMessages.append(message)
+        }
+        for error in capturedErrors {
+          switch error {
+          case .validationFailed(let validationError):
+            errorMessages.append(validationError.message)
+          case .generic(let genericError):
+            errorMessages.append(genericError.message)
           }
+        }
+        #expect(
+          !errorMessages.isEmpty,
+          "\(testCase.name): expected an error at step \(stepIndex)"
+        )
+        if let expectedMessage = expectedError.message {
+          #expect(
+            errorMessages.contains { $0.localizedCaseInsensitiveContains(expectedMessage) },
+            "\(testCase.name): messages \(errorMessages) do not contain '\(expectedMessage)'"
+          )
         }
         continue
       }
 
       try processor.processMessages(payload)
+      #expect(
+        capturedErrors.isEmpty,
+        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors)"
+      )
 
       let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue ?? [:]
       for (surfaceID, expectedSurface) in expectedSurfaces {
