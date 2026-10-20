@@ -96,10 +96,14 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
       for (final Object? chunk in args['probe_chunks']! as List<Object?>)
         version.text(chunk! as String),
     ];
-    List<Object?> read(Parser parser) => [
-      for (final String chunk in chunks)
-        version.partsJson(parser.parseChunk(chunk)),
-    ];
+    List<Object?> read(Parser parser) {
+      final ResponseStream stream = parser.openStream();
+      return [
+        for (final String chunk in chunks)
+          version.partsJson(stream.feed(chunk)),
+      ];
+    }
+
     final Parser first = format.createParser();
     final List<Object?> firstParts = read(first);
     expect(firstParts.expand((p) => p! as List), isNotEmpty);
