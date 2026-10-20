@@ -356,3 +356,237 @@ describe('MessageProcessor under a config that defers the graph checks', () => {
     }
   }
 });
+
+/**
+ * The catalog of the Dart core's incremental composition tests (#3345): `Strict`
+ * holds only `Item` and `Box` children, an `Item` may sit under a `Strict`, a
+ * `Box` or the surface, and a `Header` only under a `Box`.
+ */
+function strictCatalog(id = 'custom'): Catalog<any, any> {
+  return Catalog.fromJson(
+    {
+      catalogId: id,
+      components: {
+        Box: {type: 'object', properties: {children: {$ref: '#/$defs/ChildList'}}},
+        Strict: {
+          type: 'object',
+          allowedChildren: ['Item', 'Box'],
+          properties: {children: {$ref: '#/$defs/ChildList'}},
+        },
+        Card: {type: 'object', properties: {child: {$ref: '#/$defs/ComponentId'}}},
+        Item: {type: 'object', allowedParents: ['Strict', 'Box', 'Surface']},
+        Header: {type: 'object', allowedParents: ['Box']},
+      },
+    },
+    '1.0',
+  );
+}
+
+/**
+ * A second catalog declaring other constraints for some of the same type
+ * names. A component's constraints are those of its own catalog.
+ */
+function otherCatalog(): Catalog<any, any> {
+  return Catalog.fromJson(
+    {
+      catalogId: 'other',
+      components: {
+        Box: {
+          type: 'object',
+          allowedChildren: ['Item', 'Card'],
+          properties: {children: {$ref: '#/$defs/ChildList'}},
+        },
+        Strict: {
+          type: 'object',
+          allowedChildren: ['Card'],
+          allowedParents: ['Box', 'Surface'],
+          properties: {children: {$ref: '#/$defs/ChildList'}},
+        },
+        Item: {type: 'object', allowedParents: ['Card', 'Strict']},
+      },
+    },
+    '1.0',
+  );
+}
+
+/** The error `body` throws as `Class code: message`, or `ok`. */
+function outcomeWithCode(body: () => void): string {
+  try {
+    body();
+    return 'ok';
+  } catch (e) {
+    if (e instanceof A2uiValidationError) {
+      return `${e.constructor.name} ${e.code}: ${e.message}`;
+    }
+    return e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);
+  }
+}
+
+/** The surface's components with the id of each one's catalog. */
+function snapshotWithCatalogs(processor: MessageProcessor): Record<string, unknown> {
+  const surface = processor.model.getSurface('s')!;
+  const out: Record<string, unknown> = {};
+  for (const [id, component] of surface.componentsModel.entries) {
+    out[id] = [component.componentTree, component.catalog.id];
+  }
+  return out;
+}
+
+/**
+ * An incremental processor and one whose record of the graph is dropped
+ * before every message, fed the same batches.
+ */
+class Pair {
+  readonly incremental: MessageProcessor;
+  readonly whole: MessageProcessor;
+
+  constructor(config: ValidationConfig, makeCatalogs: () => Array<Catalog<any, any>>) {
+    const create = () => {
+      const processor = new MessageProcessor(makeCatalogs() as Array<Catalog<any>>, undefined, {
+        validationConfig: config,
+      });
+      processor.processMessages([
+        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'custom'}},
+      ]);
+      return processor;
+    };
+    this.incremental = create();
+    this.whole = create();
+  }
+
+  /** Sends one batch to both, expects the same outcome, and returns it. */
+  send(...components: Array<Record<string, unknown>>): string {
+    (this.whole as unknown as {graphBounds: WeakMap<object, unknown>}).graphBounds = new WeakMap();
+    const expected = outcomeWithCode(() => update(this.whole, ...components));
+    const actual = outcomeWithCode(() => update(this.incremental, ...components));
+    const context = JSON.stringify(components);
+    assert.strictEqual(actual, expected, context);
+    assert.deepStrictEqual(
+      snapshotWithCatalogs(this.incremental),
+      snapshotWithCatalogs(this.whole),
+      context,
+    );
+    return actual;
+  }
+}
+
+describe('MessageProcessor composition cases of the Dart core, against a whole-surface check', () => {
+  const configs: Record<string, ValidationConfig> = {
+    'missing root allowed': DEFERRED,
+    'orphans allowed': {...DEFERRED, allowMissingRoot: false},
+  };
+  const c = (id: string, component: string, props: Record<string, unknown> = {}) => ({
+    id,
+    component,
+    ...props,
+  });
+  const code = (outcome: string) => /^A2uiValidationError (\w+):/.exec(outcome)?.[1] ?? outcome;
+
+  for (const [name, config] of Object.entries(configs)) {
+    const pair = () => new Pair(config, () => [strictCatalog()]);
+
+    it(`rejects a child that arrives after its container (${name})`, () => {
+      const p = pair();
+      assert.strictEqual(p.send(c('root', 'Strict', {children: ['a']})), 'ok');
+      assert.strictEqual(code(p.send(c('a', 'Card'))), 'UNALLOWED_CHILD');
+    });
+
+    it(`rejects a container that arrives after its child (${name})`, () => {
+      const p = pair();
+      assert.strictEqual(p.send(c('root', 'Box')), 'ok');
+      assert.strictEqual(p.send(c('a', 'Card')), 'ok');
+      assert.strictEqual(code(p.send(c('b', 'Strict', {children: ['a']}))), 'UNALLOWED_CHILD');
+    });
+
+    it(`rejects a child added to a container in a later message (${name})`, () => {
+      const p = pair();
+      assert.strictEqual(p.send(c('root', 'Strict', {children: ['a']})), 'ok');
+      assert.strictEqual(p.send(c('a', 'Item')), 'ok');
+      assert.strictEqual(p.send(c('b', 'Card')), 'ok');
+      assert.strictEqual(
+        code(p.send(c('root', 'Strict', {children: ['a', 'b']}))),
+        'UNALLOWED_CHILD',
+      );
+    });
+
+    it(`accepts a container rewritten to drop a child it disallows (${name})`, () => {
+      const p = pair();
+      assert.strictEqual(p.send(c('root', 'Box', {children: ['a', 'h']})), 'ok');
+      assert.strictEqual(p.send(c('a', 'Item'), c('h', 'Header')), 'ok');
+      assert.strictEqual(
+        code(p.send(c('root', 'Strict', {children: ['a', 'h']}))),
+        'UNALLOWED_CHILD',
+      );
+      assert.strictEqual(p.send(c('root', 'Strict', {children: ['a']})), 'ok');
+      // `h` no longer has a parent, and may be held by a `Box` again.
+      assert.strictEqual(p.send(c('b', 'Box', {children: ['h']})), 'ok');
+    });
+
+    it(`rejects a held child whose type changes (${name})`, () => {
+      const p = pair();
+      assert.strictEqual(p.send(c('root', 'Strict', {children: ['a']}), c('a', 'Item')), 'ok');
+      assert.strictEqual(code(p.send(c('a', 'Header'))), 'UNALLOWED_CHILD');
+    });
+
+    it(`rejects a child under a holder its allowedParents omits (${name})`, () => {
+      const p = pair();
+      assert.strictEqual(
+        p.send(c('root', 'Box', {children: ['c']}), c('c', 'Card', {child: 'x'})),
+        'ok',
+      );
+      assert.strictEqual(code(p.send(c('x', 'Header'))), 'UNALLOWED_PARENT');
+    });
+
+    it(`rejects a root its allowedParents does not let the surface hold (${name})`, () => {
+      const p = pair();
+      // A root no component references is placed under the surface.
+      assert.strictEqual(code(p.send(c('root', 'Header'))), 'UNALLOWED_PARENT');
+      // A root a `Box` references is placed under that `Box`.
+      assert.strictEqual(p.send(c('a', 'Box', {children: ['root']}), c('root', 'Header')), 'ok');
+      // Dropping the reference leaves the root under the surface again.
+      assert.strictEqual(code(p.send(c('a', 'Box'))), 'UNALLOWED_PARENT');
+    });
+  }
+
+  // Two catalogs that both declare constraints, on the same type names, with
+  // each component drawn from either.
+  const randomConfigs: Record<string, ValidationConfig> = {
+    ...configs,
+    'missing root allowed, orphans not': {...DEFERRED, allowOrphanComponents: false, maxDepth: 3},
+  };
+  for (const [name, config] of Object.entries(randomConfigs)) {
+    it(`matches a whole-surface check on random messages across two catalogs (${name})`, () => {
+      let seed = 2024;
+      // The high bits of a linear congruential generator, whose low bits
+      // repeat with short periods.
+      const random = (n: number) => {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        return Math.floor(seed / 65536) % n;
+      };
+      const ids = ['root', 'a', 'b', 'c', 'd', 'e'];
+      const types = ['Box', 'Strict', 'Card', 'Item', 'Header'];
+      const pick = () => ids[random(ids.length)];
+      for (let run = 0; run < 60; run++) {
+        const p = new Pair(config, () => [strictCatalog(), otherCatalog()]);
+        for (let step = 0; step < 20; step++) {
+          const batch = new Map<string, Record<string, unknown>>();
+          for (let k = 1 + random(3); k > 0; k--) {
+            const id = pick();
+            const type = types[random(types.length)];
+            const component: Record<string, unknown> = {id, component: type};
+            if (type === 'Box' || type === 'Strict') {
+              component.children = Array.from({length: random(4)}, pick);
+            } else if (type === 'Card') {
+              component.child = pick();
+            }
+            if (type !== 'Card' && type !== 'Header' && random(2) === 0) {
+              component.catalogId = 'other';
+            }
+            batch.set(id, component);
+          }
+          p.send(...batch.values());
+        }
+      }
+    });
+  }
+});
