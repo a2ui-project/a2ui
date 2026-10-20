@@ -436,7 +436,7 @@ function inlineRefs(
     if (target && !target.isPeer) {
       const defName = target.pointer.split('/').pop() ?? '';
       const isPreservedCommonType =
-        target.pointer.startsWith('#/$defs/') && defName in CommonSchemas;
+        target.pointer.startsWith('#/$defs/') && Object.hasOwn(CommonSchemas, defName);
       if (isPreservedCommonType || (!inlineLocalDefs && target.pointer.startsWith('#/$defs/'))) {
         target = undefined;
       }
@@ -538,7 +538,9 @@ function resolveJsonPointer(
  */
 function resolveProtocolRef(ref: string): z.ZodTypeAny | undefined {
   const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
-  return defName ? (CommonSchemas as Record<string, z.ZodTypeAny>)[defName] : undefined;
+  return defName && Object.hasOwn(CommonSchemas, defName)
+    ? (CommonSchemas as Record<string, z.ZodTypeAny>)[defName]
+    : undefined;
 }
 
 /**
