@@ -42,8 +42,13 @@ function extractCapabilitiesEntry(
   if (!isPlainObject(rendererCapabilities)) {
     throw new A2uiValidationError('Renderer capabilities must be an object.');
   }
-  let entry: unknown = rendererCapabilities[key];
-  if (entry === undefined && ENTRY_FIELDS.some(field => field in rendererCapabilities)) {
+  let entry: unknown = Object.hasOwn(rendererCapabilities, key)
+    ? rendererCapabilities[key]
+    : undefined;
+  if (
+    entry === undefined &&
+    ENTRY_FIELDS.some(field => Object.hasOwn(rendererCapabilities, field))
+  ) {
     entry = rendererCapabilities;
   }
   if (entry === undefined || entry === null) {
@@ -131,7 +136,11 @@ export function resolveCatalogs(
     if (typeof document !== 'object' || document === null || Array.isArray(document)) {
       throw new A2uiCatalogError('Each entry in inlineCatalogs must be a catalog object');
     }
-    return catalogFromDocument(document as Record<string, unknown>, 'inline catalog');
+    return catalogFromDocument(
+      document as Record<string, unknown>,
+      'inline catalog',
+      key === 'v0.9' ? 'v0.9' : undefined,
+    );
   });
 
   const active: CatalogApi[] = [];
