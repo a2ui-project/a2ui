@@ -28,6 +28,69 @@
   candidate catalog. Its results are unchanged, except that a v0.8 update
   that follows a `deleteSurface` of its surface is now buffered, as a v0.8
   renderer does, instead of rejected.
+- `Parser.parse_response` and `Parser.open_stream` take an optional
+  `RendererState`. Without one, a call checks the response against an empty
+  state, as a chat turn that shows new UI: **BREAKING**, an update to a
+  surface the response does not create is now rejected, by
+  `A2uiRequestProcessor.parse_response` too. `validate_payload`, which checks
+  one payload with no record of earlier ones, still assumes such a surface
+  exists.
+- `parse_response` applies a response to the state all or nothing, and checks
+  the trees of the surfaces it touches once every block is applied, so a
+  component may name a child that a later block of the response adds. When
+  that check fails, the error's `partial_results` holds only the text, since
+  the check spans every block.
+- Add `RendererState.mark_checked(surface_ids)`, which stops holding the
+  components each surface changed against later `check_topology` calls. A
+  stream that fails after emitting messages, and a block cut off at the end
+  of a response, mark their surfaces checked: the renderer holds those
+  components and no message removes one, so later turns aren't required to
+  make them reachable.
+- Add `Parser.open_stream`, which returns a `ResponseStream` for one
+  response, with `feed` and `close`. Messages the stream emits are applied to
+  its state as they are emitted, and the stream checks each message against
+  the state instead of building a new `MessageProcessor` for every message on
+  every chunk. Only `updateComponents` and `updateDataModel` (v0.8's
+  `surfaceUpdate` and `dataModelUpdate`) are emitted while they grow; any
+  other message, such as `createSurface`, `deleteSurface` or
+  `callRendererFunction`, is held until its object closes. `close` emits text
+  still held back as a possible tag, raises `A2uiParseError` if a block is
+  still open, and checks the tree of an unwrapped stream. `ResponseStream` is
+  exported from `a2ui.parser` and `DirectJsonResponseStream` from
+  `a2ui.inference_formats.direct_json`.
+- `DirectJsonResponseStream` reads each chunk once. The scan for the close tag
+  and the read of the open block go on from where the previous chunk left
+  them, a message that has closed is not read or checked again, and a message
+  that grows is checked for what it gains: an `updateComponents` applies only
+  the components it added, and an `updateDataModel` is applied again once it
+  closes. Streaming a response of n components or n messages in small chunks
+  now takes time in proportion to n rather than its square.
+- **BREAKING**: `DirectJsonParser.compile` returns `AgentToRendererMessage`
+  models, as the other formats' `compile` does, rather than the decoded JSON
+  mappings. A message that matches no protocol version's message schema
+  raises `A2uiValidationError` there. Use `to_message_dicts` for the wire
+  form.
+- **BREAKING**: A parser holds no state, and the APIs that assumed one parser
+  per response are removed. To migrate:
+  - `Parser.parse_chunk(chunk, wrapped)`: open a stream with
+    `parser.open_stream(wrapped=...)` and call `feed(chunk)`, then `close()`.
+  - The `parser` property of `DirectJsonFormat`, `ExpressFormat`,
+    `ElementalFormat` and `AtomFormat`: use `create_parser()`.
+  - `validate_payload(..., surface_catalog_ids=...)`: check the payload
+    against a `RendererState` that saw the surfaces created.
+- **BREAKING**: `Parser.compile` only translates a block into messages: it
+  reports what the notation gets wrong, but does not check the messages
+  against the catalogs or a renderer state. `parse_response` and
+  `open_stream` compile and check, and `parse_response(block, wrapped=False)`
+  compiles and checks one block, which is what `compile` did before. A
+  `Parser` subclass also implements the `catalogs` property.
+  `_compile_raw_part` is removed.
+- **BREAKING**: Express, Elemental and Atom output is checked against the
+  catalogs and the surface trees like Direct JSON output. This rejects inline
+  child ids that collide with assigned variables, check lists on components
+  that declare none, and a function call given to a property with a static
+  type. Elemental output whose top-level element has no `id="root"` is
+  rejected, as its prompt requires.
 
 ## 0.9.0 (2026-10-17)
 

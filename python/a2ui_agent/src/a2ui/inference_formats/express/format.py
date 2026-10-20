@@ -22,7 +22,6 @@ from a2ui.inference_format import InferenceFormat
 from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import catalogs_protocol_version
 from a2ui.inference_formats._shared import check_mixed_catalogs
-from a2ui.parser import Parser
 
 from .parser import ExpressParser
 from .prompt_generator import ExpressPromptGenerator
@@ -87,11 +86,6 @@ class ExpressFormat(InferenceFormat):
     def create_parser(self) -> ExpressParser:
         """Creates a new parser instance configured for this Express format."""
         return ExpressParser(self._catalogs, self.surface_id, version=self._version)
-
-    @property
-    def parser(self) -> Parser:
-        """The parser instance configured for this Express format."""
-        return self.create_parser()
 
 
 class ExpressFormatFactory(InferenceFormatFactory):
