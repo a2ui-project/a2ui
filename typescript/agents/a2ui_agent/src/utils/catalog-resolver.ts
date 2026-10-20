@@ -23,7 +23,11 @@ import {toWireProtocolVersion} from './protocol-version.js';
 const ENTRY_FIELDS = ['supportedCatalogIds', 'inlineCatalogs'] as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === null || proto === Object.prototype;
 }
 
 function capabilitiesKeyFor(catalog: CatalogApi): string {
@@ -107,7 +111,8 @@ export function resolveCatalogs(
   }
 
   const key = capabilitiesKeyFor(agentCatalogs[0]);
-  for (const catalog of agentCatalogs.slice(1)) {
+  for (let i = 1; i < agentCatalogs.length; i++) {
+    const catalog = agentCatalogs[i];
     const otherKey = capabilitiesKeyFor(catalog);
     if (otherKey !== key) {
       throw new A2uiCatalogError(
