@@ -644,6 +644,9 @@ describe('RendererState', () => {
         }
       }),
     ).toThrow(TypeError);
+    // Until the promise settles, nothing changes the state.
+    expect(() => state.apply(update(text('a', 'Other')))).toThrow(TypeError);
+    expect(() => state.markChecked(['s'])).toThrow(TypeError);
     resume();
     await new Promise(resolve => setTimeout(resolve, 0));
 

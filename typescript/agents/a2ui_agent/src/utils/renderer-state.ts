@@ -263,6 +263,7 @@ export class RendererState {
    * in fails.
    */
   markChecked(surfaceIds: Iterable<string>): void {
+    this.checkNoRunaway();
     for (const surfaceId of new Set(surfaceIds)) {
       this.forgetChanged(surfaceId);
     }
@@ -280,7 +281,7 @@ export class RendererState {
    * A JavaScript caller can still pass a function that returns a promise. The transaction
    * then restores the state and throws, but the promise keeps running, and nothing it does
    * after its first `await` could be rolled back. So until it settles, `apply`,
-   * `transaction` and `checkTopology` throw `TypeError`, whoever calls them, and a rejection
+   * `transaction`, `checkTopology` and `markChecked` throw `TypeError`, whoever calls them, and a rejection
    * of the promise is handled, since the caller never got the promise to handle it.
    *
    * @returns What `fn` returns.
