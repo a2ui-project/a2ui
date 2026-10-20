@@ -4,3 +4,7 @@
 dist
 node_modules
 *.tsbuildinfo
+.wireit
+src/catalog.json
+src/shared
+tests/fixtures/generated
