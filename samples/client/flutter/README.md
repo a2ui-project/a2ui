@@ -7,6 +7,9 @@ cd <example_name>/app
 flutter run -d web
 ```
 
+The renderer package has a chat app of its own that renders what a Gemini
+model writes, [dart/a2ui_flutter/example](../../../dart/a2ui_flutter/example).
+
 ## Supported platforms
 
 Flutter packages are enabled and tested for two platforms: `macos` and `web`. To build and test on other platforms, follow [Flutter documentation](https://docs.flutter.dev/platform-integration).
