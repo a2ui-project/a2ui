@@ -38,12 +38,17 @@ Implemented:
   format. Both format factories take `allowedMessages`, which limits the
   prompt to the message types the model may write.
 - `A2uiRequestProcessor.parseResponse` compiles each payload block into
-  messages and checks them the way a renderer would.
+  messages and checks them against a `RendererState`, the agent's mirror of
+  the surfaces a renderer holds, as described in
+  [Chat and canvas](#chat-and-canvas).
+- `validatePayload` checks one payload on its own, such as the argument of a
+  tool call.
 - Prompt examples are checked against the active catalogs, and written in the
   format, when a processor is created.
 - For both formats, `Parser` wraps and unwraps responses, and compiles and
-  decompiles payloads. The direct JSON parser also reads a streamed response
-  through `parseChunk`.
+  decompiles payloads. A parser holds no state, so one parser reads every
+  response of a request. The direct JSON parser also reads a streamed
+  response through the `ResponseStream` that `openStream` returns.
 
 What v1.0 adds to both formats:
 
@@ -58,7 +63,7 @@ What v1.0 adds to both formats:
   A parser and `processor.parseResponse` accept a call only to a function
   whose `allowedCallers` lets the agent call it and that needs no user
   activation, as `a2ui_core`'s `MessageProcessor.forAgent` checks, so
-  `parseChunk` never emits a call the renderer would reject. In Express it is a
+  `openStream` never emits a call the renderer would reject. In Express it is a
   function call written as a statement of its own, and the prompt names the
   functions that can be called this way.
 - The direct JSON parser holds a streamed component back until its object
@@ -93,24 +98,50 @@ final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
 To show the UI while the model is still writing it, read a direct JSON
-response as it streams, with a parser for the negotiated catalogs. Each part
+response as it streams, through a stream opened for that response. Each part
 carries the text, or the messages, that are new or changed since the previous
-chunk:
+chunk. Call `close` after the last chunk: it returns the text held back as a
+possible tag, and throws if a block is still open:
 
 ```dart
-final Parser parser = const DirectJsonFormatFactory(
-  progressiveKeys: {'text'},
-).createFormat(processor.activeCatalogs).createParser();
+final ResponseStream stream = processor.openStream();
 await for (final String chunk in llmStream) {
-  for (final ResponsePart part in parser.parseChunk(chunk)) {
-    deliver(part);
-  }
+  stream.feed(chunk).forEach(deliver);
 }
+stream.close().forEach(deliver);
 ```
 
-A streamed message is checked on its own. `processor.parseResponse` on the
-whole response also runs the checks that need the whole surface, such as a
-reachable root.
+To heal a string while it streams, such as the text of a `Text` component,
+name its key in `progressiveKeys` of the `DirectJsonFormatFactory` given to
+the generator.
+
+### Chat and canvas
+
+Each response is checked against a `RendererState`, which holds the surfaces
+a renderer holds and checks each message against everything sent before it.
+How long the state lives depends on how the agent shows UI:
+
+1. In a chat, each turn shows new UI. Pass no state, and each call checks the
+   response against a new, empty one, so an update to a surface the response
+   does not create is rejected.
+2. In a canvas, turns update the surfaces that earlier turns created. Keep one
+   state for the conversation, created by `processor.createState()`, and pass
+   it to `parseResponse` or `openStream` on every turn, or bind it with
+   `generator.createProcessor(capabilities, state: state)`.
+
+A response parsed whole is applied to the state all or nothing, and the
+trees of the surfaces it touches are checked once every block is applied. A
+streamed response applies each message as it is emitted, so the state matches
+what the renderer received even when the response fails part way.
+
+```dart
+final RendererState canvas = processor.createState();
+// On every turn:
+final List<ResponsePart> parts = processor.parseResponse(
+  llmOutput,
+  state: canvas,
+);
+```
 
 ## Tests
 
