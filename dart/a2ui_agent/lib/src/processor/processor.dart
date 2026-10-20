@@ -17,7 +17,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 import '../inference_format.dart';
 import '../inference_formats/direct_json/format.dart';
 import '../parser/response_part.dart';
-import 'validation.dart';
+import '../utils/renderer_state.dart';
+import '../utils/validation.dart';
 
 /// The per-request facade: the catalogs negotiated with one renderer, the
 /// prompt snippet describing them, and parsing of the LLM's response.
@@ -40,14 +41,16 @@ class A2uiRequestProcessor {
 
   final InferenceFormat _format;
 
-  /// Checks each of [examples] on its own, as a renderer holding
-  /// [activeCatalogs] would check it on surfaces that start empty, and then
+  /// Checks each of [examples] on its own with [validatePayload], and then
   /// renders [promptSnippet], which writes each example in the format.
   ///
-  /// Throws the [A2uiError] that renderer would report for the first message
-  /// it rejects, such as an [A2uiValidationError] for a component the
-  /// catalogs do not declare, and the [A2uiValidationError] the format
-  /// reports for an example it cannot write.
+  /// An example may update a surface it does not create, which is assumed
+  /// to exist.
+  ///
+  /// Throws the [A2uiValidationError] a renderer would report for the first
+  /// message it rejects, such as one for a component the catalogs do not
+  /// declare, and the [A2uiValidationError] the format reports for an
+  /// example it cannot write.
   A2uiRequestProcessor({
     required this.activeCatalogs,
     this.examples = const [],
@@ -57,7 +60,7 @@ class A2uiRequestProcessor {
          examples: examples,
        ) {
     for (final List<AgentToRendererMessage> example in examples) {
-      validatePayloads(activeCatalogs, [example]);
+      validatePayload(activeCatalogs, example);
     }
     // Writing the examples in the format can fail too, so it happens here.
     if (examples.isNotEmpty) {
@@ -77,20 +80,34 @@ class A2uiRequestProcessor {
   /// Parses a complete LLM response into text and A2UI messages of the
   /// active catalogs' protocol version, in the order the LLM emitted them.
   ///
-  /// Each payload block becomes one [A2uiPart], checked as a renderer holding
-  /// [activeCatalogs] would check it.
+  /// Each payload block becomes one [A2uiPart]. The response is checked as
+  /// a whole against a new [RendererState] holding [activeCatalogs], as a
+  /// chat turn that shows new UI: a block may refer to components an earlier
+  /// block added, and the trees of the surfaces the response touches are
+  /// checked once every block is applied.
   ///
-  /// Throws [A2uiParseError] if a block cannot be read, [A2uiValidationError]
-  /// if a block uses anything the catalogs do not declare, and another
-  /// [A2uiError] if a renderer would reject the messages, such as an
-  /// [A2uiIntegrityError] for a component nothing reaches from `root`.
+  /// Throws [A2uiParseError] if a block cannot be read, and
+  /// [A2uiValidationError] if a renderer would reject the messages, such as
+  /// one for a component the catalogs do not declare, or an
+  /// [A2uiIntegrityError] for an update to a surface the response does not
+  /// create or a component nothing reaches from `root`.
   List<ResponsePart> parseResponse(String content) {
     final List<ResponsePart> parts = _format.createParser().parseResponse(
       content,
     );
-    validatePayloads(activeCatalogs, [
-      for (final A2uiPart part in parts.whereType<A2uiPart>()) part.a2ui,
-    ]);
+    final List<A2uiPart> blocks = parts.whereType<A2uiPart>().toList();
+    if (blocks.every((A2uiPart block) => block.a2ui.isEmpty)) return parts;
+    final state = RendererState(activeCatalogs);
+    try {
+      state.transaction(() {
+        final touched = <String>{
+          for (final A2uiPart block in blocks) ...state.apply(block.a2ui),
+        };
+        state.checkTopology(touched);
+      });
+    } finally {
+      state.dispose();
+    }
     return parts;
   }
 }
