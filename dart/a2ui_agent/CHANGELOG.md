@@ -8,6 +8,9 @@
   publishes this version raises the `a2ui_core` constraint to `^0.3.1` along
   with that `a2ui_core` release; until then the workspace resolves
   `a2ui_core` from this repository.
+- The Express compiler throws `A2uiValidationError` for a check on a
+  component whose schema declares no `checks`, such as
+  `Text("hi", ?required($/name))`, rather than writing `checks` onto it.
 - Add `RendererState`, the agent's mirror of the surfaces a renderer holds.
   It wraps one `MessageProcessor` for its whole life and checks each message
   against everything applied before it, so an agent that keeps one state for
