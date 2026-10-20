@@ -1,6 +1,25 @@
 {
   "name": "@a2ui/catalog-mcp",
-  "private": true,
+  "version": "0.0.1",
+  "description": "A2UI MCP catalog: calls MCP tools and applies the A2UI messages found in their results and UI resources.",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/catalogs/mcp",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "mcp",
+    "ai",
+    "agent",
+    "ui",
+    "catalog"
+  ],
+  "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -16,6 +35,8 @@
     "dist"
   ],
   "scripts": {
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
     "copy-catalog": "node scripts/copy-catalog.js",
     "build": "yarn copy-catalog && tsc -b --pretty",
     "clean": "rm -rf dist src/catalog.json",
