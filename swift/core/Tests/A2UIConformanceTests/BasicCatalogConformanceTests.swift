@@ -20,9 +20,15 @@ import Testing
 
 @MainActor
 private final class ConformanceMockFunctionHandler: FunctionHandler {
-  private let functionsMap: [String: any FunctionImplementation] = Dictionary(
-    uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
-  )
+  private let functionsMap: [String: any FunctionImplementation]
+
+  init(
+    functionsMap: [String: any FunctionImplementation] = Dictionary(
+      uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
+    )
+  ) {
+    self.functionsMap = functionsMap
+  }
 
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
     functionsMap[named]
@@ -32,6 +38,17 @@ private final class ConformanceMockFunctionHandler: FunctionHandler {
 @MainActor
 struct BasicCatalogConformanceTests {
   private let functionHandler = ConformanceMockFunctionHandler()
+  /// Handlers holding each protocol version's Basic Catalog functions. Stored here because
+  /// `DataContext` keeps its function handler weakly.
+  private let versionedFunctionHandlers = Dictionary(
+    uniqueKeysWithValues: A2UIProtocolVersion.allCases.map {
+      (
+        $0,
+        ConformanceMockFunctionHandler(
+          functionsMap: BasicCatalog.makeCatalog(version: $0).functions)
+      )
+    }
+  )
 
   @Test func formatStringAndExpressionParser() throws {
     let dataModel = DataModel(
@@ -64,13 +81,6 @@ struct BasicCatalogConformanceTests {
     let cases = (rawYAML as? [[String: Any]]) ?? []
     #expect(!cases.isEmpty, "core/functions.yaml should hold test cases")
 
-    let v09Functions: [String: any FunctionImplementation] = Dictionary(
-      uniqueKeysWithValues: BasicFunctions.v09Functions.map { ($0.api.name, $0) }
-    )
-    let v10Functions: [String: any FunctionImplementation] = Dictionary(
-      uniqueKeysWithValues: BasicFunctions.v10Functions.map { ($0.api.name, $0) }
-    )
-
     for testCase in cases {
       guard let action = testCase["action"] as? String, action == "evaluate_function" else {
         continue
@@ -91,7 +101,7 @@ struct BasicCatalogConformanceTests {
         Issue.record("\(name): unsupported protocol version \(rawVersion)")
         continue
       }
-      let functionsMap = protocolVersion.isAtLeastV10 ? v10Functions : v09Functions
+      let functionsMap = BasicCatalog.makeCatalog(version: protocolVersion).functions
 
       guard let fn = functionsMap[funcName] else {
         Issue.record("\(name): function '\(funcName)' not found for \(protocolVersion.rawValue)")
@@ -103,7 +113,15 @@ struct BasicCatalogConformanceTests {
           ConformanceTestHelper.toJSONValue($0)
         } ?? .object([:])
       let model = DataModel(initial: dataModelDict)
-      let context = DataContext(dataModel: model, path: "/", functionHandler: functionHandler)
+      // Functions that evaluate through the context (such as formatString) resolve
+      // against the same catalog version as the function under test.
+      let versionedHandler = try #require(versionedFunctionHandlers[protocolVersion])
+      let context = DataContext(
+        dataModel: model,
+        path: "/",
+        functionHandler: versionedHandler,
+        protocolVersion: protocolVersion
+      )
 
       let rawArgs = (testCase["args"] as? [String: Any]) ?? [:]
       var swiftArgs: [String: JSONValue] = [:]
