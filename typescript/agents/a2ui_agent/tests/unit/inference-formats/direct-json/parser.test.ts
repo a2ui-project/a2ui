@@ -135,7 +135,9 @@ describe('DirectJsonParser', () => {
           new Catalog('https://a2ui.org/catalogs/custom', version, [], []),
         ];
         expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
-        expect(new DirectJsonFormatFactory().createFormat(catalogs).catalogs).toEqual(catalogs);
+        const formatParser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
+        expect(formatParser).toBeInstanceOf(DirectJsonParser);
+        expect((formatParser as DirectJsonParser).catalogs).toEqual(catalogs);
       },
     );
 
@@ -145,23 +147,23 @@ describe('DirectJsonParser', () => {
         new Catalog('https://a2ui.org/catalogs/custom', 'v0.9.1', [], []),
       ];
       expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
-      expect(new DirectJsonFormatFactory().createFormat(catalogs).catalogs).toEqual(catalogs);
+      const formatParser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
+      expect(formatParser).toBeInstanceOf(DirectJsonParser);
+      expect((formatParser as DirectJsonParser).catalogs).toEqual(catalogs);
     });
 
     it('throws A2uiValidationError on missing version', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
       expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(
-        /expected "v1\.0" at 'version'|states no version/,
-      );
+      expect(() => parser.compile(payload)).toThrow(/Message 0 states no version/);
     });
 
     it('throws A2uiValidationError on mismatched version', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"version": "v0.9", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
       expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(/expected "v1\.0" at 'version'/);
+      expect(() => parser.compile(payload)).toThrow(/Message 0 states version 'v0\.9'/);
     });
 
     it('throws A2uiValidationError on unknown component', () => {
