@@ -171,18 +171,50 @@ class SurfaceComponentsModel {
 
   /// Adds a component to the model.
   void addComponent(ComponentModel component) {
+    _checkNew(component);
+    _components[component.id] = component;
+    if (_catalogIds case final List<String?> catalogIds
+        when !catalogIds.contains(component.catalog)) {
+      catalogIds.add(component.catalog);
+    }
+    _added(component);
+  }
+
+  /// Adds a component to the model at [index] in insertion order, moving the
+  /// components from [index] on one place later.
+  ///
+  /// Unlike [addComponent], which is constant time, this takes time
+  /// proportional to [size]. It puts back a component at the place it held,
+  /// such as when a change is undone; the order matters because [values] and
+  /// the catalogs a surface's references are read through follow it.
+  ///
+  /// Throws [A2uiStateError] if the model already holds a component with the
+  /// same id, and [RangeError] if [index] is not between 0 and [size].
+  void insertComponent(int index, ComponentModel component) {
+    _checkNew(component);
+    RangeError.checkValueInInterval(index, 0, _components.length, 'index');
+    final List<MapEntry<String, ComponentModel>> later =
+        _components.entries.skip(index).toList();
+    for (final entry in later) {
+      _components.remove(entry.key);
+    }
+    _components[component.id] = component;
+    _components.addEntries(later);
+    _catalogIds = null;
+    _added(component);
+  }
+
+  void _checkNew(ComponentModel component) {
     if (_components.containsKey(component.id)) {
       throw A2uiStateError(
         "Component with id '${component.id}' already exists.",
       );
     }
-    _components[component.id] = component;
+  }
+
+  void _added(ComponentModel component) {
     _changes++;
     component.onUpdated.subscribe((_) => _changes++);
-    if (_catalogIds case final List<String?> catalogIds
-        when !catalogIds.contains(component.catalog)) {
-      catalogIds.add(component.catalog);
-    }
     _onCreated.emit(component);
   }
 

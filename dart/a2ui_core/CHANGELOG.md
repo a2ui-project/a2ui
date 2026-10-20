@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added `SurfaceComponentsModel.insertComponent`, which adds a component at
+  a given position in the model's order rather than at the end, for putting
+  a component back where it was.
+
 - Extracted `ComponentGraphBound` for incremental `SurfaceComponentsModel`
   component graph checks and optimized its initial height traversal to linear
   time.

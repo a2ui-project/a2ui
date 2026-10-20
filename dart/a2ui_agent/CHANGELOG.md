@@ -17,7 +17,10 @@
   - Being atomic costs what the messages change, not the size of the
     surfaces they touch: the state keeps an undo log of what each message
     replaced instead of copying a surface, so the time to apply n messages
-    to one surface grows with n.
+    to one surface grows with n. A rollback keeps the order of a surface's
+    components, puts a deleted surface's data model back as it was, however
+    deep, and undoes the whole log even if one step of it fails, rethrowing
+    the error that caused the rollback.
   - `checkTopology` checks the trees of the given surfaces: the root exists,
     every reference resolves, and every component added or replaced since
     the last check is reachable from the root. A component that an update

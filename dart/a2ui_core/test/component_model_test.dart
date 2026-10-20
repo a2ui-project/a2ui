@@ -96,6 +96,46 @@ void main() {
       expect(model.getAll().map((c) => c.id), ['root', 'a']);
     });
 
+    test('insertComponent adds a component at a position', () {
+      final created = <String>[];
+      model.onCreated.subscribe((c) => created.add(c.id));
+      expect(model.catalogIds, [null]);
+
+      model.insertComponent(
+        1,
+        ComponentModel('b', 'Text', {'text': 'y'}, catalog: 'other'),
+      );
+      model.insertComponent(0, ComponentModel('c', 'Text', {'text': 'z'}));
+      model.insertComponent(4, ComponentModel('d', 'Text', {'text': 'w'}));
+
+      expect(model.keys, ['c', 'root', 'b', 'a', 'd']);
+      expect(created, ['b', 'c', 'd']);
+      expect(model.catalogIds, [null, 'other']);
+      expect(
+        () => model.insertComponent(0, ComponentModel('a', 'Text', {})),
+        throwsA(isA<A2uiStateError>()),
+      );
+      expect(
+        () => model.insertComponent(6, ComponentModel('e', 'Text', {})),
+        throwsRangeError,
+      );
+      expect(model.keys, ['c', 'root', 'b', 'a', 'd']);
+    });
+
+    test('insertComponent puts catalogs in the order of the components', () {
+      model.addComponent(
+        ComponentModel('b', 'Text', {'text': 'y'}, catalog: 'later'),
+      );
+      expect(model.catalogIds, [null, 'later']);
+
+      model.insertComponent(
+        0,
+        ComponentModel('c', 'Text', {'text': 'z'}, catalog: 'first'),
+      );
+
+      expect(model.catalogIds, ['first', null, 'later']);
+    });
+
     test('getChildIds lists referenced ids, including unresolved ones', () {
       expect(model.getChildIds('root'), ['a', 'b']);
       expect(model.getChildIds('a'), isEmpty);

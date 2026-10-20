@@ -65,8 +65,11 @@ typedef _Undo = void Function();
 /// they touch. While an [apply] or a transaction is open, the state keeps an
 /// undo log: each message records what it replaced, and a failure reverts
 /// those records, latest first. A deleted surface is the one change recorded
-/// whole, and it is restored by replaying it through the processor. No
-/// surface is copied when a message is applied or a transaction opens.
+/// whole: it is restored by replaying its creation and its components
+/// through the processor, then writing its data model back. A component an
+/// update recreated, by changing its type or catalog, is put back at its
+/// place, so a rollback keeps the order of the components. No surface is
+/// copied when a message is applied or a transaction opens.
 ///
 /// The state holds the surfaces as they now stand, not the messages that
 /// built them. An update to a surface the state never saw created is
@@ -267,9 +270,13 @@ class RendererState {
   }
 
   /// Undoes the changes logged after [mark], latest first.
+  ///
+  /// An undo that throws does not stop the others, so the rest of the log
+  /// is still undone. Its error is dropped: the caller rethrows the error
+  /// that caused the rollback.
   void _revert(int mark) {
     while (_log.length > mark) {
-      _log.removeLast()();
+      _undoQuietly(_log.removeLast());
     }
   }
 
@@ -325,7 +332,7 @@ class RendererState {
     try {
       _processUnlogged([message]);
     } catch (_) {
-      undo?.call();
+      if (undo != null) _undoQuietly(undo);
       rethrow;
     }
     if (undo != null) _record(undo);
@@ -361,18 +368,36 @@ class RendererState {
   /// The core updates a component in place when the update keeps its type
   /// and catalog, so the record holds a copy of the component's previous
   /// properties and metadata, not the maps the update replaces them with.
+  ///
+  /// A component whose type or catalog changes is recreated at the end of
+  /// the surface, so for one the update may recreate, the record also holds
+  /// its position, which the undo puts it back at. The order matters: the
+  /// catalogs a surface's references are read through follow it. Finding
+  /// the position costs the size of the surface, as recreating the component
+  /// does.
   _Undo? _componentsRestorer(UpdateComponentsMessage message) {
     final String surfaceId = message.surfaceId;
     final SurfaceModel<ComponentApi>? surface = getSurface(surfaceId);
     if (surface == null) return null;
+    final SurfaceComponentsModel model = surface.componentsModel;
     final previous = <_ComponentRecord>[];
+    Map<String, int>? positions;
     for (final Map<String, Object?> component in message.components) {
       if (component['id'] case final String id) {
-        final ComponentModel? existing = surface.componentsModel.get(id);
+        final ComponentModel? existing = model.get(id);
+        int? index;
+        if (existing != null && _mayRecreate(component, existing)) {
+          positions ??= {
+            for (final (int position, String key) in model.keys.indexed)
+              key: position,
+          };
+          index = positions[id];
+        }
         previous.add(
           _ComponentRecord(
             id,
             existing,
+            index,
             existing?.properties,
             existing == null
                 ? const {}
@@ -385,37 +410,79 @@ class RendererState {
     if (previous.isEmpty) return null;
     return () {
       // Found again by id: undoing a later delete replays the surface into
-      // new objects.
+      // new objects, in the order it had.
       final SurfaceComponentsModel? components = getSurface(
         surfaceId,
       )?.componentsModel;
       if (components == null) return;
+      final recreated = <_ComponentRecord>[];
       for (final _ComponentRecord record in previous.reversed) {
         final ComponentModel? existing = record.existing;
         final ComponentModel? current = components.get(record.id);
         if (existing == null) {
           components.removeComponent(record.id);
-        } else if (identical(current, existing)) {
+        } else if (current != null &&
+            current.type == existing.type &&
+            current.catalog == existing.catalog) {
           // Left as it was when the message failed before changing it.
-          if (identical(current!.properties, record.properties)) continue;
+          if (identical(current, existing) &&
+              identical(current.properties, record.properties)) {
+            continue;
+          }
           current.metadata = record.metadata;
           current.properties = record.copy;
         } else {
           // The update replaced the component with one of another type or
           // catalog, and the core disposed of the old one.
           components.removeComponent(record.id);
-          components.addComponent(
-            ComponentModel(
-              record.id,
-              existing.type,
-              record.copy,
-              catalog: existing.catalog,
-              metadata: record.metadata,
-            ),
-          );
+          recreated.add(record);
+        }
+      }
+      // Put back in the order they held, each at its position among the
+      // components already back in place. One without a position, which
+      // only an update that recreates a component it was not expected to
+      // can leave, goes at the end.
+      recreated.sort(
+        (a, b) => switch ((a.index, b.index)) {
+          (final int x, final int y) => x.compareTo(y),
+          (null, null) => 0,
+          (null, _) => 1,
+          (_, null) => -1,
+        },
+      );
+      for (final record in recreated) {
+        final ComponentModel existing = record.existing!;
+        final restored = ComponentModel(
+          record.id,
+          existing.type,
+          record.copy,
+          catalog: existing.catalog,
+          metadata: record.metadata,
+        );
+        final int? index = record.index;
+        if (index == null) {
+          components.addComponent(restored);
+        } else {
+          components.insertComponent(index, restored);
         }
       }
     };
+  }
+
+  /// Whether [component], an entry of an `updateComponents`, may recreate
+  /// [existing] rather than update it in place: it names another type, or
+  /// another catalog than the one [existing] names. An entry that names its
+  /// type and omits `catalogId` belongs to the surface's catalog; one that
+  /// omits both keeps the component's catalog.
+  static bool _mayRecreate(
+    Map<String, Object?> component,
+    ComponentModel existing,
+  ) {
+    final Object? type = component['component'];
+    if (type != null && type != existing.type) return true;
+    final Object? catalogId =
+        component['catalogId'] ?? (type == null ? existing.catalog : null);
+    return catalogId != existing.catalog;
   }
 
   /// Records the data model value an `updateDataModel` replaces.
@@ -475,11 +542,17 @@ class RendererState {
 
   /// Records a surface that a message deletes, whole.
   ///
-  /// It is restored by replaying it through the processor. A component that
-  /// names a catalog of its own keeps its `catalogId`, so a surface whose
-  /// components come from several catalogs comes back as it was. The
-  /// properties and the data model are copied, since the surface is disposed
-  /// of once deleted.
+  /// It is restored by replaying its creation and its components through the
+  /// processor, in the order they had. A component that names a catalog of
+  /// its own keeps its `catalogId`, so a surface whose components come from
+  /// several catalogs comes back as it was. The properties are copied, since
+  /// the surface is disposed of once deleted.
+  ///
+  /// The data model is written straight back to the restored surface rather
+  /// than replayed: as one value it may be deeper than a message may be,
+  /// although each message that built it was within the limit. Nothing
+  /// changes the deleted surface's data model, so it is held as it is, and
+  /// the write copies it.
   _Undo _surfaceRestorer(SurfaceModel<ComponentApi> surface) {
     final String surfaceId = surface.id;
     final String version = surface.protocolVersion ?? _defaultVersion;
@@ -512,17 +585,13 @@ class RendererState {
           surfaceId: surfaceId,
           components: components,
         ),
-      if (data is! Map || data.isNotEmpty)
-        UpdateDataModelMessage(
-          version: version,
-          surfaceId: surfaceId,
-          path: '/',
-          value: _deepCopy(data),
-        ),
     ];
     return () {
       if (getSurface(surfaceId) != null) return;
       _processUnlogged(messages);
+      if (data is! Map || data.isNotEmpty) {
+        getSurface(surfaceId)!.dataModel.set('/', data);
+      }
     };
   }
 
@@ -704,6 +773,16 @@ T _asValidationError<T>(T Function() body) {
   }
 }
 
+/// Runs [undo] and drops what it throws, so that a failed undo neither stops
+/// a rollback nor hides the error that caused it.
+void _undoQuietly(_Undo undo) {
+  try {
+    undo();
+  } catch (_) {
+    // Dropped; the error that caused the rollback propagates.
+  }
+}
+
 /// The surface [message] targets, or null.
 String? _target(AgentToRendererMessage message) => switch (message) {
   CreateSurfaceMessage(:final String surfaceId) => surfaceId,
@@ -764,6 +843,7 @@ class _ComponentRecord {
   const _ComponentRecord(
     this.id,
     this.existing,
+    this.index,
     this.properties,
     this.copy,
     this.metadata,
@@ -773,6 +853,10 @@ class _ComponentRecord {
 
   /// The component the update found, or null if it added a new one.
   final ComponentModel? existing;
+
+  /// The position [existing] held in its surface, if the update may
+  /// recreate it.
+  final int? index;
 
   /// The properties map [existing] held, to tell whether the update replaced
   /// it.
@@ -814,11 +898,17 @@ String _toPointer(List<String> tokens) => tokens.isEmpty
   return (false, null);
 }
 
-/// A deep copy of [value], a JSON value.
+/// A deep copy of [value], a JSON value. A map whose keys are all strings is
+/// copied as a `Map<String, dynamic>`, and any other keeps its keys.
 Object? _deepCopy(Object? value) => switch (value) {
-  final Map<Object?, Object?> map => <String, dynamic>{
+  final Map<Object?, Object?> map when map.keys.every((k) => k is String) =>
+    <String, dynamic>{
+      for (final MapEntry<Object?, Object?> entry in map.entries)
+        entry.key! as String: _deepCopy(entry.value),
+    },
+  final Map<Object?, Object?> map => <Object?, Object?>{
     for (final MapEntry<Object?, Object?> entry in map.entries)
-      entry.key! as String: _deepCopy(entry.value),
+      entry.key: _deepCopy(entry.value),
   },
   final List<Object?> list => [
     for (final Object? item in list) _deepCopy(item),
