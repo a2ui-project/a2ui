@@ -22,6 +22,10 @@ deselects that marker, so `uv run pytest` skips them, and
 
 A test asks for the `timing` fixture to write a case's payload and to compare
 the times of two calls.
+
+This is a plain module rather than a conftest so that the test suites of other
+packages can load it too: a test directory's `conftest.py` loads it by path and
+exposes `timing` (see `conftest.py` in this directory).
 """
 
 from __future__ import annotations
