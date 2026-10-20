@@ -93,7 +93,7 @@ UNRUNNABLE_SUITES: dict[str, str] = {
 
 # Actions that time an operation rather than check what it returns. Their cases
 # run in `test_conformance_timing`, which is marked `performance` and so runs
-# only under `uv run pytest -m performance` (see python/conftest.py).
+# only under `uv run pytest -m performance` (see timing_harness.py).
 TIMING_ACTIONS = {"measure_growth", "measure_overhead"}
 
 # Root core conformance directory resolution
@@ -765,8 +765,7 @@ def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
         parts = [p for p in data_path.strip("/").split("/") if p]
         idx_suffix = parts[-1] if parts and parts[-1].isdigit() else None
         if idx_suffix is not None:
-            known_ids = set(surface.components_model.keys)
-            for child_id, _ in comp.get_child_references(known_ids):
+            for child_id, _ in comp.get_child_references():
                 _resolve_one(child_id, data_path, f"{child_id}_{idx_suffix}")
                 _resolve_one(child_id, data_path, f"{child_id}-[{data_path}]")
 
