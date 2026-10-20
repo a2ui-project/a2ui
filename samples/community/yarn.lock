@@ -5367,9 +5367,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "a2ui-over-mcp-filesystem-client@workspace:mcp/a2ui-over-mcp-filesystem/client"
   dependencies:
-    "@a2ui/lit": "npm:^0.10.0"
     "@a2ui/markdown-it": "npm:*"
-    "@a2ui/web_core": "npm:^0.10.0"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
@@ -5407,9 +5405,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "a2ui-over-mcp-recipe-client@workspace:mcp/a2ui-over-mcp-recipe/client"
   dependencies:
-    "@a2ui/lit": "npm:^0.10.0"
     "@a2ui/markdown-it": "npm:*"
-    "@a2ui/web_core": "npm:^0.10.0"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
@@ -5418,7 +5414,6 @@ __metadata:
     typescript: "npm:5.9.3"
     vite: "npm:^8.0.16"
     vitest: "npm:^4.1.8"
-    zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
 
