@@ -203,9 +203,16 @@ function batchGraph<T extends ComponentApi>(
 /**
  * Whether the composition constraints hold on the components a batch
  * affects, which are the only ones whose parents, children or types it
- * changes: its own, the children they reference before and after it, and
- * the components that reference them. The rest passed the check of an
- * earlier batch and are unchanged.
+ * changes. The rest passed the check of an earlier batch and are unchanged.
+ *
+ * A component of the batch is checked against its parents and all of its
+ * children. A child it references before or after it, outside the batch, may
+ * have another parent, so only its parents are checked. A component outside
+ * the batch that references a component of the batch keeps its parents and
+ * children, but that child may now be of another type, so only the children
+ * of the batch it references are checked. A container that holds many
+ * children, receiving one per message, is then checked against one child
+ * per message rather than all of them.
  */
 function compositionHolds<T extends ComponentApi>(
   surface: SurfaceModel<T>,
@@ -219,43 +226,70 @@ function compositionHolds<T extends ComponentApi>(
   const typeMap = {
     get: (id: string) => batch.types.get(id) ?? model.get(id)?.type,
   };
-  const affected = new Set<string>();
+  // Children outside the batch whose parents may have changed.
+  const moved = new Set<string>();
+  // Components outside the batch that reference components of the batch,
+  // with the components of the batch they reference.
+  const holding = new Map<string, string[]>();
   for (const [id, children] of batch.children) {
-    affected.add(id);
-    for (const child of children) affected.add(child);
-    for (const child of previousChildren.get(id) ?? []) affected.add(child);
-    for (const parent of bound.parentsOf(id)) affected.add(parent);
-  }
-  try {
-    for (const id of affected) {
-      const componentType = typeMap.get(id);
-      if (!componentType) continue;
-      const catalog = batch.catalogs.get(id) ?? (model.get(id)?.catalog as Catalog<T> | undefined);
-      const componentApi = catalog?.components.get(componentType);
-      if (!componentApi) continue;
-      if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
-        const parents = Array.from(bound.parentsOf(id), parentId => ({
-          parentId,
-          parentType: typeMap.get(parentId) || 'Unknown',
-        }));
-        validateParentConstraints(
-          id,
-          componentType,
-          componentApi.allowedParents,
-          parents,
-          validationConfig,
-        );
-      }
-      if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
-        validateChildConstraints(
-          id,
-          componentType,
-          componentApi.allowedChildren,
-          bound.childrenOf(id),
-          typeMap,
-        );
+    for (const child of children) {
+      if (!batch.children.has(child)) moved.add(child);
+    }
+    for (const child of previousChildren.get(id) ?? []) {
+      if (!batch.children.has(child)) moved.add(child);
+    }
+    for (const parent of bound.parentsOf(id)) {
+      if (batch.children.has(parent)) continue;
+      const held = holding.get(parent);
+      if (held) {
+        held.push(id);
+      } else {
+        holding.set(parent, [id]);
       }
     }
+  }
+
+  const componentApiOf = (id: string): {componentType: string; componentApi: T} | undefined => {
+    const componentType = typeMap.get(id);
+    if (!componentType) return undefined;
+    const catalog = batch.catalogs.get(id) ?? (model.get(id)?.catalog as Catalog<T> | undefined);
+    const componentApi = catalog?.components.get(componentType);
+    return componentApi ? {componentType, componentApi} : undefined;
+  };
+  const checkParents = (id: string) => {
+    const entry = componentApiOf(id);
+    if (!entry) return;
+    const {componentType, componentApi} = entry;
+    if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
+      const parents = Array.from(bound.parentsOf(id), parentId => ({
+        parentId,
+        parentType: typeMap.get(parentId) || 'Unknown',
+      }));
+      validateParentConstraints(
+        id,
+        componentType,
+        componentApi.allowedParents,
+        parents,
+        validationConfig,
+      );
+    }
+  };
+  const checkChildren = (id: string, children: readonly string[]) => {
+    const entry = componentApiOf(id);
+    if (!entry) return;
+    const {componentType, componentApi} = entry;
+    if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
+      validateChildConstraints(id, componentType, componentApi.allowedChildren, children, typeMap);
+    }
+  };
+
+  try {
+    for (const id of batch.children.keys()) {
+      checkParents(id);
+      checkChildren(id, bound.childrenOf(id));
+    }
+    for (const id of moved) checkParents(id);
+    for (const [id, held] of holding) checkChildren(id, held);
   } catch {
     return false;
   }
