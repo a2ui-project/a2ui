@@ -73,7 +73,18 @@ SUPPORTED_PROTOCOL_VERSIONS = {
     "1.0",
 }
 
-SKIP_TEST_NAMES: set[str] = set()
+SKIP_TEST_NAMES: set[str] = {
+    # A known difference of the Python core: its topology checks read a v0.8
+    # string property as a child reference when it names a component the
+    # surface holds, which the TypeScript and Kotlin cores do not.
+    "test_v08_topology_plain_string_property_not_treated_as_child_ref",
+    "test_v08_topology_plain_string_property_does_not_close_cycle",
+    # The topology checks read an array property whose items are ComponentId
+    # as a reference only when one of its items names a held component, so a
+    # dangling item is not reported. #3346 fixes this.
+    "test_v09_topology_component_id_array_dangling_reference_error",
+    "test_v10_topology_component_id_array_dangling_reference_error",
+}
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()

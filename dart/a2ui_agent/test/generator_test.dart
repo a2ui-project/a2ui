@@ -58,6 +58,9 @@ class _TextParser extends Parser {
   const _TextParser();
 
   @override
+  List<CatalogApi> get catalogs => const [];
+
+  @override
   bool hasFormatContent(String content, {bool complete = false}) => false;
 
   @override
