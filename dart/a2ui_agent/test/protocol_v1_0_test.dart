@@ -438,8 +438,8 @@ void main() {
       );
     });
 
-    test('rejects a call only the renderer may make, in compile and as it '
-        'streams', () {
+    test('rejects a call only the renderer may make, in parseResponse and as '
+        'it streams', () {
       final String block = jsonBlock([
         callRendererFunction('formatString', {'value': 'Hello'}),
       ]);
@@ -452,24 +452,19 @@ void main() {
           contains('rendererOnly'),
         ),
       );
-      expect(
-        () => parser().compile(
-          parser().unwrap(block).whereType<RawA2uiPart>().single.a2uiRaw,
-        ),
-        rendererOnly,
-      );
+      expect(() => parser().parseResponse(block), rendererOnly);
       expect(() => processor().parseResponse(block), rendererOnly);
       // The call has closed, but it is never emitted, and the block fails
       // when it closes.
-      final Parser streaming = parser();
+      final ResponseStream stream = parser().openStream();
       expect(
-        streaming
-            .parseChunk(block.substring(0, block.lastIndexOf(']')))
+        stream
+            .feed(block.substring(0, block.lastIndexOf(']')))
             .whereType<A2uiPart>(),
         isEmpty,
       );
       expect(
-        () => streaming.parseChunk(block.substring(block.lastIndexOf(']'))),
+        () => stream.feed(block.substring(block.lastIndexOf(']'))),
         rendererOnly,
       );
     });
@@ -489,22 +484,21 @@ void main() {
 
     test('streams a component once its object closes', () {
       // v1.0 holds components back whatever the format is given.
-      final Parser parser = const DirectJsonFormatFactory().createFormat([
-        basic,
-      ]).createParser();
+      final ResponseStream stream = const DirectJsonFormatFactory()
+          .createFormat([basic])
+          .createParser()
+          .openStream();
       final String response = jsonBlock([helloSurface]);
       final int cut = response.indexOf('Hello');
-      expect(parser.parseChunk(response.substring(0, cut)), isEmpty);
-      final List<ResponsePart> parts = parser.parseChunk(
-        response.substring(cut),
-      );
+      expect(stream.feed(response.substring(0, cut)), isEmpty);
+      final List<ResponsePart> parts = stream.feed(response.substring(cut));
       expect(parts.whereType<A2uiPart>(), isNotEmpty);
     });
 
     test('streams a createSurface once, after its object closes', () {
-      final Parser parser = const DirectJsonFormatFactory(
+      final ResponseStream stream = const DirectJsonFormatFactory(
         progressiveKeys: {'text'},
-      ).createFormat([basic]).createParser();
+      ).createFormat([basic]).createParser().openStream();
       final String response = jsonBlock([
         helloSurface,
         {
@@ -512,8 +506,8 @@ void main() {
         },
       ]);
       final int closed = response.indexOf('}]}}') + 4;
-      expect(parser.parseChunk(response.substring(0, closed - 1)), isEmpty);
-      final List<ResponsePart> parts = parser.parseChunk(
+      expect(stream.feed(response.substring(0, closed - 1)), isEmpty);
+      final List<ResponsePart> parts = stream.feed(
         response.substring(closed - 1),
       );
       expect(
@@ -523,9 +517,10 @@ void main() {
     });
 
     test('streams a callRendererFunction once, after its object closes', () {
-      final Parser parser = const DirectJsonFormatFactory().createFormat([
-        callable,
-      ]).createParser();
+      final ResponseStream stream = const DirectJsonFormatFactory()
+          .createFormat([callable])
+          .createParser()
+          .openStream();
       // The surface id comes last, so the call reads before it arrives.
       final String response = jsonBlock([
         helloSurface,
@@ -547,8 +542,7 @@ void main() {
           response.substring(0, cut),
           response.substring(cut),
         ])
-          for (final A2uiPart part
-              in parser.parseChunk(chunk).whereType<A2uiPart>())
+          for (final A2uiPart part in stream.feed(chunk).whereType<A2uiPart>())
             ...part.a2ui,
       ];
       expect(
@@ -560,49 +554,45 @@ void main() {
     });
 
     test('raises on the chunk that closes an invalid component', () {
-      final Parser parser = const DirectJsonFormatFactory().createFormat([
-        basic,
-      ]).createParser();
-      parser.parseChunk(
+      final ResponseStream stream = const DirectJsonFormatFactory()
+          .createFormat([basic])
+          .createParser()
+          .openStream();
+      stream.feed(
         '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s", '
         '"catalogId": "${basic.id}"}}, {"version": "v1.0", '
         '"updateComponents": {"surfaceId": "s", "components": [',
       );
       expect(
-        () => parser.parseChunk(
+        () => stream.feed(
           '{"id": "root", "component": "Marquee", "text": "Hello"}',
         ),
         throwsError<A2uiValidationError>(),
       );
     });
 
-    // A streamed updateComponents is checked a few components at a time, so
-    // these hold only if each check sees the components checked before.
     group('raises on the chunk whose component', () {
-      Parser streaming() {
-        final Parser parser = const DirectJsonFormatFactory().createFormat([
-          basic,
-        ]).createParser();
-        parser.parseChunk(
+      ResponseStream streaming() {
+        final ResponseStream stream = const DirectJsonFormatFactory()
+            .createFormat([basic])
+            .createParser()
+            .openStream();
+        stream.feed(
           '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": '
           '"s", "catalogId": "${basic.id}"}}, {"version": "v1.0", '
           '"updateComponents": {"surfaceId": "s", "components": [',
         );
-        return parser;
+        return stream;
       }
 
       test('repeats an id an earlier chunk gave', () {
-        final Parser parser = streaming();
+        final ResponseStream stream = streaming();
         expect(
-          parser.parseChunk(
-            '{"id": "root", "component": "Text", "text": "A"}, ',
-          ),
+          stream.feed('{"id": "root", "component": "Text", "text": "A"}, '),
           [isA<A2uiPart>()],
         );
         expect(
-          () => parser.parseChunk(
-            '{"id": "root", "component": "Text", "text": "B"}',
-          ),
+          () => stream.feed('{"id": "root", "component": "Text", "text": "B"}'),
           throwsA(
             isA<A2uiIntegrityError>().having(
               (e) => e.message,
@@ -614,15 +604,15 @@ void main() {
       });
 
       test('closes a cycle with a component an earlier chunk gave', () {
-        final Parser parser = streaming();
+        final ResponseStream stream = streaming();
         expect(
-          parser.parseChunk(
+          stream.feed(
             '{"id": "root", "component": "Column", "children": ["a"]}, ',
           ),
           [isA<A2uiPart>()],
         );
         expect(
-          () => parser.parseChunk(
+          () => stream.feed(
             '{"id": "a", "component": "Column", "children": ["root"]}',
           ),
           throwsA(
@@ -643,12 +633,15 @@ void main() {
       custom,
     ]).createParser();
 
-    List<AgentToRendererMessage> compile(List<Map<String, Object?>> bodies) =>
-        parser().compile(
-          jsonEncode([
-            for (final body in bodies) {'version': 'v1.0', ...body},
-          ]),
-        );
+    List<AgentToRendererMessage> compile(List<Map<String, Object?>> bodies) {
+      final List<AgentToRendererMessage> messages = parser().compile(
+        jsonEncode([
+          for (final body in bodies) {'version': 'v1.0', ...body},
+        ]),
+      );
+      validatePayload([callable, custom], messages);
+      return messages;
+    }
 
     test('checks a component against the catalog it names', () {
       compile([
