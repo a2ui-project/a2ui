@@ -14,9 +14,9 @@
 
 """What a check found about a surface's component graph, for checking the next batch.
 
-`SurfaceComponentsModel.validate_components_update` uses a `GraphIndex` under a
-validation config that defers the graph checks, so that a batch is checked
-against the components it changes rather than the whole surface.
+`SurfaceComponentsModel.validate_components_update` uses a `ComponentGraphBound`
+under a validation config that defers the graph checks, so that a batch is
+checked against the components it changes rather than the whole surface.
 """
 
 from __future__ import annotations
@@ -32,53 +32,21 @@ from .validation_helpers import (
     composition_api,
 )
 
-__all__ = ["GraphIndex"]
+__all__ = ["ComponentGraphBound"]
 
 
-class _AnyId:
-    """A container holding every string, passed as the known component ids.
-
-    A component whose catalog declares no reference fields for its type has its
-    children guessed from its properties (the legacy v0.8 heuristic). A string
-    property, or a list holding one, then counts as a reference only when it
-    names a component the surface holds. Reading the references as if every id
-    were held gives a superset of them; dropping the ids the surface does not
-    hold gives the references a check of the whole surface reads.
-    """
-
-    def __contains__(self, item: object) -> bool:
-        return isinstance(item, str)
-
-
-_ANY_ID = _AnyId()
-
-
-def possible_children(model: ComponentModel) -> list[str]:
-    """Returns the ids a component may reference, whichever ids the surface holds.
-
-    The ids among them that the surface holds are the children the topology
-    check (`analyze_topology`) follows.
-    """
-    return [ref_id for ref_id, _ in model.get_child_references(_ANY_ID)]
-
-
-def declared_children(model: ComponentModel) -> list[str]:
-    """Returns the children the composition check reads, in property order.
-
-    These are the references `validate_composition_constraints` reads, which do
-    not depend on the ids the surface holds.
-    """
+def children_of(model: ComponentModel) -> list[str]:
+    """Returns the child component IDs referenced by `model`, in property order."""
     return [ref_id for ref_id, _ in model.get_child_references()]
 
 
-class GraphIndex:
+class ComponentGraphBound:
     """The references of a surface's components and a bound on their depth.
 
-    The index describes a graph that passed the composition and topology
-    checks. It holds the children and parents of each component, for the
-    composition check and for the topology check, the position of each
-    component on the surface, and for each component an upper bound on the
-    number of references in the longest chain below it.
+    The bound describes a graph that passed the composition and topology
+    checks. It holds the children and parents of each component, the position
+    of each component on the surface, and for each component an upper bound on
+    the number of references in the longest chain below it.
 
     The bound lets a batch be checked without walking the whole graph. A
     cycle the batch makes passes through one of its components, and only the
@@ -90,13 +58,10 @@ class GraphIndex:
     """
 
     def __init__(self) -> None:
-        # The ids each component may reference (see `possible_children`), and
-        # the components that may reference each id.
+        # The ids each component references (see `children_of`), and
+        # the components that reference each id.
         self._children: dict[str, list[str]] = {}
         self._parents: dict[str, set[str]] = {}
-        # The same for the references the composition check reads.
-        self._declared: dict[str, list[str]] = {}
-        self._declared_parents: dict[str, set[str]] = {}
         # For each component, at least the number of references in the
         # longest chain below it, and at least the largest of these.
         self._heights: dict[str, int] = {}
@@ -107,35 +72,32 @@ class GraphIndex:
         self._next_order = 0
 
     @classmethod
-    def of(cls, components: Mapping[str, ComponentModel]) -> GraphIndex:
-        """Returns the index of a graph that passed the checks, in surface order.
+    def of(cls, components: Mapping[str, ComponentModel]) -> ComponentGraphBound:
+        """Returns the bound of a graph that passed the checks, in surface order.
 
         A graph with a cycle among components the topology check does not
-        reach can pass it. Its index has no bound, so `admits` refuses every
+        reach can pass it. Its bound does not hold, so `admits` refuses every
         batch.
         """
-        index = cls()
+        bound = cls()
         for comp_id, model in components.items():
-            index._order[comp_id] = index._next_order
-            index._next_order += 1
-            index._set_children(comp_id, possible_children(model))
-            index._set_declared(comp_id, declared_children(model))
-        index._compute_heights(components.keys())
-        return index
+            bound._order[comp_id] = bound._next_order
+            bound._next_order += 1
+            bound._set_children(comp_id, children_of(model))
+        bound._compute_heights(components.keys())
+        return bound
 
     def _set_children(self, comp_id: str, children: list[str]) -> None:
-        for child in self._children.get(comp_id, ()):
-            self._parents.get(child, set()).discard(comp_id)
+        if comp_id in self._children:
+            for child in self._children[comp_id]:
+                parents = self._parents.get(child)
+                if parents is not None:
+                    parents.discard(comp_id)
+                    if not parents:
+                        del self._parents[child]
         for child in children:
             self._parents.setdefault(child, set()).add(comp_id)
         self._children[comp_id] = children
-
-    def _set_declared(self, comp_id: str, children: list[str]) -> None:
-        for child in self._declared.get(comp_id, ()):
-            self._declared_parents.get(child, set()).discard(comp_id)
-        for child in children:
-            self._declared_parents.setdefault(child, set()).add(comp_id)
-        self._declared[comp_id] = children
 
     def _compute_heights(self, ids: Iterable[str]) -> None:
         """Sets each height to the longest chain below it, children first."""
@@ -181,7 +143,7 @@ class GraphIndex:
         """Checks the composition constraints the batch can change.
 
         `held` is the surface before the batch, which passed the check when
-        this index was made. A component whose type, children, children's
+        this bound was made. A component whose type, children, children's
         types and parent are unchanged still passes, so only the others are
         checked, in surface order, which makes the first failure the one
         `validate_composition_constraints` reports for the whole surface.
@@ -206,17 +168,15 @@ class GraphIndex:
         def order_of(comp_id: str) -> int:
             return self._order[comp_id] if comp_id in held else new_order[comp_id]
 
-        declared = {comp_id: declared_children(m) for comp_id, m in batch.items()}
+        batch_children = {comp_id: children_of(m) for comp_id, m in batch.items()}
         batch_parents: dict[str, set[str]] = {}
-        for comp_id, children in declared.items():
+        for comp_id, children in batch_children.items():
             for child in children:
                 batch_parents.setdefault(child, set()).add(comp_id)
 
         def parent_of(comp_id: str) -> str | None:
             """The last component on the surface that references `comp_id`."""
-            parents = {
-                p for p in self._declared_parents.get(comp_id, ()) if p not in batch
-            }
+            parents = {p for p in self._parents.get(comp_id, ()) if p not in batch}
             parents.update(batch_parents.get(comp_id, ()))
             return max(parents, key=order_of) if parents else None
 
@@ -227,9 +187,9 @@ class GraphIndex:
         moved: set[str] = set()
         holding: dict[str, list[str]] = {}
         for comp_id in batch:
-            moved.update(self._declared.get(comp_id, ()))
-            moved.update(declared[comp_id])
-            for parent in self._declared_parents.get(comp_id, ()):
+            moved.update(self._children.get(comp_id, ()))
+            moved.update(batch_children[comp_id])
+            for parent in self._parents.get(comp_id, ()):
                 if parent not in batch:
                     holding.setdefault(parent, []).append(comp_id)
         to_check = {c for c in (*batch, *moved, *holding) if model_of(c) is not None}
@@ -250,7 +210,7 @@ class GraphIndex:
                 )
             if comp_id in batch:
                 check_allowed_children(
-                    comp_id, model, component_api, declared[comp_id], type_of
+                    comp_id, model, component_api, batch_children[comp_id], type_of
                 )
             elif comp_id in holding:
                 try:
@@ -263,7 +223,7 @@ class GraphIndex:
                         comp_id,
                         model,
                         component_api,
-                        self._declared[comp_id],
+                        self._children[comp_id],
                         type_of,
                     )
                     raise
@@ -274,19 +234,19 @@ class GraphIndex:
         limit: int,
         held: Callable[[str], bool],
     ) -> bool:
-        """Whether this index shows the graph with the batch passes the topology check.
+        """Whether this bound shows the graph with the batch passes the topology check.
 
         The graph passes when it has no self-reference, no cycle and no chain
         of more than `limit` references, which the bound shows when it holds
         after the batch. `held` tells whether the graph holds an id after the
-        batch. On True the index describes the graph with the batch. False
-        means the index cannot show that the graph passes, not that it fails,
-        and leaves the index unusable.
+        batch. On True the bound describes the graph with the batch. False
+        means the bound cannot show that the graph passes, not that it fails,
+        and leaves the bound unusable.
         """
         if self._max_height > limit:
             return False
         for comp_id, model in batch.items():
-            children = possible_children(model)
+            children = children_of(model)
             if comp_id in children:
                 return False
             self._set_children(comp_id, children)
@@ -318,13 +278,12 @@ class GraphIndex:
     def record_batch(
         self, batch: Mapping[str, ComponentModel], held: Mapping[str, ComponentModel]
     ) -> None:
-        """Records the composition references and positions of an admitted batch.
+        """Records the positions of an admitted batch.
 
         A new component takes the next position, as it is added at the end of
         the surface.
         """
-        for comp_id, model in batch.items():
-            self._set_declared(comp_id, declared_children(model))
+        for comp_id in batch:
             if comp_id not in held:
                 self._order[comp_id] = self._next_order
                 self._next_order += 1
