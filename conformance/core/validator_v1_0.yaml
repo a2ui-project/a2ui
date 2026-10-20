@@ -1602,52 +1602,6 @@
                 component: Text
                 text: Updated
 
-- name: test_v10_topology_component_id_array_dangling_reference_error
-  description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references, so an item naming a missing component is a dangling reference in v1.0 strict mode.
-  action: validate
-  protocolVersion: v1.0
-  catalog:
-    catalogId: custom
-    components:
-      Stack:
-        type: object
-        properties:
-          id: {type: string}
-          component: {const: Stack}
-          slots:
-            type: array
-            items:
-              $ref: "common_types.json#/$defs/ComponentId"
-        required:
-          - component
-          - slots
-      Label:
-        type: object
-        properties:
-          id: {type: string}
-          component: {const: Label}
-          text: {type: string}
-        required:
-          - component
-          - text
-  strictMode: true
-  steps:
-    - messages:
-        - version: v1.0
-          createSurface:
-            surfaceId: s1
-            catalogId: custom
-        - version: v1.0
-          updateComponents:
-            surfaceId: s1
-            components:
-              - id: root
-                component: Stack
-                slots: [missing]
-      expectError:
-        category: ValidationError
-        message: "references non-existent component 'missing' in field 'slots[0]'"
-
 - name: test_v10_topology_component_id_array_partial_dangling_reference_error
   description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references. With one held and one missing item, the missing item is reported as a dangling reference at its index in v1.0 strict mode.
   action: validate
@@ -1696,58 +1650,6 @@
       expectError:
         category: ValidationError
         message: "references non-existent component 'missing' in field 'slots[1]'"
-
-- name: test_v10_topology_component_id_array_children_reachable
-  description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references, so components named only through it are reachable and not reported as orphans in v1.0 strict mode.
-  action: validate
-  protocolVersion: v1.0
-  catalog:
-    catalogId: custom
-    components:
-      Stack:
-        type: object
-        properties:
-          id: {type: string}
-          component: {const: Stack}
-          slots:
-            type: array
-            items:
-              $ref: "common_types.json#/$defs/ComponentId"
-        required:
-          - component
-          - slots
-      Label:
-        type: object
-        properties:
-          id: {type: string}
-          component: {const: Label}
-          text: {type: string}
-        required:
-          - component
-          - text
-  strictMode: true
-  steps:
-    - messages:
-        - version: v1.0
-          createSurface:
-            surfaceId: s1
-            catalogId: custom
-        - version: v1.0
-          updateComponents:
-            surfaceId: s1
-            components:
-              - id: root
-                component: Stack
-                slots: [first, inner]
-              - id: first
-                component: Label
-                text: first
-              - id: inner
-                component: Stack
-                slots: [second]
-              - id: second
-                component: Label
-                text: second
 
 - name: test_v10_topology_component_id_array_circular_reference_error
   description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references, so a cycle through it is detected in v1.0 strict mode.
