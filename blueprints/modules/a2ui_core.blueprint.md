@@ -740,12 +740,12 @@ A shared base class should implement `extractOperations` once, covering payload 
 
 In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it mirrors the surfaces the renderer holds, so that model-generated messages are checked against everything the renderer has already received before they are sent. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to.
 
-An agent does not drive `MessageProcessor` directly. The [Agent SDK](a2ui_agent.blueprint.md)'s `RendererState` owns one, and adds what checking outbound messages needs on top of it: atomic application with rollback, a tree check once a response is complete, and a lifetime the agent chooses (one state per chat turn, or one per canvas conversation). Core supplies the pieces it builds on:
+An agent does not drive `MessageProcessor` directly. The [Agent SDK](a2ui_agent.blueprint.md)'s `RendererState` owns one, and adds what checking outbound messages needs on top of it: atomic application (a rejected message undoes what its call or transaction applied, from an undo log of what each message replaced), a tree check once a response is complete, and a lifetime the agent chooses (one state per chat turn, or one per canvas conversation). Core supplies the pieces it builds on:
 
 1. `processMessages` checks a message whole before it changes a surface, so a message it rejects leaves the surface as it was.
 2. `SurfaceComponentsModel.get` and `removeComponent`, and `DataModel.get`, `set` and `delete`, through which a state reverts what an applied message replaced. `processMessages` updates a component in place when a message names an existing id with the same type and catalog, so a state records a copy of the previous properties. A deleted surface is restored by replaying its components and data model through `processMessages`, which also restores the children its components find through other catalogs. A state does not copy surfaces.
 3. `validateTopology`, and `detectCycles`, which returns the components the root reaches, for the tree check.
-4. A `ValidationConfig` that defers the graph checks. Under a config that allows dangling references, and orphans or a missing root, a processor must check each `updateComponents` against the components it changes. It must not copy the surface's components or walk the whole surface for each message, so a surface that arrives in many small messages takes time in proportion to its size. The Dart processor does this; the Python and TypeScript processors still copy every component and check the whole graph on each `updateComponents`, which is a gap to fix.
+4. A `ValidationConfig` that defers the graph checks. Under a config that allows dangling references, and orphans or a missing root, a processor must check each `updateComponents` against the components it changes. It must not copy the surface's components or walk the whole surface for each message, so a surface that arrives in many small messages takes time in proportion to its size. The checks and the errors they raise are the same as for a whole-surface check: composition constraints, the root when it is required, and self-references, cycles and depth. Under any other config, a processor checks the whole surface.
 
 Applying a response message by message, as a stream does, therefore costs time in proportion to the response. `conformance/core/message_processor_scaling.yaml` times it.
 
@@ -757,7 +757,14 @@ const rendererProcessor = new MessageProcessor({
 });
 rendererProcessor.processMessages(incomingMessagesFromAgent);
 
-// 2. Agent Usage (wrapped by the Agent SDK's RendererState)
+// 2. Agent Usage. The agent never builds a MessageProcessor. It holds a
+// RendererState from the Agent SDK, usually through A2uiRequestProcessor, whose
+// parseResponse and openStream apply each response to the state and check it.
+const state = requestProcessor.createState(); // An A2uiRequestProcessor; or new RendererState(negotiatedCatalogs)
+const touched = state.apply(parsedModelPayload); // Atomic: a rejected message undoes the call
+state.checkTopology(touched); // Once the response is complete
+
+// 3. Inside RendererState: how the state drives the core MessageProcessor it owns
 const agentProcessor = new MessageProcessor({
   catalogs: negotiatedCatalogs, // The catalogs negotiated for the request
   actionHandler: undefined, // Agent does not render DOM elements or handle clicks
@@ -769,14 +776,17 @@ const agentProcessor = new MessageProcessor({
     allowOrphanComponents: true,
   },
 });
-// Same entry point as the renderer: each payload is checked against the state
-// the previous ones built, for as long as the agent keeps the processor.
-agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayload));
-// Once the response is complete, the tree of each surface it touched is checked:
-// the root and every reference. The Agent SDK checks itself that the components
-// the response added are reachable, since an update may leave older ones detached.
-// validateTopology roots the check at `rootId`, which defaults to 'root', so the
-// surface's own root is passed, as the processor itself does.
+// state.apply: same entry point as the renderer. Each message is checked against
+// what the previous ones built, for as long as the agent keeps the state. Before a
+// message is applied, the state records what it replaces, so that a rejected
+// message, or a failed transaction, can be undone.
+agentProcessor.processMessages(AgentToRendererMessage.parseAll(messages));
+// state.checkTopology: once the response is complete, the tree of each surface it
+// touched is checked: the root and every reference. The state checks itself that
+// the components the response added are reachable, since an update may leave
+// older ones detached. validateTopology roots the check at `rootId`, which
+// defaults to 'root', so the surface's own root is passed, as the processor
+// itself does.
 const surface = agentProcessor.model.getSurface(surfaceId);
 surface?.componentsModel.validateTopology({
   ...STRICT_VALIDATION,
@@ -785,14 +795,14 @@ surface?.componentsModel.validateTopology({
 });
 ```
 
-| Execution Aspect              | Renderer                                                                                                          | Agent                                                                                                  |
-| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------- |
-| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Mirrors the renderer's surfaces to check outbound messages, inside the Agent SDK's `RendererState`.    |
-| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes the catalogs negotiated for the request.                                                        |
-| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages` with the graph checks deferred, then `validateTopology` once a response is complete. |
-| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                                                   |
-| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.                                    |
-| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending.                             |
+| Execution Aspect              | Renderer                                                                                                          | Agent                                                                                                                                                        |
+| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Mirrors the renderer's surfaces to check outbound messages, inside the Agent SDK's `RendererState`.                                                          |
+| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes the catalogs negotiated for the request.                                                                                                              |
+| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `RendererState.apply` and `checkTopology`, which call `processMessages` with the graph checks deferred, then `validateTopology` once a response is complete. |
+| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                                                                                                         |
+| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.                                                                                          |
+| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending.                                                                                   |
 
 ---
 
