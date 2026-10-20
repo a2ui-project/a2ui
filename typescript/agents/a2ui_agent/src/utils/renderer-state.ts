@@ -497,9 +497,15 @@ export class RendererState {
         const current = components.get(id);
         if (!existing) {
           components.removeComponent(id);
-        } else if (current === existing) {
-          // Left as it was when the message failed before changing it.
-          if (current.properties === properties) continue;
+        } else if (
+          current &&
+          current.type === existing.type &&
+          current.catalog === existing.catalog
+        ) {
+          // The component itself, or the copy that undoing a later deleteSurface or type
+          // change put back in its place. It is restored in place, so it keeps its position.
+          // Left as it was if the message failed before changing it.
+          if (current === existing && current.properties === properties) continue;
           current.metadata = metadata;
           current.properties = copy;
         } else {
@@ -516,7 +522,7 @@ export class RendererState {
       // putting the old ones back from the first position on puts each where it was.
       restored.sort(([a], [b]) => a - b);
       for (const [index, component] of restored) {
-        components.insertComponent(component, index);
+        components.insertComponent(index, component);
       }
     };
   }

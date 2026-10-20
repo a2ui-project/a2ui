@@ -155,12 +155,12 @@ export class SurfaceComponentsModel {
    * the last position rebuilds the order, so it takes time in proportion to the components
    * the model holds. Like `addComponent`, it fires `onCreated`.
    *
-   * @param component The component to add.
    * @param index How many components come before it. An index at or past the end adds it
    *     last.
+   * @param component The component to add.
    * @throws {A2uiStateError} If a component with the same ID already exists.
    */
-  insertComponent(component: ComponentModel, index: number): void {
+  insertComponent(index: number, component: ComponentModel): void {
     if (this.components.has(component.id)) {
       throw new A2uiStateError(`Component with id '${component.id}' already exists.`);
     }

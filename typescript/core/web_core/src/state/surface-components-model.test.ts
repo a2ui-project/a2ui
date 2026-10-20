@@ -88,15 +88,15 @@ describe('SurfaceComponentsModel', () => {
       created.push(c.id);
     });
 
-    model.insertComponent(new ComponentModel('first', 'Button', {}, defaultCatalog), 0);
-    model.insertComponent(new ComponentModel('middle', 'Button', {}, defaultCatalog), 2);
-    model.insertComponent(new ComponentModel('last', 'Button', {}, defaultCatalog), 99);
+    model.insertComponent(0, new ComponentModel('first', 'Button', {}, defaultCatalog));
+    model.insertComponent(2, new ComponentModel('middle', 'Button', {}, defaultCatalog));
+    model.insertComponent(99, new ComponentModel('last', 'Button', {}, defaultCatalog));
 
     assert.deepStrictEqual([...model.keys], ['first', 'a', 'middle', 'b', 'c', 'last']);
     assert.deepStrictEqual(created, ['first', 'middle', 'last']);
     assert.strictEqual(model.componentsMap, map);
     assert.throws(() => {
-      model.insertComponent(new ComponentModel('a', 'Button', {}, defaultCatalog), 0);
+      model.insertComponent(0, new ComponentModel('a', 'Button', {}, defaultCatalog));
     }, /already exists/);
     assert.strictEqual(model.size, 6);
   });

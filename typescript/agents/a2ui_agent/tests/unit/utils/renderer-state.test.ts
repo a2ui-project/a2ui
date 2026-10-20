@@ -510,6 +510,30 @@ describe('RendererState', () => {
     expect(firstProblem()).toBe(problemBefore);
   });
 
+  it('keeps the order when an update in place is undone after a later deleteSurface', () => {
+    const state = new RendererState([BASIC]);
+    state.apply([CREATE, update(column(['a', 'b']), text('a'), text('b'))]);
+    const before = order(state);
+
+    rolledBack(state, () => state.apply([update(text('a', 'Changed')), DELETE]));
+
+    expect(order(state)).toEqual(before);
+    expect(textOf(state, 'a')).toBe('Hi');
+  });
+
+  it('keeps the order when an update in place is undone after a later type change', () => {
+    const state = new RendererState([BASIC]);
+    state.apply([CREATE, update(column(['a', 'b']), text('a'), text('b'))]);
+    const before = order(state);
+
+    rolledBack(state, () =>
+      state.apply([update(text('a', 'Changed')), update({id: 'a', component: 'Divider'})]),
+    );
+
+    expect(order(state)).toEqual(before);
+    expect(textOf(state, 'a')).toBe('Hi');
+  });
+
   it('keeps the positions of several components whose type changes one message undoes', () => {
     const state = new RendererState([BASIC]);
     turn(
