@@ -669,8 +669,15 @@ def test_function_without_a_schema_takes_any_args(version: str) -> None:
 
     assert without.validation_schema == empty.validation_schema
     assert without.to_json() == empty.to_json()
+    assert without.resolved_function_schema("ping") == {}
     assert without.to_json()["functions"]["ping"]["properties"]["args"] == {
-        "type": "object"
+        "type": "object",
+        "additionalProperties": True,
+    }
+    read_back = Catalog.from_json(without.to_json())
+    assert read_back.validation_schema["functions"]["ping"]["properties"]["args"] == {
+        "type": "object",
+        "unevaluatedProperties": True,
     }
 
 

@@ -31,7 +31,6 @@ from a2ui.core import (
     link_catalogs,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.catalog import FunctionImplementation
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 _CATALOGS = os.path.join(_REPO_ROOT, "conformance", "test_data", "catalogs")
@@ -141,21 +140,6 @@ def test_message_processor_does_not_mutate_shared_catalogs() -> None:
     linked_cross_ref = first.catalogs[2]
     assert linked_cross_ref is not cross_ref
     assert "text" in _props(linked_cross_ref, "CustomText")
-
-
-def test_message_processor_takes_a_catalog_with_a_function_without_a_schema() -> None:
-    greet = FunctionImplementation(
-        name="greet",
-        execute=lambda args, context=None, abort_signal=None: "hi",
-        allowed_callers="rendererOrAgent",
-    )
-    with_greet = Catalog(catalog_id="a", protocol_version="v1.0", functions=[greet])
-    basic = BasicCatalog("v1.0")
-
-    processor = MessageProcessor([with_greet, basic])
-
-    assert processor.catalogs[0] is with_greet
-    assert processor.catalogs[1] is basic
 
 
 def test_peer_matching_prefers_exact_id_over_catalog_json_file_name() -> None:

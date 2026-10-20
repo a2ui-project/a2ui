@@ -1,10 +1,13 @@
 ## Unreleased
 
 - A function defined without an argument schema (`FunctionApi` or
-  `FunctionImplementation` without `schema`) is described as taking any args:
-  `validation_schema` records it as `{}` rather than `None`, and
-  `Catalog.to_json` writes it as a call whose `args` may be any object.
-  `to_json` no longer raises `TypeError` for a catalog that holds such a
+  `FunctionImplementation` without `schema`) takes any args, as one given
+  `schema={}` does: `validation_schema` and `resolved_function_schema` give
+  `{}` for it rather than `None`. `Catalog.to_json` writes the `args` of either
+  as `{"type": "object", "additionalProperties": true}`, so a catalog read back
+  with `Catalog.from_json` accepts any args for it too. `to_json` used to write
+  `{"type": "object"}` for `schema={}`, which `from_json` reads as taking no
+  args. `to_json` no longer raises `TypeError` for a catalog that holds such a
   function, and neither do the paths that call it: `link_catalogs`, and so a
   `MessageProcessor` of two or more catalogs, and `get_renderer_capabilities`
   with v1.0 inline catalogs.
