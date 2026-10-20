@@ -56,6 +56,9 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# A response is parsed as one chat turn, against a renderer that holds no
+# surfaces yet, so a case that updates a surface also creates it.
+
 # --- Unwrapping a response ---
 
 - name: test_unwrap_text_before_between_and_after_blocks
@@ -213,11 +216,15 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     Here is the surface.
-    <a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>
+    <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>
     Tell me if you want it changed.
   expect:
     - text: "Here is the surface."
     - a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "conformance/simplified"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"

@@ -31,8 +31,9 @@ import {
   SurfaceModel,
   ValidationConfig,
 } from '../internal/web-core.js';
-import {validateEnvelope} from './envelope-validation.js';
 import {checkParserCatalogs} from './catalog-checks.js';
+import {validateEnvelope} from './envelope-validation.js';
+import {toReleaseLine} from './protocol-version.js';
 
 /**
  * The `version` values that messages for each release line's catalogs state, spelled as
@@ -127,7 +128,7 @@ export class RendererState {
     if (!catalogs || catalogs.length === 0) {
       throw new A2uiCatalogError('A renderer state requires at least one catalog.');
     }
-    this.releaseLine = releaseLineOf(checkParserCatalogs(catalogs));
+    this.releaseLine = toReleaseLine(checkParserCatalogs(catalogs));
     this._catalogs = linkCatalogs(catalogs);
     this.processor = new MessageProcessor(this._catalogs as never, undefined, {
       validationConfig: IN_PROGRESS_VALIDATION,
@@ -228,12 +229,25 @@ export class RendererState {
         );
       }
     }
-    for (const surfaceId of ids) {
-      // An assumed surface was not checked, so what changed on it stays recorded for the
-      // check after it is created.
-      if (!this.assumed.has(surfaceId)) {
-        this.forgetChanged(surfaceId);
-      }
+    // An assumed surface was not checked, so what changed on it stays recorded for the check
+    // after it is created.
+    this.markChecked(ids.filter(s => !this.assumed.has(s)));
+  }
+
+  /**
+   * Stops holding the components each surface changed against later checks.
+   *
+   * `checkTopology` calls this for the surfaces it checks. A caller calls it for the surfaces
+   * of messages the renderer received that failed a check, such as a stream that failed after
+   * it emitted them: no message removes a component, so a component the renderer already
+   * holds can't be made reachable later, and the later turns are not held to it. Dangling
+   * references and a missing root are still reported, since `checkTopology` checks those on
+   * the whole surface. Like any other change, it is undone when the transaction it was made
+   * in fails.
+   */
+  markChecked(surfaceIds: Iterable<string>): void {
+    for (const surfaceId of new Set(surfaceIds)) {
+      this.forgetChanged(surfaceId);
     }
   }
 
@@ -675,11 +689,6 @@ export class RendererState {
       `Message ${index} states version '${String(stated)}', but the catalogs target ${this.releaseLine}, whose messages state ${quoted}.`,
     );
   }
-}
-
-/** The release line of a wire protocol version: v0.9.1 shares v0.9's. */
-function releaseLineOf(wireVersion: string): string {
-  return wireVersion === 'v0.9.1' ? 'v0.9' : wireVersion;
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
