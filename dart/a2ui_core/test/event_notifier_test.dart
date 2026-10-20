@@ -14,7 +14,7 @@
 
 import 'dart:async';
 
-import 'package:a2ui_core/src/primitives/event_notifier.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:logging/logging.dart';
 import 'package:test/test.dart';
 
@@ -24,8 +24,8 @@ void main() {
       final notifier = EventNotifier<int>();
       final received = <int>[];
 
-      notifier.addListener((e) => received.add(e * 10));
-      notifier.addListener((e) => received.add(e * 100));
+      notifier.subscribe((e) => received.add(e * 10));
+      notifier.subscribe((e) => received.add(e * 100));
 
       notifier.emit(3);
 
@@ -48,9 +48,9 @@ void main() {
         Logger.root.level = previousLevel;
       });
 
-      notifier.addListener((e) => received.add('first:$e'));
-      notifier.addListener((_) => throw StateError('listener boom'));
-      notifier.addListener((e) => received.add('third:$e'));
+      notifier.subscribe((e) => received.add('first:$e'));
+      notifier.subscribe((_) => throw StateError('listener boom'));
+      notifier.subscribe((e) => received.add('third:$e'));
 
       expect(() => notifier.emit('ping'), returnsNormally);
       expect(received, ['first:ping', 'third:ping']);
@@ -69,15 +69,13 @@ void main() {
       final notifier = EventNotifier<int>();
       final received = <String>[];
 
-      late void Function(int) selfRemoving;
-      selfRemoving = (event) {
+      late Subscription selfSub;
+      selfSub = notifier.subscribe((event) {
         received.add('selfRemoving:$event');
-        notifier.removeListener(selfRemoving);
-        notifier.addListener((e) => received.add('addedDuringEmit:$e'));
-      };
-
-      notifier.addListener(selfRemoving);
-      notifier.addListener((e) => received.add('second:$e'));
+        selfSub.unsubscribe();
+        notifier.subscribe((e) => received.add('addedDuringEmit:$e'));
+      });
+      notifier.subscribe((e) => received.add('second:$e'));
 
       notifier.emit(1);
       expect(received, ['selfRemoving:1', 'second:1']);
@@ -87,12 +85,76 @@ void main() {
       expect(received, ['second:2', 'addedDuringEmit:2']);
     });
 
-    test('dispose clears all listeners', () {
+    test(
+        'skips a subsequent listener that was unsubscribed by an earlier '
+        'listener during emit', () {
+      final notifier = EventNotifier<int>();
+      final received = <String>[];
+
+      late Subscription secondSub;
+      notifier.subscribe((event) {
+        received.add('first:$event');
+        secondSub.unsubscribe();
+      });
+      secondSub = notifier.subscribe((event) {
+        received.add('second:$event');
+      });
+      notifier.subscribe((event) {
+        received.add('third:$event');
+      });
+
+      notifier.emit(1);
+      expect(received, ['first:1', 'third:1']);
+    });
+
+    test('Subscription.unsubscribe stops notifications and is idempotent', () {
+      final notifier = EventNotifier<int>();
+      final received = <int>[];
+      final Subscription sub = notifier.subscribe(received.add);
+
+      notifier.emit(1);
+      expect(received, [1]);
+
+      sub.unsubscribe();
+      sub.unsubscribe();
+      notifier.emit(2);
+      expect(received, [1]);
+    });
+
+    test('supports duplicate subscriptions of the same function independently',
+        () {
+      final notifier = EventNotifier<int>();
+      final received = <int>[];
+      void handler(int value) => received.add(value);
+
+      final Subscription sub1 = notifier.subscribe(handler);
+      final Subscription sub2 = notifier.subscribe(handler);
+
+      notifier.emit(1);
+      expect(received, [1, 1]);
+
+      sub1.unsubscribe();
+      received.clear();
+
+      notifier.emit(2);
+      expect(received, [2]);
+
+      sub2.unsubscribe();
+      received.clear();
+
+      notifier.emit(3);
+      expect(received, isEmpty);
+    });
+
+    test('dispose clears all listeners and makes subsequent subscribe a no-op',
+        () {
       final notifier = EventNotifier<int>();
       var count = 0;
-      notifier.addListener((_) => count++);
+      notifier.subscribe((_) => count++);
 
       notifier.dispose();
+      final Subscription postDispose = notifier.subscribe((_) => count++);
+      postDispose.unsubscribe();
       notifier.emit(1);
 
       expect(count, 0);

@@ -136,6 +136,31 @@ struct PayloadValidatorTests {
     ])
   }
 
+  @Test func validateComponentChecksAccessibilityOnSchemaWithoutIt() throws {
+    // The test catalog's Text schema is closed and leaves `accessibility` to `ComponentCommon`.
+    let validator = PayloadValidator(
+      catalog: try makeTestCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+
+    try validator.validateComponent([
+      "id": .string("header_1"),
+      "component": .string("Text"),
+      "text": .string("Hello"),
+      "accessibility": .object(["label": .object(["@path": .string("/greeting")])]),
+    ])
+
+    let error = try #require(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("header_1"),
+        "component": .string("Text"),
+        "text": .string("Hello"),
+        "accessibility": .object(["live": .string("loud")]),
+      ])
+    }
+    #expect(error.details.map(\.path) == ["accessibility/live"])
+  }
+
   @Test func validateFunctionAndNestedFunctionCalls() throws {
     let catalog = try makeTestCatalog()
     let validator = PayloadValidator(

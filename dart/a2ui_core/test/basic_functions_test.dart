@@ -54,16 +54,16 @@ void main() {
           dataModel,
           invokeFunction,
           '/user',
-          protocolVersion: 'v1.0',
+          protocolVersion: A2uiProtocolVersion.v1_0,
         );
 
-        final Object? syncResult = ctx.resolveSync({
+        final Object? syncResult = ctx.resolveDynamicValue({
           '@call': 'formatString',
           'args': {'value': r'Hello ${/user/name} (${role})!'},
         });
         expect(syncResult, 'Hello Alice (admin)!');
 
-        final ReadonlySignal<Object?> listenable = ctx.resolveListenable({
+        final ReadonlySignal<Object?> listenable = ctx.resolveSignal({
           '@call': 'formatString',
           'args': {'value': r'Hello ${/user/name} (${role})!'},
         });
@@ -79,10 +79,10 @@ void main() {
         dataModel,
         invokeFunction,
         '/user',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
-      final ReadonlySignal<Object?> listenable = ctx.resolveListenable({
+      final ReadonlySignal<Object?> listenable = ctx.resolveSignal({
         '@call': 'formatString',
         'args': {
           'value':
@@ -100,11 +100,11 @@ void main() {
         dataModel,
         invokeFunction,
         '/',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
       );
 
       expect(
-        ctx.resolveSync({
+        ctx.resolveDynamicValue({
           'call': 'formatString',
           'args': {
             'value': r'${/user/name} - ${/missing} - ${/items} - ${/meta}',
@@ -121,7 +121,7 @@ void main() {
           dataModel,
           invokeFunction,
           '/',
-          protocolVersion: 'v1.0',
+          protocolVersion: A2uiProtocolVersion.v1_0,
         );
 
         expect(formatString.execute({'value': ''}, ctx), '');

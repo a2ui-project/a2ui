@@ -21,20 +21,20 @@ import 'surface_model.dart';
 /// The root state model for the A2UI system.
 class SurfaceGroupModel<T extends ComponentApi> {
   final Map<String, SurfaceModel<T>> _surfaces = {};
-  final Map<String, void Function(A2uiClientAction)> _actionForwarders = {};
+  final Map<String, Subscription> _actionSubscriptions = {};
 
   final _onSurfaceCreated = EventNotifier<SurfaceModel<T>>();
   final _onSurfaceDeleted = EventNotifier<String>();
-  final _onAction = EventNotifier<A2uiClientAction>();
+  final _onAction = EventNotifier<A2uiRendererAction>();
 
   /// Fires when a new surface is added.
-  EventListenable<SurfaceModel<T>> get onSurfaceCreated => _onSurfaceCreated;
+  EventSource<SurfaceModel<T>> get onSurfaceCreated => _onSurfaceCreated;
 
   /// Fires when a surface is removed.
-  EventListenable<String> get onSurfaceDeleted => _onSurfaceDeleted;
+  EventSource<String> get onSurfaceDeleted => _onSurfaceDeleted;
 
   /// Fires when an action is dispatched from ANY surface in the group.
-  EventListenable<A2uiClientAction> get onAction => _onAction;
+  EventSource<A2uiRendererAction> get onAction => _onAction;
 
   /// Adds a surface to the group.
   ///
@@ -47,12 +47,9 @@ class SurfaceGroupModel<T extends ComponentApi> {
       );
     }
     _surfaces[surface.id] = surface;
-    void forwarder(A2uiClientAction action) {
-      _onAction.emit(action);
-    }
-
-    surface.onAction.addListener(forwarder);
-    _actionForwarders[surface.id] = forwarder;
+    _actionSubscriptions[surface.id] = surface.onAction.subscribe(
+      _onAction.emit,
+    );
     _onSurfaceCreated.emit(surface);
   }
 
@@ -60,11 +57,7 @@ class SurfaceGroupModel<T extends ComponentApi> {
   void deleteSurface(String id) {
     final SurfaceModel<T>? surface = _surfaces.remove(id);
     if (surface != null) {
-      final void Function(A2uiClientAction)? forwarder =
-          _actionForwarders.remove(id);
-      if (forwarder != null) {
-        surface.onAction.removeListener(forwarder);
-      }
+      _actionSubscriptions.remove(id)?.unsubscribe();
       surface.dispose();
       _onSurfaceDeleted.emit(id);
     }

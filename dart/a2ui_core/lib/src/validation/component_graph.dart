@@ -17,6 +17,7 @@ import 'package:meta/meta.dart';
 import '../core/catalog.dart';
 import '../core/messages.dart';
 import '../primitives/errors.dart';
+import '../primitives/protocol_version.dart';
 import 'component_refs.dart';
 import 'validation_config.dart';
 
@@ -25,7 +26,7 @@ import 'validation_config.dart';
 const String _rootComponentId = 'root';
 
 /// The deepest component chain a surface may declare.
-@visibleForTesting
+@internal
 const int maxComponentDepth = 50;
 
 /// The deepest chain of nested function calls a component property may hold.
@@ -178,15 +179,19 @@ final RegExp _pathPattern = RegExp(
   r'^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$',
 );
 
-/// Rejects a batch of components that names the same id twice.
+/// Rejects a batch of components that names the same id twice, or names one
+/// of [earlier], the ids of the earlier batches of the same message.
 ///
 /// Throws [A2uiIntegrityError] for the first id that repeats.
-void checkDuplicateComponentIds(Iterable<Map<String, Object?>> components) {
+void checkDuplicateComponentIds(
+  Iterable<Map<String, Object?>> components, {
+  Set<String> earlier = const {},
+}) {
   final ids = <String>{};
   for (final component in components) {
     final Object? id = component['id'];
     if (id is! String) continue;
-    if (!ids.add(id)) {
+    if (earlier.contains(id) || !ids.add(id)) {
       throw A2uiIntegrityError(
         'Duplicate component ID: $id',
         componentIds: [id],
@@ -207,8 +212,9 @@ void checkDuplicateComponentIds(Iterable<Map<String, Object?>> components) {
 /// components it does not reach are then walked on their own, so a cycle among
 /// unreachable components is still found.
 ///
-/// Throws [A2uiRecursionError] for a self-reference, a cycle, or a chain
-/// deeper than [maxDepth], which defaults to [maxComponentDepth].
+/// Throws [A2uiIntegrityError] for a self-reference or a cycle, and
+/// [A2uiRecursionError] for a chain deeper than [maxDepth], which defaults to
+/// [maxComponentDepth].
 Set<String> detectComponentCycles(
   Set<String> ids,
   Iterable<ComponentReference> Function(String id) referencesOf, {
@@ -220,10 +226,10 @@ Set<String> detectComponentCycles(
   for (final id in ids) {
     for (final ComponentReference reference in referencesOf(id)) {
       if (reference.id == id) {
-        throw A2uiRecursionError(
+        throw A2uiIntegrityError(
           "Self-reference detected: Component '$id' references itself in "
           "field '${reference.field}'",
-          cycle: [id],
+          componentIds: [id],
         );
       }
     }
@@ -245,9 +251,9 @@ Set<String> detectComponentCycles(
       final String next = reference.id;
       if (!ids.contains(next)) continue;
       if (onStack.contains(next)) {
-        throw A2uiRecursionError(
+        throw A2uiIntegrityError(
           "Circular reference detected involving component '$next'",
-          cycle: [...onStack, next],
+          componentIds: [...onStack, next],
         );
       }
       if (!visited.contains(next)) visit(next, depth + 1);
@@ -280,9 +286,9 @@ Set<String> detectComponentCycles(
 /// [ValidationConfig.allowMissingRoot]. The root is [ValidationConfig.rootId],
 /// or [defaultRootId] when that is null. An empty surface passes.
 ///
-/// Throws [A2uiIntegrityError] for a missing root, a dangling reference or an
-/// unreachable component, and [A2uiRecursionError] for a self-reference, a
-/// cycle or an over-deep chain.
+/// Throws [A2uiIntegrityError] for a missing root, a dangling reference, a
+/// self-reference, a cycle, or an unreachable component, and
+/// [A2uiRecursionError] for an over-deep chain.
 void checkComponentGraph(
   Set<String> ids,
   Iterable<ComponentReference> Function(String id) referencesOf,
@@ -336,24 +342,45 @@ void checkComponentGraph(
 ///
 /// Mirrors `DataContext.isDataBinding`, which needs a context; this check
 /// runs on a raw message before any surface or context exists.
-bool _isDataBinding(Map<Object?, Object?> value, {required bool v1}) => v1
-    ? value['@path'] is String
-    : value['path'] is String && !value.containsKey('componentId');
+bool _isDataBinding(
+  Map<Object?, Object?> value, {
+  required bool usesDirectives,
+}) =>
+    usesDirectives
+        ? value['@path'] is String
+        : value['path'] is String && !value.containsKey('componentId');
 
 /// Whether [value] is a function-call object in the v1.0 (`@call`) or legacy
 /// (`call`) shape. See [_isDataBinding].
-bool _isFunctionCall(Map<Object?, Object?> value, {required bool v1}) =>
-    v1 ? value['@call'] is String : value['call'] is String;
+bool _isFunctionCall(
+  Map<Object?, Object?> value, {
+  required bool usesDirectives,
+}) =>
+    usesDirectives ? value['@call'] is String : value['call'] is String;
 
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
+/// [grownFrom], if given, is an earlier form of [data] that passed this
+/// check, such as a message that a stream has since extended. A list or map
+/// in [data] that is identical to the one at the same place in [grownFrom]
+/// is not checked again, so checking a message that grew costs what it
+/// gained. Neither may have been changed since [grownFrom] was checked.
+///
 /// Throws [A2uiValidationError] for a malformed path and [A2uiRecursionError]
 /// when nesting or chained function calls run past their caps.
-void checkPathsAndRecursion(Object? data, {bool? v1}) {
-  final bool isV1 = v1 ?? _inferV1(data);
+void checkPathsAndRecursion(
+  Object? data, {
+  A2uiProtocolVersion? version,
+  Object? grownFrom,
+}) {
+  final bool usesDirectives = version != null
+      ? version.isAtLeast(A2uiProtocolVersion.v1_0)
+      : _inferUsesDirectives(data);
 
+  // [before] is what [grownFrom] holds at the place of [node], or null.
   void traverse(
     Object? node,
+    Object? before,
     int depth,
     int callDepth, {
     required bool inDataValue,
@@ -365,17 +392,32 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
     }
 
     if (node is List) {
-      for (final Object? item in node) {
-        traverse(item, depth + 1, callDepth, inDataValue: inDataValue);
+      if (identical(node, before)) return;
+      final List<Object?>? items = before is List ? before : null;
+      for (var i = 0; i < node.length; i++) {
+        traverse(
+          node[i],
+          items != null && i < items.length ? items[i] : null,
+          depth + 1,
+          callDepth,
+          inDataValue: inDataValue,
+        );
       }
       return;
     }
 
-    if (node is! Map) return;
+    if (node is! Map || identical(node, before)) return;
+    final Map<Object?, Object?>? entries = before is Map ? before : null;
 
     if (inDataValue) {
-      for (final Object? value in node.values) {
-        traverse(value, depth + 1, callDepth, inDataValue: true);
+      for (final MapEntry<Object?, Object?> entry in node.entries) {
+        traverse(
+          entry.value,
+          entries?[entry.key],
+          depth + 1,
+          callDepth,
+          inDataValue: true,
+        );
       }
       return;
     }
@@ -388,12 +430,13 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       if (udmPath is String && !_pathPattern.hasMatch(udmPath)) {
         throw A2uiValidationError(
           "Invalid path syntax: '$udmPath'",
-          details: udm,
         );
       }
+      final Object? udmBefore = entries?['updateDataModel'];
       for (final MapEntry<Object?, Object?> entry in udm.entries) {
         traverse(
           entry.value,
+          udmBefore is Map ? udmBefore[entry.key] : null,
           depth + 2,
           callDepth,
           inDataValue: entry.key == 'value',
@@ -402,19 +445,18 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       return;
     }
 
-    final Object? path = _isDataBinding(object, v1: isV1)
-        ? object[isV1 ? '@path' : 'path']
+    final Object? path = _isDataBinding(object, usesDirectives: usesDirectives)
+        ? object[usesDirectives ? '@path' : 'path']
         : (object['path'] is String && object['componentId'] is String
             ? object['path']
             : null);
     if (path is String && !_pathPattern.hasMatch(path)) {
       throw A2uiValidationError(
         "Invalid path syntax: '$path'",
-        details: object,
       );
     }
 
-    if (_isFunctionCall(object, v1: isV1)) {
+    if (_isFunctionCall(object, usesDirectives: usesDirectives)) {
       if (callDepth >= maxFunctionCallDepth) {
         throw A2uiRecursionError(
           'Recursion limit exceeded: functionCall depth > '
@@ -424,6 +466,11 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       for (final MapEntry<Object?, Object?> entry in object.entries) {
         traverse(
           entry.value,
+          entries != null &&
+                  (entry.key != 'args' ||
+                      _isFunctionCall(entries, usesDirectives: usesDirectives))
+              ? entries[entry.key]
+              : null,
           depth + 1,
           entry.key == 'args' ? callDepth + 1 : callDepth,
           inDataValue: false,
@@ -432,8 +479,14 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       return;
     }
 
-    for (final Object? value in object.values) {
-      traverse(value, depth + 1, callDepth, inDataValue: false);
+    for (final MapEntry<Object?, Object?> entry in object.entries) {
+      traverse(
+        entry.value,
+        entries?[entry.key],
+        depth + 1,
+        callDepth,
+        inDataValue: false,
+      );
     }
   }
 
@@ -442,31 +495,42 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
     if (udmPath != null && !_pathPattern.hasMatch(udmPath)) {
       throw A2uiValidationError(
         "Invalid path syntax: '$udmPath'",
-        details: data.toJson()['updateDataModel'],
       );
     }
-    traverse(data.value, 2, 0, inDataValue: true);
+    traverse(
+      data.value,
+      grownFrom is UpdateDataModelMessage ? grownFrom.value : null,
+      2,
+      0,
+      inDataValue: true,
+    );
     return;
   }
 
   if (data is AgentToRendererMessage) {
-    traverse(data.toJson(), 0, 0, inDataValue: false);
+    traverse(
+      data.toJson(),
+      grownFrom is AgentToRendererMessage ? grownFrom.toJson() : grownFrom,
+      0,
+      0,
+      inDataValue: false,
+    );
     return;
   }
 
-  traverse(data, 0, 0, inDataValue: false);
+  traverse(data, grownFrom, 0, 0, inDataValue: false);
 }
 
-bool _inferV1(Object? data) {
+bool _inferUsesDirectives(Object? data) {
   final Object? rawVersion = switch (data) {
     AgentToRendererMessage(:final version) => version,
     Map() => data['version'],
     _ => null,
   };
   if (rawVersion is! String) return false;
-  final String core =
-      rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
-  return (int.tryParse(core.split('.').first) ?? 0) >= 1;
+  return A2uiProtocolVersion.tryParseSemVer(rawVersion)
+          ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+      false;
 }
 
 Iterable<ComponentReference> _referencesOf(

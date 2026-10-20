@@ -300,7 +300,7 @@ In multi-agent systems, a central **Orchestrator** often manages interactions be
 
 ### The Surface Ownership Pattern
 
-To handle routing in a multi-agent architecture, an orchestrator must maintain a mapping of each `surfaceId` to its owning sub-agent. The official Python SDK provides the [`A2uiSubagentMap`](../../../python/a2ui_agent/src/a2ui/adk/orchestration/a2ui_subagent_map.py) utility to manage this mapping safely.
+To handle routing in a multi-agent architecture, an orchestrator must maintain a mapping of each `surfaceId` to its owning sub-agent. The official Python SDK provides the [`A2uiSubagentMap`](../../../python/a2ui_adk/src/a2ui/adk/orchestration/a2ui_subagent_map.py) utility to manage this mapping safely.
 
 For a complete working example, see the [orchestrator agent executor](../../../samples/community/agent/adk/orchestrator/orchestrator_agent_executor.py) sample.
 
@@ -309,7 +309,7 @@ For a complete working example, see the [orchestrator agent executor](../../../s
 When a sub-agent emits an A2UI `createSurface` or `deleteSurface` the orchestrator intercepts the message and records the ownership in the session state using `update_from_server_event`.
 
 ```python
-from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+from a2ui.adk import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig
 from google.adk.a2a.executor.config import ExecuteInterceptor
 from google.adk.a2a.events import Event as A2AEvent
@@ -342,7 +342,7 @@ config = A2aAgentExecutorConfig(
 When the client renderer sends an A2UI `action` or `error` message back, the orchestrator looks up the `surfaceId` in the session state using `get_subagent_name_for_client_event` and routes the request to the correct sub-agent.
 
 ```python
-from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
+from a2ui.adk import A2uiSubagentMap
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
@@ -389,7 +389,7 @@ In a multi-agent environment, the `a2uiClientDataModel` object can contain the s
 You can use the `strip_unowned_surfaces_from_data_model` method in an outbound interceptor to mutate the data model dictionary in place.
 
 ```python
-from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
+from a2ui.adk import A2uiSubagentMap
 from a2a.client.middleware import ClientCallInterceptor, ClientCallContext
 from a2a.types import AgentCard
 

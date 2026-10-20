@@ -464,3 +464,99 @@
                 - id: "root"
                   component: "Text"
                   text: "Overridden"
+
+- name: test_processor_resolves_cross_catalog_refs_against_inactive_registered_peer
+  description: When an active catalog references components in another catalog registered on the agent, the processor resolves those cross-catalog $refs even when the peer catalog is not in the renderer's active supportedCatalogIds.
+  action: create_processor
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/cross_ref_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/cross_ref"]
+  expect:
+    active_catalog_ids: ["conformance/cross_ref"]
+    prompt_snippet_contains:
+      - "CustomText(badge, text, variant? (static))"
+      - "StyledCard(subtitle (static)"
+      - "Must be one of: 'body', 'caption'"
+
+- name: test_processor_direct_json_cross_catalog_refs_preserves_unbundled_refs
+  description: In Direct JSON mode, a processor with cross-referencing catalogs preserves unbundled external $refs in the Catalog Schema prompt, retains transitive common types from the peer catalog, and validates payloads against the resolved peer schemas.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/cross_ref_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/cross_ref"]
+  expect:
+    active_catalog_ids: ["conformance/cross_ref"]
+    prompt_snippet_contains:
+      - "simplified_catalog_v1_0.json#/components/Text"
+      - "simplified_catalog_v1_0.json#/components/Card"
+      - "simplified_catalog_v1_0.json#/components/Button/properties/action"
+      - '"Action":'
+  then_parse:
+    input: |
+      <a2ui-json>
+      [
+        {
+          "version": "v1.0",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "conformance/cross_ref"
+          }
+        },
+        {
+          "version": "v1.0",
+          "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+              {
+                "id": "root",
+                "component": "StyledCard",
+                "subtitle": "Q1 Summary",
+                "action": {
+                  "event": {
+                    "name": "expand"
+                  }
+                },
+                "child": "header"
+              },
+              {
+                "id": "header",
+                "component": "CustomText",
+                "badge": "NEW",
+                "text": "Quarterly Revenue"
+              }
+            ]
+          }
+        }
+      ]
+      </a2ui-json>
+    expect:
+      - a2ui:
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s1"
+              catalogId: "conformance/cross_ref"
+          - version: "v1.0"
+            updateComponents:
+              surfaceId: "s1"
+              components:
+                - id: "root"
+                  component: "StyledCard"
+                  subtitle: "Q1 Summary"
+                  action:
+                    event:
+                      name: "expand"
+                  child: "header"
+                - id: "header"
+                  component: "CustomText"
+                  badge: "NEW"
+                  text: "Quarterly Revenue"

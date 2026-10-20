@@ -18,10 +18,14 @@ import copy
 import inspect
 import warnings
 from typing import Any, Callable, Final
-from ..catalog.catalog import CatalogApi
+from ..catalog import is_system_function_name, system_functions_for
 from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
-from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS, PayloadValidator
+from ..validation.payload_validator import (
+    MAX_FUNCTION_CALL_ARGS,
+    PayloadValidator,
+    validate_system_function,
+)
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
 from ..schema import ProtocolVersion
 from ..common.semver import is_at_least_version
@@ -99,21 +103,25 @@ class DataContext:
             self._warned_paths = surface_warned
         else:
             self._warned_paths = set()
-        self._cached_is_v10: bool | None = None
+        self._cached_at_least_v10: bool | None = None
+
+    def _surface_protocol_version(self) -> Any:
+        """Returns the surface's protocol version, which outlives its default catalog."""
+        return getattr(self.surface, "protocol_version", None) or getattr(
+            getattr(self.surface, "default_catalog", None),
+            "protocol_version",
+            None,
+        )
 
     @property
-    def is_v10(self) -> bool:
+    def at_least_v10(self) -> bool:
         """Whether this context targets A2UI protocol v1.0 or newer."""
-        if self._cached_is_v10 is None:
-            proto_ver = getattr(
-                getattr(self.surface, "default_catalog", None),
-                "protocol_version",
-                None,
-            )
-            self._cached_is_v10 = bool(
+        if self._cached_at_least_v10 is None:
+            proto_ver = self._surface_protocol_version()
+            self._cached_at_least_v10 = bool(
                 proto_ver and is_at_least_version(proto_ver, ProtocolVersion.V1_0)
             )
-        return self._cached_is_v10
+        return self._cached_at_least_v10
 
     def _emit_missing_data_binding_warning(self, resolved_path: str) -> None:
         """Emits MissingDataBindingWarning and dispatches deduplicated surface warning."""
@@ -191,12 +199,8 @@ class DataContext:
         if value is None:
             return None
 
-        is_v10 = self.is_v10
-        proto_ver = getattr(
-            getattr(self.surface, "default_catalog", None),
-            "protocol_version",
-            None,
-        )
+        at_least_v10 = self.at_least_v10
+        proto_ver = self._surface_protocol_version()
 
         # 1. Handle Data Path binding dictionaries:
         # In v1.0: {"@path": "/user/name"}
@@ -204,11 +208,11 @@ class DataContext:
         if isinstance(value, dict) and "componentId" not in value:
             has_path = (
                 ("@path" in value and isinstance(value["@path"], str))
-                if is_v10
+                if at_least_v10
                 else ("path" in value and isinstance(value["path"], str))
             )
             if has_path:
-                binding_path = value["@path"] if is_v10 else value["path"]
+                binding_path = value["@path"] if at_least_v10 else value["path"]
                 resolved_path = self.resolve_path(binding_path)
 
                 # Hybrid Preflight Warning Sniffer
@@ -221,23 +225,39 @@ class DataContext:
 
         # 2. Handle Function Call binding dictionaries:
         # In v1.0: {"@call": "formatString", "args": {...}, "catalogId": "..."}
-        # In v0.9: {"call": "formatString", "args": {...}, "catalogId": "..."}
+        # In v0.9: {"call": "formatString", "args": {...}}
         if isinstance(value, dict):
             has_call = (
                 ("@call" in value and isinstance(value["@call"], str))
-                if is_v10
+                if at_least_v10
                 else ("call" in value and isinstance(value["call"], str))
             )
             if has_call:
-                func_name = value["@call"] if is_v10 else value["call"]
+                func_name = value["@call"] if at_least_v10 else value["call"]
                 raw_args = value.get("args", {})
-                cat_id = value.get("catalogId") or value.get("catalog_id")
+                # A call names its own catalog only from v1.0. Before that it
+                # runs in the surface catalog, whatever catalogId it carries.
+                # An empty catalogId names a catalog too (one that never
+                # exists), so it does not fall back to the surface default.
+                names_catalog = at_least_v10 and (
+                    "catalogId" in value or "catalog_id" in value
+                )
+                cat_id = (
+                    (
+                        value["catalogId"]
+                        if "catalogId" in value
+                        else value.get("catalog_id")
+                    )
+                    if at_least_v10
+                    else None
+                )
 
                 res = self._execute_function(
                     func_name,
                     raw_args,
                     catalog_id=cat_id,
                     abort_signal=abort_signal,
+                    names_catalog=names_catalog,
                 )
                 return self._peek_value(res) if peek else res
 
@@ -250,7 +270,7 @@ class DataContext:
 
         # 4. Recurse into normal objects/dictionaries (with v1.0 escaping and validation)
         if isinstance(value, dict):
-            if is_v10:
+            if at_least_v10:
                 validate_reserved_directives(value.keys(), proto_ver or "v1.0")
                 return {
                     unescape_object_key(k): self.resolve_dynamic_value(
@@ -311,11 +331,11 @@ class DataContext:
             if isinstance(val, dict) and "componentId" not in val:
                 has_path = (
                     ("@path" in val and isinstance(val["@path"], str))
-                    if self.is_v10
+                    if self.at_least_v10
                     else ("path" in val and isinstance(val["path"], str))
                 )
                 if has_path:
-                    binding_path = val["@path"] if self.is_v10 else val["path"]
+                    binding_path = val["@path"] if self.at_least_v10 else val["path"]
                     paths.add(self.resolve_path(binding_path))
                     return
             if isinstance(val, dict):
@@ -403,6 +423,7 @@ class DataContext:
         raw_args: Any,
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
+        names_catalog: bool = False,
     ) -> Any:
         """Validates, resolves and runs a function call.
 
@@ -413,6 +434,11 @@ class DataContext:
         are handed to the function body as they are. Validating the resolved
         values instead would reject, for example, the ``ValidationResult``
         that a v1.0 validator returns to ``and``, ``or`` or ``not``.
+
+        ``names_catalog`` says whether the call carries a ``catalogId`` key,
+        whatever its value. From v1.0 a reserved ``@`` system function belongs
+        to no catalog, so a call to one that names a catalog is a malformed
+        expression: it is reported as an ``EXPRESSION_ERROR`` and not run.
         """
         from ..exceptions import A2uiCatalogError, A2uiExpressionError
 
@@ -423,30 +449,43 @@ class DataContext:
                     f" ({MAX_FUNCTION_CALL_ARGS})"
                 )
 
-            target_catalog: CatalogApi | None = None
-            if catalog_id is not None:
-                target_catalog = self.surface.available_catalogs.get(catalog_id)
-                if not target_catalog:
-                    raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
+            fn: Any
+            if self.at_least_v10 and is_system_function_name(name):
+                # A system function belongs to no catalog, so it skips catalog
+                # resolution and works on a surface without a default catalog.
+                if names_catalog:
+                    raise A2uiExpressionError(
+                        f"System function '{name}' belongs to no catalog and must"
+                        " not name a catalogId"
+                    )
+                proto_ver = self._surface_protocol_version()
+                validate_system_function(name, raw_args, proto_ver)
+                fn = system_functions_for(proto_ver).get(name)
+                if fn is None:
+                    raise A2uiExpressionError(f"System function '{name}' not found.")
             else:
-                target_catalog = self.surface.default_catalog
-
-            PayloadValidator(catalog=target_catalog).validate_function(name, raw_args)
-
-            fn = (
-                target_catalog.get_function(name)
-                if hasattr(target_catalog, "get_function")
-                else None
-            )
-            if fn is None:
-                catalog_desc = (
-                    f"catalog '{target_catalog.catalog_id}'"
-                    if hasattr(target_catalog, "catalog_id")
-                    else "catalog"
+                target_catalog = self.surface.resolve_catalog(
+                    catalog_id, subject=f"Function call '{name}'"
                 )
-                raise A2uiCatalogError(
-                    f"Function '{name}' not found in {catalog_desc}."
+
+                PayloadValidator(catalog=target_catalog).validate_function(
+                    name, raw_args
                 )
+
+                fn = (
+                    target_catalog.get_function(name)
+                    if hasattr(target_catalog, "get_function")
+                    else None
+                )
+                if fn is None:
+                    catalog_desc = (
+                        f"catalog '{target_catalog.catalog_id}'"
+                        if hasattr(target_catalog, "catalog_id")
+                        else "catalog"
+                    )
+                    raise A2uiExpressionError(
+                        f"Function '{name}' not found in {catalog_desc}."
+                    )
 
             resolved_args = self.resolve_dynamic_value(
                 raw_args, peek=True, abort_signal=abort_signal
@@ -463,8 +502,15 @@ class DataContext:
             return None
         except Exception as e:
             if self.surface and hasattr(self.surface, "dispatch_error"):
+                # A call whose catalog can't be resolved is a catalog fault,
+                # not a broken expression: the function may exist in a
+                # catalog this surface doesn't have.
                 error_payload: dict[str, Any] = {
-                    "code": "EXPRESSION_ERROR",
+                    "code": (
+                        "CATALOG_ERROR"
+                        if isinstance(e, A2uiCatalogError)
+                        else "EXPRESSION_ERROR"
+                    ),
                     "message": str(e),
                     "expression": name,
                 }

@@ -32,6 +32,14 @@ To ensure consistency between the evaluation framework and the actual agent impl
 | `parse_response`   | Used to parse the model's completion.                                               | Handles extraction of JSON payloads from markdown and handles common LLM formatting artifacts.                   |
 | `payload_fixer`    | Applied before validation to correct common errors.                                 | Allows focusing evaluation on intent rather than minor formatting issues that are easily fixed in production.    |
 
+### **Evaluating Other Agent SDKs**
+
+The same tasks can run against the TypeScript and Dart Agent SDKs. Each SDK has a bridge in `a2ui_eval/bridges/` that implements the `AgentSdkBridge` interface: `generate_prompt` builds the format prompt and `parse_and_validate` parses a completion and, by default, runs strict validation. The TypeScript and Dart bridges call a small runner script (`ts_runner.mjs`, `dart_runner.dart`) in a child process. The model, the dataset and the LLM judge do not change between SDKs, so scores differ only where the SDKs differ.
+
+`base.py` lists the strategies, inference formats and protocol versions each SDK supports. `main.py` and `tasks.py` check a run against these lists before any model call. Every bridge uses the same parse timeout, `DEFAULT_PARSE_TIMEOUT_SEC`.
+
+The `subagent_tool` strategy calls `parse_and_validate` with `validate=False`, so the specialist tool only parses. For `direct` and `subagent_tool`, strict validation runs once, in the Stage 1 scorer. The format strategies (`express`, `elemental` and `atom`) also validate when the solver compiles the completion with `parse_and_validate`, so their payloads are validated twice: once in the solver and again in the Stage 1 scorer.
+
 ### **Replicating and Enhancing the Eval Lifecycle**
 
 While the `flutter/evals` project provides a useful reference for managing complex datasets, the A2UI framework moves away from Dart-based CLI tools (`devals`) in favor of a native Python implementation within the `a2ui/evals` worktree. This ensures deeper integration with the Python-based Inspect libraries and simplifies the contribution process for the broader machine learning community.

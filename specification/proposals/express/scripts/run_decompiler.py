@@ -43,7 +43,7 @@ sys.path.insert(
 )
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_models
-from a2ui.inference_formats.experimental.express import ExpressDecompiler
+from a2ui.inference_formats.express import ExpressDecompiler
 
 
 def decompile_example(example_path: str, catalog_path: str) -> str:

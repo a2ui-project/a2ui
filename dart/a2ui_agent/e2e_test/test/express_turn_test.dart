@@ -19,15 +19,15 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'test_infra/ai_client.dart';
+import 'test_infra/basic_catalog.dart';
 import 'test_infra/login_form.dart';
-import 'test_infra/renderer_catalog.dart';
 
 void main() {
-  // Follows the steps of `a2ui_agent/example/a2ui_agent_example.dart`.
-  test(
-    'an Express agent turn produces a surface the renderer accepts',
-    () async {
-      final CatalogApi catalog = loadBasicCatalog();
+  for (final A2uiProtocolVersion version in turnVersions) {
+    // Follows the steps of `a2ui_agent/example/a2ui_agent_example.dart`.
+    test('${version.jsonValue}: an Express agent turn produces a surface the '
+        'renderer accepts', () async {
+      final CatalogApi catalog = loadBasicCatalog(version);
 
       // 1. At agent startup: register the catalogs the agent supports.
       final generator = A2uiGenerator(
@@ -37,7 +37,7 @@ void main() {
 
       // 2. Per request: negotiate with the renderer's capabilities.
       final A2uiRequestProcessor processor = generator.createProcessor(
-        A2uiRendererCapabilities.forCatalogIds([catalog.id]),
+        A2uiRendererCapabilities.forCatalogIds([catalog.id], version: version),
       );
 
       // 3. Call the LLM with the prompt snippet.
@@ -55,7 +55,6 @@ void main() {
       expectLoginForm(catalog, [
         for (final A2uiPart part in parts.whereType<A2uiPart>()) ...part.a2ui,
       ], llmOutput: llmOutput);
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+    }, timeout: const Timeout(Duration(minutes: 2)));
+  }
 }

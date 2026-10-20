@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/processing/expressions.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -43,8 +42,8 @@ void main() {
       });
     });
 
-    test('parses null keyword as null in parseExpression', () {
-      expect(parser.parseExpression('null'), isNull);
+    test('parses null keyword as an empty string in parseExpression', () {
+      expect(parser.parseExpression('null'), '');
     });
 
     test('parses non-ASCII identifiers and paths', () {

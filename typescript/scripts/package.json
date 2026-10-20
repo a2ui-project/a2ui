@@ -1,0 +1,17 @@
+{
+  "name": "@a2ui/typescript-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'Workspace has no build step.'",
+    "test": "node --test *.test.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0"
+  }
+}

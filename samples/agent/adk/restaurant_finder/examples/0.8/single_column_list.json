@@ -198,7 +198,7 @@
       "path": "/items",
       "contents": [
         {
-          "key": "item1",
+          "key": "0",
           "valueMap": [
             {
               "key": "name",
@@ -227,7 +227,7 @@
           ]
         },
         {
-          "key": "item2",
+          "key": "1",
           "valueMap": [
             {
               "key": "name",

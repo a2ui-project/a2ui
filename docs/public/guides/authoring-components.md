@@ -1,5 +1,9 @@
 # Authoring Custom Components
 
+!!! tip "Authoring components for multiple frameworks?"
+
+    See [Authoring Universal Components](authoring-universal-components.md) to learn how to write a single W3C Custom Element that works directly across Lit, React, and Angular renderers.
+
 Learn how to define, implement, and register custom components in A2UI using the `rizzcharts` sample as an example. This guide focuses on authoring a component around your Angular code.
 
 ## Overview
@@ -231,7 +235,6 @@ if use_ui:
         self.catalog_configs, capabilities, accepts_inline_catalogs=True
     )
     inference_format = DirectJsonFormat(catalogs, examples_path=self.examples_path)
-    a2ui_catalog = catalogs[0]
     examples = inference_format.prompt_generator.generate_examples(validate=True)
 
     # Save to session (Event contains state_delta)
@@ -241,7 +244,7 @@ if use_ui:
             actions=EventActions(
                 state_delta={
                     _A2UI_ENABLED_KEY: True,
-                    _A2UI_CATALOG_KEY: a2ui_catalog,
+                    _A2UI_CATALOGS_KEY: catalogs,
                     _A2UI_EXAMPLES_KEY: examples,
                 }
             ),
@@ -251,17 +254,17 @@ if use_ui:
 
 ### 4.2 Agent Tool Setup
 
-The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client.
+The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client.
 
 ```python
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.utils import resolve_catalogs
 
-a2ui_catalog = resolve_catalogs(self.catalog_configs, capabilities)[0]
+a2ui_catalogs = resolve_catalogs(self.catalog_configs, capabilities)
 agent.tools = [
     SendA2uiToClientToolset(
         a2ui_enabled=True,
-        a2ui_catalog=a2ui_catalog,
+        a2ui_catalogs=a2ui_catalogs,
         a2ui_examples=examples,
     )
 ]
@@ -269,7 +272,7 @@ agent.tools = [
 
 ### 4.3 Tool Execution
 
-Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_agent/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
+Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_adk/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
 
 ```python
 from a2ui.adk import A2uiEventConverter

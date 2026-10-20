@@ -558,21 +558,21 @@
             text: "Two"
 
 - name: test_compile_express_standalone_function_call
-  description: A call written as a statement of its own asks the renderer to run a function, and compiles to callRendererFunction with the surface's catalog on the call. The Express proposal shows this message with functionCallId and callFunction at the top level, which the v1.0 envelope rejects.
+  description: A call written as a statement of its own asks the renderer to run a function, and compiles to callRendererFunction with the surface's catalog on the call. The function must be one the agent may call, which agent_functions_catalog_v1_0.json declares. The Express proposal shows this message with functionCallId and callFunction at the top level, which the v1.0 envelope rejects.
   action: compile
   args:
     format: express
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: 'openUrl("https://example.com")'
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: 'notify("Saved")'
   expect:
     - version: "v1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
-          catalogId: "conformance/simplified"
-          "@call": "openUrl"
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
           args:
-            url: "https://example.com"
+            message: "Saved"
 
 - name: test_compile_express_function_call_action
   description: A function call in an action slot is the local branch of Action, which is how a control does something in the renderer rather than send the agent an event.
@@ -920,12 +920,12 @@
     category: "ValidationError"
 
 - name: test_compile_express_binding_a_static_property_is_a_validation_error
-  description: A path given to a property typed as a plain string is a validation error, because a renderer reading that property will not resolve it. Only a property typed DynamicString admits a binding.
+  description: A path given to a property with a static type, such as a plain number, is a validation error, because a renderer reading that property will not resolve it. Only a dynamic type, such as DynamicString or DynamicNumber, admits a binding.
   action: compile
   args:
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
-  input: "root = Chart([1, 2], $/caption)"
+  input: "root = Gauge($/value)"
   expect_error:
     category: "ValidationError"
 

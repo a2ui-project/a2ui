@@ -18,26 +18,24 @@ import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
 
-/// Cases that cannot run yet, keyed by name, with the reason they are skipped.
-const Map<String, String> _skipped = {
-  'test_multi_catalog_function_call_catalog_id_override':
-      'Requires embedded v1.0 common types.',
-};
-
 /// Runs the shared `conformance/core/multi_catalog.yaml` suite against
 /// [SurfaceModel.resolveCatalog] and the [DataContext] a component renders
 /// with.
 void main() {
-  final List<Map<String, Object?>> cases = loadConformanceSuite(
-    'core/multi_catalog.yaml',
-  );
+  // The suite's `validate` cases render basic-catalog components on a
+  // surface, so `message_processor_conformance_test.dart` runs them.
+  final List<Map<String, Object?>> cases = [
+    for (final Map<String, Object?> testCase
+        in loadConformanceSuite('core/multi_catalog.yaml'))
+      if (testCase['action'] != 'validate') testCase,
+  ];
 
   group('conformance core/multi_catalog.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
     for (final testCase in cases) {
       final name = testCase['name']! as String;
-      test(name, skip: _skipped[name], () => _runCase(testCase));
+      test(name, () => _runCase(testCase));
     }
   });
 }
@@ -131,11 +129,13 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
         (name, args, context) =>
             surface.resolveCatalog(null).invoke(name, args, context),
         '/',
-        protocolVersion: surface.protocolVersion,
+        protocolVersion: surface.protocolVersion == null
+            ? null
+            : A2uiProtocolVersion.tryParseSemVer(surface.protocolVersion!),
         invokerForCatalog: (catalogId) =>
             surface.resolveCatalog(catalogId).invoke,
       );
-      context.resolveSync({
+      context.resolveDynamicValue({
         '@call': functionName,
         if (functionCall['catalogId'] != null)
           'catalogId': functionCall['catalogId'],
@@ -147,13 +147,22 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
   final expectError = testCase['expectError'] as Map<String, Object?>?;
   if (expectError != null) {
     expect(expectError['category'], 'CatalogError', reason: name);
+    final message = expectError['message']! as String;
+    // The suite words an unsupported catalog as this case's surface would;
+    // this SDK, like the Python and TypeScript ones, reports it as
+    // "Catalog not found: <id>".
+    final RegExpMatch? unsupported =
+        RegExp(r"^Catalog '([^']*)' is not supported by surface ")
+            .firstMatch(message);
     expect(
       select,
       throwsA(
         isA<A2uiCatalogError>().having(
           (e) => e.message,
           'message',
-          expectError['message'],
+          unsupported == null
+              ? message
+              : startsWith('Catalog not found: ${unsupported[1]}.'),
         ),
       ),
       reason: name,
