@@ -20,6 +20,8 @@ These tests compare it with a processor that checks the whole surface on every
 batch, which is what every processor did before.
 """
 
+import itertools
+import json
 import random
 from typing import Any
 
@@ -28,9 +30,9 @@ import pytest
 from a2ui.core import MessageProcessor
 from a2ui.core.basic_catalog import v0_8
 from a2ui.core.catalog import Catalog
-from a2ui.core.exceptions import A2uiError
+from a2ui.core.exceptions import A2uiError, A2uiRecursionError
 from a2ui.core.processing import MessageProcessorOptions
-from a2ui.core.validation import ValidationConfig
+from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
 
 CATALOG = Catalog.from_json(
     {
@@ -54,9 +56,24 @@ CATALOG = Catalog.from_json(
                 "allowedParents": ["Strict", "Box", "Surface"],
             },
             "Header": {"type": "object", "allowedParents": ["Box"]},
+            # A type with no reference fields, whose children are guessed from
+            # its properties (the legacy v0.8 heuristic): `note` names a child
+            # when it names a component the surface holds.
             "Leaf": {
                 "type": "object",
                 "properties": {"note": {"type": "string"}},
+            },
+            # An array of component ids is not a reference field either, so
+            # `slots` names children when one of them names a component the
+            # surface holds.
+            "Slots": {
+                "type": "object",
+                "properties": {
+                    "slots": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/ComponentId"},
+                    }
+                },
             },
         },
     },
@@ -65,7 +82,7 @@ CATALOG = Catalog.from_json(
 )
 
 IDS = ["root", "a", "b", "c", "d", "e", "f"]
-TYPES = ["Box", "Strict", "Card", "Item", "Header", "Leaf"]
+TYPES = ["Box", "Strict", "Card", "Item", "Header", "Leaf", "Slots"]
 
 CONFIGS = {
     "missing_root_allowed": ValidationConfig(
@@ -95,6 +112,8 @@ def _component(rng: random.Random) -> dict[str, Any]:
         comp["child"] = rng.choice(IDS)
     elif comp_type == "Leaf" and rng.random() < 0.7:
         comp["note"] = rng.choice(IDS)
+    elif comp_type == "Slots":
+        comp["slots"] = rng.sample(IDS, rng.randint(0, 3))
     return comp
 
 
@@ -252,3 +271,126 @@ def test_v08_matches_whole_surface_check(seed: int) -> None:
         expected = _outcome(whole, message)
         assert _outcome(incremental, message) == expected, (seed, step, message)
         assert _components(incremental) == _components(whole), (seed, step)
+
+
+# A v0.8 `Text` has no reference fields, so its references are guessed: a
+# string property naming a component the surface holds is one. Here `a`'s
+# `usageHint` names `h1` once the surface holds a component with that id.
+V08_ROOT = {
+    "id": "root",
+    "component": {"Column": {"children": {"explicitList": ["a"]}}},
+}
+V08_A = {
+    "id": "a",
+    "component": {"Text": {"text": {"literalString": "A"}, "usageHint": "h1"}},
+}
+V08_H1_COLUMN = {
+    "id": "h1",
+    "component": {"Column": {"children": {"explicitList": ["a"]}}},
+}
+V08_H1_TEXT = {"id": "h1", "component": {"Text": {"text": {"literalString": "H"}}}}
+
+
+def _v08_processor(config: ValidationConfig) -> MessageProcessor:
+    proc = MessageProcessor(
+        [V08_CATALOG], options=MessageProcessorOptions(validation_config=config)
+    )
+    proc.process_messages([{
+        "beginRendering": {
+            "surfaceId": "s1",
+            "catalogId": V08_CATALOG.catalog_id,
+            "root": "root",
+        }
+    }])
+    return proc
+
+
+def _v08_message(components: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"surfaceUpdate": {"surfaceId": "s1", "components": components}}
+
+
+def test_v08_guessed_reference_closes_cycle_under_strict_config() -> None:
+    processor = _v08_processor(STRICT_VALIDATION)
+    with pytest.raises(A2uiRecursionError):
+        processor.process_messages([_v08_message([V08_ROOT, V08_A, V08_H1_COLUMN])])
+
+
+@pytest.mark.parametrize("config_name", sorted(CONFIGS))
+def test_v08_guessed_reference_closes_cycle_under_deferred_config(
+    config_name: str,
+) -> None:
+    processor = _v08_processor(CONFIGS[config_name])
+    processor.process_messages([_v08_message([V08_ROOT]), _v08_message([V08_A])])
+    with pytest.raises(A2uiRecursionError):
+        processor.process_messages([_v08_message([V08_H1_COLUMN])])
+    assert "h1" not in processor.model.get_surface("s1").components_model
+
+
+def test_v08_guessed_reference_makes_component_reachable_under_strict_config() -> None:
+    processor = _v08_processor(STRICT_VALIDATION)
+    processor.process_messages([_v08_message([V08_ROOT, V08_A, V08_H1_TEXT])])
+    assert "h1" in processor.model.get_surface("s1").components_model
+
+
+@pytest.mark.parametrize("config_name", sorted(CONFIGS))
+@pytest.mark.parametrize("h1", [V08_H1_COLUMN, V08_H1_TEXT], ids=["column", "text"])
+@pytest.mark.parametrize("order", list(itertools.permutations(range(3))))
+def test_v08_guessed_reference_matches_whole_surface_check(
+    config_name: str, h1: dict[str, Any], order: tuple[int, ...]
+) -> None:
+    """The incremental check reads the guessed references a whole check reads.
+
+    The components arrive one per message in every order, so the reference
+    is guessed both before and after the component it names arrives.
+    """
+    config = CONFIGS[config_name]
+    incremental = _v08_processor(config)
+    whole = _v08_processor(config)
+    model = whole.model.get_surface("s1").components_model
+    model.components_update_applied = lambda _: None  # type: ignore[method-assign]
+    components = [V08_ROOT, V08_A, h1]
+    for index in order:
+        message = _v08_message([components[index]])
+        expected = _outcome(whole, message)
+        assert _outcome(incremental, message) == expected, (order, index)
+        assert _components(incremental) == _components(whole), (order, index)
+
+
+@pytest.mark.performance
+def test_children_arriving_one_per_message_scale_linearly(timing: Any) -> None:
+    """A container that allows only some child types checks each child once.
+
+    `root` lists every child up front, and the children then arrive one per
+    message. Each child is checked against `root` without reading the
+    other children, so the time grows with the number of children rather
+    than its square.
+    """
+    case = {
+        "operation": "process_messages",
+        "payload": [
+            (
+                '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1",'
+                ' "components": [{"id": "root", "component": "Strict", "children": ['
+            ),
+            {"repeat": '"item_{i}"', "separator": ", "},
+            "]}]}}, ",
+            {
+                "repeat": (
+                    '{"version": "v1.0", "updateComponents": {"surfaceId": "s1",'
+                    ' "components": [{"id": "item_{i}", "component": "Item"}]}}'
+                ),
+                "separator": ", ",
+            },
+            "]",
+        ],
+        "sizes": [250, 1000],
+        "max_ratio": 8,
+    }
+
+    def prepare(payload: str) -> Any:
+        messages = json.loads(payload)
+        return lambda: _processor(CONFIGS["missing_root_allowed"]).process_messages(
+            messages
+        )
+
+    timing.measure_growth(case, prepare)

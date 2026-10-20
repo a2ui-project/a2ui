@@ -123,7 +123,7 @@ class SurfaceComponentsModel:
         comp = self.get(component_id)
         if not comp:
             return []
-        return list(comp.get_child_references())
+        return list(comp.get_child_references(set(self._components.keys())))
 
     def _validate_component(
         self, comp: ComponentModel, config: ValidationConfig
