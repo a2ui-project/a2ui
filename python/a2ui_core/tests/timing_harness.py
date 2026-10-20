@@ -21,8 +21,11 @@ deselects that marker, so `uv run pytest` skips them, and
 `uv run pytest -m performance` runs only them.
 
 A test asks for the `timing` fixture to write a case's payload and to compare
-the times of two calls. This file sits in `python/`, above the test directories
-of `a2ui_core` and `a2ui_agent`, so that both suites get the fixture.
+the times of two calls.
+
+This is a plain module rather than a conftest so that the test suites of other
+packages can load it too: a test directory's `conftest.py` loads it by path and
+exposes `timing` (see `conftest.py` in this directory).
 """
 
 from __future__ import annotations
