@@ -210,10 +210,24 @@ class RendererState {
         );
       }
     }
-    for (final surfaceId in ids) {
-      // An assumed surface was not checked, so what changed on it stays
-      // recorded for the check after it is created.
-      if (!_assumed.contains(surfaceId)) _forgetChanged(surfaceId);
+    // An assumed surface was not checked, so what changed on it stays
+    // recorded for the check after it is created.
+    markChecked(ids.where((surfaceId) => !_assumed.contains(surfaceId)));
+  }
+
+  /// Stops holding the components each surface changed against later checks.
+  ///
+  /// [checkTopology] calls this for the surfaces it checks. A caller calls it
+  /// for the surfaces of messages the renderer received that failed a check,
+  /// such as a stream that failed after it emitted them: no message removes a
+  /// component, so a component the renderer already holds can't be made
+  /// reachable later, and the later turns are not held to it. Dangling
+  /// references and a missing root are still reported, since [checkTopology]
+  /// checks those on the whole surface. Like any other change, this is undone
+  /// when the transaction it was made in fails.
+  void markChecked(Iterable<String> surfaceIds) {
+    for (final surfaceId in LinkedHashSet<String>.of(surfaceIds)) {
+      _forgetChanged(surfaceId);
     }
   }
 

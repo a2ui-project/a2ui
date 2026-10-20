@@ -109,177 +109,180 @@ void checkCompositionConstraints(
           case (final String id, final String type))
         id: type,
   };
-  final checker = _CompositionChecker(
-    refFields,
-    rules,
-    (String id) => types[id],
-    rootId: rootId,
-    surfaceId: surfaceId,
-  );
+
+  // [pointer] locates [component] in the message, or is null when the
+  // component was already stored.
+  void check(Map<String, Object?> component, String? pointer) {
+    if (_componentViolation(
+      component,
+      refFields,
+      rules,
+      (String id) => types[id],
+      rootId: rootId,
+      pointer: pointer,
+      surfaceId: surfaceId,
+    )
+        case final A2uiValidationError error) {
+      throw error;
+    }
+  }
+
   for (var index = 0; index < components.length; index++) {
-    checker.checkComponent(components[index], '/components/$index');
+    check(components[index], '/components/$index');
   }
   for (final component in existing) {
-    checker.checkComponent(component, null);
+    check(component, null);
   }
 }
 
-/// Checks the parent-child edges a batch of [components] can change against
-/// [rules], on a surface whose other edges passed
-/// [checkCompositionConstraints] under the same [rules] and have not changed
-/// since.
+/// Whether [checkCompositionConstraints] would pass on the surface
+/// [components] leave behind, checking only the edges they change.
 ///
-/// Those are the surface's edge into the root when the batch holds it, the
-/// edges from each component of the batch, and the edges into each
-/// component of the batch from the components outside it. [heldType] gives
-/// the type of a component the surface holds, or null for one it does not,
-/// and [heldParents] the components the surface holds that reference an id.
-/// The rest of the surface is not read, so the check costs what the batch
-/// changes rather than the size of the surface.
+/// This holds only when [checkCompositionConstraints] passed on the surface
+/// before [components], under the same [rules]. [typeOf] gives the type of
+/// each component the surface holds with [components] applied, and
+/// [parentsOf] the components that reference an id there.
 ///
-/// An error for the root or for an edge from the batch is the one
-/// [checkCompositionConstraints] reports first for the same surface. An edge
-/// into the batch from a component outside it is checked last, so a caller
-/// that needs the error the whole-surface check reports first runs that
-/// check when this one throws for such an edge.
-///
-/// Throws [A2uiValidationError] as [checkCompositionConstraints] does.
-void checkBatchCompositionConstraints(
+/// A component of [components] is checked against the surface and all of
+/// its children, as [checkCompositionConstraints] checks it. A component
+/// outside [components] that references one of them, which holds it, keeps
+/// its other children, so its edge to each component of [components] it
+/// holds is checked and the rest are not. Every other edge is unchanged and
+/// passed before. A container holding many children, receiving one per
+/// message, is then checked against one child per message rather than all
+/// of them.
+bool compositionHoldsAfter(
   List<Map<String, Object?>> components,
   Map<String, ComponentRefFields> refFields,
   Map<String, CompositionRule> rules, {
-  required String? Function(String id) heldType,
-  required Iterable<String> Function(String id) heldParents,
+  required String? Function(String id) typeOf,
+  required Iterable<String> Function(String id) parentsOf,
   String rootId = _rootComponentId,
-  String? surfaceId,
 }) {
-  if (rules.isEmpty) return;
-  // A component of the batch replaces the one the surface holds with its id.
-  final batchTypes = <String, String?>{
+  if (rules.isEmpty) return true;
+  final ids = <String>{
     for (final component in components)
-      if (component['id'] case final String id)
-        id: switch (component['component']) {
-          final String type => type,
-          _ => null,
-        },
+      if (component['id'] case final String id) id,
   };
-  String? typeOf(String id) =>
-      batchTypes.containsKey(id) ? batchTypes[id] : heldType(id);
-  final checker = _CompositionChecker(
-    refFields,
-    rules,
-    typeOf,
-    rootId: rootId,
-    surfaceId: surfaceId,
-  );
-  for (var index = 0; index < components.length; index++) {
-    checker.checkComponent(components[index], '/components/$index');
-  }
-  for (final MapEntry(key: String id, value: String? type)
-      in batchTypes.entries) {
-    if (type == null) continue;
-    for (final String parent in heldParents(id)) {
-      if (batchTypes.containsKey(parent)) continue;
-      final String? parentType = heldType(parent);
-      if (parentType == null) continue;
-      checker.checkEdge(parent, parentType, id, type, null);
-    }
-  }
-}
-
-/// The checks [checkCompositionConstraints] and
-/// [checkBatchCompositionConstraints] run on each component and edge.
-class _CompositionChecker {
-  _CompositionChecker(
-    this.refFields,
-    this.rules,
-    this.typeOf, {
-    required this.rootId,
-    required this.surfaceId,
-  });
-
-  final Map<String, ComponentRefFields> refFields;
-  final Map<String, CompositionRule> rules;
-
-  /// The type of a component on the surface the check reads, or null when
-  /// the surface does not hold it.
-  final String? Function(String id) typeOf;
-  final String rootId;
-  final String? surfaceId;
-
-  static String _list(List<String> names) =>
-      '[${names.map((name) => "'$name'").join(', ')}]';
-
-  /// Checks [component] as the root when it is one, and each edge from it.
-  ///
-  /// [pointer] locates [component] in the message, or is null when the
-  /// component was already stored.
-  void checkComponent(Map<String, Object?> component, String? pointer) {
-    final Object? id = component['id'];
-    final Object? type = component['component'];
-    if (id is! String || type is! String) return;
-
-    final List<String>? rootParents = rules[type]?.allowedParents;
-    if (id == rootId &&
-        rootParents != null &&
-        !rootParents.contains(_surfaceParent)) {
-      throw A2uiValidationError(
-        "Component '$id' ($type) cannot be placed under parent "
-        "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
-        '${_list(rootParents)}.',
-        code: 'UNALLOWED_PARENT',
-        path: pointer,
-        surfaceId: surfaceId,
-      );
-    }
-
-    for (final ComponentReference reference in _referencesOf(
+  for (final component in components) {
+    final A2uiValidationError? error = _componentViolation(
       component,
       refFields,
-    )) {
-      final String? childType = typeOf(reference.id);
-      if (childType == null) continue;
-      checkEdge(
-        id,
-        type,
-        reference.id,
-        childType,
-        pointer == null ? null : '$pointer${referencePointer(reference.field)}',
-      );
+      rules,
+      typeOf,
+      rootId: rootId,
+    );
+    if (error != null) return false;
+  }
+  for (final id in ids) {
+    final String? type = typeOf(id);
+    if (type == null) continue;
+    for (final String holder in parentsOf(id)) {
+      if (ids.contains(holder)) continue;
+      final String? holderType = typeOf(holder);
+      if (holderType == null) continue;
+      if (_edgeViolation(holder, holderType, id, type, rules) != null) {
+        return false;
+      }
     }
+  }
+  return true;
+}
+
+String _typeList(List<String> names) =>
+    '[${names.map((name) => "'$name'").join(', ')}]';
+
+/// The first composition error of [component]: the surface as the parent of
+/// the root, then each of its references whose child [typeOf] knows, in
+/// order. Null when there is none.
+///
+/// [pointer] locates [component] in the message, or is null when the
+/// component was already stored.
+A2uiValidationError? _componentViolation(
+  Map<String, Object?> component,
+  Map<String, ComponentRefFields> refFields,
+  Map<String, CompositionRule> rules,
+  String? Function(String id) typeOf, {
+  required String rootId,
+  String? pointer,
+  String? surfaceId,
+}) {
+  final Object? id = component['id'];
+  final Object? type = component['component'];
+  if (id is! String || type is! String) return null;
+
+  final List<String>? rootParents = rules[type]?.allowedParents;
+  if (id == rootId &&
+      rootParents != null &&
+      !rootParents.contains(_surfaceParent)) {
+    return A2uiValidationError(
+      "Component '$id' ($type) cannot be placed under parent "
+      "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
+      '${_typeList(rootParents)}.',
+      code: 'UNALLOWED_PARENT',
+      path: pointer,
+      surfaceId: surfaceId,
+    );
   }
 
-  /// Checks the edge from [parentId] to [childId], whose reference is at
-  /// [path] in the message, or nowhere in it when [path] is null.
-  void checkEdge(
-    String parentId,
-    String parentType,
-    String childId,
-    String childType,
-    String? path,
-  ) {
-    final List<String>? allowedChildren = rules[parentType]?.allowedChildren;
-    if (allowedChildren != null && !allowedChildren.contains(childType)) {
-      throw A2uiValidationError(
-        "Container '$parentId' ($parentType) cannot contain child '$childId' "
-        '($childType). Allowed children: ${_list(allowedChildren)}.',
-        code: 'UNALLOWED_CHILD',
-        path: path,
-        surfaceId: surfaceId,
-      );
-    }
-    final List<String>? allowedParents = rules[childType]?.allowedParents;
-    if (allowedParents != null && !allowedParents.contains(parentType)) {
-      throw A2uiValidationError(
-        "Component '$childId' ($childType) cannot be placed under "
-        "parent '$parentId' ($parentType). Allowed parents: "
-        '${_list(allowedParents)}.',
-        code: 'UNALLOWED_PARENT',
-        path: path,
-        surfaceId: surfaceId,
-      );
+  for (final ComponentReference reference in _referencesOf(
+    component,
+    refFields,
+  )) {
+    final String? childType = typeOf(reference.id);
+    if (childType == null) continue;
+    if (_edgeViolation(
+      id,
+      type,
+      reference.id,
+      childType,
+      rules,
+      path: pointer == null
+          ? null
+          : '$pointer${referencePointer(reference.field)}',
+      surfaceId: surfaceId,
+    )
+        case final A2uiValidationError error) {
+      return error;
     }
   }
+  return null;
+}
+
+/// The composition error of the edge from [parent] to [child], checking the
+/// children [parentType] allows and then the parents [childType] allows.
+/// Null when there is none.
+A2uiValidationError? _edgeViolation(
+  String parent,
+  String parentType,
+  String child,
+  String childType,
+  Map<String, CompositionRule> rules, {
+  String? path,
+  String? surfaceId,
+}) {
+  final List<String>? allowedChildren = rules[parentType]?.allowedChildren;
+  if (allowedChildren != null && !allowedChildren.contains(childType)) {
+    return A2uiValidationError(
+      "Container '$parent' ($parentType) cannot contain child '$child' "
+      '($childType). Allowed children: ${_typeList(allowedChildren)}.',
+      code: 'UNALLOWED_CHILD',
+      path: path,
+      surfaceId: surfaceId,
+    );
+  }
+  final List<String>? allowedParents = rules[childType]?.allowedParents;
+  if (allowedParents != null && !allowedParents.contains(parentType)) {
+    return A2uiValidationError(
+      "Component '$child' ($childType) cannot be placed under "
+      "parent '$parent' ($parentType). Allowed parents: "
+      '${_typeList(allowedParents)}.',
+      code: 'UNALLOWED_PARENT',
+      path: path,
+      surfaceId: surfaceId,
+    );
+  }
+  return null;
 }
 
 /// Matches a JSON Pointer as A2UI writes data-model paths, allowing the

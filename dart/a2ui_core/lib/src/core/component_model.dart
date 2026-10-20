@@ -161,12 +161,6 @@ class SurfaceComponentsModel {
   /// The components, in insertion order.
   Iterable<ComponentModel> get values => _components.values;
 
-  /// How many times a component has been added, removed or updated.
-  ///
-  /// What a check found about the components holds while this is unchanged.
-  @internal
-  int get changeCount => _changes;
-
   /// The distinct catalogs the components name, null for the surface's own,
   /// in the order the first component naming each was added.
   @internal
@@ -282,8 +276,9 @@ class SurfaceComponentsModel {
   void validateComponentsUpdate(
     List<Map<String, Object?>> components, [
     ValidationConfig config = ValidationConfig.strict,
-  ]) =>
-      checkComponentsUpdate(components, config, refFields);
+  ]) {
+    checkComponentsUpdate(components, config, refFields);
+  }
 
   /// [validateComponentsUpdate] with [refFields] in place of this model's,
   /// for a batch that draws on catalogs the model has not seen, and
@@ -296,8 +291,13 @@ class SurfaceComponentsModel {
   /// shows the graph passes. Otherwise, or when it cannot show that, the
   /// whole graph is walked, so a batch the graph rejects fails as it would
   /// have without the shortcut.
+  ///
+  /// Returns what the check found about the graph with the batch applied
+  /// when it started from what the check before found, which means nothing
+  /// changed the model since the batch before was checked and applied, or
+  /// null when it walked the whole graph.
   @internal
-  void checkComponentsUpdate(
+  ComponentGraphBound? checkComponentsUpdate(
     List<Map<String, Object?>> components,
     ValidationConfig config,
     Map<String, ComponentRefFields> refFields, {
@@ -348,7 +348,7 @@ class SurfaceComponentsModel {
         )) {
       _bound = bound;
       _boundBatch = components;
-      return;
+      return bound;
     }
 
     // Each component as its type and the map its references are read from.
@@ -366,6 +366,7 @@ class SurfaceComponentsModel {
       _bound = ComponentGraphBound.of(candidate, refFields);
       _boundBatch = components;
     }
+    return null;
   }
 
   /// Reports that [components], the batch the last [checkComponentsUpdate]

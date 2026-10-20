@@ -427,229 +427,290 @@ void main() {
     });
   });
 
-  group('MessageProcessor composition constraints, message by message', () {
-    MessageProcessor<ComponentApi> processor({ValidationConfig? config}) {
-      final p = MessageProcessor<ComponentApi>(
-        catalogs: [
-          Catalog<ComponentApi, FunctionImplementation>(
-            id: 'custom',
-            protocolVersion: A2uiProtocolVersion.v1_0,
-            components: _catalog().components.values.toList(),
-          ),
-        ],
+  group('MessageProcessor composition constraints under a deferred config', () {
+    // Each batch after the first is checked against only the edges it
+    // changes. A second processor checks each batch against the whole
+    // surface, and the two must agree on every message.
+    final configs = <String, ValidationConfig>{
+      'missing root allowed': const ValidationConfig(
+        allowDanglingReferences: true,
+        allowOrphanComponents: true,
+        allowMissingRoot: true,
+      ),
+      'orphans allowed': const ValidationConfig(
+        allowDanglingReferences: true,
+        allowOrphanComponents: true,
+      ),
+    };
+
+    Map<String, Object?> component(
+      String id,
+      String type, [
+      List<String>? children,
+    ]) =>
+        {
+          'id': id,
+          'component': type,
+          if (children != null) 'children': children,
+        };
+
+    for (final MapEntry(key: String name, value: ValidationConfig config)
+        in configs.entries) {
+      group(name, () {
+        test('rejects a child that arrives after its container', () {
+          final p = _DeferredPair(config);
+          p.expectSame([
+            component('root', 'Strict', ['a']),
+          ]);
+          expect(
+            p.expectSame([component('a', 'Card')]),
+            _violation('UNALLOWED_CHILD', path: null),
+          );
+        });
+
+        test('rejects a container that arrives after its child', () {
+          final p = _DeferredPair(config);
+          p.expectSame([component('root', 'Box')]);
+          p.expectSame([component('a', 'Card')]);
+          expect(
+            p.expectSame([
+              component('b', 'Strict', ['a']),
+            ]),
+            _violation('UNALLOWED_CHILD', path: '/components/0/children/0'),
+          );
+        });
+
+        test('rejects a child added to a container in a later message', () {
+          final p = _DeferredPair(config);
+          p.expectSame([
+            component('root', 'Strict', ['a']),
+          ]);
+          p.expectSame([component('a', 'Item')]);
+          p.expectSame([component('b', 'Card')]);
+          expect(
+            p.expectSame([
+              component('root', 'Strict', ['a', 'b']),
+            ]),
+            _violation('UNALLOWED_CHILD', path: '/components/0/children/1'),
+          );
+        });
+
+        test('accepts a container rewritten to drop a child it disallows', () {
+          final p = _DeferredPair(config);
+          p.expectSame([
+            component('root', 'Box', ['a', 'h']),
+          ]);
+          p.expectSame([component('a', 'Item'), component('h', 'Header')]);
+          expect(
+            p.expectSame([
+              component('root', 'Strict', ['a', 'h']),
+            ]),
+            _violation('UNALLOWED_CHILD', path: '/components/0/children/1'),
+          );
+          expect(
+            p.expectSame([
+              component('root', 'Strict', ['a']),
+            ]),
+            isNull,
+          );
+          // `h` no longer has a parent, and may be held by a `Box` again.
+          expect(
+            p.expectSame([
+              component('b', 'Box', ['h']),
+            ]),
+            isNull,
+          );
+        });
+
+        test('rejects a held child whose type changes', () {
+          final p = _DeferredPair(config);
+          p.expectSame([
+            component('root', 'Strict', ['a']),
+            component('a', 'Item'),
+          ]);
+          expect(
+            p.expectSame([component('a', 'Header')]),
+            _violation('UNALLOWED_CHILD', path: null),
+          );
+        });
+
+        test('rejects a child under a holder its allowedParents omits', () {
+          final p = _DeferredPair(config);
+          p.expectSame([
+            component('root', 'Box', ['c']),
+            {'id': 'c', 'component': 'Card', 'child': 'x'},
+          ]);
+          expect(
+            p.expectSame([component('x', 'Header')]),
+            _violation('UNALLOWED_PARENT', path: null),
+          );
+        });
+
+        test('rejects a root its allowedParents does not let the surface hold',
+            () {
+          final p = _DeferredPair(config);
+          p.expectSame([
+            component('a', 'Box', ['root']),
+          ]);
+          expect(
+            p.expectSame([component('root', 'Header')]),
+            _violation('UNALLOWED_PARENT', path: '/components/0'),
+          );
+        });
+
+        test('agrees with the whole-surface check on random batches', () {
+          const ids = ['root', 'a', 'b', 'c', 'd', 'e'];
+          const types = ['Box', 'Strict', 'Card', 'Item', 'Header'];
+          for (var seed = 0; seed < 200; seed++) {
+            final random = Random(seed);
+            final p = _DeferredPair(config);
+            for (var step = 0; step < 20; step++) {
+              final batch = <String, Map<String, Object?>>{};
+              for (int k = 1 + random.nextInt(3); k > 0; k--) {
+                final String id = ids[random.nextInt(ids.length)];
+                final String type = types[random.nextInt(types.length)];
+                batch[id] = {
+                  'id': id,
+                  'component': type,
+                  if (type == 'Box' || type == 'Strict')
+                    'children': (ids.toList()..shuffle(random))
+                        .take(random.nextInt(4))
+                        .toList(),
+                  if (type == 'Card') 'child': ids[random.nextInt(ids.length)],
+                };
+              }
+              p.expectSame(
+                batch.values.toList(),
+                reason: 'seed $seed, step $step',
+              );
+            }
+          }
+        });
+      });
+    }
+  });
+}
+
+/// A catalog for [_DeferredPair], declaring both kinds of composition
+/// constraint.
+final Catalog<ComponentApi, FunctionImplementation> _deferredCatalog =
+    Catalog<ComponentApi, FunctionImplementation>(
+  id: 'custom',
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: Catalog.fromJson({
+    'catalogId': 'custom',
+    'protocolVersion': 'v1.0',
+    'components': {
+      'Box': {
+        'type': 'object',
+        'properties': {
+          'children': {r'$ref': _childListRef},
+        },
+      },
+      'Strict': {
+        'type': 'object',
+        'allowedChildren': ['Item', 'Box'],
+        'properties': {
+          'children': {r'$ref': _childListRef},
+        },
+      },
+      'Card': {
+        'type': 'object',
+        'properties': {
+          'child': {
+            r'$ref': 'https://a2ui.org/specification/v1_0/common_types.json'
+                '#/\$defs/ComponentId',
+          },
+        },
+      },
+      'Item': {
+        'type': 'object',
+        'allowedParents': ['Strict', 'Box', 'Surface'],
+      },
+      'Header': {
+        'type': 'object',
+        'allowedParents': ['Box'],
+      },
+    },
+  }).components.values.toList(),
+);
+
+/// Two processors under the same deferred [ValidationConfig], each holding
+/// surface `s1`.
+///
+/// The first checks each batch against what the check of the batch before
+/// found. The second has a component of its surface touched after each
+/// batch, so it never starts from what the check before found, and checks
+/// each batch against the whole surface.
+class _DeferredPair {
+  _DeferredPair(ValidationConfig config)
+      : incremental = _processor(config),
+        whole = _processor(config);
+
+  final MessageProcessor<ComponentApi> incremental;
+  final MessageProcessor<ComponentApi> whole;
+
+  static MessageProcessor<ComponentApi> _processor(ValidationConfig config) =>
+      MessageProcessor<ComponentApi>(
+        catalogs: [_deferredCatalog],
         defaultVersion: A2uiProtocolVersion.v1_0,
         validationConfig: config,
-      );
-      p.processMessages(
-        AgentToRendererMessage.parseAll([
+      )..processMessages([
           {
             'version': 'v1.0',
             'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
           },
-        ], protocolVersion: A2uiProtocolVersion.v1_0),
-      );
-      return p;
+        ]);
+
+  /// Sends [components] to both processors, expects the same outcome and the
+  /// same components from both, and returns the error both raised, or null.
+  A2uiError? expectSame(
+    List<Map<String, Object?>> components, {
+    String? reason,
+  }) {
+    final A2uiError? expected = _send(whole, components);
+    final A2uiError? actual = _send(incremental, components);
+    final context = '${reason ?? ''} batch $components';
+    expect(_describe(actual), _describe(expected), reason: context);
+    expect(_snapshot(incremental), _snapshot(whole), reason: context);
+    if (expected == null) {
+      final ComponentModel first =
+          whole.model.getSurface('s1')!.componentsModel.all.first;
+      first.properties = first.properties;
     }
+    return actual;
+  }
 
-    void update(
-      MessageProcessor<ComponentApi> p,
-      List<Map<String, Object?>> components,
-    ) =>
-        p.processMessages(
-          AgentToRendererMessage.parseAll([
-            {
-              'version': 'v1.0',
-              'updateComponents': {'surfaceId': 's1', 'components': components},
-            },
-          ], protocolVersion: A2uiProtocolVersion.v1_0),
-        );
-
-    SurfaceComponentsModel components(MessageProcessor<ComponentApi> p) =>
-        p.model.getSurface('s1')!.componentsModel;
-
-    test('rejects a parent whose new type does not allow a held child', () {
-      final MessageProcessor<ComponentApi> p = processor();
-      update(p, [
+  static A2uiError? _send(
+    MessageProcessor<ComponentApi> processor,
+    List<Map<String, Object?>> components,
+  ) {
+    try {
+      processor.processMessages([
         {
-          'id': 'root',
-          'component': 'Column',
-          'children': ['v1'],
+          'version': 'v1.0',
+          'updateComponents': {'surfaceId': 's1', 'components': components},
         },
       ]);
-      update(p, [
-        {'id': 'v1', 'component': 'Video'},
-      ]);
+      return null;
+    } on A2uiError catch (error) {
+      return error;
+    }
+  }
 
-      expect(
-        () => update(p, [
-          {
-            'id': 'root',
-            'component': 'RestrictedBox',
-            'children': ['v1'],
-          },
-        ]),
-        throwsA(
-          _violation('UNALLOWED_CHILD', path: '/components/0/children/0'),
-        ),
-      );
-      expect(components(p).get('root')!.type, 'Column');
-    });
-
-    test('rejects a held child whose new type its parent does not allow', () {
-      final MessageProcessor<ComponentApi> p = processor();
-      update(p, [
-        {
-          'id': 'root',
-          'component': 'RestrictedBox',
-          'children': ['t1'],
-        },
-      ]);
-      update(p, [
-        {'id': 't1', 'component': 'Text'},
-      ]);
-
-      expect(
-        () => update(p, [
-          {'id': 't1', 'component': 'Video'},
-        ]),
-        throwsA(_violation('UNALLOWED_CHILD', path: null)),
-      );
-      expect(components(p).get('t1')!.type, 'Text');
-    });
-
-    test('keeps checking after a rejected message', () {
-      final MessageProcessor<ComponentApi> p = processor();
-      update(p, [
-        {
-          'id': 'root',
-          'component': 'RestrictedBox',
-          'children': ['a', 'b'],
-        },
-      ]);
-      expect(
-        () => update(p, [
-          {'id': 'a', 'component': 'Video'},
-        ]),
-        throwsA(_violation('UNALLOWED_CHILD', path: null)),
-      );
-      update(p, [
-        {'id': 'a', 'component': 'Text'},
-      ]);
-
-      expect(
-        () => update(p, [
-          {'id': 'b', 'component': 'Video'},
-        ]),
-        throwsA(_violation('UNALLOWED_CHILD', path: null)),
-      );
-    });
-
-    test('sees a component added to the surface outside the processor', () {
-      final MessageProcessor<ComponentApi> p = processor();
-      update(p, [
-        {
-          'id': 'root',
-          'component': 'RestrictedBox',
-          'children': ['t1', 'v1'],
-        },
-      ]);
-      update(p, [
-        {'id': 't1', 'component': 'Text'},
-      ]);
-      components(p).addComponent(ComponentModel('v1', 'Video', {}));
-
-      expect(
-        () => update(p, [
-          {'id': 't2', 'component': 'Text'},
-        ]),
-        throwsA(
-          _violation(
-            'UNALLOWED_CHILD',
-            path: null,
-            message: "Container 'root' (RestrictedBox) cannot contain child "
-                "'v1' (Video). Allowed children: ['Text', 'Button'].",
-          ),
-        ),
-      );
-    });
-
-    // Each processor is compared with one that checks the whole surface for
-    // every message, since a component updated outside it makes what it
-    // recorded about the surface stale.
-    const ids = ['root', 'a', 'b', 'c', 'd', 'e'];
-    const types = [
-      'Column',
-      'Row',
-      'ColumnHeader',
-      'RestrictedBox',
-      'Banner',
-      'Text',
-      'Video',
-    ];
-    const containers = {'Column', 'Row', 'RestrictedBox'};
-    final Map<String, ValidationConfig?> configs = {
-      'no config': null,
-      'relaxed config': ValidationConfig.relaxed,
-    };
-
-    Map<String, Object?> randomComponent(Random random) {
-      final String type = types[random.nextInt(types.length)];
-      return {
-        'id': ids[random.nextInt(ids.length)],
-        'component': type,
-        if (containers.contains(type))
-          'children': [
-            for (var i = random.nextInt(3); i > 0; i--)
-              ids[random.nextInt(ids.length)],
-          ],
+  static String? _describe(A2uiError? error) => switch (error) {
+        null => null,
+        final A2uiValidationError e =>
+          '${e.runtimeType} ${e.code} ${e.path}: ${e.message}',
+        final e => '${e.runtimeType}: ${e.message}',
       };
-    }
 
-    Object? outcome(void Function() body) {
-      try {
-        body();
-        return null;
-      } on A2uiValidationError catch (e) {
-        return (e.runtimeType, e.code, e.path, e.message);
-      }
-    }
-
-    Map<String, Object?> snapshot(MessageProcessor<ComponentApi> p) => {
-          for (final ComponentModel c in components(p).all) c.id: c.toJson(),
-        };
-
-    for (final MapEntry(key: String name, value: ValidationConfig? config)
-        in configs.entries) {
-      test('accepts and rejects what a whole-surface check does ($name)', () {
-        for (var seed = 0; seed < 50; seed++) {
-          final random = Random(seed);
-          final MessageProcessor<ComponentApi> incremental = processor(
-            config: config,
-          );
-          final MessageProcessor<ComponentApi> whole = processor(
-            config: config,
-          );
-          for (var step = 0; step < 25; step++) {
-            final Map<String, Map<String, Object?>> batch = {
-              for (var i = random.nextInt(2) + 1; i > 0; i--)
-                if (randomComponent(random) case final component)
-                  component['id']! as String: component,
-            };
-            for (final ComponentModel c in components(whole).all) {
-              c.properties = c.properties;
-            }
-            final Object? expected = outcome(
-              () => update(whole, batch.values.toList()),
-            );
-            expect(
-              outcome(() => update(incremental, batch.values.toList())),
-              expected,
-              reason: 'seed $seed, step $step, batch $batch',
-            );
-            expect(snapshot(incremental), snapshot(whole));
-          }
-        }
-      });
-    }
-  });
+  static Map<String, Object?> _snapshot(
+    MessageProcessor<ComponentApi> processor,
+  ) =>
+      {
+        for (final ComponentModel c
+            in processor.model.getSurface('s1')!.componentsModel.all)
+          c.id: c.toJson(),
+      };
 }

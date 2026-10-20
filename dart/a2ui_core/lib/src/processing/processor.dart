@@ -18,6 +18,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
 import '../core/common.dart';
+import '../core/component_graph_bound.dart';
 import '../core/component_model.dart';
 import '../core/messages.dart';
 import '../core/renderer_capabilities.dart';
@@ -45,108 +46,10 @@ typedef _RoutedMessage = ({
 });
 
 /// An `updateComponents` batch that passed every check, ready to apply.
-///
-/// `composition` is null when no catalog the surface draws on declares
-/// composition constraints. Otherwise it holds the constraints the batch was
-/// checked against, and the record of the surface's edges that check read
-/// from, or null when it read the whole surface.
 typedef _CheckedBatch = ({
   List<Map<String, Object?>> resolved,
   Map<String, ComponentRefFields> refFields,
-  ({
-    _CompositionRecord? record,
-    Map<String, CompositionRule> rules
-  })? composition,
 });
-
-/// The parent-child edges of a surface's components as the last composition
-/// check left them, which passed that check, so that the next check can read
-/// only the edges its batch changes.
-///
-/// The record holds for the surface's [SurfaceComponentsModel] while its
-/// [SurfaceComponentsModel.changeCount] is [changes], and for a check whose
-/// reference fields and constraints are those the record was made with.
-class _CompositionRecord {
-  _CompositionRecord(this.rules);
-
-  /// The edges of every component [model] holds, read through [refFields].
-  factory _CompositionRecord.of(
-    SurfaceComponentsModel model,
-    Map<String, ComponentRefFields> refFields,
-    Map<String, CompositionRule> rules,
-  ) {
-    final record = _CompositionRecord(rules);
-    for (final ComponentModel component in model.all) {
-      record.setChildren(
-        component.id,
-        component.type,
-        component.properties,
-        refFields,
-      );
-    }
-    return record;
-  }
-
-  /// The constraints the edges passed.
-  Map<String, CompositionRule> rules;
-
-  /// The model's change count once the checked batch was applied.
-  int changes = -1;
-
-  /// The ids each component references, held or not.
-  final Map<String, List<String>> _children = {};
-
-  /// The components that reference each id, held or not.
-  final Map<String, Set<String>> _parents = {};
-
-  /// The reference fields each type's references were read through.
-  final Map<String, ComponentRefFields?> _fields = {};
-
-  /// The components that reference [id].
-  Iterable<String> parentsOf(String id) => _parents[id] ?? const <String>{};
-
-  /// Records the edges of the component [id] of [type], read from [source]
-  /// through [refFields], in place of the ones it had.
-  void setChildren(
-    String id,
-    String type,
-    Map<String, Object?> source,
-    Map<String, ComponentRefFields> refFields,
-  ) {
-    for (final String child in _children[id] ?? const <String>[]) {
-      _parents[child]?.remove(id);
-    }
-    final List<String> children = [
-      for (final ComponentReference reference
-          in componentReferences(source, refFields[type]))
-        reference.id,
-    ];
-    for (final child in children) {
-      (_parents[child] ??= <String>{}).add(id);
-    }
-    _children[id] = children;
-    _fields[type] = refFields[type];
-  }
-
-  /// Whether a check through [refFields] against [rules] reads the edges the
-  /// way this record was made.
-  bool matches(
-    Map<String, ComponentRefFields> refFields,
-    Map<String, CompositionRule> rules,
-  ) {
-    for (final MapEntry(key: String type, value: ComponentRefFields? fields)
-        in _fields.entries) {
-      if (!identical(refFields[type], fields)) return false;
-    }
-    if (identical(rules, this.rules)) return true;
-    if (rules.length != this.rules.length) return false;
-    for (final MapEntry(key: String type, value: CompositionRule rule)
-        in rules.entries) {
-      if (this.rules[type] != rule) return false;
-    }
-    return true;
-  }
-}
 
 /// The central processor for A2UI messages on renderer side.
 ///
@@ -241,10 +144,6 @@ class MessageProcessor<T extends ComponentApi> {
   /// Each catalog's composition constraints, by catalog id, built on first
   /// use.
   final Map<String, Map<String, CompositionRule>> _compositionRules = {};
-
-  /// The edges each surface's components had after the last batch whose
-  /// composition constraints were checked, by the surface's components model.
-  final Expando<_CompositionRecord> _compositionRecords = Expando();
 
   /// The RPC layer: it answers the `callRendererFunction` messages this
   /// processor receives, settles its `agentFunctionResponse`s, and sends the
@@ -876,18 +775,16 @@ class MessageProcessor<T extends ComponentApi> {
     return merged;
   }
 
-  /// The composition constraints of the surface's default catalog and the
-  /// catalogs [componentCatalogIds] name, merged the way [_refFieldsFor]
-  /// merges reference fields: the first catalog in that order wins a type
-  /// two catalogs both constrain.
+  /// The composition constraints of the catalogs [components] draw on,
+  /// merged the way [_refFieldsFor] merges reference fields.
   Map<String, CompositionRule> _compositionRulesFor(
     SurfaceModel<T> surface,
-    Iterable<String?> componentCatalogIds,
+    Iterable<Map<String, Object?>> components,
   ) {
     final ids = <String>{
       if (surface.defaultCatalog case final catalog?) catalog.id,
-      for (final String? id in componentCatalogIds)
-        if (id != null) id,
+      for (final Map<String, Object?> component in components)
+        if (component['catalogId'] case final String id) id,
     };
     final Iterable<Catalog<T, FunctionImplementation>> involved =
         ids.map(surface.resolveCatalog);
@@ -958,10 +855,11 @@ class MessageProcessor<T extends ComponentApi> {
       catalogIds,
     );
     final ValidationConfig? config = validationConfig;
+    ComponentGraphBound? bound;
     if (config == null) {
       checkDuplicateComponentIds(resolved);
     } else {
-      model.checkComponentsUpdate(
+      bound = model.checkComponentsUpdate(
         resolved,
         config,
         refFields,
@@ -973,110 +871,64 @@ class MessageProcessor<T extends ComponentApi> {
     // arrived yet is skipped, so this holds without a config too. None of the
     // catalogs the surface draws on may declare any, which is the common case
     // and leaves nothing to check.
-    if (!{
-      if (surface.defaultCatalog case final catalog?) catalog.id,
+    final Catalog<T, FunctionImplementation>? defaultCatalog =
+        surface.defaultCatalog;
+    final Set<String> ruled = {
+      if (defaultCatalog != null) defaultCatalog.id,
       for (final String? id in catalogIds)
         if (id != null) id,
-    }.any((String id) => _rulesOf(surface.resolveCatalog(id)).isNotEmpty)) {
-      return (resolved: resolved, refFields: refFields, composition: null);
     }
-
-    // When the edges the last check passed still describe the surface, only
-    // the edges this batch changes are read. A batch that moves a component
-    // to another catalog can change which catalogs' constraints apply, and is
-    // checked against the whole surface.
-    final _CompositionRecord? record = _compositionRecords[model];
-    final bool keepsCatalogs = resolved.every((Map<String, Object?> c) {
-      final ComponentModel? held = switch (c['id']) {
-        final String id => model.get(id),
-        _ => null,
-      };
-      return held == null || held.catalog == c['catalogId'];
-    });
-    if (record != null &&
-        record.changes == model.changeCount &&
-        keepsCatalogs) {
-      // The catalogs of the surface with the batch applied, in the order the
-      // whole-surface check below merges their constraints.
-      final Map<String, CompositionRule> rules = _compositionRulesFor(surface, [
+        .where((String id) => _rulesOf(surface.resolveCatalog(id)).isNotEmpty)
+        .toSet();
+    if (ruled.isEmpty) return (resolved: resolved, refFields: refFields);
+    // When the graph check started from what the check before found, the
+    // surface passed the check of the batch before, so only the edges this
+    // batch changes are checked. That needs constraints the surface passed:
+    // while only the default catalog declares any, they are its own, and
+    // every check before took its constraints first. A batch that fails is
+    // checked again below, for the error the whole surface raises.
+    if (bound != null &&
+        defaultCatalog != null &&
+        ruled.length == 1 &&
+        ruled.single == defaultCatalog.id) {
+      final types = <String, String>{
         for (final Map<String, Object?> c in resolved)
-          c['catalogId'] as String?,
-        ...model.catalogIds,
-      ]);
-      if (record.matches(refFields, rules)) {
-        try {
-          checkBatchCompositionConstraints(
-            resolved,
-            refFields,
-            rules,
-            heldType: (String id) => model.get(id)?.type,
-            heldParents: record.parentsOf,
-            rootId: surface.rootId,
-            surfaceId: surface.id,
-          );
-          return (
-            resolved: resolved,
-            refFields: refFields,
-            composition: (record: record, rules: rules),
-          );
-        } on A2uiValidationError {
-          // The whole-surface check below reports the violation it finds
-          // first, as it would have without the record.
-        }
+          if ((c['id'], c['component'])
+              case (final String id, final String type))
+            id: type,
+      };
+      if (compositionHoldsAfter(
+        resolved,
+        refFields,
+        _rulesOf(defaultCatalog),
+        typeOf: (String id) => types[id] ?? model.get(id)?.type,
+        parentsOf: bound.parentsOf,
+        rootId: surface.rootId,
+      )) {
+        return (resolved: resolved, refFields: refFields);
       }
     }
-
     final List<Map<String, Object?>> existing = [
       for (final ComponentModel c in model.all)
         if (!resolved.any((Map<String, Object?> r) => r['id'] == c.id))
           c.toJson(),
     ];
-    final Map<String, CompositionRule> rules = _compositionRulesFor(surface, [
-      for (final Map<String, Object?> c in [...resolved, ...existing])
-        c['catalogId'] as String?,
-    ]);
     checkCompositionConstraints(
       resolved,
       refFields,
-      rules,
+      _compositionRulesFor(surface, [...resolved, ...existing]),
       existing: existing,
       rootId: surface.rootId,
       surfaceId: surface.id,
     );
 
-    return (
-      resolved: resolved,
-      refFields: refFields,
-      composition: (record: null, rules: rules),
-    );
+    return (resolved: resolved, refFields: refFields);
   }
 
   /// Applies a [batch] that [_checkComponents] accepted.
   void _applyComponents(SurfaceModel<T> surface, _CheckedBatch batch) {
     _applyComponentModels(surface, batch);
-    final SurfaceComponentsModel model = surface.componentsModel;
-    model.componentsUpdateApplied(batch.resolved);
-    if (batch.composition
-        case (
-          record: final _CompositionRecord? checked,
-          rules: final Map<String, CompositionRule> rules,
-        )) {
-      final _CompositionRecord record;
-      if (checked == null) {
-        record = _CompositionRecord.of(model, batch.refFields, rules);
-      } else {
-        record = checked..rules = rules;
-        for (final Map<String, Object?> c in batch.resolved) {
-          record.setChildren(
-            c['id']! as String,
-            c['component']! as String,
-            c,
-            batch.refFields,
-          );
-        }
-      }
-      _compositionRecords[model] = record..changes = model.changeCount;
-    }
+    surface.componentsModel.componentsUpdateApplied(batch.resolved);
   }
 
   void _applyComponentModels(SurfaceModel<T> surface, _CheckedBatch batch) {
