@@ -11,7 +11,13 @@
   - `apply` checks messages and applies them. The call is atomic: if a
     message is rejected, the state is left as it was. An update to a surface
     the state never saw created is rejected, as a renderer would reject it.
-  - `transaction` makes several calls atomic.
+  - `transaction` makes several calls atomic. Transactions nest: a failed
+    inner transaction undoes only what it applied, and the outer one goes
+    on.
+  - Being atomic costs what the messages change, not the size of the
+    surfaces they touch: the state keeps an undo log of what each message
+    replaced instead of copying a surface, so the time to apply n messages
+    to one surface grows with n.
   - `checkTopology` checks the trees of the given surfaces: the root exists,
     every reference resolves, and every component added or replaced since
     the last check is reachable from the root. A component that an update

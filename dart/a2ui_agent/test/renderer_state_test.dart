@@ -78,11 +78,26 @@ RendererState _canvas() {
   return state;
 }
 
-/// A v0.9 catalog with [id] that declares [components], each with a string
-/// `text`.
-CatalogApi _catalog(String id, List<String> components) => Catalog.fromJson({
+UpdateDataModelMessage _data(String path, Object? value) =>
+    UpdateDataModelMessage(
+      version: 'v0.9',
+      surfaceId: 's',
+      path: path,
+      value: value,
+    );
+
+Object? _textOf(RendererState state, String componentId) =>
+    state.getSurface('s')?.componentsModel.get(componentId)?.properties['text'];
+
+/// A catalog with [id] that declares [components], each with a string
+/// `text`, which [version] 1.0 requires.
+CatalogApi _catalog(
+  String id,
+  List<String> components, {
+  String version = '0.9',
+}) => Catalog.fromJson({
   'catalogId': id,
-  'protocolVersion': '0.9',
+  'protocolVersion': version,
   'components': {
     for (final String name in components)
       name: {
@@ -90,6 +105,7 @@ CatalogApi _catalog(String id, List<String> components) => Catalog.fromJson({
         'properties': {
           'text': {'type': 'string'},
         },
+        if (version == '1.0') 'required': ['text'],
       },
   },
 });
@@ -407,39 +423,42 @@ void main() {
       expect(_componentIds(state), {'root', 'a'});
     });
 
-    test('nested rollbacks restore the outer snapshot', () {
-      final RendererState state = _canvas();
+    test(
+      'nested rollbacks restore the state from before the outer transaction',
+      () {
+        final RendererState state = _canvas();
 
-      expect(
-        () => state.transaction(() {
-          state.apply([
-            _update([_text('a', 'Outer')]),
-          ]);
-          expect(
-            () => state.apply([
-              _update([
-                {'id': 'x', 'component': 'Unknown'},
+        expect(
+          () => state.transaction(() {
+            state.apply([
+              _update([_text('a', 'Outer')]),
+            ]);
+            expect(
+              () => state.apply([
+                _update([
+                  {'id': 'x', 'component': 'Unknown'},
+                ]),
               ]),
-            ]),
-            throwsA(isA<A2uiValidationError>()),
-          );
-          state.apply([
-            _update([_text('a', 'Changed again')]),
-          ]);
-          state.apply([
-            _update([
-              {'id': 'y', 'component': 'Unknown'},
-            ]),
-          ]);
-        }),
-        throwsA(isA<A2uiValidationError>()),
-      );
+              throwsA(isA<A2uiValidationError>()),
+            );
+            state.apply([
+              _update([_text('a', 'Changed again')]),
+            ]);
+            state.apply([
+              _update([
+                {'id': 'y', 'component': 'Unknown'},
+              ]),
+            ]);
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
 
-      expect(
-        state.getSurface('s')!.componentsModel.get('a')!.properties['text'],
-        'Hi',
-      );
-    });
+        expect(
+          state.getSurface('s')!.componentsModel.get('a')!.properties['text'],
+          'Hi',
+        );
+      },
+    );
 
     test('a rollback restores the data model', () {
       final RendererState state = _canvas()
@@ -471,6 +490,256 @@ void main() {
       expect(state.getSurface('s')!.dataModel.get('/'), {
         'user': {'name': 'Ada'},
       });
+    });
+
+    test('a failed inner transaction restores the state where it started, '
+        'and the outer one goes on', () {
+      final RendererState state = _canvas();
+
+      state.transaction(() {
+        state.apply([
+          _update([_text('a', 'Outer')]),
+        ]);
+        expect(
+          () => state.transaction(() {
+            state.apply([
+              _update([_text('a', 'Inner'), _text('b')]),
+            ]);
+            state.apply([_data('/name', 'Inner')]);
+            state.apply([
+              _update([
+                {'id': 'x', 'component': 'Unknown'},
+              ]),
+            ]);
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(_textOf(state, 'a'), 'Outer');
+        state.apply([
+          _update([
+            _column(['a', 'c']),
+            _text('c'),
+          ]),
+        ]);
+      });
+
+      expect(_componentIds(state), {'root', 'a', 'c'});
+      expect(_textOf(state, 'a'), 'Outer');
+      expect(state.getSurface('s')!.dataModel.get('/'), isEmpty);
+    });
+
+    test('a rollback undoes an update in place on the same objects', () {
+      final RendererState state = _canvas();
+      final SurfaceModel<ComponentApi> surface = state.getSurface('s')!;
+      final ComponentModel component = surface.componentsModel.get('a')!;
+      final Map<String, Object?> before = _snapshot(state);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([
+            _update([_text('a', 'Changed')]),
+          ]);
+          state.apply([
+            _update([_text('a', 'Changed again')]),
+          ]);
+          state.apply([
+            _update([
+              {'id': 'x', 'component': 'Unknown'},
+            ]),
+          ]);
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      // The same objects hold the state: the rollback undid the updates
+      // rather than swapping in a copy of the surface.
+      expect(state.getSurface('s'), same(surface));
+      expect(surface.componentsModel.get('a'), same(component));
+      expect(_snapshot(state), before);
+    });
+
+    test('a rollback undoes an update that changes a component type', () {
+      final RendererState state = _canvas();
+      final Map<String, Object?> before = _snapshot(state);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([
+            _update([
+              {'id': 'a', 'component': 'Divider'},
+            ]),
+          ]);
+          state.apply([
+            _update([
+              {'id': 'x', 'component': 'Unknown'},
+            ]),
+          ]);
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      expect(_snapshot(state), before);
+      expect(state.getSurface('s')!.componentsModel.get('a')!.type, 'Text');
+    });
+
+    test(
+      'a rollback restores a surface that was deleted and created again',
+      () {
+        final RendererState state = _canvas()
+          ..apply([
+            _data('/items', ['x', 'y']),
+          ]);
+        final Map<String, Object?> before = _snapshot(state);
+
+        expect(
+          () => state.transaction(() {
+            state.apply([
+              _update([_text('a', 'Before delete')]),
+            ]);
+            state.apply([
+              _delete(),
+              _create(),
+              _update([
+                _column(['n']),
+                _text('n'),
+              ]),
+            ]);
+            state.apply([_data('/items/5', 'z')]);
+            state.apply([
+              _update([
+                {'id': 'x', 'component': 'Unknown'},
+              ]),
+            ]);
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+
+        expect(_snapshot(state), before);
+        // The restored surface still holds what changes to its tree check.
+        expect(
+          () => _turn(state, [
+            _update([_text('orphan')]),
+          ]),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+      },
+    );
+
+    test('a rollback undoes data model writes that create containers and '
+        'pad lists', () {
+      final RendererState state = _canvas()
+        ..apply([
+          _data('/', {
+            'list': ['a'],
+            'nested': {'kept': 1},
+            'empty': null,
+          }),
+        ]);
+      final Object? before = _deepCopy(
+        state.getSurface('s')!.dataModel.get('/'),
+      );
+
+      expect(
+        () => state.transaction(() {
+          state.apply([_data('/list/3', 'd')]);
+          state.apply([_data('/list/5/deep', 'e')]);
+          state.apply([_data('/nested/kept', 2)]);
+          state.apply([_data('/fresh/deep/path', true)]);
+          state.apply([_data('/empty/inner', 1)]);
+          state.apply([_data('/nested', null)]);
+          state.apply([
+            _update([
+              {'id': 'x', 'component': 'Unknown'},
+            ]),
+          ]);
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      final DataModel dataModel = state.getSurface('s')!.dataModel;
+      expect(dataModel.get('/'), before);
+      expect(dataModel.get('/list'), hasLength(1));
+      expect(dataModel.has('/empty'), isTrue);
+    });
+
+    test('a rollback restores what a tree check marked checked', () {
+      final RendererState state = _canvas()
+        // Not reachable yet, so the next tree check of the surface holds it
+        // to that.
+        ..apply([
+          _update([_text('b')]),
+        ]);
+
+      expect(
+        () => state.transaction(() {
+          _turn(state, [
+            _update([
+              _column(['a', 'b']),
+            ]),
+          ]);
+          throw StateError('the response failed later');
+        }),
+        throwsStateError,
+      );
+
+      expect(
+        () => state.checkTopology(['s']),
+        throwsA(isA<A2uiIntegrityError>()),
+      );
+    });
+
+    test('a rollback restores the components of a v1.0 surface from two '
+        'catalogs', () {
+      final state =
+          RendererState([
+            _catalog('urn:primary', ['Panel'], version: '1.0'),
+            _catalog('urn:extra', ['Badge'], version: '1.0'),
+          ])..apply([
+            CreateSurfaceMessage(
+              version: 'v1.0',
+              surfaceId: 's',
+              catalogId: 'urn:primary',
+            ),
+            UpdateComponentsMessage(
+              version: 'v1.0',
+              surfaceId: 's',
+              components: [
+                {'id': 'root', 'component': 'Panel', 'text': 'Hi'},
+                {
+                  'id': 'b',
+                  'component': 'Badge',
+                  'text': 'New',
+                  'catalogId': 'urn:extra',
+                },
+              ],
+            ),
+          ]);
+      String? catalogOf(String id) =>
+          state.getSurface('s')!.componentsModel.get(id)!.catalog;
+
+      expect(
+        () => state.transaction(() {
+          state.apply([DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's')]);
+          state.apply([
+            DeleteSurfaceMessage(version: 'v1.0', surfaceId: 'missing'),
+          ]);
+          state.apply([
+            UpdateComponentsMessage(
+              version: 'v1.0',
+              surfaceId: 's',
+              components: [
+                {'id': 'root', 'component': 'Panel'},
+              ],
+            ),
+          ]);
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      expect(_componentIds(state), {'root', 'b'});
+      expect(catalogOf('root'), isNull);
+      expect(catalogOf('b'), 'urn:extra');
+      expect(state.getSurface('s')!.defaultCatalog!.id, 'urn:primary');
     });
 
     test('an updated surface is checked against the catalog it was created '
@@ -514,3 +783,15 @@ void main() {
     });
   });
 }
+
+/// A deep copy of [value], a JSON value.
+Object? _deepCopy(Object? value) => switch (value) {
+  final Map<Object?, Object?> map => {
+    for (final MapEntry<Object?, Object?> entry in map.entries)
+      entry.key: _deepCopy(entry.value),
+  },
+  final List<Object?> list => [
+    for (final Object? item in list) _deepCopy(item),
+  ],
+  _ => value,
+};
