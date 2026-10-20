@@ -23,7 +23,7 @@ environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
-  a2ui_core: ^0.2.0
+  a2ui_core: ^0.3.0
   args: ^2.6.0
   path: ^1.9.0
 

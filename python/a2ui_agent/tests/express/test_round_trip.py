@@ -30,12 +30,13 @@ import pytest
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts, to_message_models
 from a2ui.inference_formats._shared import coalesce_surface_messages
-from a2ui.inference_formats.experimental.express import (
+from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressDecompiler,
     ExpressValidationError,
 )
-from a2ui.schema.utils import find_repo_root
+
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 EXAMPLE_FILES = sorted(

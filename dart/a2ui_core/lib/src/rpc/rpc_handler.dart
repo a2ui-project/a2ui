@@ -19,7 +19,6 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
 import '../core/common.dart';
-import '../core/contexts.dart';
 import '../core/data_model.dart';
 import '../core/messages.dart';
 import '../core/surface_model.dart';
@@ -28,6 +27,7 @@ import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
+import '../resolution/data_context.dart';
 
 /// Receives every message the RPC layer sends to the agent: the
 /// `callAgentFunction` requests a renderer makes and the
@@ -319,6 +319,13 @@ class RpcHandler {
     if (_disposed) {
       throw A2uiRpcError('RpcHandler is disposed.', RpcErrorCode.disposed);
     }
+    if (message.surfaceId != null &&
+        (surface == null || surface.id != message.surfaceId)) {
+      throw A2uiRpcError(
+        'Surface not found: ${message.surfaceId}',
+        RpcErrorCode.invalidFunctionCall,
+      );
+    }
     final FunctionCall call;
     try {
       call = FunctionCall.fromJson(message.callFunction);
@@ -359,8 +366,31 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
-    final Map<String, dynamic> args = call.args;
-    final List<ValidationError> errors = catalog.argumentErrors(fn, args);
+    final DataContext dataContext = _dataContextFor(
+      surface,
+      catalog,
+      message.version,
+      execution,
+    );
+    final Map<String, dynamic> resolvedArgs;
+    try {
+      resolvedArgs = {
+        for (final MapEntry<String, dynamic> entry in call.args.entries)
+          entry.key: dataContext.resolveDynamicValue(entry.value),
+      };
+    } catch (error) {
+      final String errorMessage =
+          error is A2uiError ? error.message : error.toString();
+      throw A2uiRpcError(
+        errorMessage.isEmpty
+            ? 'An error occurred during function execution.'
+            : errorMessage,
+        RpcErrorCode.executionError,
+        cause: error,
+      );
+    }
+    final List<ValidationError> errors =
+        catalog.argumentErrors(fn, resolvedArgs);
     if (errors.isNotEmpty) {
       throw A2uiRpcError(
         "Invalid function arguments for '$name': "
@@ -369,14 +399,8 @@ class RpcHandler {
       );
     }
 
-    final DataContext dataContext = _dataContextFor(
-      surface,
-      catalog,
-      message.version,
-      execution,
-    );
     try {
-      Object? result = fn.execute(args, dataContext);
+      Object? result = fn.execute(resolvedArgs, dataContext);
       if (result is Future) result = await result;
       if (result is ReadonlySignal) result = result.value;
       return A2uiFunctionResponse.value(functionCallId, result);
@@ -410,9 +434,6 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
-    final Catalog<ComponentApi, FunctionImplementation>? fallback =
-        surface?.defaultCatalog;
-    if (fallback != null) return fallback;
     throw A2uiRpcError(
       'No catalog available for function resolution.',
       RpcErrorCode.invalidFunctionCall,
@@ -433,7 +454,11 @@ class RpcHandler {
         (name, args, context) =>
             surface.resolveCatalog(null).invoke(name, args, context),
         '/',
-        protocolVersion: surface.protocolVersion,
+        protocolVersion: surface.protocolVersion == null
+            ? null
+            : A2uiProtocolVersion.tryParseSemVer(
+                surface.protocolVersion!,
+              ),
         invokerForCatalog: (catalogId) =>
             surface.resolveCatalog(catalogId).invoke,
         isUserActivated: execution.isUserActivated,
@@ -444,7 +469,8 @@ class RpcHandler {
       DataModel(),
       catalog.invoke,
       '/',
-      protocolVersion: version,
+      protocolVersion: A2uiProtocolVersion.tryParseSemVer(version) ??
+          A2uiProtocolVersion.v1_0,
       invokerForCatalog: (catalogId) {
         if (catalogId == catalog.id) return catalog.invoke;
         throw A2uiCatalogResolutionError(

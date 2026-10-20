@@ -91,6 +91,71 @@ For a quick 2-sample validation using `gemini-3.1-flash-lite`:
 uv run main.py --sanity
 ```
 
+### Evaluating the TypeScript and Dart Agent SDKs
+
+By default, evals run against the Python Agent SDK (`python/a2ui_agent`). The same evals can also run against the TypeScript SDK (`typescript/a2ui_agent`) and the Dart SDK (`dart/a2ui_agent`). The selected SDK generates the format prompt and parses and validates the model output. The model and the judge are the same for every SDK, so scores can be compared across SDKs.
+
+```bash
+# Evaluate one SDK (python, ts or dart; the default is python)
+uv run main.py --sdk ts --strategies direct,express
+uv run main.py --sdk dart --strategies direct,express
+
+# Evaluate several SDKs in one run
+uv run main.py --sdks python,ts,dart --strategies direct,express
+```
+
+`--sdk` can be repeated or given a comma-separated list. `--sdks` takes a comma-separated list. Each SDK gets its own Inspect task, named with an `_<sdk>` suffix for TypeScript and Dart (for example `a2ui_v1_0_eval_ts`).
+
+Not every SDK supports every strategy or inference format. When `--strategies` is omitted, `main.py` runs every strategy that the table below lists for the selected SDK. `main.py` rejects an unsupported combination before it starts any model calls. CI passes `--strategies direct,subagent_tool,express` for every SDK, so the experimental Python formats (`elemental`, `atom`) don't gate CI.
+
+| SDK      | Strategies                                                | Inference formats                             | Protocol versions |
+| :------- | :-------------------------------------------------------- | :-------------------------------------------- | :---------------- |
+| `python` | `direct`, `subagent_tool`, `express`, `elemental`, `atom` | `direct_json`, `express`, `elemental`, `atom` | 0.9.1, 1.0        |
+| `ts`     | `direct`, `subagent_tool`, `express`                      | `direct_json`, `express`                      | 0.9.1, 1.0        |
+| `dart`   | `direct`, `subagent_tool`, `express`                      | `direct_json`, `express`                      | 0.9.1             |
+
+#### TypeScript prerequisites
+
+- Node.js 22 and Yarn on your `PATH` (`corepack enable` provides Yarn).
+- On the first run, the bridge runs `yarn install` from the repository root if the workspace packages are not linked yet. Every run then builds `@a2ui/agent` so that local edits to the TypeScript sources are picked up. The build is skipped when nothing changed. The first run can take a few minutes.
+
+To prepare the workspace ahead of time, run from the repository root:
+
+```bash
+yarn install
+yarn workspace @a2ui/web_core build && yarn workspace @a2ui/agent build
+```
+
+#### Dart prerequisites
+
+- A Flutter SDK on your `PATH`. The repository root is a Dart workspace that includes Flutter packages, so a standalone Dart SDK cannot resolve its dependencies. The Dart version bundled with Flutter must be 3.10 or newer. CI uses the Flutter beta channel.
+- Run `flutter pub get` once from the repository root. The bridge reads the root `.dart_tool/package_config.json`.
+
+```bash
+# From the repository root
+flutter pub get
+```
+
+On the first run, the bridge compiles its Dart runner to a native executable and caches it. It recompiles when the runner or the sources of `dart/a2ui_agent` or `dart/a2ui_core` change.
+
+### Choosing the Protocol Version
+
+`--version` selects the A2UI protocol version: `0.9.1`, `1.0` or `auto` (the default). A leading `v`, as in `v1.0`, is also accepted.
+
+With `auto`, a dataset whose name ends in a version suffix runs under that version: `core_v0_9_1` runs under 0.9.1 and `core_v1_0` under 1.0. Datasets without a suffix run under 1.0, except with the `subagent_tool` strategy, which runs under 0.9.1. If the SDK does not support that version, they run under the newest version the SDK supports. When `--datasets` lists datasets for both versions, each version gets its own task.
+
+```bash
+# Run every dataset that supports v0.9.1
+uv run main.py --version 0.9.1
+
+# Run each core dataset under its own version
+uv run main.py --datasets core_v0_9_1,core_v1_0 --strategies direct
+```
+
+An explicit `--version` that conflicts with a requested dataset is an error. For example, `--version 0.9.1 --dataset core_v1_0` fails instead of running an empty dataset.
+
+The eval report (`bin/report_evals.py`) shows the SDK, protocol version and strategy of each run.
+
 ### Running Evaluations on Gemma Models (Express Format)
 
 Gemma models can be evaluated either through **Google AI Studio / Gemini API cloud services** (no local GPU required) or **locally via Ollama** on a machine with a dedicated GPU.

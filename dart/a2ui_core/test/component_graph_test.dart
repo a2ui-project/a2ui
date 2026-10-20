@@ -43,7 +43,10 @@ void main() {
 
         expect(() => checkPathsAndRecursion(messageJson), returnsNormally);
         expect(
-          () => checkPathsAndRecursion(messageJson, v1: true),
+          () => checkPathsAndRecursion(
+            messageJson,
+            version: A2uiProtocolVersion.v1_0,
+          ),
           returnsNormally,
         );
 
@@ -137,7 +140,7 @@ void main() {
               ],
             },
           },
-          v1: false,
+          version: A2uiProtocolVersion.v0_9,
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -157,7 +160,7 @@ void main() {
               ],
             },
           },
-          v1: false,
+          version: A2uiProtocolVersion.v0_9,
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -178,7 +181,7 @@ void main() {
               ],
             },
           },
-          v1: false,
+          version: A2uiProtocolVersion.v0_9,
         ),
         returnsNormally,
       );
@@ -194,12 +197,14 @@ void main() {
         };
       }
       expect(
-        () => checkPathsAndRecursion(nestedCall, v1: false),
+        () => checkPathsAndRecursion(nestedCall,
+            version: A2uiProtocolVersion.v0_9),
         throwsA(isA<A2uiRecursionError>()),
       );
       // In v1.0 mode, plain 'call' is not a function call object.
       expect(
-        () => checkPathsAndRecursion(nestedCall, v1: true),
+        () => checkPathsAndRecursion(nestedCall,
+            version: A2uiProtocolVersion.v1_0),
         returnsNormally,
       );
     });
@@ -282,13 +287,96 @@ void main() {
         };
       }
       expect(
-        () => checkPathsAndRecursion(nestedAtCall, v1: true),
+        () => checkPathsAndRecursion(
+          nestedAtCall,
+          version: A2uiProtocolVersion.v1_0,
+        ),
         throwsA(isA<A2uiRecursionError>()),
       );
       expect(
-        () => checkPathsAndRecursion(nestedAtCall, v1: false),
+        () => checkPathsAndRecursion(
+          nestedAtCall,
+          version: A2uiProtocolVersion.v0_9,
+        ),
         returnsNormally,
       );
+    });
+
+    group('with grownFrom', () {
+      /// A list nested past the depth limit, which fails the check wherever
+      /// it is.
+      List<Object?> tooDeep() {
+        var value = <Object?>[];
+        for (var i = 0; i < maxComponentDepth; i++) {
+          value = [value];
+        }
+        return value;
+      }
+
+      UpdateDataModelMessage items(List<Object?> value) =>
+          UpdateDataModelMessage(
+            version: 'v1.0',
+            surfaceId: 's1',
+            path: '/items',
+            value: value,
+          );
+
+      test('skips a list identical to the one at its place', () {
+        final List<Object?> deep = tooDeep();
+        expect(
+          () => checkPathsAndRecursion(items([deep, 1])),
+          throwsA(isA<A2uiRecursionError>()),
+        );
+        // grownFrom would not pass either, which shows that the list it
+        // shares is not read again.
+        expect(
+          () => checkPathsAndRecursion(
+            items([deep, 1]),
+            grownFrom: items([deep]),
+          ),
+          returnsNormally,
+        );
+      });
+
+      test('skips the same way in a message written as JSON', () {
+        final List<Object?> deep = tooDeep();
+        Map<String, Object?> json(List<Object?> value) => {
+              'version': 'v1.0',
+              'updateDataModel': {
+                'surfaceId': 's1',
+                'path': '/items',
+                'value': value,
+              },
+            };
+        expect(
+          () => checkPathsAndRecursion(
+            json([deep, 1]),
+            grownFrom: json([deep]),
+          ),
+          returnsNormally,
+        );
+      });
+
+      test('checks what the message gained', () {
+        expect(
+          () => checkPathsAndRecursion(
+            items([1, tooDeep()]),
+            grownFrom: items([1]),
+          ),
+          throwsA(isA<A2uiRecursionError>()),
+        );
+      });
+
+      test('checks a list that grownFrom holds at another place', () {
+        final List<Object?> deep = tooDeep();
+        expect(
+          () => checkPathsAndRecursion(
+            items([1, deep]),
+            grownFrom: items([deep]),
+          ),
+          throwsA(isA<A2uiRecursionError>()),
+        );
+      });
     });
   });
 }

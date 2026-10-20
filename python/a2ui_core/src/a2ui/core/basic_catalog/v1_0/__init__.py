@@ -98,6 +98,11 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             protocol_version=PROTOCOL_VERSION,
             components=BASIC_COMPONENTS,
             functions=create_basic_catalog_functions(locale=locale),
+            schema_dialect="https://json-schema.org/draft/2020-12/schema",
+            schema_id="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            title="A2UI Basic Catalog",
+            description="Unified catalog of basic A2UI components and functions.",
+            declared_protocol_version="1.0",
             instructions=(
                 "For layout, use the Row and Column components to organize other"
                 " components.\n\n## Catalog Guidelines\n\n1. String Concatenation &"
@@ -150,6 +155,7 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
                 '    "url": "https://example.com/lab.jpg"\n          }\n        ]\n    '
                 "  }\n    }\n  }\n]\n```"
             ),
+            union_defs={"anyComponent": None, "anyFunction": None},
         )
 
 

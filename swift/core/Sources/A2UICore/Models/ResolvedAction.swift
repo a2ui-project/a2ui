@@ -28,6 +28,13 @@ public struct ResolvedAction: Sendable {
   /// The ID of the component that originated this action, if known.
   public let sourceComponentID: String?
 
+  /// The data model path that relative paths in this action resolve against when triggered,
+  /// or `nil` for the root scope.
+  ///
+  /// Part of equality: the same action definition instantiated by a template for different
+  /// data items has an identical ``identity`` but dispatches values from a different scope.
+  public let dataContextPath: String?
+
   private let triggerClosure: @Sendable @MainActor () -> Void
 
   /// Creates a new resolved action with the specified identity and
@@ -35,10 +42,12 @@ public struct ResolvedAction: Sendable {
   public init(
     identity: Identity,
     sourceComponentID: String? = nil,
+    dataContextPath: String? = nil,
     trigger: @escaping @Sendable @MainActor () -> Void
   ) {
     self.identity = identity
     self.sourceComponentID = sourceComponentID
+    self.dataContextPath = dataContextPath
     self.triggerClosure = trigger
   }
 
@@ -51,7 +60,7 @@ public struct ResolvedAction: Sendable {
 
 extension ResolvedAction: Equatable {
   public static func == (lhs: ResolvedAction, rhs: ResolvedAction) -> Bool {
-    lhs.identity == rhs.identity
+    lhs.identity == rhs.identity && lhs.dataContextPath == rhs.dataContextPath
   }
 }
 

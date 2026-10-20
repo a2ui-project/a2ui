@@ -45,6 +45,51 @@ void main() {
       expect(caps.inlineCatalogs.single.components.keys, ['Gauge']);
     });
 
+    test('reads an inline catalog that states no version as the entry\'s', () {
+      final caps = A2uiRendererCapabilities.fromJson({
+        'v1.0': {
+          'supportedCatalogIds': <String>[],
+          'inlineCatalogs': [
+            {
+              'catalogId': 'inline',
+              'components': {
+                'Gauge': {'type': 'object'},
+              },
+            },
+          ],
+        },
+      });
+
+      expect(
+        caps.versions[A2uiProtocolVersion.v1_0]!.inlineCatalogs.single
+            .protocolVersion,
+        A2uiProtocolVersion.v1_0,
+      );
+    });
+
+    test('keeps the version an inline catalog states', () {
+      final caps = A2uiVersionCapabilities.fromJson(
+        {
+          'supportedCatalogIds': <String>[],
+          'inlineCatalogs': [
+            {
+              'catalogId': 'inline',
+              'protocolVersion': '0.9',
+              'components': {
+                'Gauge': {'type': 'object'},
+              },
+            },
+          ],
+        },
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+
+      expect(
+        caps.inlineCatalogs.single.protocolVersion,
+        A2uiProtocolVersion.v0_9,
+      );
+    });
+
     test('rejects an inline catalog that is not an object', () {
       for (final malformed in <Object?>[null, 'nope', 42, <Object?>[]]) {
         expect(
@@ -368,7 +413,7 @@ void main() {
         ),
       ]);
       final Map<String, Object?> document =
-          processor.catalogs.single.catalogSchema;
+          processor.catalogs.single.validationSchema;
       final serialized =
           (document['components']! as Map)['Button'] as Map<String, Object?>;
       // The document form carries the v1.0 envelope keys the legacy body
@@ -416,11 +461,12 @@ void main() {
           (legacyBody(legacy, 'Label')['properties'] as Map)['text'] as Map;
       final currentText =
           ((current['Label']! as Map)['properties'] as Map)['text'] as Map;
-      // The legacy shape has no `$defs`, so the bundled local ref becomes the
-      // relative common_types.json ref again.
+      // Neither shape bundles the common types: the legacy shape has no
+      // `$defs`, and the v1.0 catalog document is unbundled, so both name
+      // the relative common_types.json ref.
       expect(legacyText[r'$ref'], r'common_types.json#/$defs/DynamicString');
       expect(legacyText['description'], descBefore);
-      expect(currentText[r'$ref'], r'#/$defs/DynamicString');
+      expect(currentText[r'$ref'], r'common_types.json#/$defs/DynamicString');
       expect(CommonSchemas.dynamicString.value['description'], descBefore);
     });
 
@@ -501,7 +547,7 @@ void main() {
       expect(legacy.containsKey('components'), isFalse);
     });
 
-    test('emits a copy of the catalog document for v1.0', () {
+    test('emits the catalog document for v1.0', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'cat',
         components: [
@@ -528,23 +574,21 @@ void main() {
       expect(json, {
         'v1.0': {
           'supportedCatalogIds': ['cat'],
-          'inlineCatalogs': [catalog.catalogSchema],
+          'inlineCatalogs': [catalog.toJson()],
         },
       });
 
-      // catalogSchema is memoized, so the emitter must hand out a copy:
-      // mutating the result leaves the catalog, and a second call, intact.
+      // Mutating the result leaves the catalog, and a second call, intact.
       final inline = ((json['v1.0']! as Map)['inlineCatalogs'] as List).single
           as Map<String, Object?>;
-      expect(identical(inline, catalog.catalogSchema), isFalse);
       (inline['components']! as Map).remove('Label');
-      expect((catalog.catalogSchema['components']! as Map).keys, ['Label']);
+      expect((catalog.toJson()['components']! as Map).keys, ['Label']);
       expect(
         processor.getRendererCapabilities(options).toJson(),
         json
           ..['v1.0'] = {
             'supportedCatalogIds': ['cat'],
-            'inlineCatalogs': [catalog.catalogSchema],
+            'inlineCatalogs': [catalog.toJson()],
           },
       );
     });
@@ -584,10 +628,10 @@ void main() {
       });
     });
 
-    test('emits the catalog schema document at v1.0', () {
+    test('emits the catalog document at v1.0', () {
       expect(caps.toJson(version: A2uiProtocolVersion.v1_0), {
         'supportedCatalogIds': ['cat'],
-        'inlineCatalogs': [catalog.catalogSchema],
+        'inlineCatalogs': [catalog.toJson()],
       });
     });
 
@@ -620,9 +664,7 @@ void main() {
         ((emitted['v0.9']! as Map)['inlineCatalogs'] as List).single,
         isNot(contains(r'$schema')),
       );
-      expect((emitted['v1.0']! as Map)['inlineCatalogs'], [
-        catalog.catalogSchema,
-      ]);
+      expect((emitted['v1.0']! as Map)['inlineCatalogs'], [catalog.toJson()]);
     });
   });
 }

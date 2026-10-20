@@ -36,15 +36,8 @@ Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
         : <String, Object?>{...document, 'catalogId': asCatalogId},
     protocolVersion: A2uiProtocolVersion.tryParseSemVer(protocolVersion),
   );
-  return Catalog<ComponentApi, FunctionImplementation>(
-    id: catalog.id,
-    components: catalog.components.values.toList(),
-    functions: catalog.functions.values.map(_UncallableFunction.new).toList(),
-    themeSchema: catalog.themeSchema,
-    schemaId: catalog.schemaId,
-    title: catalog.title,
-    description: catalog.description,
-    protocolVersion: catalog.protocolVersion,
+  return catalog.withFunctions(
+    catalog.functions.values.map(_UncallableFunction.new),
   );
 }
 
@@ -55,6 +48,7 @@ class _UncallableFunction extends FunctionImplementation {
           name: api.name,
           argumentSchema: api.argumentSchema,
           returnType: api.returnType,
+          definition: api.definition,
         );
 
   @override

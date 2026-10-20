@@ -21,7 +21,12 @@ import pytest
 # Add bin directory to path to import run_ci_evals
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../bin")))
 from run_ci_evals import check_threshold, build_main_command
-from report_evals import extract_accuracy, print_results_summary, generate_markdown_summary
+from report_evals import (
+    extract_accuracy,
+    extract_run_labels,
+    generate_markdown_summary,
+    print_results_summary,
+)
 from typing import Any
 import argparse
 
@@ -99,6 +104,110 @@ def test_build_main_command_no_limit() -> None:
     seed = "20260507"
     cmd = build_main_command(args, seed)
     assert "--limit" not in cmd
+
+
+def test_build_main_command_with_sdks() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=10,
+        grading_model="google/gemini-3.6-flash",
+        sdks="python,ts,dart",
+    )
+    seed = "20260507"
+    cmd = build_main_command(args, seed)
+    assert "--sdks" in cmd
+    assert "python,ts,dart" in cmd
+
+
+def test_build_main_command_with_version() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=10,
+        grading_model="google/gemini-3.6-flash",
+        sdk="dart",
+        version="0.9.1",
+    )
+    cmd = build_main_command(args, "20260507")
+    assert cmd[cmd.index("--sdk") + 1] == "dart"
+    assert cmd[cmd.index("--version") + 1] == "0.9.1"
+
+
+def test_build_main_command_omits_version_by_default() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=10,
+        grading_model="google/gemini-3.6-flash",
+        version=None,
+    )
+    assert "--version" not in build_main_command(args, "20260507")
+
+
+def test_extract_run_labels_prefers_task_metadata() -> None:
+    log_data: dict[str, Any] = {
+        "eval": {
+            "task_args": {"sdk": "ts", "strategy": "direct"},
+            "metadata": {"sdk": "ts", "version": "1.0", "strategy": "direct"},
+        }
+    }
+    assert extract_run_labels(log_data) == {
+        "sdk": "ts",
+        "version": "1.0",
+        "strategy": "direct",
+    }
+
+
+def test_extract_run_labels_defaults_to_python_for_old_logs() -> None:
+    log_data: dict[str, Any] = {"eval": {"task_args": {"strategy": "express"}}}
+    assert extract_run_labels(log_data) == {
+        "sdk": "python",
+        "version": None,
+        "strategy": "express",
+    }
+
+
+def _log_for(sdk: str, version: str, strategy: str) -> dict[str, Any]:
+    return {
+        "eval": {
+            "task": "a2ui_eval",
+            "model": "test_model",
+            "metadata": {"sdk": sdk, "version": version, "strategy": strategy},
+        },
+        "samples": [],
+    }
+
+
+def test_generate_markdown_summary_shows_sdk_version_and_strategy() -> None:
+    summary = generate_markdown_summary(
+        _log_for("dart", "0.9.1", "express"), 95.0, 90.0
+    )
+    assert (
+        "### Evaluation Summary: a2ui_eval (sdk=dart, version=0.9.1, strategy=express)"
+        in summary
+    )
+    assert "- **SDK**: `dart`" in summary
+    assert "- **Protocol Version**: `0.9.1`" in summary
+    assert "- **Strategy**: `express`" in summary
+
+
+def test_generate_markdown_summary_headings_differ_per_run() -> None:
+    runs = [
+        (sdk, version, strategy)
+        for sdk in ("python", "ts", "dart")
+        for version in ("0.9.1", "1.0")
+        for strategy in ("direct", "express")
+    ]
+    headings = {
+        generate_markdown_summary(_log_for(*run), 100.0, 90.0).splitlines()[0]
+        for run in runs
+    }
+    assert len(headings) == len(runs)
+
+
+def test_print_results_summary_shows_run_labels(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    print_results_summary(_log_for("ts", "1.0", "direct"))
+    assert "Run: sdk=ts, version=1.0, strategy=direct" in capsys.readouterr().out
 
 
 def test_print_results_summary_valid(capsys: pytest.CaptureFixture[str]) -> None:

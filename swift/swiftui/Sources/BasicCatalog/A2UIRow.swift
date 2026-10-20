@@ -81,6 +81,7 @@ public struct A2UIRow: View {
       }
     }
     .frame(maxWidth: (isDistributed || justify == "stretch") ? .infinity : nil)
+    .a2uiAccessibilityElement(for: node, children: .contain)
   }
 
   private var verticalAlignment: VerticalAlignment {

@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/src/core/component_model.dart';
-import 'package:a2ui_core/src/core/minimal_catalog.dart';
-import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/validation/validation_config.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
+
+import 'support/test_catalog.dart';
 
 void main() {
   group('ComponentModel', () {
     test('onUpdated fires on every property update, not just the first', () {
       final comp = ComponentModel('c1', 'Text', {'text': 'hello'});
       var updateCount = 0;
-      comp.onUpdated.addListener((_) => updateCount++);
+      comp.onUpdated.subscribe((_) => updateCount++);
 
       comp.properties = {'text': 'world'};
       expect(updateCount, 1, reason: 'first update should notify');
@@ -76,7 +75,7 @@ void main() {
     late SurfaceComponentsModel model;
 
     setUp(() {
-      model = SurfaceComponentsModel(catalog: MinimalCatalog());
+      model = SurfaceComponentsModel(catalog: TestCatalog());
       model.addComponent(
         ComponentModel('root', 'Column', {
           'children': ['a', 'b'],
@@ -136,6 +135,39 @@ void main() {
       expect(model.detectCycles(), {'root', 'a'});
     });
 
+    test(
+      'detectCycles throws A2uiIntegrityError on cycles and self-references '
+      'and A2uiRecursionError when maxDepth is exceeded',
+      () {
+        model.addComponent(
+          ComponentModel('self', 'Column', {
+            'children': ['self'],
+          }),
+        );
+        expect(
+          () => model.detectCycles(rootId: 'self'),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+
+        model.addComponent(
+          ComponentModel('b', 'Column', {
+            'children': ['root'],
+          }),
+        );
+        expect(
+          () => model.detectCycles(),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+
+        model.removeComponent('self');
+        model.removeComponent('b');
+        expect(
+          () => model.detectCycles(maxDepth: 0),
+          throwsA(isA<A2uiRecursionError>()),
+        );
+      },
+    );
+
     test('validateComponentsUpdate checks a candidate without mutating', () {
       expect(
         () => model.validateComponentsUpdate([
@@ -157,7 +189,7 @@ void main() {
             'children': ['a2'],
           },
         ], ValidationConfig.relaxed),
-        throwsA(isA<A2uiRecursionError>()),
+        throwsA(isA<A2uiIntegrityError>()),
       );
       expect(model.get('a')!.type, 'Text');
     });

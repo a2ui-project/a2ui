@@ -12,13 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
-import pytest
+from typing import Any
+from unittest.mock import patch
 
-from a2ui_eval.scorers import a2ui_scorer
+import pytest
+from inspect_ai.model import ModelName, ModelOutput
 from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
-from inspect_ai.model import ModelOutput, ModelName
+
+from a2ui_eval.bridges import DEFAULT_PARSE_TIMEOUT_SEC
+from a2ui_eval.scorers import a2ui_scorer
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CATALOG_PATH = os.path.abspath(
@@ -30,8 +35,10 @@ CATALOG_PATH_V091 = os.path.abspath(
 
 
 @pytest.mark.asyncio
-async def test_scorer_valid_json_v091() -> None:
-    scorer = a2ui_scorer(version="0.9.1")
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ["python", "ts", "dart"])
+async def test_scorer_valid_json_v091(sdk: str) -> None:
+    scorer = a2ui_scorer(version="0.9.1", sdk=sdk)
     valid_json = """
     <a2ui-json>
     [
@@ -305,3 +312,87 @@ async def test_scorer_circular_reference() -> None:
     assert score.explanation is not None
     assert score.value == 0.0
     assert "Circular reference detected" in score.explanation
+
+
+class _RecordingBridge:
+    """Fake bridge that records calls and fails strict validation on demand."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.calls: list[dict[str, Any]] = []
+
+    def parse_and_validate(
+        self,
+        format_name: str,
+        version: str,
+        resolved_catalog_path: str,
+        surface_id: str,
+        completion: str,
+        timeout_sec: float = DEFAULT_PARSE_TIMEOUT_SEC,
+        require_complete_tags: bool = False,
+        *,
+        validate: bool = True,
+    ) -> dict[str, Any]:
+        self.calls.append({"timeout_sec": timeout_sec, "validate": validate})
+        if validate and self.error is not None:
+            raise self.error
+        return {"compiled_jsons": [{"version": "v0.9.1"}], "parts": []}
+
+
+def _state_with_completion(completion: str) -> TaskState:
+    return TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        output=ModelOutput(model="mock/model", completion=completion),
+        metadata={"catalog": str(CATALOG_PATH_V091)},
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sdk", ["python", "ts", "dart"])
+async def test_scorer_uses_same_timeout_for_every_sdk(sdk: str) -> None:
+    bridge = _RecordingBridge()
+    with patch("a2ui_eval.scorers.get_sdk_bridge", return_value=bridge):
+        score = await a2ui_scorer(version="0.9.1", sdk=sdk)(
+            _state_with_completion("<a2ui-json>[]</a2ui-json>"), Target("")
+        )
+    assert score.value == 1.0
+    assert bridge.calls == [
+        {"timeout_sec": DEFAULT_PARSE_TIMEOUT_SEC, "validate": True}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_scorer_answer_is_compiled_json_on_validation_failure() -> None:
+    bridge = _RecordingBridge(error=ValueError("Component 'root' is missing"))
+    with patch("a2ui_eval.scorers.get_sdk_bridge", return_value=bridge):
+        score = await a2ui_scorer(version="0.9.1")(
+            _state_with_completion("<a2ui-json>[...]</a2ui-json>"), Target("")
+        )
+    assert score.value == 0.0
+    assert score.explanation == "Component 'root' is missing"
+    assert json.loads(score.answer) == [{"version": "v0.9.1"}]
+    assert [c["validate"] for c in bridge.calls] == [True, False]
+
+
+@pytest.mark.asyncio
+async def test_scorer_answer_is_raw_completion_when_parsing_fails() -> None:
+    scorer = a2ui_scorer(version="0.9")
+    score = await scorer(_state_with_completion("invalid json"), Target(""))
+    assert score.value == 0.0
+    assert score.answer == "invalid json"
+
+
+@pytest.mark.asyncio
+async def test_scorer_skips_parse_retry_after_timeout() -> None:
+    bridge = _RecordingBridge(error=TimeoutError("timed out"))
+    with patch("a2ui_eval.scorers.get_sdk_bridge", return_value=bridge):
+        score = await a2ui_scorer(version="0.9.1")(
+            _state_with_completion("<a2ui-json>[]</a2ui-json>"), Target("")
+        )
+    assert score.value == 0.0
+    assert score.answer == "<a2ui-json>[]</a2ui-json>"
+    assert len(bridge.calls) == 1

@@ -19,8 +19,9 @@ from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.core import CatalogApi
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_9
+from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
@@ -78,7 +79,7 @@ def _renderer_capabilities(
     Returns:
         The capabilities for `A2uiGenerator.create_processor`.
     """
-    key = f"v{version}"
+    key = f"v{to_version_number(version)}"
     if not client_ui_capabilities:
         return {key: {"supportedCatalogIds": list(catalog_ids)}}
     raw: Any = client_ui_capabilities
@@ -131,12 +132,12 @@ class FileUploadSummarizerAgent:
         self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
 
-        generator = self._build_generator(VERSION_0_9)
-        processor = self._build_default_processor(VERSION_0_9, generator)
-        self._generators[VERSION_0_9] = generator
-        self._processors[VERSION_0_9] = processor
+        generator = self._build_generator(ProtocolVersion.V0_9)
+        processor = self._build_default_processor(ProtocolVersion.V0_9, generator)
+        self._generators[ProtocolVersion.V0_9] = generator
+        self._processors[ProtocolVersion.V0_9] = processor
         agent = self._build_llm_agent(processor)
-        self._ui_runners[VERSION_0_9] = self._build_runner(agent)
+        self._ui_runners[ProtocolVersion.V0_9] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
 
@@ -171,7 +172,9 @@ class FileUploadSummarizerAgent:
 
     def _build_generator(self, version: str) -> A2uiGenerator:
         config = CatalogConfig.from_path(
-            catalog_path=f"catalogs/{version}/file_upload_catalog.json",
+            catalog_path=(
+                f"catalogs/{to_version_number(version)}/file_upload_catalog.json"
+            ),
             protocol_version=version,
         )
         return A2uiGenerator(

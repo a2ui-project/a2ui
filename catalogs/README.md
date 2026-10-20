@@ -18,7 +18,10 @@ catalogs/
 │       ├── examples/
 │       └── basic_catalog_implementation_guide.md
 └── mcp/                    # MCP catalog
-    └── catalog.json
+    ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
+    └── v1/                 # MCP catalog, major version 1 (protocol v1.0)
+        ├── catalog.json
+        └── mcp_app_specification.md
 ```
 
 - Catalogs are identified by the `$id` declared inside `catalog.json`, not by
@@ -29,7 +32,8 @@ catalogs/
 - `basic/` is versioned by catalog major version (`v1/`), which is independent
   of the protocol version. Newer catalogs start unversioned
   (`catalogs/<catalog>/catalog.json`) and add a version directory only when
-  they need a breaking change.
+  they need a breaking change. The MCP catalog for protocol v0.9 stays at
+  `catalogs/mcp/catalog.json`; its v1.0 successor lives in `mcp/v1/`.
 - Basic catalogs for protocol versions before v1.0 remain under
   `specification/<version>/catalogs/`.
 

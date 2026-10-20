@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import '../primitives/errors.dart';
+import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
 
 /// The maximum list index that auto-vivification will expand to.
@@ -20,6 +21,37 @@ import '../primitives/reactivity.dart';
 /// Prevents OOM from paths like `/data/999999999` which would otherwise
 /// allocate a billion-element list.
 const int maxAutoVivifyIndex = 10000;
+
+/// A live subscription to a value at a data-model path or dynamic expression.
+abstract interface class DataSubscription<T extends Object?>
+    implements Subscription {
+  /// The latest resolved value.
+  T? get value;
+
+  /// Stops change notifications. Idempotent.
+  @override
+  void unsubscribe();
+}
+
+class _DataModelSubscription<T extends Object?> implements DataSubscription<T> {
+  final DataModel _model;
+  final ReadonlySignal<Object?> _signal;
+  void Function()? _dispose;
+
+  _DataModelSubscription(this._model, this._signal);
+
+  @override
+  T? get value => _signal.peek() as T?;
+
+  @override
+  void unsubscribe() {
+    final void Function()? dispose = _dispose;
+    if (dispose == null) return;
+    _dispose = null;
+    _model._subscriptions.remove(this);
+    dispose();
+  }
+}
 
 /// A standalone, observable data store representing the client-side state.
 /// It handles JSON Pointer path resolution and reactive signal management.
@@ -31,6 +63,9 @@ class DataModel {
 
   Object? _data;
   final Map<String, WeakReference<Signal<Object?>>> _signals = {};
+  final Map<(String, Type), WeakReference<ReadonlySignal<Object?>>>
+      _typedSignals = {};
+  final Set<DataSubscription<Object?>> _subscriptions = {};
 
   DataModel([Object? initialData])
       : _data = _own(initialData) ?? <String, Object?>{};
@@ -293,20 +328,58 @@ class DataModel {
 
   /// Returns a [ReadonlySignal] for a specific path.
   /// Internally cached using a [WeakReference] to prevent leaks.
-  ReadonlySignal<T?> watch<T>(String path) {
+  ReadonlySignal<T?> watch<T extends Object?>(String path) {
     final String normalizedPath = _buildPointer(_parsePointer(path));
+    Signal<Object?>? sig;
     final WeakReference<Signal<Object?>>? ref = _signals[normalizedPath];
     if (ref != null) {
-      final Signal<Object?>? sig = ref.target;
-      if (sig != null) {
-        return sig as ReadonlySignal<T?>;
+      sig = ref.target;
+    }
+    if (sig == null) {
+      sig = signal<Object?>(get(normalizedPath));
+      _signals[normalizedPath] = WeakReference(sig);
+      _pruneSignals();
+    }
+
+    if (T == Object || T == dynamic || <Object?>[] is List<T>) {
+      return sig as ReadonlySignal<T?>;
+    }
+
+    final key = (normalizedPath, T);
+    final WeakReference<ReadonlySignal<Object?>>? typedRef = _typedSignals[key];
+    if (typedRef != null) {
+      final ReadonlySignal<Object?>? existing = typedRef.target;
+      if (existing != null) {
+        return existing as ReadonlySignal<T?>;
       }
     }
 
-    final Signal<T?> sig = signal<T?>(get(normalizedPath) as T?);
-    _signals[normalizedPath] = WeakReference(sig as Signal<Object?>);
-    _pruneSignals();
-    return sig;
+    final ReadonlySignal<T?> computedSig = computed<T?>(() {
+      final Object? val = sig!.value;
+      return val as T?;
+    });
+    _typedSignals[key] = WeakReference(computedSig as ReadonlySignal<Object?>);
+    return computedSig;
+  }
+
+  /// Subscribes [onChange] to changes at [path], including mutations to
+  /// ancestor and descendant paths.
+  ///
+  /// Does not fire [onChange] synchronously upon subscription; the current
+  /// value is immediately available via [DataSubscription.value].
+  DataSubscription<T> subscribe<T extends Object?>(
+    String path,
+    void Function(T? value) onChange,
+  ) {
+    final ReadonlySignal<Object?> source = watch<Object?>(path);
+    final subscription = _DataModelSubscription<T>(this, source);
+    var initial = true;
+    subscription._dispose = source.subscribe((Object? next) {
+      if (!initial) onChange(next as T?);
+    });
+    initial = false;
+    _subscriptions.add(subscription);
+    return subscription;
   }
 
   void _notifyPathAndRelated(List<String> segments) {
@@ -352,9 +425,17 @@ class DataModel {
 
   void _pruneSignals() {
     _signals.removeWhere((key, ref) => ref.target == null);
+    _typedSignals.removeWhere((key, ref) => ref.target == null);
   }
 
   void dispose() {
+    for (final subscription in List<DataSubscription<Object?>>.of(
+      _subscriptions,
+    )) {
+      subscription.unsubscribe();
+    }
+    _subscriptions.clear();
     _signals.clear();
+    _typedSignals.clear();
   }
 }

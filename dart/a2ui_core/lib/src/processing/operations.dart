@@ -123,9 +123,14 @@ final class DeleteSurfaceOp extends InternalOperation {
 final class CallRendererFunctionOp extends InternalOperation {
   const CallRendererFunctionOp({
     required super.version,
+    this.surfaceId,
     required this.functionCallId,
     required this.callFunction,
   });
+
+  /// The optional surface whose data model provides the evaluation context, or
+  /// null when the call executes in a surface-independent root context.
+  final String? surfaceId;
 
   final String functionCallId;
 

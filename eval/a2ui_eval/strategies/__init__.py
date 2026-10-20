@@ -12,23 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable
-from inspect_ai.solver import Solver
-from .subagent_tool import subagent_tool_solver
-from .format import format_solver
+"""Evaluation solver strategies."""
 
-STRATEGIES: dict[str, Callable[[str], list[Solver]]] = {
-    "direct": lambda version: format_solver("direct_json", version),
+from __future__ import annotations
+
+from typing import Callable
+
+from inspect_ai.solver import Solver
+
+from ..bridges import normalize_sdk_name, validate_sdk_strategy
+from .format import compile_format_payload, format_solver, format_system_prompt
+from .subagent_tool import (
+    PAYLOAD_STORE_KEY,
+    a2ui_specialist,
+    extract_subagent_payload,
+    subagent_tool_solver,
+)
+
+STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
+    "direct": lambda version, sdk="python": format_solver(
+        "direct_json", version, sdk=sdk
+    ),
     "subagent_tool": subagent_tool_solver,
-    "express": lambda version: format_solver("express", version),
-    "elemental": lambda version: format_solver("elemental", version),
-    "atom": lambda version: format_solver("atom", version),
+    "express": lambda version, sdk="python": format_solver("express", version, sdk=sdk),
+    "elemental": lambda version, sdk="python": format_solver(
+        "elemental", version, sdk=sdk
+    ),
+    "atom": lambda version, sdk="python": format_solver("atom", version, sdk=sdk),
 }
 
 
-def get_solver(strategy: str, version: str) -> list[Solver]:
-    """Returns the solver chain for the specified evaluation strategy."""
+def get_solver(strategy: str, version: str, sdk: str = "python") -> list[Solver]:
+    """Returns the solver chain for the specified evaluation strategy and SDK."""
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown evaluation strategy: {strategy}")
 
-    return STRATEGIES[strategy](version)
+    norm_sdk = normalize_sdk_name(sdk)
+    validate_sdk_strategy(norm_sdk, strategy)
+    return STRATEGIES[strategy](version, sdk=norm_sdk)
+
+
+__all__ = [
+    "PAYLOAD_STORE_KEY",
+    "STRATEGIES",
+    "a2ui_specialist",
+    "compile_format_payload",
+    "extract_subagent_payload",
+    "format_solver",
+    "format_system_prompt",
+    "get_solver",
+    "subagent_tool_solver",
+]

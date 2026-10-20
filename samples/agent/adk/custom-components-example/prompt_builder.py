@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_9,
-)
+from a2ui.utils import to_version_number
 
 ROLE_DESCRIPTION = (
     "You are a helpful contact lookup assistant. Your final output MUST be a a2ui UI"
@@ -72,7 +70,7 @@ def get_ui_prompt(
     validate_examples: bool = False,
 ) -> str:
     """Constructs the full system prompt for the UI agent."""
-    from a2ui.schema import load_examples
+    from a2ui.utils import load_examples
 
     prompt_parts = [ROLE_DESCRIPTION]
     if WORKFLOW_DESCRIPTION:
@@ -89,12 +87,12 @@ def get_ui_prompt(
 
 
 if __name__ == "__main__":
-    from a2ui.schema import load_examples
+    from a2ui.utils import load_examples
 
     # Example of how to use A2uiRequestProcessor to generate a system prompt
     my_base_url = "http://localhost:8000"
-    my_version = VERSION_0_9
-    inline_catalog_path = f"inline_catalog_{my_version}.json"
+    my_version = ProtocolVersion.V0_9
+    inline_catalog_path = f"inline_catalog_{to_version_number(my_version)}.json"
     inline_catalog = CatalogConfig.from_path(
         catalog_path=inline_catalog_path,
         protocol_version=my_version,
@@ -104,7 +102,7 @@ if __name__ == "__main__":
     processor = A2uiRequestProcessor([inline_catalog, basic_catalog])
     contact_prompt = get_ui_prompt(
         processor,
-        examples_path=f"examples/{my_version}",
+        examples_path=f"examples/{to_version_number(my_version)}",
         validate_examples=False,
     )
     print(contact_prompt)
@@ -121,7 +119,9 @@ if __name__ == "__main__":
     print("\nGenerated request prompt saved to request_prompt.txt")
 
     examples = load_examples(
-        processor.active_catalogs, f"examples/{my_version}", validate=True
+        processor.active_catalogs,
+        f"examples/{to_version_number(my_version)}",
+        validate=True,
     )
     print(examples)
     with open("examples.txt", "w") as f:

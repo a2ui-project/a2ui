@@ -31,6 +31,7 @@ from a2ui.core import (
     MessageProcessorOptions,
     STRICT_VALIDATION,
     ValidationConfig,
+    link_catalogs,
 )
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import (
@@ -116,6 +117,7 @@ def validate_payload(
     """
     if not catalogs:
         raise A2uiCatalogError("Validating a payload requires at least one catalog.")
+    catalogs = link_catalogs(catalogs)
     protocol_version = to_protocol_version(catalogs[0].protocol_version)
     for catalog in catalogs[1:]:
         other_version = to_protocol_version(catalog.protocol_version)

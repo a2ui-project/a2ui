@@ -18,16 +18,23 @@ import unittest
 
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.experimental.express import ExpressCompiler
+from a2ui.inference_formats.express import ExpressCompiler
 
 
 class TestVersionCompliance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from a2ui.schema.utils import get_basic_catalog_path
+        from ..repo_paths import find_repo_root
 
-        catalog_path = get_basic_catalog_path("v0_9")
+        catalog_path = os.path.join(
+            find_repo_root() or "",
+            "specification",
+            "v0_9",
+            "catalogs",
+            "basic",
+            "catalog.json",
+        )
         with open(catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
         cls.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")

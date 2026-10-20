@@ -9,8 +9,8 @@ This sample implements an interactive filesystem browser using a static A2UI JSO
 An A2UI mini-app can deliver interactive functionality to any host that supports MCP:
 
 - **Declarative tool execution**: Every button in [a2ui_filesystem.json](a2ui_filesystem.json) invokes a chain of catalog functions centered on `callMcpTool`. Clicking a row executes no custom client-side application logic.
-- **Data transformation for standard MCP servers**: The filesystem server returns plain text. The payload splits the text into lines, extracts fields using regular expressions, transforms the result with JMESPath, and writes the structured entries into the data model.
-- **Minimal host scaffolding**: [client/app.ts](client/app.ts) only connects an MCP client and feeds the static A2UI payload into the renderer.
+- **Data transformation for standard MCP servers**: The filesystem server returns plain text. Five sample functions in `client/functions/` (`jmespath`, `split`, `regexCapture`, `regexReplace`, and `updateDataModel`) split the text into lines, extract fields using regular expressions, transform the result with JMESPath, and write the structured entries into the data model.
+- **Minimal host scaffolding**: [client/app.ts](client/app.ts) registers `callMcpTool` alongside the sample's data transformation functions, connects an MCP client, and feeds the static A2UI payload into the renderer.
 
 ## Run it
 
@@ -219,12 +219,13 @@ Key details in this expression:
 
 ## Files
 
-| File                                           | Purpose                                                            |
-| ---------------------------------------------- | ------------------------------------------------------------------ |
-| [a2ui_filesystem.json](a2ui_filesystem.json)   | The A2UI payload: the UI, every tool call, and every expression.   |
-| [client/app.ts](client/app.ts)                 | The host: connects to MCP, processes the payload, runs `/startup`. |
-| [client/vite.config.ts](client/vite.config.ts) | Dev server, the `/mcp` proxy, and catalog resolution.              |
-| [package.json](package.json)                   | `yarn dev`: the MCP relay and the web server, side by side.        |
+| File                                           | Purpose                                                                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| [a2ui_filesystem.json](a2ui_filesystem.json)   | The A2UI payload: the UI, every tool call, and every expression.                                                          |
+| [client/app.ts](client/app.ts)                 | The host: registers the catalog, connects to MCP, processes the payload, runs `/startup`.                                 |
+| [client/functions/](client/functions/)         | The sample's five data transformation functions (`jmespath`, `split`, `regexCapture`, `regexReplace`, `updateDataModel`). |
+| [client/vite.config.ts](client/vite.config.ts) | Dev server, the `/mcp` proxy, and catalog resolution.                                                                     |
+| [package.json](package.json)                   | `yarn dev`: the MCP relay and the web server, side by side.                                                               |
 
 ## Test and build
 

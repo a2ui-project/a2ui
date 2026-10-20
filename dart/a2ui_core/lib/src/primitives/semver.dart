@@ -14,7 +14,7 @@
 
 /// Version string comparison and catalog version compatibility.
 ///
-/// Mirrors `typescript/web_core` (`common/semver.ts` and
+/// Mirrors `typescript/core/web_core` (`common/semver.ts` and
 /// `isCatalogVersionCompatible` in `processing/adapters/base.ts`) and
 /// `python/a2ui_core` (`processing/adapters/base.py`), so all three SDKs agree
 /// on which catalogs can serve a message.

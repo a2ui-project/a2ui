@@ -69,8 +69,7 @@
             "Image": {
               "url": {
                 "path": "/items/0/imageUrl"
-              },
-              "width": "100%"
+              }
             }
           }
         },
@@ -197,8 +196,7 @@
             "Image": {
               "url": {
                 "path": "/items/1/imageUrl"
-              },
-              "width": "100%"
+              }
             }
           }
         },
@@ -311,67 +309,70 @@
         {
           "key": "title",
           "valueString": "Top Restaurants"
-        },
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
+      "path": "/items",
+      "contents": [
         {
-          "key": "items",
+          "key": "0",
           "valueMap": [
             {
-              "key": "item1",
-              "valueMap": [
-                {
-                  "key": "name",
-                  "valueString": "The Fancy Place"
-                },
-                {
-                  "key": "rating",
-                  "valueNumber": 4.8
-                },
-                {
-                  "key": "detail",
-                  "valueString": "Fine dining experience"
-                },
-                {
-                  "key": "infoLink",
-                  "valueString": "https://example.com/fancy"
-                },
-                {
-                  "key": "imageUrl",
-                  "valueString": "https://example.com/fancy.jpg"
-                },
-                {
-                  "key": "address",
-                  "valueString": "123 Main St"
-                }
-              ]
+              "key": "name",
+              "valueString": "The Fancy Place"
             },
             {
-              "key": "item2",
-              "valueMap": [
-                {
-                  "key": "name",
-                  "valueString": "Quick Bites"
-                },
-                {
-                  "key": "rating",
-                  "valueNumber": 4.2
-                },
-                {
-                  "key": "detail",
-                  "valueString": "Casual and fast"
-                },
-                {
-                  "key": "infoLink",
-                  "valueString": "https://example.com/quick"
-                },
-                {
-                  "key": "imageUrl",
-                  "valueString": "https://example.com/quick.jpg"
-                },
-                {
-                  "key": "address",
-                  "valueString": "456 Oak Ave"
-                }
-              ]
+              "key": "rating",
+              "valueNumber": 4.8
+            },
+            {
+              "key": "detail",
+              "valueString": "Fine dining experience"
+            },
+            {
+              "key": "infoLink",
+              "valueString": "https://example.com/fancy"
+            },
+            {
+              "key": "imageUrl",
+              "valueString": "https://example.com/fancy.jpg"
+            },
+            {
+              "key": "address",
+              "valueString": "123 Main St"
+            }
+          ]
+        },
+        {
+          "key": "1",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "Quick Bites"
+            },
+            {
+              "key": "rating",
+              "valueNumber": 4.2
+            },
+            {
+              "key": "detail",
+              "valueString": "Casual and fast"
+            },
+            {
+              "key": "infoLink",
+              "valueString": "https://example.com/quick"
+            },
+            {
+              "key": "imageUrl",
+              "valueString": "https://example.com/quick.jpg"
+            },
+            {
+              "key": "address",
+              "valueString": "456 Oak Ave"
             }
           ]
         }

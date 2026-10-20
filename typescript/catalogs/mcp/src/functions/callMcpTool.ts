@@ -23,8 +23,8 @@
  * ```ts
  * const catalogs: Catalog<any>[] = [];
  * const processor = new MessageProcessor(catalogs);
- * const functions = createMcpCatalogFunctions(getMcpClientForTool, processor);
- * catalogs.push(new Catalog(MCP_CATALOG_ID, '0.9', [], functions));
+ * const callMcpTool = createCallMcpToolImplementation(getMcpClientForTool, processor);
+ * catalogs.push(new Catalog(MCP_CATALOG_ID, '0.9', [], [callMcpTool]));
  * ```
  *
  * ## Supported MCP UI Responses

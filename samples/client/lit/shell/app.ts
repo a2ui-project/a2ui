@@ -249,7 +249,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
         }
       }
 
-      .error {
+      .app-error {
         color: var(--e-40);
         background-color: var(--e-95);
         border: 1px solid var(--e-80);
@@ -551,7 +551,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
   #maybeRenderError() {
     if (!this._error) return nothing;
 
-    return html`<div class="error">${this._error}</div>`;
+    return html`<div class="app-error">${this._error}</div>`;
   }
 
   override connectedCallback() {
@@ -761,7 +761,11 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     try {
       this._requesting = true;
       this.#startLoadingAnimation();
-      const response = this._a2uiClient.send(message);
+      // The catalogs that the processor renders, sent with every request.
+      const response = this._a2uiClient.send(
+        message,
+        this._processor.getRendererCapabilities({versions: ['v0.9']}),
+      );
       await response;
       this._requesting = false;
       this.#stopLoadingAnimation();

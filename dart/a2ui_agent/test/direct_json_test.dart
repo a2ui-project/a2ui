@@ -49,6 +49,13 @@ void main() {
     },
   });
 
+  /// A catalog of protocol v1.0, which does not mix with the v0.9 ones.
+  final CatalogApi v1_0Catalog = Catalog.fromJson({
+    'catalogId': 'https://example.com/v1.json',
+    'protocolVersion': '1.0',
+    'components': <String, Object?>{},
+  });
+
   DirectJsonParser parser({
     Set<String> progressiveKeys = const {},
     bool bufferIncompleteComponents = false,
@@ -245,6 +252,17 @@ void main() {
         () => DirectJsonParser([]).compile('[${create('s')}]'),
         throwsError<A2uiCatalogError>(),
       );
+    });
+
+    test('rejects catalogs of different versions, even with no messages', () {
+      final mixed = DirectJsonParser([basic, v1_0Catalog]);
+      for (final payload in ['[]', '[${create('s')}]']) {
+        expect(
+          () => mixed.compile(payload),
+          throwsError<A2uiCatalogError>(),
+          reason: payload,
+        );
+      }
     });
   });
 
@@ -479,6 +497,47 @@ void main() {
       );
     });
 
+    test('holds back a growing data model once its value nests too deep', () {
+      final DirectJsonParser reader = parser();
+      expect(
+        reader.parseChunk(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "value": {"a": [1, ',
+        ),
+        isNotEmpty,
+      );
+      expect(reader.parseChunk('[' * 60), isEmpty);
+      expect(
+        () => reader.parseChunk('${']' * 61}}}}]</a2ui-json>'),
+        throwsError<A2uiRecursionError>(),
+      );
+    });
+
+    test('checks a later message against the value a data model closed '
+        'with', () {
+      final DirectJsonParser reader = parser();
+      expect(
+        reader.parseChunk(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "path": "/items", "value": [',
+        ),
+        isNotEmpty,
+      );
+      expect(reader.parseChunk('1, 2]}}, '), isNotEmpty);
+      // The first item is a number, which has no property to set.
+      expect(
+        reader.parseChunk(
+          '{"version": "v0.9", "updateDataModel": {"surfaceId": "s", '
+          '"path": "/items/0/name", "value": "x"}}',
+        ),
+        isEmpty,
+      );
+      expect(
+        () => reader.parseChunk(']</a2ui-json>'),
+        throwsError<A2uiDataError>(),
+      );
+    });
+
     test('reads a block wrapped in a markdown fence', () {
       expect(
         stream(['<a2ui-json>\n``', '`json\n[${create('s')}]\n```</a2ui-json>']),
@@ -486,6 +545,27 @@ void main() {
           <Object?>[],
           [
             [created('s')],
+          ],
+        ],
+      );
+    });
+
+    test('reads a fenced block streamed a character at a time', () {
+      final response =
+          '<a2ui-json>\n```json\n[${create('s')}, '
+          '${update('s', [
+            {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+          ])}]\n```\n</a2ui-json>';
+      expect(
+        [for (final List<Object?> step in stream(response.split(''))) ...step],
+        [
+          [created('s')],
+          [
+            jsonDecode(
+              update('s', [
+                {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+              ]),
+            ),
           ],
         ],
       );
@@ -515,6 +595,21 @@ void main() {
           ' <a2ui>root = Text("x")</a2ui>',
         ),
       ]);
+    });
+
+    test('rejects catalogs of different versions as soon as a message '
+        'arrives', () {
+      for (final wrapped in [true, false]) {
+        final mixed = DirectJsonParser([basic, v1_0Catalog]);
+        expect(
+          () => mixed.parseChunk(
+            '${wrapped ? '<a2ui-json>' : ''}[${create('s')}',
+            wrapped: wrapped,
+          ),
+          throwsError<A2uiCatalogError>(),
+          reason: 'wrapped: $wrapped',
+        );
+      }
     });
 
     test('rejects a change of wrapped between chunks', () {
@@ -578,11 +673,13 @@ void main() {
       expect(
         text,
         contains(
-          jsonEncode(PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9)),
+          '### Common Types Schema:\n'
+          '{"\$schema":"https://json-schema.org/draft/2020-12/schema",'
+          '"\$id":"https://a2ui.org/specification/v0_9/common_types.json"',
         ),
       );
-      expect(text, contains(jsonEncode(basic.catalogSchema)));
-      expect(text, contains('"version": "v0.9"'));
+      expect(text, contains(jsonEncode(basic.toJson())));
+      expect(text, contains('"version":{"const":"v0.9"}'));
     });
 
     test('prunes the message schema to the allowed messages', () {
@@ -595,7 +692,6 @@ void main() {
         'CreateSurfaceMessage',
         'UpdateComponentsMessage',
         'DeleteSurfaceMessage',
-        '`createSurface`',
       ]) {
         expect(text, isNot(contains(pruned)));
       }
@@ -608,6 +704,33 @@ void main() {
       );
     });
 
+    test('rejects v1.0 helper definitions in the allowlist', () {
+      final CatalogApi v10 = Catalog.fromJson(
+        jsonDecode(
+              File(
+                '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>,
+      );
+      for (final helper in ['Component', 'ComponentsList', 'component']) {
+        expect(
+          () => snippet(catalogs: [v10], allowedMessages: [helper]),
+          throwsA(isA<ArgumentError>()),
+          reason: '$helper is not a message',
+        );
+      }
+      final String text = snippet(
+        catalogs: [v10],
+        allowedMessages: ['updateComponents'],
+      );
+      expect(
+        text,
+        contains('"oneOf":[{"\$ref":"#/\$defs/UpdateComponentsMessage"}]'),
+      );
+      expect(text, contains('"ComponentsList"'));
+    });
+
     test('shows each example as a payload the parser reads back', () {
       final List<AgentToRendererMessage> example = parser().compile(
         '[${create('greeting')}, ${update('greeting', [
@@ -616,7 +739,7 @@ void main() {
       );
       final String text = snippet(examples: [example]);
       final List<ResponsePart> parts = parser().parseResponse(
-        text.substring(text.indexOf('## Examples')),
+        text.substring(text.indexOf('### Examples:')),
       );
       expect(
         parts.whereType<A2uiPart>().single.a2ui.map((m) => m.toJson()),

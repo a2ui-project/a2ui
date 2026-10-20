@@ -370,7 +370,7 @@ reaches validation through the first of them:
 
 - **`MessageProcessor` (`a2ui.core.processing`)** is the entry point. It holds every
   active catalog, resolves each component and function call to the catalog it belongs to
-  (the item's own `catalogId`, else the surface default, else the sole catalog), and hands
+  (the item's own `catalogId`, else the surface default, else `A2uiCatalogError`), and hands
   the item to that catalog's validator. It also owns the checks that need more than one
   item: surface lifecycle, component uniqueness, root reachability, cycles, recursion
   depth caps, and data binding JSON Pointer syntax. A surface whose components come from
@@ -907,7 +907,7 @@ Express does not stream. `ExpressParser.supports_streaming` is False and it does
 
 #### Grammar and parser generation
 
-[`Express.g4`](../../specification/inference_formats/express/Express.g4) is the canonical grammar, and every SDK accepts exactly the language it defines. Generating the lexer and parser from it with [ANTLR](https://www.antlr.org/) is preferred, so that a change to the grammar reaches each SDK by regenerating rather than by reimplementing. The Python SDK does this.
+[`Express.g4`](../../specification/inference_formats/express/Express.g4) is the canonical grammar, and every SDK accepts exactly the language it defines. Generating the lexer and parser from it with [ANTLR](https://www.antlr.org/) is preferred, so that a change to the grammar reaches each SDK by regenerating rather than by reimplementing. The Python, TypeScript and Dart SDKs do this.
 
 An SDK may write its parser by hand instead, for example when the language has no maintained ANTLR runtime or the SDK avoids third-party dependencies. It then says so where the parser is defined, and a change to the grammar has to be made in that parser too. `<format>/compiler.yaml` and the round-trip test below check that the parser still accepts the grammar's language.
 

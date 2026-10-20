@@ -71,8 +71,9 @@ For each iteration, perform the following steps:
 ### Step 2: Implement and Verify Code
 
 1. Implement changes in:
-   - System prompts and format rules: `python/a2ui_agent/src/a2ui/inference_formats/experimental/{format}/prompt_generator.py` (or prompt template files).
-   - Parser, compiler, or decompiler code: under `python/a2ui_agent/src/a2ui/inference_formats/experimental/{format}/`.
+   - System prompts and format rules: `prompt_generator.py` (or prompt template files) in the format's package.
+   - Parser, compiler, or decompiler code: under the format's package.
+   - The format's package is `python/a2ui_agent/src/a2ui/inference_formats/express/` for Express, and `python/a2ui_agent/src/a2ui/inference_formats/experimental/{format}/` for an experimental format.
 2. **Catalog Agnosticism Constraint (Strict Non-Negotiable)**:
    - All compilers, decompilers, prompt generators, and system prompt instruction templates MUST remain 100% catalog-agnostic.
    - **NO Hardcoded Component or Property Names in Code**: Compilers and decompilers MUST NOT hardcode specific component names (e.g. `Card`, `Column`, `Row`, `List`, `Button`) or catalog-specific property names (e.g. `children`, `child`, `trigger`, `content`, `template`, `items`) in parsing/compilation decision trees.
