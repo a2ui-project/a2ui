@@ -53,6 +53,12 @@ const Map<String, String> _v1OnlyCases = {
 };
 
 String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
+  if (testCase['name'] ==
+      'test_express_create_format_rejects_several_v0_9_catalogs') {
+    return 'See #3341: Express in this SDK currently accepts several v0.9 '
+        'catalogs, with each surface naming its catalog in '
+        'surface(id, catalogId).';
+  }
   if (version == SuiteVersion.v0_9) {
     if (_v1OnlyCases[testCase['name']] case final String reason) {
       return reason;
@@ -83,9 +89,14 @@ List<List<AgentToRendererMessage>> _examples(
 
 void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
-  final InferenceFormat format = _factory(
+  InferenceFormat create() => _factory(
     args['format'],
   ).createFormat(version.catalogs(args), examples: _examples(args, version));
+  if (testCase['expect_error'] case final Object error) {
+    expectThrowsCategory(create, error);
+    return;
+  }
+  final InferenceFormat format = create();
   final expected = testCase['expect']! as Map<String, Object?>;
   expectSnippet(format.promptGenerator.generate(), expected);
   if (expected['parsers_are_distinct'] == true) {
