@@ -18,33 +18,19 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../parser/parser.dart';
 import '../../parser/response_part.dart';
-import '../../utils/message_reader.dart';
-import '../../utils/payload_checker.dart';
+import '../../parser/response_stream.dart';
+import '../../utils/renderer_state.dart';
+import 'blocks.dart';
 import 'json_reader.dart';
+import 'message_reader.dart';
 
-// The open tag may carry attributes, such as `<a2ui-json version="v0.9">`.
-final RegExp _openTag = RegExp(
-  r'<a2ui-json(?:\s[^>]*)?>',
-  caseSensitive: false,
-);
-final RegExp _closeTag = RegExp(r'</a2ui-json\s*>', caseSensitive: false);
-
-/// The start of an open tag whose end has not arrived: `<a2ui-json` cut
-/// anywhere, or followed by attributes.
-final RegExp _openTagStart = RegExp(
-  r'^<a2ui-json\s[^>]*$',
-  caseSensitive: false,
-);
-
-final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
-final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
+part 'response_stream.dart';
 
 /// Reads A2UI messages written as JSON inside `<a2ui-json>` tags, from a
 /// complete response or as it streams.
 ///
-/// A parser holds the state of one streamed response, so it reads one
-/// response through [parseChunk]; [parseResponse] and the other members keep
-/// no state.
+/// A parser holds no state: [openStream] returns a [DirectJsonResponseStream]
+/// that holds the state of one streamed response.
 ///
 /// Messages are read as the protocol version the catalogs target.
 class DirectJsonParser extends Parser {
@@ -55,7 +41,8 @@ class DirectJsonParser extends Parser {
   }) : catalogs = List.unmodifiable(catalogs),
        progressiveKeys = Set.unmodifiable(progressiveKeys);
 
-  /// The catalogs payloads are validated against.
+  /// The catalogs payloads are read and checked against.
+  @override
   final List<CatalogApi> catalogs;
 
   /// The string properties whose value a streamed payload may show before
@@ -91,9 +78,21 @@ class DirectJsonParser extends Parser {
       );
 
   /// Built on first use, since building it checks the catalogs: a parser of
-  /// catalogs it cannot read still wraps, unwraps and reads text. It reads
-  /// with linked copies of [catalogs], so a cross-catalog `$ref` resolves.
-  late final MessageReader _reader = MessageReader(linkCatalogs(catalogs));
+  /// catalogs it cannot read still wraps, unwraps and reads text.
+  late final MessageReader _reader = MessageReader(catalogs);
+
+  /// The reader of this parser's messages.
+  ///
+  /// Throws [A2uiCatalogError] if there are no catalogs or they target
+  /// different versions.
+  MessageReader _readerFor() {
+    if (catalogs.isEmpty) {
+      throw A2uiCatalogError(
+        'Compiling direct JSON needs at least one catalog.',
+      );
+    }
+    return _reader;
+  }
 
   /// Direct JSON can be read before a block closes, by healing the unfinished
   /// JSON.
@@ -104,9 +103,9 @@ class DirectJsonParser extends Parser {
   /// is true.
   @override
   bool hasFormatContent(String content, {bool complete = false}) {
-    final Match? open = _openTag.firstMatch(content);
+    final Match? open = openTag.firstMatch(content);
     if (open == null) return false;
-    return !complete || _scanBlock(content, open.end).closeStart != null;
+    return !complete || scanBlock(content, open.end).closeStart != null;
   }
 
   /// Writes each part on its own line, with the `<a2ui-json>` and
@@ -133,20 +132,20 @@ class DirectJsonParser extends Parser {
     final parts = <RawResponsePart>[];
     var i = 0;
     while (true) {
-      final Match? open = _openTag.allMatches(content, i).firstOrNull;
+      final Match? open = openTag.allMatches(content, i).firstOrNull;
       if (open == null) break;
-      _addText(parts, content.substring(i, open.start));
-      final int? end = _scanBlock(content, open.end).closeStart;
+      addText(parts, content.substring(i, open.start));
+      final int? end = scanBlock(content, open.end).closeStart;
       if (end == null) {
         parts.add(
-          RawA2uiPart(_clean(content.substring(open.end)), isFinal: false),
+          RawA2uiPart(clean(content.substring(open.end)), isFinal: false),
         );
         return parts;
       }
-      parts.add(RawA2uiPart(_clean(content.substring(open.end, end))));
-      i = _closeTag.matchAsPrefix(content, end)!.end;
+      parts.add(RawA2uiPart(clean(content.substring(open.end, end))));
+      i = closeTag.matchAsPrefix(content, end)!.end;
     }
-    _addText(parts, content.substring(i));
+    addText(parts, content.substring(i));
     return parts;
   }
 
@@ -156,22 +155,18 @@ class DirectJsonParser extends Parser {
   /// A trailing comma, a curly quote used as a JSON quote and a markdown
   /// fence around the payload are repaired before reading.
   ///
-  /// A payload may update a surface an earlier response created, so each
-  /// message is checked against the surfaces the payload itself creates:
-  /// its fields, its components against the schemas of their catalog, and
-  /// the functions they call against the catalog's signatures. A component
-  /// of a surface the payload does not create is checked against the first
-  /// catalog declaring it. The checks that need a whole surface, such as a
-  /// reachable root, are `A2uiRequestProcessor.parseResponse`'s.
+  /// Compiling only reads the messages. Checking them against the catalogs
+  /// and the surfaces a renderer holds is [parseResponse]'s and
+  /// [openStream]'s.
   ///
   /// Throws [A2uiParseError] if [formatContent] is empty or not JSON,
-  /// [A2uiCatalogError] if the catalogs target different versions, and
-  /// [A2uiValidationError] if a message is not a message of the catalogs'
-  /// version, declares another version or none, or names or uses anything
-  /// the catalogs do not declare.
+  /// [A2uiCatalogError] if there are no catalogs or they target different
+  /// versions, and [A2uiValidationError] if a message is not a message of
+  /// the catalogs' version, declares another version or none, or carries a
+  /// field the message does not define.
   @override
   List<AgentToRendererMessage> compile(String formatContent) {
-    final String content = _clean(formatContent);
+    final String content = clean(formatContent);
     if (content.isEmpty) {
       throw A2uiParseError(
         'The direct JSON block is empty.',
@@ -188,20 +183,12 @@ class DirectJsonParser extends Parser {
         rawContent: formatContent,
       );
     }
-    if (catalogs.isEmpty) {
-      throw A2uiCatalogError(
-        'Compiling direct JSON needs at least one catalog.',
-      );
-    }
     // Read before the loop, so that an empty list checks the catalogs too.
-    final MessageReader reader = _reader;
-    final surfaces = <String, String?>{};
-    final List<AgentToRendererMessage> messages = [
+    final MessageReader reader = _readerFor();
+    return [
       for (final Object? envelope in decoded is List ? decoded : [decoded])
-        reader.read(envelope, surfaces),
+        reader.read(envelope),
     ];
-    PayloadChecker.check(reader.catalogs, reader.version, messages);
-    return messages;
   }
 
   /// Writes [a2uiPayload] as a JSON list, one message per line.
@@ -214,633 +201,21 @@ class DirectJsonParser extends Parser {
     return '[\n$messages\n]';
   }
 
-  // The state of the response read through parseChunk.
-  bool? _wrapped;
-  bool _inBlock = false;
-  String _held = '';
-  String _block = '';
-  bool _runStarted = false;
-  String _heldSpace = '';
-
-  /// The messages of the current block emitted so far.
-  final List<AgentToRendererMessage> _emitted = [];
-
-  /// How many of [_emitted] had closed when they were emitted, so that no
-  /// later chunk can change them.
-  int _settled = 0;
-
-  /// Finds the close tag of the current block as its text arrives.
-  _BlockScanner _scanner = _BlockScanner(0);
-
-  /// What the reads of the current block keep from one chunk to the next,
-  /// for reads of the payload starting at [_readStart].
-  PartialReadCache _readCache = PartialReadCache();
-  int? _readStart;
-
-  /// The checks of the current block's messages, kept from one chunk to the
-  /// next, or null before the block holds part of a message.
-  _StreamedChecks? _checks;
-
+  /// Opens a [DirectJsonResponseStream] for one response.
+  ///
   /// Values of [progressiveKeys] are shown while they grow; any other
-  /// unfinished value is held back until it is complete.
+  /// unfinished value is held back until it is complete. See
+  /// [DirectJsonResponseStream] for what the stream emits and checks.
   ///
-  /// Text outside a block is emitted as it arrives, less trailing whitespace
-  /// and any tail that could be the start of a tag, which wait for the next
-  /// chunk. A message is emitted once it reads and satisfies the catalogs,
-  /// and again whenever a later chunk changes it; each [A2uiPart] carries the
-  /// messages of one block that are new or changed. Only `updateComponents`
-  /// and `updateDataModel` are emitted while they grow. Any other message,
-  /// such as a `createSurface` or a `callRendererFunction`, is emitted once,
-  /// after its object closes, since a renderer acts on it only once, and the
-  /// messages after it wait with it. See
-  /// `conformance/agent/direct_json/response_streaming.yaml`.
-  ///
-  /// Throws [ArgumentError] if [wrapped] differs from the first call's,
-  /// [A2uiParseError] if a block closes on text that is not JSON, and what
-  /// [compile] throws for a block that closes. What [compile] throws for the
-  /// catalogs, such as [A2uiCatalogError] for catalogs of different versions,
-  /// is thrown as soon as a block holds part of a message. For v1.0
-  /// catalogs, what [compile] throws for an `updateComponents` whose
-  /// components have closed is thrown on the chunk that closes them, since
-  /// no later chunk can change them.
+  /// Throws [A2uiCatalogError] if no [state] is given and a new one cannot be
+  /// created for [catalogs].
   @override
-  List<ResponsePart> parseChunk(String chunk, {bool wrapped = true}) {
-    if (_wrapped == null) {
-      _wrapped = wrapped;
-      _inBlock = !wrapped;
-    } else if (_wrapped != wrapped) {
-      throw ArgumentError.value(
-        wrapped,
-        'wrapped',
-        'A response is either wrapped or not; the first chunk said '
-            '$_wrapped',
-      );
-    }
-    final parts = <ResponsePart>[];
-    if (!wrapped) {
-      _block += chunk;
-      _emitReady(parts, _block, _block.length);
-      return parts;
-    }
-    String input = _held + chunk;
-    _held = '';
-    while (input.isNotEmpty) {
-      if (_inBlock) {
-        _block += input;
-        input = '';
-        final _BlockScan scan = _scanner.scan(_block);
-        final int? closeStart = scan.closeStart;
-        if (closeStart == null) {
-          _emitReady(parts, _block, scan.readableEnd);
-          break;
-        }
-        input = _block.substring(
-          _closeTag.matchAsPrefix(_block, closeStart)!.end,
-        );
-        _emitChanged(parts, compile(_block.substring(0, closeStart)));
-        _inBlock = false;
-        _block = '';
-        _emitted.clear();
-        _settled = 0;
-        _scanner = _BlockScanner(0);
-        _readCache = PartialReadCache();
-        _readStart = null;
-        _checks?.dispose();
-        _checks = null;
-        continue;
-      }
-      final Match? open = _openTag.firstMatch(input);
-      if (open != null) {
-        _emitText(parts, input.substring(0, open.start));
-        _runStarted = false;
-        _heldSpace = '';
-        _inBlock = true;
-        input = input.substring(open.end);
-        continue;
-      }
-      final int hold = _possibleTagStart(input);
-      _emitText(parts, input.substring(0, hold));
-      _held = input.substring(hold);
-      input = '';
-    }
-    return parts;
-  }
-
-  /// Emits the text of a run, less leading whitespace at the start of the
-  /// run and trailing whitespace, which is held until more text arrives.
-  void _emitText(List<ResponsePart> parts, String text) {
-    final String body = (_runStarted ? text : text.trimLeft()).trimRight();
-    if (body.isEmpty) {
-      if (_runStarted) _heldSpace += text;
-      return;
-    }
-    final int start = _runStarted ? 0 : text.indexOf(body);
-    parts.add(TextPart('$_heldSpace$body'));
-    _heldSpace = text.substring(start + body.length);
-    _runStarted = true;
-  }
-
-  /// Emits the messages of [block], the start of a block, up to [end], that
-  /// read and are new or changed.
-  ///
-  /// A leading markdown fence is skipped once its line is complete, and a
-  /// trailing one, or the start of one, is left out.
-  void _emitReady(List<ResponsePart> parts, String block, int end) {
-    final int? start = _payloadStart(block, end);
-    if (start == null) return;
-    // The block only grows, so what earlier reads found holds while the
-    // payload starts at the same place.
-    if (start != _readStart) {
-      _readStart = start;
-      _readCache = PartialReadCache();
-    }
-    final List<PartialMessage> envelopes = readPartialMessages(
-      block,
-      progressiveKeys,
-      wholeItemKeys: _buffersComponents ? const {'components'} : const {},
-      cache: _readCache,
-      start: start,
-      end: _trailingFenceStart(block, start, end),
-    );
-    if (envelopes.isEmpty) return;
-    // Built from the reader, so that catalogs it cannot read throw rather
-    // than pass for a message that has not arrived in full.
-    final _StreamedChecks checks = _checks ??= _StreamedChecks(_reader);
-    // The messages emitted closed cannot have changed, so only the ones
-    // after them are compared.
-    _emitChanged(
-      parts,
-      checks.update(envelopes, from: _settled),
-      from: _settled,
-      streamed: true,
-    );
-    _settled = checks.closedCount;
-  }
-
-  /// Emits the messages of [messages] that differ from the ones emitted at
-  /// the same place before. [messages] are the messages of the block from
-  /// the one at [from] on.
-  ///
-  /// The checks of a streamed block return a message that has not changed
-  /// as the same object, so [streamed] messages are compared by identity.
-  /// The messages [compile] returns for the whole block are compared as
-  /// JSON.
-  void _emitChanged(
-    List<ResponsePart> parts,
-    List<AgentToRendererMessage> messages, {
-    int from = 0,
-    bool streamed = false,
-  }) {
-    final changed = <AgentToRendererMessage>[];
-    for (var i = from; i < from + messages.length; i++) {
-      final AgentToRendererMessage message = messages[i - from];
-      if (i < _emitted.length) {
-        final AgentToRendererMessage emitted = _emitted[i];
-        if (identical(emitted, message) ||
-            !streamed &&
-                jsonEncode(emitted.toJson()) == jsonEncode(message.toJson())) {
-          continue;
-        }
-        _emitted[i] = message;
-      } else {
-        _emitted.add(message);
-      }
-      changed.add(message);
-    }
-    if (changed.isNotEmpty) parts.add(A2uiPart(changed));
-  }
-}
-
-/// The checks of the messages a streamed block holds so far, kept from one
-/// chunk to the next, so that each chunk checks only what it adds.
-///
-/// A message that has closed never changes, so it is read and checked once.
-/// An `updateComponents` that grows is checked again only for its new
-/// components, and for the last one it checked when that one has grown,
-/// since applying them over the ones checked before leaves the surface as
-/// applying the whole message would. An `updateDataModel` that grows is
-/// checked again only for the lists and maps its value gains, and applied
-/// once it closes.
-///
-/// A message that has not changed since the last chunk is returned as the
-/// same object.
-class _StreamedChecks {
-  _StreamedChecks(this._reader)
-    : _checker = PayloadChecker(_reader.catalogs, _reader.version);
-
-  final MessageReader _reader;
-
-  /// The messages checked so far, applied in order. The block is not whole
-  /// yet, so a message for a surface it creates later waits for compile, and
-  /// so do the checks of a whole surface.
-  final PayloadChecker _checker;
-
-  /// The surfaces the messages checked so far create, as
-  /// [MessageReader.read] records them.
-  final Map<String, String?> _surfaces = {};
-
-  /// The messages that have closed and passed the checks.
-  final List<AgentToRendererMessage> _closed = [];
-
-  /// The message after [_closed] while it grows, as far as it has passed
-  /// the checks, or null.
-  AgentToRendererMessage? _growing;
-
-  /// The JSON of the message [_growing] was read from, less what it grows
-  /// by; see [_restOf].
-  String? _growingJson;
-
-  /// The JSON of the last component of the `updateComponents` [_growing] was
-  /// read from, which may still grow when components are not held back
-  /// until they close, or null.
-  String? _growingLast;
-
-  /// The ids of the components of the `updateComponents` last checked.
-  Set<String> _growingIds = {};
-
-  /// Whether a message that has closed failed the checks. It fails the same
-  /// way on every later chunk, so nothing after it is emitted before
-  /// compile.
-  bool _stalled = false;
-
-  /// How many messages have closed and passed the checks.
-  int get closedCount => _closed.length;
-
-  /// Checks what [envelopes], the messages of the block read so far, add to
-  /// the ones checked before, and returns the messages that may be emitted,
-  /// from the one at [from] on.
-  ///
-  /// Throws what [DirectJsonParser.compile] throws for a v1.0
-  /// `updateComponents` whose components have closed.
-  List<AgentToRendererMessage> update(
-    List<PartialMessage> envelopes, {
-    int from = 0,
-  }) {
-    for (int i = _closed.length; !_stalled && i < envelopes.length; i++) {
-      final (:Object? message, :bool closed) = envelopes[i];
-      // Held until it closes, and nothing after it is emitted ahead of it.
-      if (!closed && !_growsInPlace(message)) break;
-      final AgentToRendererMessage read;
-      try {
-        read = _check(message, closed: closed);
-      } on A2uiError {
-        if (_reader.version.isAtLeast(A2uiProtocolVersion.v1_0) &&
-            _hasClosedComponents(message)) {
-          rethrow;
-        }
-        // Not ready, and nothing after it is emitted ahead of it.
-        _stalled = closed;
-        break;
-      }
-      if (!closed) {
-        // Only the last message read so far can be open.
-        if (!identical(read, _growing)) {
-          _growing = read;
-          _growingJson = _restOf(message) ?? jsonEncode(message);
-          _growingLast = switch (_bodyOf(message)?['components']) {
-            List(isNotEmpty: true, :final Object? last) => jsonEncode(last),
-            _ => null,
-          };
-        }
-        break;
-      }
-      _closed.add(read);
-      _growing = null;
-      _growingJson = null;
-      _growingLast = null;
-      _growingIds = {};
-    }
-    return [..._closed.skip(from), ?_growing];
-  }
-
-  /// Reads and checks [envelope], the message after [_closed], over the
-  /// messages checked before, and returns it read. [closed] says whether
-  /// its JSON value has closed.
-  ///
-  /// A rejected message leaves the checks as they were, so the next chunk
-  /// can check it again.
-  AgentToRendererMessage _check(Object? envelope, {required bool closed}) {
-    final AgentToRendererMessage? growing = _growing;
-    final String? rest = growing == null ? null : _restOf(envelope);
-    switch ((growing, envelope)) {
-      case (
-            final UpdateComponentsMessage growing,
-            final Map<String, Object?> message,
-          )
-          when rest != null && rest == _growingJson:
-        return _checkAdded(growing, message);
-      case (
-            final UpdateDataModelMessage growing,
-            final Map<String, Object?> message,
-          )
-          when growing.hasValue && rest != null && rest == _growingJson:
-        return _checkGrown(growing, message, closed: closed);
-      case (final AgentToRendererMessage growing, _)
-          when rest == null && jsonEncode(envelope) == _growingJson:
-        return growing;
-    }
-    final AgentToRendererMessage read = _reader.read(envelope, _surfaces);
-    _checker.add(read);
-    if (read is UpdateComponentsMessage) _growingIds = _idsOf(read.components);
-    return read;
-  }
-
-  /// Reads and checks the components of [envelope], the `updateComponents`
-  /// [growing] was read from on an earlier chunk, that [growing] does not
-  /// hold as they are now, and returns the message they make with the ones
-  /// it holds.
-  AgentToRendererMessage _checkAdded(
-    UpdateComponentsMessage growing,
-    Map<String, Object?> envelope,
-  ) {
-    final Map<String, Object?> body = _bodyOf(envelope)!;
-    final components = body['components']! as List<Object?>;
-    int kept = growing.components.length;
-    if (components.length < kept) kept = 0;
-    if (kept > 0 && jsonEncode(components[kept - 1]) != _growingLast) kept--;
-    if (kept == components.length) return growing;
-    // The component read again is checked again with the added ones.
-    _growingIds.removeAll(_idsOf(growing.components.skip(kept)));
-    final added =
-        _reader.read({
-              ...envelope,
-              'updateComponents': {
-                ...body,
-                'components': components.sublist(kept),
-              },
-            }, _surfaces)
-            as UpdateComponentsMessage;
-    final message = UpdateComponentsMessage(
-      version: added.version,
-      surfaceId: added.surfaceId,
-      components: [...growing.components.take(kept), ...added.components],
-    );
-    // The checker sees only the added components as a batch, so it would
-    // take an id repeated from an earlier batch of this message for an
-    // update.
-    checkDuplicateComponentIds(added.components, earlier: _growingIds);
-    _checker.add(added);
-    _growingIds.addAll(_idsOf(added.components));
-    return message;
-  }
-
-  /// Checks the value of [envelope], the `updateDataModel` [growing] was
-  /// read from on an earlier chunk, and returns the message it makes now.
-  ///
-  /// Only the value can have changed, and of what a renderer checks only the
-  /// depth of the value depends on it, so only the lists and maps the value
-  /// has gained are checked. The value is applied once the message has
-  /// [closed], since no message after it can be checked before then.
-  AgentToRendererMessage _checkGrown(
-    UpdateDataModelMessage growing,
-    Map<String, Object?> envelope, {
-    required bool closed,
-  }) {
-    final Object? value = _dataModelBodyOf(envelope)!['value'];
-    final message = _sameJson(value, growing.value)
-        ? growing
-        : UpdateDataModelMessage(
-            version: growing.version,
-            surfaceId: growing.surfaceId,
-            path: growing.path,
-            value: value,
-          );
-    if (closed) {
-      _checker.add(message);
-    } else if (!identical(message, growing)) {
-      _checker.checkGrown(message, grownFrom: growing);
-    }
-    return message;
-  }
-
-  /// Releases the surfaces the messages checked so far create.
-  void dispose() => _checker.dispose();
-}
-
-/// The ids [components] give.
-Set<String> _idsOf(Iterable<Map<String, Object?>> components) => {
-  for (final Map<String, Object?> component in components)
-    if (component['id'] case final String id) id,
-};
-
-/// The body of [envelope] if it is an `updateComponents` with a list of
-/// components, or null.
-Map<String, Object?>? _bodyOf(Object? envelope) => switch (envelope) {
-  {'updateComponents': final Map<String, Object?> body}
-      when body['components'] is List =>
-    body,
-  _ => null,
-};
-
-/// The body of [envelope] if it is an `updateDataModel` with a value, or
-/// null.
-Map<String, Object?>? _dataModelBodyOf(Object? envelope) => switch (envelope) {
-  {'updateDataModel': final Map<String, Object?> body}
-      when body.containsKey('value') =>
-    body,
-  _ => null,
-};
-
-/// The JSON of [envelope] less what it grows by: the components of an
-/// `updateComponents` with a list of components, or the value of an
-/// `updateDataModel` that has one. Null for any other message, and for an
-/// envelope that is not a `Map<String, Object?>`.
-String? _restOf(Object? envelope) {
-  if (envelope is! Map<String, Object?>) return null;
-  String without(String type, Map<String, Object?> body, String field) =>
-      jsonEncode({
-        ...envelope,
-        type: {...body}..remove(field),
-      });
-
-  if (_bodyOf(envelope) case final Map<String, Object?> body) {
-    return without('updateComponents', body, 'components');
-  }
-  if (_dataModelBodyOf(envelope) case final Map<String, Object?> body) {
-    return without('updateDataModel', body, 'value');
-  }
-  return null;
-}
-
-/// Whether [a] and [b] are the same JSON value. A list or map that is the
-/// same object in both, as a read through a cache returns one that closed,
-/// is not read.
-bool _sameJson(Object? a, Object? b) {
-  if (identical(a, b)) return true;
-  if (a is List && b is List) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (!_sameJson(a[i], b[i])) return false;
-    }
-    return true;
-  }
-  if (a is Map && b is Map) {
-    if (a.length != b.length) return false;
-    for (final MapEntry<Object?, Object?> entry in a.entries) {
-      if (!b.containsKey(entry.key) || !_sameJson(entry.value, b[entry.key])) {
-        return false;
-      }
-    }
-    return true;
-  }
-  return a == b;
-}
-
-/// Whether [envelope] is a message a renderer applies again as it grows, so
-/// that it may be emitted before it closes.
-bool _growsInPlace(Object? envelope) =>
-    envelope is Map &&
-    (envelope.containsKey('updateComponents') ||
-        envelope.containsKey('updateDataModel'));
-
-/// Whether [envelope] is a v1.0 `updateComponents` read so far whose
-/// components have all closed, so that no later chunk can change it.
-///
-/// A component is read only once its object closes, and the version and the
-/// surface id are read only once they are whole, so what this message holds
-/// already is what it will hold.
-bool _hasClosedComponents(Object? envelope) => switch (envelope) {
-  {
-    'version': String(),
-    'updateComponents': {
-      'surfaceId': String(),
-      'components': List(isNotEmpty: true),
-    },
-  } =>
-    true,
-  _ => false,
-};
-
-/// The index in [text] from which the rest could still become an open tag,
-/// or the length of [text].
-int _possibleTagStart(String text) {
-  for (int i = text.indexOf('<'); i >= 0; i = text.indexOf('<', i + 1)) {
-    final String rest = text.substring(i);
-    if ('<a2ui-json'.startsWith(rest.toLowerCase()) ||
-        _openTagStart.hasMatch(rest)) {
-      return i;
-    }
-  }
-  return text.length;
-}
-
-void _addText(List<RawResponsePart> parts, String text) {
-  final String cleaned = _clean(text);
-  if (cleaned.isNotEmpty) parts.add(TextPart(cleaned));
-}
-
-String _clean(String text) => text
-    .trim()
-    .replaceFirst(_leadingFence, '')
-    .replaceFirst(_trailingFence, '')
-    .trim();
-
-bool _isSpace(String text, int i) => text[i].trim().isEmpty;
-
-/// Where the payload of the start of a block that ends at [end] in [text]
-/// starts: after leading whitespace, and after the line of a leading
-/// markdown fence, or null while that line is not complete.
-int? _payloadStart(String text, int end) {
-  var start = 0;
-  while (start < end && _isSpace(text, start)) {
-    start++;
-  }
-  if (start == end || text[start] != '`') return start;
-  final int newline = text.indexOf('\n', start);
-  return newline < 0 || newline >= end ? null : newline + 1;
-}
-
-/// Where the markdown fence that ends the part of [text] from [start] to
-/// [end], or the start of one, begins, with the whitespace before it, or
-/// [end] if none ends it.
-///
-/// Finds what `\s*`{1,3}[a-zA-Z-]*\s*$` matches by reading back from the
-/// end, since a regular expression would try every offset of a block that
-/// is read again on every chunk.
-int _trailingFenceStart(String text, int start, int end) {
-  bool isLanguage(int i) {
-    final int c = text.codeUnitAt(i);
-    return c == 0x2d || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a);
-  }
-
-  var fence = end;
-  while (fence > start && _isSpace(text, fence - 1)) {
-    fence--;
-  }
-  while (fence > start && isLanguage(fence - 1)) {
-    fence--;
-  }
-  var ticks = 0;
-  while (ticks < 3 && fence > start && text[fence - 1] == '`') {
-    fence--;
-    ticks++;
-  }
-  if (ticks == 0) return end;
-  while (fence > start && _isSpace(text, fence - 1)) {
-    fence--;
-  }
-  return fence;
-}
-
-/// Where a block ends, as [_scanBlock] finds it.
-class _BlockScan {
-  const _BlockScan(this.closeStart, this.readableEnd);
-
-  /// The index of the close tag ending the block, or null if the block is
-  /// not closed.
-  final int? closeStart;
-
-  /// The end of the block text that is payload rather than the start of a
-  /// close tag, relative to where the block starts. Only meaningful for an
-  /// open block.
-  final int readableEnd;
-}
-
-/// Finds the close tag of the block starting at [start], outside JSON
-/// strings.
-_BlockScan _scanBlock(String content, int start) =>
-    _BlockScanner(start).scan(content);
-
-/// Finds the close tag of a block as its text arrives, reading each
-/// character once across the scans of a longer and longer text.
-class _BlockScanner {
-  /// A scanner of the block starting at [_start].
-  _BlockScanner(this._start) : _i = _start;
-
-  final int _start;
-
-  /// Where the next scan starts, past the end of the text when it ends in
-  /// an escape whose second character has not arrived.
-  int _i;
-
-  bool _inString = false;
-
-  /// Scans [content], the text the last scan read and more, from where the
-  /// last scan stopped.
-  _BlockScan scan(String content) {
-    while (_i < content.length) {
-      final String c = content[_i];
-      if (_inString) {
-        if (c == r'\') {
-          _i += 2;
-          continue;
-        }
-        if (c == '"') _inString = false;
-      } else if (c == '"') {
-        _inString = true;
-      } else if (c == '<') {
-        if (_closeTag.matchAsPrefix(content, _i) != null) {
-          return _BlockScan(_i, _i - _start);
-        }
-        final String rest = content.substring(_i).toLowerCase();
-        if ('</a2ui-json>'.startsWith(rest) ||
-            RegExp(r'^</a2ui-json\s*$').hasMatch(rest)) {
-          // Scanned again from here once more text arrives.
-          return _BlockScan(null, _i - _start);
-        }
-      }
-      _i++;
-    }
-    return _BlockScan(null, content.length - _start);
-  }
+  DirectJsonResponseStream openStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => DirectJsonResponseStream._(
+    this,
+    wrapped: wrapped,
+    state: state ?? RendererState(catalogs),
+  );
 }

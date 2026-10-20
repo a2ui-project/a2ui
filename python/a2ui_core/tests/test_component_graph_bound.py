@@ -20,6 +20,7 @@ These tests compare it with a processor that checks the whole surface on every
 batch, which is what every processor did before.
 """
 
+import itertools
 import random
 from typing import Any
 
@@ -28,9 +29,9 @@ import pytest
 from a2ui.core import MessageProcessor
 from a2ui.core.basic_catalog import v0_8
 from a2ui.core.catalog import Catalog
-from a2ui.core.exceptions import A2uiError
+from a2ui.core.exceptions import A2uiError, A2uiRecursionError
 from a2ui.core.processing import MessageProcessorOptions
-from a2ui.core.validation import ValidationConfig
+from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
 
 CATALOG = Catalog.from_json(
     {
@@ -54,9 +55,24 @@ CATALOG = Catalog.from_json(
                 "allowedParents": ["Strict", "Box", "Surface"],
             },
             "Header": {"type": "object", "allowedParents": ["Box"]},
+            # A type with no reference fields, whose children are guessed from
+            # its properties (the legacy v0.8 heuristic): `note` names a child
+            # when it names a component the surface holds.
             "Leaf": {
                 "type": "object",
                 "properties": {"note": {"type": "string"}},
+            },
+            # An array of component ids is not a reference field either, so
+            # `slots` names children when one of them names a component the
+            # surface holds.
+            "Slots": {
+                "type": "object",
+                "properties": {
+                    "slots": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/ComponentId"},
+                    }
+                },
             },
         },
     },
@@ -65,7 +81,7 @@ CATALOG = Catalog.from_json(
 )
 
 IDS = ["root", "a", "b", "c", "d", "e", "f"]
-TYPES = ["Box", "Strict", "Card", "Item", "Header", "Leaf"]
+TYPES = ["Box", "Strict", "Card", "Item", "Header", "Leaf", "Slots"]
 
 CONFIGS = {
     "missing_root_allowed": ValidationConfig(
@@ -95,6 +111,8 @@ def _component(rng: random.Random) -> dict[str, Any]:
         comp["child"] = rng.choice(IDS)
     elif comp_type == "Leaf" and rng.random() < 0.7:
         comp["note"] = rng.choice(IDS)
+    elif comp_type == "Slots":
+        comp["slots"] = rng.sample(IDS, rng.randint(0, 3))
     return comp
 
 
@@ -200,6 +218,193 @@ def test_depth_limit_holds_across_batches() -> None:
         )
 
 
+class _Pair:
+    """An incremental processor and a whole-surface one, fed the same batches."""
+
+    def __init__(self, config: ValidationConfig) -> None:
+        self.incremental = _processor(config)
+        self.whole = _whole_surface_processor(config)
+
+    def send(self, *components: dict[str, Any]) -> Any:
+        """Sends one batch to both, expects the same outcome, and returns it."""
+        message = _message(list(components))
+        expected = _outcome(self.whole, message)
+        assert _outcome(self.incremental, message) == expected, message
+        assert _components(self.incremental) == _components(self.whole), message
+        return expected
+
+
+def _comp(comp_id: str, comp_type: str, **props: Any) -> dict[str, Any]:
+    return {"id": comp_id, "component": comp_type, **props}
+
+
+def _error_code(outcome: Any) -> str | None:
+    """The composition error code an outcome's message shows, or None."""
+    if outcome is None:
+        return None
+    if "cannot contain child" in outcome[1]:
+        return "UNALLOWED_CHILD"
+    if "cannot be placed under parent" in outcome[1]:
+        return "UNALLOWED_PARENT"
+    return outcome[0]
+
+
+# The composition cases of the Dart core's incremental composition check
+# (#3345), each checked against the whole-surface check.
+DIFFERENTIAL_CONFIGS = ["missing_root_allowed", "orphans_allowed"]
+
+
+@pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
+def test_rejects_a_child_that_arrives_after_its_container(config_name: str) -> None:
+    pair = _Pair(CONFIGS[config_name])
+    assert pair.send(_comp("root", "Strict", children=["a"])) is None
+    assert _error_code(pair.send(_comp("a", "Card"))) == "UNALLOWED_CHILD"
+
+
+@pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
+def test_rejects_a_container_that_arrives_after_its_child(config_name: str) -> None:
+    pair = _Pair(CONFIGS[config_name])
+    assert pair.send(_comp("root", "Box")) is None
+    assert pair.send(_comp("a", "Card")) is None
+    outcome = pair.send(_comp("b", "Strict", children=["a"]))
+    assert _error_code(outcome) == "UNALLOWED_CHILD"
+
+
+@pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
+def test_rejects_a_child_added_to_a_container_later(config_name: str) -> None:
+    pair = _Pair(CONFIGS[config_name])
+    assert pair.send(_comp("root", "Strict", children=["a"])) is None
+    assert pair.send(_comp("a", "Item")) is None
+    assert pair.send(_comp("b", "Card")) is None
+    outcome = pair.send(_comp("root", "Strict", children=["a", "b"]))
+    assert _error_code(outcome) == "UNALLOWED_CHILD"
+
+
+@pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
+def test_container_rewritten_to_drop_a_child_it_disallows(config_name: str) -> None:
+    pair = _Pair(CONFIGS[config_name])
+    assert pair.send(_comp("root", "Box", children=["a", "h"])) is None
+    assert pair.send(_comp("a", "Item"), _comp("h", "Header")) is None
+    outcome = pair.send(_comp("root", "Strict", children=["a", "h"]))
+    assert _error_code(outcome) == "UNALLOWED_CHILD"
+    # `h` would be left with no parent, which places it under the surface,
+    # and a `Header` may only be placed under a `Box`.
+    outcome = pair.send(_comp("root", "Strict", children=["a"]))
+    assert _error_code(outcome) == "UNALLOWED_PARENT"
+    assert (
+        pair.send(
+            _comp("root", "Strict", children=["a"]), _comp("b", "Box", children=["h"])
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
+def test_rejects_a_held_child_whose_type_changes(config_name: str) -> None:
+    pair = _Pair(CONFIGS[config_name])
+    assert (
+        pair.send(_comp("root", "Strict", children=["a"]), _comp("a", "Item")) is None
+    )
+    assert _error_code(pair.send(_comp("a", "Header"))) == "UNALLOWED_CHILD"
+
+
+@pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
+def test_rejects_a_child_under_a_holder_its_allowed_parents_omits(
+    config_name: str,
+) -> None:
+    pair = _Pair(CONFIGS[config_name])
+    assert (
+        pair.send(_comp("root", "Box", children=["c"]), _comp("c", "Card", child="x"))
+        is None
+    )
+    assert _error_code(pair.send(_comp("x", "Header"))) == "UNALLOWED_PARENT"
+
+
+@pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
+def test_root_the_surface_may_not_hold(config_name: str) -> None:
+    pair = _Pair(CONFIGS[config_name])
+    # A root no component references is placed under the surface.
+    assert _error_code(pair.send(_comp("root", "Header"))) == "UNALLOWED_PARENT"
+    # A root a `Box` references is placed under that `Box`.
+    assert (
+        pair.send(_comp("a", "Box", children=["root"]), _comp("root", "Header")) is None
+    )
+    # Dropping the reference leaves the root under the surface again.
+    outcome = pair.send(_comp("a", "Box"))
+    assert _error_code(outcome) == "UNALLOWED_PARENT"
+
+
+# A second catalog declaring other constraints for some of the same type
+# names. A component's constraints are those of its own catalog.
+OTHER_CATALOG = Catalog.from_json(
+    {
+        "catalogId": "other",
+        "components": {
+            "Box": {
+                "type": "object",
+                "allowedChildren": ["Item", "Card"],
+                "properties": {"children": {"$ref": "#/$defs/ChildList"}},
+            },
+            "Strict": {
+                "type": "object",
+                "allowedChildren": ["Card"],
+                "allowedParents": ["Box", "Surface"],
+                "properties": {"children": {"$ref": "#/$defs/ChildList"}},
+            },
+            "Item": {"type": "object", "allowedParents": ["Card", "Strict"]},
+        },
+    },
+    catalog_id="other",
+    protocol_version="v1.0",
+)
+
+
+def _multi_catalog_processor(config: ValidationConfig) -> MessageProcessor:
+    processor = MessageProcessor(
+        [CATALOG, OTHER_CATALOG],
+        options=MessageProcessorOptions(validation_config=config),
+    )
+    processor.process_messages([{
+        "version": "v1.0",
+        "createSurface": {"surfaceId": "s1", "catalogId": "custom"},
+    }])
+    return processor
+
+
+def _components_and_catalogs(processor: MessageProcessor) -> dict[str, Any]:
+    model = processor.model.get_surface("s1").components_model
+    return {
+        comp_id: (comp.component_tree, getattr(comp.catalog, "catalog_id", None))
+        for comp_id, comp in model.entries
+    }
+
+
+@pytest.mark.parametrize("config_name", sorted(CONFIGS))
+@pytest.mark.parametrize("seed", range(40))
+def test_matches_whole_surface_check_across_catalogs(
+    config_name: str, seed: int
+) -> None:
+    """Two catalogs that both declare constraints, on the same type names."""
+    config = CONFIGS[config_name]
+    rng = random.Random(seed)
+    incremental = _multi_catalog_processor(config)
+    whole = _multi_catalog_processor(config)
+    model = whole.model.get_surface("s1").components_model
+    model.components_update_applied = lambda _: None  # type: ignore[method-assign]
+    for step in range(30):
+        components = []
+        for comp in _batch(rng):
+            if comp["component"] in ("Box", "Strict", "Item") and rng.random() < 0.5:
+                comp["catalogId"] = "other"
+            components.append(comp)
+        message = _message(components)
+        expected = _outcome(whole, message)
+        assert _outcome(incremental, message) == expected, (seed, step, message)
+        assert _components_and_catalogs(incremental) == _components_and_catalogs(
+            whole
+        ), (seed, step)
+
+
 V08_CATALOG = v0_8.BasicCatalog()
 
 
@@ -252,3 +457,86 @@ def test_v08_matches_whole_surface_check(seed: int) -> None:
         expected = _outcome(whole, message)
         assert _outcome(incremental, message) == expected, (seed, step, message)
         assert _components(incremental) == _components(whole), (seed, step)
+
+
+# A v0.8 `Text` has no reference fields, so its references are guessed: a
+# string property naming a component the surface holds is one. Here `a`'s
+# `usageHint` names `h1` once the surface holds a component with that id.
+V08_ROOT = {
+    "id": "root",
+    "component": {"Column": {"children": {"explicitList": ["a"]}}},
+}
+V08_A = {
+    "id": "a",
+    "component": {"Text": {"text": {"literalString": "A"}, "usageHint": "h1"}},
+}
+V08_H1_COLUMN = {
+    "id": "h1",
+    "component": {"Column": {"children": {"explicitList": ["a"]}}},
+}
+V08_H1_TEXT = {"id": "h1", "component": {"Text": {"text": {"literalString": "H"}}}}
+
+
+def _v08_processor(config: ValidationConfig) -> MessageProcessor:
+    proc = MessageProcessor(
+        [V08_CATALOG], options=MessageProcessorOptions(validation_config=config)
+    )
+    proc.process_messages([{
+        "beginRendering": {
+            "surfaceId": "s1",
+            "catalogId": V08_CATALOG.catalog_id,
+            "root": "root",
+        }
+    }])
+    return proc
+
+
+def _v08_message(components: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"surfaceUpdate": {"surfaceId": "s1", "components": components}}
+
+
+def test_v08_guessed_reference_closes_cycle_under_strict_config() -> None:
+    processor = _v08_processor(STRICT_VALIDATION)
+    with pytest.raises(A2uiRecursionError):
+        processor.process_messages([_v08_message([V08_ROOT, V08_A, V08_H1_COLUMN])])
+
+
+@pytest.mark.parametrize("config_name", sorted(CONFIGS))
+def test_v08_guessed_reference_closes_cycle_under_deferred_config(
+    config_name: str,
+) -> None:
+    processor = _v08_processor(CONFIGS[config_name])
+    processor.process_messages([_v08_message([V08_ROOT]), _v08_message([V08_A])])
+    with pytest.raises(A2uiRecursionError):
+        processor.process_messages([_v08_message([V08_H1_COLUMN])])
+    assert "h1" not in processor.model.get_surface("s1").components_model
+
+
+def test_v08_guessed_reference_makes_component_reachable_under_strict_config() -> None:
+    processor = _v08_processor(STRICT_VALIDATION)
+    processor.process_messages([_v08_message([V08_ROOT, V08_A, V08_H1_TEXT])])
+    assert "h1" in processor.model.get_surface("s1").components_model
+
+
+@pytest.mark.parametrize("config_name", sorted(CONFIGS))
+@pytest.mark.parametrize("h1", [V08_H1_COLUMN, V08_H1_TEXT], ids=["column", "text"])
+@pytest.mark.parametrize("order", list(itertools.permutations(range(3))))
+def test_v08_guessed_reference_matches_whole_surface_check(
+    config_name: str, h1: dict[str, Any], order: tuple[int, ...]
+) -> None:
+    """The incremental check reads the guessed references a whole check reads.
+
+    The components arrive one per message in every order, so the reference
+    is guessed both before and after the component it names arrives.
+    """
+    config = CONFIGS[config_name]
+    incremental = _v08_processor(config)
+    whole = _v08_processor(config)
+    model = whole.model.get_surface("s1").components_model
+    model.components_update_applied = lambda _: None  # type: ignore[method-assign]
+    components = [V08_ROOT, V08_A, h1]
+    for index in order:
+        message = _v08_message([components[index]])
+        expected = _outcome(whole, message)
+        assert _outcome(incremental, message) == expected, (order, index)
+        assert _components(incremental) == _components(whole), (order, index)

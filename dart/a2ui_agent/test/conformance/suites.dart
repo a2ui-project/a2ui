@@ -140,6 +140,17 @@ enum SuiteVersion {
   }
 }
 
+/// Compiles one block and checks its messages on their own.
+///
+/// A conformance `compile` case fixes the messages an agent sends for one
+/// block, so they are checked the way [validatePayload] checks a payload: a
+/// surface that the block updates without creating is assumed to exist.
+List<AgentToRendererMessage> compileChecked(Parser parser, String content) {
+  final List<AgentToRendererMessage> messages = parser.compile(content);
+  validatePayload(parser.catalogs, messages);
+  return messages;
+}
+
 /// Suite-level error categories mapped onto this SDK's exception types.
 final Map<String, Matcher> _errors = {
   'ParseError': isA<A2uiParseError>(),
