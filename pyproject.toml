@@ -31,6 +31,7 @@ members = [
   "python/a2ui_core",
   "eval",
   "samples/agent/adk/custom-components-example",
+  "samples/agent/adk/multi_catalog",
   "samples/agent/adk/restaurant_finder",
   "samples/community/agent/adk/gemini_enterprise/agent_engine",
   "samples/community/agent/adk/gemini_enterprise/cloud_run",

@@ -37,6 +37,9 @@
       "path": "./projects/restaurant/tsconfig.app.json"
     },
     {
+      "path": "./projects/multi_catalog/tsconfig.app.json"
+    },
+    {
       "path": "./projects/restaurant/tsconfig.spec.json"
     }
   ]

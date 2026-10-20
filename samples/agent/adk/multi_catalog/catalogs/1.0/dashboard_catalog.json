@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/1.0/dashboard_catalog.json",
+  "protocolVersion": "1.0",
+  "title": "Dashboard catalog (v1.0)",
+  "description": "Metric components for the multi_catalog sample.",
+  "catalogId": "https://a2ui.org/samples/agent/adk/multi_catalog/catalogs/1.0/dashboard_catalog.json",
+  "instructions": "These components show numbers on a surface whose default catalog is another one, such as the basic catalog. Each component from this catalog MUST set `catalogId` to this catalog's id. Lay them out with the layout components of the surface's default catalog, for example a Row of StatCards.",
+  "components": {
+    "StatCard": {
+      "type": "object",
+      "description": "Shows one headline number with a label, and optionally a short caption such as the change from the previous period.",
+      "properties": {
+        "component": {"const": "StatCard"},
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "What the number measures, for example 'Revenue'."
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The formatted number, for example '$1.2M'."
+        },
+        "caption": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional context, for example '+12% vs Q2'."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column, like the CSS 'flex-grow' property."
+        }
+      },
+      "required": ["component", "label", "value"]
+    },
+    "ProgressBar": {
+      "type": "object",
+      "description": "Shows progress toward a goal as a horizontal bar.",
+      "properties": {
+        "component": {"const": "ProgressBar"},
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "What the bar tracks, for example 'Quarterly target'."
+        },
+        "percent": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Progress from 0 to 100."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column, like the CSS 'flex-grow' property."
+        }
+      },
+      "required": ["component", "label", "percent"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [{"$ref": "#/components/StatCard"}, {"$ref": "#/components/ProgressBar"}],
+      "discriminator": {"propertyName": "component"}
+    }
+  }
+}

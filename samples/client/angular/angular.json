@@ -103,6 +103,69 @@
           }
         }
       }
+    },
+    "multi_catalog": {
+      "projectType": "application",
+      "schematics": {},
+      "root": "projects/multi_catalog",
+      "sourceRoot": "projects/multi_catalog/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "projects/multi_catalog/dist",
+            "browser": "projects/multi_catalog/src/main.ts",
+            "tsConfig": "projects/multi_catalog/tsconfig.app.json",
+            "preserveSymlinks": true,
+            "assets": [],
+            "styles": ["projects/multi_catalog/src/styles.css"],
+            "server": "projects/multi_catalog/src/main.server.ts",
+            "outputMode": "server",
+            "ssr": {
+              "entry": "projects/multi_catalog/src/server.ts"
+            }
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "1.5MB",
+                  "maximumError": "2.5MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "4kB",
+                  "maximumError": "8kB"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "multi_catalog:build:production"
+            },
+            "development": {
+              "buildTarget": "multi_catalog:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular/build:extract-i18n"
+        }
+      }
     }
   },
   "cli": {
