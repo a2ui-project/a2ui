@@ -236,7 +236,7 @@ export class BlockLexer {
       const textPart = this.cleanMarkdown(currentText.join(''));
 
       if (textPart) {
-        parts.push({type: 'text', text: textPart, isFinal: false});
+        parts.push({type: 'text', text: textPart, isFinal: true});
       }
       parts.push({
         type: 'a2ui',

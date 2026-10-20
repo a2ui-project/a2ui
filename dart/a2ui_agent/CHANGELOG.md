@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The Express compiler throws `A2uiValidationError` for a check on a
+  component whose schema declares no `checks`, such as
+  `Text("hi", ?required($/name))`, rather than writing `checks` onto it.
 - Add `RendererState`, the agent's mirror of the surfaces a renderer holds.
   It wraps one `MessageProcessor` for its whole life and checks each message
   against everything applied before it, so an agent that keeps one state for
