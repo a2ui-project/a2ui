@@ -738,7 +738,16 @@ A shared base class should implement `extractOperations` once, covering payload 
 
 #### Renderer vs. Agent Execution Patterns
 
-In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it is an optional helper for checking model-generated messages against catalogs, verifying data paths, and preparing payloads for transmission. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to:
+In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it mirrors the surfaces the renderer holds, so that model-generated messages are checked against everything the renderer has already received before they are sent. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to.
+
+An agent does not drive `MessageProcessor` directly. The [Agent SDK](a2ui_agent.blueprint.md)'s `RendererState` owns one, and adds what checking outbound messages needs on top of it: atomic application (a rejected message undoes what its call or transaction applied, from an undo log of what each message replaced), a tree check once a response is complete, and a lifetime the agent chooses (one state per chat turn, or one per canvas conversation). Core supplies the pieces it builds on:
+
+1. `processMessages` checks a message whole before it changes a surface, so a message it rejects leaves the surface as it was.
+2. `SurfaceComponentsModel.get` and `removeComponent`, and `DataModel.get`, `set` and `delete`, through which a state reverts what an applied message replaced. `processMessages` updates a component in place when a message names an existing id with the same type and catalog, so a state records a copy of the previous properties. A deleted surface is restored by replaying its components and data model through `processMessages`, which also restores the children its components find through other catalogs. A state does not copy surfaces.
+3. `validateTopology`, and `detectCycles`, which returns the components the root reaches, for the tree check.
+4. A `ValidationConfig` that defers the graph checks. Under a config that allows dangling references, and orphans or a missing root, a processor must check each `updateComponents` against the components it changes. It must not copy the surface's components or walk the whole surface for each message, so a surface that arrives in many small messages takes time in proportion to its size. The checks and the errors they raise are the same as for a whole-surface check: composition constraints, the root when it is required, and self-references, cycles and depth. Under any other config, a processor checks the whole surface.
+
+Applying a response message by message, as a stream does, therefore costs time in proportion to the response. `conformance/core/message_processor_scaling.yaml` times it.
 
 ```typescript
 // 1. Renderer Usage (Updates layout state and routes UI action events)
@@ -748,24 +757,39 @@ const rendererProcessor = new MessageProcessor({
 });
 rendererProcessor.processMessages(incomingMessagesFromAgent);
 
-// 2. Agent Usage (Optional helper: validates model output and prepares payloads)
-const agentProcessor = new MessageProcessor({
-  catalogs: [negotiatedCatalog], // Single negotiated catalog enforces catalog compliance
-  actionHandler: undefined, // Agent does not render DOM elements or handle clicks
-});
-// Same entry point as the renderer: the processor is kept for the session, so
-// each payload is checked against the state the previous ones built.
-agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayload));
+// 2. Agent Usage (through the Agent SDK, which drives MessageProcessor behind the scenes)
+const requestProcessor = new A2uiRequestProcessor(negotiatedCatalogs);
+
+// A whole response: parsed, checked and applied in one call.
+sendToClient(requestProcessor.parseResponse(modelResponseText));
+
+// A streamed response: each chunk returns the parts that are ready to send.
+const stream = requestProcessor.openStream();
+for await (const chunk of modelResponseChunks) {
+  sendToClient(stream.feed(chunk));
+}
+sendToClient(stream.close());
+
+// A canvas agent keeps one state for the conversation and passes it on every turn,
+// so each response is checked against what the renderer already holds.
+const conversationState = requestProcessor.createState();
+sendToClient(requestProcessor.parseResponse(nextTurnText, {state: conversationState}));
 ```
 
-| Execution Aspect              | Renderer                                                                                                          | Agent                                                                      |
-| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
-| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.             |
-| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).        |
-| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, under the default strict `ValidationConfig`.            |
-| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                       |
-| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
-| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending. |
+Behind `parseResponse` and `openStream`, the Agent SDK's `RendererState` drives a `MessageProcessor` of its own:
+
+1. It is built with the negotiated catalogs, no `actionHandler`, and a `ValidationConfig` that allows dangling references, a missing root and orphan components, since a component may name a child that a later message of the response adds.
+2. Each message goes through `processMessages`, the same entry point a renderer uses, so it is checked against what the earlier messages built. Before a message is applied, the state records what it replaces, so that a rejected message, or a failed transaction, can be undone.
+3. Once a response, or a block of a stream, is complete, the tree of each surface it touched is checked with `validateTopology({...STRICT_VALIDATION, rootId: surface.rootId, allowOrphanComponents: true})`: the root and every reference. `validateTopology` roots the check at `rootId`, which defaults to `'root'`, so the surface's own root is passed. The state then checks, with the set `detectCycles` returns, that the components the response added are reachable, since an update may leave older ones detached.
+
+| Execution Aspect              | Renderer                                                                                                          | Agent                                                                                                                                                                                     |
+| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Mirrors the renderer's surfaces to check outbound messages, inside the Agent SDK's `RendererState`.                                                                                       |
+| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes the catalogs negotiated for the request.                                                                                                                                           |
+| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `parseResponse` or `openStream` on the Agent SDK's request processor. Behind them, `processMessages` with the graph checks deferred, then `validateTopology` once a response is complete. |
+| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                                                                                                                                      |
+| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.                                                                                                                       |
+| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending.                                                                                                                |
 
 ---
 
@@ -1450,4 +1474,4 @@ export class A2uiExpressionError extends A2uiError {
 
 See [Conformance README](../../conformance/README.md) for setup and schema definitions.
 
-`conformance/core/` covers this module.
+`conformance/core/` covers this module. `message_processor_scaling.yaml` times `processMessages` rather than checking what it returns: a surface that arrives in many small messages must take time in proportion to its size.

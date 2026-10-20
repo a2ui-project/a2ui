@@ -43,7 +43,7 @@ Everything a format decides for itself is covered once per format, in a folder n
 - `response_parser.yaml`: Unwrapping a response into raw blocks, wrapping parts back into a response, and parsing a whole response end to end. Both folders.
 - `compiler.yaml`: Compiling one raw block into A2UI messages. Both folders.
 - `decompiler.yaml`: Writing messages back into the format's own notation, which is how a prompt example is authored as messages and shown to a model as notation. Both folders.
-- `response_streaming.yaml`: Parsing a response one chunk at a time, including the point at which a payload can first be emitted. `direct_json/` only, since the Express parser does not implement `parse_chunk` and an Express agent parses a buffered response whole.
+- `response_streaming.yaml`: Parsing a response one chunk at a time, including the point at which a payload can first be emitted. `direct_json/` only, since the Express parser does not stream and an Express agent parses a buffered response whole.
 - `scaling.yaml`: Timing cases, which check that the time to parse a payload grows in proportion to the payload: streaming and compiling in `direct_json/`, compiling in `express/`. See [Timing cases](#timing-cases).
 
 The blueprint declares `wrap`, `unwrap`, `compile`, `decompile` and `parse_response` on a single `Parser` interface, so `response_parser.yaml`, `compiler.yaml` and `decompiler.yaml` are three files for one interface. They are split by call because each has rules of its own: where a payload begins and ends, what it means, and how it is written back. The Express compiler suite is by far the largest of the three, since Express has a grammar to get right and direct JSON does not.
@@ -135,6 +135,8 @@ Catalogs under test live in `args`, either as a path relative to `conformance/` 
 A case states allowlists literally. Keeping everything is said by applying no transformer, so an empty allowlist keeps nothing.
 
 Parser cases use the part union from the blueprint. `unwrap` returns raw parts, each carrying either `text` or `a2ui_raw` with an `is_final` flag; `parse_response` and `parse_chunk` return parts carrying either `text` or compiled `a2ui` messages. Text that precedes a payload is its own part, which is the difference from the legacy suites under `agent/legacy/`, where one item carried both.
+
+The `parse_chunk` action keeps the name of the method the streaming cases were first written against. A harness runs it through the stream interface: it calls `Parser.open_stream` once, with `args.wrapped`, then `ResponseStream.feed` with the `input` of each step, comparing what each call returns with that step's `expect`, and then `close`, which must return no parts and raise nothing, since every case ends on a complete response. A step with `expect_error` is the last step of its case: its `feed` must raise the error, and the harness stops there without calling `close`. The `parse_chunk` operation of the timing suites (`scaling.yaml`) reads a response the same way.
 
 A `create_processor` case can parse a response through the processor it just built, by way of a `then_parse` block holding an `input` and its own `expect` or `expect_error`. It sits beside `expect` rather than inside it because it is a call made on the processor, not a property read off it. Use it only for rules that need negotiation to have happened first; a rule about parsing as such belongs in the per-format `response_parser.yaml`, and one about what a payload compiles to in `compiler.yaml`.
 

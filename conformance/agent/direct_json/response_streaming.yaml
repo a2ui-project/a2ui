@@ -21,6 +21,17 @@
 # buffering. A part carries either text or compiled messages, never both, as it
 # does in `response_parser.yaml`.
 #
+# The `parse_chunk` action keeps the name of the method these cases were first
+# written against. A harness runs a case through the stream interface: it calls
+# `Parser.open_stream` once, with `args.wrapped`, then `ResponseStream.feed` with
+# the `input` of each step, and then `close`. Every case ends on a complete
+# response, so `close` must return no parts and raise nothing. A step with
+# `expect_error` is the last step of its case: its `feed` must raise, the stream
+# has then ended, and the harness does not call `close`.
+#
+# Each case is one chat turn: the stream reads it against a new, empty renderer
+# state, so a case that updates a surface creates it first.
+#
 # Chunk boundaries fall wherever the model's transport put them, so the parser
 # has to hold back anything a later chunk could change:
 #
@@ -88,7 +99,7 @@
 # allowed to change.
 #
 # This suite has no Express counterpart. Streaming is the one thing the two
-# formats do not share: the Express parser does not implement `parse_chunk`, so
+# formats do not share: the Express parser does not stream, so
 # an Express agent buffers a response and parses it whole. The rules above about
 # tags and text would hold for Express if it ever streams, and a counterpart
 # suite belongs here on the day it does.
