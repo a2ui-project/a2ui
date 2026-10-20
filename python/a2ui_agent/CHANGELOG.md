@@ -1,28 +1,10 @@
 ## Unreleased
 
-- Add `RendererState` to `a2ui.utils`. A `RendererState` is the agent's mirror
-  of the surfaces a renderer holds: it wraps one `MessageProcessor` and checks
-  each outbound message against everything sent before it, so a canvas agent
-  that keeps one state for the conversation catches a reference to a component
-  no turn sent, a cycle with components from an earlier turn, or a new
-  component that nothing reaches. A component that an update leaves
-  unreachable by rewriting its parent's children is accepted, since the
-  protocol has no message that removes one component. `apply` is atomic,
-  `transaction` extends that to several calls, and `check_topology` checks the
-  trees of the surfaces a response touched. Rolling back costs what the undone
-  messages changed, not the size of the surfaces they touched: the state keeps
-  an undo log and never copies a surface when a message is applied or a
-  transaction opens, so applying n messages to one surface takes time in
-  proportion to n. Transactions nest, and a failed inner transaction undoes
-  only what was applied inside it. `check_topology` rejects a v0.8 surface
-  whose updates are still buffered, waiting for its `beginRendering`. An
-  update to a surface the state never saw created is rejected, as the renderer
-  would reject it. The state holds the surfaces as they now stand, not the
-  messages that built them. A rollback puts each component back in its place
-  in the surface's order, which `allowedParents` reads, restores a deleted
-  surface without checking it again (including a data model root such as
-  `[]` or `0`), and finishes even if one undo step fails, so that the
-  caller's error propagates.
+- Add `RendererState` to `a2ui.utils`, the agent's mirror of the surfaces a
+  renderer holds (#3268). It wraps a `MessageProcessor` and checks each
+  outbound message against the state applied before it: `apply` and nested
+  `transaction` blocks roll back through an undo log on failure, and
+  `check_topology` checks the trees of the touched surfaces.
 - `validate_payload` runs the payload through a short-lived `RendererState`
   instead of building a new `MessageProcessor` for each surface and
   candidate catalog. Its results are unchanged, except that a v0.8 update
