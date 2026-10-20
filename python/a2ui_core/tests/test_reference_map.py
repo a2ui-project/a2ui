@@ -149,6 +149,9 @@ def test_analyze_child_ref_schema_array_of_component_id():
                 "type": "array",
                 "items": {"$ref": "#/$defs/ComponentId"},
             },
+            # Not resolved (only `#/` pointers are), so this passed before the
+            # fix too. `slots` is the shape a loaded catalog has after its refs
+            # are rewritten to `#/$defs/...`.
             "external": {
                 "type": "array",
                 "items": {"$ref": "common_types.json#/$defs/ComponentId"},
