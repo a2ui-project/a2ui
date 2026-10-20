@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `MessageProcessor` checks the composition constraints (`allowedParents`
+  and `allowedChildren`) of an `updateComponents` against the references it
+  changes: the root, the references from its components, and the references
+  into them from the rest of the surface. It used to check every reference on
+  the surface for each message, so a surface sent as n messages took time in
+  proportion to n squared once a catalog declared constraints. It checks the
+  whole surface as before when the components changed outside the processor
+  since its last check, or when the catalogs whose constraints apply changed,
+  and a message that fails reports the same error as before.
 - Extracted `ComponentGraphBound` for incremental `SurfaceComponentsModel`
   component graph checks and optimized its initial height traversal to linear
   time.

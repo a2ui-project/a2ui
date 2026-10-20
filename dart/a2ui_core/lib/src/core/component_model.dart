@@ -161,6 +161,12 @@ class SurfaceComponentsModel {
   /// The components, in insertion order.
   Iterable<ComponentModel> get values => _components.values;
 
+  /// How many times a component has been added, removed or updated.
+  ///
+  /// What a check found about the components holds while this is unchanged.
+  @internal
+  int get changeCount => _changes;
+
   /// The distinct catalogs the components name, null for the surface's own,
   /// in the order the first component naming each was added.
   @internal
