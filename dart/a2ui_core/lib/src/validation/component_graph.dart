@@ -109,59 +109,21 @@ void checkCompositionConstraints(
           case (final String id, final String type))
         id: type,
   };
-  String list(List<String> names) =>
-      '[${names.map((name) => "'$name'").join(', ')}]';
 
   // [pointer] locates [component] in the message, or is null when the
   // component was already stored.
   void check(Map<String, Object?> component, String? pointer) {
-    final Object? id = component['id'];
-    final Object? type = component['component'];
-    if (id is! String || type is! String) return;
-
-    final List<String>? rootParents = rules[type]?.allowedParents;
-    if (id == rootId &&
-        rootParents != null &&
-        !rootParents.contains(_surfaceParent)) {
-      throw A2uiValidationError(
-        "Component '$id' ($type) cannot be placed under parent "
-        "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
-        '${list(rootParents)}.',
-        code: 'UNALLOWED_PARENT',
-        path: pointer,
-        surfaceId: surfaceId,
-      );
-    }
-
-    final List<String>? allowedChildren = rules[type]?.allowedChildren;
-    for (final ComponentReference reference in _referencesOf(
+    if (_componentViolation(
       component,
       refFields,
-    )) {
-      final String? childType = types[reference.id];
-      if (childType == null) continue;
-      final String? path = pointer == null
-          ? null
-          : '$pointer${referencePointer(reference.field)}';
-      if (allowedChildren != null && !allowedChildren.contains(childType)) {
-        throw A2uiValidationError(
-          "Container '$id' ($type) cannot contain child '${reference.id}' "
-          '($childType). Allowed children: ${list(allowedChildren)}.',
-          code: 'UNALLOWED_CHILD',
-          path: path,
-          surfaceId: surfaceId,
-        );
-      }
-      final List<String>? allowedParents = rules[childType]?.allowedParents;
-      if (allowedParents != null && !allowedParents.contains(type)) {
-        throw A2uiValidationError(
-          "Component '${reference.id}' ($childType) cannot be placed under "
-          "parent '$id' ($type). Allowed parents: ${list(allowedParents)}.",
-          code: 'UNALLOWED_PARENT',
-          path: path,
-          surfaceId: surfaceId,
-        );
-      }
+      rules,
+      (String id) => types[id],
+      rootId: rootId,
+      pointer: pointer,
+      surfaceId: surfaceId,
+    )
+        case final A2uiValidationError error) {
+      throw error;
     }
   }
 
@@ -171,6 +133,156 @@ void checkCompositionConstraints(
   for (final component in existing) {
     check(component, null);
   }
+}
+
+/// Whether [checkCompositionConstraints] would pass on the surface
+/// [components] leave behind, checking only the edges they change.
+///
+/// This holds only when [checkCompositionConstraints] passed on the surface
+/// before [components], under the same [rules]. [typeOf] gives the type of
+/// each component the surface holds with [components] applied, and
+/// [parentsOf] the components that reference an id there.
+///
+/// A component of [components] is checked against the surface and all of
+/// its children, as [checkCompositionConstraints] checks it. A component
+/// outside [components] that references one of them, which holds it, keeps
+/// its other children, so its edge to each component of [components] it
+/// holds is checked and the rest are not. Every other edge is unchanged and
+/// passed before. A container holding many children, receiving one per
+/// message, is then checked against one child per message rather than all
+/// of them.
+bool compositionHoldsAfter(
+  List<Map<String, Object?>> components,
+  Map<String, ComponentRefFields> refFields,
+  Map<String, CompositionRule> rules, {
+  required String? Function(String id) typeOf,
+  required Iterable<String> Function(String id) parentsOf,
+  String rootId = _rootComponentId,
+}) {
+  if (rules.isEmpty) return true;
+  final ids = <String>{
+    for (final component in components)
+      if (component['id'] case final String id) id,
+  };
+  for (final component in components) {
+    final A2uiValidationError? error = _componentViolation(
+      component,
+      refFields,
+      rules,
+      typeOf,
+      rootId: rootId,
+    );
+    if (error != null) return false;
+  }
+  for (final id in ids) {
+    final String? type = typeOf(id);
+    if (type == null) continue;
+    for (final String holder in parentsOf(id)) {
+      if (ids.contains(holder)) continue;
+      final String? holderType = typeOf(holder);
+      if (holderType == null) continue;
+      if (_edgeViolation(holder, holderType, id, type, rules) != null) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+String _typeList(List<String> names) =>
+    '[${names.map((name) => "'$name'").join(', ')}]';
+
+/// The first composition error of [component]: the surface as the parent of
+/// the root, then each of its references whose child [typeOf] knows, in
+/// order. Null when there is none.
+///
+/// [pointer] locates [component] in the message, or is null when the
+/// component was already stored.
+A2uiValidationError? _componentViolation(
+  Map<String, Object?> component,
+  Map<String, ComponentRefFields> refFields,
+  Map<String, CompositionRule> rules,
+  String? Function(String id) typeOf, {
+  required String rootId,
+  String? pointer,
+  String? surfaceId,
+}) {
+  final Object? id = component['id'];
+  final Object? type = component['component'];
+  if (id is! String || type is! String) return null;
+
+  final List<String>? rootParents = rules[type]?.allowedParents;
+  if (id == rootId &&
+      rootParents != null &&
+      !rootParents.contains(_surfaceParent)) {
+    return A2uiValidationError(
+      "Component '$id' ($type) cannot be placed under parent "
+      "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
+      '${_typeList(rootParents)}.',
+      code: 'UNALLOWED_PARENT',
+      path: pointer,
+      surfaceId: surfaceId,
+    );
+  }
+
+  for (final ComponentReference reference in _referencesOf(
+    component,
+    refFields,
+  )) {
+    final String? childType = typeOf(reference.id);
+    if (childType == null) continue;
+    if (_edgeViolation(
+      id,
+      type,
+      reference.id,
+      childType,
+      rules,
+      path: pointer == null
+          ? null
+          : '$pointer${referencePointer(reference.field)}',
+      surfaceId: surfaceId,
+    )
+        case final A2uiValidationError error) {
+      return error;
+    }
+  }
+  return null;
+}
+
+/// The composition error of the edge from [parent] to [child], checking the
+/// children [parentType] allows and then the parents [childType] allows.
+/// Null when there is none.
+A2uiValidationError? _edgeViolation(
+  String parent,
+  String parentType,
+  String child,
+  String childType,
+  Map<String, CompositionRule> rules, {
+  String? path,
+  String? surfaceId,
+}) {
+  final List<String>? allowedChildren = rules[parentType]?.allowedChildren;
+  if (allowedChildren != null && !allowedChildren.contains(childType)) {
+    return A2uiValidationError(
+      "Container '$parent' ($parentType) cannot contain child '$child' "
+      '($childType). Allowed children: ${_typeList(allowedChildren)}.',
+      code: 'UNALLOWED_CHILD',
+      path: path,
+      surfaceId: surfaceId,
+    );
+  }
+  final List<String>? allowedParents = rules[childType]?.allowedParents;
+  if (allowedParents != null && !allowedParents.contains(parentType)) {
+    return A2uiValidationError(
+      "Component '$child' ($childType) cannot be placed under "
+      "parent '$parent' ($parentType). Allowed parents: "
+      '${_typeList(allowedParents)}.',
+      code: 'UNALLOWED_PARENT',
+      path: path,
+      surfaceId: surfaceId,
+    );
+  }
+  return null;
 }
 
 /// Matches a JSON Pointer as A2UI writes data-model paths, allowing the
@@ -360,15 +472,27 @@ bool _isFunctionCall(
 
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
+/// [grownFrom], if given, is an earlier form of [data] that passed this
+/// check, such as a message that a stream has since extended. A list or map
+/// in [data] that is identical to the one at the same place in [grownFrom]
+/// is not checked again, so checking a message that grew costs what it
+/// gained. Neither may have been changed since [grownFrom] was checked.
+///
 /// Throws [A2uiValidationError] for a malformed path and [A2uiRecursionError]
 /// when nesting or chained function calls run past their caps.
-void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
+void checkPathsAndRecursion(
+  Object? data, {
+  A2uiProtocolVersion? version,
+  Object? grownFrom,
+}) {
   final bool usesDirectives = version != null
       ? version.isAtLeast(A2uiProtocolVersion.v1_0)
       : _inferUsesDirectives(data);
 
+  // [before] is what [grownFrom] holds at the place of [node], or null.
   void traverse(
     Object? node,
+    Object? before,
     int depth,
     int callDepth, {
     required bool inDataValue,
@@ -380,17 +504,32 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
     }
 
     if (node is List) {
-      for (final Object? item in node) {
-        traverse(item, depth + 1, callDepth, inDataValue: inDataValue);
+      if (identical(node, before)) return;
+      final List<Object?>? items = before is List ? before : null;
+      for (var i = 0; i < node.length; i++) {
+        traverse(
+          node[i],
+          items != null && i < items.length ? items[i] : null,
+          depth + 1,
+          callDepth,
+          inDataValue: inDataValue,
+        );
       }
       return;
     }
 
-    if (node is! Map) return;
+    if (node is! Map || identical(node, before)) return;
+    final Map<Object?, Object?>? entries = before is Map ? before : null;
 
     if (inDataValue) {
-      for (final Object? value in node.values) {
-        traverse(value, depth + 1, callDepth, inDataValue: true);
+      for (final MapEntry<Object?, Object?> entry in node.entries) {
+        traverse(
+          entry.value,
+          entries?[entry.key],
+          depth + 1,
+          callDepth,
+          inDataValue: true,
+        );
       }
       return;
     }
@@ -405,9 +544,11 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
           "Invalid path syntax: '$udmPath'",
         );
       }
+      final Object? udmBefore = entries?['updateDataModel'];
       for (final MapEntry<Object?, Object?> entry in udm.entries) {
         traverse(
           entry.value,
+          udmBefore is Map ? udmBefore[entry.key] : null,
           depth + 2,
           callDepth,
           inDataValue: entry.key == 'value',
@@ -437,6 +578,11 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
       for (final MapEntry<Object?, Object?> entry in object.entries) {
         traverse(
           entry.value,
+          entries != null &&
+                  (entry.key != 'args' ||
+                      _isFunctionCall(entries, usesDirectives: usesDirectives))
+              ? entries[entry.key]
+              : null,
           depth + 1,
           entry.key == 'args' ? callDepth + 1 : callDepth,
           inDataValue: false,
@@ -445,8 +591,14 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
       return;
     }
 
-    for (final Object? value in object.values) {
-      traverse(value, depth + 1, callDepth, inDataValue: false);
+    for (final MapEntry<Object?, Object?> entry in object.entries) {
+      traverse(
+        entry.value,
+        entries?[entry.key],
+        depth + 1,
+        callDepth,
+        inDataValue: false,
+      );
     }
   }
 
@@ -457,16 +609,28 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
         "Invalid path syntax: '$udmPath'",
       );
     }
-    traverse(data.value, 2, 0, inDataValue: true);
+    traverse(
+      data.value,
+      grownFrom is UpdateDataModelMessage ? grownFrom.value : null,
+      2,
+      0,
+      inDataValue: true,
+    );
     return;
   }
 
   if (data is AgentToRendererMessage) {
-    traverse(data.toJson(), 0, 0, inDataValue: false);
+    traverse(
+      data.toJson(),
+      grownFrom is AgentToRendererMessage ? grownFrom.toJson() : grownFrom,
+      0,
+      0,
+      inDataValue: false,
+    );
     return;
   }
 
-  traverse(data, 0, 0, inDataValue: false);
+  traverse(data, grownFrom, 0, 0, inDataValue: false);
 }
 
 bool _inferUsesDirectives(Object? data) {
