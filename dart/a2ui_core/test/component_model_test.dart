@@ -136,6 +136,69 @@ void main() {
       expect(model.catalogIds, ['first', null, 'later']);
     });
 
+    test('insertComponents adds components at their positions at once', () {
+      // root, a, then b, c, d.
+      for (final id in ['b', 'c', 'd']) {
+        model.addComponent(ComponentModel(id, 'Text', {'text': id}));
+      }
+      final created = <String>[];
+      model.onCreated.subscribe((c) => created.add(c.id));
+
+      model.insertComponents([
+        (0, ComponentModel('x', 'Text', {})),
+        (2, ComponentModel('y', 'Text', {}, catalog: 'other')),
+        (3, ComponentModel('z', 'Text', {})),
+        (8, ComponentModel('w', 'Text', {})),
+      ]);
+
+      expect(model.keys, ['x', 'root', 'y', 'z', 'a', 'b', 'c', 'd', 'w']);
+      expect(model.catalogIds, [null, 'other']);
+      expect(created, ['x', 'y', 'z', 'w']);
+      model.insertComponents([]);
+      expect(model.size, 9);
+    });
+
+    test('insertComponents rejects a batch it cannot add whole', () {
+      Matcher leavesModel = predicate<void Function()>((call) {
+        try {
+          call();
+        } catch (_) {
+          return model.keys.join(',') == 'root,a';
+        }
+        return false;
+      }, 'throws and leaves the model as it was');
+
+      expect(
+        () => model.insertComponents([(0, ComponentModel('a', 'Text', {}))]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (0, ComponentModel('x', 'Text', {})),
+          (1, ComponentModel('x', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (1, ComponentModel('x', 'Text', {})),
+          (1, ComponentModel('y', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (0, ComponentModel('x', 'Text', {})),
+          (4, ComponentModel('y', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([(-1, ComponentModel('x', 'Text', {}))]),
+        throwsRangeError,
+      );
+    });
+
     test('getChildIds lists referenced ids, including unresolved ones', () {
       expect(model.getChildIds('root'), ['a', 'b']);
       expect(model.getChildIds('a'), isEmpty);

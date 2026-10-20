@@ -186,22 +186,68 @@ class SurfaceComponentsModel {
   /// Unlike [addComponent], which is constant time, this takes time
   /// proportional to [size]. It puts back a component at the place it held,
   /// such as when a change is undone; the order matters because [values] and
-  /// the catalogs a surface's references are read through follow it.
+  /// the catalogs a surface's references are read through follow it. To put
+  /// back several, [insertComponents] takes the same time for all of them.
   ///
   /// Throws [A2uiStateError] if the model already holds a component with the
   /// same id, and [RangeError] if [index] is not between 0 and [size].
-  void insertComponent(int index, ComponentModel component) {
-    _checkNew(component);
-    RangeError.checkValueInInterval(index, 0, _components.length, 'index');
+  void insertComponent(int index, ComponentModel component) =>
+      insertComponents([(index, component)]);
+
+  /// Adds each component of [components] at the index paired with it, as
+  /// [insertComponent] would one after the other.
+  ///
+  /// Each index is the component's position once all of them are added, so
+  /// the indices must ascend. The model is rebuilt once, so this takes time
+  /// proportional to [size] plus the number of components, however many are
+  /// added. [onCreated] fires for each once all are added.
+  ///
+  /// Throws [A2uiStateError] if the model already holds a component with the
+  /// id of one of [components], or two of them share an id, and [RangeError]
+  /// if an index is not above the one before it, or leaves a gap.
+  void insertComponents(Iterable<(int, ComponentModel)> components) {
+    final List<(int, ComponentModel)> added = components.toList();
+    if (added.isEmpty) return;
+    final ids = <String>{};
+    var previous = -1;
+    for (final (int count, (int index, ComponentModel component))
+        in added.indexed) {
+      _checkNew(component);
+      if (!ids.add(component.id)) {
+        throw A2uiStateError(
+          "Component with id '${component.id}' is added twice.",
+        );
+      }
+      RangeError.checkValueInInterval(
+        index,
+        previous + 1,
+        _components.length + count,
+        'index',
+      );
+      previous = index;
+    }
+    final int first = added.first.$1;
     final List<MapEntry<String, ComponentModel>> later =
-        _components.entries.skip(index).toList();
+        _components.entries.skip(first).toList();
     for (final entry in later) {
       _components.remove(entry.key);
     }
-    _components[component.id] = component;
-    _components.addEntries(later);
+    var next = 0;
+    var position = first;
+    for (final (int index, ComponentModel component) in added) {
+      while (position < index) {
+        final MapEntry<String, ComponentModel> entry = later[next++];
+        _components[entry.key] = entry.value;
+        position++;
+      }
+      _components[component.id] = component;
+      position++;
+    }
+    _components.addEntries(later.skip(next));
     _catalogIds = null;
-    _added(component);
+    for (final (_, ComponentModel component) in added) {
+      _added(component);
+    }
   }
 
   void _checkNew(ComponentModel component) {

@@ -1034,6 +1034,258 @@ void main() {
       expect(state.getSurface('t')!.dataModel.get('/x'), isNull);
     });
 
+    test('a rollback restores a deleted surface that one updateComponents '
+        'could not rebuild', () {
+      final ref = {r'$ref': r'common_types.json#/$defs/ComponentId'};
+      UpdateComponentsMessage update(List<Map<String, Object?>> components) =>
+          UpdateComponentsMessage(
+            version: 'v1.0',
+            surfaceId: 's',
+            components: components,
+          );
+      final state =
+          RendererState([
+              _refCatalog('urn:p', {
+                'Panel': {
+                  'text': {'type': 'string'},
+                },
+              }),
+              _refCatalog('urn:c', {
+                'Box': {'link': ref},
+              }),
+              _refCatalog('urn:d', {
+                'Box': {
+                  'link': {'type': 'string'},
+                  'other': ref,
+                },
+              }),
+            ])
+            ..apply([
+              CreateSurfaceMessage(
+                version: 'v1.0',
+                surfaceId: 's',
+                catalogId: 'urn:p',
+              ),
+              update([
+                {'id': 'root', 'component': 'Panel', 'text': 'hi'},
+                {
+                  'id': 'a',
+                  'component': 'Box',
+                  'catalogId': 'urn:d',
+                  'link': 'q',
+                },
+              ]),
+            ])
+            // urn:d's Box comes first, so Box.link is a string.
+            ..apply([
+              update([
+                {
+                  'id': 'x',
+                  'component': 'Box',
+                  'catalogId': 'urn:c',
+                  'link': 'x',
+                },
+              ]),
+            ])
+            // Now urn:c's Box comes first, so x's link is a reference to x.
+            ..apply([
+              update([
+                {'id': 'a', 'component': 'Panel', 'text': 'p'},
+              ]),
+              UpdateDataModelMessage(
+                version: 'v1.0',
+                surfaceId: 's',
+                path: '/k',
+                value: 1,
+              ),
+            ]);
+      final Map<String, Object?> before = _snapshot(state);
+      final List<String> order = _componentOrder(state);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's')]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(_snapshot(state), before);
+      expect(_componentOrder(state), order);
+    });
+
+    test('a rollback puts the deleted surface object back, and a committed '
+        'delete disposes of it', () {
+      final RendererState state = _canvas();
+      final SurfaceModel<ComponentApi> surface = state.getSurface('s')!;
+      final ComponentModel component = surface.componentsModel.get('a')!;
+
+      expect(
+        () => state.transaction(() {
+          state.apply([_delete()]);
+          expect(state.getSurface('s'), isNull);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(state.getSurface('s'), same(surface));
+      expect(surface.componentsModel.get('a'), same(component));
+
+      state.transaction(() {
+        state.apply([_delete()]);
+        // Still held, to put back if the transaction fails.
+        expect(surface.componentsModel.keys, ['root', 'a']);
+      });
+      expect(state.getSurface('s'), isNull);
+      // Disposed of once the transaction ended.
+      expect(surface.componentsModel.keys, isEmpty);
+    });
+
+    test('a rollback puts back a component that an update moved to the '
+        "surface's catalog", () {
+      final box = {
+        'Box': {
+          'text': {'type': 'string'},
+        },
+      };
+      final state =
+          RendererState([_refCatalog('urn:p', box), _refCatalog('urn:c', box)])
+            ..apply([
+              CreateSurfaceMessage(
+                version: 'v1.0',
+                surfaceId: 's',
+                catalogId: 'urn:p',
+              ),
+              _update(version: 'v1.0', [
+                {'id': 'root', 'component': 'Box', 'text': 'r'},
+                {
+                  'id': 'x',
+                  'component': 'Box',
+                  'catalogId': 'urn:c',
+                  'text': 'x',
+                },
+                {'id': 'y', 'component': 'Box', 'text': 'y'},
+              ]),
+            ]);
+
+      expect(
+        () => state.transaction(() {
+          // Naming the type without catalogId moves x to urn:p, which
+          // recreates it at the end.
+          state.apply([
+            _update(version: 'v1.0', [
+              {'id': 'x', 'component': 'Box', 'text': 'x2'},
+            ]),
+          ]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(_componentOrder(state), ['root', 'x', 'y']);
+    });
+
+    test('a v1.0 surface whose metadata holds a map with non-string keys '
+        'may be deleted, and a rollback restores it', () {
+      final state = RendererState([BasicCatalog.v1_0()])
+        ..apply([
+          CreateSurfaceMessage(
+            version: 'v1.0',
+            surfaceId: 's',
+            catalogId: BasicCatalog.v1_0Id,
+            metadata: {
+              'm': {1: 'one'},
+            },
+          ),
+        ]);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's')]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(state.getSurface('s')!.metadata, {
+        'm': {1: 'one'},
+      });
+    });
+
+    test('a rollback restores a component whose properties hold a map with '
+        'non-string keys', () {
+      UpdateComponentsMessage update(String text) => UpdateComponentsMessage(
+        version: 'v1.0',
+        surfaceId: 's',
+        components: [
+          {
+            'id': 'root',
+            'component': 'Box',
+            'text': text,
+            'data': {1: 'one'},
+          },
+        ],
+      );
+      final state =
+          RendererState([
+            _refCatalog('urn:p', {
+              'Box': {
+                'text': {'type': 'string'},
+                'data': {'type': 'object'},
+              },
+            }),
+          ])..apply([
+            CreateSurfaceMessage(
+              version: 'v1.0',
+              surfaceId: 's',
+              catalogId: 'urn:p',
+            ),
+            update('Hi'),
+          ]);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([update('Changed')]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      final ComponentModel component = state
+          .getSurface('s')!
+          .componentsModel
+          .get('root')!;
+      expect(component.properties, {
+        'text': 'Hi',
+        'data': {1: 'one'},
+      });
+    });
+
+    test('a rollback puts a deleted data model key back at its place', () {
+      final RendererState state = _canvas()
+        ..apply([
+          _data('/', {
+            'a': 1,
+            'b': 2,
+            'nested': {'x': 1, 'y': 2, 'z': 3},
+          }),
+        ]);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([_data('/a', null)]);
+          state.apply([_data('/nested/y', null)]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+
+      final DataModel dataModel = state.getSurface('s')!.dataModel;
+      expect((dataModel.get('/')! as Map).keys, ['a', 'b', 'nested']);
+      expect((dataModel.get('/nested')! as Map).keys, ['x', 'y', 'z']);
+      expect(dataModel.get('/'), {
+        'a': 1,
+        'b': 2,
+        'nested': {'x': 1, 'y': 2, 'z': 3},
+      });
+    });
+
     test('an updated surface is checked against the catalog it was created '
         'with', () {
       // Checked on its own, an update passes on any catalog that accepts it.

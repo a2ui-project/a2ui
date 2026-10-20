@@ -4,8 +4,12 @@
 
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
-  a component back where it was.
-
+  a component back where it was, and `insertComponents`, which adds several
+  at their positions in one pass over the model.
+- Added `SurfaceGroupModel.detachSurface`, which removes a surface from the
+  group without disposing of it and returns it. Listeners see it as a
+  deletion; `addSurface` can put the same object back, as when a deletion is
+  undone.
 - Extracted `ComponentGraphBound` for incremental `SurfaceComponentsModel`
   component graph checks and optimized its initial height traversal to linear
   time.
