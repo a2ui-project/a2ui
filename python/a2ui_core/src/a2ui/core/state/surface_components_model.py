@@ -142,7 +142,7 @@ class SurfaceComponentsModel:
         comp = self.get(component_id)
         if not comp:
             return []
-        return list(comp.get_child_references())
+        return list(comp.get_child_references(set(self._components.keys())))
 
     def _validate_component(
         self, comp: ComponentModel, config: ValidationConfig
@@ -280,7 +280,12 @@ class SurfaceComponentsModel:
             config.allow_orphan_components or config.allow_missing_root
         )
         if deferred and bound is not None:
-            bound.check_composition(batch, self._components)
+            if not bound.composition_holds(batch, self._components):
+                # The whole-surface check decides, and raises the error it
+                # reports for the surface.
+                prospective_components = dict(self._components)
+                prospective_components.update(batch)
+                validate_composition_constraints(prospective_components)
             if (
                 not config.allow_missing_root
                 and root_id not in batch

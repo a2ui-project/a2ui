@@ -72,7 +72,7 @@ def validate_component_integrity(
     for comp_id, comp in components.items():
         if comp_id is None or not isinstance(comp_id, str):
             raise A2uiIntegrityError("Component must have a valid string 'id'")
-        for ref_id, field_name in comp.get_child_references():
+        for ref_id, field_name in comp.get_child_references(known_component_ids=ids):
             if ref_id not in ids:
                 raise A2uiIntegrityError(
                     f"Dangling reference: Component '{comp_id}' references non-existent"
@@ -165,7 +165,9 @@ def analyze_topology(
         if comp_id not in adj_list:
             adj_list[comp_id] = []
 
-        for ref_id, field_name in comp.get_child_references():
+        for ref_id, field_name in comp.get_child_references(
+            known_component_ids=all_ids
+        ):
             if ref_id == comp_id:
                 raise A2uiRecursionError(
                     f"Self-reference detected: Component '{comp_id}' references itself"
