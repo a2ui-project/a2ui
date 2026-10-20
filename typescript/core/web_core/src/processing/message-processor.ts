@@ -1101,18 +1101,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     componentType: string,
     allowedParents: string[],
     parents?: Array<{parentId: string; parentType: string}>,
+    rootId = 'root',
   ): void {
+    if (id === rootId && !allowedParents.includes('Surface')) {
+      throw new A2uiValidationError(
+        `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
+        undefined,
+        'UNALLOWED_PARENT',
+      );
+    }
+
     if (!parents || parents.length === 0) {
-      const isRoot = id === 'root';
-      const enforceTopLevel =
-        isRoot || (this.validationConfig && this.validationConfig.allowOrphanComponents === false);
-      if (enforceTopLevel && !allowedParents.includes('Surface')) {
-        throw new A2uiValidationError(
-          `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-          undefined,
-          'UNALLOWED_PARENT',
-        );
-      }
       return;
     }
 
@@ -1206,6 +1205,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       surface,
       newComponents,
     );
+    const rootId = this.validationConfig?.rootId ?? surface.rootId ?? 'root';
 
     for (const [id, componentType] of typeMap.entries()) {
       const compCatalog = compCatalogMap.get(id);
@@ -1218,6 +1218,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           componentType,
           componentApi.allowedParents,
           parentMap.get(id),
+          rootId,
         );
       }
 

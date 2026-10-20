@@ -220,6 +220,7 @@ def analyze_topology(
 
 def validate_composition_constraints(
     components: dict[str, ComponentModel],
+    root_id: str = ROOT_ID,
 ) -> None:
     """Validates allowed_parents and allowed_children composition constraints for component trees."""
     type_map: dict[str, str] = {
@@ -231,14 +232,11 @@ def validate_composition_constraints(
         if children:
             child_map[comp_id] = children
 
-    parent_map: dict[str, dict[str, str]] = {}
+    parent_map: dict[str, list[tuple[str, str]]] = {}
     for parent_id, children in child_map.items():
         parent_type = type_map.get(parent_id, "Unknown")
         for child_id in children:
-            parent_map[child_id] = {
-                "parent_id": parent_id,
-                "parent_type": parent_type,
-            }
+            parent_map.setdefault(child_id, []).append((parent_id, parent_type))
 
     for comp_id, model in components.items():
         if model.catalog is None or not hasattr(model.catalog, "get_component"):
@@ -249,30 +247,28 @@ def validate_composition_constraints(
 
         allowed_parents = getattr(component_api, "allowed_parents", None)
         if allowed_parents:
-            parent_info = parent_map.get(comp_id)
-            if parent_info is None:
-                parent_type = "Surface"
-                parent_id = "Surface"
-            else:
-                parent_type = parent_info["parent_type"]
-                parent_id = parent_info["parent_id"]
+            parents_to_check: list[tuple[str, str]] = []
+            if comp_id == root_id:
+                parents_to_check.append(("Surface", "Surface"))
+            parents_to_check.extend(parent_map.get(comp_id, []))
 
-            if parent_type not in allowed_parents:
-                msg = (
-                    f"Component '{comp_id}' ({model.type}) cannot be placed"
-                    f" under parent '{parent_id}' ({parent_type}). Allowed parents:"
-                    f" {allowed_parents}."
-                )
-                raise A2uiValidationError(
-                    msg,
-                    details=[
-                        A2uiErrorDetail(
-                            path=f"components.{comp_id}",
-                            code="UNALLOWED_PARENT",
-                            message=msg,
-                        )
-                    ],
-                )
+            for parent_id, parent_type in parents_to_check:
+                if parent_type not in allowed_parents:
+                    msg = (
+                        f"Component '{comp_id}' ({model.type}) cannot be placed"
+                        f" under parent '{parent_id}' ({parent_type}). Allowed parents:"
+                        f" {allowed_parents}."
+                    )
+                    raise A2uiValidationError(
+                        msg,
+                        details=[
+                            A2uiErrorDetail(
+                                path=f"components.{comp_id}",
+                                code="UNALLOWED_PARENT",
+                                message=msg,
+                            )
+                        ],
+                    )
 
         allowed_children = getattr(component_api, "allowed_children", None)
         if allowed_children:

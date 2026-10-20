@@ -1,5 +1,12 @@
 ## Unreleased
 
+- `validate_composition_constraints` and `SurfaceComponentsModel.validate_components_update`
+  now apply the `"Surface"` `allowedParents` rule only to the surface's root
+  component (`root_id`, `"root"` by default), even when another component also
+  references it, and check every parent edge when a component has multiple
+  parents (#3354). Non-root components that nothing references are no longer
+  checked against `"Surface"`.
+
 ## 0.4.0 (2026-10-17)
 
 - Catalogs can reference components, property schemas and functions in peer

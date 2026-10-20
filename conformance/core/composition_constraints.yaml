@@ -104,3 +104,205 @@
     category: "ValidationError"
     code: "UNALLOWED_CHILD"
     message: "Container 'root' (RestrictedBox) cannot contain child 'v1' (Video). Allowed children: ['Text', 'Button']."
+
+- name: test_composition_rewritten_container_dropping_child_allows_orphan
+  description: Verifies that when a container is rewritten to drop a child whose allowedParents does not include Surface, the unreferenced non-root component is not checked against Surface.
+  catalog:
+    catalogId: "custom"
+    protocolVersion: "v1.0"
+    components:
+      Box:
+        type: "object"
+        properties:
+          children:
+            $ref: "#/$defs/ChildList"
+      Header:
+        type: "object"
+        allowedParents: ["Box"]
+  action: process_messages
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "custom"
+            components:
+              - id: root
+                component: Box
+                children: [h]
+              - id: h
+                component: Header
+    - payload:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: root
+                component: Box
+                children: []
+  expect:
+    surfaces:
+      s1:
+        components:
+          root:
+            component: Box
+            children: []
+          h:
+            component: Header
+
+- name: test_composition_unreferenced_non_root_reports_orphan_not_unallowed_parent
+  description: Verifies that in strict mode, a non-root component with no parent is reported as an orphan by the topology check rather than checked against Surface in allowedParents.
+  catalog:
+    catalogId: "custom"
+    protocolVersion: "v1.0"
+    components:
+      Box:
+        type: "object"
+        properties:
+          children:
+            $ref: "#/$defs/ChildList"
+      Header:
+        type: "object"
+        allowedParents: ["Box"]
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "custom"
+            components:
+              - id: root
+                component: Box
+                children: [h]
+              - id: h
+                component: Header
+    - payload:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: root
+                component: Box
+                children: []
+      expectError:
+        category: "IntegrityError"
+        message: "Component 'h' is not reachable from 'root'"
+
+- name: test_composition_root_referenced_by_another_component_checked_against_surface
+  description: Verifies that the surface root is still checked against Surface in allowedParents even when another component also references it as a child.
+  catalog:
+    catalogId: "custom"
+    protocolVersion: "v1.0"
+    components:
+      Box:
+        type: "object"
+        properties:
+          children:
+            $ref: "#/$defs/ChildList"
+      Card:
+        type: "object"
+        allowedParents: ["Box"]
+  action: process_messages
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "custom"
+            components:
+              - id: root
+                component: Card
+              - id: box
+                component: Box
+                children: [root]
+      expectError:
+        category: "ValidationError"
+        code: "UNALLOWED_PARENT"
+        message: "Component 'root' (Card) cannot be placed under parent 'Surface' (Surface). Allowed parents: ['Box']."
+
+- name: test_composition_multiple_parents_disallowed_first
+  description: Verifies that when a component has multiple parents and the first parent in surface order is disallowed, the update is rejected with UNALLOWED_PARENT.
+  catalog:
+    catalogId: "custom"
+    protocolVersion: "v1.0"
+    components:
+      Box:
+        type: "object"
+        properties:
+          children:
+            $ref: "#/$defs/ChildList"
+      Card:
+        type: "object"
+        properties:
+          children:
+            $ref: "#/$defs/ChildList"
+      Header:
+        type: "object"
+        allowedParents: ["Box"]
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "custom"
+            components:
+              - id: root
+                component: Box
+                children: [card, b]
+              - id: card
+                component: Card
+                children: [h]
+              - id: b
+                component: Box
+                children: [h]
+              - id: h
+                component: Header
+      expectError:
+        category: "ValidationError"
+        code: "UNALLOWED_PARENT"
+        message: "Component 'h' (Header) cannot be placed under parent 'card' (Card). Allowed parents: ['Box']."
+
+- name: test_composition_multiple_parents_disallowed_second
+  description: Verifies that when a component has multiple parents and the second parent in surface order is disallowed, the update is rejected with UNALLOWED_PARENT.
+  catalog:
+    catalogId: "custom"
+    protocolVersion: "v1.0"
+    components:
+      Box:
+        type: "object"
+        properties:
+          children:
+            $ref: "#/$defs/ChildList"
+      Card:
+        type: "object"
+        properties:
+          children:
+            $ref: "#/$defs/ChildList"
+      Header:
+        type: "object"
+        allowedParents: ["Box"]
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "custom"
+            components:
+              - id: root
+                component: Box
+                children: [b, card]
+              - id: b
+                component: Box
+                children: [h]
+              - id: card
+                component: Card
+                children: [h]
+              - id: h
+                component: Header
+      expectError:
+        category: "ValidationError"
+        code: "UNALLOWED_PARENT"
+        message: "Component 'h' (Header) cannot be placed under parent 'card' (Card). Allowed parents: ['Box']."

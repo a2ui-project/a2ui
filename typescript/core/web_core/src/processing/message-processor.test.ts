@@ -677,6 +677,174 @@ describe('MessageProcessor', () => {
       assert.strictEqual(surface.componentsModel.get('root')?.properties.text, 'Initial');
       assert.strictEqual(surface.componentsModel.has('new_comp'), false);
     });
+
+    it('applies Surface allowedParents rule only to rootId and checks all parents of a component', () => {
+      const compositionCatalog = Catalog.fromJson({
+        catalogId: 'custom',
+        protocolVersion: 'v1.0',
+        components: {
+          Box: {
+            type: 'object',
+            properties: {
+              children: {$ref: '#/$defs/ChildList'},
+            },
+          },
+          Card: {
+            type: 'object',
+            allowedParents: ['Box'],
+            properties: {
+              children: {$ref: '#/$defs/ChildList'},
+            },
+          },
+          Header: {
+            type: 'object',
+            allowedParents: ['Box'],
+          },
+        },
+      }) as unknown as Catalog<ComponentApi>;
+
+      // 1. Rewriting a container to drop a child whose allowedParents does not
+      // include 'Surface' succeeds when orphans are allowed (default), and
+      // reports an orphan IntegrityError (not UNALLOWED_PARENT) in strict mode.
+      const relaxedProc = new MessageProcessor([compositionCatalog]);
+      relaxedProc.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'custom',
+            components: [
+              {id: 'root', component: 'Box', children: ['h']},
+              {id: 'h', component: 'Header'},
+            ],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Box', children: []}],
+          },
+        },
+      ]);
+      assert.deepStrictEqual(
+        relaxedProc.getSurface('s1')?.componentsModel.get('root')?.properties.children,
+        [],
+      );
+      assert.strictEqual(relaxedProc.getSurface('s1')?.componentsModel.get('h')?.type, 'Header');
+
+      const strictProc = new MessageProcessor([compositionCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'custom',
+          components: [
+            {id: 'root', component: 'Box', children: ['h']},
+            {id: 'h', component: 'Header'},
+          ],
+        },
+      });
+      assert.throws(
+        () =>
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'root', component: 'Box', children: []}],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiIntegrityError &&
+          err.message.includes("Component 'h' is not reachable from 'root'"),
+      );
+
+      // 2. Root component referenced by another component is still checked
+      // against 'Surface' (for both default 'root' and a custom rootId).
+      const rootRefProc = new MessageProcessor([compositionCatalog]);
+      assert.throws(
+        () =>
+          rootRefProc.processMessages({
+            version: 'v1.0',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: 'custom',
+              components: [
+                {id: 'root', component: 'Card'},
+                {id: 'box', component: 'Box', children: ['root']},
+              ],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.code === 'UNALLOWED_PARENT' &&
+          err.message.includes(
+            "Component 'root' (Card) cannot be placed under parent 'Surface' (Surface).",
+          ),
+      );
+
+      const customRootProc = new MessageProcessor([compositionCatalog], undefined, {
+        validationConfig: {rootId: 'main_root', allowOrphanComponents: true},
+      });
+      assert.throws(
+        () =>
+          customRootProc.processMessages({
+            version: 'v1.0',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: 'custom',
+              components: [
+                {id: 'main_root', component: 'Card'},
+                {id: 'box', component: 'Box', children: ['main_root']},
+              ],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.code === 'UNALLOWED_PARENT' &&
+          err.message.includes(
+            "Component 'main_root' (Card) cannot be placed under parent 'Surface' (Surface).",
+          ),
+      );
+
+      // 3. Component with multiple parents checks every parent edge regardless
+      // of component order.
+      for (const components of [
+        [
+          {id: 'root', component: 'Box', children: ['card', 'b']},
+          {id: 'card', component: 'Card', children: ['h']},
+          {id: 'b', component: 'Box', children: ['h']},
+          {id: 'h', component: 'Header'},
+        ],
+        [
+          {id: 'root', component: 'Box', children: ['b', 'card']},
+          {id: 'b', component: 'Box', children: ['h']},
+          {id: 'card', component: 'Card', children: ['h']},
+          {id: 'h', component: 'Header'},
+        ],
+      ]) {
+        const multiParentProc = new MessageProcessor([compositionCatalog]);
+        assert.throws(
+          () =>
+            multiParentProc.processMessages({
+              version: 'v1.0',
+              createSurface: {
+                surfaceId: 's1',
+                catalogId: 'custom',
+                components,
+              },
+            }),
+          (err: unknown) =>
+            err instanceof A2uiValidationError &&
+            err.code === 'UNALLOWED_PARENT' &&
+            err.message.includes(
+              "Component 'h' (Header) cannot be placed under parent 'card' (Card).",
+            ),
+        );
+      }
+    });
   });
 
   describe('MessageProcessor Bidirectional RPC & Asynchronous Pipeline', () => {
