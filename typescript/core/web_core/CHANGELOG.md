@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Component property validation now rejects unrecognized keys on function call objects inside dynamic properties and check rules (anything outside `call`/`args`/`returnType` in v0.9, or `@call`/`args`/`returnType`/`catalogId` in v1.0) with `A2uiValidationError`, instead of silently ignoring extra fields ([#2927](https://github.com/a2ui-project/a2ui/pull/2927)). This may be breaking for hand-written JSON payloads or fixtures that placed function arguments or custom fields directly on a function call object instead of under `args`.
-- (v1_0) `metadata` extension keys with non-ASCII Unicode letters valid under UAX #31 now pass message and component validation instead of being rejected ([#2931](https://github.com/a2ui-project/a2ui/pull/2931)).
+- (v1_0) `metadata.extensions` keys containing characters outside UAX #31 identifier syntax (such as `:` or `-`) are now rejected during message and component validation ([#2931](https://github.com/a2ui-project/a2ui/pull/2931)).
 - (v0_8) Children attached via `Card.child`, `Modal.entryPointChild` or `Modal.contentChild` on v0.8 surfaces validated against a catalog loaded with `Catalog.fromJson` are now recognized as reachable from `root` instead of failing topology validation as orphaned components ([#2884](https://github.com/a2ui-project/a2ui/pull/2884)).
 
 ## 0.14.0
