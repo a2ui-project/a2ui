@@ -781,6 +781,39 @@ void main() {
       expect(_componentIds(state), {'root'});
       expect(state.apply([]), isEmpty);
     });
+
+    test('markChecked stops holding changed components against checks', () {
+      final RendererState state = _canvas()
+        ..apply([
+          _update([_text('orphan')]),
+        ]);
+
+      state.markChecked(['s']);
+
+      state.checkTopology(['s']);
+    });
+
+    test('markChecked still reports a dangling reference', () {
+      final RendererState state = _canvas()
+        ..apply([
+          _update([
+            _column(['a', 'missing']),
+          ]),
+        ]);
+
+      state.markChecked(['s']);
+
+      expect(
+        () => state.checkTopology(['s']),
+        throwsA(
+          isA<A2uiIntegrityError>().having(
+            (e) => e.message,
+            'message',
+            contains("non-existent component 'missing'"),
+          ),
+        ),
+      );
+    });
   });
 }
 

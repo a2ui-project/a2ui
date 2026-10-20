@@ -34,6 +34,7 @@ export 'src/inference_formats/express/parser.dart';
 export 'src/inference_formats/express/prompt_generator.dart';
 export 'src/parser/parser.dart';
 export 'src/parser/response_part.dart';
+export 'src/parser/response_stream.dart';
 export 'src/processor/catalog_config.dart';
 export 'src/processor/catalog_providers.dart';
 export 'src/processor/generator.dart';

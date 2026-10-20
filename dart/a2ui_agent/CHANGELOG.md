@@ -23,16 +23,67 @@
     the last check is reachable from the root. A component that an update
     detached, by rewriting its parent's children, is accepted, since the
     protocol has no message that removes one component.
+  - `markChecked` stops holding the components each surface changed against
+    later `checkTopology` calls. A stream that fails after emitting messages,
+    and a block cut off at the end of a response, mark their surfaces
+    checked: the renderer holds those components and no message removes one,
+    so later turns aren't required to make them reachable. Dangling
+    references and a missing root are still reported.
   - `dispose` releases the surfaces the state holds.
 - Add `validatePayload`, which checks one payload with no record of earlier
   ones, such as the argument of a tool call. It runs on a short-lived
   `RendererState` that assumes a surface the payload only updates exists, and
   replaces the processor that payload checks built for every call.
-- `A2uiRequestProcessor.parseResponse` checks a response as a whole against a
-  new `RendererState`. The trees of every surface the response touches,
-  including surfaces it only updates, are checked once every block is
-  applied, rather than the trees of the surfaces each block creates after
-  that block.
+- Breaking: `Parser.parseResponse` and `A2uiRequestProcessor.parseResponse`
+  take an optional `state` and check every message they compile against it.
+  Without one, a call checks the response against a new, empty state, as a
+  chat turn that shows new UI, so an update to a surface the response does
+  not create is rejected; `Parser.parseResponse` accepted it before. A
+  canvas agent keeps one state for the conversation and passes it on every
+  turn. The response is applied to the state all or nothing, and the trees of
+  every surface it touches, including surfaces it only updates, are checked
+  once every block is applied, unless a block is cut off by the end of the
+  response; the components of a cut-off block are marked checked. Express
+  output is checked the same way, which rejects inline child ids that collide
+  with assigned variables and check lists on components that declare none.
+- Breaking: a parser holds no state, so one parser reads every response of a
+  request. `Parser.parseChunk` is removed: open a stream for each response
+  with `parser.openStream(wrapped: ...)`, call `feed(chunk)` for each chunk,
+  and `close()` after the last one. `Parser.openStream` and
+  `A2uiRequestProcessor.openStream` return a `ResponseStream`, and the direct
+  JSON parser a `DirectJsonResponseStream`:
+  - Each message the stream emits is checked against the stream's state and
+    applied to it as it is emitted, so the state mirrors what the renderer
+    received even when the response fails part way.
+  - When a block closes, the trees of the surfaces it touched are checked,
+    which a streamed response skipped before: a component nothing reaches, a
+    dangling reference or a cycle now throws.
+  - Only `updateComponents` and `updateDataModel` are emitted while they grow;
+    any other message, such as `createSurface`, `deleteSurface` or
+    `callRendererFunction`, is held until its object closes, so it is emitted
+    once. A message for a surface that does not exist yet is held back, as a
+    renderer would reject it, and the block throws when it closes.
+  - `close` emits the text held back as a possible tag, throws
+    `A2uiParseError` if a block is still open, and checks the tree of an
+    unwrapped stream.
+  - A stream that throws has ended: `feed` then throws `StateError`, and
+    `close` returns nothing. The messages it emitted stay in its state, and
+    their components are marked checked.
+- Breaking: `Parser.compile` only translates a block into messages. It
+  reports what the notation gets wrong, but `DirectJsonParser.compile` no
+  longer checks components, function calls, themes or catalog ids against the
+  catalogs; `parseResponse(block, wrapped: false)` compiles and checks one
+  block. A `Parser` subclass implements the new `catalogs` getter.
+- `A2uiRequestProcessor` reuses one parser, which its `parser` getter
+  returns. `createState` creates an empty `RendererState` for the active
+  catalogs. A processor can be bound to a state, through its `state`
+  constructor parameter or `A2uiGenerator.createProcessor(..., state: ...)`,
+  so that `parseResponse` and `openStream` use it when a call passes none.
+  A state for other catalogs throws `A2uiCatalogError`.
+  `A2uiRequestProcessor.acceptsState` tells whether a state holds the
+  processor's catalogs, so an agent that keeps a state per conversation can
+  tell when to make a new one.
+  `A2uiRequestProcessor.parseResponse` also takes `wrapped`.
 - Support cross-catalog `$ref` references across peer catalogs in
   `resolveCatalogs`, payload checks, `DirectJsonPromptGenerator` (preserving
   unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive
@@ -68,9 +119,9 @@
   - The Express prompt explains how to name a catalog, lists the functions
     the agent may call, and carries each catalog's `instructions`.
   - A `callRendererFunction` may call only a function whose `allowedCallers`
-    lets the agent call it and that needs no user activation. `compile`,
-    `parseChunk` and `parseResponse` all check it through `a2ui_core`'s
-    `MessageProcessor.checkRendererFunctionCall`, so a streamed call the
+    lets the agent call it and that needs no user activation. `RendererState`,
+    `openStream`, `parseResponse` and `ExpressCompiler.compile` all check it
+    through `a2ui_core`'s `MessageProcessor.forAgent`, so a streamed call the
     renderer would reject is never emitted.
   - The direct JSON parser holds a streamed v1.0 component back until it
     closes; `bufferIncompleteComponents` applies only before v1.0.
@@ -86,24 +137,18 @@
   Catalogs of v0.9 and v0.9.1, which share message shapes, mix as v0.9, there
   and in `resolveCatalogs`.
 - Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`.
-- The direct JSON parser emits a streamed message other than
-  `updateComponents` and `updateDataModel` once, after it closes.
-- The direct JSON parser's `parseChunk` reads and checks only what each
-  chunk adds, rather than the whole block so far: a message once it closes,
-  after which it is not read again, a growing `updateComponents` for its new
-  components, and a growing `updateDataModel` for the lists and maps its
-  value gains, with the value applied once it closes. The time to
-  stream a payload grows with its size rather than with its square:
-  streaming 6.4 KB in 16-byte chunks takes about 0.1 s rather than 1.4 s,
-  and 105 KB about 0.3 s. A message that grows is emitted again with the
-  components it emitted before, as the same objects.
+- `DirectJsonResponseStream` reads and checks only what each chunk adds,
+  rather than the whole block so far: a message once it closes, after which
+  it is not read again, a growing `updateComponents` for its new components,
+  and a growing `updateDataModel` for the lists and maps its value gains,
+  with the value applied once it closes. The time to stream a payload grows
+  with its size rather than with its square: streaming 6.4 KB in 16-byte
+  chunks takes about 0.1 s rather than 1.4 s, and 105 KB about 0.3 s. A
+  message that grows is emitted again with the components it emitted
+  before, as the same objects.
 - The Express decompiler rejects a check condition with extra fields rather
   than dropping them.
 - The Express prompt gives each function's description.
-- Direct JSON `compile` checks each surface the payload creates whole: no
-  message before its `createSurface`, no missing or unreachable component,
-  and no cycle. `parseChunk` may emit a block's messages before these checks
-  reject the block.
 - A streamed string cut inside an escaped surrogate pair is cut before the
   pair rather than healed with U+FFFD.
 - The Express compiler rejects an inline component whose id another
