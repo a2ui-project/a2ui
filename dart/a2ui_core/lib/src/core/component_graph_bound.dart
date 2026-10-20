@@ -99,6 +99,10 @@ class ComponentGraphBound {
   /// The reference fields each type's references were read through.
   final Map<String, ComponentRefFields?> _fields = {};
 
+  /// The components that reference [id], held or not, in the graph this
+  /// bound describes.
+  Iterable<String> parentsOf(String id) => _parents[id] ?? const <String>{};
+
   void _setChildren(
     String id,
     String type,
