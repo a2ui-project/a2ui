@@ -1425,6 +1425,80 @@
         category: ValidationError
         message: orphan_id
 
+- name: test_v10_topology_component_id_array_dangling_reference_error
+  description: Tests that every item of an array property whose items are ComponentId is a child reference, whatever the property is called, so an item naming no component fails validation in v1.0 strict mode even when no other item names one.
+  action: validate
+  protocolVersion: v1.0
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [missing_slot]
+      expectError:
+        category: ValidationError
+        message: missing_slot
+
+- name: test_v10_topology_component_id_array_child_reachable
+  description: Tests that a component named in an array property whose items are ComponentId is reachable from the root in v1.0 strict mode, whatever the property is called.
+  action: validate
+  protocolVersion: v1.0
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+  strictMode: true
+  steps:
+    - messages:
+        - version: v1.0
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v1.0
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [first]
+              - id: first
+                component: Stack
+                slots: []
+
 - name: test_v10_child_list_template_missing_path_error
   description: Tests that a ChildList template object missing its required 'path' property fails schema validation in v1.0.
   action: validate
