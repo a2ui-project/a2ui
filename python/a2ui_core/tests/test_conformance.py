@@ -84,6 +84,11 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
     "core/node_resolution.yaml": "The Python core has no node resolution layer.",
+    "core/message_processor_scaling.yaml": (
+        "The cases time processing and depend on the machine, so they need a"
+        " harness that runs them apart from the other tests, which the Python"
+        " core does not have."
+    ),
 }
 
 # Root core conformance directory resolution
@@ -618,6 +623,10 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_evaluate_function_case(case)
     elif action == "dispatch_action":
         validate_dispatch_action_case(case)
+    elif (
+        action == "measure_growth" and rel_path == "core/message_processor_scaling.yaml"
+    ):
+        pytest.skip(UNRUNNABLE_SUITES[rel_path])
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."
