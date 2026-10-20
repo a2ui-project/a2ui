@@ -14,7 +14,7 @@
   URI such as `.../a2ui/vv0.9`.
 - **BREAKING**: `stream_response_to_parts(stream, token_stream, version=None)`
   takes the `ResponseStream` that reads the response, such as one from
-  `Parser.open_stream()`, instead of a `Parser`. It closes the
+  `A2uiRequestProcessor.open_stream()`, instead of a `Parser`. It closes the
   stream after the last token, so text held back as a possible tag is emitted
   and a block left open raises. A canvas agent opens the stream with the
   `RendererState` it keeps.

@@ -176,8 +176,9 @@ async def stream_response_to_parts(
 
     Args:
         stream: The stream that reads the response, from
-            `Parser.open_stream`. The state it was opened with is the one the
-            response is checked against.
+            `A2uiRequestProcessor.open_stream` or `Parser.open_stream`. The
+            state it was opened with is the one the response is checked
+            against.
         token_stream: An async iterable of strings (tokens).
         version: The A2UI version, as for `create_a2ui_part`.
 
