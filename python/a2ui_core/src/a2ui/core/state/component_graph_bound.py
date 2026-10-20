@@ -186,21 +186,19 @@ class ComponentGraphBound:
                     if height > self._max_height:
                         self._max_height = height
 
-    def check_composition(
+    def composition_holds(
         self,
         batch: Mapping[str, ComponentModel],
         held: Mapping[str, ComponentModel],
-    ) -> None:
-        """Checks the composition constraints the batch can change.
+    ) -> bool:
+        """Whether the composition constraints hold on what the batch changes.
 
         `held` is the surface before the batch, which passed the check when
         this bound was made. A component whose type, children, children's
         types and parent are unchanged still passes, so only the others are
-        checked, in surface order, which makes the first failure the one
-        `validate_composition_constraints` reports for the whole surface.
-
-        Raises:
-            A2uiValidationError: As `validate_composition_constraints` does.
+        checked. False means one of them fails; the caller then checks the
+        whole surface with `validate_composition_constraints`, which raises
+        the error it reports for the first component that fails.
         """
 
         def model_of(comp_id: str) -> ComponentModel | None:
@@ -245,41 +243,34 @@ class ComponentGraphBound:
             for parent in self._declared_parents.get(comp_id, ()):
                 if parent not in batch:
                     holding.setdefault(parent, []).append(comp_id)
-        to_check = {c for c in (*batch, *moved, *holding) if model_of(c) is not None}
-        for comp_id in sorted(to_check, key=order_of):
-            model = model_of(comp_id)
-            assert model is not None
-            component_api = composition_api(model)
-            if component_api is None:
-                continue
-            if comp_id in batch or comp_id in moved:
-                parent_id = parent_of(comp_id)
-                check_allowed_parent(
-                    comp_id,
-                    model,
-                    component_api,
-                    parent_id,
-                    type_of(parent_id) if parent_id is not None else None,
-                )
-            if comp_id in batch:
-                check_allowed_children(
-                    comp_id, model, component_api, declared[comp_id], type_of
-                )
-            elif comp_id in holding:
-                try:
-                    check_allowed_children(
-                        comp_id, model, component_api, holding[comp_id], type_of
-                    )
-                except A2uiValidationError:
-                    # Reads every child to report the first one that fails.
-                    check_allowed_children(
+        try:
+            for comp_id in (*batch, *moved, *holding):
+                model = model_of(comp_id)
+                if model is None:
+                    continue
+                component_api = composition_api(model)
+                if component_api is None:
+                    continue
+                if comp_id in batch or comp_id in moved:
+                    parent_id = parent_of(comp_id)
+                    check_allowed_parent(
                         comp_id,
                         model,
                         component_api,
-                        self._declared[comp_id],
-                        type_of,
+                        parent_id,
+                        type_of(parent_id) if parent_id is not None else None,
                     )
-                    raise
+                if comp_id in batch:
+                    check_allowed_children(
+                        comp_id, model, component_api, declared[comp_id], type_of
+                    )
+                elif comp_id in holding:
+                    check_allowed_children(
+                        comp_id, model, component_api, holding[comp_id], type_of
+                    )
+        except A2uiValidationError:
+            return False
+        return True
 
     def admits(
         self,
