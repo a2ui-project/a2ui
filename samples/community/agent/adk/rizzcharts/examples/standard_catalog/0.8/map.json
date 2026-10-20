@@ -53,7 +53,7 @@
               "children": {
                 "template": {
                   "componentId": "location-card-template",
-                  "dataBinding": "/mapConfig.locations"
+                  "dataBinding": "/mapConfig/locations"
                 }
               }
             }
@@ -82,7 +82,7 @@
           "component": {
             "Text": {
               "text": {
-                "path": "/name"
+                "path": "name"
               },
               "usageHint": "h4"
             }
@@ -93,7 +93,7 @@
           "component": {
             "Text": {
               "text": {
-                "path": "/description"
+                "path": "description"
               }
             }
           }
@@ -104,55 +104,85 @@
   {
     "dataModelUpdate": {
       "surfaceId": "la-map-view",
-      "path": "/",
+      "path": "/mapConfig/locations",
       "contents": [
         {
-          "key": "mapConfig.locations[0].name",
-          "valueString": "Google Store Santa Monica"
+          "key": "0",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "Google Store Santa Monica"
+            },
+            {
+              "key": "description",
+              "valueString": "Your local destination for Google hardware."
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[0].description",
-          "valueString": "Your local destination for Google hardware."
+          "key": "1",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "Griffith Observatory"
+            },
+            {
+              "key": "description",
+              "valueString": "A public observatory with views of the Hollywood Sign."
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[1].name",
-          "valueString": "Griffith Observatory"
+          "key": "2",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "Hollywood Sign Viewpoint"
+            },
+            {
+              "key": "description",
+              "valueString": "Iconic landmark in the Hollywood Hills."
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[1].description",
-          "valueString": "A public observatory with views of the Hollywood Sign."
+          "key": "3",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "Crypto.com Arena"
+            },
+            {
+              "key": "description",
+              "valueString": "Multi-purpose sports and entertainment arena."
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[2].name",
-          "valueString": "Hollywood Sign Viewpoint"
+          "key": "4",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "LACMA"
+            },
+            {
+              "key": "description",
+              "valueString": "Los Angeles County Museum of Art."
+            }
+          ]
         },
         {
-          "key": "mapConfig.locations[2].description",
-          "valueString": "Iconic landmark in the Hollywood Hills."
-        },
-        {
-          "key": "mapConfig.locations[3].name",
-          "valueString": "Crypto.com Arena"
-        },
-        {
-          "key": "mapConfig.locations[3].description",
-          "valueString": "Multi-purpose sports and entertainment arena."
-        },
-        {
-          "key": "mapConfig.locations[4].name",
-          "valueString": "LACMA"
-        },
-        {
-          "key": "mapConfig.locations[4].description",
-          "valueString": "Los Angeles County Museum of Art."
-        },
-        {
-          "key": "mapConfig.locations[5].name",
-          "valueString": "Venice Beach Boardwalk"
-        },
-        {
-          "key": "mapConfig.locations[5].description",
-          "valueString": "Famous oceanfront promenade."
+          "key": "5",
+          "valueMap": [
+            {
+              "key": "name",
+              "valueString": "Venice Beach Boardwalk"
+            },
+            {
+              "key": "description",
+              "valueString": "Famous oceanfront promenade."
+            }
+          ]
         }
       ]
     }

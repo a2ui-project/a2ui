@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
+  "protocolVersion": "1.0",
+  "title": "Rizzcharts catalog (v1.0)",
+  "description": "The Canvas, Chart and GoogleMap components of the rizzcharts sample.",
+  "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
+  "instructions": "This catalog holds only the Canvas, Chart and GoogleMap components. Build the rest of the UI, such as the Column layout and Text, from the basic catalog, which is the surface's default catalog in `createSurface`. Each Canvas, Chart and GoogleMap component MUST set `catalogId` to this catalog's id.",
+  "components": {
+    "Canvas": {
+      "type": "object",
+      "description": "Renders the UI element in a stateful panel next to the chat window.",
+      "properties": {
+        "component": {
+          "const": "Canvas"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList",
+          "description": "Defines the children of the canvas."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": ["component", "children"]
+    },
+    "Chart": {
+      "type": "object",
+      "description": "An interactive chart that uses a hierarchical list of objects for its data.",
+      "properties": {
+        "component": {
+          "const": "Chart"
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of chart to render.",
+          "enum": ["doughnut", "pie"]
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The title of the chart."
+        },
+        "chartData": {
+          "description": "The data for the chart, provided as a list of items. Can be a literal array or a data model path.",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "number"
+                  },
+                  "drillDown": {
+                    "type": "array",
+                    "description": "An optional list of items for the next level of data.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["label", "value"]
+                    }
+                  }
+                },
+                "required": ["label", "value"]
+              }
+            },
+            {
+              "$ref": "common_types.json#/$defs/DataBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": ["component", "type", "chartData"]
+    },
+    "GoogleMap": {
+      "type": "object",
+      "description": "A component to display a Google Map with pins.",
+      "properties": {
+        "component": {
+          "const": "GoogleMap"
+        },
+        "center": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "lat": {
+                  "type": "number"
+                },
+                "lng": {
+                  "type": "number"
+                }
+              },
+              "required": ["lat", "lng"],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "common_types.json#/$defs/DataBinding"
+            }
+          ],
+          "description": "The center point of the map, containing latitude and longitude."
+        },
+        "zoom": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "The zoom level of the map."
+        },
+        "pins": {
+          "description": "A list of pin objects to display on the map. Can be a literal array or a data model path.",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "lat": {
+                    "type": "number"
+                  },
+                  "lng": {
+                    "type": "number"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "background": {
+                    "type": "string",
+                    "description": "Hex color code for the pin background (e.g., '#FBBC04')."
+                  },
+                  "borderColor": {
+                    "type": "string",
+                    "description": "Hex color code for the pin border (e.g., '#000000')."
+                  },
+                  "glyphColor": {
+                    "type": "string",
+                    "description": "Hex color code for the pin's glyph/icon (e.g., '#000000')."
+                  }
+                },
+                "required": ["lat", "lng", "name"],
+                "additionalProperties": false
+              }
+            },
+            {
+              "$ref": "common_types.json#/$defs/DataBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": ["component", "center", "zoom"]
+    }
+  }
+}

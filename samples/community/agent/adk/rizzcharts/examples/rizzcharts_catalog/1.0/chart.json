@@ -1,0 +1,87 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "sales-dashboard",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "sales-dashboard",
+      "components": [
+        {
+          "id": "root",
+          "component": "Canvas",
+          "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
+          "children": ["chart_container"]
+        },
+        {
+          "id": "chart_container",
+          "component": "Column",
+          "children": ["sales_chart"],
+          "align": "center"
+        },
+        {
+          "id": "sales_chart",
+          "component": "Chart",
+          "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
+          "type": "doughnut",
+          "title": {
+            "@path": "/chart/title"
+          },
+          "chartData": {
+            "@path": "/chart/items"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "sales-dashboard",
+      "path": "/",
+      "value": {
+        "chart": {
+          "title": "Sales by Category",
+          "items": [
+            {
+              "label": "Apparel",
+              "value": 41,
+              "drillDown": [
+                {"label": "Tops", "value": 31},
+                {"label": "Bottoms", "value": 38},
+                {"label": "Outerwear", "value": 20},
+                {"label": "Footwear", "value": 11}
+              ]
+            },
+            {
+              "label": "Home Goods",
+              "value": 15,
+              "drillDown": [
+                {"label": "Pillow", "value": 8},
+                {"label": "Coffee Maker", "value": 16},
+                {"label": "Area Rug", "value": 3},
+                {"label": "Bath Towels", "value": 14}
+              ]
+            },
+            {
+              "label": "Electronics",
+              "value": 28,
+              "drillDown": [
+                {"label": "Phones", "value": 25},
+                {"label": "Laptops", "value": 27},
+                {"label": "TVs", "value": 21},
+                {"label": "Other", "value": 27}
+              ]
+            },
+            {"label": "Health & Beauty", "value": 10},
+            {"label": "Other", "value": 6}
+          ]
+        }
+      }
+    }
+  }
+]

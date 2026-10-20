@@ -12,7 +12,10 @@
   no longer depends on `google-adk` or `google-genai`. Import paths are
   unchanged.
 - `A2uiPartConverter` takes its `version` as a `ProtocolVersion`, or a version
-  string with or without a leading "v". It defaults to `ProtocolVersion.V0_8`.
+  string with or without a leading "v". It defaults to the protocol version of
+  its catalogs, or to `ProtocolVersion.V0_8` without catalogs, so
+  `A2uiEventConverter` and `SendA2uiToClientToolset.get_part_converter` tag
+  v1.0 parts with the `application/a2ui+json` MIME type.
 - The ADK-to-A2A converters (`A2uiPartConverter`, `A2uiEventConverter`) and the
   A2A orchestration helpers (`A2uiSubagentMap`, `SurfaceIdAlreadyExistsError`)
   need the `a2a` extra: `pip install "a2ui-adk[a2a]"`. `a2ui.adk` imports them

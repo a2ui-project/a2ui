@@ -12,22 +12,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import logging
 import os
+import traceback
+from typing import Any
 import urllib.parse
 import urllib.request
-import traceback
-import logging
 
 from google.adk.tools import ToolContext
 from google.genai import Client
-from mcp.client.sse import sse_client
 from mcp.client.session import ClientSession
+from mcp.client.sse import sse_client
+
+from a2ui.core.schema import ProtocolVersion
+from agent_executor import get_a2ui_version
 
 logger = logging.getLogger(__name__)
 
 # Global variables for Pong game.
 PONG_SURFACE_ID = "pong_surface"
 PONG_CURRENT_SCORE = {"player": 0, "cpu": 0}
+
+# The catalog of each protocol version that the tools write messages in.
+_CATALOG_IDS = {
+    ProtocolVersion.V0_9: (
+        "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json"
+    ),
+    ProtocolVersion.V1_0: (
+        "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/1.0/mcp_app_catalog.json"
+    ),
+}
+
+
+def _message_version(tool_context: ToolContext) -> ProtocolVersion:
+    """Returns the protocol version to write the request's A2UI messages in.
+
+    That is v1.0 when the request negotiated it, and v0.9 otherwise.
+    """
+    if get_a2ui_version(tool_context) == ProtocolVersion.V1_0:
+        return ProtocolVersion.V1_0
+    return ProtocolVersion.V0_9
+
+
+def _binding(version: ProtocolVersion, path: str) -> dict[str, Any]:
+    """Returns a data binding to `path`, which v1.0 spells `@path`."""
+    if version == ProtocolVersion.V1_0:
+        return {"@path": path}
+    return {"path": path}
 
 
 def _fetch_url(url: str, headers: dict[str, str], timeout: float = 2.0) -> str:
@@ -56,18 +87,17 @@ async def get_calculator_app(tool_context: ToolContext):
         if result.contents and hasattr(result.contents[0], "text"):
             html_content = result.contents[0].text
             encoded_html = "url_encoded:" + urllib.parse.quote(html_content)
+            version = _message_version(tool_context)
             messages = [
                 {
-                    "version": "v0.9",
+                    "version": version.value,
                     "createSurface": {
                         "surfaceId": "calculator_surface",
-                        "catalogId": (
-                            "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json"
-                        ),
+                        "catalogId": _CATALOG_IDS[version],
                     },
                 },
                 {
-                    "version": "v0.9",
+                    "version": version.value,
                     "updateComponents": {
                         "surfaceId": "calculator_surface",
                         "components": [{
@@ -155,18 +185,17 @@ async def get_pong_mcp_app_json(tool_context: ToolContext):
     global PONG_CURRENT_SCORE
     PONG_CURRENT_SCORE = {"player": 0, "cpu": 0}
 
+    version = _message_version(tool_context)
     messages = [
         {
-            "version": "v0.9",
+            "version": version.value,
             "createSurface": {
                 "surfaceId": PONG_SURFACE_ID,
-                "catalogId": (
-                    "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json"
-                ),
+                "catalogId": _CATALOG_IDS[version],
             },
         },
         {
-            "version": "v0.9",
+            "version": version.value,
             "updateDataModel": {
                 "surfaceId": PONG_SURFACE_ID,
                 "path": "/",
@@ -180,7 +209,7 @@ async def get_pong_mcp_app_json(tool_context: ToolContext):
             },
         },
         {
-            "version": "v0.9",
+            "version": version.value,
             "updateComponents": {
                 "surfaceId": PONG_SURFACE_ID,
                 "components": [
@@ -202,9 +231,9 @@ async def get_pong_mcp_app_json(tool_context: ToolContext):
                     {
                         "id": "scoreboard_root",
                         "component": "PongScoreBoard",
-                        "playerScore": {"path": "/pong_state/player_score"},
-                        "cpuScore": {"path": "/pong_state/cpu_score"},
-                        "commentary": {"path": "/pong_state/commentary"},
+                        "playerScore": _binding(version, "/pong_state/player_score"),
+                        "cpuScore": _binding(version, "/pong_state/cpu_score"),
+                        "commentary": _binding(version, "/pong_state/commentary"),
                     },
                 ],
             },
@@ -221,18 +250,17 @@ async def get_pong_app_web_frame_json(tool_context: ToolContext):
     global PONG_CURRENT_SCORE
     PONG_CURRENT_SCORE = {"player": 0, "cpu": 0}
 
+    version = _message_version(tool_context)
     messages = [
         {
-            "version": "v0.9",
+            "version": version.value,
             "createSurface": {
                 "surfaceId": PONG_SURFACE_ID,
-                "catalogId": (
-                    "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json"
-                ),
+                "catalogId": _CATALOG_IDS[version],
             },
         },
         {
-            "version": "v0.9",
+            "version": version.value,
             "updateDataModel": {
                 "surfaceId": PONG_SURFACE_ID,
                 "path": "/",
@@ -246,7 +274,7 @@ async def get_pong_app_web_frame_json(tool_context: ToolContext):
             },
         },
         {
-            "version": "v0.9",
+            "version": version.value,
             "updateComponents": {
                 "surfaceId": PONG_SURFACE_ID,
                 "components": [
@@ -282,9 +310,9 @@ async def get_pong_app_web_frame_json(tool_context: ToolContext):
                     {
                         "id": "scoreboard_root",
                         "component": "PongScoreBoard",
-                        "playerScore": {"path": "/pong_state/player_score"},
-                        "cpuScore": {"path": "/pong_state/cpu_score"},
-                        "commentary": {"path": "/pong_state/commentary"},
+                        "playerScore": _binding(version, "/pong_state/player_score"),
+                        "cpuScore": _binding(version, "/pong_state/cpu_score"),
+                        "commentary": _binding(version, "/pong_state/commentary"),
                     },
                 ],
             },
@@ -316,18 +344,17 @@ async def get_pong_app_web_frame_srcdoc_json(tool_context: ToolContext):
         logger.error(f"Could not fetch remote pong app from {remote_url}: {e}.")
         return {"error": f"Could not fetch pong app from remote server ({e})"}
 
+    version = _message_version(tool_context)
     messages = [
         {
-            "version": "v0.9",
+            "version": version.value,
             "createSurface": {
                 "surfaceId": PONG_SURFACE_ID,
-                "catalogId": (
-                    "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json"
-                ),
+                "catalogId": _CATALOG_IDS[version],
             },
         },
         {
-            "version": "v0.9",
+            "version": version.value,
             "updateDataModel": {
                 "surfaceId": PONG_SURFACE_ID,
                 "path": "/",
@@ -341,7 +368,7 @@ async def get_pong_app_web_frame_srcdoc_json(tool_context: ToolContext):
             },
         },
         {
-            "version": "v0.9",
+            "version": version.value,
             "updateComponents": {
                 "surfaceId": PONG_SURFACE_ID,
                 "components": [
@@ -377,9 +404,9 @@ async def get_pong_app_web_frame_srcdoc_json(tool_context: ToolContext):
                     {
                         "id": "scoreboard_root",
                         "component": "PongScoreBoard",
-                        "playerScore": {"path": "/pong_state/player_score"},
-                        "cpuScore": {"path": "/pong_state/cpu_score"},
-                        "commentary": {"path": "/pong_state/commentary"},
+                        "playerScore": _binding(version, "/pong_state/player_score"),
+                        "cpuScore": _binding(version, "/pong_state/cpu_score"),
+                        "commentary": _binding(version, "/pong_state/commentary"),
                     },
                 ],
             },
@@ -422,8 +449,9 @@ async def commentate_pong_game(tool_context: ToolContext, game_event: str):
     elif commentary_text.startswith("'") and commentary_text.endswith("'"):
         commentary_text = commentary_text[1:-1]
 
+    version = _message_version(tool_context)
     messages = [{
-        "version": "v0.9",
+        "version": version.value,
         "updateDataModel": {
             "surfaceId": PONG_SURFACE_ID,
             "path": "/pong_state/commentary",

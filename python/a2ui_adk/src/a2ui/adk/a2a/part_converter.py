@@ -63,7 +63,9 @@ class A2uiPartConverter:
         bypass_tool_check: If True, bypass tool validation.
         fallback_text: Optional text to fall back on if parsing fails.
         version: The A2UI version to use: a `ProtocolVersion`, or a version
-            string with or without a leading "v". Defaults to v0.8.
+            string with or without a leading "v". It sets the MIME type of the
+            A2UI parts. Defaults to the protocol version of the catalogs, or
+            v0.8 without catalogs.
         parser: Optional parser for text-based A2UI. Defaults to a
             `DirectJsonParser` holding the catalogs.
     """
@@ -73,11 +75,13 @@ class A2uiPartConverter:
         catalogs: Sequence[CatalogApi],
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
-        version: ProtocolVersion | str = ProtocolVersion.V0_8,
+        version: ProtocolVersion | str | None = None,
         parser: Parser | None = None,
     ):
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
+        if version is None:
+            version = catalogs[0].protocol_version if catalogs else ProtocolVersion.V0_8
         self._version = version
         self._parser = parser or DirectJsonParser(catalogs)
 

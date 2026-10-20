@@ -24,7 +24,7 @@
           "id": "chart-title",
           "component": "Text",
           "text": {
-            "path": "/chart.title"
+            "path": "/chart/title"
           },
           "variant": "h2"
         },
@@ -34,7 +34,7 @@
           "direction": "vertical",
           "children": {
             "componentId": "category-item-template",
-            "path": "/chart.items"
+            "path": "/chart/items"
           }
         },
         {
@@ -52,14 +52,14 @@
           "id": "item-label",
           "component": "Text",
           "text": {
-            "path": "/label"
+            "path": "label"
           }
         },
         {
           "id": "item-value",
           "component": "Text",
           "text": {
-            "path": "/value"
+            "path": "value"
           }
         }
       ]
@@ -71,17 +71,16 @@
       "surfaceId": "sales-dashboard",
       "path": "/",
       "value": {
-        "chart.title": "Sales by Category",
-        "chart.items[0].label": "Apparel",
-        "chart.items[0].value": 41,
-        "chart.items[1].label": "Home Goods",
-        "chart.items[1].value": 15,
-        "chart.items[2].label": "Electronics",
-        "chart.items[2].value": 28,
-        "chart.items[3].label": "Health & Beauty",
-        "chart.items[3].value": 10,
-        "chart.items[4].label": "Other",
-        "chart.items[4].value": 6
+        "chart": {
+          "title": "Sales by Category",
+          "items": [
+            {"label": "Apparel", "value": 41},
+            {"label": "Home Goods", "value": 15},
+            {"label": "Electronics", "value": 28},
+            {"label": "Health & Beauty", "value": 10},
+            {"label": "Other", "value": 6}
+          ]
+        }
       }
     }
   }

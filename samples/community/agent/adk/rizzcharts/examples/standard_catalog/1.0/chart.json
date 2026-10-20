@@ -1,0 +1,85 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "sales-dashboard",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "sales-dashboard",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["chart_title", "category_list"]
+        },
+        {
+          "id": "chart_title",
+          "component": "Text",
+          "text": {
+            "@call": "formatString",
+            "args": {
+              "value": "## ${/chart/title}"
+            }
+          }
+        },
+        {
+          "id": "category_list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "componentId": "category_item_template",
+            "path": "/chart/items"
+          }
+        },
+        {
+          "id": "category_item_template",
+          "component": "Card",
+          "child": "item_row"
+        },
+        {
+          "id": "item_row",
+          "component": "Row",
+          "justify": "spaceBetween",
+          "children": ["item_label", "item_value"]
+        },
+        {
+          "id": "item_label",
+          "component": "Text",
+          "text": {
+            "@path": "label"
+          }
+        },
+        {
+          "id": "item_value",
+          "component": "Text",
+          "text": {
+            "@path": "value"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "sales-dashboard",
+      "path": "/",
+      "value": {
+        "chart": {
+          "title": "Sales by Category",
+          "items": [
+            {"label": "Apparel", "value": 41},
+            {"label": "Home Goods", "value": 15},
+            {"label": "Electronics", "value": 28},
+            {"label": "Health & Beauty", "value": 10},
+            {"label": "Other", "value": 6}
+          ]
+        }
+      }
+    }
+  }
+]
