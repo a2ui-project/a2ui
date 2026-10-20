@@ -232,6 +232,21 @@ describe('validatePayload', () => {
     );
   });
 
+  it('skips the tree of a surface that a later message of the payload deletes', () => {
+    // As in Python: the tree is checked once the payload is applied, and the surface is gone
+    // by then. Each component was still checked against the catalog.
+    const deleted: Message = {version: 'v0.9', deleteSurface: {surfaceId: 's'}};
+    for (const components of [[COLUMN], [{...COLUMN, children: []}, TEXT], [TEXT]]) {
+      validatePayload([BASIC], [create(basicId), update(...components), deleted]);
+    }
+    expect(() =>
+      validatePayload(
+        [BASIC],
+        [create(basicId), update({id: 'root', component: 'Unknown'}), deleted],
+      ),
+    ).toThrow(A2uiValidationError);
+  });
+
   it('rejects a surface on a catalog it does not hold', () => {
     expect(() => validatePayload([BASIC], [create('missing')])).toThrow(A2uiValidationError);
   });
