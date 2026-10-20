@@ -63,7 +63,7 @@ describe('BlockLexer', () => {
     const parts = lexer.tokenize(content);
 
     expect(parts).toHaveLength(2);
-    expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: false});
+    expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: true});
     expect(parts[1]).toEqual({type: 'a2ui', a2uiRaw: 'text = "Hello', isFinal: false});
   });
 

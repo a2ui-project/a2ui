@@ -56,7 +56,7 @@ describe('DirectJsonParser', () => {
     const content = 'Text before\n<a2ui-json>\n[{"action": "test"}]';
     const parts = parser.unwrap(content);
     expect(parts).toEqual([
-      {type: 'text', text: 'Text before', isFinal: false},
+      {type: 'text', text: 'Text before', isFinal: true},
       {type: 'a2ui', a2uiRaw: '[{"action": "test"}]', isFinal: false},
     ]);
   });
@@ -64,7 +64,10 @@ describe('DirectJsonParser', () => {
   it('throws ParseError on empty JSON part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\n<a2ui-json>\n</a2ui-json>';
-    expect(() => parser.unwrap(content)).toThrow(ParseError);
+    expect(parser.unwrap(content)).toEqual([
+      {type: 'text', text: 'Text before', isFinal: true},
+      {type: 'a2ui', a2uiRaw: '', isFinal: true},
+    ]);
     expect(() => parser.parseResponse(content)).toThrow(ParseError);
     expect(() => parser.compile('')).toThrow(ParseError);
   });

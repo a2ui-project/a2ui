@@ -55,13 +55,7 @@ export class DirectJsonParser extends Parser {
   }
 
   unwrap(content: string): RawResponsePart[] {
-    const parts = this.lexer.tokenize(content);
-    for (const part of parts) {
-      if (part.type === 'a2ui' && part.isFinal && !part.a2uiRaw) {
-        throw new ParseError('A2UI JSON part is empty.');
-      }
-    }
-    return parts;
+    return this.lexer.tokenize(content);
   }
 
   compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
