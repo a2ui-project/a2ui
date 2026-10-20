@@ -21,7 +21,8 @@ deselects that marker, so `uv run pytest` skips them, and
 `uv run pytest -m performance` runs only them.
 
 A test asks for the `timing` fixture to write a case's payload and to compare
-the times of two calls.
+the times of two calls. This file sits in `python/`, above the test directories
+of `a2ui_core` and `a2ui_agent`, so that both suites get the fixture.
 """
 
 from __future__ import annotations
