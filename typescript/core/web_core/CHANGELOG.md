@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Rebuild resolved component properties without retaining omitted values or validation state, so removing checks re-enables an existing Button.
+- Rebuild component properties from a fresh snapshot so removing checks re-enables an existing Button, nested validation state is preserved, and callbacks during resolution cannot publish incomplete properties.
 
 ## 0.14.0
 

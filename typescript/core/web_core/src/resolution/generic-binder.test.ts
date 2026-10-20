@@ -757,6 +757,223 @@ describe('GenericBinder Checkable Trait', () => {
     }
   });
 
+  it('should preserve nested and array-item checks across resolution and replacement', async () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/allowed', false);
+    const itemSchema = z.object({
+      label: z.string(),
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    const schema = z.object({group: itemSchema, rows: z.array(itemSchema)});
+    const item = (label: string) => ({
+      label,
+      checks: [{condition: {path: '/allowed'}, message: 'Blocked'}],
+    });
+    const compModel = new ComponentModel(
+      'nested_checks',
+      'Test',
+      {group: item('Group'), rows: [item('Row')]},
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+    type CheckedItem = {
+      label: string;
+      checks?: unknown[];
+      isValid?: boolean;
+      validationErrors?: string[];
+      validationResults?: unknown[];
+    };
+    const binder = new GenericBinder<{group: CheckedItem; rows: CheckedItem[]}>(
+      new ComponentContext(surface, compModel.id),
+      schema,
+    );
+    const initialSnapshot = binder.snapshot;
+    assert.strictEqual(initialSnapshot.group.isValid, false);
+    assert.strictEqual(initialSnapshot.rows[0].isValid, false);
+    assert.deepStrictEqual(initialSnapshot.rows[0].validationErrors, ['Blocked']);
+    let notifications = 0;
+    const subscription = binder.subscribe(() => notifications++);
+
+    try {
+      assert.strictEqual(binder.snapshot.group.isValid, false);
+      assert.strictEqual(binder.snapshot.rows[0].isValid, false);
+      assert.ok(Array.isArray(binder.snapshot.rows));
+      surface.dataModel.set('/allowed', true);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(binder.snapshot.group.isValid, true);
+      assert.strictEqual(binder.snapshot.rows[0].isValid, true);
+      assert.strictEqual(initialSnapshot.group.isValid, false);
+      assert.strictEqual(initialSnapshot.rows[0].isValid, false);
+
+      compModel.properties = {group: item('Updated group'), rows: [item('Updated row')]};
+      assert.strictEqual(binder.snapshot.group.label, 'Updated group');
+      assert.strictEqual(binder.snapshot.group.isValid, true);
+      assert.strictEqual(binder.snapshot.rows[0].isValid, true);
+      surface.dataModel.set('/allowed', false);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(binder.snapshot.group.isValid, false);
+      assert.strictEqual(binder.snapshot.rows[0].isValid, false);
+      const previousSnapshot = binder.snapshot;
+      const previousValues = structuredClone(previousSnapshot);
+
+      compModel.properties = {group: {label: 'Group'}, rows: [{label: 'Row'}]};
+      assert.deepStrictEqual(binder.snapshot, {group: {label: 'Group'}, rows: [{label: 'Row'}]});
+      assert.deepStrictEqual(previousSnapshot, previousValues);
+      const notificationsAfterRemoval = notifications;
+      surface.dataModel.set('/allowed', true);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(notifications, notificationsAfterRemoval);
+      assert.deepStrictEqual(previousSnapshot, previousValues);
+    } finally {
+      subscription.unsubscribe();
+      surface.dispose();
+    }
+  });
+
+  it('should publish complete props when a function updates data during rebuilding', async () => {
+    let updateDuringResolution = false;
+    const functions: FunctionImplementation[] = [
+      {
+        name: 'updateValue',
+        returnType: 'string',
+        schema: z.object({}),
+        execute: (_args, context) => {
+          if (updateDuringResolution) {
+            updateDuringResolution = false;
+            context.set('/value', 'Changed during rebuild');
+          }
+          return 'Ready';
+        },
+      },
+    ];
+    const catalog = new Catalog('test', '0.9', [], functions);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/value', 'Initial value');
+    const schema = z.object({
+      value: CommonSchemas.DynamicString,
+      title: z.string(),
+      action: CommonSchemas.Action,
+      trigger: CommonSchemas.DynamicString,
+    });
+    const properties = {
+      value: {path: '/value'},
+      title: 'Initial title',
+      action: {event: {name: 'submit'}},
+      trigger: {call: 'updateValue'},
+    };
+    const compModel = new ComponentModel('atomic_rebuild', 'Test', properties, catalog);
+    surface.componentsModel.addComponent(compModel);
+    type Props = ResolveA2uiProps<z.infer<typeof schema>>;
+    const binder = new GenericBinder<Props>(new ComponentContext(surface, compModel.id), schema);
+    const published: Props[] = [];
+    const subscription = binder.subscribe(props => published.push(props));
+
+    try {
+      surface.dataModel.set('/value', 'Changed before rebuild');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const previousSnapshot = binder.snapshot;
+      published.length = 0;
+      updateDuringResolution = true;
+      compModel.properties = {...properties, title: 'Updated title'};
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      assert.strictEqual(published.length, 1);
+      assert.strictEqual(published[0], binder.snapshot);
+      assert.strictEqual(published[0].value, 'Changed during rebuild');
+      assert.strictEqual(published[0].title, 'Updated title');
+      assert.strictEqual(published[0].trigger, 'Ready');
+      assert.strictEqual(typeof published[0].action, 'function');
+      assert.strictEqual(published[0].action, previousSnapshot.action);
+      assert.strictEqual(typeof published[0].setValue, 'function');
+      assert.strictEqual(typeof published[0].setTrigger, 'function');
+      assert.strictEqual(previousSnapshot.value, 'Changed before rebuild');
+      assert.strictEqual(previousSnapshot.title, 'Initial title');
+    } finally {
+      subscription.unsubscribe();
+      surface.dispose();
+    }
+  });
+
+  it('should expose the previous complete snapshot while resolving a missing binding', async () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const schema = z.object({title: z.string(), value: CommonSchemas.DynamicString});
+    const compModel = new ComponentModel(
+      'warning_snapshot',
+      'Test',
+      {title: 'Initial title', value: 'Initial value'},
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+    type Props = ResolveA2uiProps<z.infer<typeof schema>>;
+    const binder = new GenericBinder<Props>(new ComponentContext(surface, compModel.id), schema);
+    const published: Props[] = [];
+    const subscription = binder.subscribe(props => published.push(props));
+    const previousSnapshot = binder.snapshot;
+    const duringWarnings: Props[] = [];
+    const warningSubscription = surface.onWarning.subscribe(warning => {
+      if (warning.path === '/missing') duringWarnings.push(binder.snapshot);
+    });
+
+    try {
+      compModel.properties = {title: 'Updated title', value: {path: '/missing'}};
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      assert.deepStrictEqual(duringWarnings, [previousSnapshot]);
+      assert.strictEqual(duringWarnings[0], previousSnapshot);
+      assert.strictEqual(published.length, 1);
+      assert.strictEqual(published[0], binder.snapshot);
+      assert.strictEqual(published[0].title, 'Updated title');
+      assert.strictEqual(published[0].value, undefined);
+      assert.strictEqual(typeof published[0].setValue, 'function');
+      assert.strictEqual(previousSnapshot.title, 'Initial title');
+      assert.strictEqual(previousSnapshot.value, 'Initial value');
+    } finally {
+      warningSubscription.unsubscribe();
+      subscription.unsubscribe();
+      surface.dispose();
+    }
+  });
+
+  it('should publish the latest replacement when a warning triggers another rebuild', async () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const schema = z.object({title: z.string(), value: CommonSchemas.DynamicString});
+    const compModel = new ComponentModel(
+      'reentrant_rebuild',
+      'Test',
+      {title: 'Initial title', value: 'Initial value'},
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+    type Props = ResolveA2uiProps<z.infer<typeof schema>>;
+    const binder = new GenericBinder<Props>(new ComponentContext(surface, compModel.id), schema);
+    const published: Props[] = [];
+    const subscription = binder.subscribe(props => published.push(props));
+    let replacedDuringWarning = false;
+    const warningSubscription = surface.onWarning.subscribe(warning => {
+      if (warning.path === '/missing' && !replacedDuringWarning) {
+        replacedDuringWarning = true;
+        compModel.properties = {title: 'Latest title', value: 'Latest value'};
+      }
+    });
+
+    try {
+      compModel.properties = {title: 'Obsolete title', value: {path: '/missing'}};
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      assert.strictEqual(replacedDuringWarning, true);
+      assert.strictEqual(published.length, 1);
+      assert.strictEqual(published[0], binder.snapshot);
+      assert.strictEqual(binder.snapshot.title, 'Latest title');
+      assert.strictEqual(binder.snapshot.value, 'Latest value');
+      assert.strictEqual(typeof binder.snapshot.setValue, 'function');
+      assert.strictEqual(compModel.properties.title, 'Latest title');
+    } finally {
+      warningSubscription.unsubscribe();
+      subscription.unsubscribe();
+      surface.dispose();
+    }
+  });
+
   it('should handle subscription, component update rebuilding, and dispose', async () => {
     const {catalog, surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', 'v1');
