@@ -93,7 +93,7 @@ UNRUNNABLE_SUITES: dict[str, str] = {
 
 # Actions that time an operation rather than check what it returns. Their cases
 # run in `test_conformance_timing`, which is marked `performance` and so runs
-# only under `uv run pytest -m performance` (see conftest.py).
+# only under `uv run pytest -m performance` (see timing_harness.py).
 TIMING_ACTIONS = {"measure_growth", "measure_overhead"}
 
 # Root core conformance directory resolution
