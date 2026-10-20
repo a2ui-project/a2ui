@@ -185,9 +185,19 @@ struct ValidatorConformanceTests {
         catalogs.append(customCatalog)
       }
 
+      let validationConfig =
+        testCase.action == "process_messages"
+        ? ValidationConfig(
+          allowOrphanComponents: true,
+          allowDanglingReferences: true,
+          allowMissingRoot: true,
+          allowUnknownElements: true,
+          targetVersion: "v1.0"
+        )
+        : ValidationConfig(targetVersion: "v1.0")
       let processor = MessageProcessor(
         catalogs: catalogs,
-        validationConfig: ValidationConfig(targetVersion: "v1.0")
+        validationConfig: validationConfig
       )
 
       for (stepIndex, step) in testCase.steps.enumerated() {

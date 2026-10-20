@@ -181,7 +181,17 @@ class SurfaceComponentsModel:
             root_id: The surface root component id.
             config: Validation settings; validation is skipped when None.
         """
+        effective_root_id = (
+            config.root_id if config and config.root_id != "root" else root_id
+        )
+        prospective_components = dict(self._components)
+        for comp_model in new_components:
+            prospective_components[comp_model.id] = comp_model
+
         if config is None:
+            validate_composition_constraints(
+                prospective_components, root_id=effective_root_id
+            )
             return
 
         seen_ids: set[str] = set()
@@ -223,15 +233,15 @@ class SurfaceComponentsModel:
                 details=all_errors,
             )
 
-        prospective_components = dict(self._components)
-        for comp_model in new_components:
-            prospective_components[comp_model.id] = comp_model
-
-        validate_composition_constraints(prospective_components)
-        validate_component_integrity(
-            prospective_components, root_id=root_id, config=config
+        validate_composition_constraints(
+            prospective_components, root_id=effective_root_id
         )
-        analyze_topology(prospective_components, root_id=root_id, config=config)
+        validate_component_integrity(
+            prospective_components, root_id=effective_root_id, config=config
+        )
+        analyze_topology(
+            prospective_components, root_id=effective_root_id, config=config
+        )
 
     def dispose(self) -> None:
         """Disposes of the model and all its components."""
