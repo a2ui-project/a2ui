@@ -21,21 +21,24 @@ import 'package:a2ui_core/a2ui_core.dart';
 class CatalogComponentDefinition {
   final ComponentApi component;
 
-  CatalogComponentDefinition(this.component);
+  /// The component's flattened schema, from
+  /// [Catalog.resolvedComponentSchemas].
+  final Map<String, dynamic> schema;
+
+  CatalogComponentDefinition(this.component, this.schema);
 
   String get name => component.name;
 
-  String? get description => component.schema.value['description'] as String?;
+  String? get description => schema['description'] as String?;
 
-  Map<String, dynamic> get rawSchema => component.schema.value;
+  Map<String, dynamic> get rawSchema => schema;
 
   Map<String, dynamic> get properties =>
-      (component.schema.value['properties'] as Map?)?.cast<String, dynamic>() ??
+      (schema['properties'] as Map?)?.cast<String, dynamic>() ??
       const <String, dynamic>{};
 
   Set<String> get requiredProperties =>
-      ((component.schema.value['required'] as List?)?.cast<String>() ??
-              const <String>[])
+      ((schema['required'] as List?)?.cast<String>() ?? const <String>[])
           .toSet();
 }
 
@@ -81,7 +84,10 @@ class CodegenCatalog {
 
   Map<String, CatalogComponentDefinition> get components => {
     for (final c in catalog.components.values)
-      c.name: CatalogComponentDefinition(c),
+      c.name: CatalogComponentDefinition(
+        c,
+        catalog.resolvedComponentSchemas[c.name]!.value,
+      ),
   };
 
   Map<String, CatalogFunctionDefinition> get functions => {

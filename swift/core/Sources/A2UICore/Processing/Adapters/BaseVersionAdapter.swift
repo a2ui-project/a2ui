@@ -414,13 +414,21 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
         if let callName = dictionary[callKey]?.stringValue ?? dictionary["call"]?.stringValue,
           !UnicodeIdentifierValidator.isValidFunctionIdentifier(callName)
         {
+          let msg: String
+          if !version.isAtLeastV10 {
+            msg = "Invalid function identifier: '\(callName)'"
+          } else if callName.hasPrefix("@") {
+            msg = "Unrecognized system function '\(callName)'"
+          } else {
+            msg = "Function name '\(callName)' must be a valid UAX #31 identifier"
+          }
           throw A2UIValidationError(
-            "Invalid function identifier: '\(callName)'",
+            msg,
             details: [
               A2UIErrorDetail(
                 path: callName,
                 code: "invalid_identifier",
-                message: "Invalid function identifier: '\(callName)'"
+                message: msg
               )
             ]
           )

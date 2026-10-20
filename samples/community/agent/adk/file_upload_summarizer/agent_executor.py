@@ -17,7 +17,7 @@ from typing import override
 from a2a.server.agent_execution import RequestContext
 from a2ui.a2a import try_activate_a2ui_extension
 from a2ui.adk import A2uiEventConverter
-from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor, A2aAgentExecutorConfig
 from google.adk.agents.invocation_context import new_invocation_context_id
@@ -29,7 +29,7 @@ from file_resolution import STATE_KEY_BASE_URL
 logger = logging.getLogger(__name__)
 
 _A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_CATALOG_KEY = "system:a2ui_catalog"
+_A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
 _A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 
 
@@ -85,7 +85,7 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
             processor = self._agent.create_processor(
                 active_ui_version, client_capabilities
             )
-            a2ui_catalog = processor.active_catalogs[0]
+            a2ui_catalogs = processor.active_catalogs
 
             examples = ""
 
@@ -97,7 +97,7 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOG_KEY: a2ui_catalog,
+                            _A2UI_CATALOGS_KEY: a2ui_catalogs,
                             _A2UI_EXAMPLES_KEY: examples,
                         }
                     ),

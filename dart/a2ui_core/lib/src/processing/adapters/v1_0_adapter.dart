@@ -72,6 +72,7 @@ class V1_0Adapter extends VersionAdapter {
       CallRendererFunctionMessage() => [
           CallRendererFunctionOp(
             version: declared,
+            surfaceId: message.surfaceId,
             functionCallId: message.functionCallId,
             callFunction: message.callFunction,
           ),

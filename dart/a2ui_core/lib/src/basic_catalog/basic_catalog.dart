@@ -12,11 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
+
 import '../core/catalog.dart';
 import '../core/validation_result.dart';
+import '../primitives/cancellation.dart';
+import '../resolution/data_context.dart';
 import 'function_support.dart';
 import 'locale_formatting.dart';
+import 'v0_9/catalog.g.dart';
 import 'v0_9/functions.dart';
+import 'v1_0/catalog.g.dart';
 import 'v1_0/functions.dart';
 
 export 'function_support.dart' show OpenUrlCallback;
@@ -24,25 +31,17 @@ export 'function_support.dart' show OpenUrlCallback;
 /// The A2UI basic catalog, with evaluable functions, for each protocol
 /// version.
 ///
-/// Each catalog carries the 18 components of the published catalog document,
-/// `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`, `Row`, `Column`, `List`,
-/// `Card`, `Tabs`, `Modal`, `Divider`, `Button`, `TextField`, `CheckBox`,
-/// `ChoicePicker`, `Slider` and `DateTimeInput`, as schema-only
-/// [ComponentApi]s read from an embedded copy of that document. Its
-/// identity (`$id`, `title`, `description`), its theme and its
-/// `protocolVersion` come from the same document; v0.9 documents declare no
-/// `protocolVersion`, so the v0.9 catalog takes `v0.9`.
+/// Each catalog is defined in code: its components, function signatures,
+/// theme and shared definitions are generated from the published catalog
+/// document (`specification/v0_9/catalogs/basic/catalog.json` and
+/// `catalogs/basic/v1/catalog.json`) by `tool/generate_basic_catalogs.dart`,
+/// so [Catalog.toJson] writes the published document.
 ///
-/// Component schemas reference the shared types the way the published
-/// document does, through `common_types.json`; the validator resolves those
-/// references against the embedded common types of the catalog's version.
-///
-/// Each catalog also carries the 14 functions of the published document,
-/// with the argument schemas and return types the document declares:
-/// the validation rules `required`, `regex`, `length`, `numeric` and
-/// `email`; the formatters `formatString`, `formatNumber`,
-/// `formatCurrency`, `formatDate` and `pluralize`; `openUrl`; and the logic
-/// functions `and`, `or` and `not`.
+/// Each catalog carries the 14 functions of the published document: the
+/// validation rules `required`, `regex`, `length`, `numeric` and `email`;
+/// the formatters `formatString`, `formatNumber`, `formatCurrency`,
+/// `formatDate` and `pluralize`; `openUrl`; and the logic functions `and`,
+/// `or` and `not`.
 ///
 /// Formatting follows the BCP 47 `locale` tag, `en-US` by default; an
 /// unknown tag falls back to `en-US`. `openUrl` passes validated URLs to
@@ -62,9 +61,12 @@ abstract final class BasicCatalog {
     String locale = defaultBasicCatalogLocale,
     OpenUrlCallback? openUrl,
   }) =>
-      _fromPublished(
-        publishedBasicCatalogV0_9(),
-        basicFunctionBodiesV0_9(locale: locale, openUrl: openUrl),
+      basicCatalogV0_9(
+        _implement(
+          v0_9Id,
+          basicFunctionSignaturesV0_9(),
+          basicFunctionBodiesV0_9(locale: locale, openUrl: openUrl),
+        ),
       );
 
   /// The v1.0 basic catalog, whose validation rules return a
@@ -73,51 +75,74 @@ abstract final class BasicCatalog {
     String locale = defaultBasicCatalogLocale,
     OpenUrlCallback? openUrl,
   }) =>
-      _fromPublished(
-        publishedBasicCatalogV1_0(),
-        basicFunctionBodiesV1_0(locale: locale, openUrl: openUrl),
+      basicCatalogV1_0(
+        _implement(
+          v1_0Id,
+          basicFunctionSignaturesV1_0(),
+          basicFunctionBodiesV1_0(locale: locale, openUrl: openUrl),
+        ),
       );
 
-  /// The [published] document's components, theme, identity and function
-  /// signatures, each function evaluated by its entry in [bodies].
+  /// Each of [signatures] evaluated by its entry in [bodies].
   ///
-  /// Throws [StateError] when the document and [bodies] do not name the same
+  /// Throws [StateError] when [signatures] and [bodies] do not name the same
   /// functions, so a change to either cannot go unnoticed.
-  static Catalog<ComponentApi, FunctionImplementation> _fromPublished(
-    CatalogApi published,
+  static List<FunctionImplementation> _implement(
+    String catalogId,
+    List<FunctionApi> signatures,
     Map<String, BasicFunctionBody> bodies,
   ) {
-    final Set<String> unimplemented =
-        published.functions.keys.toSet().difference(bodies.keys.toSet());
-    final Set<String> unpublished =
-        bodies.keys.toSet().difference(published.functions.keys.toSet());
+    final Set<String> names = {for (final s in signatures) s.name};
+    final Set<String> unimplemented = names.difference(bodies.keys.toSet());
+    final Set<String> unpublished = bodies.keys.toSet().difference(names);
     if (unimplemented.isNotEmpty || unpublished.isNotEmpty) {
       throw StateError(
-        'Basic catalog ${published.id}: functions without an implementation '
+        'Basic catalog $catalogId: functions without an implementation '
         '$unimplemented, implementations the document does not declare '
         '$unpublished.',
       );
     }
-    return Catalog(
-      id: published.id,
-      schemaId: published.schemaId,
-      title: published.title,
-      description: published.description,
-      protocolVersion: published.protocolVersion,
-      instructions: published.instructions,
-      components: published.components.values.toList(),
-      functions: [
-        for (final FunctionApi signature in published.functions.values)
-          BasicFunction(
-            name: signature.name,
-            argumentSchema: signature.argumentSchema,
-            returnType: signature.returnType,
-            allowedCallers: signature.allowedCallers,
-            requiresUserActivation: signature.requiresUserActivation,
-            body: bodies[signature.name]!,
-          ),
-      ],
-      themeSchema: published.themeSchema,
-    );
+    return [
+      for (final FunctionApi signature in signatures)
+        BasicFunction(
+          name: signature.name,
+          argumentSchema: signature.argumentSchema,
+          returnType: signature.returnType,
+          description: signature.description,
+          allowedCallers: signature.declaredAllowedCallers,
+          requiresUserActivation: signature.declaredRequiresUserActivation,
+          body: bodies[signature.name]!,
+        ),
+    ];
   }
+}
+
+/// The basic catalog's `formatString` function on its own, for catalogs that
+/// want template interpolation without the rest of the basic catalog.
+///
+/// Delegates to the same implementation as [BasicCatalog]: a non-string
+/// `value` is coerced to text, and on a v1.0 context the template's bindings
+/// and calls resolve in their `@path`/`@call` form.
+class FormatStringFunction extends FunctionImplementation {
+  FormatStringFunction()
+      : super(
+          name: 'formatString',
+          returnType: A2uiReturnType.string,
+          argumentSchema: Schema.object(
+            properties: {
+              'value': Schema.string(
+                description: 'The string template to interpolate.',
+              ),
+            },
+            required: ['value'],
+          ),
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      formatTemplate(args['value'], context);
 }

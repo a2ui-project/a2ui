@@ -41,7 +41,7 @@
     "build": {
       "command": "tsc -b && vite build",
       "dependencies": [
-        "../../../../renderers/react:build"
+        "../../../../typescript/renderers/react:build"
       ],
       "files": [
         "src/**/*",

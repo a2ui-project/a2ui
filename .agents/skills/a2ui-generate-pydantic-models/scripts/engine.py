@@ -168,6 +168,44 @@ class PydanticCodegen:
         self.spec_fidelity = False
         # The `a2ui.core.schema._json_schema` helpers the generated code uses.
         self.used_helpers: set[str] = set()
+        # When set, the models keep what a catalog document without common
+        # types (v0.8) says about its nested objects, so the catalog can
+        # rebuild the document from them: descriptions keep their line breaks
+        # and stay on the fields rather than becoming docstrings of the shared
+        # nested object models, and two nested objects of different shapes
+        # never share a model.
+        self.document_fidelity = False
+        # The name that prefixes a nested object model whose name another
+        # shape already took, under `document_fidelity`. Generators set it to
+        # the component or model whose properties they compile.
+        self.name_context = ""
+
+    def _register_inline_object(self, class_name: str, prop: dict[str, Any]) -> str:
+        """Registers a nested object model and returns its class name.
+
+        Under `document_fidelity`, a name that a nested object of another
+        shape already took is prefixed with `name_context`, so each model
+        keeps its own properties. Shapes are compared without the object's
+        own description, which the fields carry.
+        """
+        if not self.document_fidelity:
+            self.inline_objects[class_name] = prop
+            return class_name
+        shape = {k: v for k, v in prop.items() if k != "description"}
+        candidate = class_name
+        while candidate in self.inline_objects:
+            existing = self.inline_objects[candidate]
+            if {k: v for k, v in existing.items() if k != "description"} == shape:
+                return candidate
+            prefix = to_pascal_case(self.name_context) if self.name_context else ""
+            if not prefix or candidate.startswith(prefix):
+                raise ValueError(
+                    f"Cannot name the nested object {class_name} of"
+                    f" {self.name_context or 'a model'} uniquely: {prop}"
+                )
+            candidate = f"{prefix}{candidate}"
+        self.inline_objects[candidate] = shape
+        return candidate
 
     def _unsupported(self, prop_name: str, prop: dict[str, Any]) -> ValueError:
         return ValueError(f"Unsupported schema for {prop_name or 'a type'}: {prop}")
@@ -343,8 +381,7 @@ class PydanticCodegen:
                 else:
                     first_prop = list(prop["properties"].keys())[0]
                     class_name = f"{to_pascal_case(first_prop)}Item"
-                self.inline_objects[class_name] = prop
-                return class_name
+                return self._register_inline_object(class_name, prop)
             if self.strict and (
                 "properties" in prop or "required" in prop or add_props is False
             ):
@@ -384,7 +421,7 @@ class PydanticCodegen:
                     # A type-level constraint also applies to an optional field.
                     py_type = f"Annotated[{py_type}, Field({', '.join(constraints)})]"
             raw_desc = prop_desc.get("description", "")
-            if not self.spec_fidelity:
+            if not (self.spec_fidelity or self.document_fidelity):
                 raw_desc = raw_desc.replace("\n", " ")
 
             field_opts = []

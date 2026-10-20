@@ -1,0 +1,1034 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
+      "type": "string"
+    },
+    "anyComponent": {
+      "discriminator": {
+        "propertyName": "component"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/Image"
+        },
+        {
+          "$ref": "#/components/Icon"
+        },
+        {
+          "$ref": "#/components/Video"
+        },
+        {
+          "$ref": "#/components/AudioPlayer"
+        },
+        {
+          "$ref": "#/components/Row"
+        },
+        {
+          "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/List"
+        },
+        {
+          "$ref": "#/components/Card"
+        },
+        {
+          "$ref": "#/components/Tabs"
+        },
+        {
+          "$ref": "#/components/Divider"
+        },
+        {
+          "$ref": "#/components/Modal"
+        },
+        {
+          "$ref": "#/components/Button"
+        },
+        {
+          "$ref": "#/components/CheckBox"
+        },
+        {
+          "$ref": "#/components/TextField"
+        },
+        {
+          "$ref": "#/components/DateTimeInput"
+        },
+        {
+          "$ref": "#/components/MultipleChoice"
+        },
+        {
+          "$ref": "#/components/Slider"
+        }
+      ]
+    },
+    "theme": {
+      "properties": {
+        "font": {
+          "description": "The primary font for the UI.",
+          "type": "string"
+        },
+        "primaryColor": {
+          "description": "The primary UI color as a hexadecimal code (e.g., '#00BFFF').",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/specification/v0_8/standard_catalog_definition.json",
+  "components": {
+    "AudioPlayer": {
+      "properties": {
+        "component": {
+          "const": "AudioPlayer"
+        },
+        "description": {
+          "additionalProperties": false,
+          "description": "A description of the audio, such as a title or summary. This can be a literal string or a reference to a value in the data model ('path', e.g. '/song/title').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "url": {
+          "additionalProperties": false,
+          "description": "The URL of the audio to be played. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/song/url').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Button": {
+      "properties": {
+        "action": {
+          "additionalProperties": false,
+          "description": "The client-side action to be dispatched when the button is clicked. It includes the action's name and an optional context payload.",
+          "properties": {
+            "context": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "additionalProperties": false,
+                    "description": "Defines the value to be included in the context as either a literal value or a path to a data model value (e.g. '/user/name').",
+                    "properties": {
+                      "literalBoolean": {
+                        "type": "boolean"
+                      },
+                      "literalNumber": {
+                        "type": "number"
+                      },
+                      "literalString": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "child": {
+          "description": "The ID of the component to display in the button, typically a Text component.",
+          "type": "string"
+        },
+        "component": {
+          "const": "Button"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "primary": {
+          "description": "Indicates if this button should be styled as the primary action.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "child",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Card": {
+      "properties": {
+        "child": {
+          "description": "The ID of the component to be rendered inside the card.",
+          "type": "string"
+        },
+        "component": {
+          "const": "Card"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        }
+      },
+      "required": [
+        "id",
+        "child",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "CheckBox": {
+      "properties": {
+        "component": {
+          "const": "CheckBox"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "additionalProperties": false,
+          "description": "The text to display next to the checkbox. Defines the value as either a literal value or a path to data model ('path', e.g. '/option/label').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "value": {
+          "additionalProperties": false,
+          "description": "The current state of the checkbox (true for checked, false for unchecked). This can be a literal boolean ('literalBoolean') or a reference to a value in the data model ('path', e.g. '/filter/open').",
+          "properties": {
+            "literalBoolean": {
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "value",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Column": {
+      "properties": {
+        "alignment": {
+          "description": "Defines the alignment of children along the cross axis (horizontally). This corresponds to the CSS 'align-items' property.",
+          "enum": [
+            "center",
+            "end",
+            "start",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "children": {
+          "additionalProperties": false,
+          "description": "Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list.",
+          "properties": {
+            "explicitList": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "template": {
+              "additionalProperties": false,
+              "description": "A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.",
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "dataBinding": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "componentId",
+                "dataBinding"
+              ],
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "component": {
+          "const": "Column"
+        },
+        "distribution": {
+          "description": "Defines the arrangement of children along the main axis (vertically). This corresponds to the CSS 'justify-content' property.",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        }
+      },
+      "required": [
+        "id",
+        "children",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "DateTimeInput": {
+      "properties": {
+        "component": {
+          "const": "DateTimeInput"
+        },
+        "enableDate": {
+          "description": "If true, allows the user to select a date.",
+          "type": "boolean"
+        },
+        "enableTime": {
+          "description": "If true, allows the user to select a time.",
+          "type": "boolean"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "value": {
+          "additionalProperties": false,
+          "description": "The selected date and/or time value in ISO 8601 format. This can be a literal string ('literalString') or a reference to a value in the data model ('path', e.g. '/user/dob').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "value",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Divider": {
+      "properties": {
+        "axis": {
+          "description": "The orientation of the divider.",
+          "enum": [
+            "horizontal",
+            "vertical"
+          ],
+          "type": "string"
+        },
+        "component": {
+          "const": "Divider"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        }
+      },
+      "required": [
+        "id",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Icon": {
+      "properties": {
+        "component": {
+          "const": "Icon"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "name": {
+          "additionalProperties": false,
+          "description": "The name of the icon to display. This can be a literal string or a reference to a value in the data model ('path', e.g. '/form/submit').",
+          "properties": {
+            "literalString": {
+              "enum": [
+                "accountCircle",
+                "add",
+                "arrowBack",
+                "arrowForward",
+                "attachFile",
+                "calendarToday",
+                "call",
+                "camera",
+                "check",
+                "close",
+                "delete",
+                "download",
+                "edit",
+                "event",
+                "error",
+                "favorite",
+                "favoriteOff",
+                "folder",
+                "help",
+                "home",
+                "info",
+                "locationOn",
+                "lock",
+                "lockOpen",
+                "mail",
+                "menu",
+                "moreVert",
+                "moreHoriz",
+                "notificationsOff",
+                "notifications",
+                "payment",
+                "person",
+                "phone",
+                "photo",
+                "print",
+                "refresh",
+                "search",
+                "send",
+                "settings",
+                "share",
+                "shoppingCart",
+                "star",
+                "starHalf",
+                "starOff",
+                "upload",
+                "visibility",
+                "visibilityOff",
+                "warning"
+              ],
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Image": {
+      "properties": {
+        "altText": {
+          "additionalProperties": false,
+          "description": "The alt text for the image. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/thumbnail/altText').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "component": {
+          "const": "Image"
+        },
+        "fit": {
+          "description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
+          "enum": [
+            "contain",
+            "cover",
+            "fill",
+            "none",
+            "scale-down"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "url": {
+          "additionalProperties": false,
+          "description": "The URL of the image to display. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/thumbnail/url').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "usageHint": {
+          "description": "A hint for the image size and style. One of:\n- `icon`: Small square icon.\n- `avatar`: Circular avatar image.\n- `smallFeature`: Small feature image.\n- `mediumFeature`: Medium feature image.\n- `largeFeature`: Large feature image.\n- `header`: Full-width, full bleed, header image.",
+          "enum": [
+            "icon",
+            "avatar",
+            "smallFeature",
+            "mediumFeature",
+            "largeFeature",
+            "header"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "List": {
+      "properties": {
+        "alignment": {
+          "description": "Defines the alignment of children along the cross axis.",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "children": {
+          "additionalProperties": false,
+          "description": "Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list.",
+          "properties": {
+            "explicitList": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "template": {
+              "additionalProperties": false,
+              "description": "A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.",
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "dataBinding": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "componentId",
+                "dataBinding"
+              ],
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "component": {
+          "const": "List"
+        },
+        "direction": {
+          "description": "The direction in which the list items are laid out.",
+          "enum": [
+            "vertical",
+            "horizontal"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        }
+      },
+      "required": [
+        "id",
+        "children",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Modal": {
+      "properties": {
+        "component": {
+          "const": "Modal"
+        },
+        "contentChild": {
+          "description": "The ID of the component to be displayed inside the modal.",
+          "type": "string"
+        },
+        "entryPointChild": {
+          "description": "The ID of the component that opens the modal when interacted with (e.g., a button).",
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        }
+      },
+      "required": [
+        "id",
+        "contentChild",
+        "entryPointChild",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "MultipleChoice": {
+      "properties": {
+        "component": {
+          "const": "MultipleChoice"
+        },
+        "filterable": {
+          "description": "If true, displays a search input to filter the options.",
+          "type": "boolean"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "maxAllowedSelections": {
+          "description": "The maximum number of options that the user is allowed to select.",
+          "type": "integer"
+        },
+        "options": {
+          "description": "An array of available options for the user to choose from.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "additionalProperties": false,
+                "description": "The text to display for this option. This can be a literal string or a reference to a value in the data model (e.g. '/option/label').",
+                "properties": {
+                  "literalString": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "value": {
+                "description": "The value to be associated with this option when selected.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "selections": {
+          "additionalProperties": false,
+          "description": "The currently selected values for the component. This can be a literal array of strings or a path to an array in the data model('path', e.g. '/hotel/options').",
+          "properties": {
+            "literalArray": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "variant": {
+          "description": "The display style of the component.",
+          "enum": [
+            "checkbox",
+            "chips"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "options",
+        "selections",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Row": {
+      "properties": {
+        "alignment": {
+          "description": "Defines the alignment of children along the cross axis (vertically). This corresponds to the CSS 'align-items' property.",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "children": {
+          "additionalProperties": false,
+          "description": "Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list.",
+          "properties": {
+            "explicitList": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "template": {
+              "additionalProperties": false,
+              "description": "A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.",
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "dataBinding": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "componentId",
+                "dataBinding"
+              ],
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "component": {
+          "const": "Row"
+        },
+        "distribution": {
+          "description": "Defines the arrangement of children along the main axis (horizontally). This corresponds to the CSS 'justify-content' property.",
+          "enum": [
+            "center",
+            "end",
+            "spaceAround",
+            "spaceBetween",
+            "spaceEvenly",
+            "start"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        }
+      },
+      "required": [
+        "id",
+        "children",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Slider": {
+      "properties": {
+        "component": {
+          "const": "Slider"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "additionalProperties": false,
+          "description": "The label for the slider. This can be a literal string or a reference to a value in the data model ('path').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "maxValue": {
+          "description": "The maximum value of the slider.",
+          "type": "number"
+        },
+        "minValue": {
+          "description": "The minimum value of the slider.",
+          "type": "number"
+        },
+        "value": {
+          "additionalProperties": false,
+          "description": "The current value of the slider. This can be a literal number ('literalNumber') or a reference to a value in the data model ('path', e.g. '/restaurant/cost').",
+          "properties": {
+            "literalNumber": {
+              "type": "number"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "value",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Tabs": {
+      "properties": {
+        "component": {
+          "const": "Tabs"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "tabItems": {
+          "description": "An array of objects, where each object defines a tab with a title and a child component.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "child": {
+                "type": "string"
+              },
+              "title": {
+                "additionalProperties": false,
+                "description": "The tab title. Defines the value as either a literal value or a path to data model value (e.g. '/options/title').",
+                "properties": {
+                  "literalString": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "title",
+              "child"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "tabItems",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Text": {
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "text": {
+          "additionalProperties": false,
+          "description": "The text content to display. This can be a literal string or a reference to a value in the data model ('path', e.g., '/doc/title'). While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "usageHint": {
+          "description": "A hint for the base text style. One of:\n- `h1`: Largest heading.\n- `h2`: Second largest heading.\n- `h3`: Third largest heading.\n- `h4`: Fourth largest heading.\n- `h5`: Fifth largest heading.\n- `caption`: Small text for captions.\n- `body`: Standard body text.",
+          "enum": [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "caption",
+            "body"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "TextField": {
+      "properties": {
+        "component": {
+          "const": "TextField"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "additionalProperties": false,
+          "description": "The text label for the input field. This can be a literal string or a reference to a value in the data model ('path, e.g. '/user/name').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "text": {
+          "additionalProperties": false,
+          "description": "The value of the text field. This can be a literal string or a reference to a value in the data model ('path', e.g. '/user/name').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "textFieldType": {
+          "description": "The type of input field to display.",
+          "enum": [
+            "date",
+            "longText",
+            "number",
+            "shortText",
+            "obscured"
+          ],
+          "type": "string"
+        },
+        "validationRegexp": {
+          "description": "A regular expression used for client-side validation of the input.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Video": {
+      "properties": {
+        "component": {
+          "const": "Video"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "url": {
+          "additionalProperties": false,
+          "description": "The URL of the video to display. This can be a literal string or a reference to a value in the data model ('path', e.g. '/video/url').",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    }
+  }
+}

@@ -1,0 +1,118 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import * as assert from 'node:assert';
+import {describe, it, beforeEach} from 'node:test';
+import {Catalog} from '../catalog/types.js';
+import {ComponentModel} from './component-model.js';
+
+describe('ComponentModel', () => {
+  let component: ComponentModel;
+  const defaultCatalog = new Catalog('default', '1.0', []);
+
+  beforeEach(() => {
+    component = new ComponentModel('c1', 'Button', {label: 'Click Me'}, defaultCatalog);
+  });
+
+  it('initializes properties', () => {
+    assert.strictEqual(component.id, 'c1');
+    assert.strictEqual(component.type, 'Button');
+    assert.strictEqual(component.properties.label, 'Click Me');
+  });
+
+  it('updates properties', () => {
+    component.properties = {label: 'Clicked'};
+    assert.strictEqual(component.properties.label, 'Clicked');
+  });
+
+  it('notifies listeners on update', () => {
+    let updatedComponent: ComponentModel | undefined;
+
+    component.onUpdated.subscribe((c: ComponentModel) => {
+      updatedComponent = c;
+    });
+
+    component.properties = {label: 'New'};
+
+    assert.strictEqual(updatedComponent, component);
+    assert.strictEqual(updatedComponent?.properties.label, 'New');
+  });
+
+  it('unsubscribes listeners', () => {
+    let callCount = 0;
+
+    const sub = component.onUpdated.subscribe(() => {
+      callCount++;
+    });
+
+    component.properties = {label: '1'};
+    assert.strictEqual(callCount, 1);
+
+    sub.unsubscribe();
+    component.properties = {label: '2'};
+    assert.strictEqual(callCount, 1);
+  });
+
+  it('returns component tree representation', () => {
+    const tree = component.componentTree;
+    assert.deepStrictEqual(tree, {
+      id: 'c1',
+      component: 'Button',
+      label: 'Click Me',
+    });
+  });
+
+  it('keeps a property named type apart from the component type in the tree', () => {
+    const chart = new ComponentModel(
+      'chart1',
+      'Chart',
+      {type: 'pie', title: 'Sales'},
+      defaultCatalog,
+    );
+    assert.deepStrictEqual(chart.componentTree, {
+      id: 'chart1',
+      component: 'Chart',
+      type: 'pie',
+      title: 'Sales',
+    });
+  });
+
+  it('keeps the component metadata over a property named metadata in the tree', () => {
+    const chart = new ComponentModel(
+      'chart1',
+      'Chart',
+      {metadata: 'prop', title: 'Sales'},
+      defaultCatalog,
+      {owner: 'agent'},
+    );
+    assert.deepStrictEqual(chart.componentTree, {
+      id: 'chart1',
+      component: 'Chart',
+      metadata: {owner: 'agent'},
+      title: 'Sales',
+    });
+  });
+
+  it('stores and exposes a Catalog reference', () => {
+    assert.strictEqual(component.catalog, defaultCatalog);
+    assert.strictEqual(component.catalog.id, 'default');
+
+    const testCatalog = new Catalog('custom-cat', '1.0', []);
+    const customComp = new ComponentModel('c2', 'Card', {title: 'Hello'}, testCatalog);
+    assert.strictEqual(customComp.catalog, testCatalog);
+    assert.strictEqual(customComp.catalog.id, 'custom-cat');
+  });
+});

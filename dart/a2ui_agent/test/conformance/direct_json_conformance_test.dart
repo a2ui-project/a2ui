@@ -19,16 +19,18 @@ import 'package:test/test.dart';
 import 'suites.dart';
 
 /// Runs the shared `conformance/agent/direct_json/` suites against the direct
-/// JSON format.
+/// JSON format, in each [SuiteVersion].
 ///
-/// The suites are written against v1.0, and this SDK reads and writes v0.9,
-/// so the harness lowers each payload before the parser reads it and lifts
-/// what the parser returns, as `suites.dart` describes. The direct JSON
-/// suites write each message on its own, so nothing is joined. A case whose
-/// catalog declares v1.0 runs with `bufferIncompleteComponents` on, as a
-/// v1.0 agent configures it. A streaming case whose catalog declares v0.9
-/// already speaks this SDK's version and runs as written, and one whose
+/// Lowered to v0.9, the harness lowers each payload before the parser reads
+/// it and lifts what the parser returns, as `suites.dart` describes. The
+/// direct JSON suites write each message on its own, so nothing is joined. A
+/// case whose catalog declares v1.0 runs with `bufferIncompleteComponents`
+/// on, so that a v0.9 parser holds components back as a v1.0 parser always
+/// does. A streaming case whose catalog declares
+/// v0.9 already speaks that version and runs as written, and one whose
 /// catalog declares v0.8 is skipped, since this SDK does not implement it.
+///
+/// As written in v1.0, only the cases whose catalogs target v1.0 run.
 void main() {
   for (final suite in [
     'compiler',
@@ -38,17 +40,20 @@ void main() {
     'response_streaming',
   ]) {
     final path = 'agent/direct_json/$suite.yaml';
-    group('conformance $path', () {
-      final List<Map<String, Object?>> cases = loadSuite(path);
-      test('suite is not empty', () => expect(cases, isNotEmpty));
-      for (final testCase in cases) {
-        test(
-          testCase['name']! as String,
-          () => _runCase(testCase),
-          skip: _skipReason(testCase),
-        );
-      }
-    });
+    for (final SuiteVersion version in SuiteVersion.values) {
+      group('conformance $path ${version.label}', () {
+        final List<Map<String, Object?>> cases = loadSuite(path);
+        test('suite is not empty', () => expect(cases, isNotEmpty));
+        for (final testCase in cases) {
+          if (version == SuiteVersion.v1_0 && !_targetsV1(testCase)) continue;
+          test(
+            testCase['name']! as String,
+            () => _runCase(testCase, version),
+            skip: _skipReason(testCase, version),
+          );
+        }
+      });
+    }
   }
 }
 
@@ -63,77 +68,72 @@ const Set<String> _v1OnlyStreamingCases = {
   'test_stream_catalog_id_split_across_chunks_v10',
 };
 
-/// Streaming cases this SDK does not pass yet, each with the behavior it
-/// lacks.
-const Map<String, String> _knownStreamingGaps = {
-  'test_stream_incremental_yielding_v09': _createHeld,
-  'test_stream_create_surface_held_until_closed_v09': _createHeld,
-  'test_stream_orphan_component_fails_v09': _treeChecked,
-  'test_stream_circular_reference_fails_v09': _treeChecked,
-  'test_stream_self_reference_fails_v09': _treeChecked,
-  'test_stream_update_before_create_surface_fails_v09': _surfaceFirst,
-  'test_stream_data_model_before_create_surface_fails_v09': _surfaceFirst,
-  'test_stream_component_without_catalog_uses_surface_catalog_v10':
-      _invalidComponentWithheld,
-  'test_stream_cut_surrogate_pair_v09':
-      'Known gap: a string cut inside an escaped surrogate pair is healed '
-      'with U+FFFD rather than cut before the pair.',
+/// Shared streaming cases that #3269 changes to hold back a message for a
+/// surface that does not exist yet, as this stream does. They stay as main
+/// has them until #3269 lands, since the Python and TypeScript SDKs on main
+/// still emit the message, and are skipped here until then.
+const Set<String> _casesPendingSharedUpdate = {
+  'test_stream_update_before_create_surface_fails_v09',
+  'test_stream_data_model_before_create_surface_fails_v09',
 };
 
-const String _createHeld =
-    'Known gap: a createSurface is emitted before its object closes, so it '
-    'is emitted again as it grows.';
-const String _treeChecked =
-    'Known gap: a streamed tree is not checked for orphans and cycles when '
-    'the block closes.';
-const String _surfaceFirst =
-    'Known gap: a message for a surface the block has not created yet is '
-    'not rejected when the block closes.';
-const String _invalidComponentWithheld =
-    'Known gap: an invalid component is withheld until the block closes '
-    'rather than raising on the chunk that closes it.';
+/// Whether the catalogs of [testCase] target v1.0, as most cases' do.
+bool _targetsV1(Map<String, Object?> testCase) =>
+    switch (caseCatalogVersion(testCase['args']! as Map<String, Object?>)) {
+      null || '1.0' => true,
+      _ => false,
+    };
 
-/// Why a case is skipped, or null when it runs.
-String? _skipReason(Map<String, Object?> testCase) {
+/// Why a case is skipped in [version], or null when it runs.
+String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   if (caseCatalogVersion(args) == '0.8') {
     return 'This SDK does not implement v0.8.';
   }
-  if (_v1OnlyStreamingCases.contains(testCase['name'])) {
-    return 'This SDK implements v0.9, which cannot state what the case '
-        'streams.';
+  if (_casesPendingSharedUpdate.contains(testCase['name'])) {
+    return 'The shared case still expects the message emitted; #3269 '
+        'updates it.';
   }
-  return _knownStreamingGaps[testCase['name']];
+  if (version == SuiteVersion.v0_9) {
+    if (_v1OnlyStreamingCases.contains(testCase['name'])) {
+      return 'v0.9 cannot state what the case streams.';
+    }
+    if (testCase['action'] == 'generate_prompt_snippet') {
+      return 'The snippet embeds the schemas of the catalogs\' version, so '
+          'the case runs as written in v1.0 only.';
+    }
+  }
+  return null;
 }
 
-void _runCase(Map<String, Object?> testCase) {
+void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
   switch (testCase['action']) {
     case 'parse_chunk':
-      _runChunks(testCase);
+      _runChunks(testCase, version);
       return;
   }
   final Object? error = testCase['expect_error'];
   if (error != null) {
-    expect(() => _perform(testCase), throwsCategory(error));
+    expectThrowsCategory(() => _perform(testCase, version), error);
     return;
   }
-  final Object? result = _perform(testCase);
+  final Object? result = _perform(testCase, version);
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
       expectSnippet(result! as String, testCase);
       if (testCase['expect_deterministic'] == true) {
-        expect(_perform(testCase), result);
+        expect(_perform(testCase, version), result);
       }
     case 'wrap':
-      _checkWrapped(testCase, result! as String);
+      _checkWrapped(testCase, version, result! as String);
     case 'decompile':
-      _checkDecompiled(testCase, result! as String);
+      _checkDecompiled(testCase, version, result! as String);
     default:
       expect(result, withoutFinalFlags(testCase['expect']));
   }
 }
 
-InferenceFormat _format(Map<String, Object?> testCase) {
+InferenceFormat _format(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   return DirectJsonFormatFactory(
     allowedMessages: (args['allowed_messages'] as List<Object?>?)
@@ -143,22 +143,22 @@ InferenceFormat _format(Map<String, Object?> testCase) {
     },
     bufferIncompleteComponents: caseDeclaresV1(args),
   ).createFormat(
-    caseCatalogs(args),
+    version.catalogs(args),
     examples: [
       for (final Object? path in args['examples'] as List<Object?>? ?? const [])
-        loadExample(path! as String),
+        version.example(path! as String),
     ],
   );
 }
 
 /// Performs the call a case names, with its result in the suite's
 /// vocabulary.
-Object? _perform(Map<String, Object?> testCase) {
+Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
-  final InferenceFormat format = _format(testCase);
-  final String? catalogId = injectedCatalogId(testCase);
+  final InferenceFormat format = _format(testCase, version);
+  final String? catalogId = version.injectedCatalog(testCase);
   final String? input = switch (testCase['input']) {
-    final String text => lowerText(text, catalogId: catalogId),
+    final String text => version.text(text, catalogId: catalogId),
     _ => null,
   };
   switch (testCase['action']) {
@@ -177,16 +177,16 @@ Object? _perform(Map<String, Object?> testCase) {
           rawPartJson(part),
       ];
     case 'compile':
-      return liftMessages(
-        format.createParser().compile(input!),
+      return version.messagesJson(
+        compileChecked(format.createParser(), input!),
         injectedCatalogId: catalogId,
       );
     case 'decompile':
       return format.createParser().decompile(
-        lowerMessages(testCase['messages']! as List<Object?>),
+        version.messages(testCase['messages']! as List<Object?>),
       );
     case 'parse_response':
-      return liftParts(
+      return version.partsJson(
         format.createParser().parseResponse(
           input!,
           wrapped: args['wrapped'] as bool? ?? true,
@@ -198,51 +198,53 @@ Object? _perform(Map<String, Object?> testCase) {
   }
 }
 
-/// Feeds the steps of a `parse_chunk` case to one parser, checking what each
-/// yields, and then the whole response to another parser in one call when
-/// the case asks.
+/// Feeds the steps of a `parse_chunk` case to one stream, checking what each
+/// yields and that closing the stream yields nothing more, and then the whole
+/// response to a new parser in one call when the case asks.
 ///
-/// A case whose catalog declares v0.9 is written in this SDK's version, so
-/// its chunks and what the parser yields are compared as they are, without
+/// A case whose catalog declares v0.9 is written in that version, so its
+/// chunks and what the stream yields are compared as they are, without
 /// lowering or lifting.
-void _runChunks(Map<String, Object?> testCase) {
+void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   final bool wrapped = args['wrapped'] as bool? ?? true;
-  final asWritten = caseCatalogVersion(args) == '0.9';
-  final String? catalogId = asWritten ? null : injectedCatalogId(testCase);
-  List<Object?> lift(List<ResponsePart> parts) => asWritten
-      ? _partsAsWritten(parts)
-      : liftParts(parts, injectedCatalogId: catalogId);
-  final Parser parser = _format(testCase).createParser();
+  final SuiteVersion written = caseCatalogVersion(args) == '0.9'
+      ? SuiteVersion.v1_0
+      : version;
+  final String? catalogId = written.injectedCatalog(testCase);
+  List<Object?> lift(List<ResponsePart> parts) =>
+      written.partsJson(parts, injectedCatalogId: catalogId);
+  final ResponseStream stream = _format(
+    testCase,
+    version,
+  ).createParser().openStream(wrapped: wrapped);
   final chunks = <String>[];
   final yielded = <Object?>[];
   for (final (int i, Object? step)
       in (testCase['steps']! as List<Object?>).indexed) {
     final stepCase = step! as Map<String, Object?>;
-    final input = stepCase['input']! as String;
-    final String chunk = asWritten
-        ? input
-        : lowerText(input, catalogId: catalogId);
+    final String chunk = written.text(
+      stepCase['input']! as String,
+      catalogId: catalogId,
+    );
     chunks.add(chunk);
     if (stepCase['expect_error'] case final Object error) {
-      expect(
-        () => parser.parseChunk(chunk, wrapped: wrapped),
-        throwsCategory(error),
-        reason: 'step $i',
-      );
+      expectThrowsCategory(() => stream.feed(chunk), error, reason: 'step $i');
       return;
     }
-    final List<Object?> parts = lift(
-      parser.parseChunk(chunk, wrapped: wrapped),
-    );
+    final List<Object?> parts = lift(stream.feed(chunk));
     expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
     yielded.addAll(parts);
   }
+  // Every case ends on a complete response, so closing the stream emits
+  // nothing more and throws nothing.
+  expect(stream.close(), isEmpty);
   if (testCase['expect_matches_single_shot'] == true) {
     expect(
       lift(
         _format(
           testCase,
+          version,
         ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
       ),
       yielded,
@@ -250,33 +252,11 @@ void _runChunks(Map<String, Object?> testCase) {
   }
 }
 
-/// [parts] in the vocabulary of the suites, with messages as this SDK writes
-/// them, less the `sendDataModel: false` a v0.9 `createSurface` states.
-List<Object?> _partsAsWritten(List<ResponsePart> parts) => [
-  for (final ResponsePart part in parts)
-    switch (part) {
-      TextPart(:final String text) => {'text': text},
-      A2uiPart(:final List<AgentToRendererMessage> a2ui) => {
-        'a2ui': [
-          for (final AgentToRendererMessage message in a2ui)
-            {
-              for (final MapEntry<String, Object?> entry
-                  in message.toJson().entries)
-                entry.key: switch (entry.value) {
-                  final Map<String, Object?> body
-                      when entry.key == 'createSurface' =>
-                    {...body}..removeWhere(
-                      (key, value) => key == 'sendDataModel' && value == false,
-                    ),
-                  final Object? value => value,
-                },
-            },
-        ],
-      },
-    },
-];
-
-void _checkWrapped(Map<String, Object?> testCase, String output) {
+void _checkWrapped(
+  Map<String, Object?> testCase,
+  SuiteVersion version,
+  String output,
+) {
   if (testCase['expect_output'] case final String expected) {
     expect(output, expected);
   }
@@ -288,23 +268,29 @@ void _checkWrapped(Map<String, Object?> testCase, String output) {
     expect([
       for (final RawResponsePart part in _format(
         testCase,
+        version,
       ).createParser().unwrap(output))
         rawPartJson(part),
     ], withoutFinalFlags(testCase['parts']));
   }
 }
 
-void _checkDecompiled(Map<String, Object?> testCase, String output) {
+void _checkDecompiled(
+  Map<String, Object?> testCase,
+  SuiteVersion version,
+  String output,
+) {
   for (final Object? text
       in (testCase['expect_contains'] as List<Object?>?) ?? const []) {
     expect(output, contains(text));
   }
   if (testCase['expect_round_trip'] == true) {
-    final List<AgentToRendererMessage> recompiled = _format(
-      testCase,
-    ).createParser().compile(output);
+    final List<AgentToRendererMessage> recompiled = compileChecked(
+      _format(testCase, version).createParser(),
+      output,
+    );
     expect(
-      liftMessages(recompiled),
+      version.messagesJson(recompiled),
       testCase['messages'],
       reason: 'JSON written:\n$output',
     );

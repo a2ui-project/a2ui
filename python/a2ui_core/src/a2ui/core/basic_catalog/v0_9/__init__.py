@@ -99,7 +99,15 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             protocol_version=PROTOCOL_VERSION,
             components=BASIC_COMPONENTS,
             functions=create_basic_catalog_functions(locale=locale),
-            theme_schema=Theme.model_json_schema(),
+            theme_model=Theme,
+            schema_dialect="https://json-schema.org/draft/2020-12/schema",
+            schema_id="https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            title="A2UI Basic Catalog",
+            description="Unified catalog of basic A2UI components and functions.",
+            declared_protocol_version=None,
+            common_types_uri="https://a2ui.org/specification/v0_9/common_types.json",
+            theme_location="$defs",
+            union_defs={"anyComponent": None, "anyFunction": None},
         )
 
 

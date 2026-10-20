@@ -63,8 +63,8 @@ public enum InternalOperation: Sendable, Equatable {
       return op.surfaceID
     case .deleteSurface(let op):
       return op.surfaceID
-    case .callRendererFunction:
-      return nil
+    case .callRendererFunction(let op):
+      return op.surfaceID
     case .agentFunctionResponse:
       return nil
     }

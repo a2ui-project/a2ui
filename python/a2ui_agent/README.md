@@ -14,9 +14,13 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`catalog_config.py`**: Defines `CatalogConfig`, which binds a `Catalog` (or loads one from a path via `CatalogConfig.from_path`) with an optional sequence of `CatalogTransformer` instances into `transformed_catalog`.
 - **`catalog_providers.py`**: Defines `CatalogProvider`, `FileSystemCatalogProvider`, and `InMemoryCatalogProvider` for loading catalogs.
 
-### Schema & Examples (`src/a2ui/schema`)
+### Constants (`src/a2ui/constants.py`)
 
-- **`catalog.py`**: Defines `load_examples`, which reads few-shot examples from disk and can validate them against the active catalogs.
+- Protocol and SDK string constants such as `A2UI_OPEN_TAG`,
+  `A2UI_CLOSE_TAG` and `A2UI_CLIENT_CAPABILITIES_KEY`. Protocol versions are
+  `a2ui.core.schema.ProtocolVersion` members. The
+  module has no dependencies, so callers that only need a constant can import
+  `a2ui.constants` without loading the rest of the SDK.
 
 ### Catalog transformers (`src/a2ui/catalog_transformers`)
 
@@ -29,6 +33,13 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 - **`catalog_resolver.py`**: `resolve_catalogs` returns the catalogs that are
   active for the capabilities that a renderer sent.
+- **`examples.py`**: `load_examples` reads few-shot examples from a directory
+  or glob pattern and can validate them against the active catalogs.
+- **`schemas.py`**: `load_agent_to_renderer_schema` and
+  `load_common_types_schema` return the protocol JSON schemas for a version.
+- **`versions.py`**: `to_version_number` returns a protocol version without
+  its leading "v" (`ProtocolVersion.V0_9` gives `"0.9"`), the form that A2A
+  extension URIs and many file layouts use.
 - **`schema_pruning.py`**: `prune_messages_schema` and
   `prune_common_types_schema` reduce the protocol schemas to the allowed
   messages and the common types that are referenced.
@@ -52,20 +63,18 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`inference_format.py`**: Defines `InferenceFormat` and `InferenceFormatFactory`.
 - **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: `DirectJsonParser.parse_chunk` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
 
-## A2A (`src/a2ui/a2a`)
+## Agent framework integrations
 
-- **`extension.py`**: Utilities for managing the A2UI extension URI and activation logic.
-- **`parts.py`**: Utilities for creating A2A Parts with A2UI data and helpers for response parsing.
+The agent SDK does not depend on an agent framework. Integrations are separate
+packages that add to the `a2ui` namespace:
 
-## ADK Extensions (`src/a2ui/adk`)
+- [`a2ui-a2a`](../a2ui_a2a/README.md) provides `a2ui.a2a`, the A2UI extension
+  for the Agent-to-Agent (A2A) protocol.
+- [`a2ui-adk`](../a2ui_adk/README.md) provides `a2ui.adk`, the integration
+  with the [Agent Development Kit (ADK)](https://github.com/google/adk-python).
 
-Support for
-the [Agent Development Kit (ADK)](https://github.com/google/adk-python) and A2A
-protocol.
-
-- **`send_a2ui_to_client_toolset.py`**: Implementation of
-  `SendA2uiToClientToolset` to enable agents to send UI to clients via tool
-  calls.
+Code in this package must not import an agent framework or model SDK.
+`tests/test_framework_agnostic.py` checks this.
 
 ## Running tests
 
@@ -91,7 +100,7 @@ uv build
 ```
 
 The build doesn't need Java. The Express lexer, parser, and visitor in
-`src/a2ui/inference_formats/experimental/express/generated/` are generated from
+`src/a2ui/inference_formats/express/generated/` are generated from
 `specification/inference_formats/express/Express.g4` and committed to the
 repository.
 

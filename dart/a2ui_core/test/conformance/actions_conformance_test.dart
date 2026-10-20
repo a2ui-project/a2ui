@@ -73,8 +73,8 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
   final Map<String, dynamic>? resolvedAction = context.resolveAction(rawAction);
   expect(resolvedAction, isNotNull);
 
-  A2uiClientAction? dispatched;
-  surface.onAction.addListener((action) {
+  A2uiRendererAction? dispatched;
+  surface.onAction.subscribe((action) {
     dispatched = action;
   });
 

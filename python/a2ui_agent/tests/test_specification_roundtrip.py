@@ -24,12 +24,12 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts, to_message_models
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
-from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.inference_formats.express import ExpressFormat
 
 
 def _find_specification_example_files():
     """Locates all specification v1.0 (and fallback v0.9) JSON example files."""
-    from a2ui.schema.utils import find_repo_root
+    from .repo_paths import find_repo_root
 
     repo_root = find_repo_root()
     # Target v1.0 specification examples first

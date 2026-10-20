@@ -19,9 +19,10 @@ import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-/// How `A2uiRequestProcessor` checks the examples it is given: each example
-/// is one render, so a surface may arrive across several of its messages,
-/// but must be complete once the whole example is applied.
+/// How [validatePayload] checks one payload, and how `A2uiRequestProcessor`
+/// checks the examples it is given with it: each example is one render, so a
+/// surface may arrive across several of its messages, but must be complete
+/// once the whole example is applied.
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
@@ -61,6 +62,59 @@ void main() {
       A2uiRequestProcessor(activeCatalogs: [basic], examples: [example]);
 
   group('A2uiRequestProcessor example validation', () {
+    test('resolves a recursive definition the catalog document declares', () {
+      final CatalogApi tree = Catalog.fromJson({
+        'catalogId': 'https://example.com/tree',
+        'protocolVersion': '0.9',
+        'components': {
+          'Tree': {
+            'type': 'object',
+            'properties': {
+              'root': {r'$ref': r'#/$defs/node'},
+            },
+          },
+        },
+        r'$defs': {
+          'node': {
+            'type': 'object',
+            'properties': {
+              'children': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/node'},
+              },
+            },
+          },
+        },
+      });
+
+      expect(
+        () => A2uiRequestProcessor(
+          activeCatalogs: [tree],
+          examples: [
+            [
+              CreateSurfaceMessage(
+                version: 'v0.9',
+                surfaceId: 's',
+                catalogId: tree.id,
+              ),
+              update([
+                {
+                  'id': 'root',
+                  'component': 'Tree',
+                  'root': {
+                    'children': [
+                      {'children': <Object?>[]},
+                    ],
+                  },
+                },
+              ]),
+            ],
+          ],
+        ),
+        returnsNormally,
+      );
+    });
+
     test('accepts a parent whose child arrives in a later message', () {
       expect(
         () => check([
@@ -120,5 +174,205 @@ void main() {
         throwsA(isA<A2uiValidationError>()),
       );
     });
+  });
+
+  group('validatePayload', () {
+    test('accepts an update to a surface the payload does not create', () {
+      // The surface is assumed to exist, holding components the check never
+      // saw.
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            update([
+              column('root', ['elsewhere']),
+            ]),
+          ],
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('checks the components of an assumed surface', () {
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            update([
+              {'id': 'root', 'component': 'NoSuchType'},
+            ]),
+          ],
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('checks a surface the payload creates in full', () {
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            create(),
+            update([
+              column('root', ['missing']),
+            ]),
+          ],
+        ),
+        throwsA(isA<A2uiIntegrityError>()),
+      );
+    });
+
+    test('rejects a surface on a catalog that is not active', () {
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            CreateSurfaceMessage(
+              version: 'v0.9',
+              surfaceId: 's',
+              catalogId: 'missing',
+            ),
+          ],
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('accepts an empty payload', () {
+      expect(() => validatePayload([basic], []), returnsNormally);
+    });
+
+    test('checks the catalogs of an empty payload', () {
+      expect(() => validatePayload([], []), throwsA(isA<A2uiCatalogError>()));
+    });
+
+    CatalogApi sizedText(String id, String sizeType) => Catalog.fromJson({
+      'catalogId': id,
+      'protocolVersion': '0.9',
+      'components': {
+        'Text': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Text'},
+            'text': {'type': 'string'},
+            'size': {'type': sizeType},
+          },
+          'required': ['component', 'text'],
+        },
+      },
+    });
+
+    test('assumes a surface on a catalog that accepts every update to it', () {
+      // Both catalogs accept the first update, and only "b" accepts the
+      // second.
+      expect(
+        () => validatePayload(
+          [sizedText('a', 'string'), sizedText('b', 'number')],
+          [
+            update([
+              {'id': 't', 'component': 'Text', 'text': 'Hi'},
+            ]),
+            update([
+              {'id': 't', 'component': 'Text', 'text': 'Hi', 'size': 12},
+            ]),
+          ],
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('reports the first catalog error when none accepts every update', () {
+      expect(
+        () => validatePayload(
+          [sizedText('a', 'string'), sizedText('b', 'number')],
+          [
+            update([
+              {'id': 't', 'component': 'Text', 'text': 'Hi', 'size': 12},
+            ]),
+            update([
+              {'id': 't', 'component': 'Text', 'text': 'Hi', 'size': 'big'},
+            ]),
+          ],
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('does not assume a surface that an earlier message deleted', () {
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            create(),
+            update([
+              column('root', ['t']),
+              text('t'),
+            ]),
+            DeleteSurfaceMessage(version: 'v0.9', surfaceId: 's'),
+            update([text('t')]),
+          ],
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('does not assume a surface that a later message creates', () {
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            update([text('t')]),
+            create(),
+          ],
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('Surface not found'),
+          ),
+        ),
+      );
+    });
+
+    test('accepts a surface recreated after a delete', () {
+      expect(
+        () => validatePayload(
+          [basic],
+          [
+            update([text('t')]),
+            DeleteSurfaceMessage(version: 'v0.9', surfaceId: 's'),
+            create(),
+            update([
+              column('root', ['t']),
+              text('t'),
+            ]),
+          ],
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('accepts any iterable of messages', () {
+      final Iterable<AgentToRendererMessage> messages = [
+        create(),
+        update([
+          column('root', ['t']),
+          text('t'),
+        ]),
+      ].where((_) => true);
+
+      expect(() => validatePayload([basic], messages), returnsNormally);
+    });
+  });
+
+  test('A2uiRequestProcessor accepts an example that updates a surface it '
+      'does not create', () {
+    expect(
+      () => check([
+        update([text('root')]),
+      ]),
+      returnsNormally,
+    );
   });
 }

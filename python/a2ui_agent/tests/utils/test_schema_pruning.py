@@ -18,8 +18,11 @@ import copy
 
 import pytest
 
-from a2ui.schema.utils import load_agent_to_renderer_schema
-from a2ui.utils import prune_common_types_schema, prune_messages_schema
+from a2ui.utils import (
+    load_agent_to_renderer_schema,
+    prune_common_types_schema,
+    prune_messages_schema,
+)
 
 V09_A2R = {
     "oneOf": [

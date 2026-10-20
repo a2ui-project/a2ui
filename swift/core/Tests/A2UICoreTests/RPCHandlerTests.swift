@@ -82,7 +82,7 @@ struct RPCHandlerTests {
       components: [AnyComponentAPI]()
     ).eraseToAnyCatalog()
 
-    let callPayload = CallFunctionPayload(call: "nonexistent")
+    let callPayload = CallFunctionPayload(call: "nonexistent", catalogID: "test")
     let callMsg = CallRendererFunctionMessage(
       functionCallID: "call_2",
       callFunction: callPayload,
@@ -109,7 +109,7 @@ struct RPCHandlerTests {
       functions: [echoFn]
     ).eraseToAnyCatalog()
 
-    let callPayload = CallFunctionPayload(call: "echo")
+    let callPayload = CallFunctionPayload(call: "echo", catalogID: "test")
     let callMsg = CallRendererFunctionMessage(
       functionCallID: "call_3",
       callFunction: callPayload,
@@ -181,7 +181,8 @@ struct RPCHandlerTests {
 
     let response = await handler.handleIncomingCall(
       callMsg,
-      catalogs: ["basic": basicCatalog, "other": otherCatalog]
+      catalogs: ["basic": basicCatalog, "other": otherCatalog],
+      defaultCatalogID: "basic"
     )
 
     #expect(response.functionCallID == "call_ambiguous")
@@ -313,6 +314,7 @@ struct RPCHandlerTests {
           "functionCallId": "proc_call_1",
           "callFunction": {
             "call": "echo",
+            "catalogId": "test",
             "args": { "message": "Processor Echo" }
           }
         }

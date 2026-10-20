@@ -17,20 +17,26 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core import A2uiValidationError, CatalogApi, get_common_types_schema_map
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.processor import CatalogConfig
-from a2ui.schema import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
-from a2ui.schema.utils import get_basic_catalog_path, load_common_types_schema
+from a2ui.utils import load_common_types_schema
+
+from ..repo_paths import find_repo_root
 
 
 @pytest.fixture(scope="module")
 def basic_catalog() -> CatalogApi:
-    config = CatalogConfig.from_path(get_basic_catalog_path("1.0"))
+    catalog_path = os.path.join(
+        find_repo_root() or "", "catalogs", "basic", "v1", "catalog.json"
+    )
+    config = CatalogConfig.from_path(catalog_path)
     return config.transformed_catalog
 
 

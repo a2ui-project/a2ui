@@ -87,6 +87,36 @@
     category: "CatalogError"
     message: "Catalog not found: unknown-catalog"
 
+- name: test_create_surface_without_catalog_id_error
+  description: >-
+    Tests that a v0.9 createSurface without a catalogId is rejected with a ValidationError. The v0.9 server_to_client schema requires catalogId; only from v1.0 may a surface have no default catalog.
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+  expectError:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_v091_create_surface_without_catalog_id_error
+  description: >-
+    Tests that a v0.9.1 createSurface without a catalogId is rejected with a ValidationError, as the v0.9.1 server_to_client schema requires catalogId too.
+  action: process_messages
+  protocolVersion: "v0.9.1"
+  catalogPaths:
+    - "specification/v0_9_1/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9.1"
+      createSurface:
+        surfaceId: "s1"
+  expectError:
+    category: "ValidationError"
+    message: "catalogId"
+
 - name: test_delete_surface_basic
   description: Tests deleting an active surface by surfaceId, cleanly removing it from state.
   action: process_messages

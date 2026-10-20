@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/peer_matching/beta/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "Peer Matching Beta Catalog (v1.0)",
+  "description": "A second peer catalog whose $id ends in /catalog.json. Its Badge requires an integer count.",
+  "catalogId": "conformance/peer_matching/beta",
+  "components": {
+    "Badge": {
+      "type": "object",
+      "description": "A badge that requires `count`.",
+      "properties": {
+        "component": {
+          "const": "Badge"
+        },
+        "count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "component",
+        "count"
+      ]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Badge"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    }
+  }
+}

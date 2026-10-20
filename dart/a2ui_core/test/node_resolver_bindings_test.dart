@@ -15,7 +15,6 @@
 // Covers omitted properties, nulls, arrays, updates, and binder output.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 import 'package:test/test.dart';
@@ -423,7 +422,7 @@ void main() {
   group('NodeResolver resolution context', () {
     late SurfaceModel<ComponentApi> surface;
     late NodeResolver<ComponentApi> resolver;
-    late List<A2uiClientError> errors;
+    late List<A2uiRendererError> errors;
 
     setUp(() {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
@@ -454,7 +453,7 @@ void main() {
         protocolVersion: 'v1.0',
       );
       errors = [];
-      surface.onError.addListener(errors.add);
+      surface.onError.subscribe(errors.add);
       resolver = NodeResolver<ComponentApi>(surface, catalog: catalog);
       addTearDown(() {
         resolver.dispose();
@@ -555,8 +554,8 @@ void main() {
     });
 
     test('ComponentNode.context.dispatchAction reaches onAction', () async {
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
       add('root', 'Button', {
         'action': {
           'event': {'name': 'tap'},

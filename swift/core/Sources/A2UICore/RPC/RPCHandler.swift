@@ -50,7 +50,18 @@ public final class RPCHandler {
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
     let callName = message.callFunction.call
-    let targetCatalogID = message.callFunction.catalogID ?? defaultCatalogID
+    let targetCatalogID = message.callFunction.catalogID
+
+    if let surfaceID = message.surfaceID, dataContext == nil {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: .invalidFunctionCall,
+          message: "Surface not found: \(surfaceID)"
+        ),
+        version: message.version
+      )
+    }
 
     let resolvedCatalog: AnyCatalog?
     if let targetCatalogID {
@@ -65,8 +76,6 @@ public final class RPCHandler {
         )
       }
       resolvedCatalog = found
-    } else if catalogs.count == 1 {
-      resolvedCatalog = catalogs.values.first
     } else {
       resolvedCatalog = nil
     }
@@ -134,18 +143,42 @@ public final class RPCHandler {
     }
 
     let rawArgs = message.callFunction.args ?? [:]
+    let fallbackHandler = DummyContextFunctionHandler(catalogs: catalogs)
+    let argHandler = RPCArgumentFunctionHandler(
+      delegate: dataContext?.functionHandler,
+      fallback: fallbackHandler
+    )
+    let argResolutionContext = DataContext(
+      dataModel: dataContext?.dataModel ?? DataModel(),
+      path: dataContext?.path ?? "",
+      functionHandler: argHandler,
+      protocolVersion: dataContext?.protocolVersion ?? message.version,
+      index: dataContext?.index
+    )
     let effectiveContext =
       dataContext
       ?? DataContext(
-        dataModel: DataModel(),
+        dataModel: argResolutionContext.dataModel,
         path: "",
-        functionHandler: DummyContextFunctionHandler(catalogs: catalogs, defaultCatalog: catalog),
+        functionHandler: argHandler,
         protocolVersion: message.version
       )
 
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
-      resolvedArgs[key] = effectiveContext.resolveDynamicValue(val)
+      resolvedArgs[key] = argResolutionContext.resolveDynamicValue(val)
+    }
+
+    if let capturedError = argHandler.capturedError {
+      let errorPayload = FunctionErrorPayload(
+        code: .executionError,
+        message: String(describing: capturedError)
+      )
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: errorPayload,
+        version: message.version
+      )
     }
 
     let argsValidation = function.api.schema.validate(
@@ -301,22 +334,67 @@ public final class RPCHandler {
   }
 }
 
+private final class RPCArgumentFunctionHandler: FunctionHandler {
+  private let delegate: FunctionHandler?
+  private let fallback: DummyContextFunctionHandler
+  private(set) var capturedError: Error?
+
+  init(delegate: FunctionHandler?, fallback: DummyContextFunctionHandler) {
+    self.delegate = delegate
+    self.fallback = fallback
+  }
+
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    if let delegate {
+      return delegate.function(named: name, catalogID: catalogID)
+    }
+    return fallback.function(named: name, catalogID: catalogID)
+  }
+
+  func handleFunctionError(_ error: Error, functionName: String) {
+    if capturedError == nil {
+      capturedError = error
+    }
+    delegate?.handleFunctionError(error, functionName: functionName)
+  }
+
+  func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
+    if let delegate {
+      try delegate.validateFunctionCatalog(id: catalogID, functionName: functionName)
+    } else {
+      try fallback.validateFunctionCatalog(id: catalogID, functionName: functionName)
+    }
+  }
+}
+
 private final class DummyContextFunctionHandler: FunctionHandler {
   private let catalogs: [String: AnyCatalog]
-  private let defaultCatalog: AnyCatalog
 
-  init(catalogs: [String: AnyCatalog], defaultCatalog: AnyCatalog) {
+  init(catalogs: [String: AnyCatalog]) {
     self.catalogs = catalogs
-    self.defaultCatalog = defaultCatalog
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     if name == "@index" {
       return IndexFunction()
     }
-    if let catalogID {
-      return catalogs[catalogID]?.functions[name]
+    guard let catalogID else { return nil }
+    return catalogs[catalogID]?.functions[name]
+  }
+
+  func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
+    let path = CatalogResolutionErrors.callCatalogIDPath(functionName: functionName)
+    let code = CatalogResolutionErrors.runtimeCatalogErrorCode
+    guard let catalogID else {
+      throw CatalogResolutionErrors.noDefaultCatalog(
+        subject: "Function call '\(functionName)'",
+        surfaceID: "",
+        path: path,
+        code: code
+      )
     }
-    return defaultCatalog.functions[name]
+    guard catalogs[catalogID] != nil else {
+      throw CatalogResolutionErrors.catalogNotFound(catalogID, path: path, code: code)
+    }
   }
 }

@@ -252,13 +252,13 @@ ProcessorSetup setupProcessor([
           version: 'v0.9', surfaceId: 'surf-1', catalogId: effectiveCatalog.id),
     ),
   );
-  final SurfaceModel<ComponentApi> surface = processor.groupModel.getSurface(
+  final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
     'surf-1',
   )!;
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(() {
     resolver.dispose();
-    processor.groupModel.dispose();
+    processor.model.dispose();
   });
   return (processor: processor, surface: surface, resolver: resolver);
 }
@@ -289,7 +289,7 @@ void processorContractTests() {
       (
         'marked cycle',
         {'id': 'root', 'component': 'Card', 'child': 'root'},
-        isA<A2uiRecursionError>(),
+        isA<A2uiIntegrityError>(),
       ),
       (
         'unknown component type',
@@ -402,7 +402,7 @@ void processorContractTests() {
         );
         final ProcessorSetup fixture = setupProcessor(catalog);
         final errors = <String>[];
-        fixture.surface.onError.addListener((error) => errors.add(error.code));
+        fixture.surface.onError.subscribe((error) => errors.add(error.code));
 
         processComponents(fixture, [
           {
@@ -697,7 +697,7 @@ void snapshotOwnershipTests() {
             },
           },
         });
-        fixture.surface.onAction.addListener((action) {
+        fixture.surface.onAction.subscribe((action) {
           (action.context['nested'] as Map)['k'] = 'mutated';
           (action.context['profile'] as Map)['name'] = 'mutated';
         });
@@ -736,7 +736,7 @@ void snapshotOwnershipTests() {
         },
       });
       final contexts = <Map<String, dynamic>>[];
-      fixture.surface.onAction.addListener(
+      fixture.surface.onAction.subscribe(
         (action) => contexts.add(action.context),
       );
 
@@ -1039,7 +1039,7 @@ void materializationFailureTests() {
       final TestSetup fixture = setupWithPoisonedLeaf();
       final List<LogRecord> listenerErrors = collectListenerErrors();
       final errors = <String>[];
-      fixture.surface.onError.addListener((error) => errors.add(error.code));
+      fixture.surface.onError.subscribe((error) => errors.add(error.code));
       add(fixture.surface, 'root', 'Column', {
         'children': ['root'],
       });
@@ -1083,7 +1083,7 @@ void materializationFailureTests() {
       final ComponentNode root = fixture.resolver.rootNode.value!;
       final ComponentNode second = child(root, 'children', 1);
       var destroyed = 0;
-      second.onDestroyed.addListener((_) => destroyed++);
+      second.onDestroyed.subscribe((_) => destroyed++);
       final emissions = EmissionCounter(root.props);
       addTearDown(emissions.dispose);
       expect(fixture.resolver.activeNodeCount, 3);
@@ -1202,7 +1202,7 @@ void main() {
       final surface =
           SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       var removedOnce = false;
-      surface.componentsModel.onCreated.addListener((component) {
+      surface.componentsModel.onCreated.subscribe((component) {
         if (component.id == 'root' && !removedOnce) {
           removedOnce = true;
           surface.componentsModel.removeComponent(component.id);
@@ -1229,7 +1229,7 @@ void main() {
       final surface =
           SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       var removedOnce = false;
-      surface.componentsModel.onCreated.addListener((component) {
+      surface.componentsModel.onCreated.subscribe((component) {
         if (component.id == 'child' && !removedOnce) {
           removedOnce = true;
           surface.componentsModel.removeComponent(component.id);
@@ -1726,8 +1726,8 @@ void main() {
           surface: SurfaceModel<ComponentApi> surface,
           resolver: NodeResolver<ComponentApi> resolver,
         ) = setup();
-        final actions = <A2uiClientAction>[];
-        surface.onAction.addListener(actions.add);
+        final actions = <A2uiRendererAction>[];
+        surface.onAction.subscribe(actions.add);
         surface.dataModel.set('/current_id', 42);
         add(surface, 'root', 'Button', {
           'label': 'Go',
@@ -1944,8 +1944,8 @@ void main() {
         surface: SurfaceModel<ComponentApi> surface,
         resolver: NodeResolver<ComponentApi> resolver,
       ) = setup();
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
       surface.dataModel.set('/field', 'name');
       add(surface, 'root', 'Button', {
         'action': {
@@ -2067,8 +2067,8 @@ void main() {
         surface: SurfaceModel<ComponentApi> surface,
         resolver: NodeResolver<ComponentApi> resolver,
       ) = setup();
-      final errors = <A2uiClientError>[];
-      surface.onError.addListener(errors.add);
+      final errors = <A2uiRendererError>[];
+      surface.onError.subscribe(errors.add);
       add(surface, 'root', 'Card', {'child': 'a'});
       add(surface, 'a', 'Card', {'child': 'b'});
       add(surface, 'b', 'Card', {'child': 'a'});
@@ -2093,8 +2093,8 @@ void main() {
         surface: SurfaceModel<ComponentApi> surface,
         resolver: NodeResolver<ComponentApi> resolver,
       ) = setup();
-      final errors = <A2uiClientError>[];
-      surface.onError.addListener(errors.add);
+      final errors = <A2uiRendererError>[];
+      surface.onError.subscribe(errors.add);
       add(surface, 'root', 'Text', {
         'text': {'call': 'unregistered', 'args': <String, Object?>{}},
       });
@@ -2153,8 +2153,8 @@ void main() {
         surface: SurfaceModel<ComponentApi> surface,
         resolver: NodeResolver<ComponentApi> resolver,
       ) = setup();
-      final errors = <A2uiClientError>[];
-      surface.onError.addListener(errors.add);
+      final errors = <A2uiRendererError>[];
+      surface.onError.subscribe(errors.add);
       add(surface, 'root', 'Card', {'child': 'late'});
       final ComponentNode root = resolver.rootNode.value!;
       final ComponentNode pendingNode = child(root, 'child');
@@ -2358,10 +2358,10 @@ void main() {
       final surface =
           SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
-      final actions = <A2uiClientAction>[];
-      final errors = <A2uiClientError>[];
-      surface.onAction.addListener(actions.add);
-      surface.onError.addListener(errors.add);
+      final actions = <A2uiRendererAction>[];
+      final errors = <A2uiRendererError>[];
+      surface.onAction.subscribe(actions.add);
+      surface.onError.subscribe(errors.add);
       add(surface, 'root', 'Button', {
         'label': 'Go',
         'action': {
@@ -2390,10 +2390,10 @@ void main() {
         surface: SurfaceModel<ComponentApi> surface,
         resolver: NodeResolver<ComponentApi> resolver,
       ) = setup();
-      final actions = <A2uiClientAction>[];
-      final errors = <A2uiClientError>[];
-      surface.onAction.addListener(actions.add);
-      surface.onError.addListener(errors.add);
+      final actions = <A2uiRendererAction>[];
+      final errors = <A2uiRendererError>[];
+      surface.onAction.subscribe(actions.add);
+      surface.onError.subscribe(errors.add);
       add(surface, 'root', 'Button', {
         'label': 'Go',
         'action': {

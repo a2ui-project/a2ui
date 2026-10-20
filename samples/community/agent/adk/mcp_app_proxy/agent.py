@@ -20,8 +20,9 @@ from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.core import CatalogApi
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_8, VERSION_0_9
+from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
@@ -30,7 +31,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from tools import get_calculator_app, calculate_via_mcp, get_pong_mcp_app_json, get_pong_app_web_frame_json, get_pong_app_web_frame_srcdoc_json, commentate_pong_game
-from agent_executor import get_a2ui_enabled, get_a2ui_catalog, get_a2ui_examples
+from agent_executor import get_a2ui_catalogs, get_a2ui_enabled, get_a2ui_examples
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ def _renderer_capabilities(
     Returns:
         The capabilities for `A2uiGenerator.create_processor`.
     """
-    key = f"v{version}"
+    key = f"v{to_version_number(version)}"
     if not client_ui_capabilities:
         return {key: {"supportedCatalogIds": list(catalog_ids)}}
     raw: Any = client_ui_capabilities
@@ -123,7 +124,7 @@ class McpAppProxyAgent:
         self._model = model
 
         self._a2ui_enabled_provider = get_a2ui_enabled
-        self._a2ui_catalog_provider = get_a2ui_catalog
+        self._a2ui_catalogs_provider = get_a2ui_catalogs
         self._a2ui_examples_provider = get_a2ui_examples
 
         self._agent_name = "mcp_app_proxy_agent"
@@ -140,7 +141,7 @@ class McpAppProxyAgent:
         self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
 
-        for version in [VERSION_0_8, VERSION_0_9]:
+        for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
             generator = self._build_generator(version)
             processor = self._build_default_processor(version, generator)
             self._generators[version] = generator
@@ -181,7 +182,7 @@ class McpAppProxyAgent:
 
     def _build_generator(self, version: str) -> A2uiGenerator:
         config = CatalogConfig.from_path(
-            catalog_path=f"catalogs/{version}/mcp_app_catalog.json",
+            catalog_path=f"catalogs/{to_version_number(version)}/mcp_app_catalog.json",
             protocol_version=version,
         )
         return A2uiGenerator(

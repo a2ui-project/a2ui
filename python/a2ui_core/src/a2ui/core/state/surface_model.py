@@ -19,6 +19,7 @@ from ..common.events import EventSource
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
 from ..catalog import CatalogApi
+from ..schema import ProtocolVersion
 
 
 from collections.abc import Sequence
@@ -31,19 +32,31 @@ class SurfaceModel:
     def __init__(
         self,
         surface_id: str,
-        default_catalog: CatalogApi,
+        default_catalog: CatalogApi | None,
         available_catalogs: dict[str, CatalogApi] | None = None,
         theme: dict[str, Any] | None = None,
         send_data_model: bool = False,
         data_model: DataModel | None = None,
         root_id: str = "root",
+        protocol_version: ProtocolVersion | str | None = None,
     ) -> None:
         self.id = surface_id
+        # From v1.0 a surface may name no default catalog, so that each
+        # component and function call names its own.
         self.default_catalog = default_catalog
+        # The surface's protocol version. Defaults to the default catalog's
+        # version; surfaces without a default catalog pass it explicitly.
+        self.protocol_version: ProtocolVersion | str | None = (
+            protocol_version or getattr(default_catalog, "protocol_version", None)
+        )
         catalogs: dict[str, CatalogApi] = (
             dict(available_catalogs) if available_catalogs else {}
         )
-        if default_catalog.id and default_catalog.id not in catalogs:
+        if (
+            default_catalog is not None
+            and default_catalog.id
+            and default_catalog.id not in catalogs
+        ):
             catalogs[default_catalog.id] = default_catalog
         self.available_catalogs = catalogs
 
@@ -58,8 +71,43 @@ class SurfaceModel:
         self.on_warning = EventSource()
 
     @property
-    def catalog(self) -> CatalogApi:
+    def catalog(self) -> CatalogApi | None:
         """The surface's default catalog (deprecated alias for default_catalog)."""
+        return self.default_catalog
+
+    def resolve_catalog(
+        self, catalog_id: str | None, *, subject: str = "Item"
+    ) -> CatalogApi:
+        """Resolves the catalog that an item on this surface runs in.
+
+        From v1.0 a component or function call runs in the catalog it names,
+        looked up in `available_catalogs`, or else in the surface's default
+        catalog. There is no other fallback.
+
+        Args:
+            catalog_id: The `catalogId` the item names, or None if it names none.
+                An empty string names a catalog too, so it does not fall back
+                to the default.
+            subject: Describes the item in the error message, e.g.
+                "Function call 'formatString'".
+
+        Returns:
+            The catalog the item runs in.
+
+        Raises:
+            A2uiCatalogError: If the named catalog is not available on this
+                surface, or the item names none and the surface has no default.
+        """
+        if catalog_id is not None:
+            catalog = self.available_catalogs.get(catalog_id)
+            if catalog is None:
+                raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
+            return catalog
+        if self.default_catalog is None:
+            raise A2uiCatalogError(
+                f"{subject} names no catalogId and surface {self.id} has no"
+                " default catalogId."
+            )
         return self.default_catalog
 
     def dispatch_action(

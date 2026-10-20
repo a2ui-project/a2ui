@@ -52,6 +52,8 @@ class FunctionApi:
         allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
         description: str | None = None,
+        is_definition: bool | None = None,
+        from_document: bool = False,
     ):
         """Initializes the function API.
 
@@ -59,11 +61,27 @@ class FunctionApi:
             name: The function's name, which calls use as `call`.
             return_type: The type of the function's result.
             schema: The schema of the function's `args`, as a Pydantic model
-                class or a JSON schema.
+                class or a JSON schema, or the function's whole definition
+                as its catalog document writes it (a call schema, or a
+                schema that declares `returnType`), without the `name` of a
+                list entry. `Catalog.from_json` keeps each definition here
+                unchanged, and `Catalog.to_json` writes it back.
             allowed_callers: Who may call the function.
             requires_user_activation: Whether a call needs a user gesture.
             description: What the function does, published in the catalog
                 schema.
+            is_definition: Whether `schema` is the function's whole catalog
+                document entry rather than the schema of its `args`, which
+                `Catalog.to_json` writes as it is. `Catalog.from_json` sets
+                it on every function it loads. None infers it from the
+                schema: a call schema, or one that declares `returnType`,
+                `parameters`, `allowedCallers` or `requiresUserActivation`.
+            from_document: Whether `schema` was loaded from a catalog
+                document, which `Catalog.from_json` sets on every function it
+                loads. `Catalog.to_json` writes such a definition with its
+                references exactly as they are; for a function defined in
+                code, it points local references to common types at the
+                catalog's `common_types_uri`.
         """
         self.name = name
         self.return_type = return_type or "any"
@@ -75,6 +93,8 @@ class FunctionApi:
             if description is not None
             else getattr(self, "description", None)
         )
+        self.is_definition = is_definition
+        self.from_document = from_document
 
 
 class FunctionImplementation(FunctionApi, Generic[TReturn]):
@@ -89,6 +109,8 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
         description: str | None = None,
+        is_definition: bool | None = None,
+        from_document: bool = False,
     ):
         super().__init__(
             name=name,
@@ -97,6 +119,8 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             allowed_callers=allowed_callers,
             requires_user_activation=requires_user_activation,
             description=description,
+            is_definition=is_definition,
+            from_document=from_document,
         )
         self.execute_func = execute
 
@@ -152,6 +176,8 @@ def create_function_implementation(
         allowed_callers=getattr(api, "allowed_callers", "rendererOnly"),
         requires_user_activation=getattr(api, "requires_user_activation", False),
         description=getattr(api, "description", None),
+        is_definition=getattr(api, "is_definition", None),
+        from_document=getattr(api, "from_document", False),
     )
 
 
