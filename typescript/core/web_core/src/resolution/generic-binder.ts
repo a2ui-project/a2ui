@@ -439,6 +439,10 @@ export class GenericBinder<T> {
   private propsListeners: ((props: T) => void)[] = [];
   /** Snapshot of currently resolved properties. */
   private currentProps: Partial<T> = {};
+  // Keep writes made during resolution separate from the published snapshot.
+  private pendingPropUpdates?: Array<{path: string[]; value: unknown}>;
+  private rebuilding = false;
+  private componentUpdatedDuringRebuild = false;
   private compUnsub?: () => void;
   private isConnected = false;
 
@@ -463,15 +467,25 @@ export class GenericBinder<T> {
       this.behaviorTree = {type: 'OBJECT', shape: {}};
     }
 
-    this.resolveInitialProps();
+    this.resolveProps(true);
   }
 
-  private resolveInitialProps() {
-    const props = this.context.componentModel.properties;
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], true) as
-      | Record<string, unknown>
-      | undefined;
-    this.currentProps = {...this.currentProps, ...(resolved || {})} as Partial<T>;
+  private resolveProps(isSync: boolean) {
+    this.pendingPropUpdates = [];
+    try {
+      const props = this.context.componentModel.properties;
+      let draft: unknown = this.resolveAndBind(props, this.behaviorTree, [], isSync) ?? {};
+      // Checks and callbacks can write while the tree is being resolved. Apply
+      // those writes to the fresh tree so nested state and newer values survive.
+      for (const {path, value} of this.pendingPropUpdates) {
+        draft = this.cloneAndUpdate(draft, path, value);
+      }
+      if (!this.componentUpdatedDuringRebuild) {
+        this.currentProps = draft as Partial<T>;
+      }
+    } finally {
+      this.pendingPropUpdates = undefined;
+    }
   }
 
   private connect() {
@@ -485,15 +499,23 @@ export class GenericBinder<T> {
   }
 
   private rebuildAllBindings() {
-    this.dataListeners.forEach(l => l());
-    this.dataListeners = [];
+    if (this.rebuilding) {
+      this.componentUpdatedDuringRebuild = true;
+      return;
+    }
 
-    const props = this.context.componentModel.properties;
-
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], false) as
-      | Record<string, unknown>
-      | undefined;
-    this.currentProps = {...this.currentProps, ...(resolved || {})} as Partial<T>;
+    this.rebuilding = true;
+    try {
+      do {
+        this.componentUpdatedDuringRebuild = false;
+        this.dataListeners.forEach(l => l());
+        this.dataListeners = [];
+        this.resolveProps(false);
+      } while (this.componentUpdatedDuringRebuild);
+    } finally {
+      this.rebuilding = false;
+      this.componentUpdatedDuringRebuild = false;
+    }
 
     this.notify();
   }
@@ -816,6 +838,10 @@ export class GenericBinder<T> {
   }
 
   private updateDeepValue(path: string[], newValue: unknown) {
+    if (this.pendingPropUpdates) {
+      this.pendingPropUpdates.push({path, value: newValue});
+      return;
+    }
     this.currentProps = this.cloneAndUpdate(this.currentProps, path, newValue) as Partial<T>;
   }
 
@@ -852,6 +878,7 @@ export class GenericBinder<T> {
   }
 
   private notify() {
+    if (this.rebuilding || this.pendingPropUpdates) return;
     this.propsListeners.forEach(l => l(this.currentProps as T));
   }
 
