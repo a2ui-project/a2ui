@@ -54,9 +54,6 @@ CATALOG = Catalog.from_json(
                 "allowedParents": ["Strict", "Box", "Surface"],
             },
             "Header": {"type": "object", "allowedParents": ["Box"]},
-            # A type with no reference fields, whose children are guessed from
-            # its properties (the legacy v0.8 heuristic): `note` names a child
-            # when it names a component the surface holds.
             "Leaf": {
                 "type": "object",
                 "properties": {"note": {"type": "string"}},
