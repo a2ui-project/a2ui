@@ -20,16 +20,14 @@ from a2a.types import (
     DataPart,
     Part,
     Task,
-    TaskState,
     TextPart,
     UnsupportedOperationError,
 )
-from a2a.utils import (
-    new_agent_parts_message,
-    new_task,
-)
+from a2a.utils import new_task
 from a2a.utils.errors import ServerError
+
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import to_version_number
 from agent import ContactAgent
@@ -52,11 +50,7 @@ class ContactAgentExecutor(AgentExecutor):
 
         print(f"--- Client requested extensions: {context.requested_extensions} ---")
         print(f"--- Agent card: {self._agent.agent_card} ---")
-        # active_ui_version = try_activate_a2ui_extension(
-        #     context, self._agent.agent_card
-        # )
-        # Hardcoded for now to test the UI flow.
-        active_ui_version = ProtocolVersion.V0_8
+        active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
 
         if active_ui_version:
             print(
@@ -64,9 +58,20 @@ class ContactAgentExecutor(AgentExecutor):
                 f" (v{to_version_number(active_ui_version)}). Using UI runner. ---"
             )
         else:
+            # Gemini Enterprise renders A2UI v0.8 without requesting the
+            # extension, so the agent always answers with UI.
             print(
-                "--- AGENT_EXECUTOR: A2UI extension is not active. Using text"
-                " runner. ---"
+                "--- AGENT_EXECUTOR: A2UI extension is not requested. Answering"
+                f" with A2UI {ProtocolVersion.V0_8.value} anyway. ---"
+            )
+            active_ui_version = ProtocolVersion.V0_8
+
+        # Renderers may send their capabilities in the message metadata. The
+        # agent decides what a request without them renders.
+        client_ui_capabilities = None
+        if active_ui_version and context.message and context.message.metadata:
+            client_ui_capabilities = context.message.metadata.get(
+                A2UI_CLIENT_CAPABILITIES_KEY
             )
 
         if context.message and context.message.parts:
@@ -132,7 +137,7 @@ class ContactAgentExecutor(AgentExecutor):
         await updater.start_work()
 
         final_parts = await self._agent.fetch_response(
-            query, task.context_id, active_ui_version
+            query, task.context_id, active_ui_version, client_ui_capabilities
         )
         self._log_parts(final_parts)
 

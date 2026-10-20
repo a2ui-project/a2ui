@@ -16,9 +16,9 @@
 
 import json
 import os
+import subprocess
 
 from a2a.types import AgentSkill
-from agent import ContactAgent
 import agent_executor
 from dotenv import load_dotenv
 from google.auth import default
@@ -29,6 +29,9 @@ import requests
 import vertexai
 from vertexai.preview.reasoning_engines import A2aAgent
 from vertexai.preview.reasoning_engines.templates.a2a import create_agent_card
+
+SAMPLE_DIR = os.path.dirname(os.path.abspath(__file__))
+BUILD_SDK_WHEELS = os.path.join(SAMPLE_DIR, "..", "..", "build_sdk_wheels.sh")
 
 
 def _get_bearer_token():
@@ -47,6 +50,24 @@ def _get_bearer_token():
             "application-default login'."
         )
     return None
+
+
+def _build_sdk_wheels() -> list[str]:
+    """Builds wheels of the A2UI SDKs in this repository into `wheels/`.
+
+    The agent needs SDK releases that aren't on PyPI yet, so the engine
+    installs these wheels instead.
+
+    Returns:
+        The paths of the wheels, relative to the sample directory.
+    """
+    subprocess.run([BUILD_SDK_WHEELS, SAMPLE_DIR], check=True)
+    wheel_dir = os.path.join(SAMPLE_DIR, "wheels")
+    return sorted(
+        os.path.join("wheels", name)
+        for name in os.listdir(wheel_dir)
+        if name.endswith(".whl")
+    )
 
 
 def _register_agent_on_gemini_enterprise(
@@ -157,9 +178,6 @@ def main():
         default_output_modes=["text/plain"],
     )
 
-    base_url = "http://0.0.0.0:8080"
-    contact_agent = ContactAgent(base_url=base_url)
-
     print(f"✓ Contact Card agent card created. {cc_agent_card}")
 
     a2ui_agent = A2aAgent(
@@ -169,6 +187,9 @@ def main():
     a2ui_agent.set_up()
 
     print("✓ Local Contact Card agent created.")
+
+    sdk_wheels = _build_sdk_wheels()
+    print(f"✓ A2UI SDK wheels built: {sdk_wheels}")
 
     config = {
         "display_name": "A2UI Contact Card Agent on Agent Engine",
@@ -184,11 +205,12 @@ def main():
             "google-genai>=1.27.0",
             "python-dotenv>=1.1.0",
             "uvicorn",
-            "a2a-sdk==0.3.25",
+            # The A2A agent template's set_up() needs `sse-starlette`.
+            "a2a-sdk[http-server]==0.3.25",
             "cloudpickle>=3.1.2",
             "pydantic",
-            "jsonschema>=4.0.0",
-            "a2ui-agent-sdk==0.1.2",
+            # The A2UI SDKs, installed from the wheels in `extra_packages`.
+            *sdk_wheels,
         ],
         "http_options": {
             "api_version": "v1beta1",
@@ -202,6 +224,7 @@ def main():
             "agent.py",
             "tools.py",
             "examples",
+            *sdk_wheels,
         ],
         "env_vars": {
             "NUM_WORKERS": "1",

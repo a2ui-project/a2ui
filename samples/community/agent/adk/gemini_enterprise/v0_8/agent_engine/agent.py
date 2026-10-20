@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import AsyncIterable
-import json
+from collections.abc import Mapping
 import os
 from typing import Any
 
@@ -24,92 +23,85 @@ from a2a.types import (
     Part,
     TextPart,
 )
-from a2ui.a2a import (
-    get_a2ui_agent_extension,
-    parse_response_to_parts,
-)
-from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
-from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.schema import ProtocolVersion
-from a2ui.parser import A2uiPart
-from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.utils import to_version_number
 import dotenv
-from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.sessions import InMemorySessionService, Session
 from google.genai import types
-import jsonschema
-from prompt_builder import ROLE_DESCRIPTION, UI_DESCRIPTION, WORKFLOW_DESCRIPTION, get_text_prompt
+
+from a2ui.a2a import get_a2ui_agent_extension, to_a2a_parts
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.core import A2uiError
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import to_version_number
+from prompt_builder import get_text_prompt, get_ui_prompt
 from tools import get_contact_info
 
 SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
+MAX_ATTEMPTS = 2
+
+# Gemini Enterprise doesn't send `a2uiClientCapabilities`. It renders the
+# basic catalog, so a request without capabilities gets these, in the v0.8
+# shape, which isn't keyed by protocol version.
+GEMINI_ENTERPRISE_CAPABILITIES = {
+    "supportedCatalogIds": [BasicCatalog(ProtocolVersion.V0_8).catalog_id]
+}
+
 dotenv.load_dotenv()
 
 
+def _text_parts(text: str) -> list[Part]:
+    return [Part(root=TextPart(text=text))]
+
+
 class ContactAgent:
-    """An agent that finds contact info for colleagues."""
+    """An agent that finds contact info for colleagues.
+
+    The agent holds one generator for each protocol version it speaks. Each
+    request negotiates its own processor from the client's capabilities, and
+    the prompt, the parser and validation use the catalogs it holds. Each
+    response shows new UI, so it is checked on its own.
+    """
 
     def __init__(self, base_url: str):
         self.base_url = base_url
         self._agent_name = "contact_agent"
         self._user_id = "remote_agent"
-        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
-
-        self._generators: dict[str, A2uiGenerator] = {}
-        self._processors: dict[str, A2uiRequestProcessor] = {}
-        self._ui_runners: dict[str, Runner] = {}
-
-        # Gemini Enerprise only supports ProtocolVersion.V0_8 for now.
-        for version in [ProtocolVersion.V0_8]:
-            generator = self._build_generator(version)
-            processor = self._build_processor(version, generator)
-            self._generators[version] = generator
-            self._processors[version] = processor
-            examples_path = os.path.join(
-                os.path.dirname(__file__), f"examples/{to_version_number(version)}"
-            )
-            agent = self._build_llm_agent(processor, examples_path=examples_path)
-            self._ui_runners[version] = self._build_runner(agent)
-
+        # Shared by the text runner and the runner of each UI request, so a
+        # conversation keeps its history across requests.
+        self._session_service = InMemorySessionService()
+        self._artifact_service = InMemoryArtifactService()
+        self._memory_service = InMemoryMemoryService()
+        self._text_runner = self._build_runner(get_text_prompt())
+        # Gemini Enterprise only supports ProtocolVersion.V0_8 for now.
+        self._generators: dict[ProtocolVersion, A2uiGenerator] = {
+            version: A2uiGenerator([CatalogConfig(BasicCatalog(version))])
+            for version in [ProtocolVersion.V0_8]
+        }
         self._agent_card = self._build_agent_card()
 
     @property
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def _build_generator(self, version: str) -> A2uiGenerator:
-        # Gemini Enerprise only supports ProtocolVersion.V0_8 for now.
-        return A2uiGenerator([CatalogConfig(BasicCatalog(version))])
-
-    def _build_processor(
-        self, version: str, generator: A2uiGenerator
-    ) -> A2uiRequestProcessor:
-        return generator.create_processor({
-            f"v{to_version_number(version)}": {
-                "supportedCatalogIds": [
-                    c.transformed_catalog.catalog_id for c in generator.catalogs
-                ]
-            }
-        })
+    def get_processing_message(self) -> str:
+        return "Looking up contact information..."
 
     def _build_agent_card(self) -> AgentCard:
         """Builds the AgentCard for this agent, describing its capabilities and skills."""
-        extensions = []
-        if self._processors:
-            for version, processor in self._processors.items():
-                ext = get_a2ui_agent_extension(
-                    version,
-                    supported_catalog_ids=[
-                        c.catalog_id for c in processor.active_catalogs
-                    ],
-                )
-                extensions.append(ext)
-
+        extensions = [
+            get_a2ui_agent_extension(
+                version,
+                generator.accepts_inline_catalogs,
+                [c.transformed_catalog.catalog_id for c in generator.catalogs],
+            )
+            for version, generator in self._generators.items()
+        ]
         capabilities = AgentCapabilities(
             # Agent Engine only supports non-streaming mode for now.
             streaming=False,
@@ -143,143 +135,103 @@ class ContactAgent:
             skills=[skill],
         )
 
-    def _build_runner(self, agent: LlmAgent) -> Runner:
-        return Runner(
-            app_name=self._agent_name,
-            agent=agent,
-            artifact_service=InMemoryArtifactService(),
-            session_service=InMemorySessionService(),
-            memory_service=InMemoryMemoryService(),
-        )
-
-    def get_processing_message(self) -> str:
-        return "Looking up contact information..."
-
-    def _build_llm_agent(
-        self,
-        processor: A2uiRequestProcessor | None = None,
-        examples_path: str | None = None,
-    ) -> LlmAgent:
-        """Builds the LLM agent for the contact agent."""
-        from a2ui.utils import load_examples
-
-        if processor:
-            prompt_parts = [
-                ROLE_DESCRIPTION,
-                f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}",
-                f"## UI Description:\n{UI_DESCRIPTION}",
-                processor.prompt_snippet,
-            ]
-            examples = load_examples(
-                processor.active_catalogs, examples_path, validate=True
-            )
-            if examples:
-                prompt_parts.append(f"### Examples:\n{examples}")
-            instruction = "\n\n".join(prompt_parts)
-        else:
-            instruction = get_text_prompt()
-
-        return LlmAgent(
+    def _build_runner(self, instruction: str) -> Runner:
+        """Builds a runner whose LLM agent follows the instruction."""
+        agent = LlmAgent(
             model=os.getenv("MODEL", "gemini-2.5-flash"),
             name=self._agent_name,
             description="An agent that finds colleague contact info.",
             instruction=instruction,
             tools=[get_contact_info],
         )
+        return Runner(
+            app_name=self._agent_name,
+            agent=agent,
+            artifact_service=self._artifact_service,
+            session_service=self._session_service,
+            memory_service=self._memory_service,
+        )
 
-    async def fetch_response(
-        self, query, session_id, ui_version: str | None = None
-    ) -> list[Part]:
-        """Fetches the response from the agent."""
-
-        session_state = {"base_url": self.base_url}
-
-        # Determine which runner to use based on whether the a2ui extension is
-        # active.
-        if ui_version:
-            runner = self._ui_runners[ui_version]
-            processor = self._processors[ui_version]
-            selected_catalog = (
-                processor.active_catalogs[0] if processor.active_catalogs else None
-            )
-        else:
-            runner = self._text_runner
-            processor = None
-            selected_catalog = None
-
-        session = await runner.session_service.get_session(
+    async def _get_session(self, session_id: str) -> Session:
+        session = await self._session_service.get_session(
             app_name=self._agent_name,
             user_id=self._user_id,
             session_id=session_id,
         )
         if session is None:
-            session = await runner.session_service.create_session(
+            session = await self._session_service.create_session(
                 app_name=self._agent_name,
                 user_id=self._user_id,
-                state=session_state,
+                state={"base_url": self.base_url},
                 session_id=session_id,
             )
         elif "base_url" not in session.state:
             session.state["base_url"] = self.base_url
+        return session
 
-        # --- Begin: UI Validation and Retry Logic ---
-        max_retries = 1  # Total 2 attempts
-        attempt = 0
-        current_query_text = query
+    async def fetch_response(
+        self,
+        query: str,
+        session_id: str,
+        ui_version: ProtocolVersion | None = None,
+        client_ui_capabilities: Mapping[str, Any] | None = None,
+    ) -> list[Part]:
+        """Answers one request, as text or, if `ui_version` is set, with UI.
 
-        # Ensure catalog schema was loaded
-        if ui_version and (
-            not selected_catalog or not selected_catalog.validation_schema
-        ):
-            print(
-                "--- ContactAgent.fetch_response: A2UI_SCHEMA is not loaded. "
-                "Cannot perform UI validation. ---"
-            )
-            return [
-                Part(
-                    root=TextPart(
-                        text=(
-                            "I'm sorry, I'm facing an internal configuration"
-                            " error with my UI components. Please contact"
-                            " support."
-                        )
-                    )
+        The whole response is validated before it is returned.
+        """
+        session = await self._get_session(session_id)
+        processor: A2uiRequestProcessor | None = None
+        if ui_version:
+            try:
+                processor = self._generators[ui_version].create_processor(
+                    client_ui_capabilities or GEMINI_ENTERPRISE_CAPABILITIES
                 )
-            ]
-
-        while attempt <= max_retries:
-            attempt += 1
-            print(
-                "--- ContactAgent.fetch_response: Attempt"
-                f" {attempt}/{max_retries + 1} for session {session_id} ---"
+            except A2uiError as e:
+                print(
+                    "--- ContactAgent.fetch_response: Cannot negotiate catalogs:"
+                    f" {e} ---"
+                )
+                return _text_parts(
+                    "I'm sorry, I can't show my interface in this client."
+                )
+            # The prompt shows the catalogs of this request.
+            examples_path = os.path.join(
+                os.path.dirname(__file__), f"examples/{to_version_number(ui_version)}"
             )
+            runner = self._build_runner(get_ui_prompt(processor, examples_path))
+        else:
+            runner = self._text_runner
 
+        current_query_text = query
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            print(
+                f"--- ContactAgent.fetch_response: Attempt {attempt}/{MAX_ATTEMPTS}"
+                f" for session {session_id} ---"
+            )
             current_message = types.Content(
                 role="user", parts=[types.Part.from_text(text=current_query_text)]
             )
-
-            full_content_list = []
-
             print(
                 "--- ContactAgent.fetch_response: Starting runner.run_async with"
                 f" message: {current_message} ---"
             )
 
+            full_content_list: list[str] = []
             try:
                 async for event in runner.run_async(
                     user_id=self._user_id,
                     session_id=session.id,
                     new_message=current_message,
                 ):
-                    if event.is_final_response():
-                        if (
-                            event.content
-                            and event.content.parts
-                            and event.content.parts[0].text
-                        ):
-                            full_content_list.extend(
-                                [p.text for p in event.content.parts if p.text]
-                            )
+                    if (
+                        event.is_final_response()
+                        and event.content
+                        and event.content.parts
+                    ):
+                        full_content_list.extend(
+                            p.text for p in event.content.parts if p.text
+                        )
             except Exception as e:
                 print(
                     "--- ContactAgent.fetch_response: Exception caught while running"
@@ -293,119 +245,58 @@ class ContactAgent:
                 f" {final_response_content[:500]}... ---"
             )
 
-            if final_response_content is None:
+            if not final_response_content:
+                # A retry would add a second user turn with no model turn
+                # between them, so the agent stops here.
                 print(
                     "--- ContactAgent.fetch_response: Received no final response"
                     f" content from runner (Attempt {attempt}). ---"
                 )
-                if attempt <= max_retries:
-                    current_query_text = (
-                        "I received no response. Please try again."
-                        f"Please retry the original request: '{query}'"
-                    )
-                    print(f"Retrying with query: {current_query_text}")
-                    continue  # Go to next retry
-                else:
-                    print("Retries exhausted on no-response")
-                    # Retries exhausted on no-response
-                    final_response_content = (
-                        "I'm sorry, I encountered an error and couldn't process your"
-                        " request."
-                    )
-                    # Fall through to send this as a text-only error
+                break
 
-            is_valid = False
-            error_message = ""
+            if processor is None:
+                return _text_parts(final_response_content)
 
-            if ui_version and processor:
-                print(
-                    "--- ContactAgent.fetch_response: Validating UI response (Attempt"
-                    f" {attempt})... ---"
+            # The response is parsed and validated once, and its parts are
+            # returned only if it is valid.
+            try:
+                final_parts = to_a2a_parts(
+                    processor.parse_response(final_response_content),
+                    version=ui_version,
                 )
-                try:
-                    response_parts = processor.parse_response(final_response_content)
-
-                    for part in response_parts:
-                        if not isinstance(part, A2uiPart):
-                            continue
-
-                        parsed_json_data = part.a2ui
-
-                        # Handle the "no results found" or empty JSON case
-                        if parsed_json_data == []:
-                            print(
-                                "--- ContactAgent.fetch_response: Empty JSON list"
-                                " found. Assuming valid (e.g., 'no results'). ---"
-                            )
-                            is_valid = True
-                        else:
-                            print(
-                                "--- ContactAgent.fetch_response: UI JSON successfully"
-                                " parsed AND validated against schema. Validation OK"
-                                f" (Attempt {attempt}). ---"
-                            )
-                            is_valid = True
-                except (
-                    ValueError,
-                    json.JSONDecodeError,
-                    jsonschema.exceptions.ValidationError,
-                ) as e:
-                    print(
-                        f"--- ContactAgent.fetch_response: A2UI validation failed: {e}"
-                        f" (Attempt {attempt}) ---"
-                    )
-                    print(
-                        "--- Failed response content:"
-                        f" {final_response_content[:500]}... ---"
-                    )
-                    error_message = f"Validation failed: {e}."
-
-            else:  # Not using UI, so text is always "valid"
-                is_valid = True
-
-            if is_valid:
+            except A2uiError as e:
                 print(
-                    "--- ContactAgent.fetch_response: Response is valid. Task complete"
-                    f" (Attempt {attempt}). ---"
+                    f"--- ContactAgent.fetch_response: A2UI validation failed: {e}"
+                    f" (Attempt {attempt}) ---"
                 )
-
-                # Already validated, so we can return the parts.
-                return parse_response_to_parts(final_response_content)
-
-            # --- If we're here, it means validation failed ---
-            if attempt <= max_retries:
                 print(
-                    "--- ContactAgent.fetch_response: Retrying..."
-                    f" ({attempt}/{max_retries + 1}) ---"
+                    "--- Failed response content:"
+                    f" {final_response_content[:500]}... ---"
                 )
-                # Prepare the query for the retry
                 current_query_text = (
-                    f"Your previous response was invalid. {error_message} You MUST"
-                    " generate a valid response that strictly follows the A2UI JSON"
-                    " SCHEMA. The response MUST be a JSON list of A2UI messages."
-                    f" Ensure each JSON part is wrapped in '{A2UI_OPEN_TAG}' and"
-                    f" '{A2UI_CLOSE_TAG}' tags. Please retry the original request:"
-                    f" '{query}'"
+                    f"Your previous response was invalid. Validation failed: {e}."
+                    " You MUST generate a valid response that strictly follows the"
+                    " A2UI JSON SCHEMA. The response MUST be a JSON list of A2UI"
+                    f" messages. Ensure each JSON part is wrapped in '{A2UI_OPEN_TAG}'"
+                    f" and '{A2UI_CLOSE_TAG}' tags. Please retry the original"
+                    f" request: '{query}'"
                 )
-                # Loop continues...
+                continue
 
-        # --- If we're here, it means we've exhausted retries ---
+            print(
+                "--- ContactAgent.fetch_response: Response is valid. Task complete"
+                f" (Attempt {attempt}). ---"
+            )
+            return final_parts
+
         print(
-            "--- ContactAgent.fetch_response: Max retries exhausted. Sending"
+            "--- ContactAgent.fetch_response: No valid response. Sending"
             " text-only error. ---"
         )
-        return [
-            Part(
-                root=TextPart(
-                    text=(
-                        "I'm sorry, I'm having trouble generating the interface"
-                        " for that request right now. Please try again in a"
-                        " moment."
-                    )
-                )
-            )
-        ]
-        # --- End: UI Validation and Retry Logic ---
+        return _text_parts(
+            "I'm sorry, I'm having trouble generating the interface for that"
+            " request right now. Please try again in a moment."
+        )
 
 
 # ADK web looks for 'root_agent' in this file.

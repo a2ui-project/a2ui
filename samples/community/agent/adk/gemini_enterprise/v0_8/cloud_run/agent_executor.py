@@ -30,7 +30,9 @@ from a2a.utils import (
     new_task,
 )
 from a2a.utils.errors import ServerError
+
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from a2ui.utils import to_version_number
 from agent import ContactAgent
 
@@ -66,6 +68,14 @@ class ContactAgentExecutor(AgentExecutor):
             logger.info(
                 "--- AGENT_EXECUTOR: A2UI extension is not active. Using text"
                 " runner. ---"
+            )
+
+        # Renderers may send their capabilities in the message metadata. The
+        # agent decides what a request without them renders.
+        client_ui_capabilities = None
+        if active_ui_version and context.message and context.message.metadata:
+            client_ui_capabilities = context.message.metadata.get(
+                A2UI_CLIENT_CAPABILITIES_KEY
             )
 
         if context.message and context.message.parts:
@@ -128,7 +138,7 @@ class ContactAgentExecutor(AgentExecutor):
         updater = TaskUpdater(event_queue, task.id, task.context_id)
 
         final_parts = await self._agent.fetch_response(
-            query, task.context_id, active_ui_version
+            query, task.context_id, active_ui_version, client_ui_capabilities
         )
         self._log_parts(final_parts)
 

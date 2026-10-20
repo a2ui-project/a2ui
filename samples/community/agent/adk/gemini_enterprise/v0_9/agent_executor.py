@@ -30,9 +30,11 @@ from a2a.utils import (
     new_task,
 )
 from a2a.utils.errors import ServerError
+
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from a2ui.core.schema import ProtocolVersion
-from agent import A2uiDemoAgent
+from agent import A2UI_VERSION, A2uiDemoAgent
 
 logger = logging.getLogger(__name__)
 
@@ -61,15 +63,25 @@ class A2uiDemoAgentExecutor(AgentExecutor):
         )
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
 
-        # Determine which agent to use based on whether the a2ui extension is active.
         if active_ui_version:
             logger.info(
                 "--- AGENT_EXECUTOR: A2UI extension is active. Using UI agent. ---"
             )
         else:
+            # Gemini Enterprise renders A2UI v0.9 without requesting the
+            # extension, so the agent always answers with UI.
             logger.info(
-                "--- AGENT_EXECUTOR: A2UI extension is not active. Using text agent."
-                " ---"
+                "--- AGENT_EXECUTOR: A2UI extension is not requested. Answering"
+                f" with A2UI {A2UI_VERSION.value} anyway. ---"
+            )
+            active_ui_version = A2UI_VERSION
+
+        # Renderers may send their capabilities in the message metadata. The
+        # agent decides what a request without them renders.
+        client_ui_capabilities = None
+        if context.message and context.message.metadata:
+            client_ui_capabilities = context.message.metadata.get(
+                A2UI_CLIENT_CAPABILITIES_KEY
             )
 
         # This executor only supports non-streaming responses for now. Streaming
@@ -166,14 +178,20 @@ class A2uiDemoAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(task)
         updater = TaskUpdater(event_queue, task.id, task.context_id)
 
-        # Non-streaming: drain the agent's response and only act on the final
-        # (is_task_complete=True) item. Intermediate working updates are ignored
-        # so the client receives a single, complete response.
+        # Drain the agent's response and send it in one final message, so the
+        # client receives a single, complete response. Gemini Enterprise
+        # renders only the final message's parts, and the agent's final item
+        # holds the whole response, so the parts and text tokens of its
+        # working items aren't repeated.
         final_parts: list[Part] = []
         async for item in self._agent.stream(
-            query, task.context_id, active_ui_version, use_streaming=use_streaming
+            query,
+            task.context_id,
+            active_ui_version,
+            client_ui_capabilities,
+            use_streaming=use_streaming,
         ):
-            if item.get("is_task_complete"):
+            if item["is_task_complete"]:
                 final_parts = item["parts"]
 
         self._log_parts(final_parts)

@@ -45,9 +45,20 @@ MEMORY="1Gi"
 
 echo "Starting deployment of service '$SERVICE_NAME' to project '$PROJECT_ID' in region '$REGION' with model '$MODEL_NAME'..."
 
+# The sample runs on SDK releases that aren't on PyPI yet. Its
+# [tool.uv.sources] point at the SDKs in this repository, outside the uploaded
+# directory, so a copy of the sample is deployed instead, with wheels of the
+# SDKs and its sources pointed at them.
+SAMPLE_DIR=$(cd "$(dirname "$0")" && pwd)
+SOURCE_DIR=$(mktemp -d)
+trap 'rm -rf "$SOURCE_DIR"' EXIT
+tar -C "$SAMPLE_DIR" --exclude=.venv --exclude=__pycache__ --exclude=.env \
+  --exclude=wheels -cf - . | tar -C "$SOURCE_DIR" -xf -
+"$SAMPLE_DIR/../build_sdk_wheels.sh" "$SOURCE_DIR" --use-wheels
+
 # Deploy to Cloud Run from source code
 gcloud run deploy "$SERVICE_NAME" \
-  --source . \
+  --source "$SOURCE_DIR" \
   --project "$PROJECT_ID" \
   --region "$REGION" \
   --memory "$MEMORY" \

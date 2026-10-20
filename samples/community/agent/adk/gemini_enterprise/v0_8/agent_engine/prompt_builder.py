@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+import os
+
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import load_examples, to_version_number
 
 ROLE_DESCRIPTION = (
     "You are a helpful contact lookup assistant. Your final output MUST always"
@@ -28,7 +34,7 @@ UI_DESCRIPTION = f"""
 -   **For finding contacts (e.g., "Who is Alex Jordan?"):**
     a.  You MUST call the `get_contact_info` tool.
     b.  If the tool returns a **single contact**, you MUST use the `CONTACT_CARD_EXAMPLE` template. Populate the `dataModelUpdate.contents` with the contact's details (name, title, email, etc.).
-    c.  If the tool returns **multiple contacts**, you MUST use the `CONTACT_LIST_EXAMPLE` template. Populate the `dataModelUpdate.contents` with the list of contacts for the "contacts" key.
+    c.  If the tool returns **multiple contacts**, you MUST use the `CONTACT_LIST_EXAMPLE` template. Populate the list of contacts with a `dataModelUpdate` whose `"path"` is `"/contacts"` and whose `contents` has one `valueMap` entry per contact. v0.8 allows only one level of `valueMap`, so nested data needs its own `path`.
     d.  If the tool returns an **empty list**, respond with text only and an empty JSON list: "I couldn't find anyone by that name.{A2UI_OPEN_TAG}[]{A2UI_CLOSE_TAG}"
 
 -   **For handling a profile view (e.g., "WHO_IS: Alex Jordan..."):**
@@ -62,3 +68,41 @@ def get_text_prompt() -> str:
     2.  **For handling actions (e.g., "USER_WANTS_TO_EMAIL: ..."):**
         a. Respond with a simple text confirmation (e.g., "Drafting an email to...").
     """
+
+
+def get_ui_prompt(processor: A2uiRequestProcessor, examples_path: str) -> str:
+    """Constructs the system prompt for one UI request.
+
+    Args:
+        processor: The request's processor. The prompt describes the catalogs
+            it negotiated with the client.
+        examples_path: The directory of example responses, which are checked
+            against the processor's catalogs.
+    """
+    prompt_parts = [
+        ROLE_DESCRIPTION,
+        f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}",
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        processor.prompt_snippet,
+    ]
+    examples = load_examples(processor.active_catalogs, examples_path, validate=True)
+    if examples:
+        prompt_parts.append(f"### Examples:\n{examples}")
+    return "\n\n".join(prompt_parts)
+
+
+if __name__ == "__main__":
+    # Builds the prompt for a client that renders the basic catalog, the way
+    # the agent does for each request.
+    version = ProtocolVersion.V0_8
+    generator = A2uiGenerator([CatalogConfig(BasicCatalog(version))])
+    processor = generator.create_processor(
+        {version.value: {"supportedCatalogIds": [BasicCatalog(version).catalog_id]}}
+    )
+    contact_prompt = get_ui_prompt(
+        processor,
+        os.path.join(
+            os.path.dirname(__file__), f"examples/{to_version_number(version)}"
+        ),
+    )
+    print(contact_prompt)
