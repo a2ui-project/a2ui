@@ -21,17 +21,25 @@ import {
   compareMedianTimes,
   loadConformanceSuite,
   measureGrowth,
+  measureOverhead,
   median,
   readRepositoryJson,
   writePayload,
 } from './timing.mjs';
 
-/** Spins for about `ms` milliseconds. */
-function busy(ms) {
-  const end = performance.now() + ms;
-  while (performance.now() < end) {
-    // Wait.
-  }
+/**
+ * A fake clock for the timing functions. `now` reads it, and the operation
+ * `spend(ms)` returns advances it by `ms`, so the times these tests compare
+ * are exact whatever the machine's load.
+ */
+function fakeClock() {
+  let clock = 0;
+  return {
+    now: () => clock,
+    spend: ms => () => {
+      clock += ms;
+    },
+  };
 }
 
 describe('writePayload', () => {
@@ -69,24 +77,35 @@ describe('median', () => {
 
 describe('compareMedianTimes', () => {
   it('runs each operation once untimed and then the given number of times', () => {
+    const {now} = fakeClock();
     let measured = 0;
     let baseline = 0;
     compareMedianTimes(
       () => measured++,
       () => baseline++,
-      {runs: 3},
+      {runs: 3, now},
     );
     assert.equal(measured, 4);
     assert.equal(baseline, 4);
   });
 
-  it('reports a slower operation with a ratio above 1', () => {
-    const {ratio, measuredMs, baselineMs} = compareMedianTimes(
-      () => busy(8),
-      () => busy(2),
-    );
-    assert.ok(measuredMs > baselineMs);
-    assert.ok(ratio > 2, `ratio ${ratio}`);
+  it('reports the median times and their ratio', () => {
+    const {now, spend} = fakeClock();
+    assert.deepEqual(compareMedianTimes(spend(8), spend(2), {now}), {
+      measuredMs: 8,
+      baselineMs: 2,
+      ratio: 4,
+    });
+  });
+
+  it('compares medians, so one slow run and the untimed run do not count', () => {
+    const {now, spend} = fakeClock();
+    // The untimed run comes first, then the five timed runs.
+    const costs = [1000, 3, 3, 500, 3, 3];
+    let run = 0;
+    const result = compareMedianTimes(() => spend(costs[run++])(), spend(1), {now});
+    assert.equal(run, 6);
+    assert.deepEqual(result, {measuredMs: 3, baselineMs: 1, ratio: 3});
   });
 });
 
@@ -101,15 +120,67 @@ describe('measureGrowth', () => {
   };
 
   it('passes an operation whose time grows in proportion to the payload', () => {
-    const result = measureGrowth(testCase, payload => () => busy(payload.length * 0.5));
-    assert.deepEqual(result.sizes, [2, 8]);
-    assert.ok(result.ratio <= 8, `ratio ${result.ratio}`);
+    const {now, spend} = fakeClock();
+    const result = measureGrowth(testCase, payload => spend(payload.length), {now});
+    assert.deepEqual(result, {sizes: [2, 8], medianMs: [2, 8], ratio: 4});
   });
 
   it('fails an operation whose time grows with the square of the payload', () => {
+    const {now, spend} = fakeClock();
     assert.throws(
-      () => measureGrowth(testCase, payload => () => busy(payload.length ** 2 * 0.1)),
-      /spin at 8 against 2/,
+      () => measureGrowth(testCase, payload => spend(payload.length ** 2), {now}),
+      /spin at 8 against 2: 64\.00 ms against 4\.00 ms, a ratio of 16\.00, above 8/,
+    );
+  });
+
+  it('passes each size to the operation it prepares', () => {
+    const {now, spend} = fakeClock();
+    const sizes = [];
+    measureGrowth(
+      testCase,
+      (payload, size) => {
+        sizes.push(size);
+        return spend(1);
+      },
+      {now},
+    );
+    assert.deepEqual(sizes, [8, 2]);
+  });
+});
+
+describe('measureOverhead', () => {
+  const testCase = {
+    name: 'test_overhead',
+    action: 'measure_overhead',
+    operation: 'stream',
+    baseline: 'compile',
+    payload: [{repeat: 'x'}],
+    size: 10,
+    max_ratio: 2,
+  };
+
+  it('passes an operation within max_ratio of its baseline', () => {
+    const {now, spend} = fakeClock();
+    const result = measureOverhead(
+      testCase,
+      () => spend(15),
+      () => spend(10),
+      {now},
+    );
+    assert.deepEqual(result, {medianMs: [10, 15], ratio: 1.5});
+  });
+
+  it('fails an operation past max_ratio of its baseline', () => {
+    const {now, spend} = fakeClock();
+    assert.throws(
+      () =>
+        measureOverhead(
+          testCase,
+          () => spend(25),
+          () => spend(10),
+          {now},
+        ),
+      /stream against compile at 10: .*a ratio of 2\.50, above 2/,
     );
   });
 });

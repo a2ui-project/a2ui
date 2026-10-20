@@ -126,7 +126,7 @@ Run conformance test suite:
 node tests/conformance/conformance_test.mjs
 ```
 
-Run the timing cases of `conformance/core/message_processor_scaling.yaml`, and the web core's own timing cases in `tests/timing/`, which check that processing a surface sent in many small messages takes time in proportion to its size. Times depend on the machine and its load, so `yarn test` leaves these cases out:
+Run the timing cases of `conformance/core/message_processor_scaling.yaml`, which check that processing a surface sent in many small messages takes time in proportion to its size. Times depend on the machine and its load, so `yarn test` leaves these cases out:
 
 ```bash
 yarn test:timing
