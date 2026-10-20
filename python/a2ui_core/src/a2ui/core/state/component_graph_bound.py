@@ -35,18 +35,71 @@ from .validation_helpers import (
 __all__ = ["ComponentGraphBound"]
 
 
-def children_of(model: ComponentModel) -> list[str]:
-    """Returns the child component IDs referenced by `model`, in property order."""
+class _AnyId:
+    """A container holding every string, passed as the known component ids.
+
+    A component whose catalog declares no reference fields for its type has its
+    children guessed from its properties (the legacy v0.8 heuristic). A string
+    property, or a list holding one, then counts as a reference only when it
+    names a component the surface holds. Reading the references as if every id
+    were held gives a superset of them; dropping the ids the surface does not
+    hold gives the references a check of the whole surface reads.
+    """
+
+    def __contains__(self, item: object) -> bool:
+        return isinstance(item, str)
+
+
+_ANY_ID = _AnyId()
+
+
+def possible_children(model: ComponentModel) -> list[str]:
+    """Returns the ids a component may reference, whichever ids the surface holds.
+
+    The ids among them that the surface holds are the children the topology
+    check (`analyze_topology`) follows.
+    """
+    return [ref_id for ref_id, _ in model.get_child_references(_ANY_ID)]
+
+
+def declared_children(model: ComponentModel) -> list[str]:
+    """Returns the children the composition check reads, in property order.
+
+    These are the references `validate_composition_constraints` reads, which do
+    not depend on the ids the surface holds.
+    """
     return [ref_id for ref_id, _ in model.get_child_references()]
+
+
+def _set_edges(
+    children_of: dict[str, list[str]],
+    parents_of: dict[str, set[str]],
+    comp_id: str,
+    children: list[str],
+) -> None:
+    """Sets the children of `comp_id`, and updates the parents of each child.
+
+    A child no component references any more is dropped from `parents_of`.
+    """
+    for child in children_of.get(comp_id, ()):
+        parents = parents_of.get(child)
+        if parents is not None:
+            parents.discard(comp_id)
+            if not parents:
+                del parents_of[child]
+    for child in children:
+        parents_of.setdefault(child, set()).add(comp_id)
+    children_of[comp_id] = children
 
 
 class ComponentGraphBound:
     """The references of a surface's components and a bound on their depth.
 
     The bound describes a graph that passed the composition and topology
-    checks. It holds the children and parents of each component, the position
-    of each component on the surface, and for each component an upper bound on
-    the number of references in the longest chain below it.
+    checks. It holds the children and parents of each component, for the
+    composition check and for the topology check, the position of each
+    component on the surface, and for each component an upper bound on the
+    number of references in the longest chain below it.
 
     The bound lets a batch be checked without walking the whole graph. A
     cycle the batch makes passes through one of its components, and only the
@@ -58,10 +111,13 @@ class ComponentGraphBound:
     """
 
     def __init__(self) -> None:
-        # The ids each component references (see `children_of`), and
-        # the components that reference each id.
+        # The ids each component may reference (see `possible_children`), and
+        # the components that may reference each id.
         self._children: dict[str, list[str]] = {}
         self._parents: dict[str, set[str]] = {}
+        # The same for the references the composition check reads.
+        self._declared: dict[str, list[str]] = {}
+        self._declared_parents: dict[str, set[str]] = {}
         # For each component, at least the number of references in the
         # longest chain below it, and at least the largest of these.
         self._heights: dict[str, int] = {}
@@ -83,21 +139,16 @@ class ComponentGraphBound:
         for comp_id, model in components.items():
             bound._order[comp_id] = bound._next_order
             bound._next_order += 1
-            bound._set_children(comp_id, children_of(model))
+            bound._set_children(comp_id, possible_children(model))
+            bound._set_declared(comp_id, declared_children(model))
         bound._compute_heights(components.keys())
         return bound
 
     def _set_children(self, comp_id: str, children: list[str]) -> None:
-        if comp_id in self._children:
-            for child in self._children[comp_id]:
-                parents = self._parents.get(child)
-                if parents is not None:
-                    parents.discard(comp_id)
-                    if not parents:
-                        del self._parents[child]
-        for child in children:
-            self._parents.setdefault(child, set()).add(comp_id)
-        self._children[comp_id] = children
+        _set_edges(self._children, self._parents, comp_id, children)
+
+    def _set_declared(self, comp_id: str, children: list[str]) -> None:
+        _set_edges(self._declared, self._declared_parents, comp_id, children)
 
     def _compute_heights(self, ids: Iterable[str]) -> None:
         """Sets each height to the longest chain below it, children first."""
@@ -135,21 +186,19 @@ class ComponentGraphBound:
                     if height > self._max_height:
                         self._max_height = height
 
-    def check_composition(
+    def composition_holds(
         self,
         batch: Mapping[str, ComponentModel],
         held: Mapping[str, ComponentModel],
-    ) -> None:
-        """Checks the composition constraints the batch can change.
+    ) -> bool:
+        """Whether the composition constraints hold on what the batch changes.
 
         `held` is the surface before the batch, which passed the check when
         this bound was made. A component whose type, children, children's
         types and parent are unchanged still passes, so only the others are
-        checked, in surface order, which makes the first failure the one
-        `validate_composition_constraints` reports for the whole surface.
-
-        Raises:
-            A2uiValidationError: As `validate_composition_constraints` does.
+        checked. False means one of them fails; the caller then checks the
+        whole surface with `validate_composition_constraints`, which raises
+        the error it reports for the first component that fails.
         """
 
         def model_of(comp_id: str) -> ComponentModel | None:
@@ -168,15 +217,17 @@ class ComponentGraphBound:
         def order_of(comp_id: str) -> int:
             return self._order[comp_id] if comp_id in held else new_order[comp_id]
 
-        batch_children = {comp_id: children_of(m) for comp_id, m in batch.items()}
+        declared = {comp_id: declared_children(m) for comp_id, m in batch.items()}
         batch_parents: dict[str, set[str]] = {}
-        for comp_id, children in batch_children.items():
+        for comp_id, children in declared.items():
             for child in children:
                 batch_parents.setdefault(child, set()).add(comp_id)
 
         def parent_of(comp_id: str) -> str | None:
             """The last component on the surface that references `comp_id`."""
-            parents = {p for p in self._parents.get(comp_id, ()) if p not in batch}
+            parents = {
+                p for p in self._declared_parents.get(comp_id, ()) if p not in batch
+            }
             parents.update(batch_parents.get(comp_id, ()))
             return max(parents, key=order_of) if parents else None
 
@@ -187,46 +238,39 @@ class ComponentGraphBound:
         moved: set[str] = set()
         holding: dict[str, list[str]] = {}
         for comp_id in batch:
-            moved.update(self._children.get(comp_id, ()))
-            moved.update(batch_children[comp_id])
-            for parent in self._parents.get(comp_id, ()):
+            moved.update(self._declared.get(comp_id, ()))
+            moved.update(declared[comp_id])
+            for parent in self._declared_parents.get(comp_id, ()):
                 if parent not in batch:
                     holding.setdefault(parent, []).append(comp_id)
-        to_check = {c for c in (*batch, *moved, *holding) if model_of(c) is not None}
-        for comp_id in sorted(to_check, key=order_of):
-            model = model_of(comp_id)
-            assert model is not None
-            component_api = composition_api(model)
-            if component_api is None:
-                continue
-            if comp_id in batch or comp_id in moved:
-                parent_id = parent_of(comp_id)
-                check_allowed_parent(
-                    comp_id,
-                    model,
-                    component_api,
-                    parent_id,
-                    type_of(parent_id) if parent_id is not None else None,
-                )
-            if comp_id in batch:
-                check_allowed_children(
-                    comp_id, model, component_api, batch_children[comp_id], type_of
-                )
-            elif comp_id in holding:
-                try:
-                    check_allowed_children(
-                        comp_id, model, component_api, holding[comp_id], type_of
-                    )
-                except A2uiValidationError:
-                    # Reads every child to report the first one that fails.
-                    check_allowed_children(
+        try:
+            for comp_id in (*batch, *moved, *holding):
+                model = model_of(comp_id)
+                if model is None:
+                    continue
+                component_api = composition_api(model)
+                if component_api is None:
+                    continue
+                if comp_id in batch or comp_id in moved:
+                    parent_id = parent_of(comp_id)
+                    check_allowed_parent(
                         comp_id,
                         model,
                         component_api,
-                        self._children[comp_id],
-                        type_of,
+                        parent_id,
+                        type_of(parent_id) if parent_id is not None else None,
                     )
-                    raise
+                if comp_id in batch:
+                    check_allowed_children(
+                        comp_id, model, component_api, declared[comp_id], type_of
+                    )
+                elif comp_id in holding:
+                    check_allowed_children(
+                        comp_id, model, component_api, holding[comp_id], type_of
+                    )
+        except A2uiValidationError:
+            return False
+        return True
 
     def admits(
         self,
@@ -246,7 +290,7 @@ class ComponentGraphBound:
         if self._max_height > limit:
             return False
         for comp_id, model in batch.items():
-            children = children_of(model)
+            children = possible_children(model)
             if comp_id in children:
                 return False
             self._set_children(comp_id, children)
@@ -278,12 +322,13 @@ class ComponentGraphBound:
     def record_batch(
         self, batch: Mapping[str, ComponentModel], held: Mapping[str, ComponentModel]
     ) -> None:
-        """Records the positions of an admitted batch.
+        """Records the composition references and positions of an admitted batch.
 
         A new component takes the next position, as it is added at the end of
         the surface.
         """
-        for comp_id in batch:
+        for comp_id, model in batch.items():
+            self._set_declared(comp_id, declared_children(model))
             if comp_id not in held:
                 self._order[comp_id] = self._next_order
                 self._next_order += 1
