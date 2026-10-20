@@ -176,9 +176,7 @@ class ComponentGraphBound:
 
         def parent_of(comp_id: str) -> str | None:
             """The last component on the surface that references `comp_id`."""
-            parents = {
-                p for p in self._parents.get(comp_id, ()) if p not in batch
-            }
+            parents = {p for p in self._parents.get(comp_id, ()) if p not in batch}
             parents.update(batch_parents.get(comp_id, ()))
             return max(parents, key=order_of) if parents else None
 
