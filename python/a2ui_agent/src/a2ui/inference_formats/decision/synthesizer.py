@@ -175,6 +175,11 @@ def _is_binding_ref(ref: Any) -> bool:
     return isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref)
 
 
+_SCHEMA_TYPE_CONSTRAINTS = frozenset(
+    {"type", "$ref", "enum", "const", "oneOf", "anyOf", "allOf"}
+)
+
+
 def _schema_allows_binding(schema: Mapping[str, Any]) -> bool:
     """Returns whether `schema` accepts an A2UI `DataBinding` object."""
     if _is_binding_ref(schema.get("$ref")):
@@ -185,7 +190,7 @@ def _schema_allows_binding(schema: Mapping[str, Any]) -> bool:
             isinstance(s, Mapping) and _schema_allows_binding(s) for s in sub_list
         ):
             return True
-    return False
+    return not bool(_SCHEMA_TYPE_CONSTRAINTS & schema.keys())
 
 
 def _default_arg_value(

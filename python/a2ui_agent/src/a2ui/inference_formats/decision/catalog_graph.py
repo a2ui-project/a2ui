@@ -258,7 +258,7 @@ def _is_component_checkable(
     """Returns whether `comp_name` supports validation `checks`."""
     if "checks" in raw_props:
         return True
-    return comp_name in helper.component_is_checkable
+    return bool(helper.component_is_checkable.get(comp_name, False))
 
 
 def _collect_component_props_and_required(

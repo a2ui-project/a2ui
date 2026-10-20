@@ -477,6 +477,7 @@ class TestCatalogDecisionGraph:
         assert vitals is not None
         assert vitals.is_container is False
         assert vitals.has_action_slot is False
+        assert vitals.supports_checks is False
 
         dosage = graph.get_component("DosageOrderPanel")
         assert dosage is not None
@@ -486,6 +487,7 @@ class TestCatalogDecisionGraph:
 
         gauge = graph.get_component("ClusterGauge")
         assert gauge is not None
+        assert gauge.supports_checks is False
         gauge_slots = {s.name: s for s in gauge.slots}
         assert gauge_slots["tags"].kind == SlotKind.DATA_VALUE
         assert gauge_slots["tags"].value_type == "array"

@@ -702,7 +702,7 @@ async def test_any_slot_ranking_and_check_arg_binding_and_camelcase_checks() -> 
                         "type": "object",
                         "properties": {
                             "tickerSymbol": {
-                                "$ref": "common_types.json#/$defs/DynamicString"
+                                "description": "Unconstrained parameter schema."
                             },
                         },
                         "required": ["tickerSymbol"],
