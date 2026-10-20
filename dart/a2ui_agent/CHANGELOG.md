@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Lower the SDK constraint to `>=3.8.0 <4.0.0`, the oldest version the
+  package's code compiles with. On Dart 3.8 and 3.9 the package resolves
+  once `json_schema_builder`, which `a2ui_core` depends on, publishes a
+  version that allows them; 0.1.7 requires Dart 3.10.
 - Support cross-catalog `$ref` references across peer catalogs in
   `resolveCatalogs`, `validatePayloads`, `DirectJsonPromptGenerator` (preserving
   unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive

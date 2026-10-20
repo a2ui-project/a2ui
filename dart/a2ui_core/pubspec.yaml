@@ -22,6 +22,10 @@ version: 0.3.0
 resolution: workspace
 
 environment:
+  # Lower than the bound of a2ui_flutter on purpose. a2ui_core is plain Dart,
+  # used outside Flutter too, such as by agents and servers, and by Flutter
+  # apps on older SDKs, so it allows every SDK its own code compiles with. 3.5
+  # is the lowest version that `resolution: workspace` allows.
   sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
