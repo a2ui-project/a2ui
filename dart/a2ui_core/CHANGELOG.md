@@ -21,6 +21,9 @@
   the message that passed the check, and a list or map the two hold at the
   same place is not checked again, so a message that grows as it streams is
   checked for what it gained.
+- Exported `checkDuplicateComponentIds`, which throws `A2uiIntegrityError`
+  when a batch of components names the same id twice, or names an id of an
+  earlier batch of the same message.
 
 ## 0.3.0
 
