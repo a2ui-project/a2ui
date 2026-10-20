@@ -18,6 +18,7 @@ Test suites are organized by functional domain:
 - `core/node_resolution.yaml`: Contains node-tree, scoped-binding, notification, identity, action, and destruction scenarios. See [the case format](core/node_resolution.md).
 - `core/expressions.yaml`: Contains test cases for the client-side expression parser behind `formatString`, covering literals, data bindings, function calls, nested interpolation, escaped markers and parse errors.
 - `core/functions.yaml`: Contains test cases for the basic catalog functions, and for the catalog a function call runs in on a surface. See [Writing cases for `evaluate_function`](#writing-cases-for-evaluate_function).
+- `core/message_processor_scaling.yaml`: Timing cases for `processMessages`, with a validation config and without one, which check that a surface arriving in many small messages takes time in proportion to its size. See [Timing cases](#timing-cases).
 
 ### Agent (`agent/`)
 
@@ -43,6 +44,7 @@ Everything a format decides for itself is covered once per format, in a folder n
 - `compiler.yaml`: Compiling one raw block into A2UI messages. Both folders.
 - `decompiler.yaml`: Writing messages back into the format's own notation, which is how a prompt example is authored as messages and shown to a model as notation. Both folders.
 - `response_streaming.yaml`: Parsing a response one chunk at a time, including the point at which a payload can first be emitted. `direct_json/` only, since the Express parser does not implement `parse_chunk` and an Express agent parses a buffered response whole.
+- `scaling.yaml`: Timing cases, which check that the time to parse a payload grows in proportion to the payload: streaming and compiling in `direct_json/`, compiling in `express/`. See [Timing cases](#timing-cases).
 
 The blueprint declares `wrap`, `unwrap`, `compile`, `decompile` and `parse_response` on a single `Parser` interface, so `response_parser.yaml`, `compiler.yaml` and `decompiler.yaml` are three files for one interface. They are split by call because each has rules of its own: where a payload begins and ends, what it means, and how it is written back. The Express compiler suite is by far the largest of the three, since Express has a grammar to get right and direct JSON does not.
 
@@ -109,6 +111,12 @@ In addition to the declarative YAML conformance suites, SDKs implementing infere
 Harnesses join adjacent literal parts before comparing, and drop empty ones. A case therefore fixes what a template _means_, not how a given implementation splits the literal text around its values; implementations that split literal runs differently still conform as long as the values and the text agree.
 
 Errors are expressed with the suite's language-agnostic categories rather than an SDK's class names: `ParseError` maps to `A2uiExpressionError` in both the Dart and TypeScript clients, and `message` is matched as a regular expression against the error's text.
+
+### Timing cases
+
+The `scaling.yaml` suites and `core/message_processor_scaling.yaml` time an operation rather than check what it returns, so that a parser or processor that returns the right result with a cost growing with the square of the payload fails a test. A `measure_growth` case (`MeasureGrowthTest` in `conformance_schema.json`) times `operation` on a payload written at the two `sizes`, n and 4n, and expects the larger to take at most `max_ratio` times as long as the smaller: a linear cost takes about 4 times as long and a quadratic one about 16 times, and the limit of 8 tells them apart. A `measure_overhead` case (`MeasureOverheadTest`) times streaming a payload against compiling it, and expects streaming to take at most `max_ratio` times as long. A payload is a `PayloadTemplate`: text segments and segments repeated n times, so every SDK times the same bytes. [`agent/direct_json/scaling.yaml`](agent/direct_json/scaling.yaml) describes how a harness times a case.
+
+Times depend on the machine and its load, so a harness runs these cases apart from its other tests and one at a time. The Dart packages tag them `performance`, which their `dart_test.yaml` skips unless `dart test -P performance` asks for them, and CI runs them in a job of their own. A harness that has no such runner skips the two actions with a reason, as the Python core and TypeScript web core harnesses do.
 
 ### Writing cases for `evaluate_function`
 

@@ -59,8 +59,9 @@ typedef PartialMessage = ({Object? message, bool closed});
 ///
 /// Given a [cache] that earlier reads of the same payload filled, a list or
 /// map that closed in one of them is taken from it rather than read again,
-/// as the same object, and a list still open is read on from its last item
-/// that closed. A caller must not change the lists and maps returned.
+/// as the same object, and a list still open, the list of messages
+/// included, is read on from its last item that closed. A caller must not
+/// change the lists and maps returned.
 ///
 /// Returns no messages if [text] cannot be the start of a JSON document.
 List<PartialMessage> readPartialMessages(
@@ -108,6 +109,11 @@ class PartialReadCache {
   final _ReadState _straight = _ReadState();
 }
 
+/// What the reads of a payload keep for the next read.
+///
+/// An offset is the index of a character in the text read, counting from 0
+/// at its first character, so the offset after a closing bracket is the
+/// index of the character that follows it.
 class _ReadState {
   /// Each list or map that closed, by the offset of its opening bracket,
   /// with the offset after its closing one.
@@ -116,6 +122,11 @@ class _ReadState {
   /// Each list still open, by the offset of its opening bracket, with the
   /// items that closed and the offset after the last of them.
   final Map<int, (List<Object?>, int)> open = {};
+
+  /// For a payload written as a list of messages, the messages whose JSON
+  /// object has closed, and the offset after the last of them, where the
+  /// next read goes on. Null until a read stops inside the list.
+  (List<PartialMessage>, int)? messages;
 }
 
 String _straightenQuotes(String text) => text
@@ -188,27 +199,61 @@ class _Reader {
       }
     }
     _i++;
-    final messages = <PartialMessage>[];
+    var messages = <PartialMessage>[];
+    // How many of the messages closed, and where the text after the last of
+    // them starts, for the next read to go on from.
+    var closedMessages = 0;
+    int resume = _i;
+    var afterItem = false;
+    if (_state?.messages case (
+      final List<PartialMessage> closed,
+      final int at,
+    )) {
+      messages = [...closed];
+      closedMessages = closed.length;
+      resume = _i = at;
+      afterItem = closed.isNotEmpty;
+    }
+
+    List<PartialMessage> soFar() {
+      _state?.messages = (
+        closedMessages == messages.length
+            ? messages
+            : messages.sublist(0, closedMessages),
+        resume,
+      );
+      return messages;
+    }
+
     while (true) {
+      if (afterItem) {
+        _skipSpace();
+        if (_atEnd) return soFar();
+        if (text[_i] == ',') {
+          _i++;
+        } else if (text[_i] != ']') {
+          _fail("expected ',' or ']'");
+        }
+      }
+      afterItem = true;
       _skipSpace();
-      if (_atEnd) return messages;
+      if (_atEnd) return soFar();
       if (text[_i] == ']') {
         _i++;
         _skipSpace();
         if (!_atEnd) _fail('unexpected text after the JSON value');
         return messages;
       }
+      final PartialMessage message;
       try {
-        messages.add(_message());
+        message = _message();
       } on _Unfinished {
-        return messages;
+        return soFar();
       }
-      _skipSpace();
-      if (_atEnd) return messages;
-      if (text[_i] == ',') {
-        _i++;
-      } else if (text[_i] != ']') {
-        _fail("expected ',' or ']'");
+      messages.add(message);
+      if (message.closed) {
+        closedMessages = messages.length;
+        resume = _i;
       }
     }
   }
