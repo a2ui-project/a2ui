@@ -128,6 +128,50 @@ describe('Button Component', () => {
     assert.strictEqual(dispatched.action?.name, 'submit_clicked');
   });
 
+  it('should enable the mounted button and dispatch after checks are removed', async () => {
+    const el = document.createElement('a2ui-basic-button') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'btn_disabled');
+    });
+    const button = el.querySelector('button')!;
+    assert.strictEqual(button.disabled, true);
+
+    await asyncUpdate(el, () => {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'btn_disabled',
+                component: 'Button',
+                child: 'txt1',
+                action: {event: {name: 'ignored'}},
+              },
+            ],
+          },
+        },
+      ]);
+    });
+    assert.strictEqual('checks' in surface.componentsModel.get('btn_disabled')!.properties, false);
+    assert.strictEqual(el.querySelector('button'), button);
+    assert.strictEqual(button.disabled, false);
+
+    const actions: A2uiClientAction[] = [];
+    subscription = surface.onAction.subscribe(action => {
+      actions.push(action);
+    });
+    button.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepStrictEqual(
+      actions.map(action => action.name),
+      ['ignored'],
+    );
+  });
+
   it('should be disabled when isValid is false', async () => {
     const el = document.createElement('a2ui-basic-button') as A2uiWebComponentElement;
     element = el;

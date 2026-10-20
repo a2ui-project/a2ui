@@ -488,6 +488,9 @@ export class GenericBinder<T> {
     this.dataListeners.forEach(l => l());
     this.dataListeners = [];
 
+    // Component updates replace their properties. Clear the old snapshot before
+    // binding so omitted props disappear while checks can populate fresh state.
+    this.currentProps = {};
     const props = this.context.componentModel.properties;
 
     const resolved = this.resolveAndBind(props, this.behaviorTree, [], false) as

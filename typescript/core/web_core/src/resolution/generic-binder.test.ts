@@ -23,6 +23,7 @@ import {
   MAX_DYNAMIC_CHILD_LIST_SIZE,
   scrapeSchemaBehavior,
   type GenerateSetters,
+  type ResolveA2uiProps,
 } from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -671,6 +672,89 @@ describe('GenericBinder Checkable Trait', () => {
 
     binder.snapshot.setValue?.('updated');
     assert.strictEqual(surface.dataModel.get('/fieldVal'), 'updated');
+  });
+
+  it('should discard removed optional properties and validation state when rebuilding', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', 'initial');
+    const schema = z.object({
+      value: CommonSchemas.DynamicString.optional(),
+      hint: z.string().optional(),
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    const compModel = new ComponentModel(
+      'removed_props',
+      'Test',
+      {
+        value: {path: '/val'},
+        hint: 'Temporary hint',
+        checks: [{condition: false, message: 'Temporarily blocked'}],
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<ResolveA2uiProps<z.infer<typeof schema>>>(
+      new ComponentContext(surface, compModel.id),
+      schema,
+    );
+    const subscription = binder.subscribe(() => {});
+
+    try {
+      assert.strictEqual(binder.snapshot.isValid, false);
+      assert.deepStrictEqual(binder.snapshot.validationErrors, ['Temporarily blocked']);
+      compModel.properties = {};
+
+      assert.deepStrictEqual(Object.keys(binder.snapshot), ['setValue']);
+      binder.snapshot.setValue('ignored');
+      assert.strictEqual(surface.dataModel.get('/val'), 'initial');
+    } finally {
+      subscription.unsubscribe();
+      surface.dispose();
+    }
+  });
+
+  it('should preserve retained checks and their reactive updates when rebuilding', async () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', '');
+    const props = {
+      value: {path: '/val'},
+      checks: [
+        {
+          condition: {call: 'required', args: {value: {path: '/val'}}},
+          message: 'Value is required',
+        },
+      ],
+    };
+    const compModel = new ComponentModel('retained_checks', 'Test', props, catalog);
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<ResolveA2uiProps<z.infer<typeof schema>>>(
+      new ComponentContext(surface, compModel.id),
+      schema,
+    );
+    const states: Array<{isValid: boolean | undefined; errors: string[] | undefined}> = [];
+    const subscription = binder.subscribe(resolved => {
+      states.push({isValid: resolved.isValid, errors: resolved.validationErrors});
+    });
+
+    try {
+      compModel.properties = {...props};
+      assert.deepStrictEqual(states, [{isValid: false, errors: ['Value is required']}]);
+      assert.strictEqual(binder.snapshot.isValid, false);
+
+      surface.dataModel.set('/val', 'hello');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(binder.snapshot.value, 'hello');
+      assert.strictEqual(binder.snapshot.isValid, true);
+      assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+
+      surface.dataModel.set('/val', '');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(binder.snapshot.isValid, false);
+      assert.deepStrictEqual(binder.snapshot.validationErrors, ['Value is required']);
+    } finally {
+      subscription.unsubscribe();
+      surface.dispose();
+    }
   });
 
   it('should handle subscription, component update rebuilding, and dispose', async () => {
