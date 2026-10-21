@@ -56,24 +56,15 @@ def measured_generate() -> Solver:
         after_output = usage_after.output_tokens if usage_after else 0
         after_reasoning = usage_after.reasoning_tokens or 0 if usage_after else 0
 
-        state.metadata["inference_duration_seconds"] = (
-            state.metadata.get("inference_duration_seconds", 0.0) + duration
+        state.metadata["inference_duration_seconds"] = duration
+        state.metadata["inference_input_tokens"] = (
+            after_total_input - before_total_input
         )
-        state.metadata["generate_attempts"] = (
-            state.metadata.get("generate_attempts", 0) + 1
+        state.metadata["inference_output_tokens"] = after_output - before_output
+        state.metadata["inference_cached_tokens"] = after_cached - before_cached
+        state.metadata["inference_reasoning_tokens"] = (
+            after_reasoning - before_reasoning
         )
-        state.metadata["inference_input_tokens"] = state.metadata.get(
-            "inference_input_tokens", 0
-        ) + (after_total_input - before_total_input)
-        state.metadata["inference_output_tokens"] = state.metadata.get(
-            "inference_output_tokens", 0
-        ) + (after_output - before_output)
-        state.metadata["inference_cached_tokens"] = state.metadata.get(
-            "inference_cached_tokens", 0
-        ) + (after_cached - before_cached)
-        state.metadata["inference_reasoning_tokens"] = state.metadata.get(
-            "inference_reasoning_tokens", 0
-        ) + (after_reasoning - before_reasoning)
 
         return state
 

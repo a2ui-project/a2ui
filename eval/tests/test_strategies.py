@@ -349,7 +349,6 @@ async def test_measured_generate_records_metrics_single_attempt() -> None:
 
     state = await solver(state, single_gen)
     assert calls == 1
-    assert state.metadata["generate_attempts"] == 1
     assert "inference_duration_seconds" in state.metadata
 
 
