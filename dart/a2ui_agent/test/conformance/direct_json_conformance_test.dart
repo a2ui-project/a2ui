@@ -68,12 +68,13 @@ const Set<String> _v1OnlyStreamingCases = {
   'test_stream_catalog_id_split_across_chunks_v10',
 };
 
-/// Streaming cases that state a rule of v1.0 alone, which a v0.9 parser
-/// does not follow, so they run as written in v1.0 only.
-const Map<String, String> _v1StreamingRules = {
-  'test_stream_component_without_catalog_uses_surface_catalog_v10':
-      'Raising on the chunk that closes an invalid component is a v1.0 rule; '
-      'before v1.0 the error is raised when the block closes.',
+/// Shared streaming cases that #3269 changes to hold back a message for a
+/// surface that does not exist yet, as this stream does. They stay as main
+/// has them until #3269 lands, since the Python and TypeScript SDKs on main
+/// still emit the message, and are skipped here until then.
+const Set<String> _casesPendingSharedUpdate = {
+  'test_stream_update_before_create_surface_fails_v09',
+  'test_stream_data_model_before_create_surface_fails_v09',
 };
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
@@ -89,12 +90,13 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
   if (caseCatalogVersion(args) == '0.8') {
     return 'This SDK does not implement v0.8.';
   }
+  if (_casesPendingSharedUpdate.contains(testCase['name'])) {
+    return 'The shared case still expects the message emitted; #3269 '
+        'updates it.';
+  }
   if (version == SuiteVersion.v0_9) {
     if (_v1OnlyStreamingCases.contains(testCase['name'])) {
       return 'v0.9 cannot state what the case streams.';
-    }
-    if (_v1StreamingRules[testCase['name']] case final String reason) {
-      return reason;
     }
     if (testCase['action'] == 'generate_prompt_snippet') {
       return 'The snippet embeds the schemas of the catalogs\' version, so '
@@ -176,7 +178,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       ];
     case 'compile':
       return version.messagesJson(
-        format.createParser().compile(input!),
+        compileChecked(format.createParser(), input!),
         injectedCatalogId: catalogId,
       );
     case 'decompile':
@@ -196,12 +198,12 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
   }
 }
 
-/// Feeds the steps of a `parse_chunk` case to one parser, checking what each
-/// yields, and then the whole response to another parser in one call when
-/// the case asks.
+/// Feeds the steps of a `parse_chunk` case to one stream, checking what each
+/// yields and that closing the stream yields nothing more, and then the whole
+/// response to a new parser in one call when the case asks.
 ///
 /// A case whose catalog declares v0.9 is written in that version, so its
-/// chunks and what the parser yields are compared as they are, without
+/// chunks and what the stream yields are compared as they are, without
 /// lowering or lifting.
 void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
@@ -212,7 +214,10 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final String? catalogId = written.injectedCatalog(testCase);
   List<Object?> lift(List<ResponsePart> parts) =>
       written.partsJson(parts, injectedCatalogId: catalogId);
-  final Parser parser = _format(testCase, version).createParser();
+  final ResponseStream stream = _format(
+    testCase,
+    version,
+  ).createParser().openStream(wrapped: wrapped);
   final chunks = <String>[];
   final yielded = <Object?>[];
   for (final (int i, Object? step)
@@ -224,19 +229,16 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
     );
     chunks.add(chunk);
     if (stepCase['expect_error'] case final Object error) {
-      expectThrowsCategory(
-        () => parser.parseChunk(chunk, wrapped: wrapped),
-        error,
-        reason: 'step $i',
-      );
+      expectThrowsCategory(() => stream.feed(chunk), error, reason: 'step $i');
       return;
     }
-    final List<Object?> parts = lift(
-      parser.parseChunk(chunk, wrapped: wrapped),
-    );
+    final List<Object?> parts = lift(stream.feed(chunk));
     expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
     yielded.addAll(parts);
   }
+  // Every case ends on a complete response, so closing the stream emits
+  // nothing more and throws nothing.
+  expect(stream.close(), isEmpty);
   if (testCase['expect_matches_single_shot'] == true) {
     expect(
       lift(
@@ -283,10 +285,10 @@ void _checkDecompiled(
     expect(output, contains(text));
   }
   if (testCase['expect_round_trip'] == true) {
-    final List<AgentToRendererMessage> recompiled = _format(
-      testCase,
-      version,
-    ).createParser().compile(output);
+    final List<AgentToRendererMessage> recompiled = compileChecked(
+      _format(testCase, version).createParser(),
+      output,
+    );
     expect(
       version.messagesJson(recompiled),
       testCase['messages'],

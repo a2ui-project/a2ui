@@ -70,7 +70,9 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
     case 'create_format':
       return null;
     case 'compile':
-      return version.messagesJson(format.createParser().compile(input!));
+      return version.messagesJson(
+        compileChecked(format.createParser(), input!),
+      );
     case 'decompile':
       return format.createParser().decompile(
         version.messages(testCase['messages']! as List<Object?>),
@@ -98,10 +100,10 @@ void _checkDecompiled(
     expect(output, isNot(contains(text)));
   }
   if (testCase['expect_round_trip'] == true) {
-    final List<AgentToRendererMessage> recompiled = _format(
-      testCase,
-      version,
-    ).createParser().compile(output);
+    final List<AgentToRendererMessage> recompiled = compileChecked(
+      _format(testCase, version).createParser(),
+      output,
+    );
     expect(
       version.messagesJson(recompiled),
       testCase['messages'],

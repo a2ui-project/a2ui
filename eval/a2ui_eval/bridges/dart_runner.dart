@@ -177,38 +177,9 @@ Map<String, Object?> _alignExpressEnvelope(
   };
 }
 
-class _SignatureOnlyFunction extends FunctionImplementation {
-  _SignatureOnlyFunction(FunctionApi api)
-    : super(
-        name: api.name,
-        argumentSchema: api.argumentSchema,
-        returnType: api.returnType,
-        description: api.description,
-        allowedCallers: api.declaredAllowedCallers,
-        requiresUserActivation: api.declaredRequiresUserActivation,
-        definition: api.definition,
-      );
-
-  @override
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]) => throw UnsupportedError(
-    "Function '$name' is a signature only and cannot be invoked.",
-  );
-}
-
-Catalog<ComponentApi, FunctionImplementation> _signedCatalog(
-  CatalogApi catalog,
-) => catalog.withFunctions(
-  catalog.functions.values.map(_SignatureOnlyFunction.new),
-);
-
 Map<String, Object?> _parseAndValidate({
   required String formatName,
   required A2uiProtocolVersion version,
-  required CatalogApi catalog,
   required InferenceFormat strategy,
   required String surfaceId,
   required String completion,
@@ -226,8 +197,9 @@ Map<String, Object?> _parseAndValidate({
     );
   }
 
-  // Equivalent to `parser.parseResponse(completion)`, but keeps each raw block
-  // so explicit fields the model wrote can be preserved.
+  // Like `parser.parseResponse(completion)`, but keeps each raw block so
+  // explicit fields the model wrote can be preserved, and checks the
+  // messages only when asked.
   final compiledMessages = <AgentToRendererMessage>[];
   final compiledJsons = <Map<String, Object?>>[];
   final serializedParts = <Map<String, Object?>>[];
@@ -264,18 +236,15 @@ Map<String, Object?> _parseAndValidate({
     );
   }
 
-  if (!validate) {
-    return {'compiled_jsons': compiledJsons, 'parts': serializedParts};
-  }
-  final renderer = MessageProcessor<ComponentApi>(
-    catalogs: [_signedCatalog(catalog)],
-    defaultVersion: version,
-    validationConfig: ValidationConfig.strict,
-  );
-  try {
-    renderer.processMessages(AgentToRendererMessagePayload(compiledMessages));
-  } finally {
-    renderer.model.dispose();
+  if (validate) {
+    // The response is checked as a whole against a new renderer state, as
+    // `parser.parseResponse` checks it, so its surfaces must be complete.
+    final state = RendererState(parser.catalogs);
+    try {
+      state.checkTopology(state.apply(compiledMessages));
+    } finally {
+      state.dispose();
+    }
   }
   return {'compiled_jsons': compiledJsons, 'parts': serializedParts};
 }
@@ -336,7 +305,6 @@ Future<void> main() async {
         final Map<String, Object?> result = _parseAndValidate(
           formatName: formatName,
           version: version,
-          catalog: catalog,
           strategy: strategy,
           surfaceId: surfaceId,
           completion: completion,

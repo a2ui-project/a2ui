@@ -369,13 +369,13 @@ function runFormatCase(testCase: LoadedCase): void {
 
     const generator = new A2uiGenerator(configs, examples, baseFactory);
 
-    const rawCaps = args.renderer_capabilities as Record<string, RendererCapabilities> | undefined;
-    const byVersion = rawCaps ? Object.values(rawCaps) : [];
-    const capabilities = byVersion[0];
+    const capabilities = args.renderer_capabilities as
+      | Record<string, RendererCapabilities>
+      | undefined;
 
     const create = () => {
       const processor = generator.createProcessor(
-        capabilities as RendererCapabilities,
+        capabilities as Record<string, RendererCapabilities>,
         overrideFactory,
       );
       const snippet = processor.promptSnippet;

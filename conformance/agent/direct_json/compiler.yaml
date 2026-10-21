@@ -58,6 +58,9 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# A compile case checks the block on its own, as `validate_payload` does: a
+# surface that the block updates without creating is assumed to exist.
+
 - name: test_compile_json_message_list
   description: A well formed message list compiles to those messages.
   action: compile

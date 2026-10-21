@@ -55,6 +55,11 @@ describe('Public Barrel Exports', () => {
     expect(a2uiAgent.resolveCatalogs).toBeDefined();
   });
 
+  it('exports the renderer state and payload validation', () => {
+    expect(a2uiAgent.RendererState).toBeDefined();
+    expect(a2uiAgent.validatePayload).toBeDefined();
+  });
+
   it('exports the Express format and its error classes', () => {
     expect(a2uiAgent.ExpressFormat).toBeDefined();
     expect(a2uiAgent.ExpressFormatFactory).toBeDefined();
