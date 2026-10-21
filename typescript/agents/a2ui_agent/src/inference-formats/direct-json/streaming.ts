@@ -38,6 +38,7 @@ import {
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {A2uiCatalogError, A2uiIntegrityError, ParseError} from '../../errors.js';
 import {validateEnvelope} from '../../utils/envelope-validation.js';
+import {repairStringNewlines} from '../../parser/payload-fixer.js';
 
 export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor {
   private buffer = '';
@@ -429,7 +430,16 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
               const objBuffer = this.jsonBuffer.substring(startIdx);
               if (objBuffer.startsWith('{') && objBuffer.endsWith('}')) {
                 try {
-                  const obj = JSON.parse(objBuffer);
+                  let obj: any;
+                  try {
+                    obj = JSON.parse(objBuffer);
+                  } catch (e) {
+                    if (e instanceof SyntaxError) {
+                      obj = JSON.parse(repairStringNewlines(objBuffer));
+                    } else {
+                      throw e;
+                    }
+                  }
                   if (typeof obj === 'object' && obj !== null) {
                     this.foundValidJsonInBlock = true;
 

@@ -173,6 +173,8 @@ class _Reader {
   /// it.
   bool _cut = false;
 
+  bool _inDataModel = false;
+
   bool get _partial => progressiveKeys != null;
 
   bool get _atEnd => _i >= _limit;
@@ -300,7 +302,8 @@ class _Reader {
     _fail("unexpected character '$c'");
   }
 
-  Map<String, Object?> _object() => _closedOr(_readObject);
+  Map<String, Object?> _object([String? parentKey]) =>
+      _closedOr(() => _readObject(parentKey));
 
   /// Reads a list or map through [read], unless an earlier read saw the one
   /// that starts here close, and keeps it if it closes.
@@ -320,7 +323,7 @@ class _Reader {
     return value;
   }
 
-  Map<String, Object?> _readObject() {
+  Map<String, Object?> _readObject([String? parentKey]) {
     _i++;
     final map = <String, Object?>{};
     while (true) {
@@ -331,21 +334,34 @@ class _Reader {
         return map;
       }
       if (text[_i] != '"') _fail('expected a key');
-      final String key = _string(healable: false, stripNewlines: true);
+      final String key = _string(
+        healable: false,
+        stripNewlines: !_inDataModel,
+      );
       _skipSpace();
       if (_atEnd) _end();
       if (text[_i] != ':') _fail("expected ':' after key '$key'");
       _i++;
       _skipSpace();
-      map[key] = !_atEnd && text[_i] == '['
-          ? _array(
-              wholeItems: _partial && wholeItemKeys.contains(key),
-              stripItemNewlines: key == 'children',
-            )
-          : _value(
-              healable: progressiveKeys?.contains(key) ?? false,
-              stripNewlines: _newlineStrippedKeys.contains(key),
-            );
+      final bool isDataValue =
+          !_inDataModel && parentKey == 'updateDataModel' && key == 'value';
+      if (isDataValue) _inDataModel = true;
+      try {
+        map[key] = !_atEnd && text[_i] == '['
+            ? _array(
+                wholeItems: _partial && wholeItemKeys.contains(key),
+                stripItemNewlines: key == 'children' && !_inDataModel,
+              )
+            : (!_atEnd && text[_i] == '{'
+                ? _object(key)
+                : _value(
+                    healable: progressiveKeys?.contains(key) ?? false,
+                    stripNewlines:
+                        _newlineStrippedKeys.contains(key) && !_inDataModel,
+                  ));
+      } finally {
+        if (isDataValue) _inDataModel = false;
+      }
       _skipSpace();
       if (_atEnd) return _healed(map);
       if (text[_i] == ',') {
@@ -448,19 +464,19 @@ class _Reader {
 
   String _string({required bool healable, bool stripNewlines = false}) {
     _i++;
-    final chars = <String>[];
+    final buf = StringBuffer();
     while (!_atEnd) {
       final String c = text[_i];
       if (c == '"') {
         _i++;
-        return chars.join();
+        return buf.toString();
       }
       if (c != r'\') {
         if (stripNewlines && (c == '\r' || c == '\n')) {
           _i++;
           continue;
         }
-        chars.add(c);
+        buf.write(c);
         _i++;
         continue;
       }
@@ -471,17 +487,17 @@ class _Reader {
       final String escaped = text[_i + 1];
       switch (escaped) {
         case '"' || r'\' || '/':
-          chars.add(escaped);
+          buf.write(escaped);
         case 'b':
-          chars.add('\b');
+          buf.write('\b');
         case 'f':
-          chars.add('\f');
+          buf.write('\f');
         case 'n':
-          chars.add('\n');
+          buf.write('\n');
         case 'r':
-          chars.add('\r');
+          buf.write('\r');
         case 't':
-          chars.add('\t');
+          buf.write('\t');
         case 'u':
           if (_i + 6 > _limit) {
             _i = _limit;
@@ -500,7 +516,7 @@ class _Reader {
             _i = _limit;
             continue;
           }
-          chars.add(String.fromCharCode(code));
+          buf.writeCharCode(code);
           _i += 4;
         default:
           _fail("invalid escape '\\$escaped'");
@@ -511,7 +527,7 @@ class _Reader {
     // left out.
     if (healable && _partial) {
       _cut = true;
-      return chars.join();
+      return buf.toString();
     }
     _end();
   }

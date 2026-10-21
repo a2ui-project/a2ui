@@ -418,7 +418,8 @@ const SQL_COMMENT_OR_TOKEN_REGEX =
 const DECLARED_LHS_REGEX = /^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)/gm;
 const SPLIT_LHS_REGEX =
   /^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*=(?!=))/gm;
-const SPLIT_DATA_PATH_REGEX = /(\$[a-zA-Z0-9_/]*\/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)/g;
+const SPLIT_DATA_PATH_REGEX =
+  /(\$[a-zA-Z0-9_/]*\/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)/g;
 const SPLIT_ARG_IDENT_REGEX =
   /([([,:=][ \t]*\r?\n?[ \t]*|[([,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)/g;
 
@@ -445,14 +446,37 @@ export function normalizeExpressSource(source: string): string {
     segments.push({isTok: false, text: source.slice(pos)});
   }
 
+  let depth = 0;
+  const segDepths: number[][] = [];
+  for (const seg of segments) {
+    if (seg.isTok) {
+      segDepths.push([]);
+      continue;
+    }
+    const depths: number[] = [];
+    for (let i = 0; i < seg.text.length; i++) {
+      const ch = seg.text[i];
+      depths.push(depth);
+      if (ch === '(' || ch === '[' || ch === '{') {
+        depth++;
+      } else if (ch === ')' || ch === ']' || ch === '}') {
+        if (depth > 0) depth--;
+      }
+    }
+    segDepths.push(depths);
+  }
+
   const splitP2Starts = new Set<string>();
   for (let segIdx = 0; segIdx < segments.length; segIdx++) {
     const seg = segments[segIdx];
     if (!seg.isTok) {
+      const depths = segDepths[segIdx];
       for (const m of seg.text.matchAll(SPLIT_LHS_REGEX)) {
         const fullIdx = m.index ?? 0;
-        const p2Offset = fullIdx + m[0].length - m[3].length;
-        splitP2Starts.add(`${segIdx}:${p2Offset}`);
+        if (depths[fullIdx] === 0) {
+          const p2Offset = fullIdx + m[0].length - m[3].length;
+          splitP2Starts.add(`${segIdx}:${p2Offset}`);
+        }
       }
     }
   }
@@ -461,10 +485,11 @@ export function normalizeExpressSource(source: string): string {
   for (let segIdx = 0; segIdx < segments.length; segIdx++) {
     const seg = segments[segIdx];
     if (!seg.isTok) {
+      const depths = segDepths[segIdx];
       for (const m of seg.text.matchAll(DECLARED_LHS_REGEX)) {
         const fullIdx = m.index ?? 0;
         const identOffset = fullIdx + m[0].indexOf(m[1]);
-        if (!splitP2Starts.has(`${segIdx}:${identOffset}`)) {
+        if (depths[identOffset] === 0 && !splitP2Starts.has(`${segIdx}:${identOffset}`)) {
           directDeclared.add(m[1]);
         }
       }
@@ -472,13 +497,18 @@ export function normalizeExpressSource(source: string): string {
   }
 
   const declared = new Set<string>(directDeclared);
-  for (const seg of segments) {
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
     if (!seg.isTok) {
+      const depths = segDepths[segIdx];
       for (const m of seg.text.matchAll(SPLIT_LHS_REGEX)) {
-        const p1 = m[1].trim();
-        const p2 = m[3];
-        if (!directDeclared.has(p1) && !directDeclared.has(p2)) {
-          declared.add(p1 + p2);
+        const fullIdx = m.index ?? 0;
+        if (depths[fullIdx] === 0) {
+          const p1 = m[1].trim();
+          const p2 = m[3];
+          if (!directDeclared.has(p1) && !directDeclared.has(p2)) {
+            declared.add(p1 + p2);
+          }
         }
       }
     }
@@ -490,7 +520,16 @@ export function normalizeExpressSource(source: string): string {
       out.push(seg.text);
       continue;
     }
-    let text = seg.text.replace(SPLIT_DATA_PATH_REGEX, '$1$3$2');
+    let text = seg.text.replace(
+      SPLIT_DATA_PATH_REGEX,
+      (full, p1: string, nl: string, p2: string, offset: number, string: string) => {
+        const rest = string.slice(offset + full.length);
+        if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p2) && /^[ \t]*=(?!=)/.test(rest)) {
+          return full;
+        }
+        return `${p1}${p2}${nl}`;
+      },
+    );
     text = text.replace(SPLIT_LHS_REGEX, (full, p1Raw: string, nl: string, p2: string) => {
       const p1 = p1Raw.trim();
       if (!directDeclared.has(p1) && !directDeclared.has(p2)) {

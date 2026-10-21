@@ -189,6 +189,7 @@ function reservedKeysFor(protocolVersion: string): ReservedKeys {
 export class CatalogSchemaHelper {
   readonly catalog: Record<string, unknown>;
   readonly commonTypes: Record<string, unknown>;
+  readonly commonTypesLoaded: boolean;
   /** The wire keys for data bindings and function calls in this catalog's version. */
   readonly keys: ReservedKeys;
   readonly components: ReadonlyMap<string, Record<string, unknown>>;
@@ -210,7 +211,13 @@ export class CatalogSchemaHelper {
       peers.length > 0
         ? (inlinePeerAndLocalRefs(rawCatalog, rawCatalog, peers) as Record<string, unknown>)
         : rawCatalog;
-    this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
+    try {
+      this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
+      this.commonTypesLoaded = true;
+    } catch {
+      this.commonTypes = {$defs: {}};
+      this.commonTypesLoaded = false;
+    }
     this.keys = reservedKeysFor(protocolVersion);
 
     const rawComponents = (this.catalog.components ?? {}) as Record<string, unknown>;
@@ -822,7 +829,20 @@ export class CatalogSchemaHelper {
       visited.add(s);
 
       const obj = s as Record<string, unknown>;
-      if (obj.type === 'number' || obj.type === 'integer') {
+
+      const type = obj.type;
+      if (type === 'number' || type === 'integer') {
+        return true;
+      }
+      if (Array.isArray(type) && (type.includes('number') || type.includes('integer'))) {
+        return true;
+      }
+
+      if (typeof obj.const === 'number') {
+        return true;
+      }
+
+      if (Array.isArray(obj.enum) && obj.enum.some(v => typeof v === 'number')) {
         return true;
       }
 
@@ -831,7 +851,10 @@ export class CatalogSchemaHelper {
         const defName = commonDefName(ref);
         if (defName) {
           const resolved = this.lookupCommonDef(defName);
-          if (resolved && check(resolved, true)) {
+          if (!resolved) {
+            return true;
+          }
+          if (check(resolved, true)) {
             return true;
           }
         } else if (
@@ -840,14 +863,30 @@ export class CatalogSchemaHelper {
         ) {
           const name = ref.startsWith('#/$defs/') ? ref.slice(8) : ref.slice(14);
           const resolved = this.lookupCommonDef(name);
-          if (resolved && check(resolved, true)) {
+          if (!resolved) {
+            return true;
+          }
+          if (check(resolved, true)) {
             return true;
           }
         } else if (ref.startsWith('#/')) {
           const resolved = this.resolveJsonPointer(this.catalog, ref);
-          if (resolved && check(resolved, false)) {
+          if (!resolved) {
             return true;
           }
+          if (check(resolved, false)) {
+            return true;
+          }
+        } else if (ref.startsWith('catalog.json#/')) {
+          const resolved = this.resolveJsonPointer(this.catalog, ref.slice(12));
+          if (!resolved) {
+            return true;
+          }
+          if (check(resolved, false)) {
+            return true;
+          }
+        } else {
+          return true;
         }
       }
 
@@ -860,6 +899,23 @@ export class CatalogSchemaHelper {
             }
           }
         }
+      }
+
+      const typeKeys = [
+        'type',
+        'const',
+        'enum',
+        '$ref',
+        'allOf',
+        'oneOf',
+        'anyOf',
+        'properties',
+        'items',
+        'prefixItems',
+        'not',
+      ];
+      if (!typeKeys.some(k => k in obj)) {
+        return true;
       }
 
       return false;

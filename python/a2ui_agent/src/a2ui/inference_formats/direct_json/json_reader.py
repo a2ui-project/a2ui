@@ -125,6 +125,7 @@ class _Reader:
         self.whole_item_keys = set(whole_item_keys)
         self._i = 0
         self._cut = False
+        self._in_data_model = False
 
     @property
     def _partial(self) -> bool:
@@ -203,7 +204,7 @@ class _Reader:
                 self._end()
         self._fail(f"unexpected character '{c}'")
 
-    def _object(self) -> dict[str, Any]:
+    def _object(self, parent_key: str | None = None) -> dict[str, Any]:
         self._i += 1
         obj: dict[str, Any] = {}
         while True:
@@ -215,7 +216,10 @@ class _Reader:
                 return obj
             if self.text[self._i] != '"':
                 self._fail("expected a key")
-            key = self._string(healable=False, strip_newlines=True)
+            key = self._string(
+                healable=False,
+                strip_newlines=not self._in_data_model,
+            )
             self._skip_space()
             if self._at_end:
                 self._end()
@@ -223,19 +227,37 @@ class _Reader:
                 self._fail(f"expected ':' after key '{key}'")
             self._i += 1
             self._skip_space()
-            if not self._at_end and self.text[self._i] == "[":
-                obj[key] = self._array(
-                    whole_items=self._partial and key in self.whole_item_keys,
-                    strip_item_newlines=(key == "children"),
-                )
-            else:
-                healable_val = (
-                    self.progressive_keys is not None and key in self.progressive_keys
-                )
-                obj[key] = self._value(
-                    healable=healable_val,
-                    strip_newlines=(key in _NEWLINE_STRIPPED_KEYS),
-                )
+            is_data_value = (
+                not self._in_data_model
+                and parent_key == "updateDataModel"
+                and key == "value"
+            )
+            if is_data_value:
+                self._in_data_model = True
+            try:
+                if not self._at_end and self.text[self._i] == "[":
+                    obj[key] = self._array(
+                        whole_items=self._partial and key in self.whole_item_keys,
+                        strip_item_newlines=(
+                            key == "children" and not self._in_data_model
+                        ),
+                    )
+                elif not self._at_end and self.text[self._i] == "{":
+                    obj[key] = self._object(parent_key=key)
+                else:
+                    healable_val = (
+                        self.progressive_keys is not None
+                        and key in self.progressive_keys
+                    )
+                    obj[key] = self._value(
+                        healable=healable_val,
+                        strip_newlines=(
+                            key in _NEWLINE_STRIPPED_KEYS and not self._in_data_model
+                        ),
+                    )
+            finally:
+                if is_data_value:
+                    self._in_data_model = False
             self._skip_space()
             if self._at_end:
                 return self._healed(obj)

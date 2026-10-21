@@ -272,6 +272,8 @@ class Parser(ABC):
         """Tokenizes the LLM response into an ordered list of RawResponsePart objects, extracting raw format content between sentinel tags while preserving chronological order.
 
         Content outside this format's sentinel tags, including another format's tags, is a TextPart.
+        Markdown fences and backticks wrapping inline-code sentinel tags are stripped from block
+        edges, and a closing tag on a single-line comment line closes the block.
         If the model omits the opening sentinel tag but emits a closing sentinel tag after a fenced
         block or a line that begins a format payload, at most one such block is recovered in
         one-shot unwrapping (streaming parsers require the opening sentinel tag).
@@ -281,13 +283,17 @@ class Parser(ABC):
 
         Returns:
             An ordered list of RawResponsePart objects representing alternating slices of
-            conversational text and tagged A2UI payload blocks exactly as emitted by the LLM.
+            conversational text and cleaned format payload blocks.
         """
         pass
 
     @abstractmethod
     def compile(self, format_content: str) -> list[AgentToRendererMessage]:
         """Compiles a raw format content string into a list of validated A2UI message structures.
+
+        Compile-time repairs tolerate stray unescaped line breaks inside object keys,
+        identifier/reference properties, at single-line string edges, and in data paths or
+        split identifiers when the joined name resolves.
 
         Args:
             format_content: The uncompiled raw payload string (e.g. raw JSON or DSL expression).

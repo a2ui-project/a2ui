@@ -63,6 +63,48 @@
         "weight": { "type": "number" }
       },
       "required": ["component", "label"]
+    },
+    "Slider": {
+      "type": "object",
+      "description": "A slider input whose value is a DynamicNumber ref.",
+      "properties": {
+        "component": { "const": "Slider" },
+        "orientation": {
+          "type": "string",
+          "enum": ["horizontal", "vertical"],
+          "default": "horizontal"
+        },
+        "value": { "$ref": "common_types.json#/$defs/DynamicNumber" }
+      },
+      "required": ["component"]
+    },
+    "DualMetric": {
+      "type": "object",
+      "description": "A component with two later numeric properties.",
+      "properties": {
+        "component": { "const": "DualMetric" },
+        "variant": {
+          "type": "string",
+          "enum": ["a", "b"],
+          "default": "a"
+        },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      },
+      "required": ["component"]
+    },
+    "Status": {
+      "type": "object",
+      "description": "A status component with a required enum property.",
+      "properties": {
+        "component": { "const": "Status" },
+        "state": {
+          "type": "string",
+          "enum": ["active", "inactive"]
+        },
+        "priority": { "type": "number" }
+      },
+      "required": ["component", "state"]
     }
   },
   "functions": {},
@@ -72,7 +114,10 @@
         { "$ref": "#/components/Text" },
         { "$ref": "#/components/Column" },
         { "$ref": "#/components/Image" },
-        { "$ref": "#/components/TextField" }
+        { "$ref": "#/components/TextField" },
+        { "$ref": "#/components/Slider" },
+        { "$ref": "#/components/DualMetric" },
+        { "$ref": "#/components/Status" }
       ],
       "discriminator": { "propertyName": "component" }
     },

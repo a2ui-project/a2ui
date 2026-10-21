@@ -52,6 +52,11 @@ class CatalogSchemaHelper {
   Map<String, Object?>? propertySchema(String component, String property) =>
       _signature(component).schemas[property];
 
+  /// Whether common types were loaded into the catalog validation schema.
+  bool get commonTypesLoaded =>
+      catalog.validationSchema[r'$defs'] is Map &&
+      (catalog.validationSchema[r'$defs'] as Map).isNotEmpty;
+
   /// Whether [schema] accepts a number literal, resolving `$ref`s against
   /// [catalog]'s validation schema definitions.
   bool acceptsNumber(Map<String, Object?>? schema) {
@@ -63,14 +68,49 @@ class CatalogSchemaHelper {
       if (s == null || !visited.add(s)) return false;
       final Object? type = s['type'];
       if (type == 'number' || type == 'integer') return true;
+      if (type is List &&
+          (type.contains('number') || type.contains('integer'))) {
+        return true;
+      }
+
+      if (s['const'] is num) return true;
+
+      final Object? enumVal = s['enum'];
+      if (enumVal is List && enumVal.any((v) => v is num)) return true;
+
       final String? ref = _refName(s);
-      if (ref != null && defs != null) {
+      if (ref != null) {
+        if (defs == null) return true;
         final Object? resolved = defs[ref];
-        if (resolved is Map && check(resolved.cast<String, Object?>())) {
+        if (resolved is Map) {
+          if (check(resolved.cast<String, Object?>())) return true;
+        } else {
           return true;
         }
       }
-      return _alternatives(s).any(check);
+
+      for (final Map<String, Object?> alt in _alternatives(s)) {
+        if (check(alt)) return true;
+      }
+
+      const typeKeys = [
+        'type',
+        'const',
+        'enum',
+        r'$ref',
+        'allOf',
+        'oneOf',
+        'anyOf',
+        'properties',
+        'items',
+        'prefixItems',
+        'not',
+      ];
+      if (!typeKeys.any(s.containsKey)) {
+        return true;
+      }
+
+      return false;
     }
 
     return check(schema);

@@ -259,34 +259,65 @@ def _normalize_express_source(source: str) -> str:
     if pos < len(source):
         segments.append((False, source[pos:]))
 
-    split_p2_starts = {
-        sm.start(3)
-        for is_tok, seg in segments
-        if not is_tok
-        for sm in _SPLIT_LHS_RE.finditer(seg)
-    }
-    direct_declared: set[str] = set()
+    depth = 0
+    seg_depths: list[list[int]] = []
     for is_tok, seg in segments:
+        if is_tok:
+            seg_depths.append([])
+            continue
+        depths = []
+        for ch in seg:
+            depths.append(depth)
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                if depth > 0:
+                    depth -= 1
+        seg_depths.append(depths)
+
+    split_p2_starts: set[tuple[int, int]] = set()
+    for seg_idx, (is_tok, seg) in enumerate(segments):
         if not is_tok:
+            depths = seg_depths[seg_idx]
+            for sm in _SPLIT_LHS_RE.finditer(seg):
+                if depths[sm.start(1)] == 0:
+                    split_p2_starts.add((seg_idx, sm.start(3)))
+
+    direct_declared: set[str] = set()
+    for seg_idx, (is_tok, seg) in enumerate(segments):
+        if not is_tok:
+            depths = seg_depths[seg_idx]
             for dm in _DECLARED_LHS_RE.finditer(seg):
-                if dm.start(1) not in split_p2_starts:
+                if (
+                    depths[dm.start(1)] == 0
+                    and (seg_idx, dm.start(1)) not in split_p2_starts
+                ):
                     direct_declared.add(dm.group(1))
 
     declared = set(direct_declared)
-    for is_tok, seg in segments:
+    for seg_idx, (is_tok, seg) in enumerate(segments):
         if not is_tok:
+            depths = seg_depths[seg_idx]
             for sm in _SPLIT_LHS_RE.finditer(seg):
-                p1 = sm.group(1).strip()
-                p2 = sm.group(3)
-                if p1 not in direct_declared and p2 not in direct_declared:
-                    declared.add(p1 + p2)
+                if depths[sm.start(1)] == 0:
+                    p1 = sm.group(1).strip()
+                    p2 = sm.group(3)
+                    if p1 not in direct_declared and p2 not in direct_declared:
+                        declared.add(p1 + p2)
 
     out: list[str] = []
     for is_tok, seg in segments:
         if is_tok:
             out.append(seg)
             continue
-        seg = _SPLIT_DATA_PATH_RE.sub(r"\1\3\2", seg)
+        def _join_data_path(m: re.Match[str]) -> str:
+            p1, nl, p2 = m.group(1), m.group(2), m.group(3)
+            rest = seg[m.end():]
+            if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", p2) and re.match(r"^[ \t]*=(?!=)", rest):
+                return m.group(0)
+            return f"{p1}{p2}{nl}"
+
+        seg = _SPLIT_DATA_PATH_RE.sub(_join_data_path, seg)
 
         def _join_lhs(m: re.Match[str]) -> str:
             p1_raw, nl, p2 = m.group(1), m.group(2), m.group(3)
@@ -1051,7 +1082,11 @@ class ExpressCompiler:
                         ):
                             prop_idx = target_idx
                             moved = True
-                if not moved and non_check_properties[prop_idx] not in required_props:
+                if (
+                    not moved
+                    and non_check_properties[prop_idx] not in required_props
+                    and comp_helper.common_types_loaded
+                ):
                     raise ExpressValidationError(
                         f"Positional argument {arg_idx + 1} for component"
                         f" '{comp_name}' is a number, which is not valid for"
@@ -1100,7 +1135,7 @@ class ExpressCompiler:
                         for opt in mapped_val
                     ]
             enum_vals = comp_helper.get_property_enum(comp_name, prop_name)
-            if enum_vals and isinstance(mapped_val, str):
+            if enum_vals and not _has_databinding(mapped_val):
                 if mapped_val not in enum_vals:
                     raise ExpressValidationError(
                         f"Value '{mapped_val}' is not a valid enum choice for"

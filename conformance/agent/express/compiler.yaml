@@ -1254,3 +1254,128 @@
     root = Column([t], 2, "center")
   expect_error:
     category: "ValidationError"
+
+- name: test_compile_express_split_data_path_not_joined_across_assignment
+  description: A path ending in slash at the end of a line is not joined when the next line begins an identifier assignment.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    data = $/user/
+    root = Text("hi")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "hi"
+
+- name: test_compile_express_multiline_kwargs_not_treated_as_declared_lhs
+  description: Keyword arguments in multiline component calls are at depth greater than 0 and are not collected as top-level declared identifiers.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Card(
+      child = Text("Hello")
+    )
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "root_child"
+          - id: "root_child"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_positional_number_skips_optional_enum_to_ref_resolved_dynamic_number
+  description: A trailing numeric positional argument skips optional enum properties to a property whose type is a $ref to DynamicNumber.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Slider(50)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/weighted"
+        components:
+          - id: "root"
+            component: "Slider"
+            value: 50
+
+- name: test_compile_express_positional_number_does_not_skip_required_enum
+  description: A numeric positional argument does not skip a required enum property and fails validation.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Status(1)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_positional_number_ambiguous_two_numeric_targets_is_validation_error
+  description: A numeric positional argument does not skip when two later properties accept numbers, making the target ambiguous.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = DualMetric(10)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_positional_number_target_in_kwargs_is_validation_error
+  description: A numeric positional argument does not skip to a numeric property that is already provided in keyword arguments.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Text("Hello", 2, weight = 1)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_sql_comment_inside_comment_or_triple_string_preserved
+  description: Double dashes inside single-line comments or triple-quoted strings are preserved as string or comment content.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    // comment with -- dash
+    root = Text("""Value -- with dashes""")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Value -- with dashes"
+
+- name: test_compile_express_split_identifier_one_half_resolves_not_joined
+  description: A split identifier is not joined when only one half resolves to a declared variable and the joined name does not.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    header = Text("H")
+    root = Column([header
+    suffix])
+  expect_error:
+    category: "ParseError"

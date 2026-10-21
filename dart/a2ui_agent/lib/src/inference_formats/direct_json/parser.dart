@@ -102,9 +102,12 @@ class DirectJsonParser extends Parser {
   /// Whether [content] carries an `<a2ui-json>` block, closed when [complete]
   /// is true.
   @override
-  bool hasFormatContent(String content, {bool complete = false}) => unwrap(
-    content,
-  ).any((RawResponsePart p) => p is RawA2uiPart && (!complete || p.isFinal));
+  bool hasFormatContent(String content, {bool complete = false}) {
+    if (!complete && openTag.hasMatch(content)) return true;
+    return unwrap(
+      content,
+    ).any((RawResponsePart p) => p is RawA2uiPart && (!complete || p.isFinal));
+  }
 
   /// Writes each part on its own line, with the `<a2ui-json>` and
   /// `</a2ui-json>` tags on lines of their own.

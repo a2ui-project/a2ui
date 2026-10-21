@@ -643,7 +643,9 @@ class _SurfaceCompiler {
             }
           }
         }
-        if (!moved && !required.contains(properties[position])) {
+        if (!moved &&
+            !required.contains(properties[position]) &&
+            helper.commonTypesLoaded) {
           throw A2uiValidationError(
             "Positional argument ${argIdx + 1} for component '$name' is a "
             'number, which is not valid for optional property '

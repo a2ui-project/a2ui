@@ -138,6 +138,8 @@ final RegExp _splitLhsIdentifier = RegExp(
 final RegExp _splitDataPath = RegExp(
   r'(\$[a-zA-Z0-9_/]*/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)',
 );
+final RegExp _identOnly = RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$');
+final RegExp _assignEquals = RegExp(r'^[ \t]*=(?!=)');
 final RegExp _splitArgIdentifier = RegExp(
   r'([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)',
 );
@@ -161,13 +163,34 @@ String _normalizeExpressSource(String source) {
     segments.add((false, source.substring(pos)));
   }
 
+  var depth = 0;
+  final segDepths = <List<int>>[];
+  for (final (bool isTok, String seg) in segments) {
+    if (isTok) {
+      segDepths.add(const []);
+      continue;
+    }
+    final depths = <int>[];
+    for (var i = 0; i < seg.length; i++) {
+      final int code = seg.codeUnitAt(i);
+      depths.add(depth);
+      if (code == 40 || code == 91 || code == 123) {
+        depth++;
+      } else if (code == 41 || code == 93 || code == 125) {
+        if (depth > 0) depth--;
+      }
+    }
+    segDepths.add(depths);
+  }
+
   final splitP2Starts = <(int, int)>{
     for (int segIdx = 0; segIdx < segments.length; segIdx++)
       if (!segments[segIdx].$1)
         for (final RegExpMatch m in _splitLhsIdentifier.allMatches(
           segments[segIdx].$2,
         ))
-          (segIdx, m.end - m[3]!.length),
+          if (segDepths[segIdx][m.start] == 0)
+            (segIdx, m.end - m[3]!.length),
   };
 
   final directDeclared = <String>{
@@ -176,18 +199,22 @@ String _normalizeExpressSource(String source) {
         for (final RegExpMatch m in _declaredLhs.allMatches(
           segments[segIdx].$2,
         ))
-          if (!splitP2Starts.contains((segIdx, m.start + m[0]!.indexOf(m[1]!))))
+          if (segDepths[segIdx][m.start + m[0]!.indexOf(m[1]!)] == 0 &&
+              !splitP2Starts.contains((segIdx, m.start + m[0]!.indexOf(m[1]!))))
             m[1]!,
   };
 
   final declared = <String>{...directDeclared};
-  for (final (bool isTok, String seg) in segments) {
-    if (!isTok) {
-      for (final RegExpMatch m in _splitLhsIdentifier.allMatches(seg)) {
-        final String p1 = m[1]!.trim();
-        final String p2 = m[3]!;
-        if (!directDeclared.contains(p1) && !directDeclared.contains(p2)) {
-          declared.add('$p1$p2');
+  for (var segIdx = 0; segIdx < segments.length; segIdx++) {
+    if (!segments[segIdx].$1) {
+      for (final RegExpMatch m
+          in _splitLhsIdentifier.allMatches(segments[segIdx].$2)) {
+        if (segDepths[segIdx][m.start] == 0) {
+          final String p1 = m[1]!.trim();
+          final String p2 = m[3]!;
+          if (!directDeclared.contains(p1) && !directDeclared.contains(p2)) {
+            declared.add('$p1$p2');
+          }
         }
       }
     }
@@ -199,10 +226,16 @@ String _normalizeExpressSource(String source) {
       out.write(seg);
       continue;
     }
-    String text = seg.replaceAllMapped(
-      _splitDataPath,
-      (m) => '${m[1]}${m[3]}${m[2]}',
-    );
+    String text = seg.replaceAllMapped(_splitDataPath, (m) {
+      final String p1 = m[1]!;
+      final String nl = m[2]!;
+      final String p2 = m[3]!;
+      final String rest = seg.substring(m.end);
+      if (_identOnly.hasMatch(p2) && _assignEquals.hasMatch(rest)) {
+        return m[0]!;
+      }
+      return '$p1$p2$nl';
+    });
     text = text.replaceAllMapped(_splitLhsIdentifier, (m) {
       final String p1Raw = m[1]!;
       final String nl = m[2]!;

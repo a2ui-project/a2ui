@@ -35,12 +35,17 @@ export function parseAndFix(payload: string): Record<string, unknown>[] {
   try {
     return parse(payload);
   } catch {
-    const normalizedPayload = repairStringNewlines(normalizeSmartQuotes(payload));
+    const repairedNewlines = repairStringNewlines(payload);
     try {
-      return parse(normalizedPayload);
+      return parse(repairedNewlines);
     } catch {
-      const updatedPayload = removeTrailingCommas(normalizedPayload);
-      return parse(updatedPayload);
+      const normalizedPayload = repairStringNewlines(normalizeSmartQuotes(payload));
+      try {
+        return parse(normalizedPayload);
+      } catch {
+        const updatedPayload = removeTrailingCommas(normalizedPayload);
+        return parse(updatedPayload);
+      }
     }
   }
 }
@@ -91,9 +96,9 @@ function normalizeSmartQuotes(jsonStr: string): string {
  * and string items of `children` arrays), while escaping raw `\r` and `\n` in
  * all other string values so free-form text preserves its line breaks.
  */
-function repairStringNewlines(jsonStr: string): string {
+export function repairStringNewlines(jsonStr: string): string {
   const out: string[] = [];
-  const stack: Array<{type: 'object' | 'array'; parentKey?: string}> = [];
+  const stack: Array<{type: 'object' | 'array'; parentKey?: string; inDataModel?: boolean}> = [];
   let lastKey: string | undefined;
   let i = 0;
   const n = jsonStr.length;
@@ -101,13 +106,21 @@ function repairStringNewlines(jsonStr: string): string {
     const ch = jsonStr[i];
     if (ch !== '"') {
       if (ch === '{') {
-        stack.push({type: 'object'});
+        const top = stack[stack.length - 1];
+        const inDataModel =
+          top?.inDataModel ||
+          (top?.type === 'object' && top.parentKey === 'updateDataModel' && lastKey === 'value');
+        stack.push({type: 'object', parentKey: lastKey, inDataModel});
         lastKey = undefined;
       } else if (ch === '}') {
         stack.pop();
         lastKey = undefined;
       } else if (ch === '[') {
-        stack.push({type: 'array', parentKey: lastKey});
+        const top = stack[stack.length - 1];
+        const inDataModel =
+          top?.inDataModel ||
+          (top?.type === 'object' && top.parentKey === 'updateDataModel' && lastKey === 'value');
+        stack.push({type: 'array', parentKey: lastKey, inDataModel});
         lastKey = undefined;
       } else if (ch === ']') {
         stack.pop();
@@ -149,9 +162,13 @@ function repairStringNewlines(jsonStr: string): string {
     while (lookahead < n && /\s/.test(jsonStr[lookahead])) lookahead++;
     const isKey = lookahead < n && jsonStr[lookahead] === ':';
     const top = stack[stack.length - 1];
-    const inChildrenArray = top?.type === 'array' && top.parentKey === 'children';
+    const inDataModel =
+      top?.inDataModel ||
+      (top?.type === 'object' && top.parentKey === 'updateDataModel' && lastKey === 'value');
+    const inChildrenArray = !inDataModel && top?.type === 'array' && top.parentKey === 'children';
     const stripNewlines =
-      isKey || (lastKey !== undefined && NEWLINE_STRIPPED_KEYS.has(lastKey)) || inChildrenArray;
+      !inDataModel &&
+      (isKey || (lastKey !== undefined && NEWLINE_STRIPPED_KEYS.has(lastKey)) || inChildrenArray);
 
     const processed: string[] = [];
     for (const c of strChars) {

@@ -295,3 +295,69 @@
     - version: "v1.0"
       deleteSurface:
         surfaceId: "s1"
+
+- name: test_compile_json_newline_in_component_and_envelope_identifiers_stripped
+  description: Line breaks inside envelope keys and component identifier properties (id, component, child, children items, surfaceId, catalogId) are stripped.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s
+    1", "catalogId": "conformance/
+    simplified"}},
+      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [
+        {"id": "ro
+    ot", "component": "Ca
+    rd", "child": "bo
+    dy"},
+        {"id": "body", "component": "Text", "text": "Hello"}
+      ]}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_json_newline_in_data_model_value_preserved
+  description: Raw line breaks inside strings under updateDataModel value are preserved even if property names match identifier keys.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "v1.0", "updateDataModel": {"surfaceId": "s1", "value": {
+        "id": "item
+    1",
+        "component": "comp
+    2",
+        "notes": "line
+    3"
+      }}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        value:
+          id: "item\n1"
+          component: "comp\n2"
+          notes: "line\n3"

@@ -954,7 +954,11 @@ export class ExpressCompiler {
             }
           }
         }
-        if (!moved && !requiredProps.includes(nonCheckProperties[propIdx])) {
+        if (
+          !moved &&
+          !requiredProps.includes(nonCheckProperties[propIdx]) &&
+          compHelper.commonTypesLoaded
+        ) {
           throw new ExpressValidationError(
             `Positional argument ${argIdx + 1} for component '${compName}' is a number, which is not valid for optional property '${nonCheckProperties[propIdx]}'.`,
           );
@@ -1033,13 +1037,15 @@ export class ExpressCompiler {
 
       // Enum validation (compiler.py:557-565)
       const enumVals = compHelper.getPropertyEnum(compName, propName);
-      if (enumVals && typeof mappedVal === 'string') {
-        if (!enumVals.includes(mappedVal)) {
-          const pyListStr = `[${enumVals.map(e => `'${e}'`).join(', ')}]`;
-          throw new ExpressValidationError(
-            `Value '${mappedVal}' is not a valid enum choice for property '${propName}' of component '${compName}'. Allowed values are: ${pyListStr}`,
-          );
-        }
+      if (
+        enumVals &&
+        !(mappedVal && typeof mappedVal === 'object') &&
+        !enumVals.includes(mappedVal as string)
+      ) {
+        const pyListStr = `[${enumVals.map(e => `'${e}'`).join(', ')}]`;
+        throw new ExpressValidationError(
+          `Value '${mappedVal}' is not a valid enum choice for property '${propName}' of component '${compName}'. Allowed values are: ${pyListStr}`,
+        );
       }
 
       compDict[propName] = mappedVal;

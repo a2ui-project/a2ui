@@ -78,7 +78,7 @@ export class BlockLexer {
       if (isClose) {
         return new RegExp(`</${tagName}\\s*>`, 'iy');
       }
-      return new RegExp(`<${tagName}\\b[^>]*>`, 'iy');
+      return new RegExp(`<${tagName}(?:\\s[^>]*)?>`, 'iy');
     }
 
     let flags = tag.flags;
@@ -98,7 +98,7 @@ export class BlockLexer {
       if (isClose) {
         return new RegExp(`</${tagName}\\s*>`, 'i');
       }
-      return new RegExp(`<${tagName}\\b[^>]*>`, 'i');
+      return new RegExp(`<${tagName}(?:\\s[^>]*)?>`, 'i');
     }
 
     const flags = tag.flags.replace(/[yg]/g, '');

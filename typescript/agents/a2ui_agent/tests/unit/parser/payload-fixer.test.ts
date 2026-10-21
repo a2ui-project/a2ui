@@ -85,6 +85,12 @@ describe('PayloadFixer', () => {
     ]);
   });
 
+  it('repairs raw newlines in string containing smart quotes without corrupting inner quotes', () => {
+    const rawPayload = '{"text": "He said \u201chi\u201d\nbye"}';
+    const res = parseAndFix(rawPayload);
+    expect(res).toEqual([{text: 'He said \u201chi\u201d\nbye'}]);
+  });
+
   it('handles 200k-character strings without throwing RangeError', () => {
     const largeText = 'A'.repeat(200_000);
     const payload = `[{"id": "\\ncard1", "text": "${largeText}"}]`.replace('\\n', '\n');

@@ -83,9 +83,12 @@ class ExpressParser extends Parser {
   /// Whether [content] carries an `<a2ui>` block, closed when [complete] is
   /// true.
   @override
-  bool hasFormatContent(String content, {bool complete = false}) => unwrap(
-    content,
-  ).any((RawResponsePart p) => p is RawA2uiPart && (!complete || p.isFinal));
+  bool hasFormatContent(String content, {bool complete = false}) {
+    if (!complete && _openTag.hasMatch(content)) return true;
+    return unwrap(
+      content,
+    ).any((RawResponsePart p) => p is RawA2uiPart && (!complete || p.isFinal));
+  }
 
   /// Writes each part on its own line, with the `<a2ui>` and `</a2ui>` tags
   /// on lines of their own. See

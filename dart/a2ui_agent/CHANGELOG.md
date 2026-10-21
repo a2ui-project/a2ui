@@ -13,12 +13,13 @@
   delegate to `unwrap` and count recovered blocks as complete format blocks.
 - The Direct JSON and Express compilers strip stray unescaped line breaks inside
   JSON object keys and identifier/reference properties (`id`, `component`,
-  `child`, `children` items, and `surfaceId`), at the edges of single-line
-  Express strings, and inside Express data paths and line-wrapped identifiers
-  (outside strings and comments, when the joined name resolves to a declared
-  variable), accept SQL/Lua-style `--` comments in Express, and map a trailing
-  numeric positional argument across optional enum properties when a component
-  schema declares a single later numeric property.
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
 - The Express compiler throws `A2uiValidationError` for a check on a
   component whose schema declares no `checks`, such as
   `Text("hi", ?required($/name))`, rather than writing `checks` onto it.
