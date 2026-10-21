@@ -263,7 +263,7 @@ export function schemaRequiresArgs(
     let target: unknown = defs;
     for (const raw of ref.slice('#/$defs/'.length).split('/')) {
       const segment = raw.replace(/~1/g, '/').replace(/~0/g, '~');
-      target = isObject(target) ? target[segment] : undefined;
+      target = isObject(target) && Object.hasOwn(target, segment) ? target[segment] : undefined;
     }
     if (target !== undefined && schemaRequiresArgs(target, defs, new Set(visited).add(ref))) {
       return true;
