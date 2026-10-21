@@ -51,22 +51,41 @@ describe('DirectJsonParser', () => {
     expect(parts[2]).toEqual({type: 'text', text: 'Text after', isFinal: true});
   });
 
-  it('throws ParseError on missing close tag', () => {
+  it('unwraps an unterminated block as not final', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\n<a2ui-json>\n[{"action": "test"}]';
-    expect(() => parser.unwrap(content)).toThrow(ParseError);
+    const parts = parser.unwrap(content);
+    expect(parts).toEqual([
+      {type: 'text', text: 'Text before', isFinal: true},
+      {type: 'a2ui', a2uiRaw: '[{"action": "test"}]', isFinal: false},
+    ]);
   });
 
   it('throws ParseError on empty JSON part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\n<a2ui-json>\n</a2ui-json>';
-    expect(() => parser.unwrap(content)).toThrow(ParseError);
+    expect(parser.unwrap(content)).toEqual([
+      {type: 'text', text: 'Text before', isFinal: true},
+      {type: 'a2ui', a2uiRaw: '', isFinal: true},
+    ]);
+    expect(() => parser.parseResponse(content)).toThrow(ParseError);
+    expect(() => parser.compile('')).toThrow(ParseError);
   });
 
-  it('throws ParseError when no tags are found', () => {
+  it('unwraps conversational text without tags to a single text part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\nNo tags here';
-    expect(() => parser.unwrap(content)).toThrow(ParseError);
+    expect(parser.unwrap(content)).toEqual([
+      {type: 'text', text: 'Text before\nNo tags here', isFinal: true},
+    ]);
+    expect(parser.parseResponse(content)).toEqual([
+      {type: 'text', text: 'Text before\nNo tags here'},
+    ]);
+  });
+
+  it('unwraps empty content to an empty array', () => {
+    const parser = new DirectJsonParser([basicCatalogV10]);
+    expect(parser.unwrap('')).toEqual([]);
   });
 
   it('compiles raw format content', () => {
