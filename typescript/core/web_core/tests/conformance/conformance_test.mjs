@@ -210,6 +210,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['parse_full', 'web_core has no inference-format parser'],
   ['fix_payload', 'web_core has no payload fixer'],
   ['has_parts', 'web_core has no inference-format parser'],
+  ['has_format_content', 'web_core has no inference-format parser'],
   ['generate_prompt', 'web_core has no prompt generator'],
   ['load_catalog', 'these cases exercise A2uiSchemaManager, which is agent-side only'],
   ['compile', 'web_core has no inference-format compiler'],
