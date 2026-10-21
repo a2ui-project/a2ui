@@ -123,10 +123,10 @@ class _NodeRecord<T extends ComponentApi> {
 /// removing a cyclic edge rearms its diagnostics. Expression errors are not
 /// deduplicated.
 ///
-/// Diagnostics associated with a tree update are delivered synchronously after
-/// its ownership and props are committed. If expression evaluation produces no
-/// changed binding value and therefore no tree update, its diagnostic is
-/// delivered in a fallback microtask. Disposal cancels pending diagnostics.
+/// Diagnostics are queued while the resolver works and delivered in a
+/// microtask, never synchronously from the constructor or a tree update, so
+/// listeners on the surface's error channel do not run inside the caller's
+/// frame. Disposal cancels pending diagnostics.
 class NodeResolver<T extends ComponentApi> {
   final SurfaceModel<T> _surface;
 
@@ -192,20 +192,20 @@ class NodeResolver<T extends ComponentApi> {
     });
   }
 
-  // Error listeners can synchronously change the model. Commit the entire
-  // update, including root publication and binder subscriptions, before
-  // dispatching diagnostics so a listener cannot reenter a half-built tree.
+  // Diagnostics wait for a microtask, so a listener never runs inside the
+  // caller of an update, such as a widget build that creates the resolver.
   void _runUpdate(void Function() update) {
     if (_disposed) {
       return;
     }
+    final int errorMark = _pendingErrors.length;
+    final int surfaceWarningMark = _pendingSurfaceWarnings.length;
+    final int warningMark = _pendingWarnings.length;
     _updateDepth++;
     try {
       batch(update);
     } catch (_) {
-      _discardPendingErrors();
-      _pendingWarnings.clear();
-      _pendingSurfaceWarnings.clear();
+      _discardPendingFrom(errorMark, surfaceWarningMark, warningMark);
       rethrow;
     } finally {
       _updateDepth--;
@@ -213,7 +213,7 @@ class NodeResolver<T extends ComponentApi> {
         if (_disposeRequested) {
           dispose();
         } else {
-          _flushErrors();
+          _scheduleFlush();
         }
       }
     }
@@ -250,7 +250,7 @@ class NodeResolver<T extends ComponentApi> {
     _pendingErrors.add(
       _QueuedError(ComponentContext.clientErrorFor(_surface, error)),
     );
-    _scheduleFallbackFlush();
+    _scheduleFlush();
   }
 
   // Bindings resolve while binders build, so the warning waits for the
@@ -258,30 +258,49 @@ class NodeResolver<T extends ComponentApi> {
   void _reportMissingData(String path) {
     if (_disposed || !_warnedMissingDataPaths.add(path)) return;
     _pendingSurfaceWarnings.add(missingDataBindingWarning(path));
-    _scheduleFallbackFlush();
+    _scheduleFlush();
   }
 
-  void _scheduleFallbackFlush() {
-    if (_updateDepth == 0 && !_dispatchingErrors && !_errorFlushScheduled) {
-      // Normally drained synchronously once the rebuild finishes; a rebuild
-      // that changes no binding value emits nothing, so schedule a fallback.
-      _errorFlushScheduled = true;
-      scheduleMicrotask(() {
-        _errorFlushScheduled = false;
-        if (!_disposed) _flushErrors();
-      });
+  // A flush already in progress drains what its listeners queue.
+  void _scheduleFlush() {
+    if (_disposed || _dispatchingErrors || _errorFlushScheduled) return;
+    if (_pendingErrors.isEmpty &&
+        _pendingSurfaceWarnings.isEmpty &&
+        _pendingWarnings.isEmpty) {
+      return;
+    }
+    _errorFlushScheduled = true;
+    scheduleMicrotask(() {
+      _errorFlushScheduled = false;
+      _flushErrors();
+    });
+  }
+
+  void _unmarkDispatched(_QueuedError queued) {
+    final Set<String>? codes = queued.codes;
+    if (codes != null && identical(_dispatchedErrors[queued.scope], codes)) {
+      codes.remove(queued.error.code);
+      if (codes.isEmpty) _dispatchedErrors.remove(queued.scope);
     }
   }
 
   void _discardPendingErrors() {
-    for (final _QueuedError queued in _pendingErrors) {
-      final Set<String>? codes = queued.codes;
-      if (codes != null && identical(_dispatchedErrors[queued.scope], codes)) {
-        codes.remove(queued.error.code);
-        if (codes.isEmpty) _dispatchedErrors.remove(queued.scope);
-      }
-    }
+    _pendingErrors.forEach(_unmarkDispatched);
     _pendingErrors.clear();
+  }
+
+  // Drops only what a failed update queued; earlier updates' diagnostics
+  // still await delivery.
+  void _discardPendingFrom(int errors, int surfaceWarnings, int warnings) {
+    while (_pendingErrors.length > errors) {
+      _unmarkDispatched(_pendingErrors.removeLast());
+    }
+    while (_pendingSurfaceWarnings.length > surfaceWarnings) {
+      _pendingSurfaceWarnings.removeLast();
+    }
+    while (_pendingWarnings.length > warnings) {
+      _pendingWarnings.removeLast();
+    }
   }
 
   void _flushErrors() {
