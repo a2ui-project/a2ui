@@ -28,8 +28,6 @@ This section describes goals at a high level. See concrete steps in the section 
 
 The relevant issue should be linked in the the PR description.
 
-3. **Branches**: [list of stale branches](https://github.com/a2ui-project/a2ui/branches/stale) should fit on one screen and should not have a button ‘Next’.
-
 ## GitHub labels used in triage
 
 1. Priority labels: [P0][p0], [P1][p1], [P2][p2], [P3][p3], [P4][p4]
@@ -39,6 +37,7 @@ The relevant issue should be linked in the the PR description.
 5. [size: small][size-small]
 6. [type: contributions-welcome][contributions-welcome]
 7. [status: waiting-for-author-response][waiting-for-author-response]
+8. [status: assigned-for-triage][assigned-for-triage]
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 
@@ -53,27 +52,28 @@ See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 [size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22
 [contributions-welcome]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22type%3A%20contributions-welcome%22
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
+[assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
 
-Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies.
+Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies. The bot also reads `status: assigned-for-triage`, which is applied and removed manually, and flags items that are not assigned for fix/review or have carried it for more than 14 days.
 
 ### How the automated triage bot works
 
 The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It reconciles `status: needs-triage` across all open items according to the following rules:
 
-1. **Skipped items**: The automation skips the following items:
+1. **Overdue triage assignments**: An issue or PR is flagged with `status: needs-triage` if `status: assigned-for-triage` was added more than 14 days ago. The age is measured from the most recent time the label was added, so removing and re-adding the label restarts the 14 days. This rule applies before the rest, so it flags the item even when rule 2 would skip it.
+2. **Skipped items**: The automation skips the following items:
     - **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once an external contributor posts a comment, review or review comment after the label was added.
     - **Assigned issues**: When an issue is assigned, it is assumed that a team member is looking into it.
-2. **Issues**: Flagged with `status: needs-triage` if any of the following apply:
+3. **Issues**: Flagged with `status: needs-triage` if any of the following apply:
     - **No priority**: The issue lacks a priority label (`P0`–`P4`).
     - **Unassigned high priority**: Labeled `P0` or `P1` without an assignee.
     - **Stale**: Inactive beyond the priority threshold:
         - `P0`: stale for > 1 day
         - `P1`: stale for > 30 days
-        - `P2`: stale for > 90 days
-        - (`P3` and `P4` issues are never flagged for staleness)
+        - (`P2`, `P3` and `P4` issues are never flagged for staleness)
     - **Unanswered external comment**: The latest human comment is from an external contributor.
-3. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution. (Maintainer-authored PRs are not flagged).
-4. **Transparency**: The automation prints to the console what items are flagged or unflagged and why. This can be used to track triage progress.
+4. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution. (Maintainer-authored PRs are not flagged).
+5. **Transparency**: The automation prints to the console what items are flagged or unflagged and why. This can be used to track triage progress.
 
 Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
 
@@ -96,6 +96,7 @@ Update [items with label `status: needs-triage`][needs-triage], so that the labe
     - Be sure to assign P0/P1 issues to someone.
 - Answer external comments
 - Add `status: waiting-for-author-response` when you need more information from the author
+- Add `status: assigned-for-triage` and assign the item to a team member who will finish the triage. Once that triage is done, remove `status: assigned-for-triage`. If the label is still on the item after 14 days, the bot flags it again.
 
 You can remove the `needs-triage` label manually to speed up the process, but if the item still matches a rule, the label will come back because the label will be re-applied by the triage bot.
 
