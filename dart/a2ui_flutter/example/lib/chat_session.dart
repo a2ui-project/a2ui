@@ -340,8 +340,6 @@ class ChatSession extends ChangeNotifier {
   /// Shows [error] and sends it to the model once the current turn ends.
   ///
   /// An error already reported since the current turn started is ignored.
-  /// `onError` can fire while a surface builds, so nothing is sent before
-  /// the build ends.
   void _report(A2uiRendererError error) {
     if (!_reported.add(jsonEncode(error))) return;
     _addEntry(
@@ -350,11 +348,8 @@ class ChatSession extends ChangeNotifier {
     );
     _modelText = null;
     _unsent.add(error);
-    scheduleMicrotask(() {
-      if (_disposed) return;
-      _notify();
-      unawaited(_enqueue(_sendErrors));
-    });
+    _notify();
+    unawaited(_enqueue(_sendErrors));
   }
 
   Future<void> _sendErrors() async {
