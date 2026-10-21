@@ -26,6 +26,7 @@ import {A2uiText as V10Text} from '../catalogs/basic/v1/components/index.js';
 import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js';
 import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
+import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {DEFAULT_PROTOCOL_VERSION} from './schema_loader.js';
 import {spec, specDef} from './spec_annotations.js';
@@ -496,6 +497,114 @@ describe('union export', () => {
       assert.strictEqual(reloaded.safeParse({radius: 'md', size: 1}).success, true);
       assert.strictEqual(reloaded.safeParse({radius: 'md', size: {token: 'x'}}).success, true);
       assert.strictEqual(reloaded.safeParse({radius: 'md', size: 'x'}).success, false);
+    });
+
+    it(`keeps a loaded oneOf with a description and default exclusive when reused in ${version}`, () => {
+      const radius = {
+        oneOf: OVERLAPPING_BRANCHES,
+        description: 'The corner radius.',
+        default: '12px',
+      };
+      const loaded = Catalog.fromJson(boxDocument(version, radius));
+      assert.strictEqual(acceptsRadius(loaded, 'md'), false);
+      assert.strictEqual(acceptsRadius(loaded, '12px'), true);
+
+      const reused = new Catalog('https://example.org/reused.json', version, [
+        {name: 'Box', schema: loaded.components.get('Box')!.schema},
+      ]);
+      assert.deepStrictEqual(radiusSchema(reused.toJson()), radius);
+      const validation = reused.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, radius);
+    });
+
+    it(`writes function arguments as anyOf, or as oneOf when exclusive, in ${version}`, () => {
+      const branches = [z.enum(['md', 'lg']), z.string()] as const;
+      const fn = createFunctionImplementation(
+        {
+          name: 'round',
+          returnType: 'string',
+          schema: z.object({
+            inclusive: z.union(branches),
+            exclusive: exclusiveUnion(branches),
+          }),
+        },
+        () => '',
+      );
+      const catalog = new Catalog('https://example.org/functions.json', version, [], [fn]);
+      const args = (catalog.toJson().functions as Record<string, any>).round.properties.args;
+      assert.deepStrictEqual(args.properties.inclusive, {anyOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(args.properties.exclusive, {oneOf: OVERLAPPING_BRANCHES});
+
+      const reloaded = Catalog.fromJson(catalog.toJson()).functions.get('round')!.schema;
+      assert.strictEqual(reloaded.safeParse({inclusive: 'md', exclusive: '12px'}).success, true);
+      assert.strictEqual(reloaded.safeParse({inclusive: 'md', exclusive: 'md'}).success, false);
+    });
+
+    describe(`specification-shaped union keyword in ${version}`, () => {
+      /** A branch whose definition is exactly `json`. */
+      const raw = (json: Record<string, unknown>) => spec(z.any(), {keywords: json});
+      /** A branch that references a definition of the common types. */
+      const commonRef = (name: string) => z.any().describe(`REF:#/$defs/${name}`);
+
+      /** The keyword the document writes for a shaped component's `value` union. */
+      function unionKeyword(union: z.ZodTypeAny): string {
+        const schema = spec(z.object({value: union}).strict(), {mixins: []});
+        const catalog = new Catalog('https://example.org/shaped.json', version, [
+          {name: 'Box', schema},
+        ]);
+        const box = (catalog.toJson().components as Record<string, any>).Box;
+        const properties = box.properties ?? box.allOf.find((m: any) => m.properties).properties;
+        const keywords = Object.keys(properties.value).filter(k => k === 'oneOf' || k === 'anyOf');
+        assert.strictEqual(keywords.length, 1, JSON.stringify(properties.value));
+        return keywords[0];
+      }
+
+      const overlapping: Record<string, z.ZodTypeAny> = {
+        'integer and number': z.union([z.number().int(), z.number()]),
+        'open objects requiring different keys': z.union([
+          z.object({a: z.string()}),
+          z.object({b: z.string()}),
+        ]),
+        "a closed object that allows the other's required key": z.union([
+          z.object({a: z.string(), b: z.string().optional()}).strict(),
+          z.object({a: z.string()}),
+        ]),
+        'an enum and a const that share a value': z.union([z.enum(['a', 'b']), z.literal('b')]),
+        'a reference to an unknown common type': z.union([commonRef('NoSuchDef'), z.number()]),
+        "a catalog's own definition named like a common type": z.union([
+          raw({$ref: '#/$defs/DataBinding'}),
+          z.number(),
+        ]),
+        'object values that differ only in key order': z.union([
+          raw({enum: [{a: 1, b: 2}]}),
+          raw({const: {b: 2, a: 1}}),
+        ]),
+        'three branches of which two overlap': z.union([z.number(), z.string(), z.enum(['a'])]),
+      };
+      for (const [name, union] of Object.entries(overlapping)) {
+        it(`writes anyOf for ${name}`, () => assert.strictEqual(unionKeyword(union), 'anyOf'));
+      }
+
+      const disjoint: Record<string, z.ZodTypeAny> = {
+        'consts with no shared value': z.union([z.literal('a'), z.literal('b')]),
+        'enums with no shared value': z.union([z.enum(['a', 'b']), z.enum(['c'])]),
+        'a closed object and a branch requiring a key it does not allow': z.union([
+          z.object({a: z.string()}).strict(),
+          z.object({b: z.string()}),
+        ]),
+        'open objects whose required discriminators differ': z.union([
+          z.object({kind: z.literal('a'), x: z.string()}),
+          z.object({kind: z.literal('b'), y: z.string()}),
+        ]),
+        'a discriminated union': z.discriminatedUnion('kind', [
+          z.object({kind: z.literal('a')}),
+          z.object({kind: z.literal('b')}),
+        ]),
+        'a common type reference and a number': z.union([commonRef('DataBinding'), z.number()]),
+      };
+      for (const [name, union] of Object.entries(disjoint)) {
+        it(`writes oneOf for ${name}`, () => assert.strictEqual(unionKeyword(union), 'oneOf'));
+      }
     });
   }
 });
