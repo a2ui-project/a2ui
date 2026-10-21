@@ -114,6 +114,8 @@ describe('upload_manifest script integration test', () => {
     assert.match(graph['@a2ui/markdown-it'].dir, /\/typescript\/renderers\/markdown-it$/);
     assert.ok(graph['@a2ui/agent']);
     assert.match(graph['@a2ui/agent'].dir, /\/typescript\/agents\/a2ui_agent$/);
+    assert.ok(graph['@a2ui/catalog-mcp']);
+    assert.match(graph['@a2ui/catalog-mcp'].dir, /\/typescript\/catalogs\/mcp$/);
     assert.ok(graph['@a2ui/lit']);
     assert.match(graph['@a2ui/lit'].dir, /\/typescript\/renderers\/lit$/);
     assert.ok(graph['@a2ui/angular']);

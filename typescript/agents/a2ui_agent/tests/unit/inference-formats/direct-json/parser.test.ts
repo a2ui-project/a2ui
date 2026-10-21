@@ -51,22 +51,41 @@ describe('DirectJsonParser', () => {
     expect(parts[2]).toEqual({type: 'text', text: 'Text after', isFinal: true});
   });
 
-  it('throws ParseError on missing close tag', () => {
+  it('unwraps an unterminated block as not final', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\n<a2ui-json>\n[{"action": "test"}]';
-    expect(() => parser.unwrap(content)).toThrow(ParseError);
+    const parts = parser.unwrap(content);
+    expect(parts).toEqual([
+      {type: 'text', text: 'Text before', isFinal: true},
+      {type: 'a2ui', a2uiRaw: '[{"action": "test"}]', isFinal: false},
+    ]);
   });
 
   it('throws ParseError on empty JSON part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\n<a2ui-json>\n</a2ui-json>';
-    expect(() => parser.unwrap(content)).toThrow(ParseError);
+    expect(parser.unwrap(content)).toEqual([
+      {type: 'text', text: 'Text before', isFinal: true},
+      {type: 'a2ui', a2uiRaw: '', isFinal: true},
+    ]);
+    expect(() => parser.parseResponse(content)).toThrow(ParseError);
+    expect(() => parser.compile('')).toThrow(ParseError);
   });
 
-  it('throws ParseError when no tags are found', () => {
+  it('unwraps conversational text without tags to a single text part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\nNo tags here';
-    expect(() => parser.unwrap(content)).toThrow(ParseError);
+    expect(parser.unwrap(content)).toEqual([
+      {type: 'text', text: 'Text before\nNo tags here', isFinal: true},
+    ]);
+    expect(parser.parseResponse(content)).toEqual([
+      {type: 'text', text: 'Text before\nNo tags here'},
+    ]);
+  });
+
+  it('unwraps empty content to an empty array', () => {
+    const parser = new DirectJsonParser([basicCatalogV10]);
+    expect(parser.unwrap('')).toEqual([]);
   });
 
   it('compiles raw format content', () => {
@@ -74,6 +93,14 @@ describe('DirectJsonParser', () => {
     const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
     const compiled = parser.compile(payload);
     expect(compiled).toEqual([
+      {version: 'v1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
+    ]);
+  });
+
+  it('compiles a block that holds one message on its own', () => {
+    const parser = new DirectJsonParser([basicCatalogV10]);
+    const payload = `{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}`;
+    expect(parser.compile(payload)).toEqual([
       {version: 'v1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
     ]);
   });
@@ -135,7 +162,9 @@ describe('DirectJsonParser', () => {
           new Catalog('https://a2ui.org/catalogs/custom', version, [], []),
         ];
         expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
-        expect(new DirectJsonFormatFactory().createFormat(catalogs).catalogs).toEqual(catalogs);
+        const formatParser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
+        expect(formatParser).toBeInstanceOf(DirectJsonParser);
+        expect((formatParser as DirectJsonParser).catalogs).toEqual(catalogs);
       },
     );
 
@@ -145,23 +174,23 @@ describe('DirectJsonParser', () => {
         new Catalog('https://a2ui.org/catalogs/custom', 'v0.9.1', [], []),
       ];
       expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
-      expect(new DirectJsonFormatFactory().createFormat(catalogs).catalogs).toEqual(catalogs);
+      const formatParser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
+      expect(formatParser).toBeInstanceOf(DirectJsonParser);
+      expect((formatParser as DirectJsonParser).catalogs).toEqual(catalogs);
     });
 
     it('throws A2uiValidationError on missing version', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
       expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(
-        /expected "v1\.0" at 'version'|states no version/,
-      );
+      expect(() => parser.compile(payload)).toThrow(/Message 0 states no version/);
     });
 
     it('throws A2uiValidationError on mismatched version', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"version": "v0.9", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
       expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(/expected "v1\.0" at 'version'/);
+      expect(() => parser.compile(payload)).toThrow(/Message 0 states version 'v0\.9'/);
     });
 
     it('throws A2uiValidationError on unknown component', () => {
