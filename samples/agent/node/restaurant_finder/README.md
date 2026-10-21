@@ -34,10 +34,13 @@ The stub writes the notice and example as the model would in the configured form
 
 ### With a real model
 
-Provide a `GEMINI_API_KEY`:
+Provide a `GEMINI_API_KEY` (via `.env` or environment variable):
 
 ```bash
 cp .env.example .env    # add your GEMINI_API_KEY
+yarn workspace @a2ui/agent-restaurant-node run start
+
+# Or pass GEMINI_API_KEY inline:
 GEMINI_API_KEY=... yarn workspace @a2ui/agent-restaurant-node run start
 ```
 
@@ -88,7 +91,7 @@ The system prompt (`src/prompt.ts`) is the agent's role and UI rules followed by
 
 Start the agent, in either format, and then start one of the sample clients. Build the shared packages first with `yarn install && yarn build:all` from the repository root, as each client's README describes.
 
-- Lit shell (`samples/client/lit/shell`): run `yarn dev`. The browser calls the agent directly, which is why the agent allows CORS from any `http://localhost:<port>` origin.
+- Lit shell (`samples/client/lit/shell`): run `yarn dev` (or from `samples/client/lit`, run `yarn demo:restaurant:node` or `yarn demo:restaurant:stub` to start both the shell and this agent together). The browser calls the agent directly, which is why the agent allows CORS from any `http://localhost:<port>` origin.
 - React shell (`samples/client/react/shell`): run `yarn dev`, then open port 5003.
 - Angular (`samples/client/angular`): run `yarn start restaurant`, then open port 4200.
 
