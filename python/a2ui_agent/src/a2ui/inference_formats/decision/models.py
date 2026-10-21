@@ -57,6 +57,7 @@ class ComponentSlot:
     enum_values: tuple[str, ...] = ()
     child_id_key: str | None = None
     label_key: str | None = None
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,14 @@ class ComponentNodeSpec:
     is_container: bool = False
     is_multi_view_switcher: bool = False
     has_action_slot: bool = False
+
+    def get_slot(self, name: str) -> ComponentSlot | None:
+        """Returns the ComponentSlot matching name (ignoring index brackets like [0])."""
+        base_name = name.split("[", 1)[0]
+        for slot in self.slots:
+            if slot.name == base_name or slot.name == name:
+                return slot
+        return None
 
 
 @dataclass(frozen=True, eq=True)

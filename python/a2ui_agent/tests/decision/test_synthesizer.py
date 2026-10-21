@@ -860,3 +860,71 @@ async def test_named_child_array_queries_backend_and_filters_incompatible_leaves
     assert comps[2]["component"] == "ScalarMetric"
     assert comps[2]["label"] == {"@path": "/recent_logs"}
     validate_payload([cat], out.messages)
+
+
+@pytest.mark.asyncio
+async def test_decision_query_context_enrichment() -> None:
+    """Verifies that DecisionQuery.context includes candidate and slot descriptions."""
+    cat = _make_domain_catalog("1.0")
+    reg = TemplateRegistry()
+    reg.register(
+        SurfaceTemplate(
+            template_id="ops_badge_tpl",
+            description="Ops telemetry badge summary",
+            surface_id="s1",
+            catalog_id=cat.catalog_id,
+            protocol_version="v1.0",
+            components=(
+                {
+                    "id": "root",
+                    "component": "TelemetryBadge",
+                    "serviceName": {"@path": "/serviceName"},
+                    "latencyMs": {"@path": "/latencyMs"},
+                },
+            ),
+            required_pointers=("/serviceName", "/latencyMs"),
+        )
+    )
+
+    captured_queries: list[DecisionQuery] = []
+
+    def capturing_scorer(q: DecisionQuery) -> DecisionDistribution:
+        captured_queries.append(q)
+        if q.task == "template_select":
+            return DecisionDistribution(probabilities={q.candidates[0]: 0.10})
+        if q.task == "root_component":
+            return DecisionDistribution(probabilities={"AlertFrame": 0.90})
+        return DecisionDistribution(probabilities={q.candidates[0]: 0.90})
+
+    synth = DecisionSynthesizer(
+        [cat], DeterministicMockBackend(scorer=capturing_scorer), registry=reg
+    )
+    await synth.synthesize(
+        "Display ops latency badge",
+        {"serviceName": "auth", "latencyMs": 15},
+    )
+
+    by_task = {q.task: q for q in captured_queries}
+    assert "template_select" in by_task
+    assert "candidate_descriptions" in by_task["template_select"].context
+    assert (
+        by_task["template_select"].context["candidate_descriptions"]["ops_badge_tpl"]
+        == "Ops telemetry badge summary"
+    )
+
+    assert "root_component" in by_task
+    assert "candidate_descriptions" in by_task["root_component"].context
+    assert (
+        "TelemetryBadge" in by_task["root_component"].context["candidate_descriptions"]
+    )
+    telemetry_desc = by_task["root_component"].context["candidate_descriptions"][
+        "TelemetryBadge"
+    ]
+    assert "Read-only telemetry badge" in telemetry_desc
+    assert "serviceName" in telemetry_desc
+
+    assert "child_component" in by_task
+    child_q = by_task["child_component"]
+    assert "candidate_descriptions" in child_q.context
+    assert "parent_description" in child_q.context
+    assert "slot_description" in child_q.context

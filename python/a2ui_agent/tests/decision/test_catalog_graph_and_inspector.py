@@ -56,16 +56,22 @@ def _make_finance_catalog(protocol_version: str = "1.0") -> Catalog:
                         "properties": {
                             "component": {"const": "TradeTicket"},
                             "ticker": {
-                                "$ref": "common_types.json#/$defs/DynamicString"
+                                "$ref": "common_types.json#/$defs/DynamicString",
+                                "description": "Stock ticker symbol to trade.",
                             },
                             "quantity": {
-                                "$ref": "common_types.json#/$defs/DynamicNumber"
+                                "$ref": "common_types.json#/$defs/DynamicNumber",
+                                "description": "Number of shares.",
                             },
                             "side": {
                                 "type": "string",
                                 "enum": ["BUY", "SELL"],
+                                "description": "Order transaction side.",
                             },
-                            "onSubmit": {"$ref": "common_types.json#/$defs/Action"},
+                            "onSubmit": {
+                                "$ref": "common_types.json#/$defs/Action",
+                                "description": "Submission event handler.",
+                            },
                         },
                         "required": ["component", "ticker", "quantity", "onSubmit"],
                     },
@@ -448,11 +454,21 @@ class TestCatalogDecisionGraph:
         assert slots_by_name["ticker"].kind == SlotKind.DATA_VALUE
         assert slots_by_name["ticker"].value_type == "string"
         assert slots_by_name["ticker"].required is True
+        assert slots_by_name["ticker"].description == "Stock ticker symbol to trade."
         assert slots_by_name["quantity"].kind == SlotKind.DATA_VALUE
         assert slots_by_name["quantity"].value_type == "number"
+        assert slots_by_name["quantity"].description == "Number of shares."
         assert slots_by_name["side"].kind == SlotKind.STATIC_ENUM
         assert slots_by_name["side"].enum_values == ("BUY", "SELL")
+        assert slots_by_name["side"].description == "Order transaction side."
         assert slots_by_name["onSubmit"].kind == SlotKind.ACTION
+        assert slots_by_name["onSubmit"].description == "Submission event handler."
+
+        assert ticket.get_slot("ticker") is not None
+        assert ticket.get_slot("ticker").name == "ticker"
+        assert ticket.get_slot("ticker[0]") is not None
+        assert ticket.get_slot("ticker[0]").name == "ticker"
+        assert ticket.get_slot("unknown_slot") is None
 
         switcher = graph.get_component("StrategyComparison")
         assert switcher is not None

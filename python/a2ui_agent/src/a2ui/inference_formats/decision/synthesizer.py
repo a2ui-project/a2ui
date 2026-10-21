@@ -26,7 +26,7 @@ from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.parser.messages import to_message_models
 from a2ui.utils.validation import validate_payload
 
-from .backends import DecisionBackend
+from .backends import DecisionBackend, create_decision_backend
 from .catalog_graph import CatalogDecisionGraph
 from .models import (
     ComponentNodeSpec,
@@ -373,6 +373,35 @@ class DecisionSynthesizer:
         self.registry = registry if registry is not None else TemplateRegistry()
         self.config = config if config is not None else SynthesisConfig()
 
+    @classmethod
+    def from_env(
+        cls,
+        catalogs: Sequence[CatalogApi],
+        *,
+        backend: DecisionBackend | None = None,
+        registry: TemplateRegistry | None = None,
+        config: SynthesisConfig | None = None,
+    ) -> DecisionSynthesizer:
+        """Constructs a DecisionSynthesizer using the environment-configured decision backend."""
+        active_backend = backend if backend is not None else create_decision_backend()
+        return cls(catalogs, active_backend, registry=registry, config=config)
+
+    def _describe_component(self, comp: ComponentNodeSpec) -> str:
+        """Produces a concise natural-language summary of a component spec."""
+        parts: list[str] = []
+        if comp.description:
+            parts.append(comp.description.rstrip("."))
+        slot_summaries: list[str] = []
+        for s in comp.slots:
+            slot_desc = s.description.rstrip(".") if s.description else ""
+            if slot_desc:
+                slot_summaries.append(f"{s.name} ({s.kind.value}: {slot_desc})")
+            else:
+                slot_summaries.append(f"{s.name} ({s.kind.value})")
+        if slot_summaries:
+            parts.append(f"Slots: {', '.join(slot_summaries)}")
+        return ". ".join(parts) if parts else comp.name
+
     async def synthesize(
         self,
         intent: str,
@@ -426,12 +455,19 @@ class DecisionSynthesizer:
         if not matching:
             return None
 
+        matching_descriptions = {
+            t.template_id: t.description for t in matching if t.description
+        }
+        query_context: dict[str, Any] = {"pointers": pointer_paths}
+        if matching_descriptions:
+            query_context["candidate_descriptions"] = matching_descriptions
+
         dist = await self.backend.predict(
             DecisionQuery(
                 task="template_select",
                 prompt=intent,
                 candidates=tuple(t.template_id for t in matching),
-                context={"pointers": pointer_paths},
+                context=query_context,
             )
         )
         if not _passes_calibration_gate(dist, config):
@@ -488,6 +524,9 @@ class DecisionSynthesizer:
                 entropy=0.0,
             )
 
+        cand_descriptions = {
+            c.name: self._describe_component(c) for c in root_candidates
+        }
         dist = await self.backend.predict(
             DecisionQuery(
                 task="root_component",
@@ -496,6 +535,7 @@ class DecisionSynthesizer:
                 context={
                     "pointers": [p.path for p in pointers],
                     "types": {p.path: p.value_type for p in pointers},
+                    "candidate_descriptions": cand_descriptions,
                 },
             )
         )
@@ -1075,6 +1115,19 @@ class DecisionSynthesizer:
         candidates = tuple(filtered) if filtered else raw_candidates
         if len(candidates) == 1:
             return candidates[0]
+        parent_spec = self.graph.get_component(parent_name)
+        parent_desc = (
+            parent_spec.description
+            if parent_spec and parent_spec.description
+            else parent_name
+        )
+        parent_slot = parent_spec.get_slot(slot_name) if parent_spec else None
+        slot_desc = (
+            parent_slot.description
+            if parent_slot and parent_slot.description
+            else slot_name
+        )
+        cand_descriptions = {c.name: self._describe_component(c) for c in candidates}
         dist = await self.backend.predict(
             DecisionQuery(
                 task="child_component",
@@ -1082,8 +1135,11 @@ class DecisionSynthesizer:
                 candidates=tuple(c.name for c in candidates),
                 context={
                     "parent": parent_name,
+                    "parent_description": parent_desc,
                     "slot": slot_name,
+                    "slot_description": slot_desc,
                     "pointers": [p.path for p in child_pointers],
+                    "candidate_descriptions": cand_descriptions,
                 },
             )
         )

@@ -16,10 +16,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+import asyncio
+from collections.abc import Callable, Mapping, Sequence
 import math
 import re
-from typing import Any, Protocol, cast, runtime_checkable
+from typing import Any, Literal, Protocol, cast, runtime_checkable
 
 import httpx
 
@@ -54,6 +55,67 @@ def _normalize_probabilities(
     return {c: val / total for c, val in filtered.items()}
 
 
+def _softmax_with_margin(
+    logits: Mapping[str, float],
+    candidates: Sequence[str],
+    *,
+    temperature: float = 1.0,
+) -> tuple[dict[str, float], float | None]:
+    """Computes temperature-scaled softmax probabilities and top-2 logit margin."""
+    if not candidates:
+        return {}, 0.0
+    cand_logits = [logits[c] for c in candidates if c in logits]
+    if len(cand_logits) < len(candidates):
+        floor = (min(cand_logits) - 10.0) if cand_logits else -20.0
+        full_logits = {c: logits.get(c, floor) for c in candidates}
+    else:
+        full_logits = {c: logits[c] for c in candidates}
+
+    z_sorted = sorted(full_logits.values(), reverse=True)
+    margin = (z_sorted[0] - z_sorted[1]) if len(z_sorted) >= 2 else float("inf")
+    z_max = z_sorted[0]
+    exp_scores = {
+        c: math.exp((z - z_max) / temperature) for c, z in full_logits.items()
+    }
+    total = sum(exp_scores.values())
+    if total <= 0.0:
+        return {c: 0.0 for c in candidates}, margin
+    probs = {c: val / total for c, val in exp_scores.items()}
+    return probs, margin
+
+
+def _format_query_passage_pairs(
+    query: DecisionQuery,
+) -> tuple[str, list[str]]:
+    """Formats DecisionQuery into (query_text, passage_texts) for cross-encoder scoring."""
+    query_parts: list[str] = [query.prompt]
+    if query.task == "child_component":
+        parent = query.context.get("parent_description") or query.context.get("parent")
+        slot = query.context.get("slot_description") or query.context.get("slot")
+        if parent and slot:
+            query_parts.append(f"Selecting child component for {parent}, slot {slot}")
+        elif slot:
+            query_parts.append(f"Slot: {slot}")
+    pointers = query.context.get("pointers")
+    if isinstance(pointers, (list, tuple)) and pointers:
+        query_parts.append(
+            f"Available data fields: {', '.join(str(p) for p in pointers)}"
+        )
+
+    query_text = ". ".join(query_parts)
+
+    cand_descs = query.context.get("candidate_descriptions", {})
+    passage_texts: list[str] = []
+    for cand in query.candidates:
+        desc = cand_descs.get(cand) if isinstance(cand_descs, Mapping) else None
+        if desc:
+            passage_texts.append(f"{cand}: {desc}")
+        else:
+            passage_texts.append(cand)
+
+    return query_text, passage_texts
+
+
 def _format_step_zero_prompt(query: DecisionQuery) -> str:
     """Formats a structured DecisionQuery into a step-0 completion prompt."""
     candidates_str = ", ".join(query.candidates)
@@ -74,9 +136,13 @@ async def _post_json(
     *,
     client: httpx.AsyncClient,
     timeout_seconds: float,
+    headers: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Sends an HTTP POST with JSON payload and returns the decoded JSON object."""
-    response = await client.post(endpoint_url, json=payload, timeout=timeout_seconds)
+    hdrs = dict(headers) if headers else None
+    response = await client.post(
+        endpoint_url, json=payload, headers=hdrs, timeout=timeout_seconds
+    )
     response.raise_for_status()
     return cast(dict[str, Any], response.json())
 
@@ -165,17 +231,147 @@ class DecisionBackend(Protocol):
         ...
 
 
+_ADC_TOKEN_CACHE: dict[str, Any] = {"token": None, "expires_at": 0.0}
+
+
+def _get_adc_token_sync() -> str | None:
+    """Attempts to retrieve an ADC access token synchronously in a worker thread."""
+    try:
+        import google.auth
+        import google.auth.transport.requests
+
+        creds, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        creds.refresh(google.auth.transport.requests.Request())
+        if creds.token:
+            return str(creds.token)
+    except Exception:
+        pass
+
+    try:
+        import subprocess
+
+        res = subprocess.run(
+            ["gcloud", "auth", "print-access-token"],
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+            check=False,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+
+    return None
+
+
+async def _resolve_adc_token() -> str | None:
+    """Returns a cached ADC token, refreshing it asynchronously if expired."""
+    import time
+
+    now = time.time()
+    if _ADC_TOKEN_CACHE["token"] and now < _ADC_TOKEN_CACHE["expires_at"]:
+        return str(_ADC_TOKEN_CACHE["token"])
+
+    token = await asyncio.to_thread(_get_adc_token_sync)
+    if token:
+        _ADC_TOKEN_CACHE["token"] = token
+        _ADC_TOKEN_CACHE["expires_at"] = now + 1800.0
+        return token
+    return None
+
+
+def _build_systemone_request(query: DecisionQuery, model: str) -> dict[str, Any]:
+    """Builds a structured /v1/systemone choice request envelope."""
+    cand_descs = query.context.get("candidate_descriptions", {})
+    criteria: dict[str, str] = {}
+    for c in query.candidates:
+        if isinstance(cand_descs, Mapping) and cand_descs.get(c):
+            criteria[c] = str(cand_descs[c])
+        else:
+            criteria[c] = f"Candidate component or template: {c}"
+
+    state_parts: list[str] = [f"User intent: {query.prompt}"]
+    if query.task == "child_component":
+        parent = query.context.get("parent_description") or query.context.get("parent")
+        slot = query.context.get("slot_description") or query.context.get("slot")
+        if parent and slot:
+            state_parts.append(f"Parent container: {parent}. Slot: {slot}")
+        elif slot:
+            state_parts.append(f"Slot: {slot}")
+    pointers = query.context.get("pointers")
+    if isinstance(pointers, (list, tuple)) and pointers:
+        state_parts.append(
+            f"Payload data fields: {', '.join(str(p) for p in pointers)}"
+        )
+
+    return {
+        "model": model,
+        "state": ". ".join(state_parts),
+        "questions": {
+            "q": {
+                "type": "choice",
+                "instructions": "Evaluate which candidate best satisfies the user intent and UI structure.",
+                "criteria": criteria,
+            }
+        },
+    }
+
+
+def _parse_systemone_response(
+    data: Mapping[str, Any], candidates: tuple[str, ...]
+) -> tuple[dict[str, float], bool, float | None]:
+    """Extracts probabilities and logit margin from /v1/systemone response."""
+    answers = data.get("answers")
+    if not isinstance(answers, Mapping) or not answers:
+        return {c: 0.0 for c in candidates}, True, 0.0
+
+    q_data = answers.get("q")
+    if not isinstance(q_data, Mapping):
+        first_val = next(iter(answers.values()), None)
+        q_data = first_val if isinstance(first_val, Mapping) else {}
+
+    raw_probs = q_data.get("probabilities")
+    probs_map = raw_probs if isinstance(raw_probs, Mapping) else {}
+    probabilities = _normalize_probabilities(probs_map, candidates)
+
+    sorted_probs = sorted(probabilities.values(), reverse=True)
+    if len(sorted_probs) >= 2:
+        p0, p1 = sorted_probs[0], sorted_probs[1]
+        if p0 <= 0.0:
+            margin = 0.0
+        elif p1 <= 0.0:
+            margin = float("inf")
+        else:
+            margin = math.log(p0 / p1)
+    else:
+        margin = float("inf") if sorted_probs and sorted_probs[0] > 0.0 else 0.0
+
+    calibrated = "confidence" in q_data or bool(data.get("calibrated", True))
+    return probabilities, calibrated, margin
+
+
 class JevHttpBackend:
-    """HTTP backend for Joint Embedding / Classifier (JEV) decision endpoints."""
+    """HTTP backend for local Jev /predict or /v1/systemone decision endpoints."""
 
     def __init__(
         self,
         endpoint_url: str,
         *,
+        wire_format: Literal["auto", "jev", "systemone"] = "auto",
+        model: str = "default",
+        auth: str | Callable[[], str | Any] | None = None,
+        headers: Mapping[str, str] | None = None,
         client: httpx.AsyncClient | None = None,
-        timeout_seconds: float = 2.0,
+        timeout_seconds: float = 5.0,
     ) -> None:
         self._endpoint_url = endpoint_url
+        self._wire_format = wire_format
+        self._model = model
+        self._auth = auth
+        self._headers = dict(headers) if headers else None
         self._client = client
         self._owned_client: httpx.AsyncClient | None = None
         self._timeout_seconds = timeout_seconds
@@ -194,20 +390,79 @@ class JevHttpBackend:
             await self._owned_client.aclose()
             self._owned_client = None
 
+    async def _resolve_auth_token(self) -> str | None:
+        """Resolves bearer token string from auth argument or environment."""
+        auth_target = self._auth
+        if auth_target is None:
+            import os
+
+            auth_target = os.environ.get("A2UI_DECISION_TOKEN") or os.environ.get(
+                "A2UI_DECISION_AUTH"
+            )
+            if not auth_target:
+                return None
+
+        if auth_target == "adc":
+            return await _resolve_adc_token()
+        if callable(auth_target):
+            res = auth_target()
+            if asyncio.iscoroutine(res):
+                res = await res
+            return str(res) if res else None
+        token_str = str(auth_target).strip()
+        return token_str if token_str else None
+
+    async def _build_headers(self) -> dict[str, str]:
+        """Constructs headers including Authorization Bearer token if configured."""
+        headers = dict(self._headers or {})
+        token = await self._resolve_auth_token()
+        if token and "Authorization" not in headers:
+            headers["Authorization"] = f"Bearer {token}"
+        return headers
+
     async def predict(self, query: DecisionQuery) -> DecisionDistribution:
-        """Queries the JEV HTTP endpoint and normalizes candidate probabilities."""
-        payload: dict[str, Any] = {
-            "task": query.task,
-            "prompt": query.prompt,
-            "candidates": list(query.candidates),
-            "context": query.context,
-        }
+        """Queries the decision endpoint and normalizes candidate probabilities."""
+        if not query.candidates:
+            return DecisionDistribution(
+                probabilities={},
+                calibrated=True,
+                top_logit_margin=0.0,
+            )
+
+        headers = await self._build_headers()
+        is_systemone = self._wire_format == "systemone" or (
+            self._wire_format == "auto"
+            and self._endpoint_url.rstrip("/").endswith("/v1/systemone")
+        )
+
+        if is_systemone:
+            payload = _build_systemone_request(query, self._model)
+        else:
+            payload = {
+                "task": query.task,
+                "prompt": query.prompt,
+                "candidates": list(query.candidates),
+                "context": query.context,
+            }
+
         data = await _post_json(
             self._endpoint_url,
             payload,
             client=self._get_client(),
             timeout_seconds=self._timeout_seconds,
+            headers=headers,
         )
+
+        if is_systemone or "answers" in data:
+            probs, calibrated, margin = _parse_systemone_response(
+                data, query.candidates
+            )
+            return DecisionDistribution(
+                probabilities=probs,
+                calibrated=calibrated,
+                top_logit_margin=margin,
+            )
+
         raw_probs = data.get("probabilities")
         probs_map = raw_probs if isinstance(raw_probs, Mapping) else {}
         probabilities = _normalize_probabilities(probs_map, query.candidates)
@@ -290,16 +545,9 @@ class StepZeroLogprobBackend:
 
         default_floor = (min(matched.values()) - 10.0) if matched else -20.0
         logits = {c: matched.get(c, default_floor) for c in query.candidates}
-        z_sorted = sorted(logits.values(), reverse=True)
-        top_logit_margin = (
-            z_sorted[0] - z_sorted[1] if len(z_sorted) >= 2 else float("inf")
+        probabilities, top_logit_margin = _softmax_with_margin(
+            logits, query.candidates, temperature=self._temperature
         )
-        z_max = z_sorted[0]
-        exp_scores = {
-            c: math.exp((z - z_max) / self._temperature) for c, z in logits.items()
-        }
-        total = sum(exp_scores.values())
-        probabilities = {c: val / total for c, val in exp_scores.items()}
         return DecisionDistribution(
             probabilities=probabilities,
             calibrated=calibrated,
@@ -386,3 +634,237 @@ class DeterministicMockBackend:
             calibrated=self._calibrated,
             top_logit_margin=self._default_logit_margin,
         )
+
+
+class LocalCrossEncoderBackend:
+    """In-process CPU cross-encoder backend backed by ONNX Runtime."""
+
+    def __init__(
+        self,
+        model_id: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        *,
+        onnx_subpath: str = "onnx/model.onnx",
+        temperature: float = 1.0,
+        calibrated: bool = True,
+        cache_dir: str | None = None,
+        session: Any | None = None,
+        tokenizer: Any | None = None,
+    ) -> None:
+        if temperature <= 0.0:
+            raise ValueError(f"temperature must be positive, got {temperature}")
+        self.model_id = model_id
+        self.onnx_subpath = onnx_subpath
+        self.temperature = float(temperature)
+        self.calibrated = bool(calibrated)
+        self.cache_dir = cache_dir
+
+        self._session = session
+        self._tokenizer = tokenizer
+
+    def _ensure_loaded(self) -> tuple[Any, Any]:
+        """Lazy-loads ONNX Runtime session and Hugging Face tokenizer."""
+        if self._session is not None and self._tokenizer is not None:
+            return self._session, self._tokenizer
+
+        try:
+            from huggingface_hub import hf_hub_download
+            import onnxruntime as ort
+            from tokenizers import Tokenizer
+        except ImportError as err:
+            raise ImportError(
+                "LocalCrossEncoderBackend requires the 'decision-local' extra. "
+                'Install it with: pip install "a2ui-agent-sdk[decision-local]" '
+                f"(missing dependency: {err})"
+            ) from err
+
+        if self._session is None:
+            model_path = hf_hub_download(
+                repo_id=self.model_id,
+                filename=self.onnx_subpath,
+                cache_dir=self.cache_dir,
+            )
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = 2
+            opts.inter_op_num_threads = 1
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            self._session = ort.InferenceSession(
+                model_path, opts, providers=["CPUExecutionProvider"]
+            )
+
+        if self._tokenizer is None:
+            tok_path = hf_hub_download(
+                repo_id=self.model_id,
+                filename="tokenizer.json",
+                cache_dir=self.cache_dir,
+            )
+            self._tokenizer = Tokenizer.from_file(tok_path)
+            self._tokenizer.enable_padding()
+            self._tokenizer.enable_truncation(max_length=512)
+
+        return self._session, self._tokenizer
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Scores candidates in-process using the ONNX cross-encoder."""
+        if not query.candidates:
+            return DecisionDistribution(
+                probabilities={},
+                calibrated=self.calibrated,
+                top_logit_margin=0.0,
+            )
+        if len(query.candidates) == 1:
+            return DecisionDistribution(
+                probabilities={query.candidates[0]: 1.0},
+                calibrated=self.calibrated,
+                top_logit_margin=float("inf"),
+            )
+
+        session, tokenizer = self._ensure_loaded()
+        query_text, passage_texts = _format_query_passage_pairs(query)
+
+        def _infer() -> tuple[dict[str, float], float | None]:
+            import numpy as np
+
+            pairs = [(query_text, p) for p in passage_texts]
+            encodings = tokenizer.encode_batch(pairs)
+            input_ids = np.array([e.ids for e in encodings], dtype=np.int64)
+            attention_mask = np.array(
+                [e.attention_mask for e in encodings], dtype=np.int64
+            )
+
+            feed: dict[str, Any] = {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+            }
+            if hasattr(session, "get_inputs"):
+                model_input_names = [inp.name for inp in session.get_inputs()]
+                if "token_type_ids" in model_input_names:
+                    feed["token_type_ids"] = np.array(
+                        [e.type_ids for e in encodings], dtype=np.int64
+                    )
+
+            outputs = session.run(None, feed)
+            raw_logits = outputs[0]
+            logits = np.squeeze(raw_logits).astype(float)
+            if logits.ndim == 0:
+                logits = np.array([float(logits)])
+            token_logits = {
+                cand: float(logits[i]) for i, cand in enumerate(query.candidates)
+            }
+            return _softmax_with_margin(
+                token_logits, query.candidates, temperature=self.temperature
+            )
+
+        probs, margin = await asyncio.to_thread(_infer)
+        return DecisionDistribution(
+            probabilities=probs,
+            calibrated=self.calibrated,
+            top_logit_margin=margin,
+        )
+
+
+def create_decision_backend(
+    backend_type: str | None = None,
+    *,
+    endpoint_url: str | None = None,
+    model: str | None = None,
+    auth: str | Callable[[], str | Any] | None = None,
+    temperature: float | None = None,
+) -> DecisionBackend:
+    """Creates a DecisionBackend from explicit arguments or environment variables.
+
+    Environment variables:
+        A2UI_DECISION_BACKEND: 'local', 'systemone', 'jev', 'step0', 'mock'
+        A2UI_DECISION_URL: Endpoint URL for HTTP backends
+        A2UI_DECISION_MODEL: Model identifier (e.g. cross-encoder ID or remote model)
+        A2UI_DECISION_AUTH: 'adc', Bearer token string, or omitted
+        A2UI_DECISION_TEMPERATURE: Float temperature scaling parameter
+    """
+    import os
+
+    kind = backend_type or os.environ.get("A2UI_DECISION_BACKEND")
+    url = endpoint_url or os.environ.get("A2UI_DECISION_URL")
+    model_name = model or os.environ.get("A2UI_DECISION_MODEL")
+    auth_val = (
+        auth
+        or os.environ.get("A2UI_DECISION_AUTH")
+        or os.environ.get("A2UI_DECISION_TOKEN")
+    )
+    temp_env = os.environ.get("A2UI_DECISION_TEMPERATURE")
+    temp = (
+        float(temperature)
+        if temperature is not None
+        else (float(temp_env) if temp_env else 1.0)
+    )
+
+    # Auto-infer backend kind from URL if omitted
+    if not kind:
+        if url:
+            clean_url = url.rstrip("/").lower()
+            if clean_url.endswith("/v1/systemone"):
+                kind = "systemone"
+            elif clean_url.endswith("/v1/completions"):
+                kind = "step0"
+            else:
+                kind = "jev"
+        else:
+            try:
+                import onnxruntime  # noqa: F401
+                import tokenizers  # noqa: F401
+
+                kind = "local"
+            except ImportError:
+                kind = "mock"
+
+    norm_kind = kind.strip().lower()
+    if norm_kind == "local":
+        kw: dict[str, Any] = {"temperature": temp}
+        if model_name:
+            kw["model_id"] = model_name
+        return LocalCrossEncoderBackend(**kw)
+    if norm_kind == "systemone":
+        if not url:
+            raise ValueError(
+                "systemone backend requires an endpoint URL (pass endpoint_url or set A2UI_DECISION_URL)"
+            )
+        return JevHttpBackend(
+            url,
+            wire_format="systemone",
+            model=model_name or "default",
+            auth=auth_val,
+        )
+    if norm_kind == "jev":
+        if not url:
+            raise ValueError(
+                "jev backend requires an endpoint URL (pass endpoint_url or set A2UI_DECISION_URL)"
+            )
+        return JevHttpBackend(
+            url,
+            wire_format="jev",
+            auth=auth_val,
+        )
+    if norm_kind == "step0":
+        if not url:
+            raise ValueError(
+                "step0 backend requires an endpoint URL (pass endpoint_url or set A2UI_DECISION_URL)"
+            )
+        return StepZeroLogprobBackend(
+            url,
+            model=model_name or "default",
+            temperature=temp,
+        )
+    if norm_kind == "mock":
+        return DeterministicMockBackend()
+
+    raise ValueError(
+        f"Unknown decision backend type '{kind}'. Choose from: 'local', 'systemone', 'jev', 'step0', 'mock'."
+    )
+
+
+__all__ = [
+    "DecisionBackend",
+    "DeterministicMockBackend",
+    "JevHttpBackend",
+    "LocalCrossEncoderBackend",
+    "StepZeroLogprobBackend",
+    "create_decision_backend",
+]

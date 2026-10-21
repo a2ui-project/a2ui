@@ -20,7 +20,9 @@ from .backends import (
     DecisionBackend,
     DeterministicMockBackend,
     JevHttpBackend,
+    LocalCrossEncoderBackend,
     StepZeroLogprobBackend,
+    create_decision_backend,
 )
 from .calibration import (
     LabeledDecisionExample,
@@ -62,6 +64,7 @@ __all__ = [
     "DeterministicMockBackend",
     "JevHttpBackend",
     "LabeledDecisionExample",
+    "LocalCrossEncoderBackend",
     "PointerSummary",
     "PointerValueType",
     "SlotKind",
@@ -74,5 +77,6 @@ __all__ = [
     "TemplateRegistry",
     "calibrate_thresholds",
     "compute_bayes_optimal_threshold",
+    "create_decision_backend",
     "inspect_payload_pointers",
 ]

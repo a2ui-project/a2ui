@@ -108,12 +108,14 @@ class TestSurfaceTemplate:
             "version": "v0.9",
             "updateComponents": {
                 "surfaceId": "metrics_surface",
-                "components": [{
-                    "id": "root",
-                    "component": "MetricGauge",
-                    "label": "CPU Usage",
-                    "value": {"path": "/cpu"},
-                }],
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "MetricGauge",
+                        "label": "CPU Usage",
+                        "value": {"path": "/cpu"},
+                    }
+                ],
             },
         }
 
@@ -245,34 +247,38 @@ class TestTemplateRegistry:
 
     def test_promote_synthesized_registers_reusable_template(self) -> None:
         registry = TemplateRegistry()
-        raw_messages = to_message_models([
-            {
-                "version": "v1.0",
-                "createSurface": {
-                    "surfaceId": "synth_surface",
-                    "catalogId": "https://example.com/catalogs/finance/v1",
+        raw_messages = to_message_models(
+            [
+                {
+                    "version": "v1.0",
+                    "createSurface": {
+                        "surfaceId": "synth_surface",
+                        "catalogId": "https://example.com/catalogs/finance/v1",
+                    },
                 },
-            },
-            {
-                "version": "v1.0",
-                "updateComponents": {
-                    "surfaceId": "synth_surface",
-                    "components": [{
-                        "id": "root",
-                        "component": "TickerCard",
-                        "symbol": {"@path": "/ticker"},
-                    }],
+                {
+                    "version": "v1.0",
+                    "updateComponents": {
+                        "surfaceId": "synth_surface",
+                        "components": [
+                            {
+                                "id": "root",
+                                "component": "TickerCard",
+                                "symbol": {"@path": "/ticker"},
+                            }
+                        ],
+                    },
                 },
-            },
-            {
-                "version": "v1.0",
-                "updateDataModel": {
-                    "surfaceId": "synth_surface",
-                    "path": "/",
-                    "value": {"ticker": "GOOG"},
+                {
+                    "version": "v1.0",
+                    "updateDataModel": {
+                        "surfaceId": "synth_surface",
+                        "path": "/",
+                        "value": {"ticker": "GOOG"},
+                    },
                 },
-            },
-        ])
+            ]
+        )
         output = SynthesisOutput(
             stage=SynthesisStage.FAST_1PASS_LEAF,
             messages=raw_messages,

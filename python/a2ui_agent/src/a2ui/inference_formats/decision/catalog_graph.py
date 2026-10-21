@@ -146,6 +146,7 @@ def _classify_named_child_array(
         required=is_required,
         child_id_key=child_id_key,
         label_key=label_key,
+        description=str(prop_schema.get("description") or ""),
     )
 
 
@@ -221,18 +222,32 @@ def _classify_property_slot(
     is_required: bool,
 ) -> ComponentSlot | None:
     """Classifies a single component property schema into a `ComponentSlot`."""
+    description = str(prop_schema.get("description") or "")
     refs = _collect_refs(prop_schema)
     if _is_child_list_schema(prop_schema, refs):
         return ComponentSlot(
-            name=prop_name, kind=SlotKind.CHILD_LIST, required=is_required
+            name=prop_name,
+            kind=SlotKind.CHILD_LIST,
+            required=is_required,
+            description=description,
         )
     named_array = _classify_named_child_array(prop_name, prop_schema, is_required)
     if named_array is not None:
         return named_array
     if _ref_matches(refs, ("ComponentId", "Child")):
-        return ComponentSlot(name=prop_name, kind=SlotKind.CHILD, required=is_required)
+        return ComponentSlot(
+            name=prop_name,
+            kind=SlotKind.CHILD,
+            required=is_required,
+            description=description,
+        )
     if _is_action_schema(prop_schema, refs):
-        return ComponentSlot(name=prop_name, kind=SlotKind.ACTION, required=is_required)
+        return ComponentSlot(
+            name=prop_name,
+            kind=SlotKind.ACTION,
+            required=is_required,
+            description=description,
+        )
     enum_values = _resolve_enum_values(helper, comp_name, prop_name, prop_schema)
     if enum_values:
         return ComponentSlot(
@@ -240,6 +255,7 @@ def _classify_property_slot(
             kind=SlotKind.STATIC_ENUM,
             required=is_required,
             enum_values=enum_values,
+            description=description,
         )
     value_type = _resolve_data_value_type(prop_schema, refs)
     if value_type is not None:
@@ -248,6 +264,7 @@ def _classify_property_slot(
             kind=SlotKind.DATA_VALUE,
             required=is_required,
             value_type=value_type,
+            description=description,
         )
     return None
 

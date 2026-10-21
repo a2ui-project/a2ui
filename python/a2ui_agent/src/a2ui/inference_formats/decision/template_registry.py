@@ -139,14 +139,16 @@ class SurfaceTemplate:
             },
         ]
         if payload:
-            raw_messages.append({
-                "version": wire_version,
-                "updateDataModel": {
-                    "surfaceId": target_surface_id,
-                    "path": "/",
-                    "value": dict(payload),
-                },
-            })
+            raw_messages.append(
+                {
+                    "version": wire_version,
+                    "updateDataModel": {
+                        "surfaceId": target_surface_id,
+                        "path": "/",
+                        "value": dict(payload),
+                    },
+                }
+            )
 
         return to_message_models(raw_messages)
 
