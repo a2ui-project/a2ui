@@ -15,9 +15,7 @@
  */
 
 // Reconciles the 'status: needs-triage' and 'status:
-// waiting-for-author-response' labels across all open issues and PRs, and
-// flags items whose 'status: assigned-for-triage' has no assignee or has been
-// on too long.
+// waiting-for-author-response' labels across all open issues and PRs.
 //
 // For detailed rules and documentation on how the triage automation works, see:
 // https://github.com/a2ui-project/a2ui/blob/main/docs/contributing/triage.md#how-the-automated-triage-bot-works
@@ -32,8 +30,8 @@ export const FLAG_LABEL = 'status: needs-triage';
 export const ASSIGNED_FOR_TRIAGE_LABEL = 'status: assigned-for-triage';
 export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
-// Days ASSIGNED_FOR_TRIAGE_LABEL may stay on an item before the item is
-// flagged (rule 1b).
+// Days an item may carry ASSIGNED_FOR_TRIAGE_LABEL before it is flagged
+// (rule 1).
 export const TRIAGE_ASSIGNMENT_DAYS = 14;
 
 // Priorities urgent enough that an unassigned issue is flagged immediately
@@ -100,7 +98,7 @@ export function lastHumanContribution(item, contributions) {
  * the one still waiting.
  *
  * `waitingSince` is null when the labeling could not be read — see
- * `waitingLabelAddedAt`. The label is then left for a human to clear rather than
+ * `labelsAddedAt`. The label is then left for a human to clear rather than
  * guessed at.
  */
 export function externalHasResponded(contributions, waitingSince) {
@@ -114,47 +112,29 @@ export function externalHasResponded(contributions, waitingSince) {
 }
 
 /**
- * Returns the rule 3c reason for an issue at `priority` whose latest human
- * contribution is `latest`, or null when the issue is within its threshold or
- * its priority has none.
- */
-function staleReason(priority, latest, now) {
-  const threshold = STALE_DAYS[priority];
-  if (threshold === undefined || ageInDays(latest.createdAt, now) <= threshold) {
-    return null;
-  }
-  const unit = threshold === 1 ? 'day' : 'days';
-  return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
-}
-
-/**
  * Returns a human-readable reason why a single open item should carry the flag
  * label, or null if it should not. The reason is logged for visibility.
  *
- * `assignedForTriageSince` is when ASSIGNED_FOR_TRIAGE_LABEL was most recently
- * added, or null when that could not be read — see `labelsAddedAt`. It is only
- * consulted while the item still carries the label.
+ * `assignedForTriageSince` is when ASSIGNED_FOR_TRIAGE_LABEL was last added, or
+ * null when that could not be read — see `labelsAddedAt`.
  */
 export function flagReason(item, contributions, now, assignedForTriageSince = null) {
   const labels = labelNames(item);
   const isPR = Boolean(item.pull_request);
   const assigneeCount = item.assignees?.length ?? 0;
 
-  // Rule 1: a triage assignment that is not being worked on. It outranks every
-  // rule below, the skips in rule 2 included: an item handed to someone for
-  // triage is usually assigned, and that skip would otherwise hide it for good.
+  // Rule 1: an item handed to a team member for triage is judged on that
+  // assignment alone; the rules below would flag it for the very things the
+  // assignee is there to sort out. With no record of when the label went on
+  // there is nothing to measure, so the deadline never comes due.
   if (labels.includes(ASSIGNED_FOR_TRIAGE_LABEL)) {
-    // 1a. Handed out for triage, but to nobody.
     if (assigneeCount === 0) {
       return `'${ASSIGNED_FOR_TRIAGE_LABEL}' is set, but nobody is assigned.`;
     }
-
-    // 1b. The assignment has run past its deadline. With no record of when the
-    // label went on there is nothing to measure, so the item is not flagged
-    // for it.
     if (assignedForTriageSince && ageInDays(assignedForTriageSince, now) > TRIAGE_ASSIGNMENT_DAYS) {
       return `'${ASSIGNED_FOR_TRIAGE_LABEL}' was added more than ${TRIAGE_ASSIGNMENT_DAYS} days ago.`;
     }
+    return null;
   }
 
   // Rule 2: items the automation stays out of.
@@ -165,16 +145,15 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
     return null;
   }
 
-  const latest = lastHumanContribution(item, contributions);
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
-  // 2b. An assigned issue already has a team member on it, so only staleness
-  // (rule 3c) can flag it: the assignee going quiet is exactly what that rule
-  // watches for. PRs are excluded: an assignee there is the reviewer, and rule 4
-  // is precisely about the reviewer having gone quiet on the author.
-  if (!isPR && assigneeCount > 0) {
-    return staleReason(priority, latest, now);
+  // 2b. An assigned P2 issue already has a team member implementing it. Other
+  // priorities stay in scope: a P0 or P1 owner can still go quiet (rule 3c).
+  if (!isPR && priority === 'P2' && assigneeCount > 0) {
+    return null;
   }
+
+  const latest = lastHumanContribution(item, contributions);
 
   // True when the most recent human contribution is from outside the team — no
   // internal member has commented after the external author's last word.
@@ -191,8 +170,7 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
     return awaitingMember ? 'no maintainer has responded to the author.' : null;
   }
 
-  // Rule 3: issues. Rule 2b means every issue reaching here is unassigned; the
-  // rules below still state their own conditions rather than lean on that.
+  // Rule 3: issues.
 
   // 3a. No priority assigned yet.
   if (!priority) {
@@ -205,9 +183,10 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
   }
 
   // 3c. Prioritized but stale beyond its threshold.
-  const stale = staleReason(priority, latest, now);
-  if (stale) {
-    return stale;
+  const threshold = STALE_DAYS[priority];
+  if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
+    const unit = threshold === 1 ? 'day' : 'days';
+    return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
   }
 
   // 3d. The last word on the issue is an external one. Like rule 4, this
@@ -287,12 +266,9 @@ async function fetchContributions({github, owner, repo}, item) {
 }
 
 /**
- * Returns when each label in `names` was most recently added to an item, keyed
- * by label name, from a single read of the item's event history. A label is
- * missing from the result when that cannot be established — the event fetch
- * failed, or the history has no record of the label going on. Callers must read
- * a missing time as "nothing to measure against": WAITING_LABEL is then kept, and
- * ASSIGNED_FOR_TRIAGE_LABEL never comes due.
+ * Returns when each label in `names` was last added to an item, keyed by label
+ * name. A label is missing from the result when that cannot be established —
+ * the event fetch failed, or the history has no record of the label going on.
  *
  * Only the newest labeling counts. An item can be parked, answered, and parked
  * again, and each round has to be answered on its own; the reply that cleared the
