@@ -70,6 +70,8 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
         f"logs/{seed}",
         "--max-retries",
         "10",
+        "--max-tasks",
+        "1",
         "--grading-model",
         args.grading_model,
     ]

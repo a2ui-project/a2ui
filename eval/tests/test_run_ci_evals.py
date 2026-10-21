@@ -88,6 +88,8 @@ def test_build_main_command_default() -> None:
         f"logs/{seed}",
         "--max-retries",
         "10",
+        "--max-tasks",
+        "1",
         "--grading-model",
         "google/gemini-3.6-flash",
         "--limit",
@@ -299,8 +301,46 @@ def test_generate_markdown_summary_valid() -> None:
     assert "- **Status**: PASS" in summary
     assert "- **Model**: `test_model`" in summary
     assert "- **Pass Percentage**: `100.00%` (Threshold: `90.00%`)" in summary
+    assert "- **First-Attempt Pass Percentage**: `100.00%` (1/1)" in summary
     assert "| sample_1 | PASS | C | 5.00s | PASS |" in summary
     assert "#### Failure Details" not in summary
+
+
+def test_report_evals_sums_model_events_and_tracks_first_attempt(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    log_data: dict[str, Any] = {
+        "eval": {"task": "test_task", "model": "test_model"},
+        "samples": [
+            {
+                "id": 1,
+                "metadata": {"name": "s1", "generate_attempts": 1},
+                "scores": {
+                    "a2ui_scorer": {"value": 1.0},
+                    "measured_model_graded_qa": {"value": "C"},
+                },
+                "events": [
+                    {"event": "model", "working_time": 2.0},
+                    {"event": "model", "working_time": 3.0},
+                ],
+            },
+            {
+                "id": 2,
+                "metadata": {"name": "s2", "generate_attempts": 2},
+                "scores": {
+                    "a2ui_scorer": {"value": 1.0},
+                    "measured_model_graded_qa": {"value": "C"},
+                },
+                "events": [{"event": "model", "working_time": 4.0}],
+            },
+        ],
+    }
+    print_results_summary(log_data)
+    out = capsys.readouterr().out
+    assert "Inference Time: 5.00s" in out
+    assert "2/2 passed (100.00%, first-attempt: 50.00%)" in out
+    summary = generate_markdown_summary(log_data, 100.0, 90.0)
+    assert "- **First-Attempt Pass Percentage**: `50.00%` (1/2)" in summary
 
 
 def test_generate_markdown_summary_fail() -> None:

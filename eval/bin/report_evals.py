@@ -101,11 +101,11 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
     for d_name, d_samples in datasets.items():
         total = len(d_samples)
         passed = 0
+        first_attempt_passed = 0
         print(f"\n--- Dataset: {d_name} ---")
         for sample in d_samples:
-            name = (
-                sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
-            )
+            metadata = sample.get("metadata", {}) or {}
+            name = metadata.get("name") or f"Sample {sample.get('id')}"
             scores = sample.get("scores", {})
 
             # Algorithmic validity (a2ui_scorer)
@@ -117,15 +117,20 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
             qa_score = scores.get("measured_model_graded_qa", {})
             qa_val = qa_score.get("value", "N/A")
 
-            inference_time = None
-            for event in sample.get("events", []):
-                if event.get("event") == "model":
-                    inference_time = event.get("working_time") or event.get("duration")
-                    break
+            model_event_times = [
+                float(t)
+                for event in sample.get("events", [])
+                if event.get("event") == "model"
+                and (t := event.get("working_time") or event.get("duration"))
+                is not None
+            ]
+            inference_time: float | None = (
+                sum(model_event_times) if model_event_times else None
+            )
             if inference_time is None:
-                inference_time = sample.get("metadata", {}).get(
-                    "evaluation_duration_seconds"
-                )
+                inference_time = metadata.get("inference_duration_seconds")
+            if inference_time is None:
+                inference_time = metadata.get("evaluation_duration_seconds")
             inference_time_str = (
                 f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
             )
@@ -133,6 +138,10 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
             sample_passed = a2ui_passed and qa_val == "C"
             if sample_passed:
                 passed += 1
+                attempts = int(metadata.get("generate_attempts", 1) or 1)
+                nudged = bool(metadata.get("subagent_nudged", False))
+                if attempts <= 1 and not nudged:
+                    first_attempt_passed += 1
 
             print(
                 f"{name:<25} | Algorithmic: {a2ui_str:<4} | Judging: {qa_val:<2} |"
@@ -154,13 +163,25 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
             if inference_time is not None:
                 all_durations.append(float(inference_time))
 
-        dataset_stats[d_name] = {"passed": passed, "total": total}
+        dataset_stats[d_name] = {
+            "passed": passed,
+            "first_attempt_passed": first_attempt_passed,
+            "total": total,
+        }
 
     print("\n==================================")
     print("Dataset Summary:")
     for d_name, stats in dataset_stats.items():
         pct = (stats["passed"] / stats["total"] * 100) if stats["total"] else 0.0
-        print(f"  {d_name:<16}: {stats['passed']}/{stats['total']} passed ({pct:.2f}%)")
+        first_pct = (
+            (stats["first_attempt_passed"] / stats["total"] * 100)
+            if stats["total"]
+            else 0.0
+        )
+        print(
+            f"  {d_name:<16}: {stats['passed']}/{stats['total']} passed"
+            f" ({pct:.2f}%, first-attempt: {first_pct:.2f}%)"
+        )
 
     if all_durations:
         avg_duration = statistics.mean(all_durations)
@@ -205,9 +226,24 @@ def generate_markdown_summary(
         f"- **Pass Percentage**: `{accuracy_percentage:.2f}%` (Threshold:"
         f" `{threshold:.2f}%`)"
     )
-    lines.append("")
 
     samples = log_data.get("samples", []) or []
+    if samples:
+        first_attempt_cnt = sum(
+            1
+            for s in samples
+            if s.get("scores", {}).get("a2ui_scorer", {}).get("value") == 1.0
+            and s.get("scores", {}).get("measured_model_graded_qa", {}).get("value")
+            == "C"
+            and int((s.get("metadata", {}) or {}).get("generate_attempts", 1) or 1) <= 1
+            and not bool((s.get("metadata", {}) or {}).get("subagent_nudged", False))
+        )
+        first_attempt_pct = first_attempt_cnt / len(samples) * 100
+        lines.append(
+            f"- **First-Attempt Pass Percentage**: `{first_attempt_pct:.2f}%`"
+            f" ({first_attempt_cnt}/{len(samples)})"
+        )
+    lines.append("")
 
     # Dataset performance summary table
     datasets: dict[str, list[dict[str, Any]]] = {}

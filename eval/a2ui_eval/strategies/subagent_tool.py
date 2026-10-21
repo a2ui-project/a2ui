@@ -40,9 +40,13 @@ from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
 from ..bridges import DEFAULT_PARSE_TIMEOUT_SEC, get_sdk_bridge, normalize_sdk_name
-from ..shared.utils import GIT_ROOT, measured_generate
-
-PAYLOAD_STORE_KEY = "a2ui_payload"
+from ..shared.utils import (
+    GENERIC_NUDGE,
+    GIT_ROOT,
+    NON_RETRYABLE_STOP_REASONS,
+    PAYLOAD_STORE_KEY,
+    measured_generate,
+)
 
 
 @tool
@@ -53,6 +57,7 @@ def a2ui_specialist() -> Tool:
         Args:
             input: The UI layout request.
         """
+        store().set(PAYLOAD_STORE_KEY, None)
         version = store().get("version", "0.9.1")
         sdk = store().get("sdk", "python")
         catalog_path = store().get("catalog")
@@ -101,25 +106,18 @@ def a2ui_specialist() -> Tool:
         surface_id = allowed_surface_ids[0]
 
         output = await get_model().generate(messages)
-        for _ in range(2):
-            if (
-                output.completion
-                and output.completion.strip()
-                and "</a2ui-json>" in output.completion.lower()
-            ):
-                break
-            if output.completion and output.completion.strip():
-                messages.append(ChatMessageAssistant(content=output.completion))
-                messages.append(
-                    ChatMessageUser(
-                        content=(
-                            "No external tools are available in this"
-                            " environment. Please directly generate the"
-                            " complete A2UI JSON payload now, enclosed in"
-                            " <a2ui-json> and </a2ui-json> tags."
-                        )
-                    )
-                )
+        stop_reason = getattr(output, "stop_reason", None)
+        completion = output.completion or ""
+        lower_comp = completion.lower()
+        has_open_tag = "<a2ui-json>" in lower_comp or "<a2ui-json " in lower_comp
+        if (
+            stop_reason not in NON_RETRYABLE_STOP_REASONS
+            and "</a2ui-json>" not in lower_comp
+            and not has_open_tag
+        ):
+            if completion.strip():
+                messages.append(ChatMessageAssistant(content=completion))
+                messages.append(ChatMessageUser(content=GENERIC_NUDGE))
             output = await get_model().generate(messages)
         if output.completion:
             try:
@@ -181,18 +179,26 @@ def extract_subagent_payload() -> Solver:
     """Extracts the A2UI payload from the tool response messages."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.metadata.setdefault("subagent_nudged", False)
         payload = state.store.get(PAYLOAD_STORE_KEY)
         if payload is None:
-            state.messages.append(
-                ChatMessageUser(
-                    content=(
-                        "Please call the `a2ui_specialist` tool now to generate"
-                        " the requested UI layout."
+            stop_reason = (
+                getattr(state.output, "stop_reason", None)
+                if getattr(state, "output", None) is not None
+                else None
+            )
+            if stop_reason not in NON_RETRYABLE_STOP_REASONS:
+                state.messages.append(
+                    ChatMessageUser(
+                        content=(
+                            "Please call the `a2ui_specialist` tool now to"
+                            " generate the requested UI layout."
+                        )
                     )
                 )
-            )
-            state = await generate(state)
-            payload = state.store.get(PAYLOAD_STORE_KEY)
+                state.metadata["subagent_nudged"] = True
+                state = await measured_generate(max_attempts=1)(state, generate)
+                payload = state.store.get(PAYLOAD_STORE_KEY)
 
         if payload is not None and state.output and state.output.choices:
             formatted_payload = f"<a2ui-json>\n{payload}\n</a2ui-json>"
