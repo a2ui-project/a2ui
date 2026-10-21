@@ -16,7 +16,6 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fixture_catalog.dart';
@@ -70,9 +69,7 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('moves to a new resolver when given another surface', (
-      tester,
-    ) async {
+    testWidgets('renders another surface from fresh state', (tester) async {
       final SurfaceModel<ComponentImplementation> a = surface('a');
       add(a, 'root', 'Probe', {'label': 'From a'});
       final SurfaceModel<ComponentImplementation> b = surface('b');
@@ -80,12 +77,91 @@ void main() {
 
       await tester.pumpWidget(host(a));
       final ComponentNode<ComponentImplementation> rootA = nodeOf('root');
-
       await tester.pumpWidget(host(b));
 
       expect(find.text('From b'), findsOneWidget);
-      expect(rootA.disposed, isTrue);
       expect(log.probeStates, ['root', 'root']);
+      expect(rootA.disposed, isFalse);
+    });
+
+    testWidgets('reports a diagnostic once across remounts and views', (
+      tester,
+    ) async {
+      final SurfaceModel<ComponentImplementation> s = surface();
+      add(s, 'root', 'Bogus', {});
+      final codes = <String>[];
+      s.onError.subscribe((error) => codes.add(error.code));
+
+      await tester.pumpWidget(host(s));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                A2uiSurface(surface: s),
+                A2uiSurface(surface: s),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Unknown component type "Bogus"'), findsNWidgets(2));
+      expect(codes, ['UNKNOWN_COMPONENT_TYPE']);
+    });
+
+    testWidgets('keeps the resolved tree across remounts', (tester) async {
+      final SurfaceModel<ComponentImplementation> s = surface();
+      add(s, 'root', 'Probe', {'label': 'Root'});
+
+      await tester.pumpWidget(host(s));
+      final ComponentNode<ComponentImplementation> root = nodeOf('root');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(host(s));
+
+      expect(find.text('Root'), findsOneWidget);
+      expect(nodeOf('root'), same(root));
+      expect(root.disposed, isFalse);
+    });
+
+    testWidgets('disposes the tree when a diagnostic listener disposes the '
+        'surface', (tester) async {
+      final SurfaceModel<ComponentImplementation> s = surface();
+      add(s, 'root', 'Column', {
+        'children': ['p', 'bogus'],
+      });
+      add(s, 'p', 'Probe', {'label': 'Probe'});
+      add(s, 'bogus', 'Bogus', {});
+      s.onError.subscribe((_) => s.dispose());
+
+      await tester.pumpWidget(host(s));
+
+      expect(log.nodes.values.where((node) => !node.disposed), isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('disposes the tree with its surface', (tester) async {
+      final SurfaceModel<ComponentImplementation> shown = surface('shown');
+      add(shown, 'root', 'Text', {'text': 'Shown'});
+      final SurfaceModel<ComponentImplementation> hidden = surface('hidden');
+      add(hidden, 'root', 'Probe', {'label': 'Hidden'});
+      await tester.pumpWidget(host(hidden));
+      final ComponentNode<ComponentImplementation> hiddenRoot = nodeOf('root');
+      var cleanedUp = false;
+      hiddenRoot.addCleanup(() => cleanedUp = true);
+      await tester.pumpWidget(host(shown));
+      final ComponentNode<ComponentImplementation> shownRoot = nodeOf('root');
+
+      hidden.dispose();
+      shown.dispose();
+      await tester.pump();
+
+      expect(cleanedUp, isTrue);
+      expect(hiddenRoot.disposed, isTrue);
+      expect(shownRoot.disposed, isTrue);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('exposes its surface below it through of and maybeOf', (
@@ -139,8 +215,8 @@ void main() {
       expect(find.text('After'), findsOneWidget);
     });
 
-    testWidgets('reports a mount-time diagnostic to a listener that defers '
-        'its setState', (tester) async {
+    testWidgets('reports a mount-time diagnostic to a listener that calls '
+        'setState', (tester) async {
       final SurfaceModel<ComponentImplementation> s = surface();
       add(s, 'root', 'Bogus', {});
 
@@ -154,8 +230,7 @@ void main() {
   });
 }
 
-/// A host that counts its surface's errors and defers the resulting
-/// `setState`, since an error can arrive while the surface builds.
+/// A host that counts its surface's errors.
 class _ErrorCountingHost extends StatefulWidget {
   const _ErrorCountingHost(this.surface);
 
@@ -169,11 +244,7 @@ class _ErrorCountingHostState extends State<_ErrorCountingHost> {
   int _errors = 0;
   late final Subscription _subscription;
 
-  void _onError(A2uiRendererError error) {
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _errors++);
-    });
-  }
+  void _onError(A2uiRendererError error) => setState(() => _errors++);
 
   @override
   void initState() {

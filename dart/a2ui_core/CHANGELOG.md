@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Breaking:** `NodeResolver` delivers its diagnostics in a microtask, never
+  synchronously from its constructor or a tree update, so listeners on a
+  surface's `onError` and `onWarning` do not run inside the caller, such as a
+  widget build that creates the resolver. Disposal still cancels pending
+  diagnostics.
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several
@@ -14,6 +19,8 @@
   `restoreReferenceFields`, which save and put back the fields the model
   reads child references through, which `MessageProcessor` replaces on each
   `updateComponents`, so undoing an update can restore them too.
+- Added `SurfaceModel.onDisposed`, which fires once when `dispose` starts,
+  before the surface's models are disposed.
 - Extracted `ComponentGraphBound` for incremental `SurfaceComponentsModel`
   component graph checks and optimized its initial height traversal to linear
   time.

@@ -359,21 +359,6 @@ void main() {
     });
   });
 
-  testWidgets('leaves no live nodes after unmount', (tester) async {
-    add('root', 'Column', {
-      'children': ['t1', 'p'],
-    });
-    add('t1', 'Text', {'text': 'One'});
-    add('p', 'Probe', {'label': 'Two'});
-    await pumpRoot(tester);
-    expect(log.nodes.keys, unorderedEquals(['root', 't1', 'p']));
-    expect(log.nodes.values.where((node) => node.disposed), isEmpty);
-
-    await tester.pumpWidget(const SizedBox());
-
-    expect(log.nodes.values.where((node) => !node.disposed), isEmpty);
-  });
-
   testWidgets('drops a removed child view without error', (tester) async {
     add('root', 'Column', {
       'children': ['t1', 't2'],
