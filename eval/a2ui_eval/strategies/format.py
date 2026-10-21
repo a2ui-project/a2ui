@@ -190,10 +190,9 @@ def compile_format_payload(
 def format_solver(format_name: str, version: str, sdk: str = "python") -> list[Solver]:
     """Assembles the solver chain for the specified evaluation strategy."""
     validate_sdk_format(sdk, format_name)
-    required_close_tag = "</a2ui-json>" if format_name == "direct_json" else "</a2ui>"
     chain = [
         format_system_prompt(format_name, version, sdk=sdk),
-        measured_generate(required_close_tag=required_close_tag),
+        measured_generate(),
     ]
     if format_name != "direct_json":
         chain.append(compile_format_payload(format_name, version, sdk=sdk))

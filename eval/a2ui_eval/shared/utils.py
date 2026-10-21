@@ -23,9 +23,7 @@ PAYLOAD_STORE_KEY = "a2ui_payload"
 
 
 @solver
-def measured_generate(
-    required_close_tag: str | None = None,
-) -> Solver:
+def measured_generate() -> Solver:
     """Solver that wraps generate() and records duration and token metrics."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
