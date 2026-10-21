@@ -69,6 +69,11 @@ public struct A2UITabs: View {
     return []
   }
 
+  /// The state of the tab header at `index` as reported to assistive technologies.
+  public func selectionAccessibility(forTabAt index: Int) -> A2UISelectionAccessibility {
+    A2UISelectionAccessibility(role: .tab, isSelected: selectedIndex == index)
+  }
+
   public var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       // Tab Bar Headers
@@ -93,8 +98,10 @@ public struct A2UITabs: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .modifier(selectionAccessibility(forTabAt: tab.id))
           }
         }
+        .modifier(TabBarAccessibility())
       }
 
       Divider()
@@ -103,6 +110,20 @@ public struct A2UITabs: View {
       if selectedIndex < tabs.count, let childNode = tabs[selectedIndex].childNode {
         ComponentNodeView(node: childNode)
       }
+    }
+  }
+}
+
+/// Marks the row of tab headers as a tab bar where the platform supports it (iOS 17, macOS 14 and
+/// later), so assistive technologies treat the headers as tabs.
+private struct TabBarAccessibility: ViewModifier {
+  func body(content: Content) -> some View {
+    if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *) {
+      content
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isTabBar)
+    } else {
+      content
     }
   }
 }

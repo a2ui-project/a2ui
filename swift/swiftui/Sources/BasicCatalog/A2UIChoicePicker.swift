@@ -88,6 +88,7 @@ public struct A2UIChoicePicker: View {
 
   @State private var filterText = ""
   @State private var fallbackSelections: [String] = []
+  @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 18
 
   public init(node: Node) {
     self.node = node
@@ -195,6 +196,15 @@ public struct A2UIChoicePicker: View {
     !validationErrors.isEmpty
   }
 
+  /// The state of the option with the given value as reported to assistive technologies: a
+  /// radio button for `mutuallyExclusive` pickers and a checkbox otherwise.
+  public func selectionAccessibility(forOptionValue value: String) -> A2UISelectionAccessibility {
+    A2UISelectionAccessibility(
+      role: variant == "mutuallyExclusive" ? .radio : .checkbox,
+      isSelected: selectedValues.contains(value)
+    )
+  }
+
   private func toggleSelection(_ optionVal: String) {
     var current = selectedValues
     if variant == "mutuallyExclusive" {
@@ -273,6 +283,7 @@ public struct A2UIChoicePicker: View {
             )
         }
         .buttonStyle(.plain)
+        .modifier(selectionAccessibility(forOptionValue: option.value))
         .accessibilityIdentifier("A2UIChoiceOption_\(option.value)")
       }
     }
@@ -290,8 +301,9 @@ public struct A2UIChoicePicker: View {
                 ? (isSelected ? "largecircle.fill.circle" : "circle")
                 : (isSelected ? "checkmark.square.fill" : "square")
             )
-            .font(.system(size: 18))
+            .font(.system(size: glyphSize))
             .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+            .accessibilityHidden(true)
 
             Text(option.label)
               .font(.body)
@@ -302,6 +314,7 @@ public struct A2UIChoicePicker: View {
           .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
+        .modifier(selectionAccessibility(forOptionValue: option.value))
         .accessibilityIdentifier("A2UIChoiceOption_\(option.value)")
       }
     }

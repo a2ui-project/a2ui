@@ -35,6 +35,8 @@ extension BasicCatalogImplementation {
 public struct A2UICheckBox: View {
   public let node: Node
 
+  @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 20
+
   public init(node: Node) {
     self.node = node
   }
@@ -47,6 +49,11 @@ public struct A2UICheckBox: View {
     node.binding(for: "value", default: false)
   }
 
+  /// The checked state as reported to assistive technologies.
+  public var selectionAccessibility: A2UISelectionAccessibility {
+    A2UISelectionAccessibility(role: .checkbox, isSelected: boolBinding.wrappedValue)
+  }
+
   public var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       Button(action: {
@@ -54,8 +61,9 @@ public struct A2UICheckBox: View {
       }) {
         HStack(spacing: 10) {
           Image(systemName: boolBinding.wrappedValue ? "checkmark.square.fill" : "square")
-            .font(.system(size: 20))
+            .font(.system(size: glyphSize))
             .foregroundStyle(boolBinding.wrappedValue ? Color.accentColor : Color.secondary)
+            .accessibilityHidden(true)
 
           if !labelText.isEmpty {
             Text(labelText)
@@ -65,6 +73,7 @@ public struct A2UICheckBox: View {
         }
       }
       .buttonStyle(.plain)
+      .modifier(selectionAccessibility)
       .accessibilityIdentifier("A2UICheckBox_\(node.id)")
       .a2uiAccessibilityControl(for: node)
 
