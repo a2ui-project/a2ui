@@ -15,7 +15,9 @@
  */
 
 // Reconciles the 'status: needs-triage' and 'status:
-// waiting-for-author-response' labels across all open issues and PRs.
+// waiting-for-author-response' labels across all open issues and PRs, and
+// flags items whose 'status: assigned-for-triage' has no assignee or has been
+// on too long.
 //
 // For detailed rules and documentation on how the triage automation works, see:
 // https://github.com/a2ui-project/a2ui/blob/main/docs/contributing/triage.md#how-the-automated-triage-bot-works
@@ -27,13 +29,18 @@
 
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
+export const ASSIGNED_FOR_TRIAGE_LABEL = 'status: assigned-for-triage';
 export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
+// Days ASSIGNED_FOR_TRIAGE_LABEL may stay on an item before the item is
+// flagged (rule 1b).
+export const TRIAGE_ASSIGNMENT_DAYS = 14;
+
 // Priorities urgent enough that an unassigned issue is flagged immediately
-// (rule 2b). Every entry must be one of PRIORITY_LABELS.
+// (rule 3b). Every entry must be one of PRIORITY_LABELS.
 export const ASSIGNEE_REQUIRED_PRIORITIES = new Set(['P0', 'P1']);
 
-// Days of inactivity before a prioritized issue is considered stale (rule 2c).
+// Days of inactivity before a prioritized issue is considered stale (rule 3c).
 // Keys must be a subset of PRIORITY_LABELS; priorities absent here are never
 // flagged for staleness.
 export const STALE_DAYS = {P0: 1, P1: 30};
@@ -107,36 +114,73 @@ export function externalHasResponded(contributions, waitingSince) {
 }
 
 /**
+ * Returns the rule 3c reason for an issue at `priority` whose latest human
+ * contribution is `latest`, or null when the issue is within its threshold or
+ * its priority has none.
+ */
+function staleReason(priority, latest, now) {
+  const threshold = STALE_DAYS[priority];
+  if (threshold === undefined || ageInDays(latest.createdAt, now) <= threshold) {
+    return null;
+  }
+  const unit = threshold === 1 ? 'day' : 'days';
+  return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
+}
+
+/**
  * Returns a human-readable reason why a single open item should carry the flag
  * label, or null if it should not. The reason is logged for visibility.
+ *
+ * `assignedForTriageSince` is when ASSIGNED_FOR_TRIAGE_LABEL was most recently
+ * added, or null when that could not be read — see `labelsAddedAt`. It is only
+ * consulted while the item still carries the label.
  */
-export function flagReason(item, contributions, now) {
+export function flagReason(item, contributions, now, assignedForTriageSince = null) {
   const labels = labelNames(item);
   const isPR = Boolean(item.pull_request);
   const assigneeCount = item.assignees?.length ?? 0;
 
-  // Rule 1: items the automation stays out of altogether.
+  // Rule 1: a triage assignment that is not being worked on. It outranks every
+  // rule below, the skips in rule 2 included: an item handed to someone for
+  // triage is usually assigned, and that skip would otherwise hide it for good.
+  if (labels.includes(ASSIGNED_FOR_TRIAGE_LABEL)) {
+    // 1a. Handed out for triage, but to nobody.
+    if (assigneeCount === 0) {
+      return `'${ASSIGNED_FOR_TRIAGE_LABEL}' is set, but nobody is assigned.`;
+    }
 
-  // 1a. A parked item is off the triage queue entirely, whatever the rules
+    // 1b. The assignment has run past its deadline. With no record of when the
+    // label went on there is nothing to measure, so the item is not flagged
+    // for it.
+    if (assignedForTriageSince && ageInDays(assignedForTriageSince, now) > TRIAGE_ASSIGNMENT_DAYS) {
+      return `'${ASSIGNED_FOR_TRIAGE_LABEL}' was added more than ${TRIAGE_ASSIGNMENT_DAYS} days ago.`;
+    }
+  }
+
+  // Rule 2: items the automation stays out of.
+
+  // 2a. A parked item is off the triage queue entirely, whatever the rules
   // below would say.
   if (labels.includes(WAITING_LABEL)) {
     return null;
   }
 
-  // 1b. An assigned issue already has a team member on it, so there is nothing
-  // to triage. PRs are excluded: an assignee there is the reviewer, and rule 3
+  const latest = lastHumanContribution(item, contributions);
+  const priority = PRIORITY_LABELS.find(p => labels.includes(p));
+
+  // 2b. An assigned issue already has a team member on it, so only staleness
+  // (rule 3c) can flag it: the assignee going quiet is exactly what that rule
+  // watches for. PRs are excluded: an assignee there is the reviewer, and rule 4
   // is precisely about the reviewer having gone quiet on the author.
   if (!isPR && assigneeCount > 0) {
-    return null;
+    return staleReason(priority, latest, now);
   }
-
-  const latest = lastHumanContribution(item, contributions);
 
   // True when the most recent human contribution is from outside the team — no
   // internal member has commented after the external author's last word.
   const awaitingMember = !MAINTAINER_ASSOCIATIONS.has(latest.association) && !isBot(latest.user);
 
-  // Rule 3: PRs. Only external contributors' PRs are watched; maintainers
+  // Rule 4: PRs. Only external contributors' PRs are watched; maintainers
   // manage their own, so an internally-authored PR is never flagged. There is
   // no grace period: a PR counts as needing triage from the moment the author
   // has the last word, opening it included.
@@ -147,29 +191,26 @@ export function flagReason(item, contributions, now) {
     return awaitingMember ? 'no maintainer has responded to the author.' : null;
   }
 
-  // Rule 2: issues. Rule 1b means every issue reaching here is unassigned; the
+  // Rule 3: issues. Rule 2b means every issue reaching here is unassigned; the
   // rules below still state their own conditions rather than lean on that.
 
-  const priority = PRIORITY_LABELS.find(p => labels.includes(p));
-
-  // 2a. No priority assigned yet.
+  // 3a. No priority assigned yet.
   if (!priority) {
     return 'this issue has no priority label yet.';
   }
 
-  // 2b. Urgent work with nobody on it.
+  // 3b. Urgent work with nobody on it.
   if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority) && assigneeCount === 0) {
     return `this ${priority} issue has no assignee.`;
   }
 
-  // 2c. Prioritized but stale beyond its threshold.
-  const threshold = STALE_DAYS[priority];
-  if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
-    const unit = threshold === 1 ? 'day' : 'days';
-    return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
+  // 3c. Prioritized but stale beyond its threshold.
+  const stale = staleReason(priority, latest, now);
+  if (stale) {
+    return stale;
   }
 
-  // 2d. The last word on the issue is an external one. Like rule 3, this
+  // 3d. The last word on the issue is an external one. Like rule 4, this
   // carries no grace period: it fires as soon as the comment lands.
   if (awaitingMember) {
     return 'the latest contribution is from an external contributor and has gone unanswered.';
@@ -246,18 +287,20 @@ async function fetchContributions({github, owner, repo}, item) {
 }
 
 /**
- * Returns when WAITING_LABEL was most recently added to an item, or null when
- * that cannot be established — the event fetch failed, or the item's history has
- * no record of the label going on. Callers must read null as "leave the label
- * alone": with no start of the waiting period there is nothing to measure a
- * response against.
+ * Returns when each label in `names` was most recently added to an item, keyed
+ * by label name, from a single read of the item's event history. A label is
+ * missing from the result when that cannot be established — the event fetch
+ * failed, or the history has no record of the label going on. Callers must read
+ * a missing time as "nothing to measure against": WAITING_LABEL is then kept, and
+ * ASSIGNED_FOR_TRIAGE_LABEL never comes due.
  *
  * Only the newest labeling counts. An item can be parked, answered, and parked
  * again, and each round has to be answered on its own; the reply that cleared the
- * first round must not clear the second.
+ * first round must not clear the second. Likewise, re-adding
+ * ASSIGNED_FOR_TRIAGE_LABEL starts a new triage assignment.
  */
-async function waitingLabelAddedAt({github, owner, repo}, item) {
-  let addedAt = null;
+async function labelsAddedAt({github, owner, repo}, item, names) {
+  const addedAt = {};
   try {
     const events = await github.paginate(github.rest.issues.listEvents, {
       owner,
@@ -266,18 +309,21 @@ async function waitingLabelAddedAt({github, owner, repo}, item) {
       per_page: 100,
     });
     for (const event of events) {
-      if (event.event !== 'labeled' || event.label?.name !== WAITING_LABEL) continue;
-      if (!addedAt || event.created_at > addedAt) {
-        addedAt = event.created_at;
+      const name = event.label?.name;
+      if (event.event !== 'labeled' || !names.includes(name)) continue;
+      if (!addedAt[name] || event.created_at > addedAt[name]) {
+        addedAt[name] = event.created_at;
       }
     }
   } catch (error) {
     console.error(`Failed to fetch label events for #${item.number}:`, error);
-    return null;
+    return {};
   }
 
-  if (!addedAt) {
-    console.log(`No '${WAITING_LABEL}' labeling recorded on ${item.html_url}; keeping the label.`);
+  for (const name of names) {
+    if (!addedAt[name]) {
+      console.log(`No '${name}' labeling recorded on ${item.html_url}; leaving it as it is.`);
+    }
   }
   return addedAt;
 }
@@ -297,16 +343,24 @@ export default async function issueTriage({github, context}) {
   });
 
   // Fetch each item's contributions in bounded concurrent batches to avoid a
-  // slow serial loop without flooding the API. The label's event history is only
-  // needed for the items actually parked, so it costs an extra call on those
-  // alone.
+  // slow serial loop without flooding the API. The event history is only needed
+  // for items carrying a label whose age matters, so it costs an extra call on
+  // those alone.
   const itemsWithContributions = await mapInBatches(openItems, async item => {
     const client = {github, owner, repo};
-    const [contributions, waitingSince] = await Promise.all([
+    const timedLabels = [WAITING_LABEL, ASSIGNED_FOR_TRIAGE_LABEL].filter(name =>
+      labelNames(item).includes(name),
+    );
+    const [contributions, addedAt] = await Promise.all([
       fetchContributions(client, item),
-      labelNames(item).includes(WAITING_LABEL) ? waitingLabelAddedAt(client, item) : null,
+      timedLabels.length > 0 ? labelsAddedAt(client, item, timedLabels) : {},
     ]);
-    return {item, contributions, waitingSince};
+    return {
+      item,
+      contributions,
+      waitingSince: addedAt[WAITING_LABEL] ?? null,
+      assignedForTriageSince: addedAt[ASSIGNED_FOR_TRIAGE_LABEL] ?? null,
+    };
   });
 
   // Decide each item's desired state from the snapshot, and keep only those
@@ -316,7 +370,7 @@ export default async function issueTriage({github, context}) {
   // so the mutation below re-reads each item and decides again on live data.
   // Contributions are carried along for that second pass.
   const itemsToUpdate = itemsWithContributions
-    .map(({item, contributions, waitingSince}) => {
+    .map(({item, contributions, waitingSince, assignedForTriageSince}) => {
       const labels = labelNames(item);
       const clearWaiting =
         labels.includes(WAITING_LABEL) && externalHasResponded(contributions, waitingSince);
@@ -327,13 +381,15 @@ export default async function issueTriage({github, context}) {
         ? {...item, labels: labels.filter(label => label !== WAITING_LABEL)}
         : item;
 
-      // Retain contributions so the mutation step can recompute the
-      // desired flag state from the live issue snapshot (avoids flip-flops).
+      // Retain contributions and the triage assignment time so the mutation
+      // step can recompute the desired flag state from the live issue snapshot
+      // (avoids flip-flops).
       return {
         item,
         contributions,
+        assignedForTriageSince,
         clearWaiting,
-        reason: flagReason(scored, contributions, now),
+        reason: flagReason(scored, contributions, now, assignedForTriageSince),
       };
     })
     .filter(
@@ -345,7 +401,8 @@ export default async function issueTriage({github, context}) {
   let removed = 0;
   let waitingCleared = 0;
 
-  await mapInBatches(itemsToUpdate, async ({item, contributions, clearWaiting, reason}) => {
+  await mapInBatches(itemsToUpdate, async update => {
+    const {item, contributions, assignedForTriageSince, clearWaiting} = update;
     const target = {owner, repo, issue_number: item.number};
     try {
       // Re-read the item so every decision below rests on live data rather than
@@ -381,7 +438,9 @@ export default async function issueTriage({github, context}) {
       const scoredFresh = clearWaitingNow
         ? {...fresh, labels: freshLabels.filter(l => l !== WAITING_LABEL)}
         : fresh;
-      const freshReason = flagReason(scoredFresh, contributions, now);
+      // The triage assignment time is not re-read either; rule 1 ignores it if
+      // the label has since been removed.
+      const freshReason = flagReason(scoredFresh, contributions, now, assignedForTriageSince);
       const wantsFlag = Boolean(freshReason);
 
       if (wantsFlag === freshLabels.includes(FLAG_LABEL)) {
