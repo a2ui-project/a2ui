@@ -22,6 +22,7 @@ The Flutter renderer for the A2UI ecosystem, built on the node layer of `dart/a2
 ## **Local Technical Decisions & Overrides**
 
 - **Package layout**: Folders follow the React adapter rather than the module blueprint's layout: the surface, node view, component API and props accessors are files in `lib/src/`, and there are no `surface/`, `nodes/`, `binding/` or `theme/` folders. The basic components are a library of their own, `package:a2ui_flutter/basic_catalog.dart`, in `lib/src/catalog/basic/`. They import neither the surface widget nor the node view, and read the surface model only through its ambient scope, to apply its theme and to report a write the data model rejects.
+- **Resolver lifecycle**: `A2uiSurface` does not own a `NodeResolver` per view. The first `A2uiSurface` to show a surface creates its resolver, every later view and remount of that surface shares it, and it is disposed when the surface is disposed. A surface's reports therefore do not depend on how many views mount it.
 - **Basic catalog schemas**: Component schemas come from `a2ui_core`'s `BasicCatalog.v0_9()`, which is generated from the v0.9 basic catalog document, rather than being written by hand.
 
 ## **Validation & Execution Recipes**
