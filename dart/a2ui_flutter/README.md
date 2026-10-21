@@ -231,6 +231,12 @@ whenever it resolves, not only on a tap, so with a callback the agent can open
 an `http`, `https`, `mailto` or `tel` URL without the user acting. Pass one
 only for an agent you trust.
 
+## Example
+
+[example](example) is a chat app in which a Gemini model, prompted through
+`a2ui_agent`, answers with surfaces, and each event action and error on them
+goes back to the model. [e2e_test](e2e_test) runs it against the live model.
+
 ## Tests
 
 `test/catalog/basic/examples_test.dart` renders every
