@@ -35,10 +35,10 @@ export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
 export const TRIAGE_ASSIGNMENT_DAYS = 14;
 
 // Priorities urgent enough that an unassigned issue is flagged immediately
-// (rule 3b). Every entry must be one of PRIORITY_LABELS.
+// (rule 4). Every entry must be one of PRIORITY_LABELS.
 export const ASSIGNEE_REQUIRED_PRIORITIES = new Set(['P0', 'P1']);
 
-// Days of inactivity before a prioritized issue is considered stale (rule 3c).
+// Days of inactivity before an assigned issue is considered stale (rule 3).
 // Keys must be a subset of PRIORITY_LABELS; priorities absent here are never
 // flagged for staleness.
 export const STALE_DAYS = {P0: 1, P1: 30};
@@ -137,20 +137,8 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
     return null;
   }
 
-  // Rule 2: items the automation stays out of.
-
-  // 2a. A parked item is off the triage queue entirely, whatever the rules
-  // below would say.
+  // Rule 2: a parked item is off the triage queue entirely.
   if (labels.includes(WAITING_LABEL)) {
-    return null;
-  }
-
-  const priority = PRIORITY_LABELS.find(p => labels.includes(p));
-
-  // 2b. An assigned P2 issue already has a team member working on it. An
-  // unassigned one stays in scope, so an external comment can still flag it
-  // (rule 3d).
-  if (!isPR && priority === 'P2' && assigneeCount > 0) {
     return null;
   }
 
@@ -160,7 +148,7 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
   // internal member has commented after the external author's last word.
   const awaitingMember = !MAINTAINER_ASSOCIATIONS.has(latest.association) && !isBot(latest.user);
 
-  // Rule 4: PRs. Only external contributors' PRs are watched; maintainers
+  // Rule 5: PRs. Only external contributors' PRs are watched; maintainers
   // manage their own, so an internally-authored PR is never flagged. There is
   // no grace period: a PR counts as needing triage from the moment the author
   // has the last word, opening it included.
@@ -171,26 +159,32 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
     return awaitingMember ? 'no maintainer has responded to the author.' : null;
   }
 
-  // Rule 3: issues.
+  const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
-  // 3a. No priority assigned yet.
-  if (!priority) {
-    return 'this issue has no priority label yet.';
-  }
-
-  // 3b. Urgent work with nobody on it.
-  if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority) && assigneeCount === 0) {
-    return `this ${priority} issue has no assignee.`;
-  }
-
-  // 3c. Prioritized but stale beyond its threshold.
-  const threshold = STALE_DAYS[priority];
-  if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
+  // Rule 3: an assigned issue has a team member on it, so it is flagged only
+  // when that work goes quiet beyond its priority's threshold.
+  if (assigneeCount > 0) {
+    const threshold = STALE_DAYS[priority];
+    if (threshold === undefined || ageInDays(latest.createdAt, now) <= threshold) {
+      return null;
+    }
     const unit = threshold === 1 ? 'day' : 'days';
     return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
   }
 
-  // 3d. The last word on the issue is an external one. Like rule 4, this
+  // Rule 4: unassigned issues.
+
+  // 4a. No priority assigned yet.
+  if (!priority) {
+    return 'this issue has no priority label yet.';
+  }
+
+  // 4b. Urgent work with nobody on it.
+  if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
+    return `this ${priority} issue has no assignee.`;
+  }
+
+  // 4c. The last word on the issue is an external one. Like rule 5, this
   // carries no grace period: it fires as soon as the comment lands.
   if (awaitingMember) {
     return 'the latest contribution is from an external contributor and has gone unanswered.';
