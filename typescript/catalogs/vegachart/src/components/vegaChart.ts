@@ -120,8 +120,7 @@ async function defaultVegaEmbed(
   chartSpec: Record<string, unknown>,
   options?: VegaEmbedOptions,
 ): Promise<VegaEmbedResult | undefined> {
-  const moduleName = 'vega-embed';
-  const mod = (await import(moduleName)) as {
+  const mod = (await import('vega-embed')) as unknown as {
     default?: VegaEmbedFn;
     embed?: VegaEmbedFn;
   };
@@ -819,11 +818,7 @@ export class A2uiVegaChartElement extends A2uiLitElement<
       } else {
         this.style.width = '';
       }
-      container.style.width = facetSize
-        ? `${Math.max(effectiveWidth, facetSize.totalEstimatedWidth)}px`
-        : this.useFallbackWidth
-          ? `${effectiveWidth}px`
-          : '100%';
+      container.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '100%';
       container.style.overflow = facetSize ? 'auto' : 'hidden';
 
       const activeEmbed = this.embedFn ?? A2uiVegaChartElement.defaultEmbedFn;

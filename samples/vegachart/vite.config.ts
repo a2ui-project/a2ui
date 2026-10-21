@@ -20,6 +20,9 @@ export default defineConfig({
   resolve: {
     dedupe: ['lit'],
   },
+  optimizeDeps: {
+    include: ['vega-embed'],
+  },
   build: {
     target: 'esnext',
   },

@@ -509,6 +509,7 @@ __metadata:
     lit: "npm:^3.3.3"
     prettier: "npm:^3.8.4"
     typescript: "npm:5.9.3"
+    vega-embed: "npm:^6.26.0"
     vite: "npm:^8.0.16"
     vitest: "npm:^4.1.8"
   languageName: unknown
