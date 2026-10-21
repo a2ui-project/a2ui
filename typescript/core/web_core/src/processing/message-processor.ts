@@ -17,6 +17,7 @@
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi, linkCatalogs} from '../catalog/types.js';
+import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
@@ -312,6 +313,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         const rawZod = zodToJsonSchema(comp.schema, {
           target: 'jsonSchema2019-09',
           $refStrategy: 'none',
+          override: exclusiveUnionOverride,
         }) as Record<string, unknown>;
         cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         props = (rawZod.properties as Record<string, unknown>) || {};
@@ -341,6 +343,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         const rawZod = zodToJsonSchema(fn.schema, {
           target: 'jsonSchema2019-09',
           $refStrategy: 'none',
+          override: exclusiveUnionOverride,
         }) as Record<string, unknown>;
         cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         paramSchema = rawZod;
@@ -358,6 +361,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const rawTheme = zodToJsonSchema(catalog.themeSchema, {
         target: 'jsonSchema2019-09',
         $refStrategy: 'none',
+        override: exclusiveUnionOverride,
       }) as Record<string, unknown>;
       cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
       theme = (rawTheme.properties as Record<string, unknown>) || undefined;

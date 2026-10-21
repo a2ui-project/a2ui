@@ -35,6 +35,7 @@ import {isAtLeastVersion, normalizeVersionString, toCanonicalVersion} from '../c
 import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
+import {exclusiveUnionOverride} from './exclusive_union.js';
 import {getSpecAnnotation, type SpecAnnotation, type SpecMixin} from './spec_annotations.js';
 
 type JsonObject = Record<string, unknown>;
@@ -71,6 +72,128 @@ function copyJson<V>(value: V): V {
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Resolves a `$ref`, or returns `undefined` for one it cannot follow. */
+type RefResolver = (ref: string) => JsonObject | undefined;
+
+/** How deep the disjointness check follows references and nested schemas. */
+const MAX_DISJOINT_DEPTH = 8;
+
+/** The JSON type of a JSON value, with integers counted as numbers. */
+function jsonTypeOf(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+/** Follows a schema's `$ref` chain, or returns `undefined` when it cannot. */
+function resolveSchema(
+  schema: unknown,
+  resolve: RefResolver,
+  depth: number,
+): JsonObject | undefined {
+  let node = schema;
+  for (let hops = 0; isObject(node) && typeof node['$ref'] === 'string'; hops++) {
+    if (hops + depth > MAX_DISJOINT_DEPTH) return undefined;
+    node = resolve(node['$ref']);
+  }
+  return isObject(node) ? node : undefined;
+}
+
+/**
+ * The JSON types a schema can accept, or `undefined` when the schema does not
+ * restrict them. `integer` is counted as `number`.
+ */
+function acceptedTypes(schema: JsonObject): Set<string> | undefined {
+  const type = schema['type'];
+  if (typeof type === 'string' || Array.isArray(type)) {
+    return new Set(
+      ([] as unknown[]).concat(type).map(t => (t === 'integer' ? 'number' : String(t))),
+    );
+  }
+  if ('const' in schema) return new Set([jsonTypeOf(schema['const'])]);
+  if (Array.isArray(schema['enum'])) return new Set(schema['enum'].map(jsonTypeOf));
+  return undefined;
+}
+
+/** The values a schema accepts, when it lists them with `const` or `enum`. */
+function acceptedValues(schema: JsonObject): string[] | undefined {
+  if ('const' in schema) return [JSON.stringify(schema['const'])];
+  if (Array.isArray(schema['enum'])) return schema['enum'].map(v => JSON.stringify(v));
+  return undefined;
+}
+
+/** The properties an object schema and the schemas of its `allOf` require. */
+function requiredKeys(schema: JsonObject, resolve: RefResolver, depth: number): Set<string> {
+  const keys = new Set<string>();
+  if (Array.isArray(schema['required'])) {
+    for (const key of schema['required']) keys.add(String(key));
+  }
+  if (depth < MAX_DISJOINT_DEPTH && Array.isArray(schema['allOf'])) {
+    for (const member of schema['allOf']) {
+      const resolved = resolveSchema(member, resolve, depth + 1);
+      if (resolved) for (const key of requiredKeys(resolved, resolve, depth + 1)) keys.add(key);
+    }
+  }
+  return keys;
+}
+
+/**
+ * The only properties a closed object schema accepts, or `undefined` when the
+ * schema is open or its closure cannot be read without evaluating it.
+ */
+function closedKeys(schema: JsonObject): Set<string> | undefined {
+  if (schema['additionalProperties'] !== false) return undefined;
+  if ('patternProperties' in schema) return undefined;
+  const properties = schema['properties'];
+  return new Set(isObject(properties) ? Object.keys(properties) : []);
+}
+
+/** The schema of an object schema's own property, if it declares one. */
+function propertySchema(schema: JsonObject, key: string): unknown {
+  const properties = schema['properties'];
+  return isObject(properties) ? properties[key] : undefined;
+}
+
+/**
+ * Whether no JSON value matches both schemas. A `false` result means that the
+ * check could not prove them disjoint, not that they overlap.
+ *
+ * Two schemas are disjoint when they accept no common JSON type, when both
+ * list their values and none is shared, when one is a closed object that
+ * does not allow a property the other requires, or when both require a
+ * property whose schemas are disjoint.
+ */
+function provablyDisjoint(a: unknown, b: unknown, resolve: RefResolver, depth = 0): boolean {
+  if (depth > MAX_DISJOINT_DEPTH) return false;
+  const left = resolveSchema(a, resolve, depth);
+  const right = resolveSchema(b, resolve, depth);
+  if (!left || !right) return false;
+
+  const leftTypes = acceptedTypes(left);
+  const rightTypes = acceptedTypes(right);
+  if (leftTypes && rightTypes && ![...leftTypes].some(t => rightTypes.has(t))) return true;
+
+  const leftValues = acceptedValues(left);
+  const rightValues = acceptedValues(right);
+  if (leftValues && rightValues && !leftValues.some(v => rightValues.includes(v))) return true;
+
+  const objectOnly = (types: Set<string> | undefined) =>
+    types !== undefined && types.size === 1 && types.has('object');
+  if (!objectOnly(leftTypes) || !objectOnly(rightTypes)) return false;
+
+  const leftRequired = requiredKeys(left, resolve, depth);
+  const rightRequired = requiredKeys(right, resolve, depth);
+  const leftClosed = closedKeys(left);
+  const rightClosed = closedKeys(right);
+  if (leftClosed && [...rightRequired].some(key => !leftClosed.has(key))) return true;
+  if (rightClosed && [...leftRequired].some(key => !rightClosed.has(key))) return true;
+  return [...leftRequired].some(
+    key =>
+      rightRequired.has(key) &&
+      provablyDisjoint(propertySchema(left, key), propertySchema(right, key), resolve, depth + 1),
+  );
 }
 
 /** The Zod definition fields the shaper reads. */
@@ -355,6 +478,22 @@ export class SpecShaper {
     return result;
   }
 
+  /**
+   * Returns the standard definition a reference names, as written in the
+   * catalog document (`<commonTypesUri>#/$defs/<name>`) or within the common
+   * types document (`#/$defs/<name>`), or `undefined` for any other reference.
+   */
+  private resolveStandardRef(ref: string): JsonObject | undefined {
+    const local = ref.startsWith(this.commonTypesUri)
+      ? ref.substring(this.commonTypesUri.length)
+      : ref;
+    if (!local.startsWith('#/$defs/')) return undefined;
+    const name = local.substring('#/$defs/'.length);
+    if (name.includes('/') || !Object.hasOwn(this.standardDefs, name)) return undefined;
+    const definition = this.standardDefs[name];
+    return isObject(definition) ? definition : undefined;
+  }
+
   /** Writes a `REF:` marker's reference as the catalog document does. */
   private refTarget(ref: string): string {
     if (!ref.startsWith('#/$defs/')) return ref;
@@ -397,8 +536,17 @@ export class SpecShaper {
       }
       case 'ZodUnion':
       case 'ZodDiscriminatedUnion': {
+        // A union accepts a value any of its branches accepts, as `anyOf`
+        // does. It is written as `oneOf`, as the specification writes its
+        // unions, only when no value matches two branches, so that both
+        // keywords accept the same values.
         const options = def['options'] as Iterable<z.ZodTypeAny>;
-        return {oneOf: [...options].map(option => this.toJson(option))};
+        const branches = [...options].map(option => this.toJson(option));
+        const resolve = (ref: string) => this.resolveStandardRef(ref);
+        const disjoint = branches.every((branch, i) =>
+          branches.slice(i + 1).every(other => provablyDisjoint(branch, other, resolve)),
+        );
+        return {[disjoint ? 'oneOf' : 'anyOf']: branches};
       }
       case 'ZodRecord':
         return {
@@ -520,6 +668,7 @@ function fallbackJson(schema: z.ZodTypeAny): JsonObject {
   const json = zodToJsonSchema(schema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
+    override: exclusiveUnionOverride,
   }) as JsonObject;
   delete json['$schema'];
   delete json['definitions'];

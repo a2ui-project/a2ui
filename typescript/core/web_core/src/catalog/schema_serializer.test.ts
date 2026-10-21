@@ -375,6 +375,131 @@ describe('Catalog.validationSchema', () => {
   });
 });
 
+describe('union export', () => {
+  const OVERLAPPING_BRANCHES = [{type: 'string', enum: ['md', 'lg']}, {type: 'string'}];
+
+  /** Whether the catalog's `Box` component accepts `radius`. */
+  function acceptsRadius(
+    catalog: {readonly components: ReadonlyMap<string, ComponentApi>},
+    radius: unknown,
+  ): boolean {
+    return catalog.components.get('Box')!.schema.safeParse({radius}).success;
+  }
+
+  /** The `radius` property of the `Box` component in a catalog document. */
+  function radiusSchema(document: Record<string, any>): Record<string, unknown> {
+    return document.components.Box.properties.radius;
+  }
+
+  /** A catalog document with a `Box` whose `radius` is the given union. */
+  function boxDocument(version: string, radius: Record<string, unknown>): Record<string, any> {
+    return {
+      catalogId: 'https://example.org/catalog.json',
+      protocolVersion: version,
+      components: {
+        Box: {
+          type: 'object',
+          properties: {component: {const: 'Box'}, radius},
+          required: ['component', 'radius'],
+          unevaluatedProperties: false,
+        },
+      },
+      $defs: {
+        anyComponent: {
+          oneOf: [{$ref: '#/components/Box'}],
+          discriminator: {propertyName: 'component'},
+        },
+        anyFunction: {not: {}},
+      },
+    };
+  }
+
+  for (const version of ['v0.9', 'v1.0']) {
+    it(`exports z.union as anyOf and keeps its accepted values on reload in ${version}`, () => {
+      const schema = z.object({radius: z.union([z.enum(['md', 'lg']), z.string()])});
+      const original = new Catalog('https://example.org/catalog.json', version, [
+        {name: 'Box', schema},
+      ]);
+      const document = original.toJson();
+      assert.deepStrictEqual(radiusSchema(document), {anyOf: OVERLAPPING_BRANCHES});
+
+      const reloaded = Catalog.fromJson(document);
+      for (const catalog of [original, reloaded]) {
+        assert.strictEqual(acceptsRadius(catalog, 'md'), true);
+        assert.strictEqual(acceptsRadius(catalog, '12px'), true);
+        assert.strictEqual(acceptsRadius(catalog, false), false);
+      }
+      const validation = original.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, {anyOf: OVERLAPPING_BRANCHES});
+    });
+
+    it(`keeps an authored oneOf exclusive and writes it back as oneOf in ${version}`, () => {
+      const document = boxDocument(version, {oneOf: OVERLAPPING_BRANCHES});
+      const loaded = Catalog.fromJson(document);
+      assert.strictEqual(acceptsRadius(loaded, 'md'), false, 'md matches both branches');
+      assert.strictEqual(acceptsRadius(loaded, '12px'), true);
+      assert.strictEqual(acceptsRadius(loaded, false), false);
+      assert.deepStrictEqual(radiusSchema(loaded.toJson()), {oneOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(Catalog.fromJson(loaded.toJson()).toJson(), loaded.toJson());
+
+      // A catalog defined in code from the loaded schema keeps it exclusive.
+      const reused = new Catalog('https://example.org/reused.json', version, [
+        {name: 'Box', schema: loaded.components.get('Box')!.schema},
+      ]);
+      assert.deepStrictEqual(radiusSchema(reused.toJson()), {oneOf: OVERLAPPING_BRANCHES});
+      const validation = reused.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, {oneOf: OVERLAPPING_BRANCHES});
+      const reloaded = Catalog.fromJson(reused.toJson());
+      assert.strictEqual(acceptsRadius(reloaded, 'md'), false);
+      assert.strictEqual(acceptsRadius(reloaded, '12px'), true);
+    });
+
+    it(`keeps an authored anyOf inclusive in ${version}`, () => {
+      const document = boxDocument(version, {anyOf: OVERLAPPING_BRANCHES});
+      const loaded = Catalog.fromJson(document);
+      assert.strictEqual(acceptsRadius(loaded, 'md'), true);
+      assert.deepStrictEqual(radiusSchema(loaded.toJson()), {anyOf: OVERLAPPING_BRANCHES});
+    });
+
+    it(`writes a specification-shaped union as oneOf only when its branches are disjoint in ${version}`, () => {
+      const boxSchema = spec(
+        z
+          .object({
+            radius: z.union([z.enum(['md', 'lg']), z.string()]),
+            size: z.union([z.number(), z.object({token: z.string()}).strict()]),
+          })
+          .strict(),
+        {mixins: []},
+      );
+      const catalog = new Catalog('https://example.org/shaped.json', version, [
+        {name: 'Box', schema: boxSchema},
+      ]);
+      const document = catalog.toJson();
+      const box = (document.components as Record<string, any>).Box;
+      // A v1.0 definition without mixins lists its properties itself; a v0.9
+      // one lists them in its `allOf`.
+      const properties = (box.properties ??
+        box.allOf.find((m: any) => m.properties).properties) as Record<string, unknown>;
+      assert.deepStrictEqual(properties.radius, {anyOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(properties.size, {
+        oneOf: [
+          {type: 'number'},
+          {
+            type: 'object',
+            properties: {token: {type: 'string'}},
+            required: ['token'],
+            additionalProperties: false,
+          },
+        ],
+      });
+      const reloaded = Catalog.fromJson(document).components.get('Box')!.schema;
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: 1}).success, true);
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: {token: 'x'}}).success, true);
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: 'x'}).success, false);
+    });
+  }
+});
+
 describe('Catalog.fromJson', () => {
   it('lets a protocolVersion argument take precedence over the declared one', () => {
     const document = {
