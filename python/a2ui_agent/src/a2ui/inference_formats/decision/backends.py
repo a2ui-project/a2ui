@@ -21,7 +21,7 @@ from collections.abc import Callable, Mapping, Sequence
 import math
 import re
 import time
-from typing import Any, Literal, Protocol, TypeVar, cast, runtime_checkable
+from typing import Any, Protocol, TypeVar, cast, runtime_checkable
 
 import httpx
 
@@ -438,7 +438,7 @@ class JevHttpBackend(_HttpClientOwner):
         self,
         endpoint_url: str,
         *,
-        wire_format: Literal["auto", "jev", "systemone"] | DecisionWireFormat = "auto",
+        wire_format: DecisionWireFormat | str = DecisionWireFormat.AUTO,
         model: str = "default",
         auth: str | Callable[[], str | Any] | None = None,
         headers: Mapping[str, str] | None = None,
@@ -908,7 +908,7 @@ def create_decision_backend(
         temperature: Softmax temperature for the local and step-0 backends.
 
     Environment variables:
-        A2UI_DECISION_BACKEND: 'local', 'systemone', 'jev', 'step0', 'mock'
+        A2UI_DECISION_BACKEND: 'local' (alias 'onnx'), 'systemone', 'jev', 'step0', 'mock'
         A2UI_DECISION_URL: Endpoint URL for HTTP backends
         A2UI_DECISION_MODEL: Model identifier (e.g. cross-encoder ID or remote model)
         A2UI_DECISION_AUTH: 'adc', Bearer token string, or omitted
@@ -933,10 +933,13 @@ def create_decision_backend(
     )
     kind = _normalize_backend_kind(raw_kind) or _infer_backend_kind(url)
 
+    def build_local() -> DecisionBackend:
+        return _create_local_backend(model_name, temp)
+
     builders: dict[str, Callable[[], DecisionBackend]] = {
-        DecisionBackendType.LOCAL.value: lambda: _create_local_backend(
-            model_name, temp
-        ),
+        DecisionBackendType.LOCAL.value: build_local,
+        # "onnx" names the same in-process backend; kept as an alias.
+        DecisionBackendType.ONNX.value: build_local,
         DecisionBackendType.SYSTEMONE.value: lambda: _create_jev_backend(
             kind, url, model_name, auth_val
         ),

@@ -52,7 +52,8 @@ one JSON object (or a JSON array of such objects, one per surface).
 
 2. `payload` (required, object or array): The data to display. Use descriptive
    camelCase keys; key names guide which components are chosen. Keep values
-   JSON primitives, objects, and arrays.
+   JSON primitives, objects, and arrays. If you pass an array, it is stored
+   under the `items` key, so bindings read `/items/0/...`.
 
 3. `surfaceId` (optional, string): The surface to create or update. Reuse an
    id to replace an earlier surface.

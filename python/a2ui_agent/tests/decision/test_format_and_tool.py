@@ -43,7 +43,9 @@ from a2ui.inference_formats.decision import (
     DecisionTask,
     DecisionWireFormat,
     DeterministicMockBackend,
+    FallbackSource,
     JevHttpBackend,
+    LocalCrossEncoderBackend,
     StepZeroLogprobBackend,
     SurfaceTemplate,
     coerce_decision_payload,
@@ -166,10 +168,8 @@ def test_coerce_decision_payload() -> None:
     assert coerce_decision_payload("[1, 2]") == [1, 2]
     with pytest.raises(ValueError, match="not valid JSON"):
         coerce_decision_payload("{not json")
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="JSON string"):
         coerce_decision_payload('"just a string"')
-    with pytest.raises(TypeError):
-        coerce_decision_payload(json.dumps(PAYLOAD), parse_json_strings=False)
     with pytest.raises(TypeError):
         coerce_decision_payload(42)  # type: ignore[arg-type]
 
@@ -182,10 +182,36 @@ def test_create_decision_backend_accepts_enum_and_rejects_unknown() -> None:
         DecisionBackendType.SYSTEMONE, endpoint_url="http://h/v1/systemone"
     )
     assert isinstance(backend, JevHttpBackend)
-    with pytest.raises(ValueError, match="Unknown decision backend type"):
+    # "onnx" is an alias of the local backend; construction loads no model.
+    assert isinstance(
+        create_decision_backend(DecisionBackendType.ONNX), LocalCrossEncoderBackend
+    )
+    with pytest.raises(ValueError, match="Unknown decision backend type") as info:
         create_decision_backend("nope")
+    assert "'onnx'" in str(info.value)
     with pytest.raises(ValueError, match="requires an endpoint URL"):
         create_decision_backend("jev")
+
+
+@pytest.mark.asyncio
+async def test_wire_format_auto_detects_systemone() -> None:
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"answers": {"q": {"answer": "A"}}})
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        for wire in ("auto", DecisionWireFormat.AUTO):
+            backend = JevHttpBackend(
+                "http://h/v1/systemone", wire_format=wire, client=client
+            )
+            await backend.predict(
+                DecisionQuery(task="t", prompt="p", candidates=("A",))
+            )
+    assert len(seen) == 2
+    assert all("questions" in req for req in seen)
 
 
 # --------------------------------------------------------------------------
@@ -292,10 +318,10 @@ async def test_synthesize_accepts_json_string_and_array_payloads() -> None:
         "items": [{"serviceName": "a", "latencyMs": 1}]
     }
 
-    with pytest.raises(ValueError):
-        await synth.synthesize("x", "{bad", parse_json_strings=True)
-    with pytest.raises(TypeError):
-        await synth.synthesize("x", json.dumps(PAYLOAD), parse_json_strings=False)
+    with pytest.raises(ValueError, match="not valid JSON"):
+        await synth.synthesize("x", "{bad")
+    with pytest.raises(TypeError, match="JSON string"):
+        await synth.synthesize("x", '"scalar"')
 
 
 @pytest.mark.asyncio
@@ -338,6 +364,7 @@ async def test_abstention_fallback_dsl_compiles_and_adds_data_model() -> None:
         fallback_dsl="root = TelemetryBadge($/serviceName, $/latencyMs)",
     )
     assert out.stage == SynthesisStage.ABSTAIN_FALLBACK
+    assert out.fallback_source is FallbackSource.DSL
     assert out.fallback_source == "fallback_dsl"
     dicts = to_message_dicts(out.messages)
     assert dicts[0]["createSurface"]["surfaceId"] == "s1"
@@ -358,12 +385,34 @@ async def test_abstention_fallback_fn_sync_and_async() -> None:
     async def async_fn(intent: str, payload: Any, surface_id: str) -> Any:
         return sync_fn(intent, payload, surface_id)
 
-    for fn in (sync_fn, async_fn):
+    def dict_fn(intent: str, payload: Any, surface_id: str) -> Any:
+        # Wire-format dicts are accepted too; to_message_models validates them.
+        return to_message_dicts(sync_fn(intent, payload, surface_id))
+
+    for fn in (sync_fn, async_fn, dict_fn):
         synth = DecisionSynthesizer([catalog], _abstaining_backend(), fallback_fn=fn)
         out = await synth.synthesize("low", PAYLOAD, surface_id="s2")
-        assert out.fallback_source == "fallback_fn"
+        assert out.fallback_source is FallbackSource.CALLBACK
         assert out.messages
-    assert seen == [("low", "s2"), ("low", "s2")]
+    assert seen == [("low", "s2")] * 3
+
+
+def test_format_factory_shares_one_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("A2UI_DECISION_BACKEND", "mock")
+    catalog = _make_catalog()
+
+    lazy = DecisionFormatFactory()
+    assert lazy.backend is None
+    first = lazy.create_format([catalog])
+    second = lazy.create_format([catalog])
+    assert first.synthesizer.backend is second.synthesizer.backend is lazy.backend
+    assert isinstance(lazy.backend, DeterministicMockBackend)
+    # The catalog graph is still per format.
+    assert first.synthesizer.graph is not second.synthesizer.graph
+
+    explicit_backend = _confident_backend()
+    explicit = DecisionFormatFactory(backend=explicit_backend)
+    assert explicit.create_format([catalog]).synthesizer.backend is explicit_backend
 
 
 @pytest.mark.asyncio
@@ -373,7 +422,7 @@ async def test_abstention_fallback_card_is_deterministic_and_actionless() -> Non
     first = await synth.synthesize("low confidence", PAYLOAD, surface_id="s3")
     second = await synth.synthesize("low confidence", PAYLOAD, surface_id="s3")
     assert first.stage == SynthesisStage.ABSTAIN_FALLBACK
-    assert first.fallback_source == "fallback_card"
+    assert first.fallback_source is FallbackSource.CARD
     assert to_message_dicts(first.messages) == to_message_dicts(second.messages)
     components = next(
         d["updateComponents"]["components"]
@@ -553,13 +602,14 @@ def test_render_tool_schema_and_run_sync() -> None:
     catalog = _make_catalog()
     registry = TemplateRegistry()
     registry.register(_badge_template())
-    tool = DecisionRenderTool.from_env(
+    tool = DecisionRenderTool.create(
         [catalog], backend=_confident_backend(), registry=registry
     )
     schema = tool.parameters_json_schema()
     assert schema["required"] == ["intent", "payload"]
     assert schema["properties"]["template"]["enum"] == ["badge_tpl"]
     assert {"type": "string"} in schema["properties"]["payload"]["anyOf"]
+    assert "`items`" in schema["properties"]["payload"]["description"]
     assert tool.name == "render_a2ui_decision"
 
     out = tool.run_sync({"intent": "Show telemetry", "payload": json.dumps(PAYLOAD)})
@@ -581,11 +631,11 @@ def test_render_tool_schema_and_run_sync() -> None:
 @pytest.mark.asyncio
 async def test_render_tool_run_async_fallbacks() -> None:
     catalog = _make_catalog()
-    tool = DecisionRenderTool.from_env(
+    tool = DecisionRenderTool.create(
         [catalog], backend=_abstaining_backend(), surface_id="main"
     )
     card = await tool.run_async({"intent": "low", "payload": PAYLOAD})
-    assert card.fallback_source == "fallback_card"
+    assert card.fallback_source is FallbackSource.CARD
     assert to_message_dicts(card.messages)[0]["createSurface"]["surfaceId"] == "main"
 
     dsl = await tool.run_async({
@@ -593,7 +643,7 @@ async def test_render_tool_run_async_fallbacks() -> None:
         "payload": PAYLOAD,
         "fallbackDsl": "root = TelemetryBadge($/serviceName, $/latencyMs)",
     })
-    assert dsl.fallback_source == "fallback_dsl"
+    assert dsl.fallback_source is FallbackSource.DSL
 
     with pytest.raises(ValueError, match="intent"):
         await tool.run_async({"payload": PAYLOAD})

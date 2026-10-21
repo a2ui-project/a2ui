@@ -20,7 +20,7 @@ describe tools with a JSON Schema and call them with a dict of arguments.
 write the schema, decode stringified payloads, or bridge sync and async
 itself::
 
-    tool = DecisionRenderTool.from_env(catalogs)
+    tool = DecisionRenderTool.create(catalogs)
     declaration = {"name": tool.name, "description": tool.description,
                    "parameters": tool.parameters_json_schema()}
     output = await tool.run_async(call_arguments)
@@ -72,7 +72,8 @@ class DecisionRenderTool:
             name: Tool name advertised to the model.
             description: Tool description advertised to the model.
             surface_id: Surface used when a call names none; None defers to
-                the synthesizer's `config.default_surface_id`.
+                the synthesizer's `config.default_surface_id`. A call's own
+                `surfaceId` always wins.
         """
         self.name = name
         self.description = description
@@ -80,7 +81,7 @@ class DecisionRenderTool:
         self._surface_id = surface_id
 
     @classmethod
-    def from_env(
+    def create(
         cls,
         catalogs: Sequence[CatalogApi] | CatalogDecisionGraph,
         *,
@@ -98,6 +99,18 @@ class DecisionRenderTool:
         `fallback_card` defaults to True: a tool call that renders nothing is
         an error from the model's point of view, so an abstention renders a
         deterministic card unless the call supplied `fallbackDsl`.
+
+        Args:
+            catalogs: The active catalogs, or a prebuilt `CatalogDecisionGraph`.
+            backend: Decision backend; defaults to `create_decision_backend()`.
+            config: Synthesis thresholds and limits.
+            registry: Surface templates offered through the `template` field.
+            fallback_card: Render a deterministic card on abstention.
+            fallback_fn: Custom fallback tried before the card.
+            name: Tool name advertised to the model.
+            description: Tool description advertised to the model.
+            surface_id: Surface used when a call names none; None defers to
+                `config.default_surface_id`. A call's own `surfaceId` wins.
         """
         synthesizer = DecisionSynthesizer(
             catalogs,
@@ -140,7 +153,8 @@ class DecisionRenderTool:
                     "description": (
                         "The data to display: a JSON object (preferred) or array,"
                         " or a JSON-encoded string of either. Use descriptive"
-                        " camelCase keys."
+                        " camelCase keys. A top-level array is stored under the"
+                        " `items` key of the surface data model."
                     ),
                     "anyOf": [
                         {"type": "object"},

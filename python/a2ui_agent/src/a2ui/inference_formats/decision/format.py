@@ -31,7 +31,7 @@ from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
 from a2ui.inference_formats._shared import check_mixed_catalogs
 
-from .backends import DecisionBackend
+from .backends import DecisionBackend, create_decision_backend
 from .catalog_graph import CatalogDecisionGraph
 from .models import SynthesisConfig
 from .parser import DecisionParser
@@ -69,7 +69,9 @@ class DecisionFormat(InferenceFormat):
             backend: Decision backend; defaults to `create_decision_backend()`.
             config: Synthesis thresholds and limits.
             registry: Surface templates offered in the prompt and tried first.
-            surface_id: Surface used when a block names none.
+            surface_id: Surface used when a block names none. A block's own
+                `surfaceId` wins; `SynthesisConfig.default_surface_id` is not
+                consulted on this path.
             fallback_card: Render a deterministic card when the model abstains
                 and the block carries no `fallbackDsl`. Defaults to True here,
                 unlike `DecisionSynthesizer`, because inside a parser an
@@ -125,7 +127,13 @@ class DecisionFormat(InferenceFormat):
 
 
 class DecisionFormatFactory(InferenceFormatFactory):
-    """Factory for `DecisionFormat` instances, for `A2uiRequestProcessor`."""
+    """Factory for `DecisionFormat` instances, for `A2uiRequestProcessor`.
+
+    One backend is shared by every format the factory creates, because a
+    backend may hold a loaded model or an HTTP connection pool and
+    `A2uiGenerator` creates a format per renderer request. The catalog graph
+    is still built per format, since catalogs are negotiated per renderer.
+    """
 
     def __init__(
         self,
@@ -137,13 +145,35 @@ class DecisionFormatFactory(InferenceFormatFactory):
         fallback_card: bool = True,
         fallback_fn: FallbackCallback | None = None,
     ) -> None:
-        """Stores the settings every created format shares. See `DecisionFormat`."""
+        """Stores the settings every created format shares. See `DecisionFormat`.
+
+        Args:
+            backend: The shared decision backend. When None, it is created
+                with `create_decision_backend()` on the first `create_format`
+                call and reused afterwards.
+            config: See `DecisionFormat`.
+            registry: See `DecisionFormat`.
+            surface_id: See `DecisionFormat`.
+            fallback_card: See `DecisionFormat`.
+            fallback_fn: See `DecisionFormat`.
+        """
         self._backend = backend
         self._config = config
         self._registry = registry
         self._surface_id = surface_id
         self._fallback_card = fallback_card
         self._fallback_fn = fallback_fn
+
+    @property
+    def backend(self) -> DecisionBackend | None:
+        """The shared backend, or None until the first format is created."""
+        return self._backend
+
+    def _shared_backend(self) -> DecisionBackend:
+        """Returns the backend every created format shares, building it on first use."""
+        if self._backend is None:
+            self._backend = create_decision_backend()
+        return self._backend
 
     def create_format(
         self,
@@ -153,7 +183,7 @@ class DecisionFormatFactory(InferenceFormatFactory):
         return DecisionFormat(
             catalogs,
             examples=examples,
-            backend=self._backend,
+            backend=self._shared_backend(),
             config=self._config,
             registry=self._registry,
             surface_id=self._surface_id,

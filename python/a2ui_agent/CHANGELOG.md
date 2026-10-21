@@ -10,15 +10,19 @@
     asks for `<a2ui>` decision blocks and `DecisionParser` renders them through
     `DecisionSynthesizer`.
   - `DecisionRenderTool` supplies a JSON Schema tool declaration and
-    `run_async` / `run_sync` runners for MCP, ADK, and function-calling agents.
+    `run_async` / `run_sync` runners for MCP, ADK, and function-calling agents;
+    build one with `DecisionRenderTool.create(catalogs, ...)`.
   - `DecisionSynthesizer` takes an optional `backend` (defaulting to
     `create_decision_backend()`) or a prebuilt `CatalogDecisionGraph`, accepts
     JSON-string and array payloads, renders a named `template_id` directly,
     adds `synthesize_sync()`, and fills abstentions from `fallback_dsl`,
     `fallback_fn`, or a deterministic `fallback_card`;
-    `SynthesisOutput.fallback_source` names which one applied.
-  - `DecisionTask`, `DecisionWireFormat`, and `DecisionBackendType` string
-    enums replace raw string literals; `coerce_decision_payload` decodes
+    `SynthesisOutput.fallback_source` (a `FallbackSource` enum) names which
+    one applied. `DecisionFormatFactory` shares one backend across every
+    format it creates.
+  - `DecisionTask`, `DecisionWireFormat` (including `AUTO`), and
+    `DecisionBackendType` (where `ONNX` is an alias of `LOCAL`) string enums
+    replace raw string literals; `coerce_decision_payload` decodes
     stringified payloads.
   - Backends support `async with`; the HTTP backends re-create their client
     per event loop and `JevHttpBackend` caches ADC tokens per instance.

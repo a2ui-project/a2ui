@@ -57,7 +57,9 @@ class DecisionParser(Parser):
 
         Args:
             synthesizer: The synthesizer that renders each block.
-            surface_id: Surface used when a block names none.
+            surface_id: Surface used when a block names none. A block's own
+                `surfaceId` wins; `SynthesisConfig.default_surface_id` is not
+                consulted on this path.
         """
         self._synthesizer = synthesizer
         self.surface_id = surface_id

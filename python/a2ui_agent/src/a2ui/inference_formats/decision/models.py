@@ -55,10 +55,23 @@ class DecisionTask(_WireEnum):
 
 
 class DecisionWireFormat(_WireEnum):
-    """Request and response format spoken by a remote decision endpoint."""
+    """Request and response format spoken by a remote decision endpoint.
 
+    `AUTO` picks SystemOne when the endpoint path ends in `/v1/systemone`
+    and Jev otherwise.
+    """
+
+    AUTO = "auto"
     JEV = "jev"
     SYSTEMONE = "systemone"
+
+
+class FallbackSource(_WireEnum):
+    """Which fallback produced a `SynthesisOutput` after the model abstained."""
+
+    DSL = "fallback_dsl"
+    CALLBACK = "fallback_fn"
+    CARD = "fallback_card"
 
 
 class DecisionBackendType(_WireEnum):
@@ -74,8 +87,6 @@ class DecisionBackendType(_WireEnum):
 
 def coerce_decision_payload(
     payload: Mapping[str, Any] | Sequence[Any] | str,
-    *,
-    parse_json_strings: bool = True,
 ) -> Mapping[str, Any] | Sequence[Any]:
     """Normalizes a synthesis payload into a JSON object or array.
 
@@ -84,31 +95,28 @@ def coerce_decision_payload(
     have to.
 
     Args:
-        payload: A mapping, a non-string sequence, or (when
-            `parse_json_strings` is True) a JSON-encoded string of either.
-        parse_json_strings: Whether a `str` payload is decoded as JSON. When
-            False, a string payload is rejected.
+        payload: A mapping, a non-string sequence, or a JSON-encoded string
+            of either.
 
     Returns:
         The payload as a `Mapping` or a non-string `Sequence`.
 
     Raises:
         TypeError: If the payload (after decoding) is neither a mapping nor a
-            non-string sequence, or if it is a string and
-            `parse_json_strings` is False.
+            non-string sequence.
         ValueError: If a string payload is not valid JSON.
     """
     if isinstance(payload, str):
-        if not parse_json_strings:
-            raise TypeError(
-                "Payload must be a JSON object (Mapping) or array (Sequence);"
-                " got a string and parse_json_strings is False."
-            )
         try:
             decoded = json.loads(payload)
         except json.JSONDecodeError as exc:
             raise ValueError(f"Payload string is not valid JSON: {exc.msg}") from exc
-        return coerce_decision_payload(decoded, parse_json_strings=False)
+        if isinstance(decoded, str):
+            raise TypeError(
+                "Payload must be a JSON object (Mapping) or array (Sequence), got"
+                " a JSON string."
+            )
+        return coerce_decision_payload(decoded)
     if isinstance(payload, Mapping):
         return payload
     if isinstance(payload, Sequence) and not isinstance(payload, (bytes, bytearray)):
@@ -179,7 +187,7 @@ class ComponentNodeSpec:
 class DecisionQuery:
     """Query payload sent to a local decision-model backend."""
 
-    task: str
+    task: DecisionTask | str
     prompt: str
     candidates: tuple[str, ...]
     context: dict[str, Any] = field(default_factory=dict, hash=False)
@@ -277,10 +285,9 @@ class SynthesisOutput:
     entropy: float
     selected_template_id: str | None = None
     component_tree_spec: dict[str, Any] | None = None
-    fallback_source: str | None = None
+    fallback_source: FallbackSource | None = None
     """Which fallback produced `messages` after the model abstained.
 
-    One of ``"fallback_dsl"``, ``"fallback_fn"``, or ``"fallback_card"``;
     None when the model did not abstain or no fallback applied.
     """
 

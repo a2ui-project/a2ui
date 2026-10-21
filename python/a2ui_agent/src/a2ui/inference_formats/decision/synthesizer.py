@@ -41,6 +41,7 @@ from .models import (
     DecisionDistribution,
     DecisionQuery,
     DecisionTask,
+    FallbackSource,
     SlotKind,
     SynthesisConfig,
     SynthesisOutput,
@@ -60,14 +61,18 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 # Key under which a top-level JSON array payload is stored in the data model.
 _ARRAY_PAYLOAD_KEY = "items"
 
+FallbackMessages: TypeAlias = Sequence[AgentToRendererMessage | Mapping[str, Any]]
+"""Messages a fallback callback may return: models or wire-format dicts."""
+
 FallbackCallback: TypeAlias = Callable[
     [str, Mapping[str, Any], str],
-    Sequence[AgentToRendererMessage] | Awaitable[Sequence[AgentToRendererMessage]],
+    FallbackMessages | Awaitable[FallbackMessages],
 ]
 """Callback invoked when the decision model abstains.
 
 Receives ``(intent, payload, surface_id)`` and returns the messages to render
-instead, either directly or as an awaitable.
+instead, either directly or as an awaitable. Dicts are validated with
+`to_message_models`.
 """
 
 
@@ -88,14 +93,14 @@ def _make_data_binding(path: str, *, is_v10: bool) -> dict[str, str]:
 
 
 def _as_data_model(
-    payload: Mapping[str, Any] | Sequence[Any] | str, *, parse_json_strings: bool
+    payload: Mapping[str, Any] | Sequence[Any] | str,
 ) -> Mapping[str, Any]:
     """Coerces a payload into the mapping used as the surface data model.
 
     A JSON array is stored under the `items` key, since a surface data model
     is always an object.
     """
-    data = coerce_decision_payload(payload, parse_json_strings=parse_json_strings)
+    data = coerce_decision_payload(payload)
     if isinstance(data, Mapping):
         return data
     return {_ARRAY_PAYLOAD_KEY: list(data)}
@@ -512,7 +517,6 @@ class DecisionSynthesizer:
         config: SynthesisConfig | None = None,
         template_id: str | None = None,
         fallback_dsl: str | None = None,
-        parse_json_strings: bool = True,
     ) -> SynthesisOutput:
         """Synthesizes validated A2UI messages without mutating the template registry.
 
@@ -520,8 +524,7 @@ class DecisionSynthesizer:
             intent: Natural-language description of the UI to render.
             payload: The data to bind. A mapping is used as the surface data
                 model; a JSON array is stored under the `items` key; a
-                JSON-encoded string of either is decoded when
-                `parse_json_strings` is True.
+                JSON-encoded string of either is decoded first.
             surface_id: Target surface. Defaults to `config.default_surface_id`.
             mutable_paths: JSON Pointers the user may edit, which raises the
                 confidence bar.
@@ -529,7 +532,6 @@ class DecisionSynthesizer:
             template_id: Render this registered template directly, skipping
                 model selection.
             fallback_dsl: A2UI Express rendered when the model abstains.
-            parse_json_strings: Whether a `str` payload is decoded as JSON.
 
         Returns:
             The synthesis result. When the model abstains and a fallback
@@ -546,7 +548,7 @@ class DecisionSynthesizer:
         target_surface_id = (
             surface_id if surface_id is not None else active_config.default_surface_id
         )
-        data = _as_data_model(payload, parse_json_strings=parse_json_strings)
+        data = _as_data_model(payload)
 
         if template_id is not None:
             return self._render_named_template(template_id, data, target_surface_id)
@@ -661,21 +663,21 @@ class DecisionSynthesizer:
         the abstained output is returned unchanged.
         """
         messages: list[AgentToRendererMessage] | None = None
-        source: str | None = None
+        source: FallbackSource | None = None
         if fallback_dsl and fallback_dsl.strip():
             messages = self._compile_fallback_dsl(fallback_dsl, data, surface_id)
-            source = "fallback_dsl"
+            source = FallbackSource.DSL
         elif self._fallback_fn is not None:
             produced = self._fallback_fn(intent, data, surface_id)
             if inspect.isawaitable(produced):
                 produced = await produced
             messages = to_message_models(list(produced))
-            source = "fallback_fn"
+            source = FallbackSource.CALLBACK
         elif self._fallback_card:
             messages = await self._synthesize_fallback_card(
                 intent, data, pointers, surface_id=surface_id, config=config
             )
-            source = "fallback_card" if messages else None
+            source = FallbackSource.CARD if messages else None
         if not messages:
             return abstained
         return SynthesisOutput(
