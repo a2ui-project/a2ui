@@ -117,11 +117,19 @@ function acceptedTypes(schema: JsonObject): Set<string> | undefined {
   return undefined;
 }
 
-/** The values a schema accepts, when it lists them with `const` or `enum`. */
+/**
+ * The values a schema accepts, when it lists them with `const` or `enum`, or
+ * `undefined` when it does not or when one of them is an object or an array.
+ * Primitive values compare equal exactly when their JSON texts do; objects
+ * equal as JSON may differ in key order, so they are not compared.
+ */
 function acceptedValues(schema: JsonObject): string[] | undefined {
-  if (Object.hasOwn(schema, 'const')) return [JSON.stringify(schema['const'])];
-  if (Array.isArray(schema['enum'])) return schema['enum'].map(v => JSON.stringify(v));
-  return undefined;
+  let values: unknown[];
+  if (Object.hasOwn(schema, 'const')) values = [schema['const']];
+  else if (Array.isArray(schema['enum'])) values = schema['enum'];
+  else return undefined;
+  if (values.some(v => typeof v === 'object' && v !== null)) return undefined;
+  return values.map(v => JSON.stringify(v));
 }
 
 /** The properties an object schema and the schemas of its `allOf` require. */
@@ -280,7 +288,8 @@ export class SpecShaper {
   private readonly isV08: boolean;
   private readonly isV10: boolean;
   private readonly standardDefs: Record<string, unknown>;
-
+  /** Standard definitions with their references written as the catalog does. */
+  private readonly standardDefsInCatalog = new Map<string, JsonObject>();
   /**
    * @param protocolVersion The catalog's protocol version.
    * @param commonTypesUri How the catalog's document writes the common types
@@ -479,19 +488,45 @@ export class SpecShaper {
   }
 
   /**
-   * Returns the standard definition a reference names, as written in the
-   * catalog document (`<commonTypesUri>#/$defs/<name>`) or within the common
-   * types document (`#/$defs/<name>`), or `undefined` for any other reference.
+   * Returns the standard definition a reference in the catalog document names
+   * (`<commonTypesUri>#/$defs/<name>`), or `undefined` for any other
+   * reference. A bare `#/$defs/<name>` in the catalog document names one of
+   * the catalog's own definitions, which may share a standard definition's
+   * name, so it is not followed.
+   *
+   * The definition is returned with its own references, which are local to
+   * the common types document, written as the catalog document writes them,
+   * so that they resolve against the same document when followed in turn.
    */
   private resolveStandardRef(ref: string): JsonObject | undefined {
-    const local = ref.startsWith(this.commonTypesUri)
-      ? ref.substring(this.commonTypesUri.length)
-      : ref;
-    if (!local.startsWith('#/$defs/')) return undefined;
-    const name = local.substring('#/$defs/'.length);
+    const prefix = `${this.commonTypesUri}#/$defs/`;
+    if (!ref.startsWith(prefix)) return undefined;
+    const name = ref.substring(prefix.length);
     if (name.includes('/') || !Object.hasOwn(this.standardDefs, name)) return undefined;
+    const cached = this.standardDefsInCatalog.get(name);
+    if (cached) return cached;
     const definition = this.standardDefs[name];
-    return isObject(definition) ? definition : undefined;
+    if (!isObject(definition)) return undefined;
+    const rewritten = this.withCatalogRefs(definition) as JsonObject;
+    this.standardDefsInCatalog.set(name, rewritten);
+    return rewritten;
+  }
+
+  /**
+   * Returns a copy of a part of the common types document with its local
+   * references written as the catalog document writes them.
+   */
+  private withCatalogRefs(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(item => this.withCatalogRefs(item));
+    if (!isObject(value)) return value;
+    const result: JsonObject = {};
+    for (const [key, item] of Object.entries(value)) {
+      result[key] =
+        key === '$ref' && typeof item === 'string'
+          ? this.refTarget(item)
+          : this.withCatalogRefs(item);
+    }
+    return result;
   }
 
   /** Writes a `REF:` marker's reference as the catalog document does. */
