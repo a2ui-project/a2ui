@@ -54,26 +54,84 @@ def _validate_component_dict(component: Mapping[str, Any]) -> None:
         )
 
 
-def _extract_envelopes(
-    msg_dicts: Sequence[Mapping[str, Any]],
-) -> tuple[Mapping[str, Any] | None, Mapping[str, Any] | None, str | None]:
-    """Extracts createSurface, updateComponents, and wire version from message dicts."""
-    create_surface: Mapping[str, Any] | None = None
-    update_components: Mapping[str, Any] | None = None
+@dataclass(frozen=True)
+class _SurfaceEnvelopes:
+    """Surface-defining fields collected from a message batch, any wire version."""
+
+    surface_id: str | None
+    catalog_id: str | None
+    components: list[Mapping[str, Any]]
+    protocol_version: str | None
+
+
+def _mapping_or_none(value: Any) -> Mapping[str, Any] | None:
+    return value if isinstance(value, Mapping) else None
+
+
+# Envelope keys whose body may carry a `components` list, by wire version:
+# v1.0 `createSurface`, v0.9 `updateComponents`, v0.8 `surfaceUpdate`.
+_COMPONENT_ENVELOPES = ("createSurface", "updateComponents", "surfaceUpdate")
+
+
+def _surface_body(msg: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Returns the surface-creating body (`createSurface` or v0.8 `beginRendering`)."""
+    return _mapping_or_none(msg.get("createSurface")) or _mapping_or_none(
+        msg.get("beginRendering")
+    )
+
+
+def _components_in(msg: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Returns the component dicts the message carries, in order."""
+    found: list[Mapping[str, Any]] = []
+    for key in _COMPONENT_ENVELOPES:
+        body = _mapping_or_none(msg.get(key))
+        raw = body.get("components") if body is not None else None
+        if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
+            found.extend(c for c in raw if isinstance(c, Mapping))
+    return found
+
+
+def _surface_id_in(msg: Mapping[str, Any]) -> str | None:
+    """Returns the first `surfaceId` any envelope body in the message names."""
+    for body in msg.values():
+        if isinstance(body, Mapping) and isinstance(body.get("surfaceId"), str):
+            return str(body["surfaceId"])
+    return None
+
+
+def _catalog_id_in(msg: Mapping[str, Any]) -> str | None:
+    """Returns the `catalogId` of the surface-creating envelope, if any."""
+    surface = _surface_body(msg)
+    raw = surface.get("catalogId") if surface is not None else None
+    return str(raw) if raw is not None else None
+
+
+def _extract_envelopes(msg_dicts: Sequence[Mapping[str, Any]]) -> _SurfaceEnvelopes:
+    """Collects the surface id, catalog id, components, and wire version.
+
+    Understands the three envelope shapes a synthesized or hand-written batch
+    may use: v0.9 `createSurface` + `updateComponents`, v1.0 `createSurface`
+    with embedded `components` (optionally followed by `updateComponents`),
+    and v0.8 `beginRendering` + `surfaceUpdate`. Components from every
+    component-bearing envelope are concatenated in message order.
+    """
+    surface_id: str | None = None
+    catalog_id: str | None = None
+    components: list[Mapping[str, Any]] = []
     protocol_version: str | None = None
 
     for msg in msg_dicts:
         version = msg.get("version")
-        if protocol_version is None and isinstance(version, str):
-            protocol_version = version
-        cs = msg.get("createSurface")
-        if create_surface is None and isinstance(cs, Mapping):
-            create_surface = cs
-        uc = msg.get("updateComponents")
-        if update_components is None and isinstance(uc, Mapping):
-            update_components = uc
+        protocol_version = (
+            protocol_version
+            if protocol_version is not None or not isinstance(version, str)
+            else version
+        )
+        catalog_id = catalog_id if catalog_id is not None else _catalog_id_in(msg)
+        surface_id = surface_id if surface_id is not None else _surface_id_in(msg)
+        components.extend(_components_in(msg))
 
-    return create_surface, update_components, protocol_version
+    return _SurfaceEnvelopes(surface_id, catalog_id, components, protocol_version)
 
 
 @dataclass(frozen=True)
@@ -139,16 +197,14 @@ class SurfaceTemplate:
             },
         ]
         if payload:
-            raw_messages.append(
-                {
-                    "version": wire_version,
-                    "updateDataModel": {
-                        "surfaceId": target_surface_id,
-                        "path": "/",
-                        "value": dict(payload),
-                    },
-                }
-            )
+            raw_messages.append({
+                "version": wire_version,
+                "updateDataModel": {
+                    "surfaceId": target_surface_id,
+                    "path": "/",
+                    "value": dict(payload),
+                },
+            })
 
         return to_message_models(raw_messages)
 
@@ -192,37 +248,27 @@ class TemplateRegistry:
         required_pointers: Sequence[str] = (),
         is_mutable: bool = False,
     ) -> SurfaceTemplate:
-        """Promotes a synthesized UI output into a reusable registered template."""
-        msg_dicts = to_message_dicts(output.messages)
-        create_surface, update_components, protocol_version = _extract_envelopes(
-            msg_dicts
-        )
-        if update_components is None:
+        """Promotes a synthesized UI output into a reusable registered template.
+
+        Accepts v0.9, v1.0, and v0.8 message envelopes (see `_extract_envelopes`).
+
+        Raises:
+            ValueError: If the messages define no components.
+        """
+        envelopes = _extract_envelopes(to_message_dicts(output.messages))
+        if not envelopes.components:
             raise ValueError(
-                "SynthesisOutput messages must include an updateComponents envelope."
+                "SynthesisOutput messages must define components in a createSurface,"
+                " updateComponents, or surfaceUpdate envelope."
             )
-
-        raw_components = update_components.get("components")
-        if not isinstance(raw_components, Sequence) or not raw_components:
-            raise ValueError("updateComponents envelope must contain components.")
-
-        surface_id = str(
-            (create_surface or {}).get("surfaceId")
-            or update_components.get("surfaceId")
-            or "default_surface"
-        )
-        raw_catalog_id = (create_surface or {}).get("catalogId")
-        catalog_id = str(raw_catalog_id) if raw_catalog_id is not None else None
 
         template = SurfaceTemplate(
             template_id=template_id,
             description=description,
-            surface_id=surface_id,
-            catalog_id=catalog_id,
-            protocol_version=protocol_version or "v0.9",
-            components=tuple(
-                copy.deepcopy(dict(c)) for c in raw_components if isinstance(c, Mapping)
-            ),
+            surface_id=envelopes.surface_id or "default_surface",
+            catalog_id=envelopes.catalog_id,
+            protocol_version=envelopes.protocol_version or "v0.9",
+            components=tuple(copy.deepcopy(dict(c)) for c in envelopes.components),
             required_pointers=tuple(required_pointers),
             is_mutable=is_mutable,
         )

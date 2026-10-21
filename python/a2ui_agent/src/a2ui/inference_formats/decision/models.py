@@ -16,14 +16,107 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+import json
 import math
 from typing import Any
 
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
+
+
+class _WireEnum(str, Enum):
+    """String enum whose `str()` and `format()` yield the wire value.
+
+    Since Python 3.11, `format()` on a plain `(str, Enum)` member returns
+    `ClassName.MEMBER`, which would break f-string keys such as
+    ``f"{query.task}:{query.prompt}"`` that existing backends build.
+    """
+
+    def __str__(self) -> str:
+        return str.__str__(self)
+
+    def __format__(self, format_spec: str) -> str:
+        return str.__format__(str(self), format_spec)
+
+
+class DecisionTask(_WireEnum):
+    """Kind of choice a `DecisionQuery` asks a decision backend to make.
+
+    Members compare equal to their string values, so backends and tests that
+    match on the literal strings keep working.
+    """
+
+    TEMPLATE_SELECT = "template_select"
+    ROOT_COMPONENT = "root_component"
+    CHILD_COMPONENT = "child_component"
+
+
+class DecisionWireFormat(_WireEnum):
+    """Request and response format spoken by a remote decision endpoint."""
+
+    JEV = "jev"
+    SYSTEMONE = "systemone"
+
+
+class DecisionBackendType(_WireEnum):
+    """Backend selector accepted by `create_decision_backend`."""
+
+    MOCK = "mock"
+    LOCAL = "local"
+    ONNX = "onnx"
+    JEV = "jev"
+    SYSTEMONE = "systemone"
+    STEP_ZERO = "step0"
+
+
+def coerce_decision_payload(
+    payload: Mapping[str, Any] | Sequence[Any] | str,
+    *,
+    parse_json_strings: bool = True,
+) -> Mapping[str, Any] | Sequence[Any]:
+    """Normalizes a synthesis payload into a JSON object or array.
+
+    LLM tool calls often pass the payload as a JSON-encoded string rather
+    than a parsed object. This helper decodes such strings so callers do not
+    have to.
+
+    Args:
+        payload: A mapping, a non-string sequence, or (when
+            `parse_json_strings` is True) a JSON-encoded string of either.
+        parse_json_strings: Whether a `str` payload is decoded as JSON. When
+            False, a string payload is rejected.
+
+    Returns:
+        The payload as a `Mapping` or a non-string `Sequence`.
+
+    Raises:
+        TypeError: If the payload (after decoding) is neither a mapping nor a
+            non-string sequence, or if it is a string and
+            `parse_json_strings` is False.
+        ValueError: If a string payload is not valid JSON.
+    """
+    if isinstance(payload, str):
+        if not parse_json_strings:
+            raise TypeError(
+                "Payload must be a JSON object (Mapping) or array (Sequence);"
+                " got a string and parse_json_strings is False."
+            )
+        try:
+            decoded = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Payload string is not valid JSON: {exc.msg}") from exc
+        return coerce_decision_payload(decoded, parse_json_strings=False)
+    if isinstance(payload, Mapping):
+        return payload
+    if isinstance(payload, Sequence) and not isinstance(payload, (bytes, bytearray)):
+        return payload
+    raise TypeError(
+        "Payload must be a JSON object (Mapping) or array (Sequence), got"
+        f" {type(payload).__name__}."
+    )
 
 
 class SynthesisStage(str, Enum):
@@ -184,6 +277,12 @@ class SynthesisOutput:
     entropy: float
     selected_template_id: str | None = None
     component_tree_spec: dict[str, Any] | None = None
+    fallback_source: str | None = None
+    """Which fallback produced `messages` after the model abstained.
+
+    One of ``"fallback_dsl"``, ``"fallback_fn"``, or ``"fallback_card"``;
+    None when the model did not abstain or no fallback applied.
+    """
 
     def to_express(
         self,

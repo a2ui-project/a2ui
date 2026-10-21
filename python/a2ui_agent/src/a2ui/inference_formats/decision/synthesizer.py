@@ -16,9 +16,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
+import asyncio
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
+import concurrent.futures
+import inspect
 import re
-from typing import Any, cast
+from typing import Any, TypeAlias, cast
 
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
@@ -26,17 +29,23 @@ from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.parser.messages import to_message_models
 from a2ui.utils.validation import validate_payload
 
-from .backends import DecisionBackend, create_decision_backend
+from .backends import (
+    DecisionBackend,
+    DeterministicMockBackend,
+    create_decision_backend,
+)
 from .catalog_graph import CatalogDecisionGraph
 from .models import (
     ComponentNodeSpec,
     ComponentSlot,
     DecisionDistribution,
     DecisionQuery,
+    DecisionTask,
     SlotKind,
     SynthesisConfig,
     SynthesisOutput,
     SynthesisStage,
+    coerce_decision_payload,
 )
 from .payload_inspector import (
     PointerSummary,
@@ -47,6 +56,19 @@ from .template_registry import TemplateRegistry
 
 _CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+# Key under which a top-level JSON array payload is stored in the data model.
+_ARRAY_PAYLOAD_KEY = "items"
+
+FallbackCallback: TypeAlias = Callable[
+    [str, Mapping[str, Any], str],
+    Sequence[AgentToRendererMessage] | Awaitable[Sequence[AgentToRendererMessage]],
+]
+"""Callback invoked when the decision model abstains.
+
+Receives ``(intent, payload, surface_id)`` and returns the messages to render
+instead, either directly or as an awaitable.
+"""
 
 
 def _is_v10(protocol_version: str) -> bool:
@@ -63,6 +85,29 @@ def _wire_version(protocol_version: str) -> str:
 def _make_data_binding(path: str, *, is_v10: bool) -> dict[str, str]:
     """Creates a protocol-versioned A2UI DataBinding dictionary."""
     return {"@path": path} if is_v10 else {"path": path}
+
+
+def _as_data_model(
+    payload: Mapping[str, Any] | Sequence[Any] | str, *, parse_json_strings: bool
+) -> Mapping[str, Any]:
+    """Coerces a payload into the mapping used as the surface data model.
+
+    A JSON array is stored under the `items` key, since a surface data model
+    is always an object.
+    """
+    data = coerce_decision_payload(payload, parse_json_strings=parse_json_strings)
+    if isinstance(data, Mapping):
+        return data
+    return {_ARRAY_PAYLOAD_KEY: list(data)}
+
+
+def _populates_data_model(message: AgentToRendererMessage) -> bool:
+    """Returns whether a message writes the surface data model."""
+    dumped = message.model_dump(by_alias=True, exclude_none=True)
+    if "updateDataModel" in dumped or "dataModelUpdate" in dumped:
+        return True
+    create = dumped.get("createSurface")
+    return isinstance(create, Mapping) and "dataModel" in create
 
 
 def _passes_calibration_gate(
@@ -271,14 +316,12 @@ def _build_checks(
     condition: dict[str, Any] = {call_key: chosen_fn, "args": args}
     if graph.surface_catalog_id is None and fn_cat_id is not None:
         condition["catalogId"] = fn_cat_id
-    return [
-        {
-            "condition": condition,
-            "message": (
-                f"{chosen_fn[0].upper() + chosen_fn[1:] if chosen_fn else ''} check failed"
-            ),
-        }
-    ]
+    return [{
+        "condition": condition,
+        "message": (
+            f"{chosen_fn[0].upper() + chosen_fn[1:] if chosen_fn else ''} check failed"
+        ),
+    }]
 
 
 def _bind_non_child_slots(
@@ -341,6 +384,18 @@ def _relative_pointers_for_array(
     ]
 
 
+def _can_bind_data_pointers(
+    spec: ComponentNodeSpec, ptr_types: Collection[str]
+) -> bool:
+    """Returns whether `spec` has a data slot and needs no array the pointers lack."""
+    data_slots = [s for s in spec.slots if s.kind == SlotKind.DATA_VALUE]
+    if not data_slots:
+        return False
+    return "array" in ptr_types or not any(
+        s.required and s.value_type == "array" for s in data_slots
+    )
+
+
 def _best_leaf_by_pointer_overlap(
     candidates: Sequence[ComponentNodeSpec],
     pointers: Sequence[PointerSummary],
@@ -358,33 +413,78 @@ def _best_leaf_by_pointer_overlap(
 
 
 class DecisionSynthesizer:
-    """Catalog-agnostic local decision-model A2UI surface synthesizer."""
+    """Catalog-agnostic local decision-model A2UI surface synthesizer.
+
+    Attributes:
+        graph: The catalog decision graph the synthesizer selects from.
+        backend: The decision backend that scores candidates.
+        registry: The surface template registry consulted first.
+        config: Default thresholds and structural limits.
+    """
 
     def __init__(
         self,
-        catalogs: Sequence[CatalogApi],
-        backend: DecisionBackend,
+        catalogs: Sequence[CatalogApi] | CatalogDecisionGraph,
+        backend: DecisionBackend | None = None,
         *,
         registry: TemplateRegistry | None = None,
         config: SynthesisConfig | None = None,
+        fallback_card: bool = False,
+        fallback_fn: FallbackCallback | None = None,
     ) -> None:
-        self.graph = CatalogDecisionGraph(catalogs)
-        self.backend = backend
+        """Creates a synthesizer.
+
+        Args:
+            catalogs: The active catalogs, or a `CatalogDecisionGraph` already
+                built from them.
+            backend: The decision backend. Defaults to
+                `create_decision_backend()`, which reads the
+                `A2UI_DECISION_*` environment variables.
+            registry: Surface templates tried before catalog synthesis.
+            config: Default `SynthesisConfig`; `synthesize` may override it
+                per call.
+            fallback_card: When True and the model abstains with no other
+                fallback available, render a deterministic root container
+                bound to the payload instead of returning no messages.
+            fallback_fn: Called with `(intent, payload, surface_id)` when the
+                model abstains and no `fallback_dsl` was given; its messages
+                are rendered instead.
+        """
+        self.graph = (
+            catalogs
+            if isinstance(catalogs, CatalogDecisionGraph)
+            else CatalogDecisionGraph(catalogs)
+        )
+        self.backend = backend if backend is not None else create_decision_backend()
         self.registry = registry if registry is not None else TemplateRegistry()
         self.config = config if config is not None else SynthesisConfig()
+        self._fallback_card = fallback_card
+        self._fallback_fn = fallback_fn
 
     @classmethod
     def from_env(
         cls,
-        catalogs: Sequence[CatalogApi],
+        catalogs: Sequence[CatalogApi] | CatalogDecisionGraph,
         *,
         backend: DecisionBackend | None = None,
         registry: TemplateRegistry | None = None,
         config: SynthesisConfig | None = None,
+        fallback_card: bool = False,
+        fallback_fn: FallbackCallback | None = None,
     ) -> DecisionSynthesizer:
-        """Constructs a DecisionSynthesizer using the environment-configured decision backend."""
-        active_backend = backend if backend is not None else create_decision_backend()
-        return cls(catalogs, active_backend, registry=registry, config=config)
+        """Constructs a DecisionSynthesizer using the environment-configured decision backend.
+
+        Equivalent to calling the constructor; kept for callers that prefer the
+        explicit name.
+        """
+        return cls(
+            catalogs,
+            backend,
+            registry=registry,
+            config=config,
+            fallback_card=fallback_card,
+            fallback_fn=fallback_fn,
+        )
 
     def _describe_component(self, comp: ComponentNodeSpec) -> str:
         """Produces a concise natural-language summary of a component spec."""
@@ -405,23 +505,58 @@ class DecisionSynthesizer:
     async def synthesize(
         self,
         intent: str,
-        payload: Mapping[str, Any],
+        payload: Mapping[str, Any] | Sequence[Any] | str,
         *,
         surface_id: str | None = None,
         mutable_paths: Collection[str] = (),
         config: SynthesisConfig | None = None,
+        template_id: str | None = None,
+        fallback_dsl: str | None = None,
+        parse_json_strings: bool = True,
     ) -> SynthesisOutput:
-        """Synthesizes validated A2UI messages without mutating the template registry."""
+        """Synthesizes validated A2UI messages without mutating the template registry.
+
+        Args:
+            intent: Natural-language description of the UI to render.
+            payload: The data to bind. A mapping is used as the surface data
+                model; a JSON array is stored under the `items` key; a
+                JSON-encoded string of either is decoded when
+                `parse_json_strings` is True.
+            surface_id: Target surface. Defaults to `config.default_surface_id`.
+            mutable_paths: JSON Pointers the user may edit, which raises the
+                confidence bar.
+            config: Per-call override of the synthesizer's `SynthesisConfig`.
+            template_id: Render this registered template directly, skipping
+                model selection.
+            fallback_dsl: A2UI Express rendered when the model abstains.
+            parse_json_strings: Whether a `str` payload is decoded as JSON.
+
+        Returns:
+            The synthesis result. When the model abstains and a fallback
+            (`fallback_dsl`, `fallback_fn`, or `fallback_card`) applies, the
+            stage stays `ABSTAIN_FALLBACK`, `messages` holds the fallback
+            output, and `fallback_source` names which fallback produced it.
+
+        Raises:
+            ValueError: If `template_id` names no registered template, or a
+                string payload is not valid JSON.
+            TypeError: If the payload is neither an object nor an array.
+        """
         active_config = config if config is not None else self.config
         target_surface_id = (
             surface_id if surface_id is not None else active_config.default_surface_id
         )
-        pointers = inspect_payload_pointers(payload, mutable_paths=mutable_paths)
+        data = _as_data_model(payload, parse_json_strings=parse_json_strings)
+
+        if template_id is not None:
+            return self._render_named_template(template_id, data, target_surface_id)
+
+        pointers = inspect_payload_pointers(data, mutable_paths=mutable_paths)
         has_mutable = bool(mutable_paths) or any(p.mutable_hint for p in pointers)
 
         stage1_out = await self._try_template_stage(
             intent,
-            payload,
+            data,
             pointers,
             target_surface_id=target_surface_id,
             has_mutable=has_mutable,
@@ -430,14 +565,190 @@ class DecisionSynthesizer:
         if stage1_out is not None:
             return stage1_out
 
-        return await self._synthesize_from_catalog(
+        output = await self._synthesize_from_catalog(
             intent,
-            payload,
+            data,
             pointers,
             target_surface_id=target_surface_id,
             has_mutable=has_mutable,
             config=active_config,
         )
+        if output.stage is not SynthesisStage.ABSTAIN_FALLBACK or output.messages:
+            return output
+        return await self._resolve_abstention_fallback(
+            output,
+            intent,
+            data,
+            pointers,
+            surface_id=target_surface_id,
+            fallback_dsl=fallback_dsl,
+            config=active_config,
+        )
+
+    def synthesize_sync(
+        self,
+        intent: str,
+        payload: Mapping[str, Any] | Sequence[Any] | str,
+        **kwargs: Any,
+    ) -> SynthesisOutput:
+        """Runs `synthesize` to completion from synchronous code.
+
+        Works both with and without a running event loop on the calling
+        thread. With a running loop (for example inside `Parser.compile` called
+        from an async framework), synthesis runs on a helper thread with its
+        own loop and the calling loop blocks until it finishes. HTTP backends
+        re-create their client per loop, so this is safe for every bundled
+        backend.
+
+        Args:
+            intent: See `synthesize`.
+            payload: See `synthesize`.
+            **kwargs: Keyword arguments forwarded to `synthesize`.
+
+        Returns:
+            The `SynthesisOutput` from `synthesize`.
+        """
+
+        def run_in_new_loop() -> SynthesisOutput:
+            return asyncio.run(self.synthesize(intent, payload, **kwargs))
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return run_in_new_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(run_in_new_loop).result()
+
+    def _render_named_template(
+        self, template_id: str, data: Mapping[str, Any], surface_id: str
+    ) -> SynthesisOutput:
+        """Renders a registered template by id with full confidence."""
+        template = self.registry.get(template_id)
+        if template is None:
+            known = ", ".join(t.template_id for t in self.registry.list_templates())
+            raise ValueError(
+                f"Unknown template '{template_id}'. Registered templates:"
+                f" {known or 'none'}."
+            )
+        tree_spec: dict[str, Any] = {"template_id": template.template_id}
+        root_comp_name = template.root_component()
+        if root_comp_name is not None:
+            tree_spec["root_component"] = root_comp_name
+        return SynthesisOutput(
+            stage=SynthesisStage.TEMPLATE_SELECT,
+            messages=template.render_messages(data, surface_id=surface_id),
+            confidence=1.0,
+            entropy=0.0,
+            selected_template_id=template.template_id,
+            component_tree_spec=tree_spec,
+        )
+
+    async def _resolve_abstention_fallback(
+        self,
+        abstained: SynthesisOutput,
+        intent: str,
+        data: Mapping[str, Any],
+        pointers: Sequence[PointerSummary],
+        *,
+        surface_id: str,
+        fallback_dsl: str | None,
+        config: SynthesisConfig,
+    ) -> SynthesisOutput:
+        """Fills an abstained output from the first applicable fallback.
+
+        Order: `fallback_dsl`, then the configured `fallback_fn`, then the
+        deterministic card when `fallback_card` is on. With none applicable,
+        the abstained output is returned unchanged.
+        """
+        messages: list[AgentToRendererMessage] | None = None
+        source: str | None = None
+        if fallback_dsl and fallback_dsl.strip():
+            messages = self._compile_fallback_dsl(fallback_dsl, data, surface_id)
+            source = "fallback_dsl"
+        elif self._fallback_fn is not None:
+            produced = self._fallback_fn(intent, data, surface_id)
+            if inspect.isawaitable(produced):
+                produced = await produced
+            messages = to_message_models(list(produced))
+            source = "fallback_fn"
+        elif self._fallback_card:
+            messages = await self._synthesize_fallback_card(
+                intent, data, pointers, surface_id=surface_id, config=config
+            )
+            source = "fallback_card" if messages else None
+        if not messages:
+            return abstained
+        return SynthesisOutput(
+            stage=SynthesisStage.ABSTAIN_FALLBACK,
+            messages=messages,
+            confidence=abstained.confidence,
+            entropy=abstained.entropy,
+            fallback_source=source,
+        )
+
+    def _compile_fallback_dsl(
+        self, dsl: str, data: Mapping[str, Any], surface_id: str
+    ) -> list[AgentToRendererMessage]:
+        """Compiles Express fallback DSL, adding the payload as the data model.
+
+        The Express package is imported lazily: `a2ui.inference_formats`
+        imports this package before `express`, so a module-level import would
+        see a partially initialized package.
+        """
+        from a2ui.inference_formats.express import ExpressCompiler
+
+        messages = ExpressCompiler(list(self.graph.catalogs)).compile(
+            dsl, surface_id=surface_id
+        )
+        if data and not any(_populates_data_model(m) for m in messages):
+            messages.extend(
+                to_message_models([{
+                    "version": _wire_version(self.graph.protocol_version),
+                    "updateDataModel": {
+                        "surfaceId": surface_id,
+                        "path": "/",
+                        "value": dict(data),
+                    },
+                }])
+            )
+        validate_payload(self.graph.catalogs, messages)
+        return messages
+
+    async def _synthesize_fallback_card(
+        self,
+        intent: str,
+        data: Mapping[str, Any],
+        pointers: Sequence[PointerSummary],
+        *,
+        surface_id: str,
+        config: SynthesisConfig,
+    ) -> list[AgentToRendererMessage]:
+        """Builds a deterministic root container bound to the payload pointers.
+
+        Uses the first container the catalogs define (or the first root
+        candidate) and the deterministic heuristic backend for child slots, so
+        the result is the same for the same catalogs and payload. Action slots
+        are left unbound because confidence was low.
+        """
+        candidates = self.graph.container_candidates() or self.graph.root_candidates()
+        if not candidates:
+            return []
+        deterministic = DecisionSynthesizer(
+            self.graph,
+            DeterministicMockBackend(),
+            registry=self.registry,
+            config=config,
+        )
+        components = await deterministic._build_component_subtree(
+            candidates[0],
+            "root",
+            intent,
+            pointers,
+            depth=1,
+            allow_actions=False,
+            config=config,
+        )
+        return self._build_validated_messages(surface_id, components, data)
 
     async def _try_template_stage(
         self,
@@ -464,7 +775,7 @@ class DecisionSynthesizer:
 
         dist = await self.backend.predict(
             DecisionQuery(
-                task="template_select",
+                task=DecisionTask.TEMPLATE_SELECT,
                 prompt=intent,
                 candidates=tuple(t.template_id for t in matching),
                 context=query_context,
@@ -529,7 +840,7 @@ class DecisionSynthesizer:
         }
         dist = await self.backend.predict(
             DecisionQuery(
-                task="root_component",
+                task=DecisionTask.ROOT_COMPONENT,
                 prompt=intent,
                 candidates=tuple(c.name for c in root_candidates),
                 context={
@@ -1084,6 +1395,56 @@ class DecisionSynthesizer:
             items.append(entry)
         return items, children
 
+    def _eligible_child_candidates(
+        self,
+        child_pointers: Sequence[PointerSummary],
+        *,
+        allow_actions: bool,
+    ) -> tuple[ComponentNodeSpec, ...]:
+        """Narrows leaf candidates to those that can bind `child_pointers`.
+
+        Drops action-bearing components when actions are not allowed, then
+        prefers components with a data slot whose required array slots the
+        pointers can satisfy. Falls back to the unfiltered pool when a filter
+        leaves nothing.
+        """
+        raw_candidates = self.graph.leaf_candidates() or self.graph.root_candidates()
+        filtered = [c for c in raw_candidates if allow_actions or not c.has_action_slot]
+        ptr_types = {p.value_type for p in child_pointers}
+        data_capable = [c for c in filtered if _can_bind_data_pointers(c, ptr_types)]
+        if child_pointers and data_capable:
+            filtered = data_capable
+        return tuple(filtered) if filtered else raw_candidates
+
+    def _child_slot_context(
+        self,
+        slot_name: str,
+        parent_name: str,
+        child_pointers: Sequence[PointerSummary],
+        candidates: Sequence[ComponentNodeSpec],
+    ) -> dict[str, Any]:
+        """Builds the `DecisionQuery.context` for a child slot choice."""
+        parent_spec = self.graph.get_component(parent_name)
+        parent_slot = parent_spec.get_slot(slot_name) if parent_spec else None
+        return {
+            "parent": parent_name,
+            "parent_description": (
+                parent_spec.description
+                if parent_spec and parent_spec.description
+                else parent_name
+            ),
+            "slot": slot_name,
+            "slot_description": (
+                parent_slot.description
+                if parent_slot and parent_slot.description
+                else slot_name
+            ),
+            "pointers": [p.path for p in child_pointers],
+            "candidate_descriptions": {
+                c.name: self._describe_component(c) for c in candidates
+            },
+        }
+
     async def _choose_child_component(
         self,
         intent: str,
@@ -1094,53 +1455,19 @@ class DecisionSynthesizer:
         allow_actions: bool = True,
     ) -> ComponentNodeSpec:
         """Selects a leaf component for a container slot via backend or pointer fit."""
-        raw_candidates = self.graph.leaf_candidates() or self.graph.root_candidates()
-        filtered = [c for c in raw_candidates if allow_actions or not c.has_action_slot]
-        if child_pointers:
-            ptr_types = {p.value_type for p in child_pointers}
-            data_capable = [
-                c
-                for c in filtered
-                if any(s.kind == SlotKind.DATA_VALUE for s in c.slots)
-                and not any(
-                    s.kind == SlotKind.DATA_VALUE
-                    and s.required
-                    and s.value_type == "array"
-                    and "array" not in ptr_types
-                    for s in c.slots
-                )
-            ]
-            if data_capable:
-                filtered = data_capable
-        candidates = tuple(filtered) if filtered else raw_candidates
+        candidates = self._eligible_child_candidates(
+            child_pointers, allow_actions=allow_actions
+        )
         if len(candidates) == 1:
             return candidates[0]
-        parent_spec = self.graph.get_component(parent_name)
-        parent_desc = (
-            parent_spec.description
-            if parent_spec and parent_spec.description
-            else parent_name
-        )
-        parent_slot = parent_spec.get_slot(slot_name) if parent_spec else None
-        slot_desc = (
-            parent_slot.description
-            if parent_slot and parent_slot.description
-            else slot_name
-        )
-        cand_descriptions = {c.name: self._describe_component(c) for c in candidates}
         dist = await self.backend.predict(
             DecisionQuery(
-                task="child_component",
+                task=DecisionTask.CHILD_COMPONENT,
                 prompt=intent,
                 candidates=tuple(c.name for c in candidates),
-                context={
-                    "parent": parent_name,
-                    "parent_description": parent_desc,
-                    "slot": slot_name,
-                    "slot_description": slot_desc,
-                    "pointers": [p.path for p in child_pointers],
-                    "candidate_descriptions": cand_descriptions,
-                },
+                context=self._child_slot_context(
+                    slot_name, parent_name, child_pointers, candidates
+                ),
             )
         )
         top_name, top_prob = dist.top_choice()
@@ -1177,16 +1504,14 @@ class DecisionSynthesizer:
             },
         ]
         if payload:
-            raw_messages.append(
-                {
-                    "version": wire_ver,
-                    "updateDataModel": {
-                        "surfaceId": surface_id,
-                        "path": "/",
-                        "value": dict(payload),
-                    },
-                }
-            )
+            raw_messages.append({
+                "version": wire_ver,
+                "updateDataModel": {
+                    "surfaceId": surface_id,
+                    "path": "/",
+                    "value": dict(payload),
+                },
+            })
         models = to_message_models(raw_messages)
         validate_payload(self.graph.catalogs, models)
         return models

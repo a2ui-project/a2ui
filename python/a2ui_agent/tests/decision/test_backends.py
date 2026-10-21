@@ -145,19 +145,15 @@ async def test_step_zero_logprob_backend_softmax_and_temperature_scaling() -> No
         return httpx.Response(
             200,
             json={
-                "choices": [
-                    {
-                        "logprobs": {
-                            "top_logprobs": [
-                                {
-                                    " VitalsCard": -0.5,
-                                    "LabTable": -2.5,
-                                    "IgnoredToken": -0.1,
-                                }
-                            ]
-                        }
+                "choices": [{
+                    "logprobs": {
+                        "top_logprobs": [{
+                            " VitalsCard": -0.5,
+                            "LabTable": -2.5,
+                            "IgnoredToken": -0.1,
+                        }]
                     }
-                ]
+                }]
             },
         )
 
@@ -499,6 +495,7 @@ class _FakeEncoding:
 
 
 class _FakeTokenizer:
+
     def __init__(self) -> None:
         self.captured_pairs: list[tuple[str, str]] = []
 
@@ -511,11 +508,13 @@ class _FakeTokenizer:
 
 
 class _FakeSessionInput:
+
     def __init__(self, name: str) -> None:
         self.name = name
 
 
 class _FakeSession:
+
     def __init__(self, logits: list[float]) -> None:
         self.logits = logits
         self.captured_feeds: list[dict[str, Any]] = []
@@ -674,12 +673,17 @@ async def test_jev_http_backend_auth_callable_and_adc(
         )
         assert captured_headers[-1]["authorization"] == "Bearer callable-token"
 
-        # 2. ADC auth mock
+        # 2. ADC auth mock: the token cache lives on the backend instance, so a
+        # fresh instance starts without a cached token.
         from a2ui.inference_formats.decision import backends
 
-        monkeypatch.setattr(backends, "_get_adc_token_sync", lambda: "mocked-adc-token")
-        backends._ADC_TOKEN_CACHE["token"] = None
-        backends._ADC_TOKEN_CACHE["expires_at"] = 0.0
+        adc_calls: list[int] = []
+
+        def fake_adc_token() -> str:
+            adc_calls.append(1)
+            return "mocked-adc-token"
+
+        monkeypatch.setattr(backends, "_get_adc_token_sync", fake_adc_token)
 
         adc_backend = JevHttpBackend(
             "http://local/predict",
@@ -690,6 +694,21 @@ async def test_jev_http_backend_auth_callable_and_adc(
             DecisionQuery(task="t", prompt="p", candidates=("A",))
         )
         assert captured_headers[-1]["authorization"] == "Bearer mocked-adc-token"
+
+        # A second predict on the same instance reuses the cached token.
+        await adc_backend.predict(
+            DecisionQuery(task="t", prompt="p", candidates=("A",))
+        )
+        assert len(adc_calls) == 1
+
+        # A different instance does not share the cache.
+        other_backend = JevHttpBackend(
+            "http://local/predict", auth="adc", client=client
+        )
+        await other_backend.predict(
+            DecisionQuery(task="t", prompt="p", candidates=("A",))
+        )
+        assert len(adc_calls) == 2
 
 
 @pytest.mark.asyncio
@@ -775,19 +794,17 @@ def test_decision_synthesizer_from_env(
     from a2ui.inference_formats.decision import DecisionSynthesizer
 
     monkeypatch.setenv("A2UI_DECISION_BACKEND", "mock")
-    cat = Catalog.from_json(
-        {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "catalogId": "https://example.com/cat",
-            "protocolVersion": "1.0",
-            "components": {
-                "Card": {
-                    "type": "object",
-                    "properties": {"component": {"const": "Card"}},
-                    "required": ["component"],
-                }
-            },
-        }
-    )
+    cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/cat",
+        "protocolVersion": "1.0",
+        "components": {
+            "Card": {
+                "type": "object",
+                "properties": {"component": {"const": "Card"}},
+                "required": ["component"],
+            }
+        },
+    })
     synth = DecisionSynthesizer.from_env([cat])
     assert isinstance(synth.backend, DeterministicMockBackend)

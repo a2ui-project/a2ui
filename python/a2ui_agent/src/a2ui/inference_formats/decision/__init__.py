@@ -31,37 +31,57 @@ from .calibration import (
     compute_bayes_optimal_threshold,
 )
 from .catalog_graph import CatalogDecisionGraph
+from .decision_block import DecisionBlock, decision_block_from_messages
+from .format import DecisionFormat, DecisionFormatFactory
 from .models import (
     CalibrationPoint,
     CalibrationResult,
     ComponentNodeSpec,
     ComponentSlot,
+    DecisionBackendType,
     DecisionDistribution,
     DecisionQuery,
+    DecisionTask,
+    DecisionWireFormat,
     SlotKind,
     SynthesisConfig,
     SynthesisOutput,
     SynthesisStage,
+    coerce_decision_payload,
 )
+from .parser import DecisionParser
 from .payload_inspector import (
     PointerSummary,
     PointerValueType,
     inspect_payload_pointers,
 )
-from .synthesizer import DecisionSynthesizer
+from .prompt_generator import DECISION_RULES, DecisionPromptGenerator
+from .synthesizer import DecisionSynthesizer, FallbackCallback
 from .template_registry import SurfaceTemplate, TemplateRegistry
+from .tool import DecisionRenderTool
 
 __all__ = [
+    "DECISION_RULES",
     "CalibrationPoint",
     "CalibrationResult",
     "CatalogDecisionGraph",
     "ComponentNodeSpec",
     "ComponentSlot",
     "DecisionBackend",
+    "DecisionBackendType",
+    "DecisionBlock",
     "DecisionDistribution",
+    "DecisionFormat",
+    "DecisionFormatFactory",
+    "DecisionParser",
+    "DecisionPromptGenerator",
     "DecisionQuery",
+    "DecisionRenderTool",
     "DecisionSynthesizer",
+    "DecisionTask",
+    "DecisionWireFormat",
     "DeterministicMockBackend",
+    "FallbackCallback",
     "JevHttpBackend",
     "LabeledDecisionExample",
     "LocalCrossEncoderBackend",
@@ -76,7 +96,9 @@ __all__ = [
     "SynthesizerLike",
     "TemplateRegistry",
     "calibrate_thresholds",
+    "coerce_decision_payload",
     "compute_bayes_optimal_threshold",
     "create_decision_backend",
+    "decision_block_from_messages",
     "inspect_payload_pointers",
 ]

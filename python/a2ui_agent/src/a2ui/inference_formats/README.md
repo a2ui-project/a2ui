@@ -1,10 +1,10 @@
 # A2UI Inference Formats
 
-This directory contains inference format implementations (`direct_json`, `express`, `elemental`, `atom`) for the A2UI Python SDK.
+This directory contains inference format implementations (`direct_json`, `express`, `elemental`, `atom`, `decision`) for the A2UI Python SDK.
 
 ## Design Philosophy
 
-An **Inference Format** defines how an LLM or agent emits UI definitions (e.g. Direct JSON, Express DSL, Elemental HTML, or Atom).
+An **Inference Format** defines how an LLM or agent emits UI definitions (e.g. Direct JSON, Express DSL, Elemental HTML, or Atom). In the `decision` format the model emits only an intent and the data to show, and a local decision model (`DecisionSynthesizer`) selects and binds the components from the catalogs.
 
 ### Catalog-Agnostic Prompt Generation Rules
 

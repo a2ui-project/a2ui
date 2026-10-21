@@ -20,14 +20,26 @@ import asyncio
 from collections.abc import Callable, Mapping, Sequence
 import math
 import re
-from typing import Any, Literal, Protocol, cast, runtime_checkable
+import time
+from typing import Any, Literal, Protocol, TypeVar, cast, runtime_checkable
 
 import httpx
 
-from .models import DecisionDistribution, DecisionQuery
+from .models import (
+    DecisionBackendType,
+    DecisionDistribution,
+    DecisionQuery,
+    DecisionTask,
+    DecisionWireFormat,
+)
 
 _CAMEL_BOUNDARY_RE = re.compile(r"([a-z0-9])([A-Z])")
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+# Lifetime of a cached Application Default Credentials access token.
+_ADC_TOKEN_TTL_SECONDS = 1800.0
+
+_BackendT = TypeVar("_BackendT", bound="_AsyncClosable")
 
 
 def _safe_nonneg_float(value: Any) -> float:
@@ -231,7 +243,82 @@ class DecisionBackend(Protocol):
         ...
 
 
-_ADC_TOKEN_CACHE: dict[str, Any] = {"token": None, "expires_at": 0.0}
+class _AsyncClosable:
+    """Mixin giving a backend `aclose()` and `async with` support.
+
+    Backends that own no resources inherit the no-op `aclose`; backends that
+    hold an HTTP client override it.
+    """
+
+    async def aclose(self) -> None:
+        """Releases resources owned by this backend. No-op by default."""
+
+    async def __aenter__(self: _BackendT) -> _BackendT:
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        await self.aclose()
+
+
+class _HttpClientOwner(_AsyncClosable):
+    """Mixin that lazily owns an `httpx.AsyncClient` bound to one event loop.
+
+    An `httpx.AsyncClient` opens connections on the loop that first uses it,
+    so a client created on one loop fails when used from another (for
+    example when `DecisionSynthesizer.synthesize_sync` runs synthesis on a
+    helper thread). The owned client is therefore re-created whenever the
+    running loop changes; the previous client is closed on its own loop when
+    that loop is still alive.
+    """
+
+    _client: httpx.AsyncClient | None
+    _owned_client: httpx.AsyncClient | None
+    _owned_client_loop: asyncio.AbstractEventLoop | None
+    _timeout_seconds: float
+
+    def _init_http_client(
+        self, client: httpx.AsyncClient | None, timeout_seconds: float
+    ) -> None:
+        self._client = client
+        self._owned_client = None
+        self._owned_client_loop = None
+        self._timeout_seconds = timeout_seconds
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Returns the caller-supplied client or a loop-local owned one."""
+        if self._client is not None:
+            return self._client
+        loop = asyncio.get_running_loop()
+        if self._owned_client is not None and self._owned_client_loop is not loop:
+            self._release_owned_client()
+        if self._owned_client is None:
+            self._owned_client = httpx.AsyncClient(timeout=self._timeout_seconds)
+            self._owned_client_loop = loop
+        return self._owned_client
+
+    def _release_owned_client(self) -> None:
+        """Detaches the owned client, closing it on its own loop when possible."""
+        stale, stale_loop = self._owned_client, self._owned_client_loop
+        self._owned_client = None
+        self._owned_client_loop = None
+        if stale is None or stale_loop is None or stale_loop.is_closed():
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(stale.aclose(), stale_loop)
+        except RuntimeError:
+            pass
+
+    async def aclose(self) -> None:
+        """Closes the internally owned `httpx.AsyncClient` if one was created."""
+        if self._owned_client is None:
+            return
+        if self._owned_client_loop is asyncio.get_running_loop():
+            stale = self._owned_client
+            self._owned_client = None
+            self._owned_client_loop = None
+            await stale.aclose()
+        else:
+            self._release_owned_client()
 
 
 def _get_adc_token_sync() -> str | None:
@@ -267,22 +354,6 @@ def _get_adc_token_sync() -> str | None:
     return None
 
 
-async def _resolve_adc_token() -> str | None:
-    """Returns a cached ADC token, refreshing it asynchronously if expired."""
-    import time
-
-    now = time.time()
-    if _ADC_TOKEN_CACHE["token"] and now < _ADC_TOKEN_CACHE["expires_at"]:
-        return str(_ADC_TOKEN_CACHE["token"])
-
-    token = await asyncio.to_thread(_get_adc_token_sync)
-    if token:
-        _ADC_TOKEN_CACHE["token"] = token
-        _ADC_TOKEN_CACHE["expires_at"] = now + 1800.0
-        return token
-    return None
-
-
 def _build_systemone_request(query: DecisionQuery, model: str) -> dict[str, Any]:
     """Builds a structured /v1/systemone choice request envelope."""
     cand_descs = query.context.get("candidate_descriptions", {})
@@ -313,7 +384,10 @@ def _build_systemone_request(query: DecisionQuery, model: str) -> dict[str, Any]
         "questions": {
             "q": {
                 "type": "choice",
-                "instructions": "Evaluate which candidate best satisfies the user intent and UI structure.",
+                "instructions": (
+                    "Evaluate which candidate best satisfies the user intent and UI"
+                    " structure."
+                ),
                 "criteria": criteria,
             }
         },
@@ -353,14 +427,18 @@ def _parse_systemone_response(
     return probabilities, calibrated, margin
 
 
-class JevHttpBackend:
-    """HTTP backend for local Jev /predict or /v1/systemone decision endpoints."""
+class JevHttpBackend(_HttpClientOwner):
+    """HTTP backend for local Jev /predict or /v1/systemone decision endpoints.
+
+    Supports `async with` to close the owned HTTP client on exit. ADC access
+    tokens (``auth="adc"``) are cached per instance for 30 minutes.
+    """
 
     def __init__(
         self,
         endpoint_url: str,
         *,
-        wire_format: Literal["auto", "jev", "systemone"] = "auto",
+        wire_format: Literal["auto", "jev", "systemone"] | DecisionWireFormat = "auto",
         model: str = "default",
         auth: str | Callable[[], str | Any] | None = None,
         headers: Mapping[str, str] | None = None,
@@ -368,27 +446,26 @@ class JevHttpBackend:
         timeout_seconds: float = 5.0,
     ) -> None:
         self._endpoint_url = endpoint_url
-        self._wire_format = wire_format
+        self._wire_format = str(getattr(wire_format, "value", wire_format))
         self._model = model
         self._auth = auth
         self._headers = dict(headers) if headers else None
-        self._client = client
-        self._owned_client: httpx.AsyncClient | None = None
-        self._timeout_seconds = timeout_seconds
+        self._init_http_client(client, timeout_seconds)
+        self._adc_token: str | None = None
+        self._adc_expires_at: float = 0.0
 
-    def _get_client(self) -> httpx.AsyncClient:
-        """Returns the caller-supplied client or lazily creates a reusable one."""
-        if self._client is not None:
-            return self._client
-        if self._owned_client is None:
-            self._owned_client = httpx.AsyncClient(timeout=self._timeout_seconds)
-        return self._owned_client
+    async def _resolve_adc_token(self) -> str | None:
+        """Returns this instance's cached ADC token, refreshing it when expired."""
+        now = time.time()
+        if self._adc_token and now < self._adc_expires_at:
+            return self._adc_token
 
-    async def aclose(self) -> None:
-        """Closes the internally owned `httpx.AsyncClient` if one was created."""
-        if self._owned_client is not None:
-            await self._owned_client.aclose()
-            self._owned_client = None
+        token = await asyncio.to_thread(_get_adc_token_sync)
+        if token:
+            self._adc_token = token
+            self._adc_expires_at = now + _ADC_TOKEN_TTL_SECONDS
+            return token
+        return None
 
     async def _resolve_auth_token(self) -> str | None:
         """Resolves bearer token string from auth argument or environment."""
@@ -403,7 +480,7 @@ class JevHttpBackend:
                 return None
 
         if auth_target == "adc":
-            return await _resolve_adc_token()
+            return await self._resolve_adc_token()
         if callable(auth_target):
             res = auth_target()
             if asyncio.iscoroutine(res):
@@ -476,8 +553,11 @@ class JevHttpBackend:
         )
 
 
-class StepZeroLogprobBackend:
-    """OpenAI-compatible step-0 top-logprob decision backend."""
+class StepZeroLogprobBackend(_HttpClientOwner):
+    """OpenAI-compatible step-0 top-logprob decision backend.
+
+    Supports `async with` to close the owned HTTP client on exit.
+    """
 
     def __init__(
         self,
@@ -497,23 +577,7 @@ class StepZeroLogprobBackend:
         self._model = model
         self._temperature = float(temperature)
         self._max_logprobs = int(max_logprobs)
-        self._client = client
-        self._owned_client: httpx.AsyncClient | None = None
-        self._timeout_seconds = timeout_seconds
-
-    def _get_client(self) -> httpx.AsyncClient:
-        """Returns the caller-supplied client or lazily creates a reusable one."""
-        if self._client is not None:
-            return self._client
-        if self._owned_client is None:
-            self._owned_client = httpx.AsyncClient(timeout=self._timeout_seconds)
-        return self._owned_client
-
-    async def aclose(self) -> None:
-        """Closes the internally owned `httpx.AsyncClient` if one was created."""
-        if self._owned_client is not None:
-            await self._owned_client.aclose()
-            self._owned_client = None
+        self._init_http_client(client, timeout_seconds)
 
     async def predict(self, query: DecisionQuery) -> DecisionDistribution:
         """Queries step-0 logprobs and applies temperature-scaled softmax."""
@@ -555,7 +619,7 @@ class StepZeroLogprobBackend:
         )
 
 
-class DeterministicMockBackend:
+class DeterministicMockBackend(_AsyncClosable):
     """Deterministic offline decision backend for tests and local evaluation."""
 
     def __init__(
@@ -636,7 +700,7 @@ class DeterministicMockBackend:
         )
 
 
-class LocalCrossEncoderBackend:
+class LocalCrossEncoderBackend(_AsyncClosable):
     """In-process CPU cross-encoder backend backed by ONNX Runtime."""
 
     def __init__(
@@ -762,8 +826,70 @@ class LocalCrossEncoderBackend:
         )
 
 
+def _infer_backend_kind(url: str | None) -> str:
+    """Picks a backend kind from the endpoint URL, or from installed extras."""
+    if url:
+        clean_url = url.rstrip("/").lower()
+        if clean_url.endswith("/v1/systemone"):
+            return DecisionBackendType.SYSTEMONE.value
+        if clean_url.endswith("/v1/completions"):
+            return DecisionBackendType.STEP_ZERO.value
+        return DecisionBackendType.JEV.value
+    try:
+        import onnxruntime  # noqa: F401
+        import tokenizers  # noqa: F401
+    except ImportError:
+        return DecisionBackendType.MOCK.value
+    return DecisionBackendType.LOCAL.value
+
+
+def _require_url(kind: str, url: str | None) -> str:
+    """Returns `url`, or raises a ValueError naming the backend that needs it."""
+    if not url:
+        raise ValueError(
+            f"{kind} backend requires an endpoint URL (pass endpoint_url or set"
+            " A2UI_DECISION_URL)"
+        )
+    return url
+
+
+def _create_local_backend(
+    model_name: str | None, temperature: float
+) -> LocalCrossEncoderBackend:
+    kw: dict[str, Any] = {"temperature": temperature}
+    if model_name:
+        kw["model_id"] = model_name
+    return LocalCrossEncoderBackend(**kw)
+
+
+def _create_jev_backend(
+    kind: str,
+    url: str | None,
+    model_name: str | None,
+    auth_val: str | Callable[[], str | Any] | None,
+) -> JevHttpBackend:
+    endpoint = _require_url(kind, url)
+    if kind == DecisionBackendType.SYSTEMONE.value:
+        return JevHttpBackend(
+            endpoint,
+            wire_format=DecisionWireFormat.SYSTEMONE,
+            model=model_name or "default",
+            auth=auth_val,
+        )
+    return JevHttpBackend(endpoint, wire_format=DecisionWireFormat.JEV, auth=auth_val)
+
+
+def _create_step_zero_backend(
+    url: str | None, model_name: str | None, temperature: float
+) -> StepZeroLogprobBackend:
+    endpoint = _require_url(DecisionBackendType.STEP_ZERO.value, url)
+    return StepZeroLogprobBackend(
+        endpoint, model=model_name or "default", temperature=temperature
+    )
+
+
 def create_decision_backend(
-    backend_type: str | None = None,
+    backend_type: str | DecisionBackendType | None = None,
     *,
     endpoint_url: str | None = None,
     model: str | None = None,
@@ -772,16 +898,29 @@ def create_decision_backend(
 ) -> DecisionBackend:
     """Creates a DecisionBackend from explicit arguments or environment variables.
 
+    Args:
+        backend_type: A `DecisionBackendType` or its string value. When
+            omitted, read from `A2UI_DECISION_BACKEND`, then inferred from
+            the endpoint URL, then from the installed extras.
+        endpoint_url: Endpoint for the HTTP backends.
+        model: Model identifier (cross-encoder ID or remote model name).
+        auth: `"adc"`, a bearer token, or a callable returning one.
+        temperature: Softmax temperature for the local and step-0 backends.
+
     Environment variables:
         A2UI_DECISION_BACKEND: 'local', 'systemone', 'jev', 'step0', 'mock'
         A2UI_DECISION_URL: Endpoint URL for HTTP backends
         A2UI_DECISION_MODEL: Model identifier (e.g. cross-encoder ID or remote model)
         A2UI_DECISION_AUTH: 'adc', Bearer token string, or omitted
         A2UI_DECISION_TEMPERATURE: Float temperature scaling parameter
+
+    Raises:
+        ValueError: If the backend kind is unknown or needs a URL that is
+            missing.
     """
     import os
 
-    kind = backend_type or os.environ.get("A2UI_DECISION_BACKEND")
+    raw_kind = backend_type or os.environ.get("A2UI_DECISION_BACKEND")
     url = endpoint_url or os.environ.get("A2UI_DECISION_URL")
     model_name = model or os.environ.get("A2UI_DECISION_MODEL")
     auth_val = (
@@ -789,75 +928,47 @@ def create_decision_backend(
         or os.environ.get("A2UI_DECISION_AUTH")
         or os.environ.get("A2UI_DECISION_TOKEN")
     )
-    temp_env = os.environ.get("A2UI_DECISION_TEMPERATURE")
-    temp = (
-        float(temperature)
-        if temperature is not None
-        else (float(temp_env) if temp_env else 1.0)
+    temp = _resolve_temperature(
+        temperature, os.environ.get("A2UI_DECISION_TEMPERATURE")
     )
+    kind = _normalize_backend_kind(raw_kind) or _infer_backend_kind(url)
 
-    # Auto-infer backend kind from URL if omitted
-    if not kind:
-        if url:
-            clean_url = url.rstrip("/").lower()
-            if clean_url.endswith("/v1/systemone"):
-                kind = "systemone"
-            elif clean_url.endswith("/v1/completions"):
-                kind = "step0"
-            else:
-                kind = "jev"
-        else:
-            try:
-                import onnxruntime  # noqa: F401
-                import tokenizers  # noqa: F401
-
-                kind = "local"
-            except ImportError:
-                kind = "mock"
-
-    norm_kind = kind.strip().lower()
-    if norm_kind == "local":
-        kw: dict[str, Any] = {"temperature": temp}
-        if model_name:
-            kw["model_id"] = model_name
-        return LocalCrossEncoderBackend(**kw)
-    if norm_kind == "systemone":
-        if not url:
-            raise ValueError(
-                "systemone backend requires an endpoint URL (pass endpoint_url or set A2UI_DECISION_URL)"
-            )
-        return JevHttpBackend(
-            url,
-            wire_format="systemone",
-            model=model_name or "default",
-            auth=auth_val,
+    builders: dict[str, Callable[[], DecisionBackend]] = {
+        DecisionBackendType.LOCAL.value: lambda: _create_local_backend(
+            model_name, temp
+        ),
+        DecisionBackendType.SYSTEMONE.value: lambda: _create_jev_backend(
+            kind, url, model_name, auth_val
+        ),
+        DecisionBackendType.JEV.value: lambda: _create_jev_backend(
+            kind, url, model_name, auth_val
+        ),
+        DecisionBackendType.STEP_ZERO.value: lambda: _create_step_zero_backend(
+            url, model_name, temp
+        ),
+        DecisionBackendType.MOCK.value: DeterministicMockBackend,
+    }
+    builder = builders.get(kind)
+    if builder is None:
+        choices = ", ".join(f"'{k}'" for k in builders)
+        raise ValueError(
+            f"Unknown decision backend type '{raw_kind}'. Choose from: {choices}."
         )
-    if norm_kind == "jev":
-        if not url:
-            raise ValueError(
-                "jev backend requires an endpoint URL (pass endpoint_url or set A2UI_DECISION_URL)"
-            )
-        return JevHttpBackend(
-            url,
-            wire_format="jev",
-            auth=auth_val,
-        )
-    if norm_kind == "step0":
-        if not url:
-            raise ValueError(
-                "step0 backend requires an endpoint URL (pass endpoint_url or set A2UI_DECISION_URL)"
-            )
-        return StepZeroLogprobBackend(
-            url,
-            model=model_name or "default",
-            temperature=temp,
-        )
-    if norm_kind == "mock":
-        return DeterministicMockBackend()
+    return builder()
 
-    raise ValueError(
-        f"Unknown decision backend type '{kind}'. Choose from: 'local', 'systemone', 'jev', 'step0', 'mock'."
-    )
+
+def _normalize_backend_kind(raw_kind: str | DecisionBackendType | None) -> str | None:
+    """Lower-cases a backend kind given as a string or enum; None stays None."""
+    if not raw_kind:
+        return None
+    return str(getattr(raw_kind, "value", raw_kind)).strip().lower()
+
+
+def _resolve_temperature(explicit: float | None, from_env: str | None) -> float:
+    """Picks the explicit temperature, else the environment value, else 1.0."""
+    if explicit is not None:
+        return float(explicit)
+    return float(from_env) if from_env else 1.0
 
 
 __all__ = [

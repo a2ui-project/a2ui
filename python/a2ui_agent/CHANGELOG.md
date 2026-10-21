@@ -1,5 +1,30 @@
 ## Unreleased
 
+- Add the decision inference format, `a2ui.inference_formats.decision`, in
+  which the model emits an intent and data and a local decision model picks
+  and binds the components.
+  - `DecisionFormat` and `DecisionFormatFactory` implement `InferenceFormat`
+    and `InferenceFormatFactory`, so
+    `A2uiRequestProcessor(catalogs, format_factory=DecisionFormatFactory())`
+    works like the Express and Direct JSON factories. `DecisionPromptGenerator`
+    asks for `<a2ui>` decision blocks and `DecisionParser` renders them through
+    `DecisionSynthesizer`.
+  - `DecisionRenderTool` supplies a JSON Schema tool declaration and
+    `run_async` / `run_sync` runners for MCP, ADK, and function-calling agents.
+  - `DecisionSynthesizer` takes an optional `backend` (defaulting to
+    `create_decision_backend()`) or a prebuilt `CatalogDecisionGraph`, accepts
+    JSON-string and array payloads, renders a named `template_id` directly,
+    adds `synthesize_sync()`, and fills abstentions from `fallback_dsl`,
+    `fallback_fn`, or a deterministic `fallback_card`;
+    `SynthesisOutput.fallback_source` names which one applied.
+  - `DecisionTask`, `DecisionWireFormat`, and `DecisionBackendType` string
+    enums replace raw string literals; `coerce_decision_payload` decodes
+    stringified payloads.
+  - Backends support `async with`; the HTTP backends re-create their client
+    per event loop and `JevHttpBackend` caches ADC tokens per instance.
+  - `TemplateRegistry.promote_synthesized` reads v1.0 `createSurface`
+    envelopes with embedded components and v0.8 `surfaceUpdate` envelopes.
+
 ## 0.9.0 (2026-10-17)
 
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
