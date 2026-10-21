@@ -3,6 +3,12 @@
 - **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
   `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
   (`DirectJsonFormat`).
+- Express variable and check identifiers now follow Unicode UAX 31 in the
+  grammar and decompiler ([#3390](https://github.com/a2ui-project/a2ui/issues/3390)).
+  From protocol v1.0 onward, `ExpressDecompiler` rejects component IDs that are
+  not valid UAX 31 identifiers with `A2uiValidationError` (`invalid_identifier`);
+  for pre-v1.0 catalogs (and for reserved-word IDs in any version), it derives
+  a valid variable name and emits `id="..."`.
 
 ## 0.9.0 (2026-10-17)
 

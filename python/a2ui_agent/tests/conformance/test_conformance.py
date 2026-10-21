@@ -431,6 +431,11 @@ def test_decompiler_conformance(name, test_case):
     parser = make_parser(test_case["args"])
     messages = test_case["messages"]
 
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            parser.decompile(to_message_models(messages))
+        return
+
     notation = parser.decompile(to_message_models(messages))
 
     for fragment in test_case.get("expect_contains", []):
@@ -638,6 +643,10 @@ def run_format_case(test_case, tmp_path):
     elif action == "decompile":
         parser = make_parser(args)
         messages = test_case["messages"]
+        if "expect_error" in test_case:
+            with assert_raises(test_case["expect_error"]):
+                parser.decompile(to_message_models(messages))
+            return
         notation = parser.decompile(to_message_models(messages))
         _expect_snippet(
             notation,

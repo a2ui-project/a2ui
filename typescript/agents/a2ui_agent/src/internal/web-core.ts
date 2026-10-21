@@ -77,6 +77,7 @@ export {
   STRICT_VALIDATION,
   getComponentReferences,
   buildComponentRefMap,
+  isValidUax31Identifier,
   V10_CHILD_REF_OPTIONS,
 } from '@a2ui/web_core/validating';
 export type {ValidationConfig} from '@a2ui/web_core/validating';

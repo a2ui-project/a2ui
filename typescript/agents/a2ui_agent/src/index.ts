@@ -119,7 +119,6 @@ export {
   ExpressDuplicateParamError,
   ExpressForbiddenDatabindingError,
   ExpressIdCollisionError,
-  ExpressInvalidIdentifierError,
   ExpressUnknownCatalogError,
 } from './inference-formats/express/errors.js';
 

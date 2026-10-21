@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Express `IDENTIFIER` and `CHECK` tokens now follow UAX 31
+  (`[\p{XID_Start}_] [\p{XID_Continue}]*`) rather than ASCII-only letters,
+  digits, and underscores. In `ExpressDecompiler`, non-identifier component ids
+  before protocol v1.0 (such as `title-heading`) and reserved-word component
+  ids in any version (`true`, `false`, `null`, `_`) are written with a derived
+  variable name and `id="..."` so they round-trip through `ExpressCompiler`;
+  from v1.0 onward, component ids that are not valid UAX 31 identifiers throw
+  `A2uiValidationError`.
 - Requires the next release of `a2ui_core`, which adds
   `SurfaceComponentsModel.insertComponent`, `insertComponents`,
   `saveReferenceFields` and `restoreReferenceFields` and

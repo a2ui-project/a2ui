@@ -37,8 +37,9 @@ final RegExp _token = RegExp(
   r'|(?:#|//)[^\r\n]*' // COMMENT
   r'|/\*[\s\S]*?\*/' // BLOCK_COMMENT
   r'|\$[a-zA-Z0-9_/]*' // PATH
-  r'|\?[a-zA-Z_][a-zA-Z0-9_]*' // CHECK
-  r'|[a-zA-Z_][a-zA-Z0-9_]*', // IDENTIFIER, and the words the grammar reserves
+  r'|\?[\p{XID_Start}_]\p{XID_Continue}*' // CHECK
+  r'|[\p{XID_Start}_]\p{XID_Continue}*', // IDENTIFIER, and the words the grammar reserves
+  unicode: true,
 );
 
 /// Reads Express blocks from an LLM response and compiles them into messages

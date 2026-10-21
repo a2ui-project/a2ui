@@ -101,9 +101,9 @@
             component: "Text"
             text: "Name"
   expect_contains:
-    - 'größe = Text('
-    - '名前 = Text('
-    - 'root = Column([größe, 名前])'
+    - "größe = Text("
+    - "名前 = Text("
+    - "root = Column([größe, 名前])"
   expect_round_trip: true
 
 - name: test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable
@@ -125,7 +125,7 @@
             text: "Hello"
   expect_contains:
     - 'surface("s1")'
-    - 'header = Card(title_heading)'
+    - "header = Card(title_heading)"
     - 'title_heading = Text("Hello", id="title-heading")'
   expect_round_trip: true
 
