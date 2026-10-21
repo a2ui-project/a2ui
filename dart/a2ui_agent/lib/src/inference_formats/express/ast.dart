@@ -124,6 +124,9 @@ final class ExpressionStatement extends ExpressStatement {
   const ExpressionStatement(this.value);
 }
 
+final RegExp _sqlCommentOrToken = RegExp(
+  r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)',
+);
 final RegExp _splitDataPath = RegExp(r'\$/\r?\n[ \t]*([a-zA-Z0-9_/]+)');
 final RegExp _splitLhsIdentifier = RegExp(
   r'^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*[ \t]*=)',
@@ -139,6 +142,7 @@ final RegExp _edgeNewlines = RegExp(r'^[\r\n]+|[\r\n]+$');
 /// Throws [A2uiParseError] if [source] does not match the grammar.
 List<ExpressStatement> parseExpress(String source) {
   final String normalized = source
+      .replaceAllMapped(_sqlCommentOrToken, (m) => m[1] ?? '//${m[2] ?? ''}')
       .replaceAllMapped(_splitDataPath, (m) => '\$/${m[1]}')
       .replaceAllMapped(_splitLhsIdentifier, (m) => '${m[1]}${m[2]}')
       .replaceAllMapped(_splitArgIdentifier, (m) => '${m[1]}${m[2]}');

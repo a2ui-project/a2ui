@@ -67,6 +67,23 @@ describe('ExpressCompiler', () => {
       ]);
     });
 
+    it('advances a positional numeric argument to the next numeric property', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(compiler.compile('-- SQL comment\nroot = Column([t], 2)\nt = Text("Hello")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            components: [
+              {id: 'root', component: 'Column', children: ['t'], weight: 2},
+              {id: 't', component: 'Text', text: 'Hello'},
+            ],
+          },
+        },
+      ]);
+    });
+
     it('compiles a Card whose child is declared on its own line', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('root = Card(t)\nt = Text("Card body")')).toEqual([

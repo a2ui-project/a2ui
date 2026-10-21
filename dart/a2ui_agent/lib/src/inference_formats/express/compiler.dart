@@ -603,6 +603,19 @@ class _SurfaceCompiler {
           '${call.args.length}.',
         );
       }
+      if (arg case LiteralNode(value: final num _)
+          when !acceptsNumber(
+            helper.propertySchema(name, properties[position]),
+          )) {
+        for (int later = position + 1; later < properties.length; later++) {
+          final String candidate = properties[later];
+          if (!call.kwargs.containsKey(candidate) &&
+              acceptsNumber(helper.propertySchema(name, candidate))) {
+            position = later;
+            break;
+          }
+        }
+      }
       assigned.add((properties[position++], arg));
     }
     for (final MapEntry<String, ExpressNode> kwarg in call.kwargs.entries) {
@@ -623,6 +636,13 @@ class _SurfaceCompiler {
         );
       }
       assigned.add((kwarg.key, kwarg.value));
+    }
+    if (checks.isNotEmpty && !helper.isCheckable(name)) {
+      throw A2uiValidationError(
+        "$name does not take checks, but component '$id' is given "
+        '${checks.map((c) => '?${c.name}').join(', ')}. Remove the checks, '
+        'or use a component whose schema declares checks.',
+      );
     }
 
     final component = <String, Object?>{

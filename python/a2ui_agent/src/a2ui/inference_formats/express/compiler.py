@@ -224,6 +224,22 @@ def _schema_expects_option_objects(schema: Any) -> bool:
     return False
 
 
+def _schema_accepts_number(schema: Any) -> bool:
+    """Checks if a property's schema accepts a numeric value."""
+    if not isinstance(schema, dict):
+        return False
+    if schema.get("type") in ("number", "integer"):
+        return True
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref.endswith("Number"):
+        return True
+    for key in ("allOf", "oneOf", "anyOf"):
+        subs = schema.get(key)
+        if isinstance(subs, list) and any(_schema_accepts_number(sub) for sub in subs):
+            return True
+    return False
+
+
 def _is_check_expression(val: Any) -> bool:
     """Checks if a parsed AST value represents a validation check expression."""
     if isinstance(val, dict) and "check" in val:
@@ -506,6 +522,11 @@ class ExpressCompiler:
                 lines.append(line)
 
         dsl_body = "\n".join(lines)
+        dsl_body = re.sub(
+            r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)',
+            lambda m: m.group(1) if m.group(1) is not None else f"//{m.group(2)}",
+            dsl_body,
+        )
         dsl_body = re.sub(
             r"\$/\r?\n[ \t]*([a-zA-Z0-9_/]+)",
             r"$/\1",
@@ -940,6 +961,22 @@ class ExpressCompiler:
                 continue
 
             if prop_idx < len(non_check_properties):
+                if (
+                    isinstance(arg, (int, float))
+                    and not isinstance(arg, bool)
+                    and not _schema_accepts_number(
+                        comp_helper.get_property_schema(
+                            comp_name, non_check_properties[prop_idx]
+                        )
+                    )
+                ):
+                    for later_idx in range(prop_idx + 1, len(non_check_properties)):
+                        later_prop = non_check_properties[later_idx]
+                        if later_prop not in kwargs and _schema_accepts_number(
+                            comp_helper.get_property_schema(comp_name, later_prop)
+                        ):
+                            prop_idx = later_idx
+                            break
                 prop_arg_pairs.append((non_check_properties[prop_idx], arg))
                 prop_idx += 1
 

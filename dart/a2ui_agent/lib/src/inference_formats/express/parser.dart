@@ -41,7 +41,7 @@ final RegExp _token = RegExp(
   r'|[rR]"[^\r\n"]*"' // RAW_STRING
   r'|"""(?:\\[\s\S]|[^\\])*?"""' // TRIPLE_STRING
   r'|"(?:\\[\s\S]|[^\\])*?"' // STANDARD_STRING
-  r'|(?:#|//)[^\r\n]*' // COMMENT
+  r'|(?:#|//|--)[^\r\n]*' // COMMENT
   r'|/\*[\s\S]*?\*/' // BLOCK_COMMENT
   r'|\$[a-zA-Z0-9_/]*' // PATH
   r'|\?[a-zA-Z_][a-zA-Z0-9_]*' // CHECK
@@ -51,13 +51,21 @@ final RegExp _token = RegExp(
 /// Reads Express blocks from an LLM response and compiles them into messages
 /// of the protocol version the catalogs target.
 ///
+/// The compiler checks each component against the schema it reads the
+/// component's arguments with. [parseResponse] checks the messages against a
+/// renderer state, as for any format.
+///
 /// Finding, wrapping and unwrapping blocks does not depend on the version.
 class ExpressParser extends Parser {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
   ExpressParser(List<CatalogApi> catalogs)
-    : _compiler = ExpressCompiler(catalogs),
+    : catalogs = List.unmodifiable(catalogs),
+      _compiler = ExpressCompiler(catalogs),
       _decompiler = ExpressDecompiler(catalogs);
+
+  @override
+  final List<CatalogApi> catalogs;
 
   final ExpressCompiler _compiler;
   final ExpressDecompiler _decompiler;

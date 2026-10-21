@@ -413,6 +413,9 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
   };
 }
 
+const SQL_COMMENT_OR_TOKEN_REGEX =
+  /([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|\/\/)[^\r\n]*|\/\*[\s\S]*?\*\/)|--([^\r\n]*)/g;
+
 /**
  * Parses Express DSL source into syntax errors and statements.
  *
@@ -420,6 +423,11 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
  */
 export function normalizeExpressSource(source: string): string {
   return source
+    .replace(
+      SQL_COMMENT_OR_TOKEN_REGEX,
+      (_m, token: string | undefined, comment: string | undefined) =>
+        token !== undefined ? token : `//${comment ?? ''}`,
+    )
     .replace(/\$\/\r?\n[ \t]*([a-zA-Z0-9_/]+)/g, '$/$1')
     .replace(
       /^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*[ \t]*=)/gm,

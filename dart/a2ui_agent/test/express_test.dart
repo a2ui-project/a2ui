@@ -266,6 +266,18 @@ root = Text($/user/name)
         ]),
       );
     });
+
+    test('positional numeric weight skipping non-numeric properties', () {
+      expect(components('root = Column([a], 2)\na = Text("hi")'), [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['a'],
+          'weight': 2,
+        },
+        {'id': 'a', 'component': 'Text', 'text': 'hi'},
+      ]);
+    });
   });
 
   group('parses a response', () {
@@ -537,7 +549,7 @@ surface("s1")
 
     test('does not stream', () {
       expect(parser.supportsStreaming, isFalse);
-      expect(() => parser.parseChunk('<a2ui>'), throwsUnsupportedError);
+      expect(parser.openStream, throwsUnsupportedError);
     });
   });
 

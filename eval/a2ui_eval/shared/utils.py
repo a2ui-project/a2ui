@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
-from inspect_ai.solver import Solver, solver, TaskState, Generate
-from inspect_ai.model._model import sample_model_usage
 from pathlib import Path
+import time
+
+from inspect_ai.model import ChatMessageUser
+from inspect_ai.model._model import sample_model_usage
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 GIT_ROOT = (Path(__file__).resolve().parent / "../../..").resolve()
 
 
 @solver
-def measured_generate() -> Solver:
+def measured_generate(required_close_tag: str | None = None) -> Solver:
     """Solver that wraps generate() and records the duration in metadata."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -36,7 +38,7 @@ def measured_generate() -> Solver:
         before_output = usage_before.output_tokens if usage_before else 0
         before_reasoning = usage_before.reasoning_tokens or 0 if usage_before else 0
 
-        for _ in range(3):
+        for attempt in range(3):
             state = await generate(state)
             completion = (
                 state.output.completion
@@ -46,6 +48,24 @@ def measured_generate() -> Solver:
             if (completion and completion.strip()) or (
                 state.store.get("a2ui_payload") is not None
             ):
+                if (
+                    required_close_tag is not None
+                    and completion
+                    and required_close_tag not in completion.lower()
+                    and attempt < 2
+                ):
+                    open_tag = required_close_tag.replace("</", "<")
+                    state.messages.append(
+                        ChatMessageUser(
+                            content=(
+                                "No external tools are available in this environment."
+                                " Please directly generate the complete A2UI user"
+                                f" interface now, enclosed in {open_tag} and"
+                                f" {required_close_tag} tags."
+                            )
+                        )
+                    )
+                    continue
                 break
 
         usage_after = sample_model_usage().get(str(state.model))

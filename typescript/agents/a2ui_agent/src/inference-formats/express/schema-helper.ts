@@ -131,6 +131,32 @@ export function expectsOptionObjects(schema: unknown): boolean {
 }
 
 /**
+ * Checks if a property's schema accepts a numeric value.
+ *
+ * @param schema The property JSON schema to inspect.
+ * @returns True if the schema accepts a number or integer.
+ */
+export function acceptsNumber(schema: unknown): boolean {
+  if (!schema || typeof schema !== 'object') {
+    return false;
+  }
+  const s = schema as Record<string, unknown>;
+  if (s.type === 'number' || s.type === 'integer') {
+    return true;
+  }
+  if (typeof s.$ref === 'string' && s.$ref.endsWith('Number')) {
+    return true;
+  }
+  for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
+    const list = s[key];
+    if (Array.isArray(list) && list.some(sub => acceptsNumber(sub))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Dynamic schema crawler for A2UI catalogs used by Express format.
  */
 

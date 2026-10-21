@@ -35,7 +35,7 @@ from a2ui_eval.bridges import (
     get_python_strategy,
     parse_and_validate_in_process,
 )
-from a2ui_eval.shared.utils import GIT_ROOT
+from a2ui_eval.shared.utils import GIT_ROOT, measured_generate
 from a2ui_eval.strategies import (
     PAYLOAD_STORE_KEY,
     STRATEGIES,
@@ -338,6 +338,24 @@ async def test_compile_format_payload_empty_output_and_error_recovery() -> None:
     )
     res_error = await compile_solver(error_state, dummy_generate)
     assert "Compilation/validation failed:" in res_error.output.completion
+
+
+@pytest.mark.asyncio
+async def test_measured_generate_retries_when_required_close_tag_missing() -> None:
+    solver = measured_generate(required_close_tag="</a2ui>")
+    state = _state({}, completion="print(get_store_sales())")
+    calls = 0
+
+    async def gen_with_retry(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            _set_completion(s, '<a2ui>\nroot = Text("Recovered")\n</a2ui>')
+        return s
+
+    state = await solver(state, gen_with_retry)
+    assert calls == 2
+    assert "</a2ui>" in state.output.completion
 
 
 @pytest.mark.asyncio

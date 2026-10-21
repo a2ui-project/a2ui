@@ -261,6 +261,16 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         self.assertEqual(comps["card2Rating"]["child"], "lightsCheckbox")
         self.assertEqual(comps["lightsCheckbox"]["text"], {"@path": "/form/phone"})
 
+    def test_sql_comments_and_positional_numeric_skip(self):
+        """Verifies `--` comments and positional numeric argument skipping non-numeric properties."""
+        compiler = ExpressCompiler([self.catalog])
+        dsl = '-- SQL comment\nroot = Column([t], 2)\nt = Text("Hello")'
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(comps["root"]["children"], ["t"])
+        self.assertEqual(comps["root"]["weight"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

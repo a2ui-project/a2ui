@@ -56,6 +56,7 @@ import {
 import {ExpressLexer} from './generated/ExpressLexer.js';
 import {ExpressParser} from './generated/ExpressParser.js';
 import {
+  acceptsNumber,
   CatalogSchemaHelper,
   expectsOptionObjects,
   isActionSlot,
@@ -928,6 +929,21 @@ export class ExpressCompiler {
       }
 
       if (propIdx < nonCheckProperties.length) {
+        if (
+          typeof arg === 'number' &&
+          !acceptsNumber(compHelper.getPropertySchema(compName, nonCheckProperties[propIdx]))
+        ) {
+          for (let laterIdx = propIdx + 1; laterIdx < nonCheckProperties.length; laterIdx++) {
+            const laterProp = nonCheckProperties[laterIdx];
+            if (
+              !(laterProp in rawKwargs) &&
+              acceptsNumber(compHelper.getPropertySchema(compName, laterProp))
+            ) {
+              propIdx = laterIdx;
+              break;
+            }
+          }
+        }
         propArgPairs.push([nonCheckProperties[propIdx], arg]);
         propIdx += 1;
       }

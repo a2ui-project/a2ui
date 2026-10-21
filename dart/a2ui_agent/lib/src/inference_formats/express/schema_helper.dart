@@ -250,3 +250,12 @@ bool expectsOptionObjects(Map<String, Object?>? schema) {
   }
   return _alternatives(schema).any(expectsOptionObjects);
 }
+
+/// Whether [schema] accepts a number literal.
+bool acceptsNumber(Map<String, Object?>? schema) {
+  if (schema == null) return false;
+  final Object? type = schema['type'];
+  if (type == 'number' || type == 'integer') return true;
+  if (_refName(schema)?.endsWith('Number') ?? false) return true;
+  return _alternatives(schema).any(acceptsNumber);
+}
