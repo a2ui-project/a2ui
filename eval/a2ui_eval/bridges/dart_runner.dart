@@ -19,13 +19,18 @@
 ///
 /// The request fields mirror the Python bridge (`dart_bridge.py`):
 /// `action`, `format_name`, `version`, `resolved_catalog_path`,
-/// `surface_id`, `completion`, `require_complete_tags` and `validate`.
+/// `surface_id`, `completion`, `require_complete_tags`, `validate` and
+/// `options` (the `BridgeOptions.to_dict()` form from `base.py`, or null:
+/// `catalogs` with `path`, `catalog_id`, `allowed_components`,
+/// `allowed_functions` and `examples`; `allowed_messages`;
+/// `initial_renderer_state`; `stream_chunk_size`).
 library;
 
 // ignore_for_file: depend_on_referenced_packages
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
@@ -82,22 +87,139 @@ A2uiProtocolVersion _resolveVersion(String requested, String formatName) {
   return version;
 }
 
-/// Loads the catalog the way the Python bridge does: from its path, with the
-/// requested protocol version and no catalog id beyond what it declares.
-CatalogApi _loadCatalog(
-  String resolvedCatalogPath,
-  A2uiProtocolVersion version,
-) => CatalogConfig.fromPath(
-  resolvedCatalogPath,
-  protocolVersion: version,
-).transformedCatalog;
+/// The catalogs, few-shot examples and message types a request asks for.
+///
+/// Built by [_loadCatalogsAndExamples] from the request's `options` field,
+/// whose shape is `BridgeOptions.to_dict()` in `base.py` (snake_case keys).
+class _CatalogSetup {
+  _CatalogSetup({
+    required this.catalogs,
+    required this.examples,
+    required this.allowedMessages,
+  });
 
-InferenceFormat _createStrategy(String formatName, CatalogApi catalog) {
+  /// The active catalogs, in order; the first is the default.
+  final List<CatalogApi> catalogs;
+
+  /// Example payloads shown to the model, each a list of messages.
+  final List<List<AgentToRendererMessage>> examples;
+
+  /// Message types the model may write, or null to allow them all.
+  final List<String>? allowedMessages;
+}
+
+/// The `options` object of [payload], or null when none was sent.
+Map<String, Object?>? _options(Map<String, Object?> payload) {
+  final Object? options = payload['options'];
+  return options is Map ? options.cast<String, Object?>() : null;
+}
+
+/// [value] as a list of strings, or null when it is not a list.
+List<String>? _stringList(Object? value) =>
+    value is List ? [for (final Object? item in value) item.toString()] : null;
+
+/// The catalog specs of [payload]: its `options.catalogs`, or a single
+/// unpruned spec for `resolved_catalog_path` when it names none.
+List<Map<String, Object?>> _catalogSpecs(Map<String, Object?> payload) {
+  final Object? specs = _options(payload)?['catalogs'];
+  if (specs is List && specs.isNotEmpty) {
+    return [
+      for (final Object? spec in specs)
+        if (spec is Map)
+          spec.cast<String, Object?>()
+        else
+          throw _BridgeError('Each catalog spec must be an object, got $spec.'),
+    ];
+  }
+  return [
+    <String, Object?>{'path': payload['resolved_catalog_path']},
+  ];
+}
+
+/// The pruning transformers a catalog spec asks for, in the order they apply.
+List<CatalogTransformer> _transformers(Map<String, Object?> spec) {
+  final List<String>? components = _stringList(spec['allowed_components']);
+  final List<String>? functions = _stringList(spec['allowed_functions']);
+  return [
+    if (components != null) ComponentPruningTransformer(components),
+    if (functions != null) FunctionPruningTransformer(functions),
+  ];
+}
+
+/// Loads one catalog spec, applying its pruning transformers.
+CatalogApi _loadCatalogSpec(
+  Map<String, Object?> spec,
+  A2uiProtocolVersion version,
+) {
+  final Object? path = spec['path'];
+  if (path is! String || path.isEmpty) {
+    throw _BridgeError('A catalog spec needs a non-empty path, got $spec.');
+  }
+  return CatalogConfig.fromPath(
+    path,
+    transformers: _transformers(spec),
+    protocolVersion: version,
+    catalogId: spec['catalog_id'] as String?,
+  ).transformedCatalog;
+}
+
+/// Reads an example file: a JSON array of agent-to-renderer messages, or an
+/// object with a `messages` array.
+List<AgentToRendererMessage> _loadExample(String path) {
+  final Object? decoded = jsonDecode(File(path).readAsStringSync());
+  final Object? messages = decoded is Map ? decoded['messages'] : decoded;
+  if (messages is! List) {
+    throw _BridgeError(
+      "Example file '$path' must hold a JSON array of messages or an object "
+      'with a "messages" array.',
+    );
+  }
+  return [
+    for (final Object? message in messages)
+      if (message is Map)
+        AgentToRendererMessage.fromJson(message.cast<String, Object?>())
+      else
+        throw _BridgeError(
+          "Example file '$path' holds a non-object message: $message.",
+        ),
+  ];
+}
+
+/// Loads every catalog spec of [payload] with its examples. See
+/// [_CatalogSetup].
+_CatalogSetup _loadCatalogsAndExamples(
+  Map<String, Object?> payload,
+  A2uiProtocolVersion version,
+) {
+  final catalogs = <CatalogApi>[];
+  final examples = <List<AgentToRendererMessage>>[];
+  for (final Map<String, Object?> spec in _catalogSpecs(payload)) {
+    catalogs.add(_loadCatalogSpec(spec, version));
+    for (final String path in _stringList(spec['examples']) ?? const []) {
+      examples.add(_loadExample(path));
+    }
+  }
+  return _CatalogSetup(
+    catalogs: catalogs,
+    examples: examples,
+    allowedMessages: _stringList(_options(payload)?['allowed_messages']),
+  );
+}
+
+InferenceFormat _createStrategy(String formatName, _CatalogSetup setup) {
   switch (formatName) {
     case 'direct_json':
-      return const DirectJsonFormatFactory().createFormat([catalog]);
+      return DirectJsonFormat(
+        setup.catalogs,
+        examples: setup.examples,
+        allowedMessages: setup.allowedMessages,
+      );
     case 'express':
-      return const ExpressFormatFactory().createFormat([catalog]);
+      return ExpressFormat(
+        setup.catalogs,
+        examples: setup.examples,
+        allowedMessages: setup.allowedMessages,
+      );
   }
   throw _BridgeError("Unknown format strategy for Dart SDK: '$formatName'.");
 }
@@ -205,15 +327,138 @@ Catalog<ComponentApi, FunctionImplementation> _signedCatalog(
   catalog.functions.values.map(_SignatureOnlyFunction.new),
 );
 
+/// The `initial_renderer_state` messages of [payload], or null when unset.
+List<AgentToRendererMessage>? _initialRendererState(
+  Map<String, Object?> payload,
+) {
+  final Object? state = _options(payload)?['initial_renderer_state'];
+  if (state == null) return null;
+  if (state is! List) {
+    throw _BridgeError('initial_renderer_state must be a list, got $state.');
+  }
+  return [
+    for (final Object? message in state)
+      if (message is Map)
+        AgentToRendererMessage.fromJson(message.cast<String, Object?>())
+      else
+        throw _BridgeError(
+          'initial_renderer_state holds a non-object message: $message.',
+        ),
+  ];
+}
+
+/// The `stream_chunk_size` of [payload], or null when unset.
+int? _streamChunkSize(Map<String, Object?> payload) {
+  final Object? size = _options(payload)?['stream_chunk_size'];
+  if (size == null) return null;
+  if (size is! int || size < 1) {
+    throw _BridgeError('stream_chunk_size must be an integer >= 1, got $size.');
+  }
+  return size;
+}
+
+/// Feeds [completion] through a fresh streaming parser in [chunkSize]
+/// character slices, as a client receiving the model's stream would.
+///
+/// Does nothing for a format whose parser does not stream. Fails when the
+/// streamed parse yields no A2UI part at all; a parse error propagates.
+void _checkStreamedParse(
+  InferenceFormat strategy,
+  String completion,
+  int chunkSize,
+) {
+  final Parser parser = strategy.createParser();
+  if (!parser.supportsStreaming) return;
+  var sawA2uiPart = false;
+  for (var start = 0; start < completion.length; start += chunkSize) {
+    final int end = math.min(start + chunkSize, completion.length);
+    final List<ResponsePart> parts = parser.parseChunk(
+      completion.substring(start, end),
+    );
+    sawA2uiPart = sawA2uiPart || parts.any((part) => part is A2uiPart);
+  }
+  if (!sawA2uiPart) {
+    throw _BridgeError(
+      'Streaming the response in $chunkSize-character chunks produced no '
+      'A2UI part, while parsing it whole did.',
+    );
+  }
+}
+
+/// Serializes the messages of one A2UI block, aligned with the Python SDK.
+///
+/// Returns the JSON envelopes and the messages they describe (re-read after
+/// alignment for Express, so what is validated is what is reported).
+(List<Map<String, Object?>>, List<AgentToRendererMessage>) _compileBlock({
+  required Parser parser,
+  required String a2uiRaw,
+  required bool isDirectJson,
+  required String surfaceId,
+  required A2uiProtocolVersion version,
+}) {
+  final List<AgentToRendererMessage> messages = parser.compile(a2uiRaw);
+  final List<Map<String, Object?>?>? raws = isDirectJson
+      ? _rawEnvelopes(a2uiRaw, messages.length)
+      : null;
+  final jsons = <Map<String, Object?>>[];
+  final aligned = <AgentToRendererMessage>[];
+  for (var i = 0; i < messages.length; i++) {
+    Map<String, Object?> json = _messageJson(messages[i], raws?[i]);
+    AgentToRendererMessage message = messages[i];
+    if (!isDirectJson) {
+      json = _alignExpressEnvelope(json, surfaceId, version);
+      message = AgentToRendererMessage.fromJson(json);
+    }
+    jsons.add(json);
+    aligned.add(message);
+  }
+  return (jsons, aligned);
+}
+
+/// Runs [initialState] (when given) and then [messages] through a strict
+/// message processor over [catalogs].
+///
+/// A failure in [initialState] is a dataset error, not the model's, and is
+/// reported as such.
+void _validateMessages({
+  required List<CatalogApi> catalogs,
+  required A2uiProtocolVersion version,
+  required List<AgentToRendererMessage>? initialState,
+  required List<AgentToRendererMessage> messages,
+}) {
+  final renderer = MessageProcessor<ComponentApi>(
+    catalogs: catalogs.map(_signedCatalog).toList(),
+    defaultVersion: version,
+    validationConfig: ValidationConfig.strict,
+  );
+  try {
+    if (initialState != null && initialState.isNotEmpty) {
+      try {
+        renderer.processMessages(AgentToRendererMessagePayload(initialState));
+      } on Object catch (err, stackTrace) {
+        throw _BridgeError(
+          'initial_renderer_state is invalid: '
+          '${_describeError(err, stackTrace)}',
+        );
+      }
+    }
+    renderer.processMessages(AgentToRendererMessagePayload(messages));
+  } finally {
+    renderer.model.dispose();
+  }
+}
+
 Map<String, Object?> _parseAndValidate({
   required String formatName,
   required A2uiProtocolVersion version,
-  required CatalogApi catalog,
+  required List<CatalogApi> catalogs,
   required InferenceFormat strategy,
   required String surfaceId,
   required String completion,
   required bool requireCompleteTags,
   required bool validate,
+  required List<AgentToRendererMessage>? initialRendererState,
+  required int? streamChunkSize,
 }) {
   final Parser parser = strategy.createParser();
   final bool isDirectJson = formatName == 'direct_json';
@@ -236,23 +481,19 @@ Map<String, Object?> _parseAndValidate({
       case TextPart(:final String text):
         serializedParts.add({'text': text, 'a2ui_json': null});
       case RawA2uiPart(:final String a2uiRaw):
-        final List<AgentToRendererMessage> messages = parser.compile(a2uiRaw);
-        final List<Map<String, Object?>?>? raws = isDirectJson
-            ? _rawEnvelopes(a2uiRaw, messages.length)
-            : null;
-        final msgDicts = <Map<String, Object?>>[];
-        for (var i = 0; i < messages.length; i++) {
-          Map<String, Object?> json = _messageJson(messages[i], raws?[i]);
-          AgentToRendererMessage message = messages[i];
-          if (!isDirectJson) {
-            json = _alignExpressEnvelope(json, surfaceId, version);
-            message = AgentToRendererMessage.fromJson(json);
-          }
-          msgDicts.add(json);
-          compiledMessages.add(message);
-        }
-        serializedParts.add({'text': '', 'a2ui_json': msgDicts});
-        compiledJsons.addAll(msgDicts);
+        final (
+          List<Map<String, Object?>> jsons,
+          List<AgentToRendererMessage> messages,
+        ) = _compileBlock(
+          parser: parser,
+          a2uiRaw: a2uiRaw,
+          isDirectJson: isDirectJson,
+          surfaceId: surfaceId,
+          version: version,
+        );
+        serializedParts.add({'text': '', 'a2ui_json': jsons});
+        compiledJsons.addAll(jsons);
+        compiledMessages.addAll(messages);
     }
   }
 
@@ -263,19 +504,16 @@ Map<String, Object?> _parseAndValidate({
           : 'No compiled A2UI $formatName user interface found in parsed parts.',
     );
   }
-
-  if (!validate) {
-    return {'compiled_jsons': compiledJsons, 'parts': serializedParts};
+  if (streamChunkSize != null) {
+    _checkStreamedParse(strategy, completion, streamChunkSize);
   }
-  final renderer = MessageProcessor<ComponentApi>(
-    catalogs: [_signedCatalog(catalog)],
-    defaultVersion: version,
-    validationConfig: ValidationConfig.strict,
-  );
-  try {
-    renderer.processMessages(AgentToRendererMessagePayload(compiledMessages));
-  } finally {
-    renderer.model.dispose();
+  if (validate) {
+    _validateMessages(
+      catalogs: catalogs,
+      version: version,
+      initialState: initialRendererState,
+      messages: compiledMessages,
+    );
   }
   return {'compiled_jsons': compiledJsons, 'parts': serializedParts};
 }
@@ -313,7 +551,6 @@ Future<void> main() async {
     final req = jsonDecode(rawInput) as Map<String, Object?>;
     final action = req['action']! as String;
     final formatName = req['format_name']! as String;
-    final resolvedCatalogPath = req['resolved_catalog_path']! as String;
     final String requestedVersion = (req['version'] as String?) ?? '';
     final String surfaceId = (req['surface_id'] as String?) ?? 'main';
     final String completion = (req['completion'] as String?) ?? '';
@@ -324,8 +561,8 @@ Future<void> main() async {
       requestedVersion,
       formatName,
     );
-    final CatalogApi catalog = _loadCatalog(resolvedCatalogPath, version);
-    final InferenceFormat strategy = _createStrategy(formatName, catalog);
+    final _CatalogSetup setup = _loadCatalogsAndExamples(req, version);
+    final InferenceFormat strategy = _createStrategy(formatName, setup);
 
     switch (action) {
       case 'generate_prompt':
@@ -336,12 +573,14 @@ Future<void> main() async {
         final Map<String, Object?> result = _parseAndValidate(
           formatName: formatName,
           version: version,
-          catalog: catalog,
+          catalogs: setup.catalogs,
           strategy: strategy,
           surfaceId: surfaceId,
           completion: completion,
           requireCompleteTags: requireCompleteTags,
           validate: (req['validate'] as bool?) ?? true,
+          initialRendererState: _initialRendererState(req),
+          streamChunkSize: _streamChunkSize(req),
         );
         stdout.write(jsonEncode({'result': result}));
       default:

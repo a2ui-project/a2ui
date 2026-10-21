@@ -33,7 +33,7 @@ from typing import Any
 
 import pytest
 
-from a2ui_eval.bridges import DartSdkBridge
+from a2ui_eval.bridges import BridgeOptions, CatalogSpec, DartSdkBridge
 from a2ui_eval.shared.utils import GIT_ROOT
 
 # The bridge module itself, so tests can patch its subprocess and toolchain
@@ -415,6 +415,7 @@ def test_parse_payload_carries_version_surface_and_flags(
         "completion": "<a2ui>root = Text('x')</a2ui>",
         "require_complete_tags": True,
         "validate": False,
+        "options": None,
     }
 
 
@@ -431,6 +432,7 @@ def test_generate_prompt_payload_and_cache(
         "version": "0.9.1",
         "resolved_catalog_path": "/cat.json",
         "surface_id": "s1",
+        "options": None,
     }
 
     ready_bridge.generate_prompt("direct_json", "0.9.1", "/cat.json", "s2")
@@ -447,6 +449,133 @@ def test_generate_prompt_does_not_cache_errors(
         with pytest.raises(ValueError, match="boom"):
             ready_bridge.generate_prompt("direct_json", "0.9.1", "/cat.json")
     assert len(fake_subprocess.runner_calls) == 2
+
+
+# ---------------------------------------------------------------------------
+# BridgeOptions forwarding (mocked runner)
+# ---------------------------------------------------------------------------
+
+PRUNED_OPTIONS = BridgeOptions(
+    catalogs=(
+        CatalogSpec(
+            path="/cat.json",
+            catalog_id="urn:cat",
+            allowed_components=("Text", "Column"),
+            allowed_functions=("formatDate",),
+            examples=("/ex1.json", "/ex2.json"),
+        ),
+        CatalogSpec(path="/other.json"),
+    ),
+    allowed_messages=("updateDataModel",),
+    initial_renderer_state=({"version": "v0.9.1", "createSurface": {}},),
+    stream_chunk_size=7,
+)
+
+PRUNED_OPTIONS_PAYLOAD = {
+    "catalogs": [
+        {
+            "path": "/cat.json",
+            "catalog_id": "urn:cat",
+            "allowed_components": ["Text", "Column"],
+            "allowed_functions": ["formatDate"],
+            "examples": ["/ex1.json", "/ex2.json"],
+        },
+        {
+            "path": "/other.json",
+            "catalog_id": None,
+            "allowed_components": None,
+            "allowed_functions": None,
+            "examples": [],
+        },
+    ],
+    "allowed_messages": ["updateDataModel"],
+    "initial_renderer_state": [{"version": "v0.9.1", "createSurface": {}}],
+    "stream_chunk_size": 7,
+}
+
+
+def test_parse_payload_serializes_options_with_snake_case_keys(
+    ready_bridge: DartSdkBridge, fake_subprocess: FakeSubprocess
+) -> None:
+    fake_subprocess.runner_stdout = json.dumps(
+        {"result": {"compiled_jsons": [], "parts": []}}
+    ).encode()
+    ready_bridge.parse_and_validate(
+        "direct_json",
+        "0.9.1",
+        "/cat.json",
+        "main",
+        "<a2ui-json>[]</a2ui-json>",
+        options=PRUNED_OPTIONS,
+    )
+    sent = fake_subprocess.runner_inputs[-1]
+    assert sent["options"] == PRUNED_OPTIONS_PAYLOAD
+    assert sent["resolved_catalog_path"] == "/cat.json"
+
+
+def test_generate_prompt_serializes_options(
+    ready_bridge: DartSdkBridge, fake_subprocess: FakeSubprocess
+) -> None:
+    ready_bridge.generate_prompt(
+        "express", "0.9.1", "/cat.json", options=PRUNED_OPTIONS
+    )
+    assert fake_subprocess.runner_inputs[-1]["options"] == PRUNED_OPTIONS_PAYLOAD
+
+
+def test_options_none_sends_null(
+    ready_bridge: DartSdkBridge, fake_subprocess: FakeSubprocess
+) -> None:
+    fake_subprocess.runner_stdout = json.dumps(
+        {"result": {"compiled_jsons": [], "parts": []}}
+    ).encode()
+    ready_bridge.generate_prompt("direct_json", "0.9.1", "/cat.json", options=None)
+    ready_bridge.parse_and_validate(
+        "direct_json", "0.9.1", "/cat.json", "main", "<a2ui-json>[]</a2ui-json>"
+    )
+    for sent in fake_subprocess.runner_inputs:
+        assert "options" in sent
+        assert sent["options"] is None
+
+
+def test_prompt_cache_distinguishes_options(
+    ready_bridge: DartSdkBridge, fake_subprocess: FakeSubprocess
+) -> None:
+    pruned = BridgeOptions(
+        catalogs=(CatalogSpec(path="/cat.json", allowed_components=("Text",)),)
+    )
+    same_pruned = BridgeOptions(
+        catalogs=(CatalogSpec(path="/cat.json", allowed_components=("Text",)),)
+    )
+    other_pruned = BridgeOptions(
+        catalogs=(CatalogSpec(path="/cat.json", allowed_components=("Column",)),)
+    )
+    unpruned = BridgeOptions(catalogs=(CatalogSpec(path="/cat.json"),))
+
+    args = ("direct_json", "0.9.1", "/cat.json", "main")
+    ready_bridge.generate_prompt(*args)
+    ready_bridge.generate_prompt(*args, options=None)
+    assert len(fake_subprocess.runner_calls) == 1
+
+    ready_bridge.generate_prompt(*args, options=pruned)
+    ready_bridge.generate_prompt(*args, options=same_pruned)
+    assert len(fake_subprocess.runner_calls) == 2
+
+    ready_bridge.generate_prompt(*args, options=other_pruned)
+    assert len(fake_subprocess.runner_calls) == 3
+    ready_bridge.generate_prompt(*args, options=unpruned)
+    assert len(fake_subprocess.runner_calls) == 4
+    ready_bridge.generate_prompt(*args, options=BridgeOptions())
+    assert len(fake_subprocess.runner_calls) == 5
+
+
+def test_v1_0_with_options_is_rejected_before_running(
+    ready_bridge: DartSdkBridge, fake_subprocess: FakeSubprocess
+) -> None:
+    with pytest.raises(ValueError, match="not supported"):
+        ready_bridge.generate_prompt(
+            "direct_json", "1.0", "/cat.json", options=PRUNED_OPTIONS
+        )
+    assert fake_subprocess.runner_calls == []
 
 
 @pytest.mark.parametrize(
@@ -674,3 +803,265 @@ def test_real_runner_rejects_v1_0(real_bridge: DartSdkBridge) -> None:
             "version": "1.0",
             "resolved_catalog_path": V10_CATALOG,
         })
+
+
+# ---------------------------------------------------------------------------
+# Real toolchain: BridgeOptions
+# ---------------------------------------------------------------------------
+
+
+def _v091_options(**overrides: Any) -> BridgeOptions:
+    """Options for the v0.9.1 basic catalog, with `overrides` on the spec."""
+    return BridgeOptions(catalogs=(CatalogSpec(path=V091_CATALOG, **overrides),))
+
+
+def _create_surface(surface_id: str = "main") -> dict[str, Any]:
+    return {
+        "version": "v0.9.1",
+        "createSurface": {"surfaceId": surface_id, "catalogId": V09_CATALOG_ID},
+    }
+
+
+def _update_components(surface_id: str, text: str) -> dict[str, Any]:
+    return {
+        "version": "v0.9.1",
+        "updateComponents": {
+            "surfaceId": surface_id,
+            "components": [
+                {"id": "root", "component": "Column", "children": ["t"]},
+                {"id": "t", "component": "Text", "text": text},
+            ],
+        },
+    }
+
+
+def _wrap_direct_json(messages: list[dict[str, Any]]) -> str:
+    return f"<a2ui-json>\n{json.dumps(messages)}\n</a2ui-json>"
+
+
+@requires_dart_toolchain
+def test_real_pruning_removes_component_from_prompt(
+    real_bridge: DartSdkBridge,
+) -> None:
+    full = real_bridge.generate_prompt("direct_json", "0.9.1", V091_CATALOG)
+    pruned = real_bridge.generate_prompt(
+        "direct_json",
+        "0.9.1",
+        V091_CATALOG,
+        options=_v091_options(allowed_components=("Column", "Text")),
+    )
+    assert '"Slider"' in full
+    assert '"Slider"' not in pruned
+    assert '"Text"' in pruned
+    assert pruned != full
+
+
+@requires_dart_toolchain
+@pytest.mark.parametrize(
+    ("format_name", "example_file_shape"),
+    [
+        ("direct_json", "array"),
+        ("express", "object"),
+    ],
+)
+def test_real_example_file_appears_in_prompt(
+    real_bridge: DartSdkBridge,
+    tmp_path: Path,
+    format_name: str,
+    example_file_shape: str,
+) -> None:
+    marker = "Zebra crossing ahead"
+    messages = [_create_surface(), _update_components("main", marker)]
+    example_path = tmp_path / "example.json"
+    document: Any = (
+        messages if example_file_shape == "array" else {"messages": messages}
+    )
+    example_path.write_text(json.dumps(document))
+
+    plain = real_bridge.generate_prompt(format_name, "0.9.1", V091_CATALOG)
+    with_example = real_bridge.generate_prompt(
+        format_name,
+        "0.9.1",
+        V091_CATALOG,
+        options=_v091_options(examples=(str(example_path),)),
+    )
+    assert marker not in plain
+    assert marker in with_example
+
+
+@requires_dart_toolchain
+def test_real_malformed_example_file_is_reported(
+    real_bridge: DartSdkBridge, tmp_path: Path
+) -> None:
+    example_path = tmp_path / "bad.json"
+    example_path.write_text('{"not": "messages"}')
+    with pytest.raises(ValueError, match="must hold a JSON array of messages"):
+        real_bridge.generate_prompt(
+            "direct_json",
+            "0.9.1",
+            V091_CATALOG,
+            options=_v091_options(examples=(str(example_path),)),
+        )
+
+
+@requires_dart_toolchain
+def test_real_allowed_messages_shape_prompt(real_bridge: DartSdkBridge) -> None:
+    plain = real_bridge.generate_prompt("direct_json", "0.9.1", V091_CATALOG)
+    restricted = real_bridge.generate_prompt(
+        "direct_json",
+        "0.9.1",
+        V091_CATALOG,
+        options=BridgeOptions(
+            catalogs=(CatalogSpec(path=V091_CATALOG),),
+            allowed_messages=("updateDataModel",),
+        ),
+    )
+    assert restricted != plain
+    assert "updateDataModel" in restricted
+
+
+@requires_dart_toolchain
+def test_real_initial_renderer_state_lets_bare_update_validate(
+    real_bridge: DartSdkBridge,
+) -> None:
+    """A turn that only updates the data model needs a surface to exist."""
+    turn = [{
+        "version": "v0.9.1",
+        "updateDataModel": {"surfaceId": "main", "path": "/name", "value": "x"},
+    }]
+    with pytest.raises(ValueError):
+        real_bridge.parse_and_validate(
+            "direct_json", "0.9.1", V091_CATALOG, "main", _wrap_direct_json(turn)
+        )
+
+    seeded = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),),
+        initial_renderer_state=(_create_surface(), _update_components("main", "hi")),
+    )
+    result = real_bridge.parse_and_validate(
+        "direct_json",
+        "0.9.1",
+        V091_CATALOG,
+        "main",
+        _wrap_direct_json(turn),
+        options=seeded,
+    )
+    assert [next(iter(m.keys() - {"version"})) for m in result["compiled_jsons"]] == [
+        "updateDataModel"
+    ]
+
+
+@requires_dart_toolchain
+def test_real_initial_renderer_state_rejects_unknown_surface(
+    real_bridge: DartSdkBridge,
+) -> None:
+    seeded = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),),
+        initial_renderer_state=(_create_surface("main"),),
+    )
+    with pytest.raises(ValueError, match="other"):
+        real_bridge.parse_and_validate(
+            "direct_json",
+            "0.9.1",
+            V091_CATALOG,
+            "main",
+            _wrap_direct_json([_update_components("other", "hi")]),
+            options=seeded,
+        )
+
+
+@requires_dart_toolchain
+def test_real_invalid_initial_renderer_state_is_blamed_on_the_state(
+    real_bridge: DartSdkBridge,
+) -> None:
+    seeded = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),),
+        initial_renderer_state=(_update_components("ghost", "hi"),),
+    )
+    with pytest.raises(ValueError, match="initial_renderer_state is invalid"):
+        real_bridge.parse_and_validate(
+            "direct_json",
+            "0.9.1",
+            V091_CATALOG,
+            "main",
+            _v091_payload("v0.9.1"),
+            options=seeded,
+        )
+
+
+@requires_dart_toolchain
+@pytest.mark.parametrize("chunk_size", [1, 7, 10_000])
+def test_real_stream_chunk_size_direct_json(
+    real_bridge: DartSdkBridge, chunk_size: int
+) -> None:
+    options = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),), stream_chunk_size=chunk_size
+    )
+    completion = "Here you go:\n" + _v091_payload("v0.9.1") + "\nDone."
+    result = real_bridge.parse_and_validate(
+        "direct_json", "0.9.1", V091_CATALOG, "main", completion, options=options
+    )
+    assert len(result["compiled_jsons"]) == 2
+
+
+@requires_dart_toolchain
+def test_real_stream_chunk_size_is_ignored_for_express(
+    real_bridge: DartSdkBridge,
+) -> None:
+    """Express has no streaming parser, so the chunked check is skipped."""
+    options = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),), stream_chunk_size=3
+    )
+    result = real_bridge.parse_and_validate(
+        "express",
+        "0.9.1",
+        V091_CATALOG,
+        "main",
+        '<a2ui>\nroot = Column([t])\nt = Text("hi")\n</a2ui>',
+        options=options,
+    )
+    assert len(result["compiled_jsons"]) == 2
+
+
+@requires_dart_toolchain
+def test_real_stream_chunk_size_must_be_positive(
+    real_bridge: DartSdkBridge,
+) -> None:
+    options = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),), stream_chunk_size=0
+    )
+    with pytest.raises(ValueError, match="stream_chunk_size must be"):
+        real_bridge.parse_and_validate(
+            "direct_json",
+            "0.9.1",
+            V091_CATALOG,
+            "main",
+            _v091_payload("v0.9.1"),
+            options=options,
+        )
+
+
+@requires_dart_toolchain
+def test_real_multi_catalog_prompt_mentions_both_catalogs(
+    real_bridge: DartSdkBridge, tmp_path: Path
+) -> None:
+    """A second catalog with its own id shows up alongside the first."""
+    second_id = "https://example.com/second/catalog.json"
+    second = json.loads(Path(V091_CATALOG).read_text())
+    second["$id"] = second_id
+    second["catalogId"] = second_id
+    second_path = tmp_path / "second.json"
+    second_path.write_text(json.dumps(second))
+    prompt = real_bridge.generate_prompt(
+        "direct_json",
+        "0.9.1",
+        V091_CATALOG,
+        options=BridgeOptions(
+            catalogs=(
+                CatalogSpec(path=V091_CATALOG),
+                CatalogSpec(path=str(second_path), allowed_components=("Text",)),
+            )
+        ),
+    )
+    assert V09_CATALOG_ID in prompt
+    assert second_id in prompt
