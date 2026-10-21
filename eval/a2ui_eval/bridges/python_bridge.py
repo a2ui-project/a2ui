@@ -133,7 +133,7 @@ def _load_examples(paths: Sequence[str], catalog: CatalogApi, version: str) -> E
     ]
 
 
-def _build_catalogs_and_examples(
+def build_catalogs_and_examples(
     resolved_catalog_path: str,
     version: str,
     options: OptionsDict | None,
@@ -306,7 +306,7 @@ def parse_and_validate_in_process(
     streams, the completion is also parsed in slices of that many characters.
     """
     opts = options or {}
-    catalogs, examples = _build_catalogs_and_examples(
+    catalogs, examples = build_catalogs_and_examples(
         resolved_catalog_path, version, opts
     )
     strategy = get_python_strategy(
@@ -567,7 +567,7 @@ class PythonSdkBridge(AgentSdkBridge):
     ) -> str:
         validate_sdk_format(self.sdk_name, format_name)
         opts = options.to_dict() if options is not None else None
-        catalogs, examples = _build_catalogs_and_examples(
+        catalogs, examples = build_catalogs_and_examples(
             resolved_catalog_path, version, opts
         )
         strategy = get_python_strategy(

@@ -27,7 +27,6 @@ import asyncio
 import inspect
 from typing import Any, Mapping
 
-from a2ui.processor import CatalogConfig
 from a2ui.skill import SkillGenerator
 from inspect_ai.model import ChatMessageSystem
 from inspect_ai.solver import Generate, Solver, TaskState, solver, use_tools
@@ -36,6 +35,7 @@ from inspect_ai.util import store
 
 from ..bridges import (
     bridge_options_from_metadata,
+    build_catalogs_and_examples,
     get_python_strategy,
     normalize_sdk_name,
     validate_sdk_format,
@@ -68,18 +68,18 @@ def build_skills(
         Skill name to `(description, markdown)`, with `a2ui-core` first.
     """
     options = bridge_options_from_metadata(metadata, resolved_catalog_path)
-    catalogs = [
-        CatalogConfig.from_path(
-            spec.path, protocol_version=version, catalog_id=spec.catalog_id
-        ).transformed_catalog
-        for spec in options.catalogs
-    ]
+    # The same loader the Python bridge uses, so pruning and few-shot examples
+    # shape the skills exactly as they shape the monolithic prompt.
+    catalogs, examples = build_catalogs_and_examples(
+        resolved_catalog_path, version, options.to_dict()
+    )
     surface_ids = metadata.get("allowed_surface_ids") or ["main"]
     fmt = get_python_strategy(
         format_name,
         version,
         catalogs,
         surface_id=surface_ids[0],
+        examples=examples,
         allowed_messages=options.allowed_messages,
     )
     skill_set = SkillGenerator(fmt).generate_skillset(

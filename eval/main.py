@@ -18,13 +18,16 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 import sys
 from collections.abc import Callable, Collection
+from typing import Any
 
 from inspect_ai import Task, eval_set
 from inspect_ai.dataset import MemoryDataset
 
 from a2ui_eval.bridges import (
+    SDK_DEFAULT_STRATEGIES,
     SDK_SUPPORTED_STRATEGIES,
     SDK_SUPPORTED_VERSIONS,
     get_sdk_bridge,
@@ -33,6 +36,7 @@ from a2ui_eval.bridges import (
     validate_sdk_strategy,
     validate_sdk_version,
 )
+from a2ui_eval.replay import CompletionReplayStore
 from a2ui_eval.strategies import STRATEGIES
 from tasks import (
     a2ui_v0_9_1_eval,
@@ -68,6 +72,47 @@ RESTRICTED_GRADING_MODEL_FAMILIES = ("gemma",)
 
 PROTOCOL_VERSIONS: tuple[str, ...] = ("0.9.1", "1.0")
 
+# Inspect AI provider prefixes accepted as-is by `resolve_model_name`.
+KNOWN_PROVIDER_PREFIXES: tuple[str, ...] = (
+    "google/",
+    "openai/",
+    "anthropic/",
+    "mistral/",
+    "ollama/",
+    "vllm/",
+    "hf/",
+    "openai-api/",
+    "openrouter/",
+    "bedrock/",
+    "vertex/",
+    "azureai/",
+    "groq/",
+    "together/",
+)
+
+# Runtime profiles: concurrency and time budgets that suit a hosted API, a
+# single local model server, or a fully offline run with no judge.
+RUNTIME_PROFILES: dict[str, dict[str, int | bool | None]] = {
+    "cloud": {
+        "max_samples": 10,
+        "max_connections": None,
+        "working_limit": 350,
+        "no_judge": False,
+    },
+    "local": {
+        "max_samples": 1,
+        "max_connections": 2,
+        "working_limit": 900,
+        "no_judge": False,
+    },
+    "offline": {
+        "max_samples": 1,
+        "max_connections": 2,
+        "working_limit": 900,
+        "no_judge": True,
+    },
+}
+
 
 def resolve_model_name(model_name: str) -> str:
     """Resolves convenience aliases and provider conventions to fully qualified model IDs."""
@@ -75,10 +120,13 @@ def resolve_model_name(model_name: str) -> str:
     lower = stripped.lower()
     if lower in MODEL_ALIASES:
         return MODEL_ALIASES[lower]
-    if "/" in stripped:
+    if lower.startswith(KNOWN_PROVIDER_PREFIXES) or "/" in stripped:
         return stripped
     if lower.startswith("ollama:"):
         return f"ollama/{stripped[7:]}"
+    if lower.startswith(("vllm:", "openai:", "anthropic:")):
+        provider, _, name = stripped.partition(":")
+        return f"{provider.lower()}/{name}"
     if ":" in stripped:
         # Standard Ollama model tag convention (e.g. 'gemma4:e2b', 'llama3:8b')
         return f"ollama/{stripped}"
@@ -181,6 +229,91 @@ def _parse_version_arg(value: str) -> str:
     return cleaned if cleaned == "auto" else normalize_protocol_version(cleaned)
 
 
+def _default_strategies(sdks: Collection[str]) -> list[str]:
+    """The union of every SDK's default (production) strategies, in order."""
+    selected: list[str] = []
+    for sdk in sdks:
+        for strat in SDK_DEFAULT_STRATEGIES[sdk]:
+            if strat not in selected:
+                selected.append(strat)
+    return selected
+
+
+def _split_strategy_args(raw: list[str]) -> list[str]:
+    """Flattens repeated or comma-separated `--strategies` values."""
+    selected: list[str] = []
+    for item in raw:
+        for s in item.split(","):
+            s_clean = s.strip()
+            if s_clean and s_clean not in selected:
+                selected.append(s_clean)
+    return selected
+
+
+def parse_strategies(
+    raw: list[str] | None, sdks: Collection[str]
+) -> tuple[list[str], bool]:
+    """Returns the strategies to run and whether they were given explicitly.
+
+    Without `--strategies`, each SDK runs its `SDK_DEFAULT_STRATEGIES` (the
+    production formats); experimental strategies must be named explicitly.
+
+    Raises:
+        ValueError: If a named strategy is unknown or unsupported by an SDK.
+    """
+    if not raw:
+        return _default_strategies(sdks), False
+    selected = _split_strategy_args(raw)
+    for strat in selected:
+        if strat not in STRATEGIES:
+            raise ValueError(
+                f"Unknown evaluation strategy: {strat}. Valid choices:"
+                f" {', '.join(STRATEGIES.keys())}"
+            )
+        for sdk in sdks:
+            validate_sdk_strategy(sdk, strat)
+    return selected, True
+
+
+def resolve_runtime_settings(args: argparse.Namespace) -> dict[str, Any]:
+    """Merges the `--profile` preset with the explicit runtime flags.
+
+    An explicit `--max-samples`, `--max-connections` or `--working-limit`
+    overrides the profile; `--no-judge` turns the judge off for any profile.
+    """
+    profile = dict(RUNTIME_PROFILES[args.profile])
+    if args.max_samples is not None:
+        profile["max_samples"] = args.max_samples
+    if args.max_connections is not None:
+        profile["max_connections"] = args.max_connections
+    if args.working_limit is not None:
+        profile["working_limit"] = args.working_limit
+    if args.no_judge:
+        profile["no_judge"] = True
+    return profile
+
+
+def resolve_replay_path(replay_completions: str | None, log_dir: str) -> str | None:
+    """Returns a JSONL replay store path, converting an `.eval` log if needed."""
+    if not replay_completions:
+        return None
+    source = Path(replay_completions)
+    if source.suffix != ".eval":
+        return str(source)
+    target = Path(log_dir) / f"{source.stem}.replay.jsonl"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    store = CompletionReplayStore(target)
+    for rec in CompletionReplayStore.from_eval_log(source).records():
+        store.record(
+            rec.sample_name,
+            rec.strategy,
+            rec.version,
+            rec.completion,
+            rec.prompt_sha256,
+        )
+    return str(target)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
     parser.add_argument(
@@ -266,8 +399,87 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool,"
-            " express, elemental, atom). Can be comma-separated or specified"
-            " multiple times."
+            " express, skill_mode, elemental, atom). Can be comma-separated or"
+            " specified multiple times. Defaults to the production strategies"
+            " direct, subagent_tool and express."
+        ),
+    )
+    parser.add_argument(
+        "--profile",
+        choices=sorted(RUNTIME_PROFILES),
+        default="cloud",
+        help=(
+            "Runtime preset: 'cloud' (default) for hosted APIs, 'local' for a"
+            " single local model server (serial samples, longer time budget),"
+            " 'offline' for 'local' plus --no-judge."
+        ),
+    )
+    parser.add_argument(
+        "--no-judge",
+        action="store_true",
+        help=(
+            "Skip the LLM judge and grade on schema validation and the"
+            " dataset's deterministic assertions only."
+        ),
+    )
+    parser.add_argument(
+        "--max-connections",
+        type=int,
+        default=None,
+        help="Maximum concurrent connections to the model provider.",
+    )
+    parser.add_argument(
+        "--working-limit",
+        type=int,
+        default=None,
+        help="Working time budget per sample, in seconds.",
+    )
+    parser.add_argument(
+        "--model-base-url",
+        type=str,
+        default=None,
+        help="Base URL of an OpenAI-compatible or other self-hosted model server.",
+    )
+    parser.add_argument(
+        "--max-validation-retries",
+        type=int,
+        default=0,
+        help=(
+            "Times a sample may be re-asked after a validation failure. Reports"
+            " Pass@1 and Pass@K."
+        ),
+    )
+    parser.add_argument(
+        "--subagent-format",
+        choices=["direct_json", "express"],
+        default="direct_json",
+        help="Inference format the subagent_tool specialist answers in.",
+    )
+    parser.add_argument(
+        "--tags",
+        type=str,
+        default=None,
+        help="Comma-separated tags a sample must carry to be evaluated.",
+    )
+    parser.add_argument(
+        "--tier",
+        type=str,
+        default=None,
+        help="Alias for --tags with one tag, e.g. 'smoke'.",
+    )
+    parser.add_argument(
+        "--record-completions",
+        type=str,
+        default=None,
+        help="JSONL file to append every model completion to, for later replay.",
+    )
+    parser.add_argument(
+        "--replay-completions",
+        type=str,
+        default=None,
+        help=(
+            "JSONL file (or Inspect .eval log) of recorded completions to"
+            " replay instead of calling the model."
         ),
     )
     parser.add_argument(
@@ -339,26 +551,12 @@ def main() -> None:
     selected_sdks = _parse_sdks(args.sdk, args.sdks)
 
     # Parse and validate strategies
-    selected_strategies: list[str] = []
-    if args.strategies:
-        for item in args.strategies:
-            for s in item.split(","):
-                s_clean = s.strip()
-                if s_clean and s_clean not in selected_strategies:
-                    selected_strategies.append(s_clean)
-        for strat in selected_strategies:
-            if strat not in STRATEGIES:
-                raise ValueError(
-                    f"Unknown evaluation strategy: {strat}. Valid choices:"
-                    f" {', '.join(STRATEGIES.keys())}"
-                )
-            for sdk in selected_sdks:
-                validate_sdk_strategy(sdk, strat)
-    else:
-        for sdk in selected_sdks:
-            for strat in SDK_SUPPORTED_STRATEGIES[sdk]:
-                if strat not in selected_strategies:
-                    selected_strategies.append(strat)
+    selected_strategies, explicit_strategies = parse_strategies(
+        args.strategies, selected_sdks
+    )
+    runtime = resolve_runtime_settings(args)
+    tags = args.tags or args.tier
+    replay_path = resolve_replay_path(args.replay_completions, args.log_dir)
 
     # Plan every task and validate SDK/version support before any SDK build
     # or model call, so an unsupported combination fails fast.
@@ -366,8 +564,8 @@ def main() -> None:
     for sdk in selected_sdks:
         sdk_strategies = (
             selected_strategies
-            if args.strategies
-            else list(SDK_SUPPORTED_STRATEGIES[sdk])
+            if explicit_strategies
+            else list(SDK_DEFAULT_STRATEGIES[sdk])
         )
         for strat in sdk_strategies:
             for task_version, task_datasets in plan_protocol_versions(
@@ -385,13 +583,25 @@ def main() -> None:
     tasks = []
     for sdk, strat, task_version, task_datasets in task_plan:
         task_func = _task_function(task_version)
-        task_kwargs = {
+        task_kwargs: dict[str, Any] = {
             "strategy": strat,
             "grading_model": grading_model,
             "dataset": ",".join(task_datasets) or None,
         }
         if sdk != "python":
             task_kwargs["sdk"] = sdk
+        if tags:
+            task_kwargs["tags"] = tags
+        if runtime["no_judge"]:
+            task_kwargs["no_judge"] = True
+        if args.max_validation_retries:
+            task_kwargs["max_validation_retries"] = args.max_validation_retries
+        if args.subagent_format != "direct_json":
+            task_kwargs["subagent_format"] = args.subagent_format
+        if replay_path:
+            task_kwargs["replay_completions"] = replay_path
+        if args.record_completions:
+            task_kwargs["record_completions"] = args.record_completions
 
         task_obj = task_func(**task_kwargs)
         if args.prompt and getattr(task_obj, "dataset", None) is not None:
@@ -410,16 +620,20 @@ def main() -> None:
             )
         tasks.append(task_obj)
 
-    eval_set_kwargs = {
+    eval_set_kwargs: dict[str, Any] = {
         "tasks": tasks,
         "model": model,
         "log_dir": args.log_dir,
         "retry_attempts": retry_attempts,
         "limit": limit,
         "sample_shuffle": sample_shuffle,
-        "working_limit": 350,
+        "working_limit": runtime["working_limit"],
         "log_dir_allow_dirty": True,
     }
+    if runtime["max_connections"] is not None:
+        eval_set_kwargs["max_connections"] = runtime["max_connections"]
+    if args.model_base_url:
+        eval_set_kwargs["model_base_url"] = args.model_base_url
     if epochs is not None:
         eval_set_kwargs["epochs"] = epochs
     if args.thinking_budget is not None:
@@ -428,9 +642,7 @@ def main() -> None:
         eval_set_kwargs["temperature"] = args.temperature
     if args.max_tasks is not None:
         eval_set_kwargs["max_tasks"] = args.max_tasks
-    eval_set_kwargs["max_samples"] = (
-        args.max_samples if args.max_samples is not None else 10
-    )
+    eval_set_kwargs["max_samples"] = runtime["max_samples"]
 
     print(
         f"Starting evaluation for SDKs {selected_sdks} and strategies"

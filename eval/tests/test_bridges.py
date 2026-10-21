@@ -29,6 +29,8 @@ import pytest
 
 from a2ui_eval.bridges import (
     SUPPORTED_SDKS,
+    BridgeOptions,
+    CatalogSpec,
     PythonSdkBridge,
     TypeScriptSdkBridge,
     get_sdk_bridge,
@@ -549,4 +551,186 @@ def test_ts_bridge_runner_timeout_maps_to_timeout_error(
             surface_id="main",
             completion="",
             timeout_sec=2.0,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Cross-SDK parity of BridgeOptions handling
+# ---------------------------------------------------------------------------
+
+
+def _v09_example_file(tmp_path: Path) -> str:
+    """Writes a complete v0.9 example payload, as every runner requires."""
+    payload = [
+        {
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "main", "catalogId": V09_CATALOG_ID},
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "Parity example marker 7f3a",
+                }],
+            },
+        },
+    ]
+    path = tmp_path / "parity_example.json"
+    path.write_text(json.dumps(payload))
+    return str(path)
+
+
+def _v09_seed_state() -> tuple[dict[str, Any], ...]:
+    return (
+        {
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "main", "catalogId": V09_CATALOG_ID},
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": {"path": "/greeting"},
+                }],
+            },
+        },
+    )
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
+@pytest.mark.parametrize("format_name", ["direct_json", "express"])
+def test_bridge_options_prune_components_consistently(
+    sdk: str, format_name: str
+) -> None:
+    """Every SDK drops a pruned component from the prompt and keeps the rest."""
+    bridge = get_sdk_bridge(sdk)
+    options = BridgeOptions(
+        catalogs=(
+            CatalogSpec(
+                path=V091_CATALOG,
+                allowed_components=("Column", "Text", "Button"),
+                allowed_functions=("required",),
+            ),
+        )
+    )
+    prompt = bridge.generate_prompt(format_name, "0.9.1", V091_CATALOG, options=options)
+    assert "Button" in prompt
+    assert "Slider" not in prompt
+    assert "CheckBox" not in prompt
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
+@pytest.mark.parametrize("format_name", ["direct_json", "express"])
+def test_bridge_options_inject_examples_consistently(
+    sdk: str, format_name: str, tmp_path: Path
+) -> None:
+    """Every SDK includes a few-shot example file in both formats' prompts."""
+    bridge = get_sdk_bridge(sdk)
+    options = BridgeOptions(
+        catalogs=(
+            CatalogSpec(path=V091_CATALOG, examples=(_v09_example_file(tmp_path),)),
+        )
+    )
+    prompt = bridge.generate_prompt(format_name, "0.9.1", V091_CATALOG, options=options)
+    assert "Parity example marker 7f3a" in prompt
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
+def test_bridge_options_allowed_messages_change_prompt(sdk: str) -> None:
+    bridge = get_sdk_bridge(sdk)
+    full = bridge.generate_prompt("direct_json", "0.9.1", V091_CATALOG)
+    restricted = bridge.generate_prompt(
+        "direct_json",
+        "0.9.1",
+        V091_CATALOG,
+        options=BridgeOptions(
+            catalogs=(CatalogSpec(path=V091_CATALOG),),
+            allowed_messages=("updateDataModel",),
+        ),
+    )
+    assert restricted != full
+    assert "updateDataModel" in restricted
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
+def test_bridge_options_initial_state_enables_update_turn(sdk: str) -> None:
+    """A bare updateDataModel validates only against a seeded surface."""
+    bridge = get_sdk_bridge(sdk)
+    completion = (
+        '<a2ui-json>[{"version": "v0.9", "updateDataModel":'
+        ' {"surfaceId": "main", "path": "/greeting", "value": "hi"}}]</a2ui-json>'
+    )
+    seeded = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),),
+        initial_renderer_state=_v09_seed_state(),
+    )
+    result = bridge.parse_and_validate(
+        "direct_json", "0.9.1", V091_CATALOG, "main", completion, options=seeded
+    )
+    assert result["compiled_jsons"][0]["updateDataModel"]["path"] == "/greeting"
+
+    with pytest.raises(ValueError):
+        bridge.parse_and_validate(
+            "direct_json", "0.9.1", V091_CATALOG, "main", completion
+        )
+
+    other_surface = completion.replace('"surfaceId": "main"', '"surfaceId": "other"')
+    with pytest.raises(ValueError):
+        bridge.parse_and_validate(
+            "direct_json", "0.9.1", V091_CATALOG, "main", other_surface, options=seeded
+        )
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
+@pytest.mark.parametrize("chunk_size", [1, 7, 4096])
+def test_bridge_options_stream_chunk_size_direct_json(
+    sdk: str, chunk_size: int
+) -> None:
+    bridge = get_sdk_bridge(sdk)
+    completion = (
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+        f' "catalogId": "{V09_CATALOG_ID}"}}}},'
+        ' {"version": "v0.9", "updateComponents": {"surfaceId": "main", "components":'
+        ' [{"id": "root", "component": "Text", "text": "streamed"}]}}]</a2ui-json>'
+    )
+    options = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),), stream_chunk_size=chunk_size
+    )
+    result = bridge.parse_and_validate(
+        "direct_json", "0.9.1", V091_CATALOG, "main", completion, options=options
+    )
+    assert len(result["compiled_jsons"]) == 2
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
+def test_bridge_options_reject_non_positive_stream_chunk_size(sdk: str) -> None:
+    bridge = get_sdk_bridge(sdk)
+    completion = (
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+        f' "catalogId": "{V09_CATALOG_ID}"}}}}]</a2ui-json>'
+    )
+    options = BridgeOptions(
+        catalogs=(CatalogSpec(path=V091_CATALOG),), stream_chunk_size=0
+    )
+    with pytest.raises(ValueError):
+        bridge.parse_and_validate(
+            "direct_json",
+            "0.9.1",
+            V091_CATALOG,
+            "main",
+            completion,
+            options=options,
+            validate=False,
         )

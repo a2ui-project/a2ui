@@ -44,7 +44,7 @@ from a2ui_eval.strategies import (
     compile_format_payload,
     extract_subagent_payload,
     format_system_prompt,
-    subagent_tool_solver,
+    subagent_tool_strategy,
 )
 from a2ui_eval.strategies.skill_mode import (
     SKILLS_READ_STORE_KEY,
@@ -141,7 +141,7 @@ async def test_extract_subagent_payload() -> None:
 
 
 def test_subagent_tool_solver() -> None:
-    solvers = subagent_tool_solver(version="0.9.1")
+    solvers = subagent_tool_strategy(version="0.9.1")
     assert len(solvers) == 5
 
 
@@ -353,7 +353,6 @@ async def test_extract_subagent_payload_copies_specialist_results() -> None:
 
 
 def test_subagent_tool_strategy_signature() -> None:
-    assert subagent_tool_solver is subagent_tool_strategy
     solvers = subagent_tool_strategy(
         version="1.0", subagent_format="express", max_validation_retries=2
     )

@@ -66,6 +66,12 @@ FOLLOW_UP_PROMPT = (
     "Update the surface you already created: change the heading text to "
     "'Updated' and leave everything else unchanged."
 )
+STATEFUL_UPDATE_TARGET = (
+    "An incremental update to the existing surface: only updateComponents or"
+    " updateDataModel messages, changing the heading text to 'Updated' and"
+    " leaving the rest of the surface unchanged. Recreating the surface is"
+    " incorrect."
+)
 STATEFUL_SURFACE_ID = "main"
 
 # Fallback catalog ids when the catalog file cannot be read from the repo.
@@ -117,13 +123,15 @@ def _resolve_catalog_file(path: str, version_dir: str) -> Path:
 
 
 def catalog_id_for(path: str, version_dir: str) -> str:
-    """Reads the catalog's `$id`, falling back to the basic catalog id."""
+    """Reads the catalog's `catalogId` (or `$id`), else the basic catalog id."""
     file = _resolve_catalog_file(path, version_dir)
     try:
         data = json.loads(file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return _BASIC_CATALOG_IDS[version_dir]
-    catalog_id = data.get("$id") if isinstance(data, dict) else None
+    catalog_id = None
+    if isinstance(data, dict):
+        catalog_id = data.get("catalogId") or data.get("$id")
     return str(catalog_id) if catalog_id else _BASIC_CATALOG_IDS[version_dir]
 
 
@@ -228,6 +236,9 @@ def mutate_stateful_update(
     messages.append({"role": "user", "content": FOLLOW_UP_PROMPT})
     derived["messages"] = messages
     derived["allowed_messages"] = ["updateComponents", "updateDataModel"]
+    # The rubric and assertions of the first turn do not describe the delta.
+    derived["target"] = STATEFUL_UPDATE_TARGET
+    derived["assertions"] = {"message_types": ["updateComponents", "updateDataModel"]}
     return derived
 
 

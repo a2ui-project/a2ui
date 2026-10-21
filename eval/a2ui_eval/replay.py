@@ -71,6 +71,11 @@ class CompletionReplayStore:
     def __len__(self) -> int:
         return len(self._records)
 
+    def records(self) -> list[RecordedCompletion]:
+        """The stored completions, one per key, in insertion order."""
+        with self._lock:
+            return list(self._records.values())
+
     def record(
         self,
         sample_name: str,
@@ -151,13 +156,18 @@ class CompletionReplayStore:
 
 
 def _sample_completion(sample: Any) -> str:
-    """The sample's model completion, preferring `output.completion`."""
+    """The sample's raw model completion.
+
+    The first assistant message is preferred over `output.completion`: for
+    formats other than Direct JSON the compile step rewrites `output` into an
+    `<a2ui-json>` payload, while the message log keeps what the model wrote.
+    """
+    for message in getattr(sample, "messages", None) or []:
+        if message.role == "assistant" and message.text:
+            return str(message.text)
     output = getattr(sample, "output", None)
     if output is not None and output.completion:
         return str(output.completion)
-    for message in getattr(sample, "messages", None) or []:
-        if message.role == "assistant":
-            return str(message.text)
     return ""
 
 

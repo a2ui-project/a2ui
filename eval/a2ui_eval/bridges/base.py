@@ -38,14 +38,21 @@ SDK_ALIASES: dict[str, str] = {
 }
 
 SDK_SUPPORTED_STRATEGIES: dict[str, tuple[str, ...]] = {
-    "python": ("direct", "subagent_tool", "express", "elemental", "atom"),
+    "python": (
+        "direct",
+        "subagent_tool",
+        "express",
+        "skill_mode",
+        "elemental",
+        "atom",
+    ),
     "ts": ("direct", "subagent_tool", "express"),
     "dart": ("direct", "subagent_tool", "express"),
 }
 
 # Strategies run when none are named on the command line: the production
-# formats only. The experimental `elemental` and `atom` strategies stay
-# supported but must be requested explicitly.
+# formats only. The experimental `elemental` and `atom` strategies and the
+# Python-only `skill_mode` stay supported but must be requested explicitly.
 SDK_DEFAULT_STRATEGIES: dict[str, tuple[str, ...]] = {
     "python": ("direct", "subagent_tool", "express"),
     "ts": ("direct", "subagent_tool", "express"),

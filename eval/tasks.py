@@ -104,6 +104,106 @@ Notes for grading:
 """
 
 
+def _list_models_task() -> Task:
+    """Prints the available Gemini models and returns a no-op task."""
+    client = genai.Client()
+    print("\nAvailable Gemini Models:")
+    try:
+        for m in client.models.list():
+            print(f"- {m.name}")
+    except errors.APIError as e:
+        print(f"Error listing models: {e}")
+
+    return Task(
+        dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
+        solver=[],
+        scorer=[dummy_scorer()],
+    )
+
+
+def build_task(
+    *,
+    active_version: str,
+    default_catalog_path: str,
+    grading_model: str,
+    strategy: str,
+    dataset: str | list[str] | None,
+    sdk: str,
+    tags: str | list[str] | None = None,
+    no_judge: bool = False,
+    max_validation_retries: int = 0,
+    subagent_format: str = "direct_json",
+    replay_completions: str | None = None,
+    record_completions: str | None = None,
+) -> Task:
+    """Builds the evaluation task for one protocol version.
+
+    Args:
+        active_version: The protocol version ('0.9.1' or '1.0').
+        default_catalog_path: Catalog used by samples that name none.
+        grading_model: The model used for LLM-as-a-judge grading.
+        strategy: The evaluation strategy (a key of `STRATEGIES`).
+        dataset: Dataset name(s) to evaluate, or None for all of them.
+        sdk: The Agent SDK implementation to evaluate.
+        tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
+        no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
+        max_validation_retries: Validation self-retries per sample (Pass@K).
+        subagent_format: Inference format of the `subagent_tool` specialist.
+        replay_completions: JSONL store of recorded completions to replay
+            instead of calling the model.
+        record_completions: JSONL store to append each model completion to.
+    """
+    norm_sdk = _check_task_inputs(sdk, active_version, dataset)
+    format_name = (
+        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
+    )
+    if strategy == "skill_mode":
+        format_name = "express"
+    elif strategy == "subagent_tool":
+        format_name = subagent_format
+
+    dataset_obj = load_a2ui_dataset(
+        dataset=dataset,
+        default_catalog_path=default_catalog_path,
+        version=active_version,
+        format_name=format_name,
+        tags=tags,
+    )
+    version_tag = active_version.replace(".", "_")
+
+    return Task(
+        name=f"a2ui_v{version_tag}_eval_{norm_sdk}" if norm_sdk != "python" else None,
+        dataset=dataset_obj,
+        solver=get_solver(
+            strategy,
+            version=active_version,
+            sdk=norm_sdk,
+            max_validation_retries=max_validation_retries,
+            subagent_format=subagent_format,
+            replay_path=replay_completions,
+            record_path=record_completions,
+        ),
+        scorer=[
+            a2ui_scorer(version=active_version, sdk=norm_sdk),
+            measured_model_graded_qa(
+                model=grading_model,
+                instructions=GRADER_INSTRUCTIONS,
+                no_judge=no_judge,
+            ),
+        ],
+        metadata={
+            "sdk": norm_sdk,
+            "strategy": strategy,
+            "version": active_version,
+            "subagent_format": subagent_format,
+            "max_validation_retries": max_validation_retries,
+            "no_judge": no_judge,
+            "tags": tags,
+            "replayed": replay_completions is not None,
+        },
+    )
+
+
 @task
 def a2ui_v0_9_1_eval(
     list_models: bool = False,
@@ -111,6 +211,12 @@ def a2ui_v0_9_1_eval(
     strategy: str = "direct",
     dataset: str | list[str] | None = None,
     sdk: str = "python",
+    tags: str | list[str] | None = None,
+    no_judge: bool = False,
+    max_validation_retries: int = 0,
+    subagent_format: str = "direct_json",
+    replay_completions: str | None = None,
+    record_completions: str | None = None,
 ) -> Task:
     """Evaluation task for A2UI v0.9.1 protocol generation.
 
@@ -120,55 +226,31 @@ def a2ui_v0_9_1_eval(
         strategy: The evaluation strategy to use (e.g., 'direct').
         dataset: Specific dataset name or list of dataset names.
         sdk: The Agent SDK implementation to evaluate ('python', 'ts', or 'dart').
+        tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
+        no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
+        max_validation_retries: Validation self-retries per sample (Pass@K).
+        subagent_format: Inference format of the `subagent_tool` specialist.
+        replay_completions: JSONL store of recorded completions to replay.
+        record_completions: JSONL store to append each model completion to.
 
     Returns:
         An Inspect Task object configured for A2UI v0.9.1 evaluation.
     """
-
     if list_models:
-        client = genai.Client()
-        print("\nAvailable Gemini Models:")
-        try:
-            for m in client.models.list():
-                print(f"- {m.name}")
-        except errors.APIError as e:
-            print(f"Error listing models: {e}")
-
-        return Task(
-            dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
-            solver=[],
-            scorer=[dummy_scorer()],
-        )
-
-    active_version = "0.9.1"
-    norm_sdk = _check_task_inputs(sdk, active_version, dataset)
-    default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
-    format_name = (
-        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
-    )
-
-    dataset_obj = load_a2ui_dataset(
+        return _list_models_task()
+    return build_task(
+        active_version="0.9.1",
+        default_catalog_path="specification/v0_9_1/catalogs/basic/catalog.json",
+        grading_model=grading_model,
+        strategy=strategy,
         dataset=dataset,
-        default_catalog_path=default_catalog_path,
-        version=active_version,
-        format_name=format_name,
-    )
-
-    return Task(
-        name=f"a2ui_v0_9_1_eval_{norm_sdk}" if norm_sdk != "python" else None,
-        dataset=dataset_obj,
-        solver=get_solver(strategy, version=active_version, sdk=norm_sdk),
-        scorer=[
-            a2ui_scorer(version=active_version, sdk=norm_sdk),
-            measured_model_graded_qa(
-                model=grading_model, instructions=GRADER_INSTRUCTIONS
-            ),
-        ],
-        metadata={
-            "sdk": norm_sdk,
-            "strategy": strategy,
-            "version": active_version,
-        },
+        sdk=sdk,
+        tags=tags,
+        no_judge=no_judge,
+        max_validation_retries=max_validation_retries,
+        subagent_format=subagent_format,
+        replay_completions=replay_completions,
+        record_completions=record_completions,
     )
 
 
@@ -179,6 +261,12 @@ def a2ui_v1_0_eval(
     strategy: str = "express",
     dataset: str | list[str] | None = None,
     sdk: str = "python",
+    tags: str | list[str] | None = None,
+    no_judge: bool = False,
+    max_validation_retries: int = 0,
+    subagent_format: str = "direct_json",
+    replay_completions: str | None = None,
+    record_completions: str | None = None,
 ) -> Task:
     """Evaluation task for A2UI v1.0 protocol generation.
 
@@ -188,53 +276,29 @@ def a2ui_v1_0_eval(
         strategy: The evaluation strategy to use (e.g., 'express').
         dataset: Specific dataset name or list of dataset names.
         sdk: The Agent SDK implementation to evaluate ('python', 'ts', or 'dart').
+        tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
+        no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
+        max_validation_retries: Validation self-retries per sample (Pass@K).
+        subagent_format: Inference format of the `subagent_tool` specialist.
+        replay_completions: JSONL store of recorded completions to replay.
+        record_completions: JSONL store to append each model completion to.
 
     Returns:
         An Inspect Task object configured for A2UI v1.0 evaluation.
     """
-
     if list_models:
-        client = genai.Client()
-        print("\nAvailable Gemini Models:")
-        try:
-            for m in client.models.list():
-                print(f"- {m.name}")
-        except errors.APIError as e:
-            print(f"Error listing models: {e}")
-
-        return Task(
-            dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
-            solver=[],
-            scorer=[dummy_scorer()],
-        )
-
-    active_version = "1.0"
-    norm_sdk = _check_task_inputs(sdk, active_version, dataset)
-    default_catalog_path = "catalogs/basic/v1/catalog.json"
-    format_name = (
-        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
-    )
-
-    dataset_obj = load_a2ui_dataset(
+        return _list_models_task()
+    return build_task(
+        active_version="1.0",
+        default_catalog_path="catalogs/basic/v1/catalog.json",
+        grading_model=grading_model,
+        strategy=strategy,
         dataset=dataset,
-        default_catalog_path=default_catalog_path,
-        version=active_version,
-        format_name=format_name,
-    )
-
-    return Task(
-        name=f"a2ui_v1_0_eval_{norm_sdk}" if norm_sdk != "python" else None,
-        dataset=dataset_obj,
-        solver=get_solver(strategy, version=active_version, sdk=norm_sdk),
-        scorer=[
-            a2ui_scorer(version=active_version, sdk=norm_sdk),
-            measured_model_graded_qa(
-                model=grading_model, instructions=GRADER_INSTRUCTIONS
-            ),
-        ],
-        metadata={
-            "sdk": norm_sdk,
-            "strategy": strategy,
-            "version": active_version,
-        },
+        sdk=sdk,
+        tags=tags,
+        no_judge=no_judge,
+        max_validation_retries=max_validation_retries,
+        subagent_format=subagent_format,
+        replay_completions=replay_completions,
+        record_completions=record_completions,
     )

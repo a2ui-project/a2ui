@@ -20,7 +20,12 @@ from unittest.mock import patch
 import pytest
 
 from a2ui_eval.bridges import SDK_SUPPORTED_VERSIONS, validate_sdk_version
-from main import main, plan_protocol_versions, resolve_model_name
+from main import (
+    main,
+    plan_protocol_versions,
+    resolve_model_name,
+    resolve_replay_path,
+)
 from tasks import a2ui_v0_9_1_eval, dataset_protocol_version
 
 
@@ -344,7 +349,8 @@ def test_task_rejects_unsupported_sdk_version(
 
 def test_main_default_strategies_per_sdk() -> None:
     """Verify default strategies per SDK when --strategies is omitted."""
-    # Python defaults to direct, subagent_tool, express, elemental, atom
+    # Python defaults to the production strategies; elemental, atom and
+    # skill_mode stay opt-in.
     with patch.object(sys, "argv", ["main.py", "--sdk", "python"]), patch(
         "main.eval_set", return_value=(True, [])
     ), patch("main.get_sdk_bridge"), patch("main.a2ui_v1_0_eval") as mock_v1_py, patch(
@@ -354,13 +360,7 @@ def test_main_default_strategies_per_sdk() -> None:
         py_strategies = [
             call.kwargs["strategy"] for call in mock_v1_py.call_args_list
         ] + [call.kwargs["strategy"] for call in mock_v09_py.call_args_list]
-        assert set(py_strategies) == {
-            "direct",
-            "subagent_tool",
-            "express",
-            "elemental",
-            "atom",
-        }
+        assert set(py_strategies) == {"direct", "subagent_tool", "express"}
 
     # TS defaults to direct, subagent_tool, express
     with patch.object(sys, "argv", ["main.py", "--sdk", "ts"]), patch(
@@ -401,3 +401,198 @@ def test_main_rejects_unsupported_sdk_strategy() -> None:
     with patch.object(sys, "argv", test_args):
         with pytest.raises(ValueError, match="not supported by SDK 'ts'"):
             main()
+
+
+def test_main_experimental_strategies_are_opt_in() -> None:
+    """Naming an experimental strategy explicitly still runs it."""
+    _, _, mock_v1_eval, mock_v09_eval = _run_main(
+        ["--sdk", "python", "--strategies", "elemental,skill_mode"]
+    )
+    strategies = {c[1] for c in _calls(mock_v1_eval) + _calls(mock_v09_eval)}
+    assert strategies == {"elemental", "skill_mode"}
+
+
+def test_main_rejects_skill_mode_on_ts() -> None:
+    with patch.object(
+        sys, "argv", ["main.py", "--sdk", "ts", "--strategies", "skill_mode"]
+    ):
+        with pytest.raises(ValueError, match="not supported by SDK 'ts'"):
+            main()
+
+
+def test_resolve_model_name_provider_prefixes() -> None:
+    """Provider-qualified ids pass through; provider:model shorthands resolve."""
+    assert resolve_model_name("anthropic/claude-sonnet-4-20250514") == (
+        "anthropic/claude-sonnet-4-20250514"
+    )
+    assert resolve_model_name("vllm/meta-llama/Llama-3.1-8B-Instruct") == (
+        "vllm/meta-llama/Llama-3.1-8B-Instruct"
+    )
+    assert resolve_model_name("openai-api/lmstudio/qwen2.5-coder") == (
+        "openai-api/lmstudio/qwen2.5-coder"
+    )
+    assert resolve_model_name("vllm:my-model") == "vllm/my-model"
+    assert resolve_model_name("openai:gpt-4.1") == "openai/gpt-4.1"
+    assert resolve_model_name("anthropic:claude-3-5-haiku-latest") == (
+        "anthropic/claude-3-5-haiku-latest"
+    )
+    assert resolve_model_name("qwen2.5-coder:14b") == "ollama/qwen2.5-coder:14b"
+
+
+def _task_kwargs(mock_task) -> list[dict]:
+    return [dict(call.kwargs) for call in mock_task.call_args_list]
+
+
+def test_main_cloud_profile_defaults() -> None:
+    mock_eval_set, _, mock_v1_eval, _ = _run_main(
+        ["--sdk", "python", "--strategies", "express"]
+    )
+    kwargs = mock_eval_set.call_args.kwargs
+    assert kwargs["max_samples"] == 10
+    assert kwargs["working_limit"] == 350
+    assert "max_connections" not in kwargs
+    assert "model_base_url" not in kwargs
+    task_kwargs = _task_kwargs(mock_v1_eval)[0]
+    for key in (
+        "no_judge",
+        "tags",
+        "max_validation_retries",
+        "subagent_format",
+        "replay_completions",
+        "record_completions",
+    ):
+        assert key not in task_kwargs
+
+
+def test_main_local_profile_limits_concurrency() -> None:
+    mock_eval_set, _, mock_v1_eval, _ = _run_main([
+        "--sdk",
+        "python",
+        "--strategies",
+        "express",
+        "--profile",
+        "local",
+        "--model",
+        "ollama/qwen2.5-coder:14b",
+        "--model-base-url",
+        "http://localhost:11434/v1",
+    ])
+    kwargs = mock_eval_set.call_args.kwargs
+    assert kwargs["model"] == "ollama/qwen2.5-coder:14b"
+    assert kwargs["max_samples"] == 1
+    assert kwargs["max_connections"] == 2
+    assert kwargs["working_limit"] == 900
+    assert kwargs["model_base_url"] == "http://localhost:11434/v1"
+    assert "no_judge" not in _task_kwargs(mock_v1_eval)[0]
+
+
+def test_main_offline_profile_disables_judge_and_honors_overrides() -> None:
+    mock_eval_set, _, mock_v1_eval, _ = _run_main([
+        "--sdk",
+        "python",
+        "--strategies",
+        "express",
+        "--profile",
+        "offline",
+        "--max-samples",
+        "3",
+        "--working-limit",
+        "120",
+    ])
+    kwargs = mock_eval_set.call_args.kwargs
+    assert kwargs["max_samples"] == 3
+    assert kwargs["working_limit"] == 120
+    assert kwargs["max_connections"] == 2
+    assert _task_kwargs(mock_v1_eval)[0]["no_judge"] is True
+
+
+def test_main_no_judge_flag_applies_to_cloud_profile() -> None:
+    _, _, mock_v1_eval, _ = _run_main(
+        ["--sdk", "python", "--strategies", "express", "--no-judge"]
+    )
+    assert _task_kwargs(mock_v1_eval)[0]["no_judge"] is True
+
+
+def test_main_forwards_tier_retries_subagent_format_and_recording(
+    tmp_path,
+) -> None:
+    record = tmp_path / "completions.jsonl"
+    _, _, mock_v1_eval, mock_v09_eval = _run_main([
+        "--sdk",
+        "python",
+        "--strategies",
+        "express,subagent_tool",
+        "--tier",
+        "smoke",
+        "--max-validation-retries",
+        "2",
+        "--subagent-format",
+        "express",
+        "--record-completions",
+        str(record),
+    ])
+    for task_kwargs in _task_kwargs(mock_v1_eval) + _task_kwargs(mock_v09_eval):
+        assert task_kwargs["tags"] == "smoke"
+        assert task_kwargs["max_validation_retries"] == 2
+        assert task_kwargs["subagent_format"] == "express"
+        assert task_kwargs["record_completions"] == str(record)
+        assert "replay_completions" not in task_kwargs
+
+
+def test_main_tags_flag_takes_precedence_over_tier() -> None:
+    _, _, mock_v1_eval, _ = _run_main([
+        "--sdk",
+        "python",
+        "--strategies",
+        "express",
+        "--tags",
+        "smoke,stateful",
+        "--tier",
+        "smoke",
+    ])
+    assert _task_kwargs(mock_v1_eval)[0]["tags"] == "smoke,stateful"
+
+
+def test_main_replay_jsonl_is_forwarded_as_is(tmp_path) -> None:
+    replay = tmp_path / "recorded.jsonl"
+    replay.write_text("")
+    _, _, mock_v1_eval, _ = _run_main([
+        "--sdk",
+        "ts",
+        "--strategies",
+        "express",
+        "--replay-completions",
+        str(replay),
+    ])
+    assert _task_kwargs(mock_v1_eval)[0]["replay_completions"] == str(replay)
+
+
+def test_resolve_replay_path_converts_eval_log(tmp_path, monkeypatch) -> None:
+    """An .eval log is converted to a JSONL store under the log directory."""
+    from a2ui_eval.replay import CompletionReplayStore, RecordedCompletion
+
+    recorded = [
+        RecordedCompletion("loginForm", "express", "1.0", "<a2ui>x</a2ui>", "abc")
+    ]
+
+    class _FakeStore:
+
+        def records(self):
+            return recorded
+
+    monkeypatch.setattr(
+        CompletionReplayStore, "from_eval_log", classmethod(lambda cls, p: _FakeStore())
+    )
+    fake_log = tmp_path / "run.eval"
+    fake_log.write_bytes(b"")
+    log_dir = tmp_path / "logs"
+
+    result = resolve_replay_path(str(fake_log), str(log_dir))
+
+    assert result == str(log_dir / "run.replay.jsonl")
+    store = CompletionReplayStore.load(log_dir / "run.replay.jsonl")
+    assert store.lookup("loginForm", "express", "1.0") == recorded[0]
+    assert resolve_replay_path(None, str(log_dir)) is None
+    assert resolve_replay_path(str(tmp_path / "x.jsonl"), str(log_dir)) == str(
+        tmp_path / "x.jsonl"
+    )

@@ -30,7 +30,7 @@ import pytest
 from a2ui_eval.bridges import BridgeOptions, CatalogSpec
 from a2ui_eval.bridges.python_bridge import (
     PythonSdkBridge,
-    _build_catalogs_and_examples,
+    build_catalogs_and_examples,
     get_python_strategy,
     parse_and_validate_in_process,
 )
@@ -103,7 +103,7 @@ def test_pruning_removes_component_from_prompt(format_name: str) -> None:
 
 
 def test_function_pruning_removes_function_from_catalog() -> None:
-    catalogs, _ = _build_catalogs_and_examples(
+    catalogs, _ = build_catalogs_and_examples(
         V10_CATALOG,
         "1.0",
         {"catalogs": [{"path": V10_CATALOG, "allowed_functions": ["required"]}]},
@@ -145,7 +145,7 @@ def test_example_file_appears_in_prompt(format_name: str, example_file: str) -> 
 def test_example_file_accepts_messages_object(tmp_path: Path) -> None:
     path = tmp_path / "wrapped.json"
     path.write_text(json.dumps({"messages": EXAMPLE_PAYLOAD}), encoding="utf-8")
-    _, examples = _build_catalogs_and_examples(
+    _, examples = build_catalogs_and_examples(
         V10_CATALOG,
         "1.0",
         {"catalogs": [{"path": V10_CATALOG, "examples": [str(path)]}]},
@@ -159,7 +159,7 @@ def test_example_file_rejects_other_shapes(tmp_path: Path) -> None:
     path = tmp_path / "bad.json"
     path.write_text(json.dumps({"not_messages": []}), encoding="utf-8")
     with pytest.raises(ValueError, match="JSON list of A2UI messages"):
-        _build_catalogs_and_examples(
+        build_catalogs_and_examples(
             V10_CATALOG,
             "1.0",
             {"catalogs": [{"path": V10_CATALOG, "examples": [str(path)]}]},
@@ -167,7 +167,7 @@ def test_example_file_rejects_other_shapes(tmp_path: Path) -> None:
 
 
 def test_no_options_gives_single_catalog_and_no_examples() -> None:
-    catalogs, examples = _build_catalogs_and_examples(V10_CATALOG, "1.0", None)
+    catalogs, examples = build_catalogs_and_examples(V10_CATALOG, "1.0", None)
     assert [c.id for c in catalogs] == [V10_CATALOG_ID]
     assert examples is None
 
@@ -187,7 +187,7 @@ def test_multi_catalog_prompt_names_both_catalogs() -> None:
 
 
 def test_get_python_strategy_accepts_catalog_list() -> None:
-    catalogs, _ = _build_catalogs_and_examples(V10_CATALOG, "1.0", None)
+    catalogs, _ = build_catalogs_and_examples(V10_CATALOG, "1.0", None)
     strategy = get_python_strategy(
         "express", "1.0", catalogs, allowed_messages=["updateComponents"]
     )

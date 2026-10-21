@@ -419,19 +419,28 @@ def _collect_facts(value: Any, facts: dict[str, set[str]]) -> None:
     if isinstance(value, list):
         for item in value:
             _collect_facts(item, facts)
-        return
-    if not isinstance(value, dict):
-        return
-    component = value.get("component")
+    elif isinstance(value, dict):
+        _collect_node_facts(value, facts)
+
+
+def _collect_node_facts(node: dict[str, Any], facts: dict[str, set[str]]) -> None:
+    """Records one object's facts, then recurses into its children.
+
+    `updateDataModel.value` holds user data, not A2UI structure, so it is
+    skipped.
+    """
+    component = node.get("component")
     if isinstance(component, str):
         facts["components"].add(component)
     elif isinstance(component, dict):
         facts["components"].update(str(key) for key in component)
     for key in ("path", "@path"):
-        if isinstance(value.get(key), str):
-            facts["bindings"].add(value[key])
-    _collect_actions(value, facts)
-    for child in value.values():
+        if isinstance(node.get(key), str):
+            facts["bindings"].add(node[key])
+    _collect_actions(node, facts)
+    for key, child in node.items():
+        if key == "updateDataModel" and isinstance(child, dict):
+            child = {k: v for k, v in child.items() if k != "value"}
         _collect_facts(child, facts)
 
 

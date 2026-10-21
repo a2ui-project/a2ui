@@ -311,4 +311,3 @@ def subagent_tool_strategy(
 
 # `strategies/__init__.py` still imports this name; Wave 4 switches it to
 # `subagent_tool_strategy`.
-subagent_tool_solver = subagent_tool_strategy

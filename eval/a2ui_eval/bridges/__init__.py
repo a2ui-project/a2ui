@@ -46,6 +46,7 @@ from .base import (
 )
 from .python_bridge import (
     PythonSdkBridge,
+    build_catalogs_and_examples,
     get_python_strategy,
     parse_and_validate_in_process,
 )
@@ -108,6 +109,7 @@ __all__ = [
     "Stage2Assertions",
     "TypeScriptSdkBridge",
     "bridge_options_from_metadata",
+    "build_catalogs_and_examples",
     "get_python_strategy",
     "get_sdk_bridge",
     "normalize_protocol_version",
