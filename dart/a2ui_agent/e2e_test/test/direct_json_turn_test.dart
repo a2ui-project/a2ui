@@ -39,12 +39,15 @@ void _turns(A2uiProtocolVersion version) {
 
   setUp(() {
     catalog = loadBasicCatalog(version);
-    processor = A2uiGenerator(
-      catalogs: [CatalogConfig(catalog)],
-      inferenceFormatFactory: const DirectJsonFormatFactory(),
-    ).createProcessor(
-      A2uiRendererCapabilities.forCatalogIds([catalog.id], version: version),
-    );
+    processor =
+        A2uiGenerator(
+          catalogs: [CatalogConfig(catalog)],
+          inferenceFormatFactory: const DirectJsonFormatFactory(),
+        ).createProcessor(
+          A2uiRendererCapabilities.forCatalogIds([
+            catalog.id,
+          ], version: version),
+        );
   });
 
   /// Waits for the whole response, then parses it at once with
