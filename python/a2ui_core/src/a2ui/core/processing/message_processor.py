@@ -385,15 +385,17 @@ class MessageProcessor:
             return None
         document = to_json()
         catalog_id = getattr(catalog, "catalog_id", None)
-        if catalog_id is not None:
+        if catalog_id is not None and not callable(catalog_id):
             document["catalogId"] = catalog_id
         version = document.get("protocolVersion")
         if not isinstance(version, str):
+            version = None
             raw_version = getattr(catalog, "protocol_version", None)
-            try:
-                version = to_protocol_version(raw_version).value
-            except (TypeError, ValueError):
-                version = str(raw_version) if raw_version is not None else None
+            if raw_version is not None and not callable(raw_version):
+                try:
+                    version = to_protocol_version(raw_version).value
+                except (TypeError, ValueError):
+                    version = str(raw_version)
         if version is not None:
             version = version.strip()
             if version[:1] in ("v", "V") and version[1:2].isdigit():
