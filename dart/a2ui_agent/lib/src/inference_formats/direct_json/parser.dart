@@ -38,6 +38,10 @@ final RegExp _openTagStart = RegExp(
 
 final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
 final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
+final RegExp _openFence = RegExp(r'```[a-zA-Z0-9_-]*[ \t]*\r?\n?');
+final RegExp _jsonStart = RegExp(r'^[ \t]*[\[{]', multiLine: true);
+final RegExp _onlyBackticks = RegExp(r'^`*$');
+final RegExp _edgeBackticks = RegExp(r'^`+|`+$');
 
 /// Reads A2UI messages written as JSON inside `<a2ui-json>` tags, from a
 /// complete response or as it streams.
@@ -103,11 +107,9 @@ class DirectJsonParser extends Parser {
   /// Whether [content] carries an `<a2ui-json>` block, closed when [complete]
   /// is true.
   @override
-  bool hasFormatContent(String content, {bool complete = false}) {
-    final Match? open = _openTag.firstMatch(content);
-    if (open == null) return false;
-    return !complete || _scanBlock(content, open.end).closeStart != null;
-  }
+  bool hasFormatContent(String content, {bool complete = false}) => unwrap(
+    content,
+  ).any((RawResponsePart p) => p is RawA2uiPart && (!complete || p.isFinal));
 
   /// Writes each part on its own line, with the `<a2ui-json>` and
   /// `</a2ui-json>` tags on lines of their own.
@@ -134,16 +136,28 @@ class DirectJsonParser extends Parser {
     var i = 0;
     while (true) {
       final Match? open = _openTag.allMatches(content, i).firstOrNull;
+      final int searchEnd = open?.start ?? content.length;
+      final Match? unmatchedClose = _closeTag
+          .allMatches(content.substring(0, searchEnd), i)
+          .firstOrNull;
+      if (unmatchedClose != null &&
+          _tryAddUnmatchedClose(
+            parts,
+            content.substring(i, unmatchedClose.start),
+          )) {
+        i = unmatchedClose.end;
+        continue;
+      }
       if (open == null) break;
       _addText(parts, content.substring(i, open.start));
       final int? end = _scanBlock(content, open.end).closeStart;
       if (end == null) {
         parts.add(
-          RawA2uiPart(_clean(content.substring(open.end)), isFinal: false),
+          RawA2uiPart(_cleanRaw(content.substring(open.end)), isFinal: false),
         );
         return parts;
       }
-      parts.add(RawA2uiPart(_clean(content.substring(open.end, end))));
+      parts.add(RawA2uiPart(_cleanRaw(content.substring(open.end, end))));
       i = _closeTag.matchAsPrefix(content, end)!.end;
     }
     _addText(parts, content.substring(i));
@@ -171,7 +185,7 @@ class DirectJsonParser extends Parser {
   /// the catalogs do not declare.
   @override
   List<AgentToRendererMessage> compile(String formatContent) {
-    final String content = _clean(formatContent);
+    final String content = _cleanRaw(formatContent);
     if (content.isEmpty) {
       throw A2uiParseError(
         'The direct JSON block is empty.',
@@ -729,11 +743,42 @@ void _addText(List<RawResponsePart> parts, String text) {
   if (cleaned.isNotEmpty) parts.add(TextPart(cleaned));
 }
 
-String _clean(String text) => text
-    .trim()
-    .replaceFirst(_leadingFence, '')
-    .replaceFirst(_trailingFence, '')
-    .trim();
+bool _tryAddUnmatchedClose(List<RawResponsePart> parts, String textBefore) {
+  final List<Match> fences = _openFence.allMatches(textBefore).toList();
+  String rawContent;
+  if (fences.isNotEmpty) {
+    final Match lastFence = fences.last;
+    rawContent = _cleanRaw(textBefore.substring(lastFence.end));
+    if (rawContent.isEmpty) return false;
+    _addText(parts, textBefore.substring(0, lastFence.start));
+  } else {
+    final Match? jsonMatch = _jsonStart.firstMatch(textBefore);
+    if (jsonMatch == null) return false;
+    final String prefix = textBefore.substring(0, jsonMatch.start);
+    if (jsonMatch.start > 0 && (prefix.contains('{') || prefix.contains('['))) {
+      rawContent = _cleanRaw(textBefore);
+      if (rawContent.isEmpty) return false;
+    } else {
+      rawContent = _cleanRaw(textBefore.substring(jsonMatch.start));
+      if (rawContent.isEmpty) return false;
+      _addText(parts, prefix);
+    }
+  }
+  parts.add(RawA2uiPart(rawContent));
+  return true;
+}
+
+String _clean(String text) {
+  final String cleaned = text
+      .trim()
+      .replaceFirst(_leadingFence, '')
+      .replaceFirst(_trailingFence, '')
+      .trim();
+  return _onlyBackticks.hasMatch(cleaned) ? '' : cleaned;
+}
+
+String _cleanRaw(String text) =>
+    _clean(text).replaceAll(_edgeBackticks, '').trim();
 
 bool _isSpace(String text, int i) => text[i].trim().isEmpty;
 

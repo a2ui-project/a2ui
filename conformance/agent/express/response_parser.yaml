@@ -183,6 +183,21 @@
   expect:
     - a2ui_raw: 'root = Text("Hello")'
 
+- name: test_unwrap_express_fenced_open_with_close_tag
+  description: A block opened with a markdown fence such as ```a2ui and closed with </a2ui> unwraps to the payload part.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Here is the greeting.
+    ```a2ui
+    root = Text("Hello")
+    </a2ui>
+    ```
+  expect:
+    - text: "Here is the greeting."
+    - a2ui_raw: 'root = Text("Hello")'
+
 - name: test_unwrap_express_backtick_in_text_kept
   description: Only text made of nothing but backticks is dropped; inline code in conversational text is kept.
   action: unwrap

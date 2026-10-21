@@ -124,12 +124,26 @@ final class ExpressionStatement extends ExpressStatement {
   const ExpressionStatement(this.value);
 }
 
+final RegExp _splitDataPath = RegExp(r'\$/\r?\n[ \t]*([a-zA-Z0-9_/]+)');
+final RegExp _splitLhsIdentifier = RegExp(
+  r'^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*[ \t]*=)',
+  multiLine: true,
+);
+final RegExp _splitArgIdentifier = RegExp(
+  r'([(\[,]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*(?=\s*[,)\]]))',
+);
+final RegExp _edgeNewlines = RegExp(r'^[\r\n]+|[\r\n]+$');
+
 /// Parses an Express block into its statements.
 ///
 /// Throws [A2uiParseError] if [source] does not match the grammar.
 List<ExpressStatement> parseExpress(String source) {
-  final listener = _ErrorListener(source);
-  final lexer = ExpressLexer(InputStream.fromString(source))
+  final String normalized = source
+      .replaceAllMapped(_splitDataPath, (m) => '\$/${m[1]}')
+      .replaceAllMapped(_splitLhsIdentifier, (m) => '${m[1]}${m[2]}')
+      .replaceAllMapped(_splitArgIdentifier, (m) => '${m[1]}${m[2]}');
+  final listener = _ErrorListener(normalized);
+  final lexer = ExpressLexer(InputStream.fromString(normalized))
     ..removeErrorListeners()
     ..addErrorListener(listener);
   final parser = ExpressParser(CommonTokenStream(lexer))
@@ -139,7 +153,7 @@ List<ExpressStatement> parseExpress(String source) {
   final ProgramContext program = parser.program();
   return [
     for (final StatementContext statement in program.statements())
-      _statement(source, statement),
+      _statement(normalized, statement),
   ];
 }
 
@@ -263,7 +277,9 @@ String _string(StringContext string) {
     ExpressParser.TOKEN_TRIPLE_STRING => _unescape(
       text.substring(3, text.length - 3),
     ),
-    _ => _unescape(text.substring(1, text.length - 1)),
+    _ => _unescape(
+      text.substring(1, text.length - 1).replaceAll(_edgeNewlines, ''),
+    ),
   };
 }
 

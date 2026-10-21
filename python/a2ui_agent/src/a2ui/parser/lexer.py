@@ -29,6 +29,12 @@ __all__ = [
     "LexerState",
 ]
 
+_OPEN_FENCE_RE = re.compile(r"```[a-zA-Z0-9_-]*[ \t]*\r?\n?")
+_PAYLOAD_START_RE = re.compile(
+    r"^[ \t]*(?:surface\s*\(|deleteSurface\s*\(|\$[a-zA-Z0-9_/]*\s*=|[a-zA-Z_][a-zA-Z0-9_]*\s*=|[\[{])",
+    re.MULTILINE,
+)
+
 
 class LexerState(Enum):
     """States of the BlockLexer scanner."""
@@ -114,6 +120,39 @@ class BlockLexer:
         """
         return self._clean_markdown(text).strip("`").strip()
 
+    def _try_emit_unmatched_close(
+        self, parts: list[RawResponsePart], text_before: str
+    ) -> bool:
+        """Recovers a block closed by a close tag when the model omitted the open tag."""
+        fence_matches = list(_OPEN_FENCE_RE.finditer(text_before))
+        if fence_matches:
+            last_fence = fence_matches[-1]
+            raw_content = self._clean_raw(text_before[last_fence.end() :])
+            if not raw_content:
+                return False
+            text_part = self._clean_markdown(text_before[: last_fence.start()])
+        else:
+            stmt_match = _PAYLOAD_START_RE.search(text_before)
+            if not stmt_match:
+                return False
+            if stmt_match.start() > 0 and any(
+                ch in text_before[: stmt_match.start()] for ch in ("=", "{", "[", "(")
+            ):
+                text_part = ""
+                raw_content = self._clean_raw(text_before)
+            else:
+                text_part = self._clean_markdown(text_before[: stmt_match.start()])
+                raw_content = self._clean_raw(text_before[stmt_match.start() :])
+            if not raw_content:
+                return False
+
+        if text_part:
+            parts.append(RawResponsePart(part=TextPart(text=text_part), is_final=True))
+        parts.append(
+            RawResponsePart(part=RawA2uiPart(a2ui_raw=raw_content), is_final=True)
+        )
+        return True
+
     def tokenize(self, content: str) -> list[RawResponsePart]:
         """Scans response content character-by-character to extract format blocks.
 
@@ -145,6 +184,13 @@ class BlockLexer:
                     i = match.end()
                     state = LexerState.IN_A2UI
                     current_raw = []
+                    continue
+                close_match = self.close_tag_pattern.match(content, i)
+                if close_match and self._try_emit_unmatched_close(
+                    parts, "".join(current_text)
+                ):
+                    current_text = []
+                    i = close_match.end()
                     continue
                 current_text.append(content[i])
                 i += 1

@@ -1,9 +1,14 @@
 ## Unreleased
 
-- The response parsers for Express, Elemental and Atom remove the backticks
-  left at the edges of a block when a model writes the tags as inline code
-  (`` `<a2ui>` ... `</a2ui>` ``), and drop text made of nothing but backticks.
-  Before, the leftover backtick made the block fail to compile.
+- The response parsers for Direct JSON, Express, Elemental and Atom remove the
+  backticks left at the edges of a block when a model writes the tags as inline
+  code (`` `<a2ui>` ... `</a2ui>` `` or `` `<a2ui-json>` ... `</a2ui-json>` ``),
+  drop text made of nothing but backticks, and recover blocks closed with a
+  closing tag when the model opened the block with a Markdown code fence (such
+  as ` ```a2ui `) or omitted the opening tag.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  object keys, single-token string values, single-line Express strings, data
+  paths, and line-wrapped identifiers.
 
 ## 0.9.0 (2026-10-17)
 

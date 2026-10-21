@@ -320,7 +320,7 @@ class _Reader {
         return map;
       }
       if (text[_i] != '"') _fail('expected a key');
-      final String key = _string(healable: false);
+      final String key = _string(healable: false, isKey: true);
       _skipSpace();
       if (_atEnd) _end();
       if (text[_i] != ':') _fail("expected ':' after key '$key'");
@@ -420,17 +420,35 @@ class _Reader {
   /// The start of a `\uXXXX` escape cut short, or nothing.
   static final RegExp _cutEscape = RegExp(r'^(\\(u[0-9a-fA-F]{0,3})?)?$');
 
-  String _string({required bool healable}) {
+  String _string({required bool healable, bool isKey = false}) {
     _i++;
-    final buffer = StringBuffer();
+    final chars = <String>[];
+    final rawIndices = <int>{};
     while (!_atEnd) {
       final String c = text[_i];
       if (c == '"') {
         _i++;
-        return buffer.toString();
+        if (rawIndices.isEmpty) return chars.join();
+        final bool hasSpace = chars.contains(' ');
+        var start = 0;
+        var end = chars.length;
+        while (start < end && rawIndices.contains(start)) {
+          start++;
+        }
+        while (end > start && rawIndices.contains(end - 1)) {
+          end--;
+        }
+        if (isKey || !hasSpace) {
+          return [
+            for (var idx = start; idx < end; idx++)
+              if (!rawIndices.contains(idx)) chars[idx],
+          ].join();
+        }
+        return chars.sublist(start, end).join();
       }
       if (c != r'\') {
-        buffer.write(c);
+        if (c == '\r' || c == '\n') rawIndices.add(chars.length);
+        chars.add(c);
         _i++;
         continue;
       }
@@ -441,17 +459,17 @@ class _Reader {
       final String escaped = text[_i + 1];
       switch (escaped) {
         case '"' || r'\' || '/':
-          buffer.write(escaped);
+          chars.add(escaped);
         case 'b':
-          buffer.write('\b');
+          chars.add('\b');
         case 'f':
-          buffer.write('\f');
+          chars.add('\f');
         case 'n':
-          buffer.write('\n');
+          chars.add('\n');
         case 'r':
-          buffer.write('\r');
+          chars.add('\r');
         case 't':
-          buffer.write('\t');
+          chars.add('\t');
         case 'u':
           if (_i + 6 > _limit) {
             _i = _limit;
@@ -470,7 +488,7 @@ class _Reader {
             _i = _limit;
             continue;
           }
-          buffer.writeCharCode(code);
+          chars.add(String.fromCharCode(code));
           _i += 4;
         default:
           _fail("invalid escape '\\$escaped'");
@@ -481,7 +499,7 @@ class _Reader {
     // left out.
     if (healable && _partial) {
       _cut = true;
-      return buffer.toString();
+      return chars.join();
     }
     _end();
   }

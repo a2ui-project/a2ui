@@ -113,6 +113,22 @@ describe('BlockLexer', () => {
     expect(parts[1]).toEqual({type: 'a2ui', a2uiRaw: 'code_here', isFinal: true});
     expect(parts[2]).toEqual({type: 'text', text: 'Postamble', isFinal: true});
   });
+
+  it('recovers block closed with </a2ui> when opened with ```a2ui or missing <a2ui>', () => {
+    const lexer = new BlockLexer();
+    const fenced = 'Preamble\n```a2ui\nsurface("main")\nroot = Text("Hi")\n</a2ui>\n```\nPostamble';
+    expect(lexer.tokenize(fenced)).toEqual([
+      {type: 'text', text: 'Preamble', isFinal: true},
+      {type: 'a2ui', a2uiRaw: 'surface("main")\nroot = Text("Hi")', isFinal: true},
+      {type: 'text', text: 'Postamble', isFinal: true},
+    ]);
+
+    const unfenced = 'Here is the UI.\nsurface("main")\nroot = Text("Hi")\n</a2ui>';
+    expect(lexer.tokenize(unfenced)).toEqual([
+      {type: 'text', text: 'Here is the UI.', isFinal: true},
+      {type: 'a2ui', a2uiRaw: 'surface("main")\nroot = Text("Hi")', isFinal: true},
+    ]);
+  });
 });
 
 it('accepts caller-supplied RegExp patterns and ensures sticky flag', () => {

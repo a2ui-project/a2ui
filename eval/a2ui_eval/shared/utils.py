@@ -36,7 +36,17 @@ def measured_generate() -> Solver:
         before_output = usage_before.output_tokens if usage_before else 0
         before_reasoning = usage_before.reasoning_tokens or 0 if usage_before else 0
 
-        state = await generate(state)
+        for _ in range(3):
+            state = await generate(state)
+            completion = (
+                state.output.completion
+                if getattr(state, "output", None) is not None
+                else None
+            )
+            if (completion and completion.strip()) or (
+                state.store.get("a2ui_payload") is not None
+            ):
+                break
 
         usage_after = sample_model_usage().get(str(state.model))
         after_input = usage_after.input_tokens if usage_after else 0

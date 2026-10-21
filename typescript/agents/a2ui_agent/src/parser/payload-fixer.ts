@@ -23,7 +23,7 @@ import {ParseError} from '../errors.js';
  * @returns A parsed and potentially fixed payload (array of objects).
  */
 export function parseAndFix(payload: string): Record<string, unknown>[] {
-  const normalizedPayload = normalizeSmartQuotes(payload);
+  const normalizedPayload = repairStringNewlines(normalizeSmartQuotes(payload));
   try {
     return parse(normalizedPayload);
   } catch {
@@ -68,6 +68,73 @@ function normalizeSmartQuotes(jsonStr: string): string {
     .replace(/\u201D/g, '"')
     .replace(/\u2018/g, "'")
     .replace(/\u2019/g, "'");
+}
+
+/**
+ * Repairs raw unescaped line breaks inside JSON string literals.
+ */
+function repairStringNewlines(jsonStr: string): string {
+  const out: string[] = [];
+  let i = 0;
+  const n = jsonStr.length;
+  while (i < n) {
+    if (jsonStr[i] !== '"') {
+      out.push(jsonStr[i]);
+      i++;
+      continue;
+    }
+    const strChars: string[] = [];
+    const rawIndices = new Set<number>();
+    i++; // skip opening quote
+    let closed = false;
+    while (i < n) {
+      const ch = jsonStr[i];
+      if (ch === '\\') {
+        strChars.push(ch);
+        i++;
+        if (i < n) {
+          strChars.push(jsonStr[i]);
+          i++;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        closed = true;
+        i++;
+        break;
+      }
+      if (ch === '\r' || ch === '\n') {
+        rawIndices.add(strChars.length);
+      }
+      strChars.push(ch);
+      i++;
+    }
+    if (!closed || rawIndices.size === 0) {
+      out.push('"', ...strChars);
+      if (closed) out.push('"');
+      continue;
+    }
+    let lookahead = i;
+    while (lookahead < n && /\s/.test(jsonStr[lookahead])) lookahead++;
+    const isKey = lookahead < n && jsonStr[lookahead] === ':';
+    const hasSpace = strChars.includes(' ');
+    let start = 0;
+    let end = strChars.length;
+    while (start < end && rawIndices.has(start)) start++;
+    while (end > start && rawIndices.has(end - 1)) end--;
+    out.push('"');
+    for (let idx = start; idx < end; idx++) {
+      if (rawIndices.has(idx)) {
+        if (!isKey && hasSpace) {
+          out.push(strChars[idx] === '\n' ? '\\n' : '');
+        }
+      } else {
+        out.push(strChars[idx]);
+      }
+    }
+    out.push('"');
+  }
+  return out.join('');
 }
 
 /**

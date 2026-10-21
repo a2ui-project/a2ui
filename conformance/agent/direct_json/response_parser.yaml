@@ -138,6 +138,44 @@
   expect:
     - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
 
+- name: test_unwrap_inline_code_tags_stripped
+  description: Tags the model wrote as inline code leave a backtick at each edge of the block and one on each side of it; all of them are removed.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    `<a2ui-json>`
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    `</a2ui-json>`
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_inline_code_around_block_stripped
+  description: A block wrapped in a single pair of backticks unwraps to the block alone.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    `<a2ui-json>
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>`
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_backtick_in_text_kept
+  description: Only text made of nothing but backticks is dropped; inline code in conversational text is kept.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Use `Text` for labels.
+    <a2ui-json>
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect:
+    - text: "Use `Text` for labels."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
 - name: test_unwrap_attributes_on_open_tag_tolerated
   description: An open tag that carries attributes still opens a block.
   action: unwrap

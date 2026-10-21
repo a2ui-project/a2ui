@@ -23,6 +23,10 @@ export enum LexerState {
   IN_COMMENT = 3, // Inside single-line comment
 }
 
+const OPEN_FENCE_RE = /```[a-zA-Z0-9_-]*[ \t]*\r?\n?/g;
+const PAYLOAD_START_RE =
+  /^[ \t]*(?:surface\s*\(|deleteSurface\s*\(|\$[a-zA-Z0-9_/]*\s*=|[a-zA-Z_][a-zA-Z0-9_]*\s*=|[[{])/m;
+
 /**
  * A generic state-machine-based scanner to extract structured format blocks from text.
  *
@@ -104,6 +108,43 @@ export class BlockLexer {
       .trim();
   }
 
+  private tryEmitUnmatchedClose(parts: RawResponsePart[], textBefore: string): boolean {
+    const fenceMatches = Array.from(textBefore.matchAll(OPEN_FENCE_RE));
+    let textPart = '';
+    let rawContent = '';
+    if (fenceMatches.length > 0) {
+      const lastFence = fenceMatches[fenceMatches.length - 1];
+      const fenceStart = lastFence.index ?? 0;
+      const fenceEnd = fenceStart + lastFence[0].length;
+      rawContent = this.cleanRaw(textBefore.slice(fenceEnd));
+      if (!rawContent) {
+        return false;
+      }
+      textPart = this.cleanMarkdown(textBefore.slice(0, fenceStart));
+    } else {
+      const stmtMatch = PAYLOAD_START_RE.exec(textBefore);
+      if (!stmtMatch || stmtMatch.index === undefined) {
+        return false;
+      }
+      const prefix = textBefore.slice(0, stmtMatch.index);
+      if (stmtMatch.index > 0 && /[={[(\]]/.test(prefix)) {
+        rawContent = this.cleanRaw(textBefore);
+      } else {
+        rawContent = this.cleanRaw(textBefore.slice(stmtMatch.index));
+        textPart = this.cleanMarkdown(prefix);
+      }
+      if (!rawContent) {
+        return false;
+      }
+    }
+
+    if (textPart) {
+      parts.push({type: 'text', text: textPart, isFinal: true});
+    }
+    parts.push({type: 'a2ui', a2uiRaw: rawContent, isFinal: true});
+    return true;
+  }
+
   /**
    * Scans response content character-by-character to extract format blocks.
    *
@@ -132,11 +173,17 @@ export class BlockLexer {
           state = LexerState.IN_A2UI;
           currentRaw = [];
           continue;
-        } else {
-          currentText.push(content[i]);
-          i += 1;
+        }
+        this.closeTagPattern.lastIndex = i;
+        const closeMatch = this.closeTagPattern.exec(content);
+        if (closeMatch && this.tryEmitUnmatchedClose(parts, currentText.join(''))) {
+          currentText = [];
+          i = this.closeTagPattern.lastIndex;
           continue;
         }
+        currentText.push(content[i]);
+        i += 1;
+        continue;
       }
 
       if (state === LexerState.IN_A2UI) {

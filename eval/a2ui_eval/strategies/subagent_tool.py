@@ -84,7 +84,14 @@ def a2ui_specialist() -> Tool:
             ChatMessageUser(content=input),
         ]
 
+        allowed_surface_ids = store().get("allowed_surface_ids") or ["main"]
+        surface_id = allowed_surface_ids[0]
+
         output = await get_model().generate(messages)
+        for _ in range(2):
+            if output.completion and output.completion.strip():
+                break
+            output = await get_model().generate(messages)
         if output.completion:
             try:
                 # The specialist only parses, as it did before the SDK bridges
@@ -96,7 +103,7 @@ def a2ui_specialist() -> Tool:
                     "direct_json",
                     version,
                     resolved_catalog_path,
-                    "main",
+                    surface_id,
                     output.completion,
                     DEFAULT_PARSE_TIMEOUT_SEC,
                     True,
@@ -127,6 +134,10 @@ def push_metadata_to_store(version: str, sdk: str = "python") -> Solver:
         state.store.set("version", version)
         state.store.set("sdk", norm_sdk)
         state.store.set("catalog", state.metadata.get("catalog"))
+        state.store.set(
+            "allowed_surface_ids",
+            state.metadata.get("allowed_surface_ids", ["main"]),
+        )
         state.store.set("role_description", state.metadata.get("role_description"))
         state.store.set(
             "workflow_description", state.metadata.get("workflow_description")
@@ -140,8 +151,19 @@ def push_metadata_to_store(version: str, sdk: str = "python") -> Solver:
 def extract_subagent_payload() -> Solver:
     """Extracts the A2UI payload from the tool response messages."""
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
         payload = state.store.get(PAYLOAD_STORE_KEY)
+        if payload is None:
+            state.messages.append(
+                ChatMessageUser(
+                    content=(
+                        "Please call the `a2ui_specialist` tool now to generate"
+                        " the requested UI layout."
+                    )
+                )
+            )
+            state = await generate(state)
+            payload = state.store.get(PAYLOAD_STORE_KEY)
 
         if payload is not None and state.output and state.output.choices:
             formatted_payload = f"<a2ui-json>\n{payload}\n</a2ui-json>"

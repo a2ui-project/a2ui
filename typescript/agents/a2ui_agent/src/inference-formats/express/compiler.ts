@@ -64,6 +64,7 @@ import {
 import {
   ExpressAstVisitor,
   ExpressErrorListener,
+  normalizeExpressSource,
   type ExpressCallValue,
   type ExpressCheckValue,
   type ExpressPathValue,
@@ -522,7 +523,7 @@ export class ExpressCompiler {
       }
     }
 
-    const dslBody = lines.join('\n');
+    const dslBody = normalizeExpressSource(lines.join('\n'));
 
     // ANTLR parsing and AST construction (compiler.py:256-291)
     let statements: ExpressStatement[] = [];

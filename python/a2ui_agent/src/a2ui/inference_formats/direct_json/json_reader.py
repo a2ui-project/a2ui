@@ -205,7 +205,7 @@ class _Reader:
                 return obj
             if self.text[self._i] != '"':
                 self._fail("expected a key")
-            key = self._string(healable=False)
+            key = self._string(healable=False, is_key=True)
             self._skip_space()
             if self._at_end:
                 self._end()
@@ -270,16 +270,32 @@ class _Reader:
         self._cut = True
         return value
 
-    def _string(self, *, healable: bool) -> str:
+    def _string(self, *, healable: bool, is_key: bool = False) -> str:
         self._i += 1
         buf: list[str] = []
+        raw_indices: set[int] = set()
         n = len(self.text)
         while not self._at_end:
             c = self.text[self._i]
             if c == '"':
                 self._i += 1
-                return "".join(buf)
+                if not raw_indices:
+                    return "".join(buf)
+                has_space = " " in buf
+                start = 0
+                end = len(buf)
+                while start < end and start in raw_indices:
+                    start += 1
+                while end > start and (end - 1) in raw_indices:
+                    end -= 1
+                if is_key or not has_space:
+                    return "".join(
+                        buf[idx] for idx in range(start, end) if idx not in raw_indices
+                    )
+                return "".join(buf[start:end])
             if c != "\\":
+                if c in ("\r", "\n"):
+                    raw_indices.add(len(buf))
                 buf.append(c)
                 self._i += 1
                 continue

@@ -71,4 +71,17 @@ describe('PayloadFixer', () => {
     const res = parseAndFix(validSmartQuotePayload);
     expect(res).toEqual(['version', 'str']);
   });
+
+  it('repairs raw line breaks in keys and single-token strings while keeping prose newlines', () => {
+    const payload =
+      '[{"children\\n": ["work\\nText"], "\\nevent": {"id": "\\ntext3", "text": "Line 1\\nLine 2"}}]';
+    const rawNewlinePayload = payload.replace(/\\n/g, '\n');
+    const res = parseAndFix(rawNewlinePayload);
+    expect(res).toEqual([
+      {
+        children: ['workText'],
+        event: {id: 'text3', text: 'Line 1\nLine 2'},
+      },
+    ]);
+  });
 });

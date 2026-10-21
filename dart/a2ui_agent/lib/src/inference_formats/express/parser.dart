@@ -25,6 +25,11 @@ final RegExp _openTag = RegExp(r'<a2ui(?:\s[^>]*)?>', caseSensitive: false);
 final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
 final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
 final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
+final RegExp _openFence = RegExp(r'```[a-zA-Z0-9_-]*[ \t]*\r?\n?');
+final RegExp _payloadStart = RegExp(
+  r'^[ \t]*(?:surface\s*\(|deleteSurface\s*\(|\$[a-zA-Z0-9_/]*\s*=|[a-zA-Z_][a-zA-Z0-9_]*\s*=)',
+  multiLine: true,
+);
 final RegExp _onlyBackticks = RegExp(r'^`*$');
 final RegExp _edgeBackticks = RegExp(r'^`+|`+$');
 
@@ -60,11 +65,9 @@ class ExpressParser extends Parser {
   /// Whether [content] carries an `<a2ui>` block, closed when [complete] is
   /// true.
   @override
-  bool hasFormatContent(String content, {bool complete = false}) {
-    final Match? open = _openTag.firstMatch(content);
-    if (open == null) return false;
-    return !complete || _blockEnd(content, open.end) != null;
-  }
+  bool hasFormatContent(String content, {bool complete = false}) => unwrap(
+    content,
+  ).any((RawResponsePart p) => p is RawA2uiPart && (!complete || p.isFinal));
 
   /// Writes each part on its own line, with the `<a2ui>` and `</a2ui>` tags
   /// on lines of their own. See
@@ -92,6 +95,18 @@ class ExpressParser extends Parser {
     var i = 0;
     while (true) {
       final Match? open = _openTag.allMatches(content, i).firstOrNull;
+      final int searchEnd = open?.start ?? content.length;
+      final Match? unmatchedClose = _closeTag
+          .allMatches(content.substring(0, searchEnd), i)
+          .firstOrNull;
+      if (unmatchedClose != null &&
+          _tryAddUnmatchedClose(
+            parts,
+            content.substring(i, unmatchedClose.start),
+          )) {
+        i = unmatchedClose.end;
+        continue;
+      }
       if (open == null) break;
       _addText(parts, content.substring(i, open.start));
       final int start = open.end;
@@ -121,6 +136,35 @@ class ExpressParser extends Parser {
 void _addText(List<RawResponsePart> parts, String text) {
   final String cleaned = _clean(text);
   if (cleaned.isNotEmpty) parts.add(TextPart(cleaned));
+}
+
+bool _tryAddUnmatchedClose(List<RawResponsePart> parts, String textBefore) {
+  final List<Match> fences = _openFence.allMatches(textBefore).toList();
+  String rawContent;
+  if (fences.isNotEmpty) {
+    final Match lastFence = fences.last;
+    rawContent = _cleanRaw(textBefore.substring(lastFence.end));
+    if (rawContent.isEmpty) return false;
+    _addText(parts, textBefore.substring(0, lastFence.start));
+  } else {
+    final Match? stmtMatch = _payloadStart.firstMatch(textBefore);
+    if (stmtMatch == null) return false;
+    final String prefix = textBefore.substring(0, stmtMatch.start);
+    if (stmtMatch.start > 0 &&
+        (prefix.contains('=') ||
+            prefix.contains('{') ||
+            prefix.contains('[') ||
+            prefix.contains('('))) {
+      rawContent = _cleanRaw(textBefore);
+      if (rawContent.isEmpty) return false;
+    } else {
+      rawContent = _cleanRaw(textBefore.substring(stmtMatch.start));
+      if (rawContent.isEmpty) return false;
+      _addText(parts, prefix);
+    }
+  }
+  parts.add(RawA2uiPart(rawContent));
+  return true;
 }
 
 /// Trims [text] and removes the markdown fences around it. A run made of

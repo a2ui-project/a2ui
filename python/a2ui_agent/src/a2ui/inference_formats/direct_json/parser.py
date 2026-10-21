@@ -49,6 +49,8 @@ _OPEN_TAG_START_RE = re.compile(r"^<a2ui-json\s[^>]*$", re.IGNORECASE)
 _CLOSE_TAG_START_RE = re.compile(r"^</a2ui-json\s*$", re.IGNORECASE)
 _LEADING_FENCE_RE = re.compile(r"^```[a-zA-Z-]*\s*")
 _TRAILING_FENCE_RE = re.compile(r"\s*```[a-zA-Z-]*$")
+_OPEN_FENCE_RE = re.compile(r"```[a-zA-Z0-9_-]*[ \t]*\r?\n?")
+_JSON_START_RE = re.compile(r"^[ \t]*[\[{]", re.MULTILINE)
 _STREAM_TRAILING_FENCE_RE = re.compile(r"\s*`{1,3}[a-zA-Z-]*\s*$")
 # Envelope keys of the messages that create a surface.
 _CREATE_KEYS = ("createSurface", "beginRendering")
@@ -90,13 +92,11 @@ class DirectJsonParser(Parser):
         return True
 
     def has_format_content(self, content: str, complete: bool = False) -> bool:
-        open_match = _OPEN_TAG_RE.search(content)
-        if not open_match:
-            return False
-        if not complete:
-            return True
-        close_start, _ = self._scan_block(content, open_match.end())
-        return close_start is not None
+        parts = self.unwrap(content)
+        return any(
+            isinstance(p.part, RawA2uiPart) and (not complete or p.is_final)
+            for p in parts
+        )
 
     def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
         pieces: list[str] = []
@@ -113,6 +113,14 @@ class DirectJsonParser(Parser):
         i = 0
         while True:
             open_match = _OPEN_TAG_RE.search(content, i)
+            close_unmatched = _CLOSE_TAG_RE.search(
+                content, i, open_match.start() if open_match else len(content)
+            )
+            if close_unmatched is not None and self._try_add_unmatched_close(
+                parts, content[i : close_unmatched.start()]
+            ):
+                i = close_unmatched.end()
+                continue
             if not open_match:
                 break
             self._add_text(parts, content[i : open_match.start()])
@@ -121,7 +129,7 @@ class DirectJsonParser(Parser):
                 parts.append(
                     RawResponsePart(
                         part=RawA2uiPart(
-                            a2ui_raw=self._clean(content[open_match.end() :])
+                            a2ui_raw=self._clean_raw(content[open_match.end() :])
                         ),
                         is_final=False,
                     )
@@ -130,7 +138,9 @@ class DirectJsonParser(Parser):
             parts.append(
                 RawResponsePart(
                     part=RawA2uiPart(
-                        a2ui_raw=self._clean(content[open_match.end() : close_start])
+                        a2ui_raw=self._clean_raw(
+                            content[open_match.end() : close_start]
+                        )
                     ),
                     is_final=True,
                 )
@@ -142,7 +152,7 @@ class DirectJsonParser(Parser):
         return parts
 
     def compile(self, format_content: str) -> list[AgentToRendererMessage]:
-        cleaned = self._clean(format_content)
+        cleaned = self._clean_raw(format_content)
         if not cleaned:
             raise A2uiParseError("The direct JSON block is empty.")
         try:
@@ -341,12 +351,47 @@ class DirectJsonParser(Parser):
         if cleaned:
             parts.append(RawResponsePart(part=TextPart(text=cleaned), is_final=True))
 
+    def _try_add_unmatched_close(
+        self, parts: list[RawResponsePart], text_before: str
+    ) -> bool:
+        fence_matches = list(_OPEN_FENCE_RE.finditer(text_before))
+        if fence_matches:
+            last_fence = fence_matches[-1]
+            raw_content = self._clean_raw(text_before[last_fence.end() :])
+            if not raw_content:
+                return False
+            self._add_text(parts, text_before[: last_fence.start()])
+        else:
+            json_match = _JSON_START_RE.search(text_before)
+            if not json_match:
+                return False
+            if json_match.start() > 0 and any(
+                ch in text_before[: json_match.start()] for ch in ("{", "[")
+            ):
+                raw_content = self._clean_raw(text_before)
+            else:
+                raw_content = self._clean_raw(text_before[json_match.start() :])
+                if not raw_content:
+                    return False
+                self._add_text(parts, text_before[: json_match.start()])
+            if not raw_content:
+                return False
+        parts.append(
+            RawResponsePart(part=RawA2uiPart(a2ui_raw=raw_content), is_final=True)
+        )
+        return True
+
     @staticmethod
     def _clean(text: str) -> str:
         cleaned = text.strip()
         cleaned = _LEADING_FENCE_RE.sub("", cleaned, count=1)
         cleaned = _TRAILING_FENCE_RE.sub("", cleaned, count=1)
-        return cleaned.strip()
+        cleaned = cleaned.strip()
+        return "" if not cleaned.strip("`") else cleaned
+
+    @classmethod
+    def _clean_raw(cls, text: str) -> str:
+        return cls._clean(text).strip("`").strip()
 
     @staticmethod
     def _clean_start(block: str) -> str:

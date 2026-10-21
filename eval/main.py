@@ -417,7 +417,7 @@ def main() -> None:
         "retry_attempts": retry_attempts,
         "limit": limit,
         "sample_shuffle": sample_shuffle,
-        "working_limit": 350,
+        "working_limit": 900,
         "log_dir_allow_dirty": True,
     }
     if epochs is not None:
@@ -426,8 +426,7 @@ def main() -> None:
         eval_set_kwargs["reasoning_tokens"] = args.thinking_budget
     if args.temperature is not None:
         eval_set_kwargs["temperature"] = args.temperature
-    if args.max_tasks is not None:
-        eval_set_kwargs["max_tasks"] = args.max_tasks
+    eval_set_kwargs["max_tasks"] = args.max_tasks if args.max_tasks is not None else 1
     eval_set_kwargs["max_samples"] = (
         args.max_samples if args.max_samples is not None else 10
     )

@@ -407,7 +407,7 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
     }
     if (ctx.STANDARD_STRING()) {
       const val = ctx.STANDARD_STRING()!.getText();
-      return unescapeString(val.slice(1, -1));
+      return unescapeString(val.slice(1, -1).replace(/^[\r\n]+|[\r\n]+$/g, ''));
     }
     return ctx.getText();
   };
@@ -418,11 +418,24 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
  *
  * Runs the parsing pipeline mirroring compiler.py:256-283.
  */
+export function normalizeExpressSource(source: string): string {
+  return source
+    .replace(/\$\/\r?\n[ \t]*([a-zA-Z0-9_/]+)/g, '$/$1')
+    .replace(
+      /^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*[ \t]*=)/gm,
+      '$1$2',
+    )
+    .replace(
+      /([([,]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*(?=\s*[,)\]]))/g,
+      '$1$2',
+    );
+}
+
 export function parseExpress(source: string): {
   errors: ExpressErrorRecord[];
   statements: ExpressStatement[];
 } {
-  const inputStream = CharStream.fromString(source);
+  const inputStream = CharStream.fromString(normalizeExpressSource(source));
   const lexer = new ExpressLexer(inputStream);
   const errorListener = new ExpressErrorListener();
   lexer.removeErrorListeners();

@@ -242,6 +242,30 @@ root = Text($/user/name)
         {'id': 'root', 'component': 'Text', 'text': 'x', 'weight': 1e20},
       ]);
     });
+
+    test('line-wrapped identifiers, paths, and single-line strings', () {
+      expect(
+        components(
+          'root = Column([card2\nRating], justify="start\n")\n'
+          'card2\nRating = Card(lights\nCheckbox)\n'
+          'lightsCheckbox = Text(\$/\nform/phone)',
+        ),
+        containsAll(<Object?>[
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['card2Rating'],
+            'justify': 'start',
+          },
+          {'id': 'card2Rating', 'component': 'Card', 'child': 'lightsCheckbox'},
+          {
+            'id': 'lightsCheckbox',
+            'component': 'Text',
+            'text': {'path': '/form/phone'},
+          },
+        ]),
+      );
+    });
   });
 
   group('parses a response', () {

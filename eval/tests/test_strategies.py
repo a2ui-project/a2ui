@@ -126,6 +126,19 @@ async def test_extract_subagent_payload() -> None:
     assert state.output.completion == '<a2ui-json>\n{"test": "payload"}\n</a2ui-json>'
 
 
+@pytest.mark.asyncio
+async def test_extract_subagent_payload_retries_when_missing() -> None:
+    solver = extract_subagent_payload()
+    state = _state({}, completion="I will help you with that.")
+
+    async def populate_on_retry(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
+        s.store.set(PAYLOAD_STORE_KEY, '[{"version": "v0.9"}]')
+        return s
+
+    state = await solver(state, populate_on_retry)
+    assert state.output.completion == '<a2ui-json>\n[{"version": "v0.9"}]\n</a2ui-json>'
+
+
 def test_subagent_tool_solver() -> None:
     solvers = subagent_tool_solver(version="0.9.1")
     assert len(solvers) == 5

@@ -120,6 +120,27 @@ class TestBlockLexer(unittest.TestCase):
         self.assertTrue(parts[1].is_final)
         self.assertEqual(parts[2].part.text, "Postamble")
 
+    def test_lexer_unmatched_close_tag_with_fence_or_statements(self):
+        """Verify blocks opened with ```a2ui or missing <a2ui> before </a2ui> are recovered."""
+        fenced = (
+            'Preamble\n```a2ui\nsurface("main")\nroot ='
+            ' Text("Hi")\n</a2ui>\n```\nPostamble'
+        )
+        lexer = BlockLexer()
+        parts = lexer.tokenize(fenced)
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(parts[1].part.a2ui_raw, 'surface("main")\nroot = Text("Hi")')
+        self.assertTrue(parts[1].is_final)
+        self.assertEqual(parts[2].part.text, "Postamble")
+
+        unfenced = 'Here is the UI.\nsurface("main")\nroot = Text("Hi")\n</a2ui>'
+        parts2 = lexer.tokenize(unfenced)
+        self.assertEqual(len(parts2), 2)
+        self.assertEqual(parts2[0].part.text, "Here is the UI.")
+        self.assertEqual(parts2[1].part.a2ui_raw, 'surface("main")\nroot = Text("Hi")')
+        self.assertTrue(parts2[1].is_final)
+
 
 if __name__ == "__main__":
     unittest.main()

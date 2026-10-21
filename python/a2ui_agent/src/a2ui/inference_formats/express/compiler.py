@@ -23,6 +23,7 @@ The grammar for A2UI Express is defined in Express.g4.
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+import re
 from typing import Any, Literal
 
 from antlr4 import CommonTokenStream, InputStream
@@ -505,6 +506,23 @@ class ExpressCompiler:
                 lines.append(line)
 
         dsl_body = "\n".join(lines)
+        dsl_body = re.sub(
+            r"\$/\r?\n[ \t]*([a-zA-Z0-9_/]+)",
+            r"$/\1",
+            dsl_body,
+        )
+        dsl_body = re.sub(
+            r"(?m)^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n["
+            r" \t]*([a-zA-Z_][a-zA-Z0-9_]*[ \t]*=)",
+            r"\1\2",
+            dsl_body,
+        )
+        dsl_body = re.sub(
+            r"([(\[,]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n["
+            r" \t]*([a-zA-Z_][a-zA-Z0-9_]*(?=\s*[,)\]]))",
+            r"\1\2",
+            dsl_body,
+        )
 
         input_stream = InputStream(dsl_body)
         lexer = ExpressLexer(input_stream)
