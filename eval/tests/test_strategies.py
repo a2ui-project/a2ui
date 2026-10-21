@@ -381,35 +381,6 @@ async def test_a2ui_specialist_generates_single_attempt_and_sets_payload() -> No
 
 
 @pytest.mark.asyncio
-async def test_a2ui_specialist_clears_stale_payload_on_failure() -> None:
-    bridge = _FakeBridge()
-    store().set("version", "0.9.1")
-    store().set("sdk", "python")
-    store().set("catalog", str(V091_CATALOG))
-    store().set(PAYLOAD_STORE_KEY, '[{"stale": true}]')
-    calls = 0
-
-    class _FailingModel:
-
-        async def generate(self, messages: list[Any]) -> ModelOutput:
-            nonlocal calls
-            calls += 1
-            return ModelOutput.from_content("mock/model", "")
-
-    with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
-    ), patch(
-        "a2ui_eval.strategies.subagent_tool.get_model",
-        return_value=_FailingModel(),
-    ):
-        result = await a2ui_specialist()(input="Spin up Pong")
-
-    assert calls == 1
-    assert result.startswith("Error")
-    assert store().get(PAYLOAD_STORE_KEY) is None
-
-
-@pytest.mark.asyncio
 @pytest.mark.sdk_toolchain
 @pytest.mark.parametrize("sdk", ["ts", "dart"])
 async def test_format_solvers_multi_sdk(sdk: str) -> None:

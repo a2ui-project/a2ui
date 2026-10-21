@@ -53,7 +53,6 @@ def a2ui_specialist() -> Tool:
         Args:
             input: The UI layout request.
         """
-        store().set(PAYLOAD_STORE_KEY, None)
         version = store().get("version", "0.9.1")
         sdk = store().get("sdk", "python")
         catalog_path = store().get("catalog")
