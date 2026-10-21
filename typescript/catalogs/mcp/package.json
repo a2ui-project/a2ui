@@ -39,10 +39,11 @@
     "publish:package": "yarn build && node ../../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
     "copy-catalog": "node scripts/copy-catalog.js",
     "build": "yarn copy-catalog && tsc -b --pretty",
-    "clean": "rm -rf dist src/catalog.json",
+    "clean": "rm -rf dist .tsbuildinfo src/catalog.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "yarn copy-catalog && node --import tsx --test 'src/**/*.test.ts'",
+    "test": "yarn copy-catalog && yarn typecheck && node --import tsx --test 'src/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.check.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

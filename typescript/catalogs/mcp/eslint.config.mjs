@@ -35,4 +35,15 @@ export default [
       ],
     },
   },
+  {
+    // Test files are excluded from tsconfig.json so they are not emitted into
+    // dist/; type-aware linting resolves them through tsconfig.check.json.
+    files: ['src/**/*.test.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: 'tsconfig.check.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
 ];
