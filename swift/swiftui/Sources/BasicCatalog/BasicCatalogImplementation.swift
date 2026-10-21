@@ -79,6 +79,35 @@ public enum BasicCatalogImplementation: Sendable {
     }
   }
 
+  /// Returns a new SwiftUI `Catalog<ComponentImplementation>` instance for the specified A2UI
+  /// protocol version whose `formatNumber`, `formatCurrency` and `pluralize` functions use
+  /// `locale`.
+  ///
+  /// `makeCatalog(version:)` uses `BasicFunctions.defaultLocale` (`en_US`).
+  public static func makeCatalog(
+    version: A2UIProtocolVersion,
+    locale: Locale
+  ) -> Catalog<ComponentImplementation> {
+    switch version {
+    case .v09, .v091:
+      return Catalog(
+        id: BasicCatalog.catalogURI(version: version),
+        protocolVersion: version,
+        components: allComponents,
+        functions: V09BasicFunctions.makeFunctions(locale: locale),
+        themeSchema: V09BasicCatalog.themeSchema
+      )
+    case .v10:
+      return Catalog(
+        id: BasicCatalog.catalogURI(version: .v10),
+        protocolVersion: .v10,
+        components: v10Components,
+        functions: V10BasicFunctions.makeFunctions(locale: locale),
+        themeSchema: nil
+      )
+    }
+  }
+
   /// All supported standard Basic Catalog SwiftUI implementations.
   public static let allCatalogs: [Catalog<ComponentImplementation>] =
     A2UIProtocolVersion.allCases.map { makeCatalog(version: $0) }
