@@ -300,14 +300,16 @@ describe('flagReason — assigned for triage', () => {
   });
 
   // Rule 1 decides alone: a fresh assignment holds back every other rule.
+  // Both items below would be flagged without the label.
   it('does not flag a fresh assignment, whatever else is wrong with it', () => {
-    const item = handedOut({
-      labels: [ASSIGNED_FOR_TRIAGE_LABEL], // no priority
+    const staleP1 = handedOut({
+      labels: ['P1', ASSIGNED_FOR_TRIAGE_LABEL],
       created_at: daysAgo(9999),
-      author_association: 'NONE',
-      user: {login: 'reporter', type: 'User'},
     });
-    assert.equal(flagReason(item, [], NOW, daysAgo(1)), null);
+    assert.equal(flagReason(staleP1, [], NOW, daysAgo(1)), null);
+
+    const unansweredPR = pr({labels: [ASSIGNED_FOR_TRIAGE_LABEL], assignees: dev});
+    assert.equal(flagReason(unansweredPR, [], NOW, daysAgo(1)), null);
   });
 
   // Rule 1 also outranks the rules below it.
