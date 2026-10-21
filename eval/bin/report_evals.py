@@ -103,8 +103,9 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
         passed = 0
         print(f"\n--- Dataset: {d_name} ---")
         for sample in d_samples:
-            metadata = sample.get("metadata", {}) or {}
-            name = metadata.get("name") or f"Sample {sample.get('id')}"
+            name = (
+                sample.get("metadata", {}).get("name") or f"Sample {sample.get('id')}"
+            )
             scores = sample.get("scores", {})
 
             # Algorithmic validity (a2ui_scorer)
@@ -116,20 +117,15 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
             qa_score = scores.get("measured_model_graded_qa", {})
             qa_val = qa_score.get("value", "N/A")
 
-            model_event_times = [
-                float(t)
-                for event in sample.get("events", [])
-                if event.get("event") == "model"
-                and (t := event.get("working_time") or event.get("duration"))
-                is not None
-            ]
-            inference_time: float | None = (
-                sum(model_event_times) if model_event_times else None
-            )
+            inference_time = None
+            for event in sample.get("events", []):
+                if event.get("event") == "model":
+                    inference_time = event.get("working_time") or event.get("duration")
+                    break
             if inference_time is None:
-                inference_time = metadata.get("inference_duration_seconds")
-            if inference_time is None:
-                inference_time = metadata.get("evaluation_duration_seconds")
+                inference_time = sample.get("metadata", {}).get(
+                    "evaluation_duration_seconds"
+                )
             inference_time_str = (
                 f"{float(inference_time):.2f}s" if inference_time is not None else "N/A"
             )

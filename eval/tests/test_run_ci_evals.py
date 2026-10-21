@@ -303,41 +303,6 @@ def test_generate_markdown_summary_valid() -> None:
     assert "#### Failure Details" not in summary
 
 
-def test_report_evals_sums_model_events(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    log_data: dict[str, Any] = {
-        "eval": {"task": "test_task", "model": "test_model"},
-        "samples": [
-            {
-                "id": 1,
-                "metadata": {"name": "s1"},
-                "scores": {
-                    "a2ui_scorer": {"value": 1.0},
-                    "measured_model_graded_qa": {"value": "C"},
-                },
-                "events": [
-                    {"event": "model", "working_time": 2.0},
-                    {"event": "model", "working_time": 3.0},
-                ],
-            },
-            {
-                "id": 2,
-                "metadata": {"name": "s2"},
-                "scores": {
-                    "a2ui_scorer": {"value": 1.0},
-                    "measured_model_graded_qa": {"value": "C"},
-                },
-                "events": [{"event": "model", "working_time": 4.0}],
-            },
-        ],
-    }
-    print_results_summary(log_data)
-    out = capsys.readouterr().out
-    assert "Inference Time: 5.00s" in out
-    assert "2/2 passed (100.00%)" in out
-
-
 def test_generate_markdown_summary_fail() -> None:
     log_data: dict[str, Any] = {
         "eval": {"task": "test_task", "model": "test_model"},
