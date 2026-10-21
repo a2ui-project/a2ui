@@ -41,9 +41,12 @@ import {conformancePath, registerCase} from './suite-helpers.js';
  */
 const KNOWN_FAILURES = new Map<string, string>([
   ...group('text outside a block keeps the whitespace at its edges instead of trimming it', [
+    'test_chunk_inline_code_before_newline_and_open_tag',
+    'test_chunk_inline_code_followed_by_newline_chunk',
     'test_chunk_inline_code_in_prose_followed_by_block',
     'test_chunk_inline_code_in_prose_with_trailing_newline',
     'test_chunk_inline_code_in_prose_with_trailing_space',
+    'test_chunk_non_tag_angle_bracket_in_code_span',
     'test_chunk_open_tag_split_across_chunks',
     'test_chunk_text_then_block_at_part_boundaries',
     'test_chunk_two_blocks_in_one_stream',
@@ -234,9 +237,7 @@ function runCase(testCase: LoadedCase): void {
 
   if (testCase.expect_matches_single_shot) {
     const singleShot = makeParser(args).parseResponse(chunks.join(''), wrapped);
-    expect(mergeAdjacentText(yielded)).toEqual(
-      mergeAdjacentText(singleShot.map(partToDict)),
-    );
+    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(singleShot.map(partToDict)));
   }
 }
 

@@ -210,17 +210,20 @@ class DirectJsonParser(Parser):
                 self._strip_close_backticks = False
 
         if not self._in_block and self._held_backticks:
-            trimmed = input_str.lstrip()
-            is_open_tag = bool(
-                _OPEN_TAG_RE.match(trimmed)
-                or _OPEN_TAG_START_RE.match(trimmed)
-                or "<a2ui-json".startswith(trimmed.lower())
-            )
-            if is_open_tag:
-                self._held_backticks = ""
-            else:
-                input_str = self._held_backticks + input_str
-                self._held_backticks = ""
+            if input_str:
+                is_open_tag = bool(
+                    _OPEN_TAG_RE.match(input_str)
+                    or _OPEN_TAG_START_RE.match(input_str)
+                    or (
+                        input_str.startswith("<")
+                        and "<a2ui-json".startswith(input_str.lower())
+                    )
+                )
+                if is_open_tag:
+                    self._held_backticks = ""
+                else:
+                    input_str = self._held_backticks + input_str
+                    self._held_backticks = ""
 
         while input_str:
             if self._in_block:
@@ -260,6 +263,9 @@ class DirectJsonParser(Parser):
                 continue
 
             hold = self._possible_tag_start(input_str)
+            if hold < len(input_str):
+                while hold > 0 and input_str[hold - 1] == "`":
+                    hold -= 1
             text_to_emit = input_str[:hold]
             self._held = input_str[hold:]
             input_str = ""
@@ -268,8 +274,6 @@ class DirectJsonParser(Parser):
                 if m:
                     self._held_backticks = m.group(0)
                     text_to_emit = text_to_emit[: m.start()]
-            else:
-                text_to_emit = text_to_emit.rstrip("`")
             self._emit_text(parts, text_to_emit)
 
         return parts

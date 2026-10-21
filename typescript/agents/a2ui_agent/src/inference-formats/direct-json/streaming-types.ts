@@ -42,10 +42,8 @@ export interface DirectJsonStreamProcessorOptions {
 /**
  * Interface for incrementally processing streamed Direct JSON chunks.
  *
- * Phase 2B will implement this contract in `streaming.ts`.
- * The design deliberately omits a flush/end method because state resets natively
- * upon encountering `</a2ui-json>`, and an abruptly dying stream rightfully drops
- * buffered partials that can never become valid JSON.
+ * Emits complete messages and conversational text as they arrive, and flushes any
+ * buffered text or held edge backticks when the stream ends.
  */
 export interface DirectJsonStreamProcessor {
   /**
@@ -59,7 +57,7 @@ export interface DirectJsonStreamProcessor {
   /**
    * Flushes any buffered text or backticks when the stream ends.
    */
-  flush?(): ResponsePart[];
+  flush(): ResponsePart[];
 }
 
 /**

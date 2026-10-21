@@ -46,6 +46,7 @@ export class BlockLexer {
   private readonly stringDelimiters: Set<string>;
   private readonly singleLineComments: Set<string>;
   private readonly payloadStartPattern: RegExp;
+  private readonly stripEdgeBackticks: boolean;
 
   /**
    * Initializes the block lexer with tag patterns, string delimiters, and comments.
@@ -55,6 +56,7 @@ export class BlockLexer {
    * @param stringDelimiters Character set representing string bounds.
    * @param singleLineComments Character set representing single-line comment markers.
    * @param payloadStartPattern Line-anchored regex matching the start of an unfenced payload.
+   * @param stripEdgeBackticks Whether to strip inline-code backticks adjacent to tags.
    */
   constructor(
     openTag: string | RegExp = '<a2ui>',
@@ -62,6 +64,7 @@ export class BlockLexer {
     stringDelimiters: Set<string> = new Set(["'", '"']),
     singleLineComments: Set<string> = new Set(['#']),
     payloadStartPattern: RegExp = EXPRESS_PAYLOAD_START_RE,
+    stripEdgeBackticks: boolean = false,
   ) {
     this.openTagPattern = this.toStickyRegExp(openTag, false);
     this.openTagSearchPattern = this.toSearchRegExp(openTag, false);
@@ -70,6 +73,7 @@ export class BlockLexer {
     this.stringDelimiters = stringDelimiters;
     this.singleLineComments = singleLineComments;
     this.payloadStartPattern = payloadStartPattern;
+    this.stripEdgeBackticks = stripEdgeBackticks;
   }
 
   private toStickyRegExp(tag: string | RegExp, isClose: boolean): RegExp {
@@ -330,7 +334,11 @@ export class BlockLexer {
         break;
       }
 
-      this.addText(parts, content.slice(i, openStart));
+      let textBefore = content.slice(i, openStart);
+      if (this.stripEdgeBackticks && textBefore.endsWith('`')) {
+        textBefore = textBefore.replace(/`+$/, '');
+      }
+      this.addText(parts, textBefore);
       const openEnd = openStart + openMatch[0].length;
       const closeSpan = this.scanBlock(content, openEnd, n);
       if (!closeSpan) {
@@ -349,6 +357,11 @@ export class BlockLexer {
         isFinal: true,
       });
       i = closeEnd;
+      if (this.stripEdgeBackticks) {
+        while (i < n && content[i] === '`') {
+          i++;
+        }
+      }
     }
 
     this.addText(parts, content.slice(i));

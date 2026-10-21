@@ -50,6 +50,7 @@ export class DirectJsonParser extends Parser {
       new Set(["'", '"']),
       new Set(),
       JSON_PAYLOAD_START_RE,
+      true,
     );
     this.decompiler = new DirectJsonDecompiler();
   }

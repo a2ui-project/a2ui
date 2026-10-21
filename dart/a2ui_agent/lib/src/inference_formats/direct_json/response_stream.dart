@@ -177,15 +177,17 @@ class DirectJsonResponseStream extends ResponseStream {
       }
     }
     if (!_inBlock && _heldBackticks.isNotEmpty) {
-      final String trimmed = input.trimLeft();
-      final bool isOpenTag =
-          openTag.matchAsPrefix(trimmed) != null ||
-          openTagText.startsWith(trimmed.toLowerCase());
-      if (isOpenTag) {
-        _heldBackticks = '';
-      } else {
-        input = '$_heldBackticks$input';
-        _heldBackticks = '';
+      if (input.isNotEmpty) {
+        final bool isOpenTag =
+            openTag.matchAsPrefix(input) != null ||
+            (input.startsWith('<') &&
+                openTagText.startsWith(input.toLowerCase()));
+        if (isOpenTag) {
+          _heldBackticks = '';
+        } else {
+          input = '$_heldBackticks$input';
+          _heldBackticks = '';
+        }
       }
     }
     while (input.isNotEmpty) {
@@ -223,7 +225,12 @@ class DirectJsonResponseStream extends ResponseStream {
         input = input.substring(open.end);
         continue;
       }
-      final int hold = possibleTagStart(input);
+      int hold = possibleTagStart(input);
+      if (hold < input.length) {
+        while (hold > 0 && input.codeUnitAt(hold - 1) == 0x60) {
+          hold--;
+        }
+      }
       String textToEmit = input.substring(0, hold);
       _held = input.substring(hold);
       input = '';
@@ -236,8 +243,6 @@ class DirectJsonResponseStream extends ResponseStream {
             textToEmit.length - _heldBackticks.length,
           );
         }
-      } else {
-        textToEmit = textToEmit.replaceAll(RegExp(r'`+$'), '');
       }
       _emitText(parts, textToEmit);
     }

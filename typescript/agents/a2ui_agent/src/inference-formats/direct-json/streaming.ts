@@ -203,15 +203,15 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     }
 
     if (!this.foundDelimiter && this.heldBackticks.length > 0) {
-      const trimmed = this.buffer.trimStart();
-      const isOpenTag =
-        trimmed.startsWith(A2UI_OPEN_TAG) ||
-        (trimmed.length > 0 && A2UI_OPEN_TAG.startsWith(trimmed));
-      if (isOpenTag) {
-        this.heldBackticks = '';
-      } else {
-        this.buffer = this.heldBackticks + this.buffer;
-        this.heldBackticks = '';
+      if (this.buffer.length > 0) {
+        const isOpenTag =
+          this.buffer.startsWith(A2UI_OPEN_TAG) || A2UI_OPEN_TAG.startsWith(this.buffer);
+        if (isOpenTag) {
+          this.heldBackticks = '';
+        } else {
+          this.buffer = this.heldBackticks + this.buffer;
+          this.heldBackticks = '';
+        }
       }
     }
 
@@ -237,6 +237,14 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
               break;
             }
           }
+          if (keepLen > 0) {
+            while (
+              this.buffer.length > keepLen &&
+              this.buffer.charAt(this.buffer.length - keepLen - 1) === '`'
+            ) {
+              keepLen++;
+            }
+          }
           if (this.buffer.length > keepLen) {
             const safeLen = this.buffer.length - keepLen;
             let textToYield = this.buffer.substring(0, safeLen);
@@ -248,8 +256,6 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
                 this.heldBackticks = matchTicks[0];
                 textToYield = textToYield.substring(0, textToYield.length - matchTicks[0].length);
               }
-            } else {
-              textToYield = textToYield.replace(/`+$/, '');
             }
             if (textToYield.length > 0) {
               messages.push({type: 'text', text: textToYield});

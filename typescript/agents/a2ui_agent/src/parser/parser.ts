@@ -129,5 +129,9 @@ export abstract class Parser {
     for await (const chunk of chunks) {
       yield this.parseChunk(chunk, wrapped);
     }
+    const flushed = this.flush();
+    if (flushed.length > 0) {
+      yield flushed;
+    }
   }
 }
