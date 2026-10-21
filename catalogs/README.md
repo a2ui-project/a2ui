@@ -17,11 +17,15 @@ catalogs/
 │       ├── catalog.json
 │       ├── examples/
 │       └── basic_catalog_implementation_guide.md
-└── mcp/                    # MCP catalog
-    ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
-    └── v1/                 # MCP catalog, major version 1 (protocol v1.0)
-        ├── catalog.json
-        └── mcp_app_specification.md
+├── mcp/                    # MCP catalog
+│   ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
+│   └── v1/                 # MCP catalog, major version 1 (protocol v1.0)
+│       ├── catalog.json
+│       └── mcp_app_specification.md
+└── vegachart/              # VegaChart catalog
+    ├── catalog.json        # Pre-1.0 VegaChart catalog, protocol v0.9
+    └── v1/                 # VegaChart catalog, major version 1 (protocol v1.0)
+        └── catalog.json
 ```
 
 - Catalogs are identified by the `$id` declared inside `catalog.json`, not by

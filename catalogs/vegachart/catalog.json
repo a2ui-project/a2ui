@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json",
+  "title": "A2UI VegaChart Catalog",
+  "description": "Catalog for rendering Vega and Vega-Lite charts in A2UI surfaces. Includes the VegaChart component for displaying interactive data visualizations from Vega-Lite JSON specifications.",
+  "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json",
+  "components": {
+    "VegaChart": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "#/$defs/CatalogComponentCommon"
+        },
+        {
+          "type": "object",
+          "description": "Displays a Vega or Vega-Lite chart.",
+          "properties": {
+            "component": {
+              "const": "VegaChart"
+            },
+            "spec": {
+              "description": "The Vega-Lite spec to render as a JSON object.",
+              "anyOf": [
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+                },
+                {
+                  "type": "object"
+                }
+              ]
+            },
+            "height": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+              "description": "Optional height of the chart in pixels. Defaults to 290."
+            }
+          },
+          "required": [
+            "component",
+            "spec"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "CatalogComponentCommon": {
+      "type": "object",
+      "properties": {
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This corresponds to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      }
+    },
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/VegaChart"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "not": {}
+    }
+  }
+}

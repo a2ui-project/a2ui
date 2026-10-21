@@ -1,0 +1,251 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "vegachart-dashboard",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "vegachart-dashboard",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["header_col", "top_row", "facet_card"]
+        },
+        {
+          "id": "header_col",
+          "component": "Column",
+          "children": ["title", "subtitle"]
+        },
+        {
+          "id": "title",
+          "component": "Text",
+          "text": {
+            "path": "/dashboardTitle"
+          },
+          "variant": "h2"
+        },
+        {
+          "id": "subtitle",
+          "component": "Text",
+          "text": "Rendered from a static A2UI v0.9 payload combining the Basic Catalog and the VegaChart Catalog without an LLM agent.",
+          "variant": "caption"
+        },
+        {
+          "id": "top_row",
+          "component": "Row",
+          "children": ["revenue_card", "traffic_card"]
+        },
+        {
+          "id": "revenue_card",
+          "component": "Card",
+          "weight": 1,
+          "child": "revenue_col"
+        },
+        {
+          "id": "revenue_col",
+          "component": "Column",
+          "children": ["revenue_heading", "revenue_chart"]
+        },
+        {
+          "id": "revenue_heading",
+          "component": "Text",
+          "text": "Quarterly Revenue ($K)",
+          "variant": "h4"
+        },
+        {
+          "id": "revenue_chart",
+          "component": "VegaChart",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json",
+          "height": 280,
+          "spec": {
+            "path": "/charts/quarterlyRevenue"
+          }
+        },
+        {
+          "id": "traffic_card",
+          "component": "Card",
+          "weight": 1,
+          "child": "traffic_col"
+        },
+        {
+          "id": "traffic_col",
+          "component": "Column",
+          "children": ["traffic_heading", "traffic_chart"]
+        },
+        {
+          "id": "traffic_heading",
+          "component": "Text",
+          "text": "Monthly Active Users by Channel",
+          "variant": "h4"
+        },
+        {
+          "id": "traffic_chart",
+          "component": "VegaChart",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json",
+          "height": 280,
+          "spec": {
+            "path": "/charts/monthlyTraffic"
+          }
+        },
+        {
+          "id": "facet_card",
+          "component": "Card",
+          "child": "facet_col"
+        },
+        {
+          "id": "facet_col",
+          "component": "Column",
+          "children": ["facet_heading", "regional_facet_chart"]
+        },
+        {
+          "id": "facet_heading",
+          "component": "Text",
+          "text": "Product Category Sales by Region (Faceted Vega-Lite Spec)",
+          "variant": "h4"
+        },
+        {
+          "id": "regional_facet_chart",
+          "component": "VegaChart",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json",
+          "height": 260,
+          "spec": {
+            "path": "/charts/regionalSales"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "vegachart-dashboard",
+      "path": "/",
+      "value": {
+        "dashboardTitle": "A2UI VegaChart Analytics Dashboard",
+        "charts": {
+          "quarterlyRevenue": {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "description": "Quarterly revenue in thousands of dollars",
+            "data": {
+              "values": [
+                {"quarter": "Q1 2026", "revenue": 420},
+                {"quarter": "Q2 2026", "revenue": 510},
+                {"quarter": "Q3 2026", "revenue": 640},
+                {"quarter": "Q4 2026", "revenue": 780}
+              ]
+            },
+            "mark": {
+              "type": "bar",
+              "cornerRadiusEnd": 4,
+              "tooltip": true
+            },
+            "encoding": {
+              "x": {
+                "field": "quarter",
+                "type": "ordinal",
+                "title": "Quarter",
+                "axis": {"labelAngle": 0}
+              },
+              "y": {
+                "field": "revenue",
+                "type": "quantitative",
+                "title": "Revenue ($K)"
+              }
+            }
+          },
+          "monthlyTraffic": {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "description": "Monthly active users by acquisition channel",
+            "data": {
+              "values": [
+                {"month": "2026-01-01", "channel": "Organic", "users": 12400},
+                {"month": "2026-02-01", "channel": "Organic", "users": 14200},
+                {"month": "2026-03-01", "channel": "Organic", "users": 16800},
+                {"month": "2026-04-01", "channel": "Organic", "users": 19500},
+                {"month": "2026-01-01", "channel": "Direct", "users": 8200},
+                {"month": "2026-02-01", "channel": "Direct", "users": 8900},
+                {"month": "2026-03-01", "channel": "Direct", "users": 9700},
+                {"month": "2026-04-01", "channel": "Direct", "users": 11300},
+                {"month": "2026-01-01", "channel": "Referral", "users": 4100},
+                {"month": "2026-02-01", "channel": "Referral", "users": 5300},
+                {"month": "2026-03-01", "channel": "Referral", "users": 6100},
+                {"month": "2026-04-01", "channel": "Referral", "users": 7400}
+              ]
+            },
+            "mark": {
+              "type": "line",
+              "point": true,
+              "tooltip": true
+            },
+            "encoding": {
+              "x": {
+                "field": "month",
+                "type": "temporal",
+                "title": "Month",
+                "axis": {"format": "%b"}
+              },
+              "y": {
+                "field": "users",
+                "type": "quantitative",
+                "title": "Active Users"
+              },
+              "color": {
+                "field": "channel",
+                "type": "nominal",
+                "title": "Channel"
+              }
+            }
+          },
+          "regionalSales": {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "description": "Product category sales broken down by region",
+            "data": {
+              "values": [
+                {"region": "North America", "category": "Compute", "sales": 340},
+                {"region": "North America", "category": "Storage", "sales": 210},
+                {"region": "North America", "category": "Analytics", "sales": 290},
+                {"region": "Europe", "category": "Compute", "sales": 280},
+                {"region": "Europe", "category": "Storage", "sales": 190},
+                {"region": "Europe", "category": "Analytics", "sales": 240},
+                {"region": "Asia Pacific", "category": "Compute", "sales": 310},
+                {"region": "Asia Pacific", "category": "Storage", "sales": 230},
+                {"region": "Asia Pacific", "category": "Analytics", "sales": 360}
+              ]
+            },
+            "mark": {
+              "type": "bar",
+              "tooltip": true
+            },
+            "encoding": {
+              "column": {
+                "field": "region",
+                "type": "nominal",
+                "title": "Region"
+              },
+              "x": {
+                "field": "sales",
+                "type": "quantitative",
+                "title": "Sales ($K)"
+              },
+              "y": {
+                "field": "category",
+                "type": "nominal",
+                "title": "Category"
+              },
+              "color": {
+                "field": "category",
+                "type": "nominal",
+                "legend": null
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+]
