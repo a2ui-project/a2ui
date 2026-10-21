@@ -112,14 +112,14 @@ function acceptedTypes(schema: JsonObject): Set<string> | undefined {
       ([] as unknown[]).concat(type).map(t => (t === 'integer' ? 'number' : String(t))),
     );
   }
-  if ('const' in schema) return new Set([jsonTypeOf(schema['const'])]);
+  if (Object.hasOwn(schema, 'const')) return new Set([jsonTypeOf(schema['const'])]);
   if (Array.isArray(schema['enum'])) return new Set(schema['enum'].map(jsonTypeOf));
   return undefined;
 }
 
 /** The values a schema accepts, when it lists them with `const` or `enum`. */
 function acceptedValues(schema: JsonObject): string[] | undefined {
-  if ('const' in schema) return [JSON.stringify(schema['const'])];
+  if (Object.hasOwn(schema, 'const')) return [JSON.stringify(schema['const'])];
   if (Array.isArray(schema['enum'])) return schema['enum'].map(v => JSON.stringify(v));
   return undefined;
 }
@@ -145,7 +145,7 @@ function requiredKeys(schema: JsonObject, resolve: RefResolver, depth: number): 
  */
 function closedKeys(schema: JsonObject): Set<string> | undefined {
   if (schema['additionalProperties'] !== false) return undefined;
-  if ('patternProperties' in schema) return undefined;
+  if (Object.hasOwn(schema, 'patternProperties')) return undefined;
   const properties = schema['properties'];
   return new Set(isObject(properties) ? Object.keys(properties) : []);
 }
