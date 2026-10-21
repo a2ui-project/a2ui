@@ -28,6 +28,7 @@ from ..shared.utils import GIT_ROOT
 from .base import (
     DEFAULT_PARSE_TIMEOUT_SEC,
     AgentSdkBridge,
+    BridgeOptions,
     validate_sdk_format,
     validate_sdk_version,
 )
@@ -112,15 +113,25 @@ def _tail(output: bytes | str | None) -> str:
     return text[-_OUTPUT_TAIL_CHARS:].strip()
 
 
+def _options_payload(options: BridgeOptions | None) -> dict[str, Any] | None:
+    """The `options` field of a runner request: `to_dict()`, or None for defaults."""
+    return None if options is None else options.to_dict()
+
+
+def _options_cache_key(options: BridgeOptions | None) -> str:
+    """The part of a prompt cache key that tells option sets apart."""
+    return "" if options is None else options.cache_key()
+
+
 class TypeScriptSdkBridge(AgentSdkBridge):
-    """Bridge for the TypeScript A2UI Agent SDK (typescript/a2ui_agent)."""
+    """Bridge for the TypeScript A2UI Agent SDK (typescript/agents/a2ui_agent)."""
 
     sdk_name = "ts"
 
     def __init__(self) -> None:
         self._prepared = False
         self._lock = threading.Lock()
-        self._prompt_cache: dict[tuple[str, str, str, str], str] = {}
+        self._prompt_cache: dict[tuple[str, str, str, str, str], str] = {}
 
     def prepare(self) -> None:
         """Builds @a2ui/web_core and @a2ui/agent once per process.
@@ -198,10 +209,18 @@ class TypeScriptSdkBridge(AgentSdkBridge):
         version: str,
         resolved_catalog_path: str,
         surface_id: str = "main",
+        *,
+        options: BridgeOptions | None = None,
     ) -> str:
         validate_sdk_format(self.sdk_name, format_name)
         norm_version = validate_sdk_version(self.sdk_name, version)
-        key = (format_name, norm_version, resolved_catalog_path, surface_id)
+        key = (
+            format_name,
+            norm_version,
+            resolved_catalog_path,
+            surface_id,
+            _options_cache_key(options),
+        )
         cached = self._prompt_cache.get(key)
         if cached is not None:
             return cached
@@ -213,6 +232,7 @@ class TypeScriptSdkBridge(AgentSdkBridge):
                     "version": norm_version,
                     "resolved_catalog_path": resolved_catalog_path,
                     "surface_id": surface_id,
+                    "options": _options_payload(options),
                 },
                 timeout_sec=_PROMPT_TIMEOUT_SEC,
             )
@@ -231,6 +251,7 @@ class TypeScriptSdkBridge(AgentSdkBridge):
         require_complete_tags: bool = False,
         *,
         validate: bool = True,
+        options: BridgeOptions | None = None,
     ) -> dict[str, Any]:
         """Parses, and optionally validates, in a Node process killed on timeout.
 
@@ -248,6 +269,7 @@ class TypeScriptSdkBridge(AgentSdkBridge):
                 "completion": completion,
                 "require_complete_tags": require_complete_tags,
                 "validate": validate,
+                "options": _options_payload(options),
             },
             timeout_sec=(timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC),
         )
