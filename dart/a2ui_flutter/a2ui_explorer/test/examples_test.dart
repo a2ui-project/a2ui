@@ -14,6 +14,7 @@
 
 import 'dart:io';
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_explorer/src/example.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,20 +22,36 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('the bundle holds every specification example', () async {
-    final List<String> specified = [
-      for (final FileSystemEntity file in Directory(
-        '../../../specification/v0_9/catalogs/basic/examples',
-      ).listSync())
-        if (file.path.endsWith('.json')) file.uri.pathSegments.last,
-    ]..sort();
-
+  test('the bundle holds every example of each version', () async {
     final List<Example> examples = await loadExamples(rootBundle);
 
-    expect(specified, isNotEmpty);
-    expect([for (final e in examples) e.fileName], specified);
+    for (final (A2uiProtocolVersion version, String directory) in [
+      (
+        A2uiProtocolVersion.v0_9,
+        '../../../specification/v0_9/catalogs/basic/examples',
+      ),
+      (A2uiProtocolVersion.v1_0, '../../../catalogs/basic/v1/examples'),
+    ]) {
+      final List<String> specified = [
+        for (final FileSystemEntity file in Directory(directory).listSync())
+          if (file.path.endsWith('.json')) file.uri.pathSegments.last,
+      ]..sort();
+
+      expect(specified, isNotEmpty, reason: directory);
+      expect([
+        for (final e in examples)
+          if (e.version == version) e.fileName,
+      ], specified);
+    }
     for (final example in examples) {
       expect(example.messages, isNotEmpty, reason: example.fileName);
+      for (final Map<String, Object?> message in example.messages) {
+        expect(
+          message['version'],
+          example.version.jsonValue,
+          reason: example.fileName,
+        );
+      }
     }
   });
 }

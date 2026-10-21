@@ -27,6 +27,7 @@ import 'package:flutter_test/flutter_test.dart';
 ExampleRun _run(List<Map<String, Object?>> messages) {
   final run = ExampleRun(
     Example(
+      version: A2uiProtocolVersion.v0_9,
       fileName: 'test.json',
       name: 'Test',
       description: '',

@@ -14,16 +14,21 @@
 
 import 'dart:convert';
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:flutter/services.dart';
 
-/// One of the v0.9 basic catalog examples in the specification.
+/// One of the basic catalog examples of a protocol version.
 class Example {
   const Example({
+    required this.version,
     required this.fileName,
     required this.name,
     required this.description,
     required this.json,
   });
+
+  /// The protocol version of the example's messages.
+  final A2uiProtocolVersion version;
 
   /// The example's file name, such as `00_simple-text.json`.
   final String fileName;
@@ -45,33 +50,40 @@ class Example {
   ];
 }
 
-/// The asset directory that holds the examples, a link to the
-/// specification's v0.9 basic catalog examples.
-const String examplesDirectory = 'assets/examples/';
+/// The asset directory of each protocol version's examples, a link to that
+/// version's basic catalog examples.
+const Map<A2uiProtocolVersion, String> examplesDirectories = {
+  A2uiProtocolVersion.v0_9: 'assets/examples/v0_9/',
+  A2uiProtocolVersion.v1_0: 'assets/examples/v1_0/',
+};
 
-/// Every example in [examplesDirectory] of [bundle], sorted by file name.
+/// Every example in [examplesDirectories] of [bundle], by version in the
+/// order of [examplesDirectories], then by file name.
 Future<List<Example>> loadExamples(AssetBundle bundle) async {
   final AssetManifest manifest = await AssetManifest.loadFromAssetBundle(
     bundle,
   );
-  final List<String> paths =
-      manifest
-          .listAssets()
-          .where((p) => p.startsWith(examplesDirectory) && p.endsWith('.json'))
-          .toList()
-        ..sort();
   return [
-    for (final String path in paths)
-      _example(
-        path.substring(examplesDirectory.length),
-        await bundle.loadString(path),
-      ),
+    for (final MapEntry(key: version, value: directory)
+        in examplesDirectories.entries)
+      for (final String path
+          in manifest
+              .listAssets()
+              .where((p) => p.startsWith(directory) && p.endsWith('.json'))
+              .toList()
+            ..sort())
+        _example(
+          version,
+          path.substring(directory.length),
+          await bundle.loadString(path),
+        ),
   ];
 }
 
-Example _example(String fileName, String json) {
+Example _example(A2uiProtocolVersion version, String fileName, String json) {
   final document = jsonDecode(json) as Map<String, Object?>;
   return Example(
+    version: version,
     fileName: fileName,
     name: document['name']! as String,
     description: document['description']! as String,

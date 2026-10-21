@@ -51,6 +51,17 @@ Future<void> _press(WidgetTester tester, String control) async {
   await tester.pump();
 }
 
+/// Selects protocol version [version], such as `v1.0`, and pumps a frame.
+Future<void> _selectVersion(WidgetTester tester, String version) async {
+  await tester.tap(
+    find.descendant(
+      of: find.byKey(const Key('version')),
+      matching: find.text(version),
+    ),
+  );
+  await tester.pump();
+}
+
 /// [finder], within the surfaces.
 Finder _inSurface(Finder finder) =>
     find.descendant(of: find.byType(A2uiSurface), matching: finder);
@@ -291,5 +302,52 @@ void main() {
       findsOneWidget,
     );
     expect(_noAction, findsOneWidget);
+  });
+
+  testWidgets('selecting v1.0 opens the v1.0 example of the same file', (
+    tester,
+  ) async {
+    await _open(tester, '00_formatted-text.json');
+
+    await _selectVersion(tester, 'v1.0');
+
+    expect(
+      _inPane('messages', find.textContaining('"version": "v1.0"')),
+      findsNWidgets(2),
+    );
+    await tester.enterText(_inSurface(find.byType(TextField)), 'hello');
+    await tester.pump();
+    expect(_inSurface(find.text('You typed: hello')), findsOneWidget);
+    expect(
+      _inPane('data-model', find.textContaining('"inputValue": "hello"')),
+      findsOneWidget,
+    );
+    expect(_noAction, findsOneWidget);
+  });
+
+  testWidgets('a version without the open example opens its first example', (
+    tester,
+  ) async {
+    await _open(tester, '37_native-grid.json');
+
+    await _selectVersion(tester, 'v1.0');
+
+    expect(find.byKey(const ValueKey('37_native-grid.json')), findsNothing);
+    expect(
+      tester
+          .widget<ListTile>(
+            find.byKey(const ValueKey('00_complex-layout.json')),
+          )
+          .selected,
+      isTrue,
+    );
+    expect(_inSurface(find.text('User Profile Form')), findsOneWidget);
+
+    await _selectVersion(tester, 'v0.9');
+
+    expect(
+      _inPane('messages', find.textContaining('"version": "v0.9"')),
+      findsWidgets,
+    );
   });
 }

@@ -14,6 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:a2ui_flutter/basic_catalog.dart';
 import 'package:flutter/widgets.dart';
 
 import 'demo_catalog.dart';
@@ -22,15 +23,25 @@ import 'example.dart';
 /// An entry of the action log: a heading and the details under it.
 typedef LogEntry = ({String heading, Map<String, Object?> details});
 
-/// One run of an [Example]: a [MessageProcessor] over [demoCatalog] that
-/// processes the example's messages in order on request, the surfaces it
-/// creates, and a log of the actions the surfaces send and the errors the
-/// surfaces and the processor report.
+/// One run of an [Example]: a [MessageProcessor] over [demoCatalog] for
+/// v0.9 and the v1.0 basic catalog that processes the example's messages in
+/// order on request, the surfaces it creates, and a log of the actions the
+/// surfaces send and the errors the surfaces and the processor report.
 ///
 /// Notifies its listeners when a message is processed, a surface is created
 /// or deleted, or an entry is logged.
 class ExampleRun extends ChangeNotifier {
-  ExampleRun(this.example) : messages = example.messages {
+  ExampleRun(this.example)
+    : messages = example.messages,
+      _processor = MessageProcessor(
+        catalogs: [demoCatalog, basicCatalog()],
+        defaultVersion: example.version,
+        validationConfig: const ValidationConfig(
+          allowOrphanComponents: true,
+          allowDanglingReferences: true,
+          allowMissingRoot: true,
+        ),
+      ) {
     final SurfaceGroupModel<ComponentImplementation> group = _processor.model;
     group.onAction.subscribe(
       (action) => _log((heading: action.name, details: action.toJson())),
@@ -58,15 +69,7 @@ class ExampleRun extends ChangeNotifier {
   /// Checks each message against the surface it leaves behind, which may
   /// lack a root, reference components a later message adds, and hold
   /// components nothing reaches.
-  final MessageProcessor<ComponentImplementation> _processor = MessageProcessor(
-    catalogs: [demoCatalog],
-    defaultVersion: A2uiProtocolVersion.v0_9,
-    validationConfig: const ValidationConfig(
-      allowOrphanComponents: true,
-      allowDanglingReferences: true,
-      allowMissingRoot: true,
-    ),
-  );
+  final MessageProcessor<ComponentImplementation> _processor;
 
   final List<SurfaceModel<ComponentImplementation>> _surfaces = [];
   final List<LogEntry> _entries = [];
@@ -98,7 +101,7 @@ class ExampleRun extends ChangeNotifier {
         _processor.processMessages(
           AgentToRendererMessagePayload.fromJson(
             messages[_processed],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            protocolVersion: example.version,
           ),
         );
       } on A2uiError catch (error) {
