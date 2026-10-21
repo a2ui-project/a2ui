@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
-from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.inference_formats.express import ExpressFormatFactory
 from a2ui.parser import Parser, ResponsePart
 from a2ui.utils import validate_payload
 
@@ -60,7 +60,7 @@ class A2uiRequestProcessor:
             for turn in self._examples:
                 validate_payload(self._active_catalogs, turn)
         factory = (
-            format_factory if format_factory is not None else DirectJsonFormatFactory()
+            format_factory if format_factory is not None else ExpressFormatFactory()
         )
         self._format: InferenceFormat = factory.create_format(
             catalogs=self._active_catalogs,

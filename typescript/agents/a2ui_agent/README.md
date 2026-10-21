@@ -21,7 +21,7 @@ const componentCatalog = CatalogConfig.fromPath('path/to/catalog.json');
 const generator = new A2uiGenerator(
   [componentCatalog],
   undefined,
-  // Omit to use DirectJsonFormatFactory by default, or pass ExpressFormatFactory:
+  // Omit to use ExpressFormatFactory by default, or pass DirectJsonFormatFactory:
   new ExpressFormatFactory(),
 );
 

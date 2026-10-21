@@ -124,14 +124,19 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
 
 void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
-  final generator = A2uiGenerator(
-    catalogs: [
-      for (final Object? entry in args['catalogs']! as List<Object?>)
-        version.catalogConfig(entry),
-    ],
-    examples: _examples(args, version),
-    inferenceFormatFactory: _factory(args['format'] ?? 'direct_json'),
-  );
+  final List<CatalogConfig> configs = [
+    for (final Object? entry in args['catalogs']! as List<Object?>)
+      version.catalogConfig(entry),
+  ];
+  final List<List<AgentToRendererMessage>> examples = _examples(args, version);
+  final generator = switch (args['format']) {
+    null => A2uiGenerator(catalogs: configs, examples: examples),
+    final Object name => A2uiGenerator(
+      catalogs: configs,
+      examples: examples,
+      inferenceFormatFactory: _factory(name),
+    ),
+  };
   final List<Object?> before = _describe(generator);
   A2uiRequestProcessor create() => generator.createProcessor(
     version.capabilities(

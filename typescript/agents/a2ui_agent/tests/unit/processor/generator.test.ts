@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-import {describe, test, expect} from 'vitest';
-import {A2uiGenerator} from '../../../src/processor/generator.js';
-import {CatalogConfig} from '../../../src/processor/catalog-config.js';
-import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {describe, expect, test} from 'vitest';
+
 import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
+import {DirectJsonFormatFactory} from '../../../src/inference-formats/direct-json/format.js';
 import {V10RendererCapabilities} from '../../../src/internal/web-core.js';
+import {CatalogConfig} from '../../../src/processor/catalog-config.js';
+import {A2uiGenerator} from '../../../src/processor/generator.js';
+import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
 
@@ -27,6 +29,21 @@ describe('A2uiGenerator', () => {
   const mockCapabilities: V10RendererCapabilities = {
     supportedCatalogIds: [basicCatalogV10.id],
   };
+
+  test('defaults to the Express format and supports overriding with DirectJsonFormatFactory', () => {
+    const config = new CatalogConfig(basicCatalogV10);
+    const generator = new A2uiGenerator([config]);
+
+    const expressProcessor = generator.createProcessor(mockCapabilities);
+    expect(expressProcessor.promptSnippet).toContain('<a2ui>');
+    expect(expressProcessor.promptSnippet).toContain('Text(');
+
+    const directJsonProcessor = generator.createProcessor(
+      mockCapabilities,
+      new DirectJsonFormatFactory(),
+    );
+    expect(directJsonProcessor.promptSnippet).toContain('---BEGIN A2UI JSON SCHEMA---');
+  });
 
   test('successfully creates a processor when examples only use supported components', () => {
     const config = new CatalogConfig(basicCatalogV10);

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
+import {ExpressFormatFactory} from '../inference-formats/express/format.js';
 import {
   AgentToRendererMessage,
   Catalog,
@@ -23,10 +25,8 @@ import {
   MessageProcessor,
   type ValidationConfig,
 } from '../internal/web-core.js';
-import {InferenceFormatFactory, InferenceFormat} from '../inference-format.js';
-import {ResponsePart} from '../parser/response-part.js';
-import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
 import {Parser} from '../parser/parser.js';
+import {ResponsePart} from '../parser/response-part.js';
 
 /**
  * Validation applied to model output in `parseResponse`.
@@ -55,7 +55,7 @@ export class A2uiRequestProcessor {
     private readonly _examples?: Record<string, AgentToRendererMessage[] | string>,
     formatFactory?: InferenceFormatFactory,
   ) {
-    const factory = formatFactory || new DirectJsonFormatFactory();
+    const factory = formatFactory || new ExpressFormatFactory();
     this._format = factory.createFormat(catalogs, _examples);
     this._parser = this._format.createParser();
 

@@ -128,7 +128,7 @@ export function classify(testCase: TestCase) {
   if (version === '1.0') version = 'v1.0';
   if (version === '0.8') version = 'v0.8';
 
-  let format = 'direct_json';
+  let format = 'express';
   if (typeof testCase.format === 'string') {
     format = testCase.format;
   } else if (testCase.args && typeof testCase.args.format === 'string') {

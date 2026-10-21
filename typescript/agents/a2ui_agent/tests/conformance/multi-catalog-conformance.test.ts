@@ -362,7 +362,7 @@ function runFormatCase(testCase: LoadedCase): void {
     const before = describeConfigs(configs);
     const catalogs = configs.map(c => c.transformedCatalog);
     const examples = loadExamples(args.examples as string[] | undefined, catalogs);
-    const baseFactory = makeFactory((args.format as string) ?? 'direct_json');
+    const baseFactory = typeof args.format === 'string' ? makeFactory(args.format) : undefined;
     const overrideFactory = args.format_override
       ? makeFactory(args.format_override as string)
       : undefined;

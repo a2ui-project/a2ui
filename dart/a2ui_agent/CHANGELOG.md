@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Breaking: `A2uiGenerator.inferenceFormatFactory` and
+  `A2uiRequestProcessor.formatFactory` default to `ExpressFormatFactory`
+  instead of `DirectJsonFormatFactory`.
 - The Express compiler throws `A2uiValidationError` for a check on a
   component whose schema declares no `checks`, such as
   `Text("hi", ?required($/name))`, rather than writing `checks` onto it.

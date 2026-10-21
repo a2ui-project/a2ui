@@ -16,7 +16,7 @@ The `agent_sdk` revolves around four main classes:
   optional few-shot example turns, and format factory, and negotiates an
   `A2uiRequestProcessor` for a client's renderer capabilities.
 - **`A2uiRequestProcessor`**: Request-scoped facade that binds the active
-  negotiated catalogs to an `InferenceFormat` (defaulting to `DirectJsonFormat`)
+  negotiated catalogs to an `InferenceFormat` (defaulting to `ExpressFormat`)
   and exposes `prompt_snippet`, `create_parser()`, and `parse_response()`.
 
 ## Prerequisites

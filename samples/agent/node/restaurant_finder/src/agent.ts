@@ -20,6 +20,7 @@ import {
   A2uiGenerator,
   A2uiRequestProcessor,
   CatalogConfig,
+  DirectJsonFormatFactory,
   DirectJsonStreamProcessorImpl,
   ExpressFormatFactory,
 } from '@a2ui/agent';
@@ -220,7 +221,9 @@ export class RestaurantExecutor implements AgentExecutor {
   /** Creates a processor for one parse; it keeps state, so it is not reused. */
   private createProcessor(profile: VersionProfile, catalogIds: string[]): A2uiRequestProcessor {
     const formatFactory =
-      this.format === 'express' ? new ExpressFormatFactory({surfaceId: 'default'}) : undefined;
+      this.format === 'express'
+        ? new ExpressFormatFactory({surfaceId: 'default'})
+        : new DirectJsonFormatFactory();
     return this.generators
       .get(profile.version)!
       .createProcessor({supportedCatalogIds: catalogIds}, formatFactory);
