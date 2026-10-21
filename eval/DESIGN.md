@@ -10,16 +10,16 @@ The core architecture of the A2UI evaluation framework is built upon the princip
 
 ### **Systematic Mapping to Inspect AI**
 
-The framework adopts the three-pillar architecture of Inspect AI—Tasks, Solvers, and Scorers—to create a unified evaluation pipeline. In this context, a Task defines the high-level evaluation objective, such as "Validating Form Generation" or "Testing Adaptive Layouts".
+The framework adopts the three-pillar architecture of Inspect AI (Tasks, Solvers, and Scorers) to create a unified evaluation pipeline. In this context, a Task defines the high-level evaluation objective, such as "Validating Form Generation" or "Testing Adaptive Layouts".
 
 | Inspect Component | A2UI Implementation Detail                                                 | Primary Responsibility                                            |
 | :---------------- | :------------------------------------------------------------------------- | :---------------------------------------------------------------- |
 | Dataset           | Encrypted YAML files conforming to `datasets/dataset_schema.json`.         | Providing structured `messages` turns, catalogs, and UI targets.  |
 | Solver            | Uses an `InferenceFormat` to inject system prompt and protocol rules.      | Orchestrating the model's attempt to generate a valid UI payload. |
-| Scorer            | Algorithmic `a2ui_scorer` validation and `measured_model_graded_qa` judge. | Determining technical validity and semantic intent quality.       |
-| Model Provider    | Support for Gemini, OpenAI, Anthropic, and local vLLM.                     | Standardizing API interactions across diverse model families.     |
+| Scorer            | `a2ui_scorer` (Stage 1 validation, Stage 2 assertions) then `measured_model_graded_qa` (Stage 3 judge). | Determining technical validity and semantic intent quality.       |
+| Model Provider    | Gemini, OpenAI, Anthropic, OpenRouter, and local Ollama, vLLM or OpenAI-compatible servers. | Standardizing API interactions across diverse model families.     |
 
-The interaction flow begins with loading a dataset sample. Each sample specifies a `catalog` path, optional domain `system_prompt`, and a list of `messages` representing the conversation history (including user requests, assistant responses, and tool calls). The solver merges the domain system prompt with A2UI protocol instructions and passes the conversational context to the model. The generated UI payload is parsed and evaluated by `a2ui_scorer` for schema validity and `measured_model_graded_qa` for semantic quality.
+The interaction flow begins with loading a dataset sample. Each sample names one `catalog` or a list of `catalogs`, an optional domain `system_prompt`, and a list of `messages`. The messages hold the conversation history: user requests, assistant responses, and tool calls. The solver merges the domain system prompt with A2UI protocol instructions and passes the conversational context to the model. The generated UI payload then goes through the three-stage scoring funnel described below.
 
 ### **Integration with A2UI Python SDK**
 
@@ -38,7 +38,38 @@ The same tasks can run against the TypeScript and Dart Agent SDKs. Each SDK has 
 
 `base.py` lists the strategies, inference formats and protocol versions each SDK supports. `main.py` and `tasks.py` check a run against these lists before any model call. Every bridge uses the same parse timeout, `DEFAULT_PARSE_TIMEOUT_SEC`.
 
-The `subagent_tool` strategy calls `parse_and_validate` with `validate=False`, so the specialist tool only parses. For `direct` and `subagent_tool`, strict validation runs once, in the Stage 1 scorer. The format strategies (`express`, `elemental` and `atom`) also validate when the solver compiles the completion with `parse_and_validate`, so their payloads are validated twice: once in the solver and again in the Stage 1 scorer.
+The `subagent_tool` strategy calls `parse_and_validate` with `validate=False`, so the specialist tool only parses. For `direct` and `subagent_tool`, strict validation runs once, in the Stage 1 scorer. The format strategies (`express`, `elemental` and `atom`) also validate when the solver compiles the completion with `parse_and_validate`. The solver stores the result in `state.metadata["compiled_messages"]`, and the Stage 1 scorer reuses it instead of parsing again.
+
+### **Bridge Options: One Contract for Three Runners**
+
+A sample can ask for more than a single, unpruned catalog. `bridges/base.py` defines `BridgeOptions`, a frozen dataclass that carries everything the inference layer needs beyond the format and version:
+
+- `catalogs`: an ordered tuple of `CatalogSpec`. Each spec holds the catalog `path` and an optional `catalog_id` for documents that state none. `allowed_components` and `allowed_functions` prune the catalog. `examples` lists the few-shot example files for that catalog. The first catalog is the default.
+- `allowed_messages`: the message types the model may write, or `None` for all of them.
+- `initial_renderer_state`: messages applied to a fresh renderer state before the model's turn is validated, so a turn can update an existing surface.
+- `stream_chunk_size`: when set, the bridge also feeds the completion through the format's streaming parser in slices of this size. It fails if the streamed parse disagrees with the whole-text parse.
+
+`bridge_options_from_metadata` builds these options from the sample metadata that `load_a2ui_dataset` writes (`catalog_specs`, `allowed_messages`, `initial_state`, `stream_chunk_size`) and resolves every path against the repository root.
+
+`generate_prompt` and `parse_and_validate` on every bridge accept `options`. The Python bridge applies them in process. The TypeScript and Dart bridges serialize them with `to_dict()` and send them to `ts_runner.mjs` or `dart_runner.dart`. Each runner rebuilds the same catalog transformers, example turns and renderer state in its own SDK. `cache_key()` gives a deterministic string so prompt caches can key on the options.
+
+Example payload files must be complete wire messages, with `version`, `surfaceId` and `catalogId`. The Python runner fills in missing fields through the SDK's example normalizer. The TypeScript and Dart runners load the file as is, so an incomplete file produces different prompts across SDKs.
+
+### **Completion Replay Across SDKs**
+
+Every SDK builds the same prompt for the same sample. A completion produced for the Python SDK is therefore also a valid input for the TypeScript and Dart bridges. `a2ui_eval/replay.py` uses this to cut inference cost by two thirds when all three SDKs are evaluated.
+
+`CompletionReplayStore` is an append-only JSONL file of `RecordedCompletion` records, keyed by `(sample_name, strategy, version)`. Each record also stores the SHA-256 of the system prompt that produced it. A later record with the same key replaces the earlier one on lookup. `CompletionReplayStore.from_eval_log` builds the same store in memory from an Inspect `.eval` log, taking the strategy and version from the log's task arguments.
+
+`generate_or_replay` in `strategies/format.py` is the solver that reads and writes the store. With a replay path it installs the recorded completion as the model output and makes no model call; a missing recording raises `ValueError`.
+
+Without a replay path it calls the model through `measured_generate` and, when a record path is given, appends the completion. A replayed sample is marked `replayed=True` in its metadata, with `replay_prompt_matches` showing whether the current prompt still hashes to the recorded one. Validation retries are disabled for replayed samples because the model is not available to answer them.
+
+### **Validation Retries and Pass@K**
+
+`compile_format_payload` accepts `max_validation_retries`. When an attempt fails strict validation and retries remain, the solver sends the validation error back to the model and compiles the new completion. The metadata records `pass_at_1` (the first attempt validated), `pass_at_k` (some attempt within the budget validated) and `validation_retries_used`.
+
+The `subagent_tool` strategy applies the same loop to the specialist call and records `subagent_pass_at_1` and `subagent_validation_retries_used`. The default budget is zero, so a run reports Pass@1 unless a retry budget is requested.
 
 ### **Replicating and Enhancing the Eval Lifecycle**
 
@@ -53,18 +84,26 @@ The lifecycle consists of four distinct phases:
 
 ## **Dataset Engineering and Contamination Mitigation**
 
-In an open-source context, the integrity of evaluation data is constantly threatened by model training crawlers that ingest public repositories. If evaluation prompts and their corresponding "gold" answers are indexed, future models will exhibit inflated performance due to memorization rather than actual reasoning capabilities—a phenomenon known as data contamination.
+In an open-source context, the integrity of evaluation data is constantly threatened by model training crawlers that ingest public repositories. If evaluation prompts and their corresponding "gold" answers are indexed, future models will exhibit inflated performance due to memorization rather than actual reasoning capabilities. This is known as data contamination.
 
 ### **The Encryption-at-Rest Strategy**
 
 To satisfy the requirement for both human readability and crawler resistance, the framework implements transparent encryption using **Transcrypt**. Evaluation scenarios are authored in human-readable YAML format but are encrypted at rest in the repository.
 
-| Feature           | Plaintext Storage                 | Transcrypt Encryption (Proposed)             |
+| Feature           | Plaintext Storage                 | Transcrypt Encryption                        |
 | :---------------- | :-------------------------------- | :------------------------------------------- |
 | Human Readability | High (Directly visible on GitHub) | High (For authorized contributors with keys) |
 | Model Indexing    | Extremely High Risk               | Negligible (Encrypted binary data)           |
 | CI Integration    | Trivial                           | Requires secret injection in GitHub Actions  |
 | Versioning        | Standard Git diffs                | Handled by Transcrypt transparently          |
+
+### **Dataset Encryption Policy**
+
+The policy is simple: every YAML file under `eval/datasets/` is encrypted, with no exceptions for "small" or "synthetic" samples. The `.gitattributes` file in that directory applies the `crypt` filter to `*.yaml`, so a contributor who has unlocked Transcrypt never has to think about it. Two things stay in plaintext on purpose. `dataset_schema.json` holds no prompts. `eval/examples/example_eval_case.json` is a single reference sample that shows the format to people without the key.
+
+The tools that write datasets enforce the same rule. `bin/import_trace.py` and `bin/expand_cases.py` refuse to write a YAML file anywhere inside the repository other than `eval/datasets/`. A sample that was captured from a real session would otherwise be one careless `--output` away from being public.
+
+Contributors get the password on request from an A2UI team member. The CI workflow receives it as a repository secret and unlocks the datasets before running `main.py`.
 
 ### **Implementation: Transparent Encryption with Transcrypt**
 
@@ -73,12 +112,12 @@ Transcrypt is a Bash script that uses OpenSSL to provide transparent encryption 
 **Why Transcrypt for A2UI:**
 
 - **String-Based Secrets**: Unlike `git-crypt`, which requires a binary key file, Transcrypt can be unlocked using a simple password string. This is highly ergonomic for CI/CD pipelines where the secret is stored as a string environment variable.
-- **Zero-Install Contribution**: Transcrypt is a standalone script that can be committed to the `evals/bin/` directory. Contributors do not need to install system-level packages; they simply run the local script to unlock the repo.
+- **Zero-Install Contribution**: Transcrypt is a standalone script committed to `eval/bin/`. Contributors do not need to install system-level packages; they run the local script to unlock the repo.
 - **Transparency**: Once a developer runs the unlock command, they can use standard Git commands (`add`, `commit`, `push`). The encryption and decryption happen automatically in the background via `.gitattributes`.
 
 **Configuration Strategy:**
 
-1.  **Repository Structure**: The evaluation scenarios are authored in human-readable YAML in `evals/datasets/*.yaml`.
+1.  **Repository Structure**: The evaluation scenarios are authored in human-readable YAML in `eval/datasets/*.yaml`.
 2.  **Filter Definition**: A `.gitattributes` file is placed in the datasets folder: `*.yaml filter=crypt diff=crypt merge=crypt`.
 3.  **Key Rotation**: If the evaluation password is compromised, developers can use Transcrypt’s built-in `--rekey` command to rotate the password and re-encrypt all files in a single step.
 
@@ -88,14 +127,17 @@ A primary goal of the A2UI framework is to facilitate objective comparisons acro
 
 ### **Standardizing Model API Interactions**
 
-Inspect AI provides built-in providers for the most common lab APIs, which the A2UI framework leverages to maintain a consistent interface.
+Inspect AI provides built-in providers for the most common lab APIs and for local servers. `main.py` passes the `--model` name straight to Inspect, so the provider prefix selects the client.
 
-| Provider Family | Configuration Mechanism            | A2UI Specific Integration                               |
-| :-------------- | :--------------------------------- | :------------------------------------------------------ |
-| Google Gemini   | `google-genai` Python package      | Uses built-in grounding for A2UI documentation.         |
-| OpenAI          | `openai` Python package            | Leverages prompt caching for cost reduction.            |
-| Anthropic       | `anthropic` Python package         | Supports Claude 3.5's "Computer Use" capabilities.      |
-| Open Models     | `vllm` or `ollama` local providers | Enables testing on internal or private infrastructures. |
+| Provider Family | Model prefix                                  | Notes                                                                 |
+| :-------------- | :-------------------------------------------- | :-------------------------------------------------------------------- |
+| Google Gemini   | `google/`                                     | Default for inference and for the judge. The only provider run in CI. |
+| OpenAI          | `openai/`                                     | Run on demand.                                                        |
+| Anthropic       | `anthropic/`                                  | Run on demand. Client installed with `uv sync --extra frontier`.      |
+| OpenRouter      | `openrouter/`                                 | Run on demand.                                                        |
+| Local servers   | `ollama/`, `vllm/`, `openai-api/<provider>/`  | Ollama, vLLM, llama.cpp and LM Studio. `--model-base-url` overrides the endpoint. |
+
+Local servers handle far less concurrency than hosted APIs. `main.py` therefore offers `--profile local` and `--profile offline`. Both lower `--max-samples` and `--max-connections` and raise `--working-limit`; `offline` also disables the judge.
 
 ## **Secure Secret Management in CI/CD Pipelines**
 
@@ -115,19 +157,36 @@ Instead of complex identity federation, we utilize the standard `secrets` vault 
 
 ## **Multi-Stage Scoring and Validation Logic**
 
-Evaluating an A2UI response requires more than just checking if the output is valid JSON. It must be assessed for structural integrity, semantic accuracy, and usability.
+Evaluating an A2UI response requires more than checking that the output is valid JSON. The framework scores each sample through a gated funnel of three stages. A sample that fails a stage does not reach the next one, so the expensive judge only sees payloads that are already structurally correct. The stages are implemented in `a2ui_eval/scorers.py` as two Inspect scorers that run in order: `a2ui_scorer` (Stages 1 and 2) and `measured_model_graded_qa` (Stage 3).
 
 ### **Stage 1: Structural & Schema Validation (Programmatic)**
 
-The first line of defense is a non-LLM based programmatic scorer. Using the selected catalog's validator and a strict `MessageProcessor` from the A2UI Python SDK, this scorer validates the generated JSON for schema compliance and hierarchy validity. Before validation, the output is processed by `parse_response` and `payload_fixer` to handle common LLM formatting quirks. This stage provides a binary "Pass/Fail" based on strict adherence to the protocol.
+The target SDK bridge parses the completion and runs strict validation against the active catalogs, with the sample's `BridgeOptions` applied. When a format solver has already compiled the payload, the scorer reuses `state.metadata["compiled_messages"]` instead of parsing the completion again. A solver failure (a timeout or a parse error recorded by the solver) is scored as a Stage 1 failure. The result is binary: the payload is either a valid set of A2UI messages or it is not.
 
-### **Stage 2: Programmatic Semantic Checks**
+### **Stage 2: Deterministic Assertions**
 
-Before escalating to an expensive LLM judge, the framework performs simple, rule-based checks to verify baseline correctness against the prompt's specific requirements. For example, if the prompt requests a "form with an email field and a submit button", this stage programmatically verifies that the generated JSON contains a component mapping to an email input and a button, and that they are bound to appropriate data model paths. This reduces the load on the LLM judge and ensures basic compliance.
+`evaluate_stage2_assertions` checks the compiled messages against the sample's `assertions` block, parsed into `Stage2Assertions`. The checks are name lookups over the compiled payload and involve no model:
+
+| Assertion              | Passes when                                                              |
+| :--------------------- | :----------------------------------------------------------------------- |
+| `required_components`  | Every listed component type appears at least once.                       |
+| `forbidden_components` | No listed component type appears.                                        |
+| `required_bindings`    | Every listed data model path (such as `/booking/date`) is bound or written. |
+| `required_actions`     | Every listed action event name is dispatched by some component.          |
+| `message_types`        | The payload contains only the listed message types.                      |
+| `catalog_ids`          | Every listed catalog id is named by some surface or component.           |
+
+An empty or missing `assertions` block asserts nothing, so Stage 2 passes. `a2ui_scorer` records the combined Stage 1 and 2 verdict in `state.metadata["a2ui_stage12_passed"]` and lists every failed assertion in its explanation.
 
 ### **Stage 3: Intent Alignment & Quality (LLM-as-a-judge)**
 
-The final stage uses a high-capacity "grader" model to assess how well the generated UI meets the user's intent beyond simple component presence (e.g., layout appropriateness, accessibility hints). The grader is provided with a rubric and asked to provide a score on a Likert scale (1-5) along with a detailed rationale.
+`measured_model_graded_qa` wraps Inspect's `model_graded_qa`. The grading model receives the compiled payload and the sample's `target` rubric. It returns one of three grades: `C` (correct), `P` (partially correct) or `I` (incorrect). The scorer also records the judge's token usage and duration in the sample metadata.
+
+The judge is gated on the earlier stages. When `a2ui_stage12_passed` is `False`, the scorer returns `I` without calling the model. When the run was started with `--no-judge`, the scorer never calls the model and returns `C` for a sample that passed Stages 1 and 2. This makes an offline run against a local model possible with no judge credentials, at the cost of measuring structure only.
+
+### **What Counts as a Pass**
+
+`bin/report_evals.py` defines the pass rate that the CI threshold is applied to. A sample passes only when `a2ui_scorer` passed and the judge graded it `C`. A `P` is not a pass. For logs that predate Stage 2 and lack per-sample scores for both scorers, `extract_accuracy` falls back to the accuracy metric of the first scorer.
 
 ## **Framework Testing and Quality Assurance Plan**
 
@@ -152,9 +211,9 @@ The framework maintains a "Golden Set" of approximately 200 evaluation samples t
 
 The A2UI evaluation framework is integrated into the development process using a tiered approach to manage costs and resources.
 
-- Smoke Test (PR Trigger): A small subset of critical UI scenarios is run on every pull request.
-- Nightly Benchmark: A full suite of hundreds of scenarios is run every 24 hours to detect "silent drift" in model performance.
-- Cost Optimization: The framework uses cheaper models (e.g., Gemini Flash) for structural validation and only escalates to larger models for final semantic grading.
+- Smoke tier (PR trigger): samples tagged `smoke` run on every pull request through `bin/run_ci_evals.py --tier smoke`. The script forwards `--record-completions` and `--replay-completions`, so one Python run can supply the completions for the TypeScript and Dart runs.
+- Nightly benchmark: the full suite runs every 24 hours to detect "silent drift" in model performance.
+- Cost control: Stage 1 and 2 reject invalid payloads before any judge call. `--no-judge` removes the judge for structural runs. Replay removes repeated inference across SDKs.
 
 By implementing these strategies, the A2UI project ensures that its evaluation data remains resistant to model memorization while providing a transparent and accessible framework for contributors to measure model performance accurately across the LLM landscape.
 **References**
