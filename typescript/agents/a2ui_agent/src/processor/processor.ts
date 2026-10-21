@@ -15,7 +15,7 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
-import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
+import {ExpressFormatFactory} from '../inference-formats/express/format.js';
 import {A2uiCatalogError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
 import {ParseOptions, Parser} from '../parser/parser.js';
 import {ResponsePart} from '../parser/response-part.js';
@@ -43,7 +43,7 @@ export class A2uiRequestProcessor {
   /**
    * @param catalogs The negotiated catalogs active for this request.
    * @param _examples Prompt examples, keyed by name.
-   * @param formatFactory The inference format. Direct JSON by default.
+   * @param formatFactory The inference format. Express by default.
    * @param options The renderer state to bind, if any.
    * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
    */
@@ -53,7 +53,7 @@ export class A2uiRequestProcessor {
     formatFactory?: InferenceFormatFactory,
     options: A2uiRequestProcessorOptions = {},
   ) {
-    const factory = formatFactory || new DirectJsonFormatFactory();
+    const factory = formatFactory || new ExpressFormatFactory();
     this._format = factory.createFormat(catalogs, _examples);
     this.checkState(options.state);
     this._state = options.state;

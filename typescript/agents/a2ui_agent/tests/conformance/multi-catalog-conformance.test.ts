@@ -176,7 +176,7 @@ function makeFormat(args: Record<string, unknown>): InferenceFormat {
   }
 
   const examples = loadExamples(args.examples as string[] | undefined, catalogs);
-  const formatName = (args.format as string) ?? 'direct_json';
+  const formatName = (args.format as string) ?? 'express';
 
   if (formatName === 'express') {
     return new ExpressFormat(catalogs, {
@@ -370,7 +370,7 @@ function runFormatCase(testCase: LoadedCase): void {
     const before = describeConfigs(configs);
     const catalogs = configs.map(c => c.transformedCatalog);
     const examples = loadExamples(args.examples as string[] | undefined, catalogs);
-    const baseFactory = makeFactory((args.format as string) ?? 'direct_json');
+    const baseFactory = typeof args.format === 'string' ? makeFactory(args.format) : undefined;
     const overrideFactory = args.format_override
       ? makeFactory(args.format_override as string)
       : undefined;
@@ -451,7 +451,7 @@ describe('Conformance: multi_catalog_formats.yaml & request_processor.yaml', () 
 
   for (const testCase of loadCases(files)) {
     const args = (testCase.args as Record<string, unknown>) || {};
-    const fmt = (args.format as string) ?? 'direct_json';
+    const fmt = (args.format as string) ?? 'express';
     const fmtOverride = args.format_override as string | undefined;
     const isUnsupportedFormat =
       (fmt !== 'express' && fmt !== 'direct_json') ||

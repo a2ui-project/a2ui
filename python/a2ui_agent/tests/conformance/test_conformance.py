@@ -797,10 +797,14 @@ def run_create_processor_case(test_case, tmp_path):
     configs = [catalog_config_from_document(entry) for entry in args["catalogs"]]
     before = _describe_configs(configs)
     loaded_examples = stage_examples(args.get("examples", []), tmp_path)
-    base_factory = _factory_for(
-        args.get("format", "direct_json"),
-        allowed_messages=args.get("allowed_messages"),
-        progressive_keys=args.get("progressive_keys"),
+    base_factory = (
+        _factory_for(
+            args["format"],
+            allowed_messages=args.get("allowed_messages"),
+            progressive_keys=args.get("progressive_keys"),
+        )
+        if isinstance(args, dict) and args.get("format") is not None
+        else None
     )
     override_factory = (
         _factory_for(
@@ -808,7 +812,7 @@ def run_create_processor_case(test_case, tmp_path):
             allowed_messages=args.get("allowed_messages"),
             progressive_keys=args.get("progressive_keys"),
         )
-        if "format_override" in args
+        if isinstance(args, dict) and args.get("format_override") is not None
         else None
     )
     generator = A2uiGenerator(

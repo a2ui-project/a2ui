@@ -25,6 +25,7 @@ import {
   A2uiIntegrityError,
   A2uiRequestProcessor,
   A2uiValidationError,
+  DirectJsonFormatFactory,
   DirectJsonParser,
   ExpressParser,
   InMemoryCatalogProvider,
@@ -447,7 +448,7 @@ describe('what a failed or cut-off response holds against later turns', () => {
 
 describe('A2uiRequestProcessor with a renderer state', () => {
   it('parses canvas turns against the state it is given', () => {
-    const processor = new A2uiRequestProcessor([BASIC]);
+    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
     const state = processor.createState();
     processor.parseResponse(block(CREATE, update(column('a'), text('a'))), {state});
 
@@ -462,7 +463,7 @@ describe('A2uiRequestProcessor with a renderer state', () => {
   });
 
   it('checks each call against a new state when it has none', () => {
-    const processor = new A2uiRequestProcessor([BASIC]);
+    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
 
     processor.parseResponse(block(CREATE, update(text('root'))));
     // The same surface can be created again: nothing was kept from the first call.
@@ -471,7 +472,7 @@ describe('A2uiRequestProcessor with a renderer state', () => {
   });
 
   it('rejects a state for other catalogs', () => {
-    const processor = new A2uiRequestProcessor([BASIC]);
+    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
     const other = new RendererState([otherCatalog()]);
 
     expect(() => processor.parseResponse(block(CREATE), {state: other})).toThrow(A2uiCatalogError);
@@ -480,7 +481,9 @@ describe('A2uiRequestProcessor with a renderer state', () => {
 
   it('uses a bound state when a call passes none', () => {
     const state = new RendererState([BASIC]);
-    const processor = new A2uiRequestProcessor([BASIC], undefined, undefined, {state});
+    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory(), {
+      state,
+    });
 
     processor.parseResponse(block(CREATE, update(column('a'), text('a'))));
     const stream = processor.openStream();
@@ -514,7 +517,11 @@ describe('A2uiRequestProcessor with a renderer state', () => {
 
   it('accepts a state that holds the active catalogs in order', () => {
     const other = otherCatalog();
-    const processor = new A2uiRequestProcessor([BASIC, other]);
+    const processor = new A2uiRequestProcessor(
+      [BASIC, other],
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
 
     expect(processor.acceptsState(processor.createState())).toBe(true);
     expect(processor.acceptsState(new RendererState([BASIC, other]))).toBe(true);

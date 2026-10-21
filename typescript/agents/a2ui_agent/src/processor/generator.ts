@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import {CatalogConfig} from './catalog-config.js';
-import {RendererCapabilities, AgentToRendererMessage} from '../internal/web-core.js';
+import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {InferenceFormatFactory} from '../inference-format.js';
-import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js';
+import {ExpressFormatFactory} from '../inference-formats/express/format.js';
+import {AgentToRendererMessage, RendererCapabilities} from '../internal/web-core.js';
 import {resolveCatalogs} from '../utils/catalog-resolver.js';
 import {validatePayload} from '../utils/validation.js';
-import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
-import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
+import {CatalogConfig} from './catalog-config.js';
+import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js';
 
 /**
  * Agent-lifetime object holding every catalog the agent supports.
@@ -37,7 +37,7 @@ export class A2uiGenerator {
     private readonly examples?: Record<string, AgentToRendererMessage[] | string>,
     inferenceFormatFactory?: InferenceFormatFactory,
   ) {
-    this.factory = inferenceFormatFactory || new DirectJsonFormatFactory();
+    this.factory = inferenceFormatFactory || new ExpressFormatFactory();
   }
 
   /**
