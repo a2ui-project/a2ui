@@ -50,6 +50,9 @@ const Map<String, String> _v1OnlyCases = {
   'test_processor_parses_multi_catalog_express_response':
       'v0.9 sends a surface\'s components in an updateComponents of their '
       'own rather than in its createSurface.',
+  'test_generator_defaults_to_express_format':
+      'v0.9 sends a surface\'s components in an updateComponents of their '
+      'own rather than in its createSurface.',
 };
 
 String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
