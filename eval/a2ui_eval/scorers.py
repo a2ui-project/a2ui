@@ -97,7 +97,26 @@ def _collect_dict_facts(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
         path = node.get(key)
         if isinstance(path, str):
             facts.bound_paths.add(path)
+    # Data written by the payload counts as bound: the `updateDataModel` path
+    # and every nested key under it, and (v1.0) every key of the inline
+    # `createSurface.dataModel`, which is where Express compiles `$/x = ...`.
+    update = node.get("updateDataModel")
+    if isinstance(update, Mapping) and isinstance(update.get("path"), str):
+        facts.bound_paths.update(_written_paths(update["path"], update.get("value")))
+    create = node.get("createSurface")
+    if isinstance(create, Mapping):
+        facts.bound_paths.update(_written_paths("", create.get("dataModel")))
     _collect_action_names(node, facts)
+
+
+def _written_paths(prefix: str, value: Any) -> set[str]:
+    """Returns `prefix` plus the path of every nested object key in `value`."""
+    paths = {prefix} if prefix else set()
+    if isinstance(value, Mapping):
+        base = prefix.rstrip("/")
+        for key, child in value.items():
+            paths |= _written_paths(f"{base}/{key}", child)
+    return paths
 
 
 def _collect_action_names(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
@@ -136,14 +155,16 @@ def _walk_payload(value: Any, facts: _PayloadFacts) -> None:
 def _walk_mapping(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
     """Collects the facts of one object and recurses into its children.
 
-    An `updateDataModel.value` holds user data, not A2UI structure, so a data
-    key that happens to be named `event`, `path` or `component` must not
-    register as an action, binding or component.
+    `updateDataModel.value` and `createSurface.dataModel` hold user data, not
+    A2UI structure, so a data key that happens to be named `event`, `path` or
+    `component` must not register as an action, binding or component.
     """
     _collect_dict_facts(node, facts)
     for key, child in node.items():
         if key == "updateDataModel" and isinstance(child, Mapping):
             child = {k: v for k, v in child.items() if k != "value"}
+        elif key == "createSurface" and isinstance(child, Mapping):
+            child = {k: v for k, v in child.items() if k != "dataModel"}
         _walk_payload(child, facts)
 
 

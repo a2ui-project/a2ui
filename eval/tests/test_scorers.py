@@ -672,3 +672,45 @@ async def test_no_judge_mode_never_calls_model(
     assert score.value == expected
     assert score.explanation is not None
     assert score.explanation.startswith("Skipped LLM judge")
+
+
+def test_stage2_written_data_paths_count_as_bindings() -> None:
+    """Data written inline or via updateDataModel satisfies required_bindings.
+
+    Express v1.0 compiles `$/x = ...` into `createSurface.dataModel`, while
+    Direct JSON writes an `updateDataModel`; both must register the nested
+    paths, and neither may leak data keys as actions or components.
+    """
+    folded = [{
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": "cat",
+            "dataModel": {
+                "products": {"p1": {"id": "p1"}},
+                "user": {"name": "John", "email": "j@x", "event": {"name": "n"}},
+            },
+        },
+    }]
+    written = [{
+        "version": "v1.0",
+        "updateDataModel": {
+            "surfaceId": "main",
+            "path": "/user",
+            "value": {"name": "J", "email": "e", "component": "Text"},
+        },
+    }]
+    wanted = {"required_bindings": ["/products", "/user/name", "/user/email"]}
+    assert evaluate_stage2_assertions(folded, wanted) == []
+    assert (
+        evaluate_stage2_assertions(
+            written, {"required_bindings": ["/user", "/user/name", "/user/email"]}
+        )
+        == []
+    )
+    assert evaluate_stage2_assertions(folded, {"required_actions": ["n"]}) == [
+        "Missing required actions: n"
+    ]
+    assert evaluate_stage2_assertions(written, {"required_components": ["Text"]}) == [
+        "Missing required components: Text"
+    ]
