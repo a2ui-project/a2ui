@@ -218,7 +218,7 @@ String _normalizeExpressSource(String source) {
       final String p1 = m[2]!;
       final String nl = m[3]!;
       final String p2 = m[4]!;
-      final String joined = '$p1$p2';
+      final joined = '$p1$p2';
       if (declared.contains(joined) &&
           !declared.contains(p1) &&
           !declared.contains(p2)) {

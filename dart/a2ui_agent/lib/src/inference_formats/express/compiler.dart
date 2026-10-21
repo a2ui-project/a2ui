@@ -629,8 +629,9 @@ class _SurfaceCompiler {
             bool canSkip(int idx) {
               final String prop = properties[idx];
               if (required.contains(prop)) return false;
-              if (enumOf(helper.propertySchema(name, prop)) != null)
+              if (enumOf(helper.propertySchema(name, prop)) != null) {
                 return true;
+              }
               return prop == 'accessibility';
             }
 
