@@ -43,9 +43,7 @@ void _turns(A2uiProtocolVersion version) {
       catalogs: [CatalogConfig(catalog)],
       inferenceFormatFactory: const DirectJsonFormatFactory(),
     ).createProcessor(
-      A2uiRendererCapabilities.forCatalogIds([
-        catalog.id,
-      ], version: version),
+      A2uiRendererCapabilities.forCatalogIds([catalog.id], version: version),
     );
   });
 
