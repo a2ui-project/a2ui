@@ -47,7 +47,7 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
     var result = ""
 
     for part in parts {
-      let dynamicPart = context.isV10 ? Self.adaptedForV10(part) : part
+      let dynamicPart = context.atLeastV10 ? Self.adaptedForV10(part) : part
       let resolved = context.resolveDynamicValue(dynamicPart)
 
       switch resolved {

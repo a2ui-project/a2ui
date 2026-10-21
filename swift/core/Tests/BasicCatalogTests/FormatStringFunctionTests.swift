@@ -27,6 +27,8 @@ private final class MockFunctionHandler: FunctionHandler {
     }
     return nil
   }
+
+  func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {}
 }
 
 private struct UpperFunction: FunctionImplementation, Sendable {
