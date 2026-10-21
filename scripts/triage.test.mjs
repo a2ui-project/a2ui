@@ -193,26 +193,23 @@ describe('flagReason — issues', () => {
     assert.equal(flagReason(item, [], NOW), null);
   });
 
-  // Rule 2b: an assignee means a team member has it, so the issue leaves the
-  // triage queue; only staleness can bring it back, and this one has no
-  // priority to be stale at.
-  it('does not flag an assigned issue, whatever else is wrong with it', () => {
-    const item = issue({
-      assignees: [{login: 'dev'}],
-      created_at: daysAgo(9999), // no priority, ancient, external last word
-      author_association: 'NONE',
-      user: {login: 'reporter', type: 'User'},
-    });
-    assert.equal(flagReason(item, [], NOW), null);
+  // Rule 2b: P2 is planned work the team already has in hand.
+  it('does not flag a P2 issue, whatever else is wrong with it', () => {
+    for (const assignees of [[], [{login: 'dev'}]]) {
+      const item = issue({
+        labels: ['P2'],
+        assignees,
+        created_at: daysAgo(9999), // ancient, external last word
+        author_association: 'NONE',
+        user: {login: 'reporter', type: 'User'},
+      });
+      assert.equal(flagReason(item, [], NOW), null, `${assignees.length} assignee(s)`);
+    }
   });
 
-  it('flags that same issue once its assignee is removed', () => {
-    const item = issue({
-      assignees: [],
-      created_at: daysAgo(9999),
-      author_association: 'NONE',
-      user: {login: 'reporter', type: 'User'},
-    });
+  // Regression: rule 2b used to skip every assigned issue.
+  it('flags an assigned issue with no priority', () => {
+    const item = issue({assignees: [{login: 'dev'}]});
     assert.match(flagReason(item, [], NOW), /no priority label/);
   });
 
@@ -231,8 +228,7 @@ describe('flagReason — issues', () => {
   });
 
   // Drive the staleness rule off STALE_DAYS so the thresholds live in one
-  // place. Staleness applies to assigned issues too: rule 2b skips everything
-  // else for them, but an assignee going quiet is what this rule watches for.
+  // place. Staleness applies whether or not the issue is assigned.
   for (const [priority, threshold] of Object.entries(STALE_DAYS)) {
     const assigned = {labels: [priority], assignees: [{login: 'dev'}]};
 
@@ -241,8 +237,8 @@ describe('flagReason — issues', () => {
       assert.equal(flagReason(item, [], NOW), null);
     });
 
-    // Regression: rule 2b used to skip assigned issues before any threshold
-    // was consulted, so a stale P0 or P1 was never flagged.
+    // Regression: rule 2b used to skip every assigned issue before any
+    // threshold was consulted, so a stale P0 or P1 was never flagged.
     it(`flags an assigned ${priority} stale beyond ${threshold} day(s)`, () => {
       const item = issue({...assigned, created_at: daysAgo(threshold + 1)});
       assert.match(flagReason(item, [], NOW), /no human activity/);
@@ -307,7 +303,23 @@ describe('flagReason — assigned for triage', () => {
     assert.match(flagReason(item, [], NOW, daysAgo(0)), /nobody is assigned/);
   });
 
-  // Rule 1 outranks both skips in rule 2.
+  // Rule 1 decides alone: a fresh assignment holds back every other rule.
+  it('does not flag a fresh assignment, whatever else is wrong with it', () => {
+    const item = handedOut({
+      labels: [ASSIGNED_FOR_TRIAGE_LABEL], // no priority
+      created_at: daysAgo(9999),
+      author_association: 'NONE',
+      user: {login: 'reporter', type: 'User'},
+    });
+    assert.equal(flagReason(item, [], NOW, daysAgo(1)), null);
+  });
+
+  // Rule 1 also outranks both skips in rule 2.
+  it('flags an overdue assignment on a P2 issue', () => {
+    const item = handedOut({labels: ['P2', ASSIGNED_FOR_TRIAGE_LABEL]});
+    assert.match(flagReason(item, [], NOW, overdue), /assigned-for-triage/);
+  });
+
   it('flags an overdue assignment even on a parked item', () => {
     const item = handedOut({labels: ['P3', ASSIGNED_FOR_TRIAGE_LABEL, WAITING_LABEL]});
     assert.match(flagReason(item, [], NOW, overdue), /assigned-for-triage/);
@@ -340,8 +352,7 @@ describe('flagReason — assigned for triage', () => {
 describe('flagReason — PRIORITY_LABELS contract', () => {
   it('treats every PRIORITY_LABELS entry as a real priority (never "no priority")', () => {
     for (const priority of PRIORITY_LABELS) {
-      // Fresh and internally authored, and left unassigned so rule 2b does not
-      // skip it before the priority rules are reached.
+      // Fresh and internally authored, so only the priority rules can flag it.
       const item = issue({labels: [priority]});
       const reason = flagReason(item, [], NOW);
       if (reason !== null) {
@@ -412,9 +423,8 @@ describe('flagReason — PRs', () => {
     assert.match(flagReason(pr({created_at: daysAgo(0)}), [], NOW), /no maintainer/);
   });
 
-  it('does not flag an assigned external PR — a PR assignee is its reviewer', () => {
-    // Rule 2b skips assigned issues; PRs stay in scope, since the reviewer
-    // going quiet is exactly what rule 4 watches for.
+  it('flags an assigned external PR — a PR assignee is its reviewer', () => {
+    // The reviewer going quiet is exactly what rule 4 watches for.
     const item = pr({created_at: daysAgo(5), assignees: [{login: 'dev'}]});
     assert.match(flagReason(item, [], NOW), /no maintainer/);
   });
@@ -465,13 +475,18 @@ describe('flagReason — external comment awaiting response', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  it('does not flag when the issue is assigned, however old the comment', () => {
+  it('flags an assigned issue too', () => {
     const item = issue({
       labels: ['P3'],
       assignees: [{login: 'dev'}],
       comments: 1,
       created_at: daysAgo(5),
     });
+    assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/);
+  });
+
+  it('does not flag a P2 issue', () => {
+    const item = issue({labels: ['P2'], comments: 1, created_at: daysAgo(5)});
     assert.equal(flagReason(item, [externalComment(2)], NOW), null);
   });
 });
@@ -549,8 +564,7 @@ describe('issueTriage reconciliation', () => {
   });
 
   it('removes the label when an item no longer matches any rule', async () => {
-    // Prioritized, answered and unassigned: it reaches the end of the rules
-    // rather than being skipped by rule 2b.
+    // Prioritized and answered: it matches no rule.
     const item = issue({number: 8, labels: ['P3', FLAG_LABEL]});
     github = makeGithub([item]);
     await issueTriage({github, context});
@@ -695,13 +709,9 @@ describe('issueTriage reconciliation', () => {
       assert.deepEqual(calls.addLabels, [16]);
     });
 
-    it('leaves an assigned issue off the queue when it unparks', async () => {
-      // Rule 2b outranks the reply: a team member already has this one.
-      const item = parked(29, {
-        comments: 1,
-        labels: [WAITING_LABEL, 'P3'],
-        assignees: [{login: 'dev'}],
-      });
+    it('leaves a P2 issue off the queue when it unparks', async () => {
+      // Rule 2b outranks the reply: P2 is work the team already has in hand.
+      const item = parked(29, {comments: 1, labels: [WAITING_LABEL, 'P2']});
       github = makeGithub([item]);
       await issueTriage({github, context});
 

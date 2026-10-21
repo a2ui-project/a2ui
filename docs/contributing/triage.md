@@ -26,7 +26,7 @@ This section describes goals at a high level. See concrete steps in the section 
     - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description) or has label `type: contributions-welcome`
     - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
 
-The relevant issue should be linked in the the PR description.
+The relevant issue should be linked in the PR description.
 
 ## GitHub labels used in triage
 
@@ -54,13 +54,13 @@ See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
 
-Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies. The bot also reads `status: assigned-for-triage`, which is applied and removed manually, and flags items that are not assigned for fix/review or have carried it for more than 14 days.
+Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies. The bot also reads `status: assigned-for-triage`, which is applied and removed manually, and flags items that carry it without an assignee or for more than 14 days.
 
 ### How the automated triage bot works
 
 The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It reconciles `status: needs-triage` across all open items according to the following rules:
 
-1. **Triage assignments**: An issue or PR with `status: assigned-for-triage` is flagged with `status: needs-triage` if it has no assignee, or if the label was added more than 14 days ago. The age is measured from the most recent time the label was added, so removing and re-adding the label restarts the 14 days. This rule applies before the rest, so it flags the item even when rule 2 would skip it.
+1. **Triage assignments**: An issue or PR with `status: assigned-for-triage` is flagged with `status: needs-triage` if it has no assignee, or if the label was added more than 14 days ago. Otherwise it is not flagged, because the assignee is triaging it. Rules 2–4 do not apply to these items. The 14 days count from the most recent time the label was added, so removing and re-adding the label restarts them.
 2. **Skipped items**: The automation skips the following items:
     - **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once an external contributor posts a comment, review or review comment after the label was added.
     - **P2 without `status: assigned-for-triage`**: When a P2 issue is not in triage, it is assumed that the team is looking into it.
@@ -96,7 +96,7 @@ Update [items with label `status: needs-triage`][needs-triage], so that the labe
     - Be sure to assign P0/P1 issues to someone.
 - Answer external comments
 - Add `status: waiting-for-author-response` when you need more information from the author
-- Add `status: assigned-for-triage` and assign the item to a team member who will finish the triage. Once that triage is done, remove `status: assigned-for-triage`. If the label is still on the item after 14 days, the bot flags it again.
+- Assign the item to a team member who will finish the triage, and add `status: assigned-for-triage`. The assignee removes the label when done. If the label is still there after 14 days, the bot flags the item again.
 
 You can remove the `needs-triage` label manually to speed up the process, but if the item still matches a rule, the label will come back because the label will be re-applied by the triage bot.
 
