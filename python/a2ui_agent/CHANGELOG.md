@@ -3,12 +3,19 @@
 - The response parsers for Direct JSON, Express, Elemental and Atom remove the
   backticks left at the edges of a block when a model writes the tags as inline
   code (`` `<a2ui>` ... `</a2ui>` `` or `` `<a2ui-json>` ... `</a2ui-json>` ``),
-  drop text made of nothing but backticks, and recover blocks closed with a
-  closing tag when the model opened the block with a Markdown code fence (such
-  as ` ```a2ui `) or omitted the opening tag.
+  drop text made of nothing but backticks, and in one-shot unwrapping (`unwrap`
+  and `parse_response`) recover at most one block closed with a closing tag when
+  the model opened the block with a Markdown code fence (such as ` ```a2ui `) or
+  omitted the opening tag; `has_format_content` counts recovered blocks as
+  complete format blocks.
 - The Direct JSON and Express compilers strip stray unescaped line breaks inside
-  object keys, single-token string values, single-line Express strings, data
-  paths, and line-wrapped identifiers.
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, and `surfaceId`), at the edges of single-line
+  Express strings, and inside Express data paths and line-wrapped identifiers
+  (outside strings and comments, when the joined name resolves to a declared
+  variable), accept SQL/Lua-style `--` comments in Express, and map a trailing
+  numeric positional argument across optional enum properties when a component
+  schema declares a single later numeric property.
 
 ## 0.9.0 (2026-10-17)
 
