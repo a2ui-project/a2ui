@@ -73,7 +73,10 @@ def format_system_prompt(format_name: str, version: str, sdk: str = "python") ->
                 " use the exact `catalogId` value(s) defined in the provided"
                 " Catalog Schema(s); never invent a custom or placeholder"
                 " `catalogId` URL or identifier (such as `example.com`), even if"
-                " the user prompt mentions a custom catalog."
+                " the user prompt mentions a custom catalog.\n"
+                "- In `createSurface`, set `catalogId` to the primary catalog ID"
+                " as the surface default. Components or functions belonging to"
+                " secondary catalogs must specify their own `catalogId`."
             )
         prompt_parts.append(generated_snippet)
         a2ui_prompt = "\n\n".join(prompt_parts)
