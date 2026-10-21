@@ -19,7 +19,7 @@ import {CatalogApi, linkCatalogs, STRICT_VALIDATION} from '../../internal/web-co
 import {Parser} from '../../parser/parser.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonExamples, DirectJsonPromptGenerator} from './prompt-generator.js';
-import {checkParserCatalogs} from '../../utils/validation.js';
+import {checkParserCatalogs} from '../../utils/catalog-checks.js';
 import {DirectJsonStreamProcessorImpl} from './streaming.js';
 import {
   DirectJsonStreamProcessorFactory,

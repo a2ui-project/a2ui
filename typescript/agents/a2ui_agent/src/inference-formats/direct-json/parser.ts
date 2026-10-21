@@ -23,7 +23,8 @@ import {A2UI_OPEN_TAG, A2UI_CLOSE_TAG} from '../../parser/constants.js';
 import {DirectJsonStreamProcessor} from './streaming-types.js';
 import {AgentToRendererMessage, CatalogApi, linkCatalogs} from '../../internal/web-core.js';
 import {DirectJsonDecompiler} from './decompiler.js';
-import {checkParserCatalogs, validatePayload} from '../../utils/validation.js';
+import {checkParserCatalogs} from '../../utils/catalog-checks.js';
+import {validatePayload} from '../../utils/validation.js';
 
 export class DirectJsonParser extends Parser {
   /**
@@ -55,44 +56,21 @@ export class DirectJsonParser extends Parser {
   }
 
   unwrap(content: string): RawResponsePart[] {
-    const parts = this.lexer.tokenize(content);
-    let hasBlocks = false;
-    const validParts: RawResponsePart[] = [];
-
-    for (const part of parts) {
-      if (part.type === 'a2ui') {
-        if (!part.isFinal) {
-          throw new ParseError(`A2UI close tag '${A2UI_CLOSE_TAG}' not found in response.`);
-        }
-        if (!part.a2uiRaw) {
-          throw new ParseError('A2UI JSON part is empty.');
-        }
-        validParts.push(part);
-        hasBlocks = true;
-      } else {
-        if (part.text) {
-          validParts.push(part);
-        }
-      }
-    }
-
-    if (!hasBlocks) {
-      throw new ParseError(
-        `A2UI tags '${A2UI_OPEN_TAG}' and '${A2UI_CLOSE_TAG}' not found in response.`,
-      );
-    }
-
-    return validParts;
+    return this.lexer.tokenize(content);
   }
 
   compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
+    if (!formatContent.trim()) {
+      throw new ParseError('A2UI JSON part is empty.');
+    }
     const jsonData = parseAndFix(formatContent);
 
     if (isFinal) {
       validatePayload(this.catalogs, jsonData);
     }
 
-    return jsonData as AgentToRendererMessage[];
+    // A block may hold one message on its own.
+    return (Array.isArray(jsonData) ? jsonData : [jsonData]) as AgentToRendererMessage[];
   }
 
   // Streaming needs an injected stream processor.

@@ -204,8 +204,8 @@ export class RestaurantExecutor implements AgentExecutor {
    * Validates the full text with a fresh processor and returns its A2A parts.
    *
    * A reply with no A2UI fails too, so it is retried like an invalid one, as in the
-   * Python sample. The Direct JSON parser already rejects a reply without its tags, but
-   * the Express parser returns it as a text part.
+   * Python sample. Both the Direct JSON and Express parsers return a reply without tags as
+   * a text part.
    */
   private validate(fullText: string, profile: VersionProfile, catalogIds: string[]): Part[] {
     const parts = this.createProcessor(profile, catalogIds)

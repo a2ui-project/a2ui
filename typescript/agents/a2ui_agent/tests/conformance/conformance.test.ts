@@ -161,7 +161,7 @@ describe('Conformance Harness', () => {
               const parts = [];
               for (const p of unwrapped) {
                 if (p.type === 'a2ui') {
-                  const fixed = parseAndFix(p.a2uiRaw);
+                  const fixed = parser.compile(p.a2uiRaw, false);
                   parts.push({type: 'a2ui', a2uiRaw: p.a2uiRaw, a2ui: fixed, isFinal: true});
                 } else {
                   parts.push(p);
@@ -173,7 +173,7 @@ describe('Conformance Harness', () => {
             const parts: any[] = [];
             for (const p of unwrapped) {
               if (p.type === 'a2ui') {
-                const fixed = parseAndFix(p.a2uiRaw);
+                const fixed = parser.compile(p.a2uiRaw, false);
                 parts.push({type: 'a2ui', a2uiRaw: p.a2uiRaw, a2ui: fixed, isFinal: true});
               } else {
                 parts.push(p);

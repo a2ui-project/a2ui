@@ -29,12 +29,7 @@ import {
 } from './suite-helpers.js';
 
 /** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([
-  [
-    'test_capabilities_without_the_catalogs_version_are_invalid',
-    'resolveCatalogs takes the capabilities entry for one version, not the version-keyed object',
-  ],
-]);
+const KNOWN_FAILURES = new Map<string, string>();
 
 describe('Conformance: catalog_resolution.yaml', () => {
   for (const testCase of loadCases([conformancePath('agent/catalog_resolution.yaml')])) {
@@ -46,14 +41,8 @@ describe('Conformance: catalog_resolution.yaml', () => {
       };
       const configs = loadRegistrations(args.catalogs);
 
-      // Capabilities arrive keyed by protocol version. Every case sends one version.
-      const byVersion = Object.values(args.renderer_capabilities ?? {});
-      if (byVersion.length > 1) {
-        throw new Error(`Case ${testCase.name} sends capabilities for more than one version`);
-      }
-      const capabilities = byVersion[0];
       const resolve = () =>
-        resolveCatalogs(configs, capabilities, args.accepts_inline_catalogs ?? false);
+        resolveCatalogs(configs, args.renderer_capabilities, args.accepts_inline_catalogs ?? false);
 
       if (testCase.expect_error) {
         expect(resolve).toThrow(errorClassFor(testCase));

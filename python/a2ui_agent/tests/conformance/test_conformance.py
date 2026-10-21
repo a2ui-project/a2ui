@@ -172,6 +172,10 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
 KNOWN_GAPS: dict[str, str] = {
+    "test_compile_express_check_with_value_on_uncheckable_component_is_a_validation_error": (
+        "ExpressCompiler does not reject check lists on components that do not"
+        " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
+    ),
     "test_compile_express_checks_on_uncheckable_component_is_a_validation_error": (
         "ExpressCompiler does not reject check lists on components that do not"
         " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"

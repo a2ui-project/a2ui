@@ -14,10 +14,64 @@
  * limitations under the License.
  */
 
-import {A2uiCatalogError} from '../errors.js';
+import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {CatalogApi, linkCatalogs, RendererCapabilities} from '../internal/web-core.js';
 import {CatalogConfig} from '../processor/catalog-config.js';
 import {catalogFromDocument} from '../processor/catalog-providers.js';
+import {toWireProtocolVersion} from './protocol-version.js';
+
+const ENTRY_FIELDS = ['supportedCatalogIds', 'inlineCatalogs'] as const;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === null || proto === Object.prototype;
+}
+
+function capabilitiesKeyFor(catalog: CatalogApi): string {
+  const wireVersion = toWireProtocolVersion(catalog.protocolVersion || 'v1.0');
+  return wireVersion === 'v0.9.1' ? 'v0.9' : wireVersion;
+}
+
+function extractCapabilitiesEntry(
+  rendererCapabilities: unknown,
+  key: string,
+): Record<string, unknown> {
+  if (!isPlainObject(rendererCapabilities)) {
+    throw new A2uiValidationError('Renderer capabilities must be an object.');
+  }
+  let entry: unknown = Object.hasOwn(rendererCapabilities, key)
+    ? rendererCapabilities[key]
+    : undefined;
+  if (
+    entry === undefined &&
+    ENTRY_FIELDS.some(field => Object.hasOwn(rendererCapabilities, field))
+  ) {
+    entry = rendererCapabilities;
+  }
+  if (entry === undefined || entry === null) {
+    throw new A2uiValidationError(
+      `The renderer capabilities have no '${key}' entry, which the registered catalogs read.`,
+    );
+  }
+  if (!isPlainObject(entry)) {
+    throw new A2uiValidationError(
+      `Invalid '${key}' renderer capabilities: entry must be an object.`,
+    );
+  }
+  if (
+    entry.supportedCatalogIds !== undefined &&
+    (!Array.isArray(entry.supportedCatalogIds) ||
+      !entry.supportedCatalogIds.every((id): id is string => typeof id === 'string'))
+  ) {
+    throw new A2uiValidationError(
+      `Invalid '${key}' renderer capabilities: supportedCatalogIds must be an array of strings.`,
+    );
+  }
+  return entry;
+}
 
 /**
  * Matches renderer capabilities against registered catalogs and returns the active,
@@ -32,20 +86,24 @@ import {catalogFromDocument} from '../processor/catalog-providers.js';
  * not accept inline catalogs.
  *
  * @param catalogs Registered catalog configurations supported by the agent.
- * @param rendererCapabilities Capabilities sent by the client renderer, or `undefined` when
- *     the request carried none. With no capabilities the renderer stated no preference, so
- *     every registered catalog is active, which is none when nothing is registered.
+ * @param rendererCapabilities Capabilities sent by the client renderer (either keyed by
+ *     protocol version, such as `{"v1.0": {"supportedCatalogIds": [...]}}`, or a single
+ *     capabilities entry), or `undefined` when the request carried none. With no
+ *     capabilities the renderer stated no preference, so every registered catalog is
+ *     active, which is none when nothing is registered.
  * @param acceptsInlineCatalogs Whether the agent accepts inline catalogs from the client.
  * @returns Array of active CatalogApi instances. Each catalog that references another
  *     catalog document is a per-request copy linked to the other active catalogs and to the
  *     registered catalogs (see `linkCatalogs`); the registered catalogs are not changed.
  * @throws {A2uiCatalogError} If capabilities are given and the agent has no catalogs, if
- *     `inlineCatalogs` is not an array of valid catalogs, or if negotiation leaves no
- *     active catalog.
+ *     registered catalogs read different capabilities keys, if `inlineCatalogs` is not an
+ *     array of valid catalogs, or if negotiation leaves no active catalog.
+ * @throws {A2uiValidationError} If the capabilities have no valid entry for the protocol
+ *     version of the registered catalogs.
  */
 export function resolveCatalogs(
   catalogs: CatalogConfig[],
-  rendererCapabilities: RendererCapabilities | undefined,
+  rendererCapabilities: Record<string, RendererCapabilities> | RendererCapabilities | undefined,
   acceptsInlineCatalogs = false,
 ): CatalogApi[] {
   const pristineCatalogs = catalogs.map(c => c.catalog);
@@ -57,7 +115,20 @@ export function resolveCatalogs(
     throw new A2uiCatalogError('Agent has no configured catalogs');
   }
 
-  const inlineDocuments: unknown = rendererCapabilities.inlineCatalogs ?? [];
+  const key = capabilitiesKeyFor(agentCatalogs[0]);
+  for (let i = 1; i < agentCatalogs.length; i++) {
+    const catalog = agentCatalogs[i];
+    const otherKey = capabilitiesKeyFor(catalog);
+    if (otherKey !== key) {
+      throw new A2uiCatalogError(
+        `The registered catalogs read different capabilities entries: '${agentCatalogs[0].id}' reads '${key}' and '${catalog.id}' reads '${otherKey}'.`,
+      );
+    }
+  }
+
+  const entry = extractCapabilitiesEntry(rendererCapabilities, key);
+
+  const inlineDocuments: unknown = entry.inlineCatalogs ?? [];
   if (!Array.isArray(inlineDocuments)) {
     throw new A2uiCatalogError('inlineCatalogs in the renderer capabilities must be an array');
   }
@@ -65,11 +136,15 @@ export function resolveCatalogs(
     if (typeof document !== 'object' || document === null || Array.isArray(document)) {
       throw new A2uiCatalogError('Each entry in inlineCatalogs must be a catalog object');
     }
-    return catalogFromDocument(document as Record<string, unknown>, 'inline catalog');
+    return catalogFromDocument(
+      document as Record<string, unknown>,
+      'inline catalog',
+      key === 'v0.9' ? 'v0.9' : undefined,
+    );
   });
 
   const active: CatalogApi[] = [];
-  for (const id of rendererCapabilities.supportedCatalogIds ?? []) {
+  for (const id of (entry.supportedCatalogIds as string[] | undefined) ?? []) {
     const match = agentCatalogs.find(c => c.id === id);
     if (match && !active.includes(match)) {
       active.push(match);
