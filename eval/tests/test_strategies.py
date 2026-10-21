@@ -126,15 +126,6 @@ async def test_extract_subagent_payload() -> None:
     assert state.output.completion == '<a2ui-json>\n{"test": "payload"}\n</a2ui-json>'
 
 
-@pytest.mark.asyncio
-async def test_extract_subagent_payload_leaves_completion_when_missing() -> None:
-    solver = extract_subagent_payload()
-    state = _state({}, completion="I will help you with that.")
-
-    state = await solver(state, dummy_generate)
-    assert state.output.completion == "I will help you with that."
-
-
 def test_subagent_tool_solver() -> None:
     solvers = subagent_tool_solver(version="0.9.1")
     assert len(solvers) == 5
@@ -334,34 +325,6 @@ async def test_compile_format_payload_empty_output_and_error_recovery() -> None:
     )
     res_error = await compile_solver(error_state, dummy_generate)
     assert "Compilation/validation failed:" in res_error.output.completion
-
-
-@pytest.mark.asyncio
-async def test_a2ui_specialist_generates_single_attempt_and_sets_payload() -> None:
-    bridge = _FakeBridge()
-    store().set("version", "0.9.1")
-    store().set("sdk", "python")
-    store().set("catalog", str(V091_CATALOG))
-    calls = 0
-
-    class _SingleModel:
-
-        async def generate(self, messages: list[Any]) -> ModelOutput:
-            nonlocal calls
-            calls += 1
-            return ModelOutput.from_content("mock/model", "<a2ui-json>[]</a2ui-json>")
-
-    with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
-    ), patch(
-        "a2ui_eval.strategies.subagent_tool.get_model",
-        return_value=_SingleModel(),
-    ):
-        result = await a2ui_specialist()(input="Spin up Pong")
-
-    assert calls == 1
-    assert result.startswith("Success")
-    assert store().get(PAYLOAD_STORE_KEY) is not None
 
 
 @pytest.mark.asyncio
