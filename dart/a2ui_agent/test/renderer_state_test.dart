@@ -1286,6 +1286,127 @@ void main() {
       });
     });
 
+    group('a rollback restores the fields that references are read from', () {
+      final ref = {r'$ref': r'common_types.json#/$defs/ComponentId'};
+      RendererState make() =>
+          RendererState([
+              _refCatalog('urn:p', {
+                'Panel': {
+                  'text': {'type': 'string'},
+                  'child': ref,
+                },
+              }),
+              _refCatalog('urn:c', {
+                'Box': {'link': ref},
+              }),
+              _refCatalog('urn:d', {
+                'Box': {
+                  'link': {'type': 'string'},
+                },
+              }),
+            ])
+            ..apply([
+              CreateSurfaceMessage(
+                version: 'v1.0',
+                surfaceId: 's',
+                catalogId: 'urn:p',
+              ),
+              // urn:d's Box comes first, so a's link is a string.
+              _update(version: 'v1.0', [
+                {'id': 'root', 'component': 'Panel', 'child': 'a'},
+                {
+                  'id': 'a',
+                  'component': 'Box',
+                  'catalogId': 'urn:d',
+                  'link': 'q',
+                },
+              ]),
+            ])
+            ..checkTopology(['s']);
+      // With a moved off urn:d, urn:c's Box comes first, and Box.link
+      // becomes a reference.
+      void change(RendererState state) => state.apply([
+        _update(version: 'v1.0', [
+          {'id': 'a', 'component': 'Panel', 'text': 'p'},
+        ]),
+        _update(version: 'v1.0', [
+          {'id': 'x', 'component': 'Box', 'catalogId': 'urn:c', 'link': 'a'},
+        ]),
+      ]);
+      // a is back on urn:d, so its link is a string again.
+      void expectStringLink(RendererState state) => state.checkTopology(
+        state.apply([
+          UpdateDataModelMessage(
+            version: 'v1.0',
+            surfaceId: 's',
+            path: '/k',
+            value: 1,
+          ),
+        ]),
+      );
+
+      test('after a failed transaction', () {
+        final RendererState state = make();
+
+        expect(
+          () => state.transaction(() {
+            change(state);
+            throw StateError('a later message failed');
+          }),
+          throwsStateError,
+        );
+
+        expectStringLink(state);
+      });
+
+      test('after an inner transaction that committed inside a failed one', () {
+        final RendererState state = make();
+
+        expect(
+          () => state.transaction(() {
+            state.transaction(() => change(state));
+            throw StateError('a later message failed');
+          }),
+          throwsStateError,
+        );
+
+        expectStringLink(state);
+      });
+
+      test('after an inner transaction that failed inside a committed one', () {
+        final RendererState state = make();
+
+        state.transaction(() {
+          expect(
+            () => state.transaction(() {
+              change(state);
+              throw StateError('a later message failed');
+            }),
+            throwsStateError,
+          );
+        });
+
+        expectStringLink(state);
+      });
+
+      test('after a deleted surface is put back', () {
+        final RendererState state = make();
+
+        expect(
+          () => state.transaction(() {
+            change(state);
+            state.apply([
+              DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's'),
+            ]);
+            throw StateError('a later message failed');
+          }),
+          throwsStateError,
+        );
+
+        expectStringLink(state);
+      });
+    });
+
     test('an updated surface is checked against the catalog it was created '
         'with', () {
       // Checked on its own, an update passes on any catalog that accepts it.

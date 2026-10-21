@@ -376,6 +376,8 @@ class RendererState {
   /// The core updates a component in place when the update keeps its type
   /// and catalog, so the record holds a copy of the component's previous
   /// properties and metadata, not the maps the update replaces them with.
+  /// It also holds the fields the surface reads references through, which
+  /// the processor replaces on each update.
   ///
   /// A component whose type or catalog changes is recreated at the end of
   /// the surface, so for one the update may recreate, the record also holds
@@ -411,6 +413,9 @@ class RendererState {
       }
     }
     if (previous.isEmpty) return null;
+    // The processor replaces the fields references are read through on each
+    // update, so they are put back too.
+    final SavedReferenceFields referenceFields = model.saveReferenceFields();
     final positions = <String, int>{};
     if (movable.isNotEmpty) {
       for (final (int position, String id) in model.keys.indexed) {
@@ -468,6 +473,7 @@ class RendererState {
       for (final (int? index, ComponentModel component) in recreated) {
         if (index == null) components.addComponent(component);
       }
+      components.restoreReferenceFields(referenceFields);
     };
   }
 

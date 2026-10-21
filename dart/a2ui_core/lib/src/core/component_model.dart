@@ -83,6 +83,16 @@ class ComponentModel {
   }
 }
 
+/// The fields a [SurfaceComponentsModel] reads child references through, as
+/// [SurfaceComponentsModel.saveReferenceFields] returns them. Opaque: it can
+/// only be handed back to [SurfaceComponentsModel.restoreReferenceFields].
+final class SavedReferenceFields {
+  const SavedReferenceFields._(this._fields);
+
+  /// Null when the model derives them from its catalog on first use.
+  final Map<String, ComponentRefFields>? _fields;
+}
+
 /// Manages the collection of components for a specific surface.
 ///
 /// The graph queries ([getChildIds], [detectCycles], [validateTopology],
@@ -129,6 +139,27 @@ class SurfaceComponentsModel {
 
   @internal
   set refFields(Map<String, ComponentRefFields> value) => _refFields = value;
+
+  /// The fields the graph queries read child references through, as a value
+  /// to hand back to [restoreReferenceFields].
+  ///
+  /// `MessageProcessor` replaces them on each `updateComponents` it applies,
+  /// with the reference properties of the catalogs the surface's components
+  /// draw on. Undoing such an update puts the components back but not these,
+  /// so whoever undoes it saves them first and restores them after. Saving
+  /// takes constant time: the value holds the fields, which are replaced
+  /// rather than changed, not a copy of them.
+  SavedReferenceFields saveReferenceFields() =>
+      SavedReferenceFields._(_refFields);
+
+  /// Puts back the fields [saved] holds, as [saveReferenceFields] found them.
+  void restoreReferenceFields(SavedReferenceFields saved) {
+    if (identical(saved._fields, _refFields)) return;
+    _refFields = saved._fields;
+    // What the last update check found about the graph was read through the
+    // fields replaced here.
+    _changes++;
+  }
 
   /// Fires when a new component is added to the model.
   EventSource<ComponentModel> get onCreated => _onCreated;

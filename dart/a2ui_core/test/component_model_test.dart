@@ -136,6 +136,25 @@ void main() {
       expect(model.catalogIds, ['first', null, 'later']);
     });
 
+    test(
+        'restoreReferenceFields puts back the fields saveReferenceFields '
+        'found', () {
+      // Derived from the catalog on first use, so nothing is saved yet.
+      final SavedReferenceFields derived = model.saveReferenceFields();
+      model.refFields = const {};
+      expect(model.getChildIds('root'), isEmpty);
+
+      model.restoreReferenceFields(derived);
+      expect(model.getChildIds('root'), ['a', 'b']);
+
+      final Object fields = model.refFields;
+      final SavedReferenceFields saved = model.saveReferenceFields();
+      model.refFields = const {};
+      model.restoreReferenceFields(saved);
+      expect(model.refFields, same(fields));
+      expect(model.getChildIds('root'), ['a', 'b']);
+    });
+
     test('insertComponents adds components at their positions at once', () {
       // root, a, then b, c, d.
       for (final id in ['b', 'c', 'd']) {

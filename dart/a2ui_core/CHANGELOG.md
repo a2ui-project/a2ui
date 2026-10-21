@@ -10,6 +10,10 @@
   group without disposing of it and returns it. Listeners see it as a
   deletion; `addSurface` can put the same object back, as when a deletion is
   undone.
+- Added `SurfaceComponentsModel.saveReferenceFields` and
+  `restoreReferenceFields`, which save and put back the fields the model
+  reads child references through, which `MessageProcessor` replaces on each
+  `updateComponents`, so undoing an update can restore them too.
 - Extracted `ComponentGraphBound` for incremental `SurfaceComponentsModel`
   component graph checks and optimized its initial height traversal to linear
   time.
