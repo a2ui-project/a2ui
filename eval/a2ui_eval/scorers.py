@@ -30,7 +30,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-import inspect
 import json
 import time
 from typing import Any, Literal
@@ -240,21 +239,6 @@ def evaluate_stage2_assertions(
     return [failure for failure in results if failure]
 
 
-def _options_kwargs(
-    bridge: AgentSdkBridge, options: BridgeOptions | None
-) -> dict[str, Any]:
-    """Returns the `options` keyword for bridges whose signature accepts it.
-
-    Transitional: the `AgentSdkBridge` contract takes `options`, but a bridge
-    implementation that predates it would reject the keyword. Drop this once
-    every bridge accepts `options`.
-    """
-    if options is None:
-        return {}
-    params = inspect.signature(bridge.parse_and_validate).parameters
-    return {"options": options} if "options" in params else {}
-
-
 async def _compiled_answer_or_none(
     bridge: AgentSdkBridge,
     version: str,
@@ -278,7 +262,7 @@ async def _compiled_answer_or_none(
             DEFAULT_PARSE_TIMEOUT_SEC,
             True,
             validate=False,
-            **_options_kwargs(bridge, options),
+            options=options,
         )
     except Exception:  # pylint: disable=broad-exception-caught
         return None
@@ -331,7 +315,7 @@ def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
                 answer_text,
                 DEFAULT_PARSE_TIMEOUT_SEC,
                 True,
-                **_options_kwargs(bridge, options),
+                options=options,
             )
             return list(res_dict["compiled_jsons"])
         except Exception as e:  # pylint: disable=broad-exception-caught

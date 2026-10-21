@@ -45,7 +45,7 @@ def _ts_toolchain_available() -> bool:
     # repository-wide Python CI) don't start a full yarn install and build.
     built = all(
         (GIT_ROOT / "typescript" / pkg / "dist" / "src" / "index.js").is_file()
-        for pkg in ("a2ui_agent", "core/web_core")
+        for pkg in ("agents/a2ui_agent", "core/web_core")
     )
     node = _find_node()
     if node is None or not built:
