@@ -32,6 +32,7 @@ from inspect_ai.util import store
 
 from a2ui_eval.bridges import (
     DEFAULT_PARSE_TIMEOUT_SEC,
+    BridgeOptions,
     get_python_strategy,
     parse_and_validate_in_process,
 )
@@ -44,6 +45,19 @@ from a2ui_eval.strategies import (
     extract_subagent_payload,
     format_system_prompt,
     subagent_tool_solver,
+)
+from a2ui_eval.strategies.skill_mode import (
+    SKILLS_READ_STORE_KEY,
+    SKILLS_STORE_KEY,
+    build_skills,
+    read_a2ui_skill,
+    record_skills_read,
+    skill_mode_strategy,
+    skill_mode_system_prompt,
+)
+from a2ui_eval.strategies.subagent_tool import (
+    SAMPLE_META_STORE_KEY,
+    subagent_tool_strategy,
 )
 
 V1_CATALOG = GIT_ROOT / "catalogs/basic/v1/catalog.json"
@@ -132,10 +146,17 @@ def test_subagent_tool_solver() -> None:
 
 
 class _FakeBridge:
-    """Fake SDK bridge that records parse_and_validate calls."""
+    """Fake SDK bridge that records prompt and parse_and_validate calls.
 
-    def __init__(self) -> None:
+    `fail_first` makes the first `parse_and_validate` call raise, to exercise
+    the specialist's validation retry.
+    """
+
+    def __init__(self, fail_first: int = 0) -> None:
         self.parse_calls: list[dict[str, Any]] = []
+        self.prompt_calls: list[dict[str, Any]] = []
+        self.options_seen: list[BridgeOptions | None] = []
+        self._failures_left = fail_first
 
     def generate_prompt(
         self,
@@ -143,7 +164,14 @@ class _FakeBridge:
         version: str,
         resolved_catalog_path: str,
         surface_id: str = "main",
+        *,
+        options: BridgeOptions | None = None,
     ) -> str:
+        self.prompt_calls.append({
+            "format_name": format_name,
+            "version": version,
+            "options": options,
+        })
         return "PROMPT"
 
     def parse_and_validate(
@@ -157,6 +185,7 @@ class _FakeBridge:
         require_complete_tags: bool = False,
         *,
         validate: bool = True,
+        options: BridgeOptions | None = None,
     ) -> dict[str, Any]:
         self.parse_calls.append({
             "format_name": format_name,
@@ -164,37 +193,259 @@ class _FakeBridge:
             "require_complete_tags": require_complete_tags,
             "validate": validate,
         })
+        self.options_seen.append(options)
+        if self._failures_left > 0:
+            self._failures_left -= 1
+            raise ValueError("Unknown component 'Widget'")
         return {"compiled_jsons": [{"version": "v0.9"}], "parts": []}
 
 
 class _FakeModel:
+    """Fake specialist model that answers from a script and records its inputs."""
+
+    def __init__(self, completions: list[str] | None = None) -> None:
+        self._completions = list(completions or ["<a2ui-json>[]</a2ui-json>"])
+        self.calls: list[list[Any]] = []
 
     async def generate(self, messages: list[Any]) -> ModelOutput:
-        return ModelOutput.from_content("mock/model", "<a2ui-json>[]</a2ui-json>")
+        self.calls.append(list(messages))
+        completion = self._completions.pop(0) if self._completions else ""
+        return ModelOutput.from_content("mock/model", completion)
+
+
+def _specialist_meta(**extra: Any) -> dict[str, Any]:
+    """Shares a fresh sample metadata dict with the specialist tool."""
+    meta: dict[str, Any] = {"catalog": str(V091_CATALOG), **extra}
+    store().set(SAMPLE_META_STORE_KEY, meta)
+    store().set(PAYLOAD_STORE_KEY, None)
+    return meta
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("sdk", ["python", "ts", "dart"])
-async def test_a2ui_specialist_parses_without_validation(sdk: str) -> None:
-    """The subagent tool only parses, so the model gets no validation feedback."""
+async def test_a2ui_specialist_default_is_direct_json(sdk: str) -> None:
+    """By default the specialist writes Direct JSON for 0.9.1 and validates it."""
     bridge = _FakeBridge()
-    store().set("version", "0.9.1")
-    store().set("sdk", sdk)
-    store().set("catalog", str(V091_CATALOG))
+    meta = _specialist_meta()
 
     with patch(
         "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
     ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=_FakeModel()):
-        result = await a2ui_specialist()(input="Build a card")
+        result = await a2ui_specialist(sdk=sdk)(input="Build a card")
 
     assert result.startswith("Success")
     assert store().get(PAYLOAD_STORE_KEY) is not None
+    assert bridge.prompt_calls[0]["format_name"] == "direct_json"
+    assert bridge.prompt_calls[0]["version"] == "0.9.1"
     assert bridge.parse_calls == [{
         "format_name": "direct_json",
         "timeout_sec": DEFAULT_PARSE_TIMEOUT_SEC,
         "require_complete_tags": True,
-        "validate": False,
+        "validate": True,
     }]
+    assert meta["compiled_messages"] == [{"version": "v0.9"}]
+    assert meta["subagent_pass_at_1"] is True
+    assert meta["subagent_validation_retries_used"] == 0
+
+
+@pytest.mark.asyncio
+async def test_a2ui_specialist_express_uses_version_and_options() -> None:
+    """An Express specialist prompts and validates with the sample's options."""
+    bridge = _FakeBridge()
+    meta = _specialist_meta(
+        catalog=str(V1_CATALOG),
+        allowed_messages=["updateComponents"],
+        allowed_surface_ids=["panel"],
+    )
+    model = _FakeModel(['<a2ui>root = Text("hi")</a2ui>'])
+
+    with patch(
+        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
+    ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=model):
+        result = await a2ui_specialist(subagent_format="express", version="1.0")(
+            input="Build a card"
+        )
+
+    assert result.startswith("Success")
+    assert bridge.prompt_calls == [{
+        "format_name": "express",
+        "version": "1.0",
+        "options": bridge.options_seen[0],
+    }]
+    options = bridge.options_seen[0]
+    assert options is not None
+    assert options.catalogs[0].path == str(V1_CATALOG)
+    assert options.allowed_messages == ("updateComponents",)
+    assert bridge.parse_calls[0]["format_name"] == "express"
+    assert bridge.parse_calls[0]["validate"] is True
+    assert meta["compiled_messages"] == [{"version": "v0.9"}]
+    # The specialist sees the sample's role text, then the bridge prompt.
+    assert model.calls[0][0].content.endswith("PROMPT")
+
+
+@pytest.mark.asyncio
+async def test_a2ui_specialist_prefers_sample_version() -> None:
+    """Without an explicit version the specialist uses the sample's version."""
+    bridge = _FakeBridge()
+    _specialist_meta(version="1.0")
+    with patch(
+        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
+    ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=_FakeModel()):
+        await a2ui_specialist()(input="Build a card")
+    assert bridge.prompt_calls[0]["version"] == "1.0"
+
+
+@pytest.mark.asyncio
+async def test_a2ui_specialist_retries_after_validation_error() -> None:
+    """A rejected answer goes back to the specialist with the error, once."""
+    bridge = _FakeBridge(fail_first=1)
+    meta = _specialist_meta()
+    model = _FakeModel(["<a2ui-json>bad</a2ui-json>", "<a2ui-json>[]</a2ui-json>"])
+
+    with patch(
+        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
+    ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=model):
+        result = await a2ui_specialist(max_validation_retries=1)(input="Build a card")
+
+    assert result.startswith("Success")
+    assert len(bridge.parse_calls) == 2
+    assert meta["compiled_messages"] == [{"version": "v0.9"}]
+    assert meta["subagent_pass_at_1"] is False
+    assert meta["subagent_validation_retries_used"] == 1
+    # Second attempt: system, user, rejected assistant answer, error feedback.
+    second_call = model.calls[1]
+    assert [m.role for m in second_call] == ["system", "user", "assistant", "user"]
+    assert "Unknown component 'Widget'" in second_call[-1].content
+
+
+@pytest.mark.asyncio
+async def test_a2ui_specialist_gives_up_when_retries_run_out() -> None:
+    bridge = _FakeBridge(fail_first=5)
+    meta = _specialist_meta()
+    with patch(
+        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.get_model",
+        return_value=_FakeModel(["x", "y"]),
+    ):
+        result = await a2ui_specialist(max_validation_retries=1)(input="Build a card")
+
+    assert result.startswith("Error")
+    assert "Unknown component 'Widget'" in result
+    assert len(bridge.parse_calls) == 2
+    assert "compiled_messages" not in meta
+    assert meta["subagent_pass_at_1"] is False
+    assert meta["subagent_validation_retries_used"] == 1
+
+
+@pytest.mark.asyncio
+async def test_extract_subagent_payload_copies_specialist_results() -> None:
+    state = _state({}, completion="old content")
+    state.store.set(
+        SAMPLE_META_STORE_KEY,
+        {"compiled_messages": [{"a": 1}], "subagent_pass_at_1": True},
+    )
+    state.store.set(PAYLOAD_STORE_KEY, "[]")
+    state = await extract_subagent_payload()(state, dummy_generate)
+    assert state.metadata["compiled_messages"] == [{"a": 1}]
+    assert state.metadata["subagent_pass_at_1"] is True
+    assert state.output.completion == "<a2ui-json>\n[]\n</a2ui-json>"
+
+
+def test_subagent_tool_strategy_signature() -> None:
+    assert subagent_tool_solver is subagent_tool_strategy
+    solvers = subagent_tool_strategy(
+        version="1.0", subagent_format="express", max_validation_retries=2
+    )
+    assert len(solvers) == 5
+    with pytest.raises(ValueError):
+        subagent_tool_strategy(sdk="python", subagent_format="not_a_format")
+
+
+SKILL_META = {
+    "catalog": str(V1_CATALOG),
+    "system_prompt": "You are a research bot.",
+    "protocol_role": "Custom UI generator",
+}
+
+
+@pytest.mark.asyncio
+async def test_skill_mode_system_prompt_lists_skills_without_catalog() -> None:
+    state = _state(dict(SKILL_META))
+    state = await skill_mode_system_prompt("express", "1.0")(state, dummy_generate)
+
+    assert len(state.messages) == 1
+    prompt = state.messages[0].content
+    skills = state.store.get(SKILLS_STORE_KEY)
+    assert list(skills) == ["a2ui-core", "a2ui-basic"]
+    assert "`a2ui-core`" in prompt
+    assert "`a2ui-basic`" in prompt
+    assert "read_a2ui_skill" in prompt
+    assert "## Domain Instructions" in prompt
+    assert "You are a research bot." in prompt
+    assert "Custom UI generator" in prompt
+    # The catalog signatures live in the skill, not in the system prompt.
+    assert "Button(" in skills["a2ui-basic"]
+    assert "Button(" not in prompt
+    assert "A2UI Express DSL Output Contract" in skills["a2ui-core"]
+    assert "A2UI Express DSL Output Contract" not in prompt
+    assert state.store.get(SKILLS_READ_STORE_KEY) == []
+
+
+@pytest.mark.asyncio
+async def test_read_a2ui_skill_returns_text_or_error() -> None:
+    state = _state(dict(SKILL_META))
+    state = await skill_mode_system_prompt("express", "1.0")(state, dummy_generate)
+    # Outside an eval run the sample store and the tool store are separate.
+    store().set(SKILLS_STORE_KEY, state.store.get(SKILLS_STORE_KEY))
+    store().set(SKILLS_READ_STORE_KEY, [])
+    skill_tool = read_a2ui_skill()
+
+    core = await skill_tool(skill_name="a2ui-core")
+    assert "A2UI Express DSL Output Contract" in core
+    basic = await skill_tool(skill_name="a2ui-basic")
+    assert "Button(" in basic
+    again = await skill_tool(skill_name="a2ui-core")
+    assert again == core
+
+    error = await skill_tool(skill_name="a2ui-nope")
+    assert error.startswith("Error: unknown skill 'a2ui-nope'")
+    assert "`a2ui-core`" in error and "`a2ui-basic`" in error
+    assert store().get(SKILLS_READ_STORE_KEY) == ["a2ui-core", "a2ui-basic"]
+
+
+@pytest.mark.asyncio
+async def test_record_skills_read() -> None:
+    state = _state({})
+    state.store.set(SKILLS_READ_STORE_KEY, ["a2ui-core"])
+    state = await record_skills_read()(state, dummy_generate)
+    assert state.metadata["skills_read"] == ["a2ui-core"]
+
+
+def test_build_skills_uses_catalog_specs() -> None:
+    skills = build_skills(
+        "direct_json",
+        "1.0",
+        {
+            "catalog_specs": [
+                {"path": str(V1_CATALOG)},
+                {"path": "catalogs/mcp/v1/catalog.json"},
+            ]
+        },
+        str(V1_CATALOG),
+    )
+    names = list(skills)
+    assert names[0] == "a2ui-core"
+    assert len(names) == 3
+    assert all(name.startswith("a2ui-") for name in names)
+
+
+def test_skill_mode_strategy_chain_ends_with_compile() -> None:
+    solvers = skill_mode_strategy()
+    assert len(solvers) == 5
+    assert solvers[-1].__qualname__.startswith("compile_format_payload.")
+    with pytest.raises(ValueError):
+        skill_mode_strategy(format_name="not_a_format")
 
 
 def test_express_solver() -> None:
