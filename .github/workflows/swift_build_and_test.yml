@@ -102,3 +102,23 @@ jobs:
           -skipPackagePluginValidation
           ARCHS=arm64
           CODE_SIGNING_ALLOWED=NO
+
+  # The timing cases of conformance/core/message_processor_scaling.yaml compare
+  # the time to process a payload written at two sizes, as
+  # conformance/agent/direct_json/scaling.yaml describes. A slow or loaded
+  # runner can fail them, so they run only with A2UI_RUN_TIMING=1, in a job of
+  # their own, built for release as an app ships.
+  performance:
+    name: test (performance)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run timing tests
+        env:
+          A2UI_RUN_TIMING: "1"
+        run: >-
+          swift test -c release -Xswiftc -enable-testing --enable-swift-testing
+          --filter MessageProcessorScalingConformanceTests
