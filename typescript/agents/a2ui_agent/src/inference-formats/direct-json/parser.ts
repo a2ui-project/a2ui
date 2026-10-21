@@ -55,37 +55,13 @@ export class DirectJsonParser extends Parser {
   }
 
   unwrap(content: string): RawResponsePart[] {
-    const parts = this.lexer.tokenize(content);
-    let hasBlocks = false;
-    const validParts: RawResponsePart[] = [];
-
-    for (const part of parts) {
-      if (part.type === 'a2ui') {
-        if (!part.isFinal) {
-          throw new ParseError(`A2UI close tag '${A2UI_CLOSE_TAG}' not found in response.`);
-        }
-        if (!part.a2uiRaw) {
-          throw new ParseError('A2UI JSON part is empty.');
-        }
-        validParts.push(part);
-        hasBlocks = true;
-      } else {
-        if (part.text) {
-          validParts.push(part);
-        }
-      }
-    }
-
-    if (!hasBlocks) {
-      throw new ParseError(
-        `A2UI tags '${A2UI_OPEN_TAG}' and '${A2UI_CLOSE_TAG}' not found in response.`,
-      );
-    }
-
-    return validParts;
+    return this.lexer.tokenize(content);
   }
 
   compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
+    if (!formatContent.trim()) {
+      throw new ParseError('A2UI JSON part is empty.');
+    }
     const jsonData = parseAndFix(formatContent);
 
     if (isFinal) {

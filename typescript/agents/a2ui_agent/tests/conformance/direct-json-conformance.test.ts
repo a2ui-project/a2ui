@@ -111,21 +111,7 @@ describe('Direct JSON Conformance Suite', () => {
 
   const cases = loadCases(files);
   const UNSUPPORTED = new Set<string>([]);
-  const KNOWN_FAILURES = new Map<string, string>([
-    [
-      'unwrap · test_unwrap_response_without_tags_is_one_text_part',
-      'Bypasses standard format parsing rules',
-    ],
-    ['unwrap · test_unwrap_empty_response_has_no_parts', 'Bypasses standard format parsing rules'],
-    [
-      'unwrap · test_unwrap_unterminated_block_is_not_final',
-      'Bypasses standard format parsing rules',
-    ],
-    [
-      'parse_response · test_parse_response_without_tags_is_one_text_part',
-      'Bypasses standard format parsing rules',
-    ],
-  ]);
+  const KNOWN_FAILURES = new Map<string, string>([]);
 
   for (const testCase of cases) {
     const {name, action} = testCase;
