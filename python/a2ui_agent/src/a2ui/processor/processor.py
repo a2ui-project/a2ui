@@ -44,7 +44,7 @@ class A2uiRequestProcessor:
         Args:
             catalogs: List of active Catalog instances.
             examples: Optional list of prompt example turns.
-            format_factory: Format factory for instantiating format strategies.
+            format_factory: Format factory for instantiating format strategies (defaults to ExpressFormatFactory).
 
         Raises:
             A2uiCatalogError: If no active catalogs are provided.
