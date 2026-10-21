@@ -281,4 +281,57 @@ struct PayloadValidatorTests {
       defaultCatalogID: catalog.id
     )
   }
+
+  @Test func graphTopologyReportsArrayOfComponentIdItemsByIndex() throws {
+    // A property declared directly as an array of ComponentId refs is a list of
+    // child references, and a missing item is reported at its index.
+    let customSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "const": "Stack" },
+            "slots": {
+              "type": "array",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId"
+              }
+            }
+          },
+          "required": ["id", "component"]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "stack_cat",
+      protocolVersion: "v1.0",
+      components: [AnyComponentAPI(name: "Stack", schema: customSchema)]
+    ).eraseToAnyCatalog()
+
+    let components: [[String: JSONValue]] = [
+      [
+        "id": .string("root"),
+        "component": .string("Stack"),
+        "slots": .array([.string("held"), .string("missing")]),
+      ],
+      [
+        "id": .string("held"),
+        "component": .string("Stack"),
+        "slots": .array([]),
+      ],
+    ]
+
+    let error = try #require(throws: A2UIIntegrityError.self) {
+      try GraphTopologyValidator.validate(
+        components: components,
+        rootID: "root",
+        config: .strict,
+        catalogs: [catalog.id: catalog],
+        defaultCatalogID: catalog.id
+      )
+    }
+    #expect(error.message.contains("'missing' in field 'slots[1]'"))
+  }
 }

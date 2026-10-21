@@ -96,6 +96,128 @@ void main() {
       expect(model.getAll().map((c) => c.id), ['root', 'a']);
     });
 
+    test('insertComponent adds a component at a position', () {
+      final created = <String>[];
+      model.onCreated.subscribe((c) => created.add(c.id));
+      expect(model.catalogIds, [null]);
+
+      model.insertComponent(
+        1,
+        ComponentModel('b', 'Text', {'text': 'y'}, catalog: 'other'),
+      );
+      model.insertComponent(0, ComponentModel('c', 'Text', {'text': 'z'}));
+      model.insertComponent(4, ComponentModel('d', 'Text', {'text': 'w'}));
+
+      expect(model.keys, ['c', 'root', 'b', 'a', 'd']);
+      expect(created, ['b', 'c', 'd']);
+      expect(model.catalogIds, [null, 'other']);
+      expect(
+        () => model.insertComponent(0, ComponentModel('a', 'Text', {})),
+        throwsA(isA<A2uiStateError>()),
+      );
+      expect(
+        () => model.insertComponent(6, ComponentModel('e', 'Text', {})),
+        throwsRangeError,
+      );
+      expect(model.keys, ['c', 'root', 'b', 'a', 'd']);
+    });
+
+    test('insertComponent puts catalogs in the order of the components', () {
+      model.addComponent(
+        ComponentModel('b', 'Text', {'text': 'y'}, catalog: 'later'),
+      );
+      expect(model.catalogIds, [null, 'later']);
+
+      model.insertComponent(
+        0,
+        ComponentModel('c', 'Text', {'text': 'z'}, catalog: 'first'),
+      );
+
+      expect(model.catalogIds, ['first', null, 'later']);
+    });
+
+    test(
+        'restoreReferenceFields puts back the fields saveReferenceFields '
+        'found', () {
+      // Derived from the catalog on first use, so nothing is saved yet.
+      final SavedReferenceFields derived = model.saveReferenceFields();
+      model.refFields = const {};
+      expect(model.getChildIds('root'), isEmpty);
+
+      model.restoreReferenceFields(derived);
+      expect(model.getChildIds('root'), ['a', 'b']);
+
+      final Object fields = model.refFields;
+      final SavedReferenceFields saved = model.saveReferenceFields();
+      model.refFields = const {};
+      model.restoreReferenceFields(saved);
+      expect(model.refFields, same(fields));
+      expect(model.getChildIds('root'), ['a', 'b']);
+    });
+
+    test('insertComponents adds components at their positions at once', () {
+      // root, a, then b, c, d.
+      for (final id in ['b', 'c', 'd']) {
+        model.addComponent(ComponentModel(id, 'Text', {'text': id}));
+      }
+      final created = <String>[];
+      model.onCreated.subscribe((c) => created.add(c.id));
+
+      model.insertComponents([
+        (0, ComponentModel('x', 'Text', {})),
+        (2, ComponentModel('y', 'Text', {}, catalog: 'other')),
+        (3, ComponentModel('z', 'Text', {})),
+        (8, ComponentModel('w', 'Text', {})),
+      ]);
+
+      expect(model.keys, ['x', 'root', 'y', 'z', 'a', 'b', 'c', 'd', 'w']);
+      expect(model.catalogIds, [null, 'other']);
+      expect(created, ['x', 'y', 'z', 'w']);
+      model.insertComponents([]);
+      expect(model.size, 9);
+    });
+
+    test('insertComponents rejects a batch it cannot add whole', () {
+      Matcher leavesModel = predicate<void Function()>((call) {
+        try {
+          call();
+        } catch (_) {
+          return model.keys.join(',') == 'root,a';
+        }
+        return false;
+      }, 'throws and leaves the model as it was');
+
+      expect(
+        () => model.insertComponents([(0, ComponentModel('a', 'Text', {}))]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (0, ComponentModel('x', 'Text', {})),
+          (1, ComponentModel('x', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (1, ComponentModel('x', 'Text', {})),
+          (1, ComponentModel('y', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (0, ComponentModel('x', 'Text', {})),
+          (4, ComponentModel('y', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([(-1, ComponentModel('x', 'Text', {}))]),
+        throwsRangeError,
+      );
+    });
+
     test('getChildIds lists referenced ids, including unresolved ones', () {
       expect(model.getChildIds('root'), ['a', 'b']);
       expect(model.getChildIds('a'), isEmpty);

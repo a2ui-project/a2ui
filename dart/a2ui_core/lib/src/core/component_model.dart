@@ -83,6 +83,16 @@ class ComponentModel {
   }
 }
 
+/// The fields a [SurfaceComponentsModel] reads child references through, as
+/// [SurfaceComponentsModel.saveReferenceFields] returns them. Opaque: it can
+/// only be handed back to [SurfaceComponentsModel.restoreReferenceFields].
+final class SavedReferenceFields {
+  const SavedReferenceFields._(this._fields);
+
+  /// Null when the model derives them from its catalog on first use.
+  final Map<String, ComponentRefFields>? _fields;
+}
+
 /// Manages the collection of components for a specific surface.
 ///
 /// The graph queries ([getChildIds], [detectCycles], [validateTopology],
@@ -130,6 +140,27 @@ class SurfaceComponentsModel {
   @internal
   set refFields(Map<String, ComponentRefFields> value) => _refFields = value;
 
+  /// The fields the graph queries read child references through, as a value
+  /// to hand back to [restoreReferenceFields].
+  ///
+  /// `MessageProcessor` replaces them on each `updateComponents` it applies,
+  /// with the reference properties of the catalogs the surface's components
+  /// draw on. Undoing such an update puts the components back but not these,
+  /// so whoever undoes it saves them first and restores them after. Saving
+  /// takes constant time: the value holds the fields, which are replaced
+  /// rather than changed, not a copy of them.
+  SavedReferenceFields saveReferenceFields() =>
+      SavedReferenceFields._(_refFields);
+
+  /// Puts back the fields [saved] holds, as [saveReferenceFields] found them.
+  void restoreReferenceFields(SavedReferenceFields saved) {
+    if (identical(saved._fields, _refFields)) return;
+    _refFields = saved._fields;
+    // What the last update check found about the graph was read through the
+    // fields replaced here.
+    _changes++;
+  }
+
   /// Fires when a new component is added to the model.
   EventSource<ComponentModel> get onCreated => _onCreated;
 
@@ -171,18 +202,96 @@ class SurfaceComponentsModel {
 
   /// Adds a component to the model.
   void addComponent(ComponentModel component) {
+    _checkNew(component);
+    _components[component.id] = component;
+    if (_catalogIds case final List<String?> catalogIds
+        when !catalogIds.contains(component.catalog)) {
+      catalogIds.add(component.catalog);
+    }
+    _added(component);
+  }
+
+  /// Adds a component to the model at [index] in insertion order, moving the
+  /// components from [index] on one place later.
+  ///
+  /// Unlike [addComponent], which is constant time, this takes time
+  /// proportional to [size]. It puts back a component at the place it held,
+  /// such as when a change is undone; the order matters because [values] and
+  /// the catalogs a surface's references are read through follow it. To put
+  /// back several, [insertComponents] takes the same time for all of them.
+  ///
+  /// Throws [A2uiStateError] if the model already holds a component with the
+  /// same id, and [RangeError] if [index] is not between 0 and [size].
+  void insertComponent(int index, ComponentModel component) =>
+      insertComponents([(index, component)]);
+
+  /// Adds each component of [components] at the index paired with it, as
+  /// [insertComponent] would one after the other.
+  ///
+  /// Each index is the component's position once all of them are added, so
+  /// the indices must ascend. The model is rebuilt once, so this takes time
+  /// proportional to [size] plus the number of components, however many are
+  /// added. [onCreated] fires for each once all are added.
+  ///
+  /// Throws [A2uiStateError] if the model already holds a component with the
+  /// id of one of [components], or two of them share an id, and [RangeError]
+  /// if an index is not above the one before it, or leaves a gap.
+  void insertComponents(Iterable<(int, ComponentModel)> components) {
+    final List<(int, ComponentModel)> added = components.toList();
+    if (added.isEmpty) return;
+    final ids = <String>{};
+    var previous = -1;
+    for (final (int count, (int index, ComponentModel component))
+        in added.indexed) {
+      _checkNew(component);
+      if (!ids.add(component.id)) {
+        throw A2uiStateError(
+          "Component with id '${component.id}' is added twice.",
+        );
+      }
+      RangeError.checkValueInInterval(
+        index,
+        previous + 1,
+        _components.length + count,
+        'index',
+      );
+      previous = index;
+    }
+    final int first = added.first.$1;
+    final List<MapEntry<String, ComponentModel>> later =
+        _components.entries.skip(first).toList();
+    for (final entry in later) {
+      _components.remove(entry.key);
+    }
+    var next = 0;
+    var position = first;
+    for (final (int index, ComponentModel component) in added) {
+      while (position < index) {
+        final MapEntry<String, ComponentModel> entry = later[next++];
+        _components[entry.key] = entry.value;
+        position++;
+      }
+      _components[component.id] = component;
+      position++;
+    }
+    _components.addEntries(later.skip(next));
+    _catalogIds = null;
+    for (final (_, ComponentModel component) in added) {
+      _added(component);
+    }
+  }
+
+  void _checkNew(ComponentModel component) {
     if (_components.containsKey(component.id)) {
       throw A2uiStateError(
         "Component with id '${component.id}' already exists.",
       );
     }
-    _components[component.id] = component;
+  }
+
+  void _added(ComponentModel component) {
     _changes++;
     component.onUpdated.subscribe((_) => _changes++);
-    if (_catalogIds case final List<String?> catalogIds
-        when !catalogIds.contains(component.catalog)) {
-      catalogIds.add(component.catalog);
-    }
     _onCreated.emit(component);
   }
 
