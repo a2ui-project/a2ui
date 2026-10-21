@@ -51,7 +51,8 @@ public struct A2UISelectionAccessibility: ViewModifier, Equatable, Sendable {
     }
   }
 
-  /// The accessibility value of the control. `nil` when the state is carried by its traits.
+  /// The accessibility value of the control, used as a localization key so host apps can
+  /// translate it. `nil` when the state is carried by its traits.
   public var value: String? {
     switch role {
     case .checkbox:
@@ -64,7 +65,7 @@ public struct A2UISelectionAccessibility: ViewModifier, Equatable, Sendable {
   public func body(content: Content) -> some View {
     let traited = content.accessibilityAddTraits(traits)
     if let value {
-      traited.accessibilityValue(value)
+      traited.accessibilityValue(LocalizedStringKey(value))
     } else {
       traited
     }
