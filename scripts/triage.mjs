@@ -324,8 +324,9 @@ export default async function issueTriage({github, context}) {
   // those alone.
   const itemsWithContributions = await mapInBatches(openItems, async item => {
     const client = {github, owner, repo};
+    const labels = labelNames(item);
     const timedLabels = [WAITING_LABEL, ASSIGNED_FOR_TRIAGE_LABEL].filter(name =>
-      labelNames(item).includes(name),
+      labels.includes(name),
     );
     const [contributions, addedAt] = await Promise.all([
       fetchContributions(client, item),
