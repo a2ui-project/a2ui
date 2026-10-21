@@ -42,7 +42,7 @@ package struct DateTimeInputValue {
     guard let tIndex = string.firstIndex(of: "T") else {
       if let date = Self.date(from: string, format: "yyyy-MM-dd", in: .current) {
         self.init(date: date, shape: .date)
-      } else if let includesSeconds = Self.includesSeconds(Substring(string)),
+      } else if let includesSeconds = Self.includesSeconds(string),
         let date = Self.date(from: string, format: Self.time(includesSeconds), in: .current)
       {
         self.init(date: date, shape: .time(includesSeconds: includesSeconds))
@@ -150,7 +150,7 @@ package struct DateTimeInputValue {
 
   /// Returns whether a time written as `HH:mm` or `HH:mm:ss` has seconds, or `nil` when it has
   /// another length.
-  private static func includesSeconds(_ time: Substring) -> Bool? {
+  private static func includesSeconds(_ time: some StringProtocol) -> Bool? {
     switch time.count {
     case 5: false
     case 8: true
