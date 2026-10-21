@@ -49,10 +49,7 @@ void main() {
   });
 
   A2uiRequestProcessor processor([List<CatalogApi>? catalogs]) =>
-      A2uiRequestProcessor(
-        activeCatalogs: catalogs ?? [basic],
-        formatFactory: const ExpressFormatFactory(),
-      );
+      A2uiRequestProcessor(activeCatalogs: catalogs ?? [basic]);
 
   /// The messages one block compiles to, as JSON.
   List<Map<String, Object?>> compile(String block) {
@@ -513,7 +510,7 @@ surface("s1")
 
     test('does not stream', () {
       expect(parser.supportsStreaming, isFalse);
-      expect(() => parser.parseChunk('<a2ui>'), throwsUnsupportedError);
+      expect(parser.openStream, throwsUnsupportedError);
     });
   });
 

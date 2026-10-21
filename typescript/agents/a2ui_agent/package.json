@@ -11,8 +11,22 @@
   "bugs": {
     "url": "https://github.com/a2ui-project/a2ui/issues"
   },
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
+  "keywords": [
+    "a2ui",
+    "ai",
+    "agent",
+    "ui",
+    "llm",
+    "sdk"
+  ],
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -20,10 +34,15 @@
     "src"
   ],
   "scripts": {
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepack": "yarn build",
+    "prepare": "yarn build",
     "build": "wireit",
     "build:tsc": "wireit",
     "test": "wireit",
     "test:conformance": "vitest run tests/conformance",
+    "test:timing": "wireit",
     "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -59,6 +78,12 @@
         "build"
       ]
     },
+    "test:timing": {
+      "command": "node --expose-gc --test --test-concurrency=1 \"tests/timing/**/*_test.mjs\"",
+      "dependencies": [
+        "build"
+      ]
+    },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
     },
@@ -67,6 +92,7 @@
       "files": [
         "src/**/*.ts",
         "tests/**/*.ts",
+        "tests/**/*.mjs",
         "package.json",
         "tsconfig.json",
         "tsconfig.check.json",
@@ -79,6 +105,7 @@
       "files": [
         "src/**/*.ts",
         "tests/**/*.ts",
+        "tests/**/*.mjs",
         "package.json",
         "tsconfig.json",
         "tsconfig.check.json",

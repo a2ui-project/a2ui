@@ -788,6 +788,9 @@ class ConformanceTest {
         "test_v08_topology_dangling_child_reference_error",
         "test_v09_topology_circular_reference_error",
         "test_v09_topology_dangling_child_reference_error",
+        // `A2uiValidator` reports an item of a list reference under the bare field name
+        // ("in field 'slots'"), without the item's index ("in field 'slots[1]'").
+        "test_v09_topology_component_id_array_partial_dangling_reference_error",
         // `A2uiValidator` checks each component update message as a complete tree, so a partial
         // update that follows the initial render in the same payload fails the root check.
         "test_v08_incremental_update_without_root",

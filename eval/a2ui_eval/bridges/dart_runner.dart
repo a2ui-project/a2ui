@@ -299,34 +299,6 @@ Map<String, Object?> _alignExpressEnvelope(
   };
 }
 
-class _SignatureOnlyFunction extends FunctionImplementation {
-  _SignatureOnlyFunction(FunctionApi api)
-    : super(
-        name: api.name,
-        argumentSchema: api.argumentSchema,
-        returnType: api.returnType,
-        description: api.description,
-        allowedCallers: api.declaredAllowedCallers,
-        requiresUserActivation: api.declaredRequiresUserActivation,
-        definition: api.definition,
-      );
-
-  @override
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]) => throw UnsupportedError(
-    "Function '$name' is a signature only and cannot be invoked.",
-  );
-}
-
-Catalog<ComponentApi, FunctionImplementation> _signedCatalog(
-  CatalogApi catalog,
-) => catalog.withFunctions(
-  catalog.functions.values.map(_SignatureOnlyFunction.new),
-);
-
 /// The `initial_renderer_state` messages of [payload], or null when unset.
 List<AgentToRendererMessage>? _initialRendererState(
   Map<String, Object?> payload,
@@ -357,6 +329,21 @@ int? _streamChunkSize(Map<String, Object?> payload) {
   return size;
 }
 
+/// Seeds [state] with [initialState], wrapping dataset errors in [_BridgeError].
+void _seedRendererState(
+  RendererState state,
+  List<AgentToRendererMessage>? initialState,
+) {
+  if (initialState == null || initialState.isEmpty) return;
+  try {
+    state.checkTopology(state.apply(initialState));
+  } on Object catch (err, stackTrace) {
+    throw _BridgeError(
+      'initial_renderer_state is invalid: ${_describeError(err, stackTrace)}',
+    );
+  }
+}
+
 /// Feeds [completion] through a fresh streaming parser in [chunkSize]
 /// character slices, as a client receiving the model's stream would.
 ///
@@ -364,24 +351,34 @@ int? _streamChunkSize(Map<String, Object?> payload) {
 /// streamed parse yields no A2UI part at all; a parse error propagates.
 void _checkStreamedParse(
   InferenceFormat strategy,
+  List<AgentToRendererMessage>? initialState,
   String completion,
   int chunkSize,
 ) {
   final Parser parser = strategy.createParser();
   if (!parser.supportsStreaming) return;
-  var sawA2uiPart = false;
-  for (var start = 0; start < completion.length; start += chunkSize) {
-    final int end = math.min(start + chunkSize, completion.length);
-    final List<ResponsePart> parts = parser.parseChunk(
-      completion.substring(start, end),
-    );
-    sawA2uiPart = sawA2uiPart || parts.any((part) => part is A2uiPart);
-  }
-  if (!sawA2uiPart) {
-    throw _BridgeError(
-      'Streaming the response in $chunkSize-character chunks produced no '
-      'A2UI part, while parsing it whole did.',
-    );
+  final state = RendererState(parser.catalogs);
+  try {
+    _seedRendererState(state, initialState);
+    final ResponseStream stream = parser.openStream(state: state);
+    var sawA2uiPart = false;
+    for (var start = 0; start < completion.length; start += chunkSize) {
+      final int end = math.min(start + chunkSize, completion.length);
+      final List<ResponsePart> parts = stream.feed(
+        completion.substring(start, end),
+      );
+      sawA2uiPart = sawA2uiPart || parts.any((part) => part is A2uiPart);
+    }
+    final List<ResponsePart> tail = stream.close();
+    sawA2uiPart = sawA2uiPart || tail.any((part) => part is A2uiPart);
+    if (!sawA2uiPart) {
+      throw _BridgeError(
+        'Streaming the response in $chunkSize-character chunks produced no '
+        'A2UI part, while parsing it whole did.',
+      );
+    }
+  } finally {
+    state.dispose();
   }
 }
 
@@ -415,43 +412,9 @@ void _checkStreamedParse(
   return (jsons, aligned);
 }
 
-/// Runs [initialState] (when given) and then [messages] through a strict
-/// message processor over [catalogs].
-///
-/// A failure in [initialState] is a dataset error, not the model's, and is
-/// reported as such.
-void _validateMessages({
-  required List<CatalogApi> catalogs,
-  required A2uiProtocolVersion version,
-  required List<AgentToRendererMessage>? initialState,
-  required List<AgentToRendererMessage> messages,
-}) {
-  final renderer = MessageProcessor<ComponentApi>(
-    catalogs: catalogs.map(_signedCatalog).toList(),
-    defaultVersion: version,
-    validationConfig: ValidationConfig.strict,
-  );
-  try {
-    if (initialState != null && initialState.isNotEmpty) {
-      try {
-        renderer.processMessages(AgentToRendererMessagePayload(initialState));
-      } on Object catch (err, stackTrace) {
-        throw _BridgeError(
-          'initial_renderer_state is invalid: '
-          '${_describeError(err, stackTrace)}',
-        );
-      }
-    }
-    renderer.processMessages(AgentToRendererMessagePayload(messages));
-  } finally {
-    renderer.model.dispose();
-  }
-}
-
 Map<String, Object?> _parseAndValidate({
   required String formatName,
   required A2uiProtocolVersion version,
-  required List<CatalogApi> catalogs,
   required InferenceFormat strategy,
   required String surfaceId,
   required String completion,
@@ -471,8 +434,9 @@ Map<String, Object?> _parseAndValidate({
     );
   }
 
-  // Equivalent to `parser.parseResponse(completion)`, but keeps each raw block
-  // so explicit fields the model wrote can be preserved.
+  // Like `parser.parseResponse(completion)`, but keeps each raw block so
+  // explicit fields the model wrote can be preserved, and checks the
+  // messages only when asked.
   final compiledMessages = <AgentToRendererMessage>[];
   final compiledJsons = <Map<String, Object?>>[];
   final serializedParts = <Map<String, Object?>>[];
@@ -505,15 +469,21 @@ Map<String, Object?> _parseAndValidate({
     );
   }
   if (streamChunkSize != null) {
-    _checkStreamedParse(strategy, completion, streamChunkSize);
+    _checkStreamedParse(
+      strategy,
+      initialRendererState,
+      completion,
+      streamChunkSize,
+    );
   }
   if (validate) {
-    _validateMessages(
-      catalogs: catalogs,
-      version: version,
-      initialState: initialRendererState,
-      messages: compiledMessages,
-    );
+    final state = RendererState(parser.catalogs);
+    try {
+      _seedRendererState(state, initialRendererState);
+      state.checkTopology(state.apply(compiledMessages));
+    } finally {
+      state.dispose();
+    }
   }
   return {'compiled_jsons': compiledJsons, 'parts': serializedParts};
 }
@@ -573,7 +543,6 @@ Future<void> main() async {
         final Map<String, Object?> result = _parseAndValidate(
           formatName: formatName,
           version: version,
-          catalogs: setup.catalogs,
           strategy: strategy,
           surfaceId: surfaceId,
           completion: completion,

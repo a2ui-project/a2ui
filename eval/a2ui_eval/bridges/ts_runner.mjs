@@ -31,8 +31,8 @@ import {
   DirectJsonPromptGenerator,
   ExpressFormat,
   FunctionPruningTransformer,
+  RendererState,
 } from '@a2ui/agent';
-import {MessageProcessor, STRICT_VALIDATION} from '@a2ui/web_core';
 
 function toWireVersion(version) {
   const cleaned = String(version ?? '').trim();
@@ -161,6 +161,17 @@ function checkCompleteTags(parser, formatName, completion) {
   throw new Error("A2UI tags '<a2ui>' and '</a2ui>' not found in response.");
 }
 
+/** Splits a response and compiles its blocks without checking them. */
+function compileOnly(parser, completion) {
+  return parser
+    .unwrap(completion)
+    .map(raw =>
+      raw.type === 'text'
+        ? {type: 'text', text: raw.text}
+        : {type: 'a2ui', a2ui: parser.compile(raw.a2uiRaw, raw.isFinal)},
+    );
+}
+
 /** Splits parsed parts into the wire form and the flat list of compiled messages. */
 function serializeParts(parts) {
   const compiledJsons = [];
@@ -186,17 +197,26 @@ function requireCompiledJsons(compiledJsons, formatName) {
   throw new Error(`No compiled A2UI ${formatName} user interface found in parsed parts.`);
 }
 
+/** Builds a RendererState seeded with any initial renderer state messages. */
+function buildInitialState(catalogs, initialState) {
+  const state = new RendererState(catalogs);
+  if (Array.isArray(initialState) && initialState.length > 0) {
+    state.checkTopology(state.apply(initialState));
+  }
+  return state;
+}
+
 /**
  * Feeds the completion through a fresh streaming parser in `chunkSize`-character
  * slices and fails when the streamed parse throws or yields no A2UI part.
  */
-function checkStreamedParse(strategy, completion, chunkSize) {
-  const parser = strategy.createParser();
+function checkStreamedParse(parser, catalogs, initialState, completion, chunkSize) {
+  const stream = parser.openStream({state: buildInitialState(catalogs, initialState)});
   let sawA2ui = false;
   for (let start = 0; start < completion.length; start += chunkSize) {
     let parts;
     try {
-      parts = parser.parseChunk(completion.slice(start, start + chunkSize));
+      parts = stream.feed(completion.slice(start, start + chunkSize));
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       throw new Error(
@@ -205,22 +225,20 @@ function checkStreamedParse(strategy, completion, chunkSize) {
     }
     sawA2ui = sawA2ui || parts.some(part => part.type === 'a2ui');
   }
+  try {
+    const tail = stream.close();
+    sawA2ui = sawA2ui || tail.some(part => part.type === 'a2ui');
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Streamed parse failed on close (chunk size ${chunkSize}): ${detail}`,
+    );
+  }
   if (!sawA2ui) {
     throw new Error(
       `Streamed parse (chunk size ${chunkSize}) produced no A2UI part for a completion that parsed whole.`,
     );
   }
-}
-
-/** Validates the model's turn on top of any initial renderer state. */
-function validateMessages(catalogs, initialState, compiledJsons) {
-  const processor = new MessageProcessor(catalogs, undefined, {
-    validationConfig: STRICT_VALIDATION,
-  });
-  if (Array.isArray(initialState) && initialState.length > 0) {
-    processor.processMessages(initialState);
-  }
-  processor.processMessages(compiledJsons);
 }
 
 function parseAndValidate(payload, strategy, catalogs) {
@@ -236,7 +254,9 @@ function parseAndValidate(payload, strategy, catalogs) {
   if (requireCompleteTags) {
     checkCompleteTags(parser, formatName, completion);
   }
-  const {compiledJsons, serializedParts} = serializeParts(parser.parseResponse(completion));
+  // Compile raw blocks first so empty/missing A2UI blocks report the canonical
+  // tag error before RendererState validation runs.
+  const {compiledJsons, serializedParts} = serializeParts(compileOnly(parser, completion));
   requireCompiledJsons(compiledJsons, formatName);
 
   const chunkSize = options.stream_chunk_size;
@@ -245,11 +265,18 @@ function parseAndValidate(payload, strategy, catalogs) {
       throw new Error(`stream_chunk_size must be a positive integer, got ${chunkSize}`);
     }
     if (strategy.supportsStreaming) {
-      checkStreamedParse(strategy, completion, chunkSize);
+      checkStreamedParse(
+        parser,
+        catalogs,
+        options.initial_renderer_state,
+        completion,
+        chunkSize,
+      );
     }
   }
   if (validate) {
-    validateMessages(catalogs, options.initial_renderer_state, compiledJsons);
+    const state = buildInitialState(catalogs, options.initial_renderer_state);
+    state.checkTopology(state.apply(compiledJsons));
   }
   return {compiled_jsons: compiledJsons, parts: serializedParts};
 }

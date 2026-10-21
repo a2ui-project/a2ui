@@ -1,5 +1,7 @@
 # A2UI MCP catalog
 
+> **Experimental.** This package is under active development. Its API and the catalog schema may change between releases without notice.
+
 The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools. It defines `callMcpTool`, allowing agents to emit declarative payloads whose controls and bindings interact with MCP servers directly.
 
 ## Overview
