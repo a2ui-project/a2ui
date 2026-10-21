@@ -193,18 +193,16 @@ describe('flagReason — issues', () => {
     assert.equal(flagReason(item, [], NOW), null);
   });
 
-  // Rule 2b: P2 is planned work the team already has in hand.
-  it('does not flag a P2 issue, whatever else is wrong with it', () => {
-    for (const assignees of [[], [{login: 'dev'}]]) {
-      const item = issue({
-        labels: ['P2'],
-        assignees,
-        created_at: daysAgo(9999), // ancient, external last word
-        author_association: 'NONE',
-        user: {login: 'reporter', type: 'User'},
-      });
-      assert.equal(flagReason(item, [], NOW), null, `${assignees.length} assignee(s)`);
-    }
+  // Rule 2b: an assigned P2 already has a team member working on it.
+  it('does not flag an assigned P2 issue, whatever else is wrong with it', () => {
+    const item = issue({
+      labels: ['P2'],
+      assignees: [{login: 'dev'}],
+      created_at: daysAgo(9999), // ancient, external last word
+      author_association: 'NONE',
+      user: {login: 'reporter', type: 'User'},
+    });
+    assert.equal(flagReason(item, [], NOW), null);
   });
 
   // Regression: rule 2b used to skip every assigned issue.
@@ -485,8 +483,18 @@ describe('flagReason — external comment awaiting response', () => {
     assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/);
   });
 
-  it('does not flag a P2 issue', () => {
+  it('flags an unassigned P2 issue', () => {
     const item = issue({labels: ['P2'], comments: 1, created_at: daysAgo(5)});
+    assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/);
+  });
+
+  it('does not flag an assigned P2 issue', () => {
+    const item = issue({
+      labels: ['P2'],
+      assignees: [{login: 'dev'}],
+      comments: 1,
+      created_at: daysAgo(5),
+    });
     assert.equal(flagReason(item, [externalComment(2)], NOW), null);
   });
 });
@@ -709,9 +717,13 @@ describe('issueTriage reconciliation', () => {
       assert.deepEqual(calls.addLabels, [16]);
     });
 
-    it('leaves a P2 issue off the queue when it unparks', async () => {
-      // Rule 2b outranks the reply: P2 is work the team already has in hand.
-      const item = parked(29, {comments: 1, labels: [WAITING_LABEL, 'P2']});
+    it('leaves an assigned P2 issue off the queue when it unparks', async () => {
+      // Rule 2b outranks the reply: a team member is already working on it.
+      const item = parked(29, {
+        comments: 1,
+        labels: [WAITING_LABEL, 'P2'],
+        assignees: [{login: 'dev'}],
+      });
       github = makeGithub([item]);
       await issueTriage({github, context});
 

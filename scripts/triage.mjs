@@ -147,9 +147,10 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
 
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
-  // 2b. A P2 issue is planned work the team already has in hand. Items
-  // assigned for triage never reach here: rule 1 decided them.
-  if (!isPR && priority === 'P2') {
+  // 2b. An assigned P2 issue already has a team member working on it. An
+  // unassigned one stays in scope, so an external comment can still flag it
+  // (rule 3d).
+  if (!isPR && priority === 'P2' && assigneeCount > 0) {
     return null;
   }
 

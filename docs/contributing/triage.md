@@ -63,7 +63,7 @@ The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag iss
 1. **Triage assignments**: An issue or PR with `status: assigned-for-triage` is flagged with `status: needs-triage` if it has no assignee, or if the label was added more than 14 days ago. Otherwise it is not flagged, because the assignee is triaging it. Rules 2–4 do not apply to these items. The 14 days count from the most recent time the label was added, so removing and re-adding the label restarts them.
 2. **Skipped items**: The automation skips the following items:
     - **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once an external contributor posts a comment, review or review comment after the label was added.
-    - **P2 without `status: assigned-for-triage`**: When a P2 issue is not in triage, it is assumed that the team is looking into it.
+    - **Assigned P2 issues**: When a P2 issue is assigned, it is assumed that a team member is working on it. An unassigned P2 issue goes through rule 3, so an unanswered external comment brings it back to triage.
 3. **Issues**: Flagged with `status: needs-triage` if any of the following apply:
     - **No priority**: The issue lacks a priority label (`P0`–`P4`).
     - **Unassigned high priority**: Labeled `P0` or `P1` without an assignee.
