@@ -271,12 +271,14 @@ def _build_checks(
     condition: dict[str, Any] = {call_key: chosen_fn, "args": args}
     if graph.surface_catalog_id is None and fn_cat_id is not None:
         condition["catalogId"] = fn_cat_id
-    return [{
-        "condition": condition,
-        "message": (
-            f"{chosen_fn[0].upper() + chosen_fn[1:] if chosen_fn else ''} check failed"
-        ),
-    }]
+    return [
+        {
+            "condition": condition,
+            "message": (
+                f"{chosen_fn[0].upper() + chosen_fn[1:] if chosen_fn else ''} check failed"
+            ),
+        }
+    ]
 
 
 def _bind_non_child_slots(
@@ -1005,21 +1007,38 @@ class DecisionSynthesizer:
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Synthesizes child leaf views for a `NAMED_CHILD_ARRAY` slot."""
         scalar_ptrs = [p for p in pointers if p.value_type != "array"] or list(pointers)
-        chosen_specs = self._select_named_child_specs(
+        fallback_specs = self._select_named_child_specs(
             parent_name, max_items=max_items, allow_actions=allow_actions
         )
         items: list[dict[str, Any]] = []
         children: list[dict[str, Any]] = []
-        for idx, child_spec in enumerate(chosen_specs, start=1):
+        for idx, fallback_spec in enumerate(fallback_specs, start=1):
+            view_ptrs = (
+                [scalar_ptrs[idx - 1]] if idx <= len(scalar_ptrs) else scalar_ptrs
+            )
+            child_spec = await self._choose_child_component(
+                intent,
+                f"{slot.name}[{idx - 1}]",
+                parent_name,
+                view_ptrs,
+                allow_actions=allow_actions,
+            )
+            if child_spec is None:
+                child_spec = fallback_spec
             child_id = f"{prefix}view_{idx}"
             children.append(
                 self._build_leaf_dict(
-                    child_spec, child_id, intent, scalar_ptrs, relative=False
+                    child_spec, child_id, intent, view_ptrs, relative=False
                 )
             )
             entry: dict[str, Any] = {}
             if slot.label_key is not None:
-                entry[slot.label_key] = f"{child_spec.name}_{idx}"
+                ptr_label = (
+                    view_ptrs[0].path.rsplit("/", 1)[-1].replace("_", " ").title()
+                    if view_ptrs and view_ptrs[0].path.strip("/")
+                    else f"{child_spec.name}_{idx}"
+                )
+                entry[slot.label_key] = ptr_label
             if slot.child_id_key is not None:
                 entry[slot.child_id_key] = child_id
             items.append(entry)
@@ -1037,6 +1056,22 @@ class DecisionSynthesizer:
         """Selects a leaf component for a container slot via backend or pointer fit."""
         raw_candidates = self.graph.leaf_candidates() or self.graph.root_candidates()
         filtered = [c for c in raw_candidates if allow_actions or not c.has_action_slot]
+        if child_pointers:
+            ptr_types = {p.value_type for p in child_pointers}
+            data_capable = [
+                c
+                for c in filtered
+                if any(s.kind == SlotKind.DATA_VALUE for s in c.slots)
+                and not any(
+                    s.kind == SlotKind.DATA_VALUE
+                    and s.required
+                    and s.value_type == "array"
+                    and "array" not in ptr_types
+                    for s in c.slots
+                )
+            ]
+            if data_capable:
+                filtered = data_capable
         candidates = tuple(filtered) if filtered else raw_candidates
         if len(candidates) == 1:
             return candidates[0]
@@ -1086,14 +1121,16 @@ class DecisionSynthesizer:
             },
         ]
         if payload:
-            raw_messages.append({
-                "version": wire_ver,
-                "updateDataModel": {
-                    "surfaceId": surface_id,
-                    "path": "/",
-                    "value": dict(payload),
-                },
-            })
+            raw_messages.append(
+                {
+                    "version": wire_ver,
+                    "updateDataModel": {
+                        "surfaceId": surface_id,
+                        "path": "/",
+                        "value": dict(payload),
+                    },
+                }
+            )
         models = to_message_models(raw_messages)
         validate_payload(self.graph.catalogs, models)
         return models

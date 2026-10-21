@@ -741,11 +741,122 @@ async def test_any_slot_ranking_and_check_arg_binding_and_camelcase_checks() -> 
     assert comp["summaryPayload"] == {"@path": "/summaryPayload"}
     # Check function argument 'tickerSymbol' binds to /tickerSymbol instead of first pointer,
     # and camelCase function name 'isValidTickerSymbol' is preserved in message.
-    assert comp["checks"] == [{
-        "condition": {
-            "@call": "isValidTickerSymbol",
-            "args": {"tickerSymbol": {"@path": "/tickerSymbol"}},
+    assert comp["checks"] == [
+        {
+            "condition": {
+                "@call": "isValidTickerSymbol",
+                "args": {"tickerSymbol": {"@path": "/tickerSymbol"}},
+            },
+            "message": "IsValidTickerSymbol check failed",
+        }
+    ]
+    validate_payload([cat], out.messages)
+
+
+@pytest.mark.asyncio
+async def test_named_child_array_queries_backend_and_filters_incompatible_leaves() -> (
+    None
+):
+    """Verifies NAMED_CHILD_ARRAY queries backend per view and filters array-only/static leaves."""
+    schema: dict[str, Any] = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/catalogs/tabs_filter/v1/catalog.json",
+        "protocolVersion": "1.0",
+        "components": {
+            "StaticIcon": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "StaticIcon"},
+                    "glyph": {"type": "string", "enum": ["star", "check"]},
+                },
+                "required": ["component", "glyph"],
+            },
+            "ArrayPicker": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "ArrayPicker"},
+                    "selected": {"$ref": "common_types.json#/$defs/DynamicStringList"},
+                },
+                "required": ["component", "selected"],
+            },
+            "ScalarText": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "ScalarText"},
+                    "text": {"$ref": "common_types.json#/$defs/DynamicString"},
+                },
+                "required": ["component", "text"],
+            },
+            "ScalarMetric": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "ScalarMetric"},
+                    "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+                },
+                "required": ["component", "label"],
+            },
+            "TabContainer": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "TabContainer"},
+                    "tabs": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string"},
+                                "child": {
+                                    "$ref": "common_types.json#/$defs/ComponentId"
+                                },
+                            },
+                            "required": ["title", "child"],
+                        },
+                    },
+                },
+                "required": ["component", "tabs"],
+            },
         },
-        "message": "IsValidTickerSymbol check failed",
-    }]
+    }
+    cat = Catalog.from_json(schema)
+    seen_candidates: list[tuple[str, ...]] = []
+
+    def scorer(query: DecisionQuery) -> DecisionDistribution:
+        if query.task == "root_component":
+            return DecisionDistribution(
+                probabilities={"TabContainer": 0.90, "ScalarText": 0.10},
+                calibrated=True,
+            )
+        seen_candidates.append(query.candidates)
+        slot = query.context.get("slot", "")
+        if slot == "tabs[0]":
+            return DecisionDistribution(
+                probabilities={"ScalarText": 0.85, "ScalarMetric": 0.15},
+                calibrated=True,
+            )
+        return DecisionDistribution(
+            probabilities={"ScalarMetric": 0.85, "ScalarText": 0.15},
+            calibrated=True,
+        )
+
+    synth = DecisionSynthesizer([cat], DeterministicMockBackend(scorer=scorer))
+    out = await synth.synthesize(
+        "Show tabs for summary and logs",
+        {"overview_summary": "All systems operational", "recent_logs": "OK"},
+    )
+    assert out.stage == SynthesisStage.CONTAINER_2PASS
+    # StaticIcon (no DATA_VALUE slot) and ArrayPicker (requires array pointer) are filtered out.
+    for cand_tuple in seen_candidates:
+        assert "StaticIcon" not in cand_tuple
+        assert "ArrayPicker" not in cand_tuple
+        assert set(cand_tuple) == {"ScalarText", "ScalarMetric"}
+
+    comps = to_message_dicts(out.messages)[1]["updateComponents"]["components"]
+    assert comps[0]["tabs"] == [
+        {"title": "Overview Summary", "child": "view_1"},
+        {"title": "Recent Logs", "child": "view_2"},
+    ]
+    assert comps[1]["component"] == "ScalarText"
+    assert comps[1]["text"] == {"@path": "/overview_summary"}
+    assert comps[2]["component"] == "ScalarMetric"
+    assert comps[2]["label"] == {"@path": "/recent_logs"}
     validate_payload([cat], out.messages)
