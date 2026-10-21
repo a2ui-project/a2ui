@@ -129,7 +129,7 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
       version.catalogConfig(entry),
   ];
   final List<List<AgentToRendererMessage>> examples = _examples(args, version);
-  final generator = switch (args['format']) {
+  final A2uiGenerator generator = switch (args['format']) {
     null => A2uiGenerator(catalogs: configs, examples: examples),
     final Object name => A2uiGenerator(
       catalogs: configs,
