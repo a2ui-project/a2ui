@@ -74,6 +74,13 @@ export {CatalogConfig} from './processor/catalog-config.js';
 
 export {resolveCatalogs} from './utils/catalog-resolver.js';
 
+// Renderer state and payload validation
+export {RendererState} from './utils/renderer-state.js';
+export {validatePayload} from './utils/validation.js';
+
+// The surface model of web_core. Re-exported because `RendererState.getSurface` returns it.
+export type {SurfaceModel} from './internal/web-core.js';
+
 // Direct JSON inference format
 export {DirectJsonFormat, DirectJsonFormatFactory} from './inference-formats/direct-json/format.js';
 export {DirectJsonParser} from './inference-formats/direct-json/parser.js';
