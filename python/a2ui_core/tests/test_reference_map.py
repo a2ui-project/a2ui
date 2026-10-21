@@ -135,6 +135,43 @@ def test_analyze_child_ref_schema_json_schema():
     assert not spec.is_child_prop("title")
 
 
+def test_analyze_child_ref_schema_array_of_component_id():
+    catalog_schema = {
+        "$defs": {
+            "ComponentId": {"type": "string"},
+            "ChildList": {"type": "array", "items": {"type": "string"}},
+        }
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "slots": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/ComponentId"},
+            },
+            # Not resolved (only `#/` pointers are), so this passed before the
+            # fix too. `slots` is the shape a loaded catalog has after its refs
+            # are rewritten to `#/$defs/...`.
+            "external": {
+                "type": "array",
+                "items": {"$ref": "common_types.json#/$defs/ComponentId"},
+            },
+            "labels": {"type": "array", "items": {"type": "string"}},
+        },
+    }
+
+    spec = analyze_child_ref_schema(schema, catalog_schema=catalog_schema)
+    assert spec.list_refs == {"slots", "external"}
+    assert spec.single_refs == set()
+    assert not spec.is_child_prop("labels")
+    refs = list(
+        spec.extract_child_references(
+            {"slots": ["held", "missing"], "labels": ["held"]}
+        )
+    )
+    assert refs == [("held", "slots[0]"), ("missing", "slots[1]")]
+
+
 def test_analyze_child_ref_schema_pydantic_model():
     class TabItem(BaseModel):
         title: str

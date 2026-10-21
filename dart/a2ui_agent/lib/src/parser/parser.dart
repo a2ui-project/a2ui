@@ -14,14 +14,30 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../utils/renderer_state.dart';
 import 'response_part.dart';
+import 'response_stream.dart';
 
 /// Reads an LLM response written in one inference format.
 ///
 /// Obtained from `InferenceFormat.createParser`, bound to the catalogs of one
-/// request.
+/// request. A format implements [compile] and [decompile], which translate
+/// between its notation and A2UI messages, and the tag handling around them.
+/// The base class reads model responses: [parseResponse] reads a whole one
+/// and [openStream] a streamed one, and both check every message they
+/// compile against a [RendererState], the one a call is given or a new one.
+/// A chat agent passes none, so every turn shows new UI. A canvas agent
+/// passes the same state every turn, so each turn is checked against the
+/// surfaces earlier turns built.
+///
+/// A parser holds no state, so one parser can be reused across turns and
+/// responses.
 abstract class Parser {
   const Parser();
+
+  /// The active catalogs, in priority order. A call that is given no
+  /// [RendererState] checks the response against a new one holding them.
+  List<CatalogApi> get catalogs;
 
   /// Whether [content] carries a payload block in this format.
   ///
@@ -41,11 +57,16 @@ abstract class Parser {
   /// wrote them.
   List<RawResponsePart> unwrap(String content);
 
-  /// Compiles the content of one payload block, without its sentinel tags,
+  /// Translates the content of one payload block, without its sentinel tags,
   /// into A2UI messages.
   ///
+  /// Compiling translates the notation and reports what the notation itself
+  /// gets wrong. It does not check the messages against a renderer state:
+  /// [parseResponse] and [openStream] do, and
+  /// `parseResponse(block, wrapped: false)` compiles and checks one block.
+  ///
   /// Throws [A2uiParseError] if [formatContent] cannot be read, and
-  /// [A2uiValidationError] if it uses anything the catalogs do not declare.
+  /// [A2uiValidationError] if it cannot be translated into messages.
   List<AgentToRendererMessage> compile(String formatContent);
 
   /// Writes [a2uiPayload] in this format's notation, without sentinel tags.
@@ -56,36 +77,90 @@ abstract class Parser {
   /// Parses a complete LLM response into text and A2UI messages, in the order
   /// the LLM emitted them.
   ///
-  /// When [wrapped] is false, [content] is a single payload without sentinel
-  /// tags and is compiled whole.
+  /// Nothing has been sent when a whole response is parsed, so it is checked
+  /// as a whole: a component may name a child that a later block adds, and
+  /// the trees of the surfaces the response touches are checked once every
+  /// block is applied, unless a block was cut off by the end of the response.
+  /// The messages are applied to [state] all or nothing: if any check fails,
+  /// the state is left as it was. Without a [state], the response is checked
+  /// against a new, empty one holding [catalogs], so an update to a surface
+  /// the response does not create is rejected.
   ///
-  /// Throws what [unwrap] and [compile] throw.
-  List<ResponsePart> parseResponse(String content, {bool wrapped = true}) {
-    if (!wrapped) return [A2uiPart(compile(content))];
-    return [
-      for (final RawResponsePart part in unwrap(content))
+  /// A block cut off at the end of the response, which formats other than
+  /// direct JSON compile as far as it goes, is applied too, but the trees of
+  /// the surfaces it touches are not checked, and the components it added
+  /// are marked checked ([RendererState.markChecked]), so a later turn is not
+  /// required to make them reachable.
+  ///
+  /// When [wrapped] is false, [content] is a single payload without sentinel
+  /// tags.
+  ///
+  /// Throws what [unwrap] and [compile] throw, [A2uiValidationError] if a
+  /// renderer in the state would reject a message, and [A2uiCatalogError] if
+  /// a new state cannot be created for [catalogs].
+  List<ResponsePart> parseResponse(
+    String content, {
+    bool wrapped = true,
+    RendererState? state,
+  }) {
+    RendererState? owned;
+    RendererState target() => state ?? (owned ??= RendererState(catalogs));
+    List<ResponsePart> parse() {
+      final parts = <ResponsePart>[];
+      final touched = <String>{};
+      final incomplete = <String>{};
+      final List<RawResponsePart> rawParts = wrapped
+          ? unwrap(content)
+          : [RawA2uiPart(content)];
+      for (final part in rawParts) {
         switch (part) {
-          TextPart() => part,
-          RawA2uiPart(:final String a2uiRaw) => A2uiPart(compile(a2uiRaw)),
-        },
-    ];
+          case TextPart():
+            parts.add(part);
+          case RawA2uiPart(:final String a2uiRaw, :final bool isFinal):
+            final List<AgentToRendererMessage> messages = compile(a2uiRaw);
+            final List<String> blockTouched = target().apply(messages);
+            touched.addAll(blockTouched);
+            if (!isFinal) incomplete.addAll(blockTouched);
+            parts.add(A2uiPart(messages));
+        }
+      }
+      final Set<String> complete = touched.difference(incomplete);
+      if (complete.isNotEmpty) target().checkTopology(complete);
+      // A truncated block's messages are kept, as the renderer the caller
+      // sends them to will hold them, but its trees are not checked: a
+      // cut-off block is missing what it would have added. Its components are
+      // marked checked, so a later turn is not required to make them
+      // reachable; its dangling references and a missing root are still
+      // reported when a later turn checks the surface.
+      if (incomplete.isNotEmpty) target().markChecked(incomplete);
+      return parts;
+    }
+
+    try {
+      // A new state is thrown away if the response fails, so only a state
+      // the caller keeps needs a transaction.
+      return state == null ? parse() : state.transaction(parse);
+    } finally {
+      owned?.dispose();
+    }
   }
 
-  /// Whether this parser reads a response incrementally through [parseChunk].
+  /// Whether [openStream] can read a response from this format chunk by
+  /// chunk.
   ///
   /// A format can stream only if a partial block already means something. A
   /// parser that returns false is given the whole response through
   /// [parseResponse].
   bool get supportsStreaming => false;
 
-  /// Reads the next [chunk] of a streamed response, and returns the parts
-  /// completed since the previous chunk.
+  /// Opens a stream that reads one response chunk by chunk.
   ///
-  /// A parser holds the state of one response, so each response needs a new
-  /// parser from `InferenceFormat.createParser`. When [wrapped] is false, the
-  /// stream is a single payload without sentinel tags.
+  /// Each message the stream emits is checked against [state] and applied to
+  /// it as it is emitted. Without a [state], the response is checked against
+  /// a new, empty one holding [catalogs]. When [wrapped] is false, the stream
+  /// is a single payload without sentinel tags.
   ///
   /// Throws [UnsupportedError] unless [supportsStreaming] is true.
-  List<ResponsePart> parseChunk(String chunk, {bool wrapped = true}) =>
+  ResponseStream openStream({bool wrapped = true, RendererState? state}) =>
       throw UnsupportedError('$runtimeType does not support streaming.');
 }

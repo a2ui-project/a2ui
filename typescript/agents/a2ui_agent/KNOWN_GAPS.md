@@ -8,7 +8,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Streaming follows the legacy suite
 
-- **What it is:** `DirectJsonStreamProcessorImpl` was written against `conformance/agent/legacy/streaming_parser.yaml`. The harness now runs `conformance/agent/direct_json/response_streaming.yaml`, which replaced it, and 47 of its 79 v0.9 and v1.0 cases fail. The processor adds `loading_*` placeholder components and prunes a message that is still arriving where the suite withholds it until it reads whole; emits a message only once the block closes; keeps the whitespace at the edges of text; raises on an invalid message as it arrives, and a cycle as `A2uiRecursionError`, where the suite raises a validation error when the block closes; drops or accepts messages for a surface the block has not created and drops orphans, where the suite reports them; and heals cut numbers and escape sequences.
+- **What it is:** `DirectJsonStreamProcessorImpl` was written against `conformance/agent/legacy/streaming_parser.yaml`. The harness now runs `conformance/agent/direct_json/response_streaming.yaml`, which replaced it, and 40 of its 79 v0.9 and v1.0 cases fail. The processor adds `loading_*` placeholder components and prunes a message that is still arriving where the suite withholds it until it reads whole; emits a message only once the block closes; keeps the whitespace at the edges of text; raises on an invalid message as it arrives, and a cycle as `A2uiRecursionError`, where the suite raises a validation error when the block closes; drops or accepts messages for a surface the block has not created and drops orphans, where the suite reports them; and heals cut numbers and escape sequences.
 - **Why it exists:** The new suite was written with Python's `DirectJsonParser.parse_chunk`, which replaced the Python stream parser this processor was ported from.
 - **What it risks:** Streamed output differs from Python's and Dart's for the same model output, and a renderer can receive placeholder components and pruned messages.
 - **Done looks like:** The stream processor follows `response_streaming.yaml`, every case leaves `KNOWN_FAILURES` in `tests/conformance/direct-json-response-streaming.test.ts`, and the v0.8 cases stay skipped since this package does not implement v0.8.
@@ -19,13 +19,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** Full schema validation against component catalogs lives in `A2uiRequestProcessor`, and streaming isn't available through that facade yet. Callers construct the stream processor themselves.
 - **What it risks:** Streaming callers can forward components with invalid or unknown properties to a renderer.
 - **Done looks like:** The stream processor validates completed component properties against the catalog each component resolves to, for example through web_core's `MessageProcessor`, or streaming moves behind `A2uiRequestProcessor` and is validated there.
-
-### `resolveCatalogs` can't tell when capabilities omit the catalogs' version
-
-- **What it is:** `resolveCatalogs` and `A2uiGenerator.createProcessor` take the renderer capabilities entry for one protocol version, not the object keyed by version that the renderer sends. Python takes the keyed object, looks up the entry for the registered catalogs' version, and raises a validation error when it's missing.
-- **Why it exists:** The TypeScript SDK was written against v1.0 only, so callers unwrap the `v1.0` entry before calling in.
-- **What it risks:** A caller that unwraps the wrong key, or passes `undefined` because the key is missing, gets every registered catalog instead of an error.
-- **Done looks like:** The resolver takes the version-keyed capabilities, picks the entry for the catalogs' protocol version, and throws `A2uiValidationError` when there is none, so `test_capabilities_without_the_catalogs_version_are_invalid` in `conformance/agent/catalog_resolution.yaml` passes.
 
 ### State leakage across requests (Sharp edge)
 
@@ -64,8 +57,8 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Some blueprint conformance suites are not run
 
-- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/direct_json/prompt_generator.yaml` and `agent/direct_json/response_streaming.yaml` run. The rest do not: the other `agent/direct_json/*.yaml` files, `agent/catalog_transformer.yaml` and `agent/builder/`.
-- **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/direct_json/{compiler,decompiler,prompt_generator,response_parser,response_streaming}.yaml` and `agent/express/{compiler,decompiler,prompt_generator,response_parser}.yaml` run. The rest do not: `agent/direct_json/scaling.yaml`, `agent/express/scaling.yaml`, `agent/builder/` and `agent/macros/`.
+- **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet (`agent/builder/`, `agent/macros/`) or benchmark token scaling (`scaling.yaml`).
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
 - **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
 
@@ -84,13 +77,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The generic typing in `web_core` does not differentiate between execution catalogs and schema-only catalogs.
 - **What it risks:** Forces a double cast (`as unknown as Catalog<ComponentApi, FunctionImplementation>[]`) in `processor.ts` when passing schema-only catalogs.
 - **Done looks like:** `MessageProcessor` relaxes its type constraint to allow omitting `FunctionImplementation` when no action handler is provided.
-
-### Catalog loader keeps a second copy of the common types map
-
-- **What it is:** `schema_loader.ts` resolves protocol `$ref`s through its own `COMMON_TYPE_SCHEMAS` table, a partial copy of the complete `CommonSchemas` map that `types/common-types.ts` already exports.
-- **Why it exists:** The two grew independently.
-- **What it risks:** The copy falls behind silently. It already has once: it lacked `Child`, so every v1.0 single-child reference resolved to nothing and the basic catalog lost its child references with no test noticing. That was fixed by adding the entry, not by removing the duplication, so the next new common type will hit the same wall.
-- **Done looks like:** The loader resolves against `CommonSchemas` directly and the local table is deleted.
 
 ### No v0.9.1 basic catalog
 

@@ -71,6 +71,12 @@ const SUPERSEDED = new Map<string, string>([
     name,
     'superseded by catalog_resolution.yaml, which activates every catalog in common and adds inline catalogs alongside them',
   ]),
+  ...['test_parse_empty_response', 'test_parse_response_only_text_no_tags'].map(
+    (name): [string, string] => [
+      name,
+      'superseded by direct_json/response_parser.yaml, where a response without tags is a text part and an empty response has no parts',
+    ],
+  ),
 ]);
 
 /**

@@ -34,7 +34,7 @@ import {
   pruneCommonTypesSchema,
   pruneMessagesSchema,
 } from '../../utils/message-schemas.js';
-import {checkParserCatalogs} from '../../utils/validation.js';
+import {checkParserCatalogs} from '../../utils/catalog-checks.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
 export type DirectJsonExamples =

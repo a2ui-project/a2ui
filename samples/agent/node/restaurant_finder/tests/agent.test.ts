@@ -88,11 +88,9 @@ describe.each(FORMATS)('a reply without A2UI (%s)', format => {
     const backend = new TextFirstBackend(new StubBackend(format, catalogs), 1);
     const parts = await finalParts(new RestaurantExecutor(format, backend, catalogs));
 
-    // Direct JSON reports the missing tags; Express reports the missing messages.
+    // Both Direct JSON and Express return a tagless reply as a text part, so validate() reports no A2UI messages.
     expect(backend.queries).toHaveLength(2);
-    expect(backend.queries[1]).toMatch(
-      format === 'express' ? /no A2UI messages/ : /A2UI tags .* not found/,
-    );
+    expect(backend.queries[1]).toMatch(/no A2UI messages/);
     expect(parts.some(part => part.kind === 'data')).toBe(true);
   });
 
