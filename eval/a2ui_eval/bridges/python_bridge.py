@@ -27,7 +27,7 @@ worker imports it, and anything it pulls in adds to worker start-up time.
 from __future__ import annotations
 
 import collections
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import json
 import os
 from pathlib import Path
@@ -38,11 +38,18 @@ import threading
 import traceback
 from typing import Any, IO
 
+from a2ui.catalog_transformers import (
+    CatalogTransformer,
+    ComponentPruningTransformer,
+    FunctionPruningTransformer,
+)
 from a2ui.core import (
+    CatalogApi,
     MessageProcessor,
     MessageProcessorOptions,
     STRICT_VALIDATION,
 )
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats import (
     AtomFormat,
@@ -51,10 +58,15 @@ from a2ui.inference_formats import (
     ExpressFormat,
     to_message_dicts,
 )
-from a2ui.parser import A2uiPart, TextPart
+from a2ui.parser import A2uiPart, Parser, TextPart, normalize_prompt_example_messages
 from a2ui.processor import CatalogConfig
 
-from .base import DEFAULT_PARSE_TIMEOUT_SEC, AgentSdkBridge, validate_sdk_format
+from .base import (
+    DEFAULT_PARSE_TIMEOUT_SEC,
+    AgentSdkBridge,
+    BridgeOptions,
+    validate_sdk_format,
+)
 
 _WORKER_STARTUP_TIMEOUT_SEC = 120.0
 _STDERR_TAIL_CHARS = 8192
@@ -63,29 +75,216 @@ _WORKER_SOURCE = (
     "from a2ui_eval.bridges.python_bridge import _worker_main; _worker_main()"
 )
 
+# The dictionary form of `BridgeOptions`, as it crosses the worker's JSON pipe.
+OptionsDict = dict[str, Any]
+Examples = list[list[AgentToRendererMessage]]
+
+
+def _catalog_transformers(spec: Mapping[str, Any]) -> list[CatalogTransformer]:
+    """Builds the pruning transformers a catalog spec asks for."""
+    transformers: list[CatalogTransformer] = []
+    allowed_components = spec.get("allowed_components")
+    if allowed_components is not None:
+        transformers.append(ComponentPruningTransformer(list(allowed_components)))
+    allowed_functions = spec.get("allowed_functions")
+    if allowed_functions is not None:
+        transformers.append(FunctionPruningTransformer(list(allowed_functions)))
+    return transformers
+
+
+def _load_catalog(spec: Mapping[str, Any], version: str) -> CatalogApi:
+    """Loads one catalog spec from disk and applies its pruning."""
+    return CatalogConfig.from_path(
+        str(spec["path"]),
+        transformers=_catalog_transformers(spec),
+        protocol_version=version,
+        catalog_id=spec.get("catalog_id"),
+    ).transformed_catalog
+
+
+def _read_example_file(path: str) -> list[dict[str, Any]]:
+    """Reads one example file: a JSON list of messages, or `{"messages": [...]}`."""
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if isinstance(data, dict):
+        data = data.get("messages")
+    if not isinstance(data, list):
+        raise ValueError(
+            f"Example file {path} must hold a JSON list of A2UI messages or an"
+            ' object with a "messages" list.'
+        )
+    return [dict(m) for m in data]
+
+
+def _prefixed_version(version: str) -> str:
+    """Returns the protocol version in its `v`-prefixed wire form (`v1.0`)."""
+    return version if version.startswith("v") else f"v{version}"
+
+
+def _load_examples(paths: Sequence[str], catalog: CatalogApi, version: str) -> Examples:
+    """Loads few-shot example turns, defaulting their catalog to `catalog`."""
+    return [
+        normalize_prompt_example_messages(
+            _read_example_file(path),
+            version=_prefixed_version(version),
+            default_catalog_id=catalog.id,
+        )
+        for path in paths
+    ]
+
+
+def _build_catalogs_and_examples(
+    resolved_catalog_path: str,
+    version: str,
+    options: OptionsDict | None,
+) -> tuple[list[CatalogApi], Examples | None]:
+    """Loads the catalogs and few-shot examples that `options` describes.
+
+    Args:
+        resolved_catalog_path: The catalog used when `options` names none.
+        version: The protocol version the catalogs must target.
+        options: The `to_dict` form of a `BridgeOptions`, or None.
+
+    Returns:
+        The pruned catalogs in order, and the example turns (one list of
+        messages per example file) or None when no spec lists any.
+    """
+    specs: Sequence[Mapping[str, Any]] = (options or {}).get("catalogs") or [
+        {"path": resolved_catalog_path}
+    ]
+    catalogs: list[CatalogApi] = []
+    examples: Examples = []
+    for spec in specs:
+        catalog = _load_catalog(spec, version)
+        catalogs.append(catalog)
+        examples.extend(_load_examples(spec.get("examples") or (), catalog, version))
+    return catalogs, examples or None
+
 
 def get_python_strategy(
     format_name: str,
     version: str,
-    catalog_config: CatalogConfig,
+    catalog_config: CatalogConfig | Sequence[CatalogApi],
     surface_id: str = "main",
+    *,
+    examples: Examples | None = None,
+    allowed_messages: Sequence[str] | None = None,
 ) -> InferenceFormat:
-    """Resolves and instantiates the Python InferenceFormat strategy."""
-    catalog = catalog_config.transformed_catalog
-    if format_name == "direct_json":
-        return DirectJsonFormat([catalog])
+    """Resolves and instantiates the Python InferenceFormat strategy.
 
-    formatted_version = f"v{version}" if not version.startswith("v") else version
+    Args:
+        format_name: One of `direct_json`, `express`, `elemental` or `atom`.
+        version: The protocol version, with or without a `v` prefix.
+        catalog_config: A single `CatalogConfig` (its transformed catalog is
+            used) or the already-loaded catalogs, in order.
+        surface_id: The default surface for formats that need one.
+        examples: Few-shot example turns to show in the prompt.
+        allowed_messages: Message types the model may write, or None for all.
+    """
+    catalogs = (
+        [catalog_config.transformed_catalog]
+        if isinstance(catalog_config, CatalogConfig)
+        else list(catalog_config)
+    )
+    if format_name == "direct_json":
+        return DirectJsonFormat(
+            catalogs, examples=examples, allowed_messages=allowed_messages
+        )
+
+    formatted_version = _prefixed_version(version)
     if format_name == "express":
         return ExpressFormat(
-            [catalog], surface_id=surface_id, version=formatted_version
+            catalogs,
+            examples=examples,
+            allowed_messages=allowed_messages,
+            surface_id=surface_id,
+            version=formatted_version,
         )
     if format_name == "elemental":
-        return ElementalFormat([catalog], surface_id=surface_id)
+        return ElementalFormat(
+            catalogs,
+            examples=examples,
+            allowed_messages=allowed_messages,
+            surface_id=surface_id,
+        )
     if format_name == "atom":
-        return AtomFormat([catalog], surface_id=surface_id)
+        return AtomFormat(
+            catalogs,
+            examples=examples,
+            allowed_messages=allowed_messages,
+            surface_id=surface_id,
+        )
 
     raise ValueError(f"Unknown format strategy: {format_name}")
+
+
+def _check_complete_tags(parser: Parser, format_name: str, completion: str) -> None:
+    if parser.has_format_content(completion, complete=True):
+        return
+    if format_name == "direct_json":
+        raise ValueError(
+            "A2UI tags '<a2ui-json>' and '</a2ui-json>' not found in response."
+        )
+    raise ValueError("A2UI tags '<a2ui>' and '</a2ui>' not found in response.")
+
+
+def _serialize_parts(
+    parts: Sequence[TextPart | A2uiPart],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Splits parsed parts into the compiled messages and their JSON form."""
+    compiled_jsons: list[dict[str, Any]] = []
+    serialized_parts: list[dict[str, Any]] = []
+    for p in parts:
+        if isinstance(p, TextPart):
+            serialized_parts.append({"text": p.text, "a2ui_json": None})
+        elif isinstance(p, A2uiPart):
+            msgs = to_message_dicts(p.a2ui)
+            serialized_parts.append({"text": "", "a2ui_json": msgs})
+            compiled_jsons.extend(msgs)
+    return compiled_jsons, serialized_parts
+
+
+def _check_streamed_parse(
+    strategy: InferenceFormat, completion: str, chunk_size: int
+) -> None:
+    """Feeds `completion` through a fresh streaming parser in fixed slices.
+
+    Raises:
+        ValueError: If the streamed parse raises, or yields no A2UI part.
+    """
+    if chunk_size < 1:
+        raise ValueError(f"stream_chunk_size must be >= 1, got {chunk_size}")
+    parser = strategy.create_parser()
+    if not parser.supports_streaming:
+        return
+    streamed: list[Any] = []
+    try:
+        for start in range(0, len(completion), chunk_size):
+            streamed.extend(parser.parse_chunk(completion[start : start + chunk_size]))
+    except Exception as e:
+        raise ValueError(
+            f"Streaming parse failed with chunks of {chunk_size} characters: {e}"
+        ) from e
+    if not any(isinstance(p, A2uiPart) for p in streamed):
+        raise ValueError(
+            f"Streaming parse with chunks of {chunk_size} characters yielded no"
+            " A2UI part, but the whole-response parse did."
+        )
+
+
+def _validate_messages(
+    catalogs: Sequence[CatalogApi],
+    compiled_jsons: list[dict[str, Any]],
+    initial_renderer_state: Sequence[dict[str, Any]] | None,
+) -> None:
+    """Strictly validates the model's turn, after any pre-seeded state."""
+    processor = MessageProcessor(
+        list(catalogs),
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    if initial_renderer_state:
+        processor.process_messages(list(initial_renderer_state))
+    processor.process_messages(compiled_jsons)
 
 
 def parse_and_validate_in_process(
@@ -97,44 +296,34 @@ def parse_and_validate_in_process(
     require_complete_tags: bool = False,
     *,
     validate: bool = True,
+    options: OptionsDict | None = None,
 ) -> dict[str, Any]:
     """Parses an LLM response in the current Python process.
 
     When `validate` is True, the compiled messages are also run through a strict
-    `MessageProcessor`.
+    `MessageProcessor`, seeded with `options["initial_renderer_state"]` when
+    given. When `options["stream_chunk_size"]` is set and the format's parser
+    streams, the completion is also parsed in slices of that many characters.
     """
-    catalog_config = CatalogConfig.from_path(
-        resolved_catalog_path, protocol_version=version
+    opts = options or {}
+    catalogs, examples = _build_catalogs_and_examples(
+        resolved_catalog_path, version, opts
     )
     strategy = get_python_strategy(
         format_name,
         version,
-        catalog_config,
+        catalogs,
         surface_id=surface_id,
+        examples=examples,
+        allowed_messages=opts.get("allowed_messages"),
     )
-    catalogs = getattr(strategy, "catalogs", [catalog_config.transformed_catalog])
     parser = strategy.create_parser()
+    if require_complete_tags:
+        _check_complete_tags(parser, format_name, completion)
 
-    if require_complete_tags and not parser.has_format_content(
-        completion, complete=True
-    ):
-        if format_name == "direct_json":
-            raise ValueError(
-                "A2UI tags '<a2ui-json>' and '</a2ui-json>' not found in response."
-            )
-        raise ValueError("A2UI tags '<a2ui>' and '</a2ui>' not found in response.")
-
-    parts = parser.parse_response(completion)
-    compiled_jsons: list[dict[str, Any]] = []
-    serialized_parts: list[dict[str, Any]] = []
-    for p in parts:
-        if isinstance(p, TextPart):
-            serialized_parts.append({"text": p.text, "a2ui_json": None})
-        elif isinstance(p, A2uiPart):
-            msgs = to_message_dicts(p.a2ui)
-            serialized_parts.append({"text": "", "a2ui_json": msgs})
-            compiled_jsons.extend(msgs)
-
+    compiled_jsons, serialized_parts = _serialize_parts(
+        parser.parse_response(completion)
+    )
     if not compiled_jsons:
         if format_name == "direct_json":
             raise ValueError("No A2UI JSON found in response (tags missing or empty)")
@@ -142,11 +331,11 @@ def parse_and_validate_in_process(
             f"No compiled A2UI {format_name} user interface found in parsed parts."
         )
 
+    chunk_size = opts.get("stream_chunk_size")
+    if chunk_size is not None:
+        _check_streamed_parse(strategy, completion, int(chunk_size))
     if validate:
-        MessageProcessor(
-            list(catalogs),
-            options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-        ).process_messages(compiled_jsons)
+        _validate_messages(catalogs, compiled_jsons, opts.get("initial_renderer_state"))
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
 
 
@@ -373,13 +562,21 @@ class PythonSdkBridge(AgentSdkBridge):
         version: str,
         resolved_catalog_path: str,
         surface_id: str = "main",
+        *,
+        options: BridgeOptions | None = None,
     ) -> str:
         validate_sdk_format(self.sdk_name, format_name)
-        catalog_config = CatalogConfig.from_path(
-            resolved_catalog_path, protocol_version=version
+        opts = options.to_dict() if options is not None else None
+        catalogs, examples = _build_catalogs_and_examples(
+            resolved_catalog_path, version, opts
         )
         strategy = get_python_strategy(
-            format_name, version, catalog_config, surface_id=surface_id
+            format_name,
+            version,
+            catalogs,
+            surface_id=surface_id,
+            examples=examples,
+            allowed_messages=options.allowed_messages if options else None,
         )
         return strategy.prompt_generator.generate()
 
@@ -394,25 +591,31 @@ class PythonSdkBridge(AgentSdkBridge):
         require_complete_tags: bool = False,
         *,
         validate: bool = True,
+        options: BridgeOptions | None = None,
     ) -> dict[str, Any]:
         """Parses, and optionally validates, in a worker process.
 
         A `timeout_sec` of zero or less selects `DEFAULT_PARSE_TIMEOUT_SEC`, as
         the other SDK bridges do. On timeout the worker is killed and a
         `TimeoutError` is raised. Parse and validation failures, and a worker
-        that dies mid-call, raise `ValueError`.
+        that dies mid-call, raise `ValueError`. `options`, when given, travel
+        to the worker in their `to_dict` form under the `options` key.
         """
         validate_sdk_format(self.sdk_name, format_name)
         pool = self._pool or _get_default_pool()
+        request: dict[str, Any] = {
+            "format_name": format_name,
+            "version": version,
+            "resolved_catalog_path": os.path.abspath(resolved_catalog_path),
+            "surface_id": surface_id,
+            "completion": completion,
+            "require_complete_tags": require_complete_tags,
+            "validate": validate,
+        }
+        # The key is only sent when set, so the worker sees the same request
+        # it always did when no options are in play.
+        if options is not None:
+            request["options"] = options.to_dict()
         return pool.run(
-            {
-                "format_name": format_name,
-                "version": version,
-                "resolved_catalog_path": os.path.abspath(resolved_catalog_path),
-                "surface_id": surface_id,
-                "completion": completion,
-                "require_complete_tags": require_complete_tags,
-                "validate": validate,
-            },
-            timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC,
+            request, timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC
         )
