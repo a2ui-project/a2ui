@@ -16,7 +16,6 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fixture_catalog.dart';
@@ -216,8 +215,8 @@ void main() {
       expect(find.text('After'), findsOneWidget);
     });
 
-    testWidgets('reports a mount-time diagnostic to a listener that defers '
-        'its setState', (tester) async {
+    testWidgets('reports a mount-time diagnostic to a listener that calls '
+        'setState', (tester) async {
       final SurfaceModel<ComponentImplementation> s = surface();
       add(s, 'root', 'Bogus', {});
 
@@ -231,8 +230,7 @@ void main() {
   });
 }
 
-/// A host that counts its surface's errors and defers the resulting
-/// `setState`, since an error can arrive while the surface builds.
+/// A host that counts its surface's errors.
 class _ErrorCountingHost extends StatefulWidget {
   const _ErrorCountingHost(this.surface);
 
@@ -246,11 +244,7 @@ class _ErrorCountingHostState extends State<_ErrorCountingHost> {
   int _errors = 0;
   late final Subscription _subscription;
 
-  void _onError(A2uiRendererError error) {
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _errors++);
-    });
-  }
+  void _onError(A2uiRendererError error) => setState(() => _errors++);
 
   @override
   void initState() {

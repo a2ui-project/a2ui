@@ -106,8 +106,6 @@ processor.dispose();
   `callRendererFunction`, and each `callAgentFunction` the processor makes.
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
-- An `onError` listener can run while an `A2uiSurface` builds, so a
-  `setState` it causes must wait for the next frame.
 - On macOS, network images and media need the
   `com.apple.security.network.client` entitlement.
 

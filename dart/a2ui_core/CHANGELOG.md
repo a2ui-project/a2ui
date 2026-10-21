@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Breaking:** `NodeResolver` delivers its diagnostics in a microtask, never
+  synchronously from its constructor or a tree update, so listeners on a
+  surface's `onError` and `onWarning` do not run inside the caller, such as a
+  widget build that creates the resolver. Disposal still cancels pending
+  diagnostics.
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several
