@@ -30,6 +30,7 @@ from a2ui.core import (
     get_common_types_schema_map,
     inline_local_refs,
 )
+from a2ui.core.common import to_protocol_version
 
 _COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
 
@@ -115,9 +116,9 @@ class CatalogSchemaHelper:
         )
         try:
             self.common_types: dict[str, Any] = get_common_types_schema_map(
-                catalog.protocol_version
+                to_protocol_version(catalog.protocol_version)
             )
-        except A2uiCatalogError:
+        except (A2uiCatalogError, ValueError):
             self.common_types = {}
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))
