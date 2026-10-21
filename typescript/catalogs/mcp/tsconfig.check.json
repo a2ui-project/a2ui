@@ -6,6 +6,5 @@
     "incremental": false,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/catalog.json"],
   "exclude": ["node_modules", "dist"]
 }
