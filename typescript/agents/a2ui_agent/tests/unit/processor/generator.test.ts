@@ -104,4 +104,19 @@ describe('A2uiGenerator', () => {
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(/broken_turn/);
   });
+
+  test('accepts version-keyed renderer capabilities and rejects capabilities lacking the catalogs version', () => {
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
+
+    const processor = generator.createProcessor({
+      'v1.0': {supportedCatalogIds: [basicCatalogV10.id]},
+    });
+    expect(processor.activeCatalogs[0].id).toBe(basicCatalogV10.id);
+
+    expect(() =>
+      generator.createProcessor({
+        'v0.9': {supportedCatalogIds: [basicCatalogV10.id]},
+      }),
+    ).toThrow(A2uiValidationError);
+  });
 });
