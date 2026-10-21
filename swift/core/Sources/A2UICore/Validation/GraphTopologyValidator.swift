@@ -17,7 +17,7 @@ import OrderedJSON
 
 /// Validates component graph topology, hierarchy completeness, and structural cycles.
 public enum GraphTopologyValidator {
-  private static let maxGlobalDepth = 50
+  static let maxGlobalDepth = 50
 
   public typealias Reference = (referenceID: String, field: String)
   public typealias AdjacencyMap = [String: [Reference]]
@@ -71,7 +71,7 @@ public enum GraphTopologyValidator {
     }
   }
 
-  private static func lookupComponentAPI(
+  static func lookupComponentAPI(
     type: String,
     catalogID: String?,
     catalogs: [String: AnyCatalog]?,
