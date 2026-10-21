@@ -86,6 +86,13 @@ struct BasicCatalogConformanceTests {
         continue
       }
 
+      // A case with a `surface` block evaluates the function as a call on a surface, so it
+      // checks catalog resolution. This harness invokes implementations directly and cannot
+      // describe it.
+      if testCase["surface"] != nil {
+        continue
+      }
+
       // Validators return booleans in v0.9 and ValidationResult objects in v1.0, so
       // each case runs against the functions of the protocol version it is pinned to.
       // Unpinned cases run against v0.9.
