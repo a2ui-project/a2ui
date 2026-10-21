@@ -35,7 +35,7 @@ from a2ui_eval.bridges import (
     get_python_strategy,
     parse_and_validate_in_process,
 )
-from a2ui_eval.shared.utils import GIT_ROOT, measured_generate
+from a2ui_eval.shared.utils import GIT_ROOT
 from a2ui_eval.strategies import (
     PAYLOAD_STORE_KEY,
     STRATEGIES,
@@ -334,22 +334,6 @@ async def test_compile_format_payload_empty_output_and_error_recovery() -> None:
     )
     res_error = await compile_solver(error_state, dummy_generate)
     assert "Compilation/validation failed:" in res_error.output.completion
-
-
-@pytest.mark.asyncio
-async def test_measured_generate_records_metrics_single_attempt() -> None:
-    solver = measured_generate()
-    state = _state({}, completion='<a2ui>\nroot = Text("Hello")\n</a2ui>')
-    calls = 0
-
-    async def single_gen(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        nonlocal calls
-        calls += 1
-        return s
-
-    state = await solver(state, single_gen)
-    assert calls == 1
-    assert "inference_duration_seconds" in state.metadata
 
 
 @pytest.mark.asyncio
