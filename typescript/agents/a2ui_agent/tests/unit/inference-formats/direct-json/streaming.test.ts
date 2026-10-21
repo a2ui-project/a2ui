@@ -922,3 +922,14 @@ describe('Direct JSON Streaming required properties', () => {
     expect(requiredProps(z.object(fields).default({text: ''}).optional())).toEqual(['text']);
   });
 });
+
+describe('Direct JSON Streaming text with backticks', () => {
+  test('text chunks containing lone backticks outside blocks are preserved', () => {
+    const catalog: CatalogApi = new Catalog('https://test.com/catalog.json', 'v1.0', [], []);
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    const chunks = ['Use ', '`', 'Text', '`', ' for labels.'];
+    const parts = chunks.flatMap(c => processor.processChunk(c));
+    const texts = parts.filter(p => p.type === 'text').map(p => (p as {text: string}).text);
+    expect(texts.join('')).toBe('Use `Text` for labels.');
+  });
+});

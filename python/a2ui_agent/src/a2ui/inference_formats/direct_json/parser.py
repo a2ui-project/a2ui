@@ -208,6 +208,8 @@ class DirectJsonParser(Parser):
                 assert close_match is not None
                 block_content = self._block[:close_start]
                 input_str = self._block[close_match.end() :]
+                if input_str.startswith("`"):
+                    input_str = input_str.lstrip("`")
                 self._in_block = False
                 self._block = ""
                 try:
@@ -218,7 +220,10 @@ class DirectJsonParser(Parser):
 
             open_match = _OPEN_TAG_RE.search(input_str)
             if open_match:
-                self._emit_text(parts, input_str[: open_match.start()])
+                text_before = input_str[: open_match.start()]
+                if text_before.endswith("`"):
+                    text_before = text_before.rstrip("`")
+                self._emit_text(parts, text_before)
                 self._run_started = False
                 self._held_space = ""
                 self._in_block = True
@@ -234,8 +239,8 @@ class DirectJsonParser(Parser):
 
     def _emit_text(self, parts: list[ResponsePart], text: str) -> None:
         body = (text if self._run_started else text.lstrip()).rstrip()
-        if not body or not body.strip("`"):
-            if self._run_started and not body:
+        if not body:
+            if self._run_started:
                 self._held_space += text
             return
         start = 0 if self._run_started else text.find(body)

@@ -176,12 +176,19 @@ class DirectJsonResponseStream extends ResponseStream {
         input = _block.substring(
           closeTag.matchAsPrefix(_block, closeStart)!.end,
         );
+        if (input.startsWith('`')) {
+          input = input.replaceAll(RegExp(r'^`+'), '');
+        }
         _finishBlock(parts, closeStart);
         continue;
       }
       final Match? open = openTag.firstMatch(input);
       if (open != null) {
-        _emitText(parts, input.substring(0, open.start));
+        String textBefore = input.substring(0, open.start);
+        if (textBefore.endsWith('`')) {
+          textBefore = textBefore.replaceAll(RegExp(r'`+$'), '');
+        }
+        _emitText(parts, textBefore);
         _runStarted = false;
         _heldSpace = '';
         _inBlock = true;
@@ -198,10 +205,9 @@ class DirectJsonResponseStream extends ResponseStream {
 
   /// Emits the text of a run, less leading whitespace at the start of the
   /// run and trailing whitespace, which is held until more text arrives.
-  /// A run made of nothing but backticks is dropped.
   void _emitText(List<ResponsePart> parts, String text) {
     final String body = (_runStarted ? text : text.trimLeft()).trimRight();
-    if (body.isEmpty || onlyBackticks.hasMatch(body)) {
+    if (body.isEmpty) {
       if (_runStarted && body.isEmpty) _heldSpace += text;
       return;
     }

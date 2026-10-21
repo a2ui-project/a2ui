@@ -37,8 +37,8 @@ class CatalogSchemaHelper {
   /// The properties a positional argument can fill, in schema order.
   ///
   /// Specific component properties come first, followed by common mixin
-  /// properties such as `accessibility` and `weight`. Structural properties
-  /// (`id`, `component`, `checks`) are excluded.
+  /// properties such as `weight`. Structural properties
+  /// (`id`, `component`, `checks`) and `accessibility` are excluded.
   List<String> properties(String component) => _signature(component).properties;
 
   /// The properties the component requires, beyond `component` and `id`.
@@ -194,7 +194,7 @@ class CatalogSchemaHelper {
             if (!commonKeys.contains(key)) key,
         ];
         final List<String> commonProperties = [
-          for (final key in const ['accessibility', 'weight'])
+          for (final key in const ['weight'])
             if (schemas.containsKey(key)) key,
         ];
         final orderedProperties = [...specificProperties, ...commonProperties];

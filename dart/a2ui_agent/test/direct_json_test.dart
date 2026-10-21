@@ -389,6 +389,19 @@ void main() {
       ]);
     });
 
+    test('preserves lone backtick chunks in text', () {
+      expect(
+        stream(['Use ', '`', 'Text', '`', ' for labels.']),
+        [
+          ['Use'],
+          [' `'],
+          ['Text'],
+          ['`'],
+          [' for labels.'],
+        ],
+      );
+    });
+
     test('drops an escape that is cut short in a healed string', () {
       final List<List<Object?>> steps = stream(
         [

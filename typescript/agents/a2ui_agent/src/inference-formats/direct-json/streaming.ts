@@ -200,7 +200,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           if (textBefore.endsWith('`')) {
             textBefore = textBefore.replace(/`+$/, '');
           }
-          if (textBefore.length > 0 && !/^`+$/.test(textBefore.trim())) {
+          if (textBefore.length > 0) {
             messages.push({type: 'text', text: textBefore});
           }
           this.foundDelimiter = true;
@@ -216,7 +216,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           if (this.buffer.length > keepLen) {
             const safeLen = this.buffer.length - keepLen;
             const textToYield = this.buffer.substring(0, safeLen);
-            if (textToYield.length > 0 && !/^`+$/.test(textToYield.trim())) {
+            if (textToYield.length > 0) {
               messages.push({type: 'text', text: textToYield});
             }
             this.buffer = this.buffer.substring(safeLen);
