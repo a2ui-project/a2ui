@@ -240,8 +240,13 @@ function parseAndValidate(payload, strategy, catalogs) {
   requireCompiledJsons(compiledJsons, formatName);
 
   const chunkSize = options.stream_chunk_size;
-  if (Number.isInteger(chunkSize) && chunkSize > 0 && strategy.supportsStreaming) {
-    checkStreamedParse(strategy, completion, chunkSize);
+  if (chunkSize !== undefined && chunkSize !== null) {
+    if (!Number.isInteger(chunkSize) || chunkSize < 1) {
+      throw new Error(`stream_chunk_size must be a positive integer, got ${chunkSize}`);
+    }
+    if (strategy.supportsStreaming) {
+      checkStreamedParse(strategy, completion, chunkSize);
+    }
   }
   if (validate) {
     validateMessages(catalogs, options.initial_renderer_state, compiledJsons);

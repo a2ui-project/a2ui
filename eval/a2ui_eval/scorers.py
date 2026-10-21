@@ -129,10 +129,21 @@ def _walk_payload(value: Any, facts: _PayloadFacts) -> None:
             except ValueError:
                 pass
         return
-    if not isinstance(value, Mapping):
-        return
-    _collect_dict_facts(value, facts)
-    for child in value.values():
+    if isinstance(value, Mapping):
+        _walk_mapping(value, facts)
+
+
+def _walk_mapping(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
+    """Collects the facts of one object and recurses into its children.
+
+    An `updateDataModel.value` holds user data, not A2UI structure, so a data
+    key that happens to be named `event`, `path` or `component` must not
+    register as an action, binding or component.
+    """
+    _collect_dict_facts(node, facts)
+    for key, child in node.items():
+        if key == "updateDataModel" and isinstance(child, Mapping):
+            child = {k: v for k, v in child.items() if k != "value"}
         _walk_payload(child, facts)
 
 
@@ -270,10 +281,73 @@ async def _compiled_answer_or_none(
     return json.dumps(compiled_jsons, indent=2) if compiled_jsons else None
 
 
+async def _stage1_messages(
+    state: TaskState,
+    answer_text: str,
+    resolved_catalog_path: str,
+    version: str,
+    sdk: str,
+) -> list[dict[str, Any]] | Score:
+    """Runs Stage 1 and returns the compiled messages, or the failing Score.
+
+    Reuses `state.metadata["compiled_messages"]` when a solver already
+    validated the payload, so the bridge is not called twice.
+    """
+    compiled = state.metadata.get("compiled_messages")
+    if compiled:
+        return list(compiled)
+    options = bridge_options_from_metadata(state.metadata, resolved_catalog_path)
+    bridge = get_sdk_bridge(sdk)
+    try:
+        res_dict = await asyncio.to_thread(
+            bridge.parse_and_validate,
+            "direct_json",
+            version,
+            resolved_catalog_path,
+            "main",
+            answer_text,
+            DEFAULT_PARSE_TIMEOUT_SEC,
+            True,
+            options=options,
+        )
+        return list(res_dict["compiled_jsons"])
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # A timeout would only repeat itself, so skip the parse-only retry.
+        compiled_answer = (
+            None
+            if isinstance(e, TimeoutError)
+            else await _compiled_answer_or_none(
+                bridge, version, resolved_catalog_path, answer_text, options
+            )
+        )
+        return _stage12_score(
+            state, 0.0, answer=compiled_answer or answer_text, explanation=str(e)
+        )
+
+
 def _stage12_score(state: TaskState, value: float, **kwargs: Any) -> Score:
     """Builds the Stage 1/2 score and records its verdict for the judge."""
     state.metadata[STAGE12_PASSED_KEY] = value == 1.0
     return Score(value=value, **kwargs)
+
+
+def _solver_failure_score(state: TaskState) -> Score | None:
+    """Returns the failing Score when the solver produced no usable output."""
+    if not state.output:
+        return _stage12_score(
+            state,
+            0.0,
+            explanation="No model output (generation failed or was interrupted)",
+        )
+    answer_text = state.output.completion or ""
+    if answer_text.strip().startswith("Compilation/validation failed:"):
+        return _stage12_score(
+            state,
+            0.0,
+            answer=answer_text,
+            explanation="Format compilation/validation failed during solver step.",
+        )
+    return None
 
 
 @scorer(metrics=[accuracy()])
@@ -296,64 +370,18 @@ def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
     """
     norm_sdk = normalize_sdk_name(sdk)
 
-    async def stage1_messages(
-        state: TaskState, answer_text: str, resolved_catalog_path: str
-    ) -> list[dict[str, Any]] | Score:
-        """Returns the compiled messages, or the failing Score."""
-        compiled = state.metadata.get("compiled_messages")
-        if compiled:
-            return list(compiled)
-        options = bridge_options_from_metadata(state.metadata, resolved_catalog_path)
-        bridge = get_sdk_bridge(norm_sdk)
-        try:
-            res_dict = await asyncio.to_thread(
-                bridge.parse_and_validate,
-                "direct_json",
-                version,
-                resolved_catalog_path,
-                "main",
-                answer_text,
-                DEFAULT_PARSE_TIMEOUT_SEC,
-                True,
-                options=options,
-            )
-            return list(res_dict["compiled_jsons"])
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            # A timeout would only repeat itself, so skip the parse-only retry.
-            compiled_answer = (
-                None
-                if isinstance(e, TimeoutError)
-                else await _compiled_answer_or_none(
-                    bridge, version, resolved_catalog_path, answer_text, options
-                )
-            )
-            return _stage12_score(
-                state, 0.0, answer=compiled_answer or answer_text, explanation=str(e)
-            )
-
     async def score(
         state: TaskState, target: Target
     ) -> Score:  # pylint: disable=unused-argument
-        if not state.output:
-            return _stage12_score(
-                state,
-                0.0,
-                explanation="No model output (generation failed or was interrupted)",
-            )
+        early = _solver_failure_score(state)
+        if early is not None:
+            return early
 
-        catalog_path = state.metadata["catalog"]
-        resolved_catalog_path = str(GIT_ROOT / catalog_path)
+        resolved_catalog_path = str(GIT_ROOT / state.metadata["catalog"])
         answer_text = state.output.completion or ""
-
-        if answer_text.strip().startswith("Compilation/validation failed:"):
-            return _stage12_score(
-                state,
-                0.0,
-                answer=answer_text,
-                explanation="Format compilation/validation failed during solver step.",
-            )
-
-        messages = await stage1_messages(state, answer_text, resolved_catalog_path)
+        messages = await _stage1_messages(
+            state, answer_text, resolved_catalog_path, version, norm_sdk
+        )
         if isinstance(messages, Score):
             return messages
         answer = json.dumps(messages, indent=2)
