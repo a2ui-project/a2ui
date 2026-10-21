@@ -359,6 +359,38 @@ async def test_measured_generate_retries_when_required_close_tag_missing() -> No
 
 
 @pytest.mark.asyncio
+async def test_a2ui_specialist_retries_when_close_tag_missing() -> None:
+    bridge = _FakeBridge()
+    store().set("version", "0.9.1")
+    store().set("sdk", "python")
+    store().set("catalog", str(V091_CATALOG))
+    calls = 0
+
+    class _RetryingModel:
+
+        async def generate(self, messages: list[Any]) -> ModelOutput:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return ModelOutput.from_content(
+                    "mock/model", "print(get_pong_app_a2ui_json())"
+                )
+            return ModelOutput.from_content("mock/model", "<a2ui-json>[]</a2ui-json>")
+
+    with patch(
+        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.get_model",
+        return_value=_RetryingModel(),
+    ):
+        result = await a2ui_specialist()(input="Spin up Pong")
+
+    assert calls == 2
+    assert result.startswith("Success")
+    assert store().get(PAYLOAD_STORE_KEY) is not None
+
+
+@pytest.mark.asyncio
 @pytest.mark.sdk_toolchain
 @pytest.mark.parametrize("sdk", ["ts", "dart"])
 async def test_format_solvers_multi_sdk(sdk: str) -> None:

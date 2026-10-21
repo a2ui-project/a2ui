@@ -429,12 +429,9 @@ export function normalizeExpressSource(source: string): string {
         token !== undefined ? token : `//${comment ?? ''}`,
     )
     .replace(/\$\/\r?\n[ \t]*([a-zA-Z0-9_/]+)/g, '$/$1')
+    .replace(/^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z0-9_]+[ \t]*=)/gm, '$1$2')
     .replace(
-      /^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*[ \t]*=)/gm,
-      '$1$2',
-    )
-    .replace(
-      /([([,]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*(?=\s*[,)\]]))/g,
+      /([([,:=]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z0-9_]+(?=\s*[,)\]}]))/g,
       '$1$2',
     );
 }

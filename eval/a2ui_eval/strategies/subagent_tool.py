@@ -76,6 +76,19 @@ def a2ui_specialist() -> Tool:
             prompt_parts.append(role_description)
         if workflow_description:
             prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        prompt_parts.append(
+            "## Environment Notes:\n"
+            "- No external tools are available to you in this specialist"
+            " environment. Even if the instructions above mention calling"
+            " tools (such as data-fetching or app-fetching tools), do NOT call"
+            " any tools or emit tool-call syntax; instead, directly construct"
+            " the complete A2UI JSON payload enclosed in `<a2ui-json>` and"
+            " `</a2ui-json>` tags using synthesized sample data.\n"
+            "- Always set `catalogId` in `createSurface` to the exact"
+            " `catalogId` value defined in the provided Catalog Schema; never"
+            " invent a custom or placeholder `catalogId` URL or identifier,"
+            " even if the user prompt mentions a custom catalog."
+        )
         prompt_parts.append(generated_snippet)
         system_content = "\n\n".join(prompt_parts)
 
@@ -89,8 +102,24 @@ def a2ui_specialist() -> Tool:
 
         output = await get_model().generate(messages)
         for _ in range(2):
-            if output.completion and output.completion.strip():
+            if (
+                output.completion
+                and output.completion.strip()
+                and "</a2ui-json>" in output.completion.lower()
+            ):
                 break
+            if output.completion and output.completion.strip():
+                messages.append(ChatMessageAssistant(content=output.completion))
+                messages.append(
+                    ChatMessageUser(
+                        content=(
+                            "No external tools are available in this"
+                            " environment. Please directly generate the"
+                            " complete A2UI JSON payload now, enclosed in"
+                            " <a2ui-json> and </a2ui-json> tags."
+                        )
+                    )
+                )
             output = await get_model().generate(messages)
         if output.completion:
             try:

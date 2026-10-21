@@ -534,13 +534,13 @@ class ExpressCompiler:
         )
         dsl_body = re.sub(
             r"(?m)^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n["
-            r" \t]*([a-zA-Z_][a-zA-Z0-9_]*[ \t]*=)",
+            r" \t]*([a-zA-Z0-9_]+[ \t]*=)",
             r"\1\2",
             dsl_body,
         )
         dsl_body = re.sub(
-            r"([(\[,]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n["
-            r" \t]*([a-zA-Z_][a-zA-Z0-9_]*(?=\s*[,)\]]))",
+            r"([(\[,:=]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n["
+            r" \t]*([a-zA-Z0-9_]+(?=\s*[,)\]}]))",
             r"\1\2",
             dsl_body,
         )

@@ -129,11 +129,11 @@ final RegExp _sqlCommentOrToken = RegExp(
 );
 final RegExp _splitDataPath = RegExp(r'\$/\r?\n[ \t]*([a-zA-Z0-9_/]+)');
 final RegExp _splitLhsIdentifier = RegExp(
-  r'^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*[ \t]*=)',
+  r'^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z0-9_]+[ \t]*=)',
   multiLine: true,
 );
 final RegExp _splitArgIdentifier = RegExp(
-  r'([(\[,]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z_][a-zA-Z0-9_]*(?=\s*[,)\]]))',
+  r'([(\[,:=]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z0-9_]+(?=\s*[,)\]}]))',
 );
 final RegExp _edgeNewlines = RegExp(r'^[\r\n]+|[\r\n]+$');
 
