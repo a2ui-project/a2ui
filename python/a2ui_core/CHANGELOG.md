@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `to_protocol_version` is exported from the `a2ui.core` public facade.
+
 ## 0.4.0 (2026-10-17)
 
 - Catalogs can reference components, property schemas and functions in peer

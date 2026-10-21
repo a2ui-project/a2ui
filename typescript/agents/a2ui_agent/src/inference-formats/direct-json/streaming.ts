@@ -51,6 +51,8 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
 
   private foundDelimiter = false;
   private foundValidJsonInBlock = false;
+  private heldBackticks = '';
+  private stripCloseBackticks = false;
 
   private componentsBySurface: Record<string, Record<string, Record<string, any>>> = {};
   private yieldedDataModel: Record<string, any> = {};
@@ -191,6 +193,14 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   processChunk(chunk: string): ResponsePart[] {
     const messages: ResponsePart[] = [];
     this.buffer += chunk;
+    if (this.stripCloseBackticks) {
+      if (this.buffer.startsWith('`')) {
+        this.buffer = this.buffer.replace(/^`+/, '');
+      }
+      if (this.buffer.length > 0) {
+        this.stripCloseBackticks = false;
+      }
+    }
 
     while (true) {
       if (!this.foundDelimiter) {
@@ -200,6 +210,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           if (textBefore.endsWith('`')) {
             textBefore = textBefore.replace(/`+$/, '');
           }
+          this.heldBackticks = '';
           if (textBefore.length > 0) {
             messages.push({type: 'text', text: textBefore});
           }
@@ -216,10 +227,22 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           if (this.buffer.length > keepLen) {
             const safeLen = this.buffer.length - keepLen;
             const textToYield = this.buffer.substring(0, safeLen);
-            if (textToYield.length > 0) {
-              messages.push({type: 'text', text: textToYield});
-            }
             this.buffer = this.buffer.substring(safeLen);
+
+            const matchTicks = textToYield.match(/`+$/);
+            if (matchTicks) {
+              const ticks = matchTicks[0];
+              const prefix = textToYield.substring(0, textToYield.length - ticks.length);
+              if (prefix.length > 0) {
+                messages.push({type: 'text', text: this.heldBackticks + prefix});
+                this.heldBackticks = ticks;
+              } else {
+                this.heldBackticks += ticks;
+              }
+            } else {
+              messages.push({type: 'text', text: this.heldBackticks + textToYield});
+              this.heldBackticks = '';
+            }
           }
           break;
         }
@@ -240,6 +263,8 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           this.buffer = this.buffer.substring(closeIdx + A2UI_CLOSE_TAG.length);
           if (this.buffer.startsWith('`')) {
             this.buffer = this.buffer.replace(/^`+/, '');
+          } else if (this.buffer.length === 0) {
+            this.stripCloseBackticks = true;
           }
         } else {
           let keepLen = 0;

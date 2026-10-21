@@ -1135,7 +1135,11 @@ class ExpressCompiler:
                         for opt in mapped_val
                     ]
             enum_vals = comp_helper.get_property_enum(comp_name, prop_name)
-            if enum_vals and not _has_databinding(mapped_val):
+            if (
+                enum_vals
+                and not isinstance(mapped_val, dict)
+                and not _has_databinding(mapped_val)
+            ):
                 if mapped_val not in enum_vals:
                     raise ExpressValidationError(
                         f"Value '{mapped_val}' is not a valid enum choice for"

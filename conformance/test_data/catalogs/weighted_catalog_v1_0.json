@@ -105,6 +105,22 @@
         "priority": { "type": "number" }
       },
       "required": ["component", "state"]
+    },
+    "Meter": {
+      "type": "object",
+      "description": "A meter component with title, numeric count, unit enum, and weight.",
+      "properties": {
+        "component": { "const": "Meter" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "level": { "type": "number" },
+        "unit": {
+          "type": "string",
+          "enum": ["percent", "ratio"],
+          "default": "percent"
+        },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "label"]
     }
   },
   "functions": {},
@@ -117,7 +133,8 @@
         { "$ref": "#/components/TextField" },
         { "$ref": "#/components/Slider" },
         { "$ref": "#/components/DualMetric" },
-        { "$ref": "#/components/Status" }
+        { "$ref": "#/components/Status" },
+        { "$ref": "#/components/Meter" }
       ],
       "discriminator": { "propertyName": "component" }
     },

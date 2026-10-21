@@ -1379,3 +1379,43 @@
     suffix])
   expect_error:
     category: "ParseError"
+
+- name: test_compile_express_positional_number_followed_by_more_args_pins_exact_assignment
+  description: A numeric positional argument followed by more arguments does not skip ahead to weight, assigning to the earlier numeric property instead.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Meter("CPU", 75, "percent")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/weighted"
+        components:
+          - id: "root"
+            component: "Meter"
+            label: "CPU"
+            level: 75
+            unit: "percent"
+
+- name: test_compile_express_raw_newline_in_plain_string_preserved
+  description: A raw newline inside a plain string literal is preserved and not altered by source normalization.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("Hello
+    World")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello\nWorld"
+

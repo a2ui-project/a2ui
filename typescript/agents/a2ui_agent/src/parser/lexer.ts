@@ -330,7 +330,11 @@ export class BlockLexer {
         break;
       }
 
-      this.addText(parts, content.slice(i, openStart));
+      let textBefore = content.slice(i, openStart);
+      if (textBefore.endsWith('`')) {
+        textBefore = textBefore.replace(/`+$/, '');
+      }
+      this.addText(parts, textBefore);
       const openEnd = openStart + openMatch[0].length;
       const closeSpan = this.scanBlock(content, openEnd, n);
       if (!closeSpan) {
@@ -349,6 +353,9 @@ export class BlockLexer {
         isFinal: true,
       });
       i = closeEnd;
+      while (i < n && content[i] === '`') {
+        i++;
+      }
     }
 
     this.addText(parts, content.slice(i));

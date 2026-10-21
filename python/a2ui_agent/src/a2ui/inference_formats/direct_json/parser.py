@@ -78,6 +78,8 @@ class DirectJsonParser(Parser):
         self._block = ""
         self._run_started = False
         self._held_space = ""
+        self._held_backticks = ""
+        self._strip_close_backticks = False
         self._emitted_json: list[str] = []
 
     @property
@@ -129,7 +131,10 @@ class DirectJsonParser(Parser):
                     continue
             if not open_match:
                 break
-            self._add_text(parts, content[i : open_match.start()])
+            text_before = content[i : open_match.start()]
+            if text_before.endswith("`"):
+                text_before = text_before.rstrip("`")
+            self._add_text(parts, text_before)
             close_start, _ = self._scan_block(content, open_match.end())
             if close_start is None:
                 parts.append(
@@ -154,6 +159,8 @@ class DirectJsonParser(Parser):
             close_match = _CLOSE_TAG_RE.match(content, close_start)
             assert close_match is not None
             i = close_match.end()
+            if i < n and content[i] == "`":
+                i += len(content[i:]) - len(content[i:].lstrip("`"))
         self._add_text(parts, content[i:])
         return parts
 
@@ -196,6 +203,11 @@ class DirectJsonParser(Parser):
 
         input_str = self._held + chunk
         self._held = ""
+        if self._strip_close_backticks:
+            if input_str.startswith("`"):
+                input_str = input_str.lstrip("`")
+            if input_str:
+                self._strip_close_backticks = False
         while input_str:
             if self._in_block:
                 self._block += input_str
@@ -210,6 +222,8 @@ class DirectJsonParser(Parser):
                 input_str = self._block[close_match.end() :]
                 if input_str.startswith("`"):
                     input_str = input_str.lstrip("`")
+                elif not input_str:
+                    self._strip_close_backticks = True
                 self._in_block = False
                 self._block = ""
                 try:
@@ -226,6 +240,7 @@ class DirectJsonParser(Parser):
                 self._emit_text(parts, text_before)
                 self._run_started = False
                 self._held_space = ""
+                self._held_backticks = ""
                 self._in_block = True
                 input_str = input_str[open_match.end() :]
                 continue
@@ -239,13 +254,32 @@ class DirectJsonParser(Parser):
 
     def _emit_text(self, parts: list[ResponsePart], text: str) -> None:
         body = (text if self._run_started else text.lstrip()).rstrip()
-        if not body:
+        m = re.search(r"`+$", body)
+        if m:
+            ticks = m.group(0)
+            body_no_ticks = body[: m.start()].rstrip()
+        else:
+            ticks = ""
+            body_no_ticks = body
+
+        if not body_no_ticks:
             if self._run_started:
-                self._held_space += text
+                self._held_backticks += ticks
+                self._held_space += text[: len(text) - len(ticks)] if ticks else text
+            elif ticks:
+                self._held_backticks += ticks
             return
-        start = 0 if self._run_started else text.find(body)
-        parts.append(TextPart(text=f"{self._held_space}{body}"))
-        self._held_space = text[start + len(body) :]
+
+        start = 0 if self._run_started else text.find(body_no_ticks)
+        parts.append(
+            TextPart(text=f"{self._held_space}{self._held_backticks}{body_no_ticks}")
+        )
+        self._held_space = text[start + len(body_no_ticks) :]
+        if ticks:
+            self._held_backticks = ticks
+            self._held_space = re.sub(r"`+$", "", self._held_space)
+        else:
+            self._held_backticks = ""
         self._run_started = True
 
     def _emit_ready(self, parts: list[ResponsePart], block: str) -> None:

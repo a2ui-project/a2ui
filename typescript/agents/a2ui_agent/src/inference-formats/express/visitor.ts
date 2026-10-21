@@ -418,8 +418,7 @@ const SQL_COMMENT_OR_TOKEN_REGEX =
 const DECLARED_LHS_REGEX = /^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)/gm;
 const SPLIT_LHS_REGEX =
   /^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*=(?!=))/gm;
-const SPLIT_DATA_PATH_REGEX =
-  /(\$[a-zA-Z0-9_/]*\/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)/g;
+const SPLIT_DATA_PATH_REGEX = /(\$[a-zA-Z0-9_/]*\/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)/g;
 const SPLIT_ARG_IDENT_REGEX =
   /([([,:=][ \t]*\r?\n?[ \t]*|[([,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)/g;
 

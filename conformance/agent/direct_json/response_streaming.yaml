@@ -240,7 +240,7 @@
   expect_matches_single_shot: true
 
 - name: test_chunk_inline_code_tags_stripped
-  description: Sentinel tags wrapped in inline-code backticks strip the edge backticks and drop backtick-only text runs while streaming, matching single-shot parsing.
+  description: Sentinel tags wrapped in inline-code backticks strip the edge backticks while streaming, matching single-shot parsing.
   action: parse_chunk
   args:
     format: direct_json
@@ -254,6 +254,29 @@
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
+  expect_matches_single_shot: true
+
+- name: test_chunk_inline_code_tags_split_across_chunks
+  description: Sentinel tags wrapped in inline-code backticks strip the edge backticks when backticks and tags arrive in separate chunks.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "`"
+      expect: []
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+    - input: "</a2ui-json>"
+      expect: []
+    - input: "`"
+      expect: []
   expect_matches_single_shot: true
 
 - name: test_chunk_missing_open_tag_is_emitted_as_text

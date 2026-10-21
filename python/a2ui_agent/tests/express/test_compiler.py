@@ -37,10 +37,8 @@ from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressDuplicateParamError,
     ExpressDuplicatePropertyError,
-    ExpressForbiddenDatabindingError,
     ExpressInvalidParamError,
     ExpressParser,
-    ExpressPromptGenerator,
     ExpressUndefinedRootError,
     ExpressUnknownPropertyError,
 )
@@ -270,6 +268,18 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
         self.assertEqual(comps["root"]["children"], ["t"])
         self.assertEqual(comps["root"]["weight"], 2)
+
+    def test_enum_property_with_function_call_not_rejected_by_enum_check(self):
+        """Verifies that an enum property passed a function call is not rejected as an invalid enum choice."""
+        compiler = ExpressCompiler([self.catalog])
+        dsl = 'root = Column([t], justify=formatString("start"))\nt = Text("Hello")'
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(
+            comps["root"]["justify"],
+            {"@call": "formatString", "args": {"value": "start"}},
+        )
 
 
 if __name__ == "__main__":

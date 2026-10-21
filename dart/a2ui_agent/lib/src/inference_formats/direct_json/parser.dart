@@ -152,7 +152,11 @@ class DirectJsonParser extends Parser {
         }
       }
       if (open == null) break;
-      addText(parts, content.substring(i, open.start));
+      String textBefore = content.substring(i, open.start);
+      if (textBefore.endsWith('`')) {
+        textBefore = textBefore.replaceAll(RegExp(r'`+$'), '');
+      }
+      addText(parts, textBefore);
       final int? end = scanBlock(content, open.end).closeStart;
       if (end == null) {
         parts.add(
@@ -162,6 +166,9 @@ class DirectJsonParser extends Parser {
       }
       parts.add(RawA2uiPart(cleanRaw(content.substring(open.end, end))));
       i = closeTag.matchAsPrefix(content, end)!.end;
+      while (i < content.length && content[i] == '`') {
+        i++;
+      }
     }
     addText(parts, content.substring(i));
     return parts;

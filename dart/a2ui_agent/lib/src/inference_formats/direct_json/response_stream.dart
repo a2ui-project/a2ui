@@ -66,6 +66,8 @@ class DirectJsonResponseStream extends ResponseStream {
   String _held = '';
   bool _runStarted = false;
   String _heldSpace = '';
+  String _heldBackticks = '';
+  bool _stripCloseBackticks = false;
 
   // The open block.
   bool _inBlock;
@@ -163,6 +165,14 @@ class DirectJsonResponseStream extends ResponseStream {
     }
     String input = _held + chunk;
     _held = '';
+    if (_stripCloseBackticks) {
+      if (input.startsWith('`')) {
+        input = input.replaceAll(RegExp(r'^`+'), '');
+      }
+      if (input.isNotEmpty) {
+        _stripCloseBackticks = false;
+      }
+    }
     while (input.isNotEmpty) {
       if (_inBlock) {
         _block += input;
@@ -178,6 +188,8 @@ class DirectJsonResponseStream extends ResponseStream {
         );
         if (input.startsWith('`')) {
           input = input.replaceAll(RegExp(r'^`+'), '');
+        } else if (input.isEmpty) {
+          _stripCloseBackticks = true;
         }
         _finishBlock(parts, closeStart);
         continue;
@@ -191,6 +203,7 @@ class DirectJsonResponseStream extends ResponseStream {
         _emitText(parts, textBefore);
         _runStarted = false;
         _heldSpace = '';
+        _heldBackticks = '';
         _inBlock = true;
         input = input.substring(open.end);
         continue;
@@ -207,13 +220,31 @@ class DirectJsonResponseStream extends ResponseStream {
   /// run and trailing whitespace, which is held until more text arrives.
   void _emitText(List<ResponsePart> parts, String text) {
     final String body = (_runStarted ? text : text.trimLeft()).trimRight();
-    if (body.isEmpty) {
-      if (_runStarted && body.isEmpty) _heldSpace += text;
+    final Match? ticksMatch = RegExp(r'`+$').firstMatch(body);
+    final String ticks = ticksMatch != null ? ticksMatch.group(0)! : '';
+    final String bodyNoTicks = ticks.isNotEmpty
+        ? body.substring(0, body.length - ticks.length).trimRight()
+        : body;
+
+    if (bodyNoTicks.isEmpty) {
+      if (_runStarted) {
+        _heldBackticks += ticks;
+        _heldSpace += text.substring(0, text.length - ticks.length);
+      } else if (ticks.isNotEmpty) {
+        _heldBackticks += ticks;
+      }
       return;
     }
-    final int start = _runStarted ? 0 : text.indexOf(body);
-    parts.add(TextPart('$_heldSpace$body'));
-    _heldSpace = text.substring(start + body.length);
+
+    final int start = _runStarted ? 0 : text.indexOf(bodyNoTicks);
+    parts.add(TextPart('$_heldSpace$_heldBackticks$bodyNoTicks'));
+    _heldSpace = text.substring(start + bodyNoTicks.length);
+    if (ticks.isNotEmpty) {
+      _heldBackticks = ticks;
+      _heldSpace = _heldSpace.replaceAll(RegExp(r'`+$'), '');
+    } else {
+      _heldBackticks = '';
+    }
     _runStarted = true;
   }
 

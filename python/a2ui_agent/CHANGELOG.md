@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Package dependency updated to require `a2ui-core>=0.4.1,<0.5.0`.
 - The response parsers for Direct JSON, Express, Elemental and Atom remove the
   backticks left at the edges of a block when a model writes the tags as inline
   code (`` `<a2ui>` ... `</a2ui>` `` or `` `<a2ui-json>` ... `</a2ui-json>` ``),

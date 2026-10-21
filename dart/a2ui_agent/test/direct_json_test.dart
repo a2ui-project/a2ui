@@ -394,10 +394,10 @@ void main() {
         stream(['Use ', '`', 'Text', '`', ' for labels.']),
         [
           ['Use'],
-          [' `'],
-          ['Text'],
-          ['`'],
-          [' for labels.'],
+          <Object?>[],
+          [' `Text'],
+          <Object?>[],
+          ['` for labels.'],
         ],
       );
     });
