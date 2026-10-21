@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added `SurfaceModel.onDisposed`, which fires once when `dispose` starts,
+  before the surface's models are disposed.
 - `argumentErrors`, the argument check of `Catalog.invoke` and of a
   `callRendererFunction`, checks a `ValidationResult` argument as its JSON
   object instead of throwing `StateError`. On a catalog for v1.0 or later, a

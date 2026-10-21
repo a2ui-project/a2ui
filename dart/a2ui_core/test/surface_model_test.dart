@@ -394,5 +394,21 @@ void main() {
       expect(dispatched!.timestamp.isUtc, isTrue);
       expect(dispatched!.toJson()['timestamp'], endsWith('Z'));
     });
+
+    test('fires onDisposed once, before its models are disposed', () {
+      final surface = SurfaceModel<ComponentApi>('s1');
+      surface.componentsModel.addComponent(ComponentModel('root', 'Text', {}));
+      final seen = <ComponentModel?>[];
+      surface.onDisposed.subscribe((_) {
+        seen.add(surface.componentsModel.get('root'));
+        surface.dispose();
+      });
+
+      surface.dispose();
+      surface.dispose();
+
+      expect(seen, hasLength(1));
+      expect(seen.single?.id, 'root');
+    });
   });
 }

@@ -99,6 +99,8 @@ class SurfaceModel<T extends ComponentApi> {
   final _onAction = EventNotifier<A2uiRendererAction>();
   final _onError = EventNotifier<A2uiRendererError>();
   final _onWarning = EventNotifier<A2uiWarning>();
+  final _onDisposed = EventNotifier<void>();
+  bool _disposed = false;
 
   /// Fires whenever an action is dispatched from this surface.
   EventSource<A2uiRendererAction> get onAction => _onAction;
@@ -108,6 +110,10 @@ class SurfaceModel<T extends ComponentApi> {
 
   /// Fires whenever a non-fatal warning occurs on this surface.
   EventSource<A2uiWarning> get onWarning => _onWarning;
+
+  /// Fires once, when [dispose] starts and before any of this surface's
+  /// models are disposed. A listener added after that is never called.
+  EventSource<void> get onDisposed => _onDisposed;
 
   /// Creates a surface whose items resolve against [defaultCatalog] or, when
   /// they name one, against a catalog in [availableCatalogs].
@@ -301,8 +307,13 @@ class SurfaceModel<T extends ComponentApi> {
     );
   }
 
-  /// Disposes of the surface and its resources.
+  /// Disposes of the surface and its resources. Calls after the first,
+  /// including one from an [onDisposed] listener, do nothing.
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _onDisposed.emit(null);
+    _onDisposed.dispose();
     dataModel.dispose();
     componentsModel.dispose();
     _onAction.dispose();
