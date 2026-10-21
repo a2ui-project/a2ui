@@ -227,17 +227,17 @@ def _schema_expects_option_objects(schema: Any) -> bool:
 _SQL_COMMENT_OR_TOKEN_RE = re.compile(
     r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)'
 )
-_DECLARED_LHS_RE = re.compile(
-    r"(?m)^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)"
-)
+_DECLARED_LHS_RE = re.compile(r"(?m)^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)")
 _SPLIT_LHS_RE = re.compile(
-    r"(?m)^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*=(?!=))"
+    r"(?m)^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=["
+    r" \t]*=(?!=))"
 )
 _SPLIT_DATA_PATH_RE = re.compile(
     r"(\$[a-zA-Z0-9_/]*/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)"
 )
 _SPLIT_ARG_IDENT_RE = re.compile(
-    r"([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)"
+    r"([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)["
+    r" \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)"
 )
 
 
@@ -300,11 +300,7 @@ def _normalize_express_source(source: str) -> str:
         def _join_arg(m: re.Match[str]) -> str:
             prefix, p1, nl, p2 = m.group(1), m.group(2), m.group(3), m.group(4)
             joined = p1 + p2
-            if (
-                joined in declared
-                and p1 not in declared
-                and p2 not in declared
-            ):
+            if joined in declared and p1 not in declared and p2 not in declared:
                 return f"{prefix}{joined}{nl}"
             return m.group(0)
 
@@ -1034,9 +1030,7 @@ class ExpressCompiler:
                 if arg_idx == len(pos_args) - 1:
                     numeric_later = [
                         later_idx
-                        for later_idx in range(
-                            prop_idx + 1, len(non_check_properties)
-                        )
+                        for later_idx in range(prop_idx + 1, len(non_check_properties))
                         if non_check_properties[later_idx] not in kwargs
                         and comp_helper.accepts_number(
                             comp_helper.get_property_schema(

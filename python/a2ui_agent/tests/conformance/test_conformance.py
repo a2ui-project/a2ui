@@ -518,7 +518,23 @@ def test_response_parser_conformance(name, test_case):
     action = test_case["action"]
 
     if action == "unwrap":
-        assert_raw_parts_match(parser.unwrap(test_case["input"]), test_case["expect"])
+        expected = test_case["expect"]
+        assert_raw_parts_match(parser.unwrap(test_case["input"]), expected)
+        has_any = any("a2ui_raw" in p for p in expected)
+        has_complete = any(
+            "a2ui_raw" in p and p.get("is_final", True) for p in expected
+        )
+        assert parser.has_format_content(test_case["input"]) is has_any
+        assert (
+            parser.has_format_content(test_case["input"], complete=True) is has_complete
+        )
+
+    elif action == "has_format_content":
+        complete = args.get("complete", False)
+        assert (
+            parser.has_format_content(test_case["input"], complete=complete)
+            is test_case["expect"]
+        )
 
     elif action == "wrap":
         parts = test_case["parts"]

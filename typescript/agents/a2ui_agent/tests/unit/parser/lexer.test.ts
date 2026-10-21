@@ -67,18 +67,19 @@ describe('BlockLexer', () => {
     expect(parts[1]).toEqual({type: 'a2ui', a2uiRaw: 'text = "Hello', isFinal: false});
   });
 
-  it('embedded tag in comment', () => {
-    const content = 'Preamble\n<a2ui>\n# Some </a2ui> comment\ntext = 123\n</a2ui>';
+  it('quote in comment and close tag on comment line', () => {
+    const content = "Preamble\n<a2ui>\n# User's comment\ntext = 123 # done </a2ui>\nPostamble";
     const lexer = new BlockLexer();
     const parts = lexer.tokenize(content);
 
-    expect(parts).toHaveLength(2);
+    expect(parts).toHaveLength(3);
     expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: true});
     expect(parts[1]).toEqual({
       type: 'a2ui',
-      a2uiRaw: '# Some </a2ui> comment\ntext = 123',
+      a2uiRaw: "# User's comment\ntext = 123 # done",
       isFinal: true,
     });
+    expect(parts[2]).toEqual({type: 'text', text: 'Postamble', isFinal: true});
   });
 
   it('open tag with attributes', () => {

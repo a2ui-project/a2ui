@@ -23,11 +23,21 @@ import 'decompiler.dart';
 // block in another format is read as text.
 final RegExp _openTag = RegExp(r'<a2ui(?:\s[^>]*)?>', caseSensitive: false);
 final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
-final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
-final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
-final RegExp _openFence = RegExp(r'```[a-zA-Z0-9_-]*[ \t]*\r?\n?');
+final RegExp _leadingFence = RegExp(
+  r'^```[a-zA-Z0-9_-]*\s*',
+  caseSensitive: false,
+);
+final RegExp _trailingFence = RegExp(
+  r'\s*```[a-zA-Z0-9_-]*$',
+  caseSensitive: false,
+);
+final RegExp _openFence = RegExp(
+  r'^[ \t]*```[a-zA-Z0-9_-]*[ \t]*\r?\n?',
+  multiLine: true,
+);
+final RegExp _closingFenceEnd = RegExp(r'\r?\n?[ \t]*```[ \t]*\r?\n?$');
 final RegExp _payloadStart = RegExp(
-  r'^[ \t]*(?:surface\s*\(|deleteSurface\s*\(|\$[a-zA-Z0-9_/]*\s*=|[a-zA-Z_][a-zA-Z0-9_]*\s*=)',
+  r'^[ \t]*(?:surface\s*\(|deleteSurface\s*\(|\$[a-zA-Z0-9_/]*\s*=(?!=)|[a-zA-Z_][a-zA-Z0-9_]*\s*=(?!=))',
   multiLine: true,
 );
 final RegExp _onlyBackticks = RegExp(r'^`*$');
@@ -92,28 +102,32 @@ class ExpressParser extends Parser {
   /// Splits [content] into text and Express blocks, in the order the model
   /// wrote them.
   ///
-  /// A close tag inside a string or a comment does not end a block. Text is
-  /// trimmed and dropped when empty, and markdown fences a model wraps around
-  /// a block are removed, as are the backticks left at a block's edges when a
-  /// model writes the tags as inline code. Tags of another format are text. See
-  /// `conformance/agent/express/response_parser.yaml`.
+  /// A close tag inside a string does not end a block. Text is trimmed and
+  /// dropped when empty, and markdown fences a model wraps around a block are
+  /// removed, as are the backticks left at a block's edges when a model writes
+  /// the tags as inline code. At most one block whose `<a2ui>` open tag was
+  /// omitted before `</a2ui>` is recovered in one-shot parsing. Tags of another
+  /// format are text. See `conformance/agent/express/response_parser.yaml`.
   @override
   List<RawResponsePart> unwrap(String content) {
     final parts = <RawResponsePart>[];
     var i = 0;
-    while (true) {
+    var recoveredUnmatched = false;
+    while (i < content.length) {
       final Match? open = _openTag.allMatches(content, i).firstOrNull;
       final int searchEnd = open?.start ?? content.length;
-      final Match? unmatchedClose = _closeTag
-          .allMatches(content.substring(0, searchEnd), i)
-          .firstOrNull;
-      if (unmatchedClose != null &&
-          _tryAddUnmatchedClose(
-            parts,
-            content.substring(i, unmatchedClose.start),
-          )) {
-        i = unmatchedClose.end;
-        continue;
+      if (!recoveredUnmatched && searchEnd > i) {
+        final int? nextI = _tryRecoverUnmatchedClose(
+          parts,
+          content,
+          i,
+          searchEnd,
+        );
+        if (nextI != null) {
+          recoveredUnmatched = true;
+          i = nextI;
+          continue;
+        }
       }
       if (open == null) break;
       _addText(parts, content.substring(i, open.start));
@@ -146,33 +160,52 @@ void _addText(List<RawResponsePart> parts, String text) {
   if (cleaned.isNotEmpty) parts.add(TextPart(cleaned));
 }
 
-bool _tryAddUnmatchedClose(List<RawResponsePart> parts, String textBefore) {
-  final List<Match> fences = _openFence.allMatches(textBefore).toList();
-  String rawContent;
-  if (fences.isNotEmpty) {
-    final Match lastFence = fences.last;
-    rawContent = _cleanRaw(textBefore.substring(lastFence.end));
-    if (rawContent.isEmpty) return false;
-    _addText(parts, textBefore.substring(0, lastFence.start));
-  } else {
-    final Match? stmtMatch = _payloadStart.firstMatch(textBefore);
-    if (stmtMatch == null) return false;
-    final String prefix = textBefore.substring(0, stmtMatch.start);
-    if (stmtMatch.start > 0 &&
-        (prefix.contains('=') ||
-            prefix.contains('{') ||
-            prefix.contains('[') ||
-            prefix.contains('('))) {
-      rawContent = _cleanRaw(textBefore);
-      if (rawContent.isEmpty) return false;
-    } else {
-      rawContent = _cleanRaw(textBefore.substring(stmtMatch.start));
-      if (rawContent.isEmpty) return false;
-      _addText(parts, prefix);
-    }
+int? _tryRecoverUnmatchedClose(
+  List<RawResponsePart> parts,
+  String content,
+  int start,
+  int searchEnd,
+) {
+  final String segment = content.substring(start, searchEnd);
+  if (!_closeTag.hasMatch(segment)) return null;
+
+  final List<Match> fences = _openFence.allMatches(segment).toList();
+  for (var idx = 0; idx < fences.length; idx += 2) {
+    final Match fence = fences[idx];
+    final int? closeStart = _blockEnd(segment, fence.end);
+    if (closeStart == null) continue;
+    final String body = segment.substring(fence.end, closeStart);
+    final String bodyStripped = body.replaceFirst(_closingFenceEnd, '');
+    if (_openFence.hasMatch(bodyStripped)) continue;
+    final String rawContent = _cleanRaw(bodyStripped);
+    if (rawContent.isEmpty) continue;
+    _addText(parts, segment.substring(0, fence.start));
+    parts.add(RawA2uiPart(rawContent));
+    return start + _closeTag.matchAsPrefix(segment, closeStart)!.end;
   }
+
+  var searchFrom = 0;
+  var pairIdx = 0;
+  while (pairIdx + 1 < fences.length) {
+    final int closeFenceEnd = fences[pairIdx + 1].end;
+    if (_blockEnd(segment, closeFenceEnd) == null) break;
+    searchFrom = closeFenceEnd;
+    pairIdx += 2;
+  }
+
+  final Match? stmtMatch = _payloadStart
+      .allMatches(segment, searchFrom)
+      .firstOrNull;
+  if (stmtMatch == null) return null;
+  final int? closeStart = _blockEnd(segment, stmtMatch.start);
+  if (closeStart == null) return null;
+  final String rawContent = _cleanRaw(
+    segment.substring(stmtMatch.start, closeStart),
+  );
+  if (rawContent.isEmpty) return null;
+  _addText(parts, segment.substring(0, stmtMatch.start));
   parts.add(RawA2uiPart(rawContent));
-  return true;
+  return start + _closeTag.matchAsPrefix(segment, closeStart)!.end;
 }
 
 /// Trims [text] and removes the markdown fences around it. A run made of
@@ -196,12 +229,21 @@ String _cleanRaw(String text) =>
 /// null if the block is not closed.
 ///
 /// Strings and comments are read as `Express.g4` reads them, so a close tag
-/// inside one does not end the block.
+/// inside a string or a block comment does not end the block, while a close
+/// tag on the same line as a single-line comment still closes the block.
 int? _blockEnd(String content, int start) {
   var i = start;
   while (i < content.length) {
     if (_closeTag.matchAsPrefix(content, i) != null) return i;
     if (_token.matchAsPrefix(content, i) case final Match token) {
+      if (content.startsWith('#', i) ||
+          content.startsWith('//', i) ||
+          content.startsWith('--', i)) {
+        final Match? inComment = _closeTag.firstMatch(
+          content.substring(i, token.end),
+        );
+        if (inComment != null) return i + inComment.start;
+      }
       i = token.end;
     } else if (content.startsWith('"', i) || content.startsWith('/*', i)) {
       // A string or a block comment that is not closed runs to the end.

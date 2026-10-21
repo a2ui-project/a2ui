@@ -23,6 +23,10 @@ import {AgentToRendererMessage} from '../internal/web-core.js';
 export abstract class Parser {
   /**
    * Unwraps a raw model response string into a sequence of text and raw format blocks.
+   *
+   * In one-shot parsing, also recovers at most one payload block whose opening sentinel tag
+   * was omitted when closed by this format's closing tag (streaming via `parseChunk` requires
+   * the opening sentinel tag).
    */
   abstract unwrap(content: string): RawResponsePart[];
 
@@ -93,8 +97,9 @@ export abstract class Parser {
   /**
    * Reports whether the content carries a block written in this format.
    *
-   * Reads the sentinel tags only and never compiles, so a caller can decide whether a
-   * response is this format's business without paying for a parse.
+   * Tokenizes blocks without compiling, so a caller can decide whether a response is this
+   * format's business without paying for a full compile. Also counts a block recovered by
+   * `unwrap` when its opening sentinel tag was omitted.
    *
    * @param content Raw response text, possibly partial.
    * @param options.complete Whether to require a closed block. When false, the default, an

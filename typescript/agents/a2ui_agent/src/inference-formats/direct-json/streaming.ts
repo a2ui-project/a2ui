@@ -196,7 +196,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
         const openIdx = this.buffer.indexOf(A2UI_OPEN_TAG);
         if (openIdx !== -1) {
           const textBefore = this.buffer.substring(0, openIdx);
-          if (textBefore) {
+          if (textBefore && !/^[` \t\r\n]*$/.test(textBefore)) {
             messages.push({type: 'text', text: textBefore});
           }
           this.foundDelimiter = true;
@@ -212,7 +212,9 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           if (this.buffer.length > keepLen) {
             const safeLen = this.buffer.length - keepLen;
             const textToYield = this.buffer.substring(0, safeLen);
-            messages.push({type: 'text', text: textToYield});
+            if (!/^[` \t\r\n]*$/.test(textToYield)) {
+              messages.push({type: 'text', text: textToYield});
+            }
             this.buffer = this.buffer.substring(safeLen);
           }
           break;

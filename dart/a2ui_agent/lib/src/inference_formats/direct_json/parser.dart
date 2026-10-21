@@ -122,26 +122,31 @@ class DirectJsonParser extends Parser {
   /// model wrote them.
   ///
   /// A close tag inside a JSON string does not end a block. Text is trimmed
-  /// and dropped when empty, and markdown fences a model wraps around a
-  /// block are removed. Tags of another format are text. See
+  /// and dropped when empty, and markdown fences or inline-code backticks a
+  /// model wraps around a block are removed. At most one block whose
+  /// `<a2ui-json>` open tag was omitted before `</a2ui-json>` is recovered in
+  /// one-shot parsing. Tags of another format are text. See
   /// `conformance/agent/direct_json/response_parser.yaml`.
   @override
   List<RawResponsePart> unwrap(String content) {
     final parts = <RawResponsePart>[];
     var i = 0;
-    while (true) {
+    var recoveredUnmatched = false;
+    while (i < content.length) {
       final Match? open = openTag.allMatches(content, i).firstOrNull;
       final int searchEnd = open?.start ?? content.length;
-      final Match? unmatchedClose = closeTag
-          .allMatches(content.substring(0, searchEnd), i)
-          .firstOrNull;
-      if (unmatchedClose != null &&
-          tryAddUnmatchedClose(
-            parts,
-            content.substring(i, unmatchedClose.start),
-          )) {
-        i = unmatchedClose.end;
-        continue;
+      if (!recoveredUnmatched && searchEnd > i) {
+        final int? nextI = tryRecoverUnmatchedClose(
+          parts,
+          content,
+          i,
+          searchEnd,
+        );
+        if (nextI != null) {
+          recoveredUnmatched = true;
+          i = nextI;
+          continue;
+        }
       }
       if (open == null) break;
       addText(parts, content.substring(i, open.start));

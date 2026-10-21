@@ -168,6 +168,11 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return format.createParser().wrap(
         rawParts(testCase['parts']! as List<Object?>),
       );
+    case 'has_format_content':
+      return format.createParser().hasFormatContent(
+        testCase['input']! as String,
+        complete: args['complete'] as bool? ?? false,
+      );
     case 'unwrap':
       // Unwrapping keeps the payload as written, so it is not lowered.
       return [

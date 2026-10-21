@@ -16,7 +16,7 @@
 
 import {Parser} from '../../parser/parser.js';
 import {RawResponsePart, ResponsePart} from '../../parser/response-part.js';
-import {BlockLexer} from '../../parser/lexer.js';
+import {BlockLexer, JSON_PAYLOAD_START_RE} from '../../parser/lexer.js';
 import {ParseError} from '../../errors.js';
 import {parseAndFix} from '../../parser/payload-fixer.js';
 import {A2UI_OPEN_TAG, A2UI_CLOSE_TAG} from '../../parser/constants.js';
@@ -44,7 +44,13 @@ export class DirectJsonParser extends Parser {
     checkParserCatalogs(catalogs);
     this.catalogs = linkCatalogs(catalogs);
     this.streamProcessor = streamProcessor;
-    this.lexer = new BlockLexer(A2UI_OPEN_TAG, A2UI_CLOSE_TAG, new Set(["'", '"']), new Set());
+    this.lexer = new BlockLexer(
+      A2UI_OPEN_TAG,
+      A2UI_CLOSE_TAG,
+      new Set(["'", '"']),
+      new Set(),
+      JSON_PAYLOAD_START_RE,
+    );
     this.decompiler = new DirectJsonDecompiler();
   }
 

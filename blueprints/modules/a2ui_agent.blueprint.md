@@ -247,8 +247,9 @@ class Parser(ABC):
         """Reports whether the content carries a block written in this format.
 
         A caller uses this to decide whether a response is this format's business at all,
-        without paying for a parse. It reads the sentinel tags only and never compiles.
-        Another format's tags do not count.
+        without paying for a parse. It tokenizes blocks without compiling. Another format's
+        tags do not count. A block recovered by `unwrap` when its opening sentinel tag was
+        omitted (closed by this format's closing tag) also counts as a complete block.
 
         Args:
             content: Raw string response emitted by the LLM, possibly partial.
@@ -271,6 +272,9 @@ class Parser(ABC):
         """Tokenizes the LLM response into an ordered list of RawResponsePart objects, extracting raw format content between sentinel tags while preserving chronological order.
 
         Content outside this format's sentinel tags, including another format's tags, is a TextPart.
+        If the model omits the opening sentinel tag but emits a closing sentinel tag after a fenced
+        block or a line that begins a format payload, at most one such block is recovered in
+        one-shot unwrapping (streaming parsers require the opening sentinel tag).
 
         Args:
             content: Raw string response emitted by the LLM.

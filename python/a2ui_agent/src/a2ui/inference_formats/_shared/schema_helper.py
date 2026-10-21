@@ -31,9 +31,7 @@ from a2ui.core import (
     inline_local_refs,
 )
 
-_COMMON_DEF_RE = re.compile(
-    r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$"
-)
+_COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
 
 
 def _find_enum(s: Any) -> list[Any] | None:
@@ -338,14 +336,10 @@ class CatalogSchemaHelper:
         return _crawl_ref(p_schema)
 
     def _lookup_common_def(self, def_name: str) -> Any:
-        defs = self.common_types.get("$defs") or self.common_types.get(
-            "definitions"
-        )
+        defs = self.common_types.get("$defs") or self.common_types.get("definitions")
         return defs.get(def_name) if isinstance(defs, dict) else None
 
-    def _resolve_json_pointer(
-        self, root: dict[str, Any], pointer: str
-    ) -> Any:
+    def _resolve_json_pointer(self, root: dict[str, Any], pointer: str) -> Any:
         if not pointer.startswith("#/"):
             return None
         current: Any = root
@@ -379,14 +373,9 @@ class CatalogSchemaHelper:
                     if resolved is not None and _check(resolved, True):
                         return True
                 elif in_common_types and (
-                    ref.startswith("#/$defs/")
-                    or ref.startswith("#/definitions/")
+                    ref.startswith("#/$defs/") or ref.startswith("#/definitions/")
                 ):
-                    name = (
-                        ref[8:]
-                        if ref.startswith("#/$defs/")
-                        else ref[14:]
-                    )
+                    name = ref[8:] if ref.startswith("#/$defs/") else ref[14:]
                     resolved = self._lookup_common_def(name)
                     if resolved is not None and _check(resolved, True):
                         return True

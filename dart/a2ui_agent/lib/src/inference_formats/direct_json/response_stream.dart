@@ -198,10 +198,11 @@ class DirectJsonResponseStream extends ResponseStream {
 
   /// Emits the text of a run, less leading whitespace at the start of the
   /// run and trailing whitespace, which is held until more text arrives.
+  /// A run made of nothing but backticks is dropped.
   void _emitText(List<ResponsePart> parts, String text) {
     final String body = (_runStarted ? text : text.trimLeft()).trimRight();
-    if (body.isEmpty) {
-      if (_runStarted) _heldSpace += text;
+    if (body.isEmpty || onlyBackticks.hasMatch(body)) {
+      if (_runStarted && body.isEmpty) _heldSpace += text;
       return;
     }
     final int start = _runStarted ? 0 : text.indexOf(body);

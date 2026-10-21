@@ -151,9 +151,7 @@ function repairStringNewlines(jsonStr: string): string {
     const top = stack[stack.length - 1];
     const inChildrenArray = top?.type === 'array' && top.parentKey === 'children';
     const stripNewlines =
-      isKey ||
-      (lastKey !== undefined && NEWLINE_STRIPPED_KEYS.has(lastKey)) ||
-      inChildrenArray;
+      isKey || (lastKey !== undefined && NEWLINE_STRIPPED_KEYS.has(lastKey)) || inChildrenArray;
 
     const processed: string[] = [];
     for (const c of strChars) {

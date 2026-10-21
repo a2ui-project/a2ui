@@ -164,20 +164,19 @@ String _normalizeExpressSource(String source) {
   final splitP2Starts = <(int, int)>{
     for (int segIdx = 0; segIdx < segments.length; segIdx++)
       if (!segments[segIdx].$1)
-        for (final RegExpMatch m
-            in _splitLhsIdentifier.allMatches(segments[segIdx].$2))
+        for (final RegExpMatch m in _splitLhsIdentifier.allMatches(
+          segments[segIdx].$2,
+        ))
           (segIdx, m.end - m[3]!.length),
   };
 
   final directDeclared = <String>{
     for (int segIdx = 0; segIdx < segments.length; segIdx++)
       if (!segments[segIdx].$1)
-        for (final RegExpMatch m
-            in _declaredLhs.allMatches(segments[segIdx].$2))
-          if (!splitP2Starts.contains((
-            segIdx,
-            m.start + m[0]!.indexOf(m[1]!),
-          )))
+        for (final RegExpMatch m in _declaredLhs.allMatches(
+          segments[segIdx].$2,
+        ))
+          if (!splitP2Starts.contains((segIdx, m.start + m[0]!.indexOf(m[1]!))))
             m[1]!,
   };
 

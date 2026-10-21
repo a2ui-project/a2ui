@@ -919,7 +919,9 @@ export class ExpressCompiler {
       }
       if (
         typeof arg === 'number' &&
-        !compHelper.acceptsNumber(compHelper.getPropertySchema(compName, nonCheckProperties[propIdx]))
+        !compHelper.acceptsNumber(
+          compHelper.getPropertySchema(compName, nonCheckProperties[propIdx]),
+        )
       ) {
         let moved = false;
         if (argIdx === posArgs.length - 1) {

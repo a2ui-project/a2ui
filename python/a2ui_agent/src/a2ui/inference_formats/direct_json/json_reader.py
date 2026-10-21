@@ -271,9 +271,7 @@ class _Reader:
                 arr.append(item)
             else:
                 arr.append(
-                    self._value(
-                        healable=False, strip_newlines=strip_item_newlines
-                    )
+                    self._value(healable=False, strip_newlines=strip_item_newlines)
                 )
             self._skip_space()
             if self._at_end:
