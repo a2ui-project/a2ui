@@ -198,6 +198,49 @@
       supportedCatalogIds:
         - "cat-v10"
 
+- name: test_v10_get_renderer_capabilities_inline_catalogs
+  description: >-
+    Tests that v1.0 inline catalogs list each component as a plain schema, without the v0.9
+    ComponentCommon allOf envelope, because v1.0 applies ComponentCommon at the message envelope.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-v10
+      protocolVersion: "1.0"
+      components:
+        Button:
+          type: object
+          properties:
+            component:
+              const: Button
+            label:
+              type: string
+              description: The button label
+          required:
+            - component
+            - label
+  args:
+    includeInlineCatalogs: true
+    version: "v1.0"
+  expect:
+    v1.0:
+      supportedCatalogIds:
+        - "cat-v10"
+      inlineCatalogs:
+        - catalogId: "cat-v10"
+          protocolVersion: "1.0"
+          components:
+            Button:
+              type: "object"
+              properties:
+                component:
+                  const: "Button"
+                label:
+                  type: "string"
+                  description: "The button label"
+              required:
+                - "component"
+                - "label"
+
 - name: test_multiple_update_types_error
   description: Tests that sending a single message envelope containing multiple update actions raises a ValidationError.
   action: process_messages
