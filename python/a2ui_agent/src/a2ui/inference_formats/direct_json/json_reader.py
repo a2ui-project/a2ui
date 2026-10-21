@@ -97,6 +97,16 @@ def _straighten_quotes(text: str) -> str:
     )
 
 
+_NEWLINE_STRIPPED_KEYS = frozenset({
+    "id",
+    "component",
+    "child",
+    "surfaceId",
+    "catalogId",
+    "componentId",
+})
+
+
 class _Unfinished(Exception):
     """Raised where the text ends before a value that cannot be healed."""
 
@@ -173,7 +183,7 @@ class _Reader:
             elif self.text[self._i] != "]":
                 self._fail("expected ',' or ']'")
 
-    def _value(self, *, healable: bool) -> Any:
+    def _value(self, *, healable: bool, strip_newlines: bool = False) -> Any:
         if self._at_end:
             self._end()
         c = self.text[self._i]
@@ -182,7 +192,7 @@ class _Reader:
         if c == "[":
             return self._array()
         if c == '"':
-            return self._string(healable=healable)
+            return self._string(healable=healable, strip_newlines=strip_newlines)
         if c == "-" or ("0" <= c <= "9"):
             return self._number()
         for word, val in (("true", True), ("false", False), ("null", None)):
@@ -205,7 +215,7 @@ class _Reader:
                 return obj
             if self.text[self._i] != '"':
                 self._fail("expected a key")
-            key = self._string(healable=False, is_key=True)
+            key = self._string(healable=False, strip_newlines=True)
             self._skip_space()
             if self._at_end:
                 self._end()
@@ -213,18 +223,19 @@ class _Reader:
                 self._fail(f"expected ':' after key '{key}'")
             self._i += 1
             self._skip_space()
-            if (
-                not self._at_end
-                and self.text[self._i] == "["
-                and self._partial
-                and key in self.whole_item_keys
-            ):
-                obj[key] = self._array(whole_items=True)
+            if not self._at_end and self.text[self._i] == "[":
+                obj[key] = self._array(
+                    whole_items=self._partial and key in self.whole_item_keys,
+                    strip_item_newlines=(key == "children"),
+                )
             else:
                 healable_val = (
                     self.progressive_keys is not None and key in self.progressive_keys
                 )
-                obj[key] = self._value(healable=healable_val)
+                obj[key] = self._value(
+                    healable=healable_val,
+                    strip_newlines=(key in _NEWLINE_STRIPPED_KEYS),
+                )
             self._skip_space()
             if self._at_end:
                 return self._healed(obj)
@@ -233,7 +244,9 @@ class _Reader:
             elif self.text[self._i] != "}":
                 self._fail("expected ',' or '}'")
 
-    def _array(self, *, whole_items: bool = False) -> list[Any]:
+    def _array(
+        self, *, whole_items: bool = False, strip_item_newlines: bool = False
+    ) -> list[Any]:
         self._i += 1
         arr: list[Any] = []
         while True:
@@ -247,7 +260,9 @@ class _Reader:
                 cut_before = self._cut
                 self._cut = False
                 try:
-                    item = self._value(healable=False)
+                    item = self._value(
+                        healable=False, strip_newlines=strip_item_newlines
+                    )
                 except _Unfinished:
                     return self._healed(arr)
                 if self._cut:
@@ -255,7 +270,11 @@ class _Reader:
                 self._cut = cut_before
                 arr.append(item)
             else:
-                arr.append(self._value(healable=False))
+                arr.append(
+                    self._value(
+                        healable=False, strip_newlines=strip_item_newlines
+                    )
+                )
             self._skip_space()
             if self._at_end:
                 return self._healed(arr)
@@ -270,32 +289,19 @@ class _Reader:
         self._cut = True
         return value
 
-    def _string(self, *, healable: bool, is_key: bool = False) -> str:
+    def _string(self, *, healable: bool, strip_newlines: bool = False) -> str:
         self._i += 1
         buf: list[str] = []
-        raw_indices: set[int] = set()
         n = len(self.text)
         while not self._at_end:
             c = self.text[self._i]
             if c == '"':
                 self._i += 1
-                if not raw_indices:
-                    return "".join(buf)
-                has_space = " " in buf
-                start = 0
-                end = len(buf)
-                while start < end and start in raw_indices:
-                    start += 1
-                while end > start and (end - 1) in raw_indices:
-                    end -= 1
-                if is_key or not has_space:
-                    return "".join(
-                        buf[idx] for idx in range(start, end) if idx not in raw_indices
-                    )
-                return "".join(buf[start:end])
+                return "".join(buf)
             if c != "\\":
-                if c in ("\r", "\n"):
-                    raw_indices.add(len(buf))
+                if strip_newlines and c in ("\r", "\n"):
+                    self._i += 1
+                    continue
                 buf.append(c)
                 self._i += 1
                 continue

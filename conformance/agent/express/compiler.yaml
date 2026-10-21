@@ -63,6 +63,10 @@
 #   a map, an `Event` or a check is substituted wherever it is named, and emits
 #   nothing of its own. Without this rule the two would be indistinguishable,
 #   since both are written `name = value`.
+# - As compile-time repairs on top of `Express.g4` (whose `COMMENT` rule is
+#   `#` and `//` only), `--` single-line comments outside string literals, raw
+#   line breaks at the edges of standard double-quoted strings, and tokens
+#   split across a line break outside strings and comments are tolerated.
 # - A check written without parentheses supplies no message. `CheckRule.message`
 #   is optional, but a renderer with no message has nothing to show a user, so
 #   an implementation fills one in; its wording is not fixed here. That is what
@@ -1104,5 +1108,149 @@
   input: |-
     surface("main", catalogId="unknown")
     root = Text("hi")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_sql_style_comment_and_edge_newlines_repaired
+  description: A SQL-style -- comment outside strings is ignored and raw line breaks at the edges of a standard string literal are stripped.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    -- Greeting surface
+    root = Text("
+    Hello -- world
+    ")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello -- world"
+
+- name: test_compile_express_split_identifier_and_split_path_repaired
+  description: An identifier or data binding path broken across a line outside string literals is joined when the joined identifier resolves to a declared variable.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    greeting_
+    label = Text($/user/
+    name)
+    root = Card(
+      greeting_
+      label
+    )
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "greeting_label"
+            component: "Text"
+            text:
+              "@path": "/user/name"
+          - id: "root"
+            component: "Card"
+            child: "greeting_label"
+
+- name: test_compile_express_triple_quoted_strings_not_corrupted_by_line_joins
+  description: Triple-quoted strings containing newlines, commas, parentheses, assignments, and $/ paths are kept verbatim without line-join rewrites.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    c1 = Text("""Colors: red, green
+    blue, yellow""")
+    c2 = Text("""Shopping list:
+    apples
+    pears = 2 kg""")
+    c3 = Text("""Price in $/
+    month""")
+    root = Column([c1, c2, c3])
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "c1"
+            component: "Text"
+            text: "Colors: red, green\nblue, yellow"
+          - id: "c2"
+            component: "Text"
+            text: "Shopping list:\napples\npears = 2 kg"
+          - id: "c3"
+            component: "Text"
+            text: "Price in $/\nmonth"
+          - id: "root"
+            component: "Column"
+            children: ["c1", "c2", "c3"]
+
+- name: test_compile_express_missing_comma_between_defined_variables_is_a_parse_error
+  description: Two defined variable names separated by a newline without a comma inside a list fail to parse even when their concatenation is also a defined variable.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    header = Text("H")
+    body = Text("B")
+    headerbody = Text("HB")
+    root = Column([header
+    body])
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_express_positional_number_skips_optional_enums_to_weight
+  description: A trailing numeric positional argument skips optional enum properties when exactly one later property accepts numbers.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    t = Text("Hello", 2)
+    root = Column([t], 1)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/weighted"
+        components:
+          - id: "t"
+            component: "Text"
+            text: "Hello"
+            weight: 2
+          - id: "root"
+            component: "Column"
+            children: ["t"]
+            weight: 1
+
+- name: test_compile_express_positional_number_does_not_skip_non_enum_optional_property
+  description: A numeric positional argument at an optional string property that is not an enum does not skip ahead to weight and fails validation.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: 'root = Image("https://example.com/a.png", 200)'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_positional_number_followed_by_more_args_is_a_validation_error
+  description: A numeric positional argument that is not the last positional argument does not skip ahead to weight, and extra positional arguments are rejected.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    t = Text("Hello")
+    root = Column([t], 2, "center")
   expect_error:
     category: "ValidationError"

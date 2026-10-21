@@ -131,32 +131,6 @@ export function expectsOptionObjects(schema: unknown): boolean {
 }
 
 /**
- * Checks if a property's schema accepts a numeric value.
- *
- * @param schema The property JSON schema to inspect.
- * @returns True if the schema accepts a number or integer.
- */
-export function acceptsNumber(schema: unknown): boolean {
-  if (!schema || typeof schema !== 'object') {
-    return false;
-  }
-  const s = schema as Record<string, unknown>;
-  if (s.type === 'number' || s.type === 'integer') {
-    return true;
-  }
-  if (typeof s.$ref === 'string' && s.$ref.endsWith('Number')) {
-    return true;
-  }
-  for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
-    const list = s[key];
-    if (Array.isArray(list) && list.some(sub => acceptsNumber(sub))) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
  * Dynamic schema crawler for A2UI catalogs used by Express format.
  */
 
@@ -787,6 +761,69 @@ export class CatalogSchemaHelper {
         if ('path' in props || '@path' in props) {
           return true;
         }
+      }
+
+      if (typeof obj.$ref === 'string') {
+        const ref = obj.$ref;
+        const defName = commonDefName(ref);
+        if (defName) {
+          const resolved = this.lookupCommonDef(defName);
+          if (resolved && check(resolved, true)) {
+            return true;
+          }
+        } else if (
+          inCommonTypes &&
+          (ref.startsWith('#/$defs/') || ref.startsWith('#/definitions/'))
+        ) {
+          const name = ref.startsWith('#/$defs/') ? ref.slice(8) : ref.slice(14);
+          const resolved = this.lookupCommonDef(name);
+          if (resolved && check(resolved, true)) {
+            return true;
+          }
+        } else if (ref.startsWith('#/')) {
+          const resolved = this.resolveJsonPointer(this.catalog, ref);
+          if (resolved && check(resolved, false)) {
+            return true;
+          }
+        }
+      }
+
+      for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
+        const list = obj[key];
+        if (Array.isArray(list)) {
+          for (const sub of list) {
+            if (check(sub, inCommonTypes)) {
+              return true;
+            }
+          }
+        }
+      }
+
+      return false;
+    };
+
+    return check(schema, false);
+  }
+
+  /**
+   * Checks whether a property schema accepts a numeric value by resolving `$ref`s
+   * in `commonTypes` or the catalog document.
+   */
+  acceptsNumber(schema: unknown): boolean {
+    const visited = new Set<unknown>();
+
+    const check = (s: unknown, inCommonTypes: boolean): boolean => {
+      if (!s || typeof s !== 'object') {
+        return false;
+      }
+      if (visited.has(s)) {
+        return false;
+      }
+      visited.add(s);
+
+      const obj = s as Record<string, unknown>;
+      if (obj.type === 'number' || obj.type === 'integer') {
+        return true;
       }
 
       if (typeof obj.$ref === 'string') {

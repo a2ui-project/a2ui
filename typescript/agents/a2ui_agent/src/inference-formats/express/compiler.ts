@@ -23,8 +23,6 @@
  * Ported from origin/main's Python compiler.py.
  */
 
-import {CharStream, CommonTokenStream} from 'antlr4ng';
-
 import {A2uiCatalogError} from '../../errors.js';
 import {
   normalizeVersionString,
@@ -53,19 +51,14 @@ import {
   ExpressUnknownPropertyError,
   ExpressValidationError,
 } from './errors.js';
-import {ExpressLexer} from './generated/ExpressLexer.js';
-import {ExpressParser} from './generated/ExpressParser.js';
 import {
-  acceptsNumber,
   CatalogSchemaHelper,
   expectsOptionObjects,
   isActionSlot,
   type ReservedKeys,
 } from './schema-helper.js';
 import {
-  ExpressAstVisitor,
-  ExpressErrorListener,
-  normalizeExpressSource,
+  parseExpress,
   type ExpressCallValue,
   type ExpressCheckValue,
   type ExpressPathValue,
@@ -524,25 +517,14 @@ export class ExpressCompiler {
       }
     }
 
-    const dslBody = normalizeExpressSource(lines.join('\n'));
+    const dslBody = lines.join('\n');
 
     // ANTLR parsing and AST construction (compiler.py:256-291)
     let statements: ExpressStatement[] = [];
     try {
-      const inputStream = CharStream.fromString(dslBody);
-      const lexer = new ExpressLexer(inputStream);
-      const errorListener = new ExpressErrorListener();
-      lexer.removeErrorListeners();
-      lexer.addErrorListener(errorListener);
-
-      const tokenStream = new CommonTokenStream(lexer);
-      const parser = new ExpressParser(tokenStream);
-      parser.removeErrorListeners();
-      parser.addErrorListener(errorListener);
-
-      const tree = parser.program();
-      if (isFinal && errorListener.errors.length > 0) {
-        const [line, col, msg, isLexer] = errorListener.errors[0];
+      const parsed = parseExpress(dslBody);
+      if (isFinal && parsed.errors.length > 0) {
+        const [line, col, msg, isLexer] = parsed.errors[0];
         const err = new ExpressSyntaxError(
           `Syntax error at line ${line}:${col}: ${msg}`,
           line,
@@ -551,11 +533,7 @@ export class ExpressCompiler {
         );
         throw err;
       }
-
-      const firstErrorLine =
-        errorListener.errors.length > 0 ? errorListener.errors[0][0] : undefined;
-      const visitor = new ExpressAstVisitor(firstErrorLine);
-      statements = (visitor.visit(tree) as ExpressStatement[] | null) ?? [];
+      statements = parsed.statements;
     } catch (e: unknown) {
       if (!isFinal) {
         // Sanctioned swallow (compiler.py:286): when isFinal is false, syntax errors
@@ -918,6 +896,7 @@ export class ExpressCompiler {
     const propArgPairs: Array<[string, unknown]> = [];
     let propIdx = 0;
 
+    const posArgs: ExpressValue[] = [];
     for (const arg of args) {
       if (isCheckExpression(arg)) {
         if (Array.isArray(arg)) {
@@ -927,26 +906,60 @@ export class ExpressCompiler {
         }
         continue;
       }
+      posArgs.push(arg);
+    }
 
-      if (propIdx < nonCheckProperties.length) {
-        if (
-          typeof arg === 'number' &&
-          !acceptsNumber(compHelper.getPropertySchema(compName, nonCheckProperties[propIdx]))
-        ) {
+    const requiredProps = compHelper.getComponentRequired(compName);
+    for (let argIdx = 0; argIdx < posArgs.length; argIdx++) {
+      const arg = posArgs[argIdx];
+      if (propIdx >= nonCheckProperties.length) {
+        throw new ExpressValidationError(
+          `${compName} takes at most ${nonCheckProperties.length} positional arguments (${nonCheckProperties.join(', ')}), but component '${compId}' passes ${posArgs.length}.`,
+        );
+      }
+      if (
+        typeof arg === 'number' &&
+        !compHelper.acceptsNumber(compHelper.getPropertySchema(compName, nonCheckProperties[propIdx]))
+      ) {
+        let moved = false;
+        if (argIdx === posArgs.length - 1) {
+          const numericLater: number[] = [];
           for (let laterIdx = propIdx + 1; laterIdx < nonCheckProperties.length; laterIdx++) {
             const laterProp = nonCheckProperties[laterIdx];
             if (
               !(laterProp in rawKwargs) &&
-              acceptsNumber(compHelper.getPropertySchema(compName, laterProp))
+              compHelper.acceptsNumber(compHelper.getPropertySchema(compName, laterProp))
             ) {
-              propIdx = laterIdx;
-              break;
+              numericLater.push(laterIdx);
+            }
+          }
+          if (numericLater.length === 1) {
+            const targetIdx = numericLater[0];
+            let allOptionalEnums = true;
+            for (let idx = propIdx; idx < targetIdx; idx++) {
+              const skippedProp = nonCheckProperties[idx];
+              if (
+                requiredProps.includes(skippedProp) ||
+                !compHelper.getPropertyEnum(compName, skippedProp)?.length
+              ) {
+                allOptionalEnums = false;
+                break;
+              }
+            }
+            if (allOptionalEnums) {
+              propIdx = targetIdx;
+              moved = true;
             }
           }
         }
-        propArgPairs.push([nonCheckProperties[propIdx], arg]);
-        propIdx += 1;
+        if (!moved && !requiredProps.includes(nonCheckProperties[propIdx])) {
+          throw new ExpressValidationError(
+            `Positional argument ${argIdx + 1} for component '${compName}' is a number, which is not valid for optional property '${nonCheckProperties[propIdx]}'.`,
+          );
+        }
       }
+      propArgPairs.push([nonCheckProperties[propIdx], arg]);
+      propIdx += 1;
     }
 
     for (const [k, v] of Object.entries(rawKwargs)) {
@@ -1041,7 +1054,6 @@ export class ExpressCompiler {
       }
     }
 
-    const requiredProps = compHelper.getComponentRequired(compName);
     for (const reqProp of requiredProps) {
       if (reqProp === 'id' || reqProp === 'component') {
         continue;

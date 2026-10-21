@@ -52,6 +52,30 @@ class CatalogSchemaHelper {
   Map<String, Object?>? propertySchema(String component, String property) =>
       _signature(component).schemas[property];
 
+  /// Whether [schema] accepts a number literal, resolving `$ref`s against
+  /// [catalog]'s validation schema definitions.
+  bool acceptsNumber(Map<String, Object?>? schema) {
+    final visited = <Object>{};
+    final Object? defsObj = catalog.validationSchema[r'$defs'];
+    final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
+
+    bool check(Map<String, Object?>? s) {
+      if (s == null || !visited.add(s)) return false;
+      final Object? type = s['type'];
+      if (type == 'number' || type == 'integer') return true;
+      final String? ref = _refName(s);
+      if (ref != null && defs != null) {
+        final Object? resolved = defs[ref];
+        if (resolved is Map && check(resolved.cast<String, Object?>())) {
+          return true;
+        }
+      }
+      return _alternatives(s).any(check);
+    }
+
+    return check(schema);
+  }
+
   /// The component's own description, if its schema has one.
   String? componentDescription(String component) {
     final Map<String, Object?> schema = catalog
@@ -249,13 +273,4 @@ bool expectsOptionObjects(Map<String, Object?>? schema) {
     return hasLabelAndValue(items.cast<String, Object?>());
   }
   return _alternatives(schema).any(expectsOptionObjects);
-}
-
-/// Whether [schema] accepts a number literal.
-bool acceptsNumber(Map<String, Object?>? schema) {
-  if (schema == null) return false;
-  final Object? type = schema['type'];
-  if (type == 'number' || type == 'integer') return true;
-  if (_refName(schema)?.endsWith('Number') ?? false) return true;
-  return _alternatives(schema).any(acceptsNumber);
 }

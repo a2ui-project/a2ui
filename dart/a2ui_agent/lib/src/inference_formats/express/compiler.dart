@@ -591,29 +591,61 @@ class _SurfaceCompiler {
     final checks = <CheckNode>[];
     final assigned = <(String, ExpressNode)>[];
     var position = 0;
+    final posArgs = <ExpressNode>[];
     for (final ExpressNode arg in call.args) {
       if (_checksOf(arg) case final List<CheckNode> found) {
         checks.addAll(found);
         continue;
       }
+      posArgs.add(arg);
+    }
+    final List<String> required = helper.requiredProperties(name);
+    for (var argIdx = 0; argIdx < posArgs.length; argIdx++) {
+      final ExpressNode arg = posArgs[argIdx];
       if (position >= properties.length) {
         throw A2uiValidationError(
           '$name takes at most ${properties.length} positional arguments '
           "(${properties.join(', ')}), but component '$id' passes "
-          '${call.args.length}.',
+          '${posArgs.length}.',
         );
       }
-      if (arg case LiteralNode(value: final num _)
-          when !acceptsNumber(
+      if (arg is LiteralNode &&
+          arg.value is num &&
+          !helper.acceptsNumber(
             helper.propertySchema(name, properties[position]),
           )) {
-        for (int later = position + 1; later < properties.length; later++) {
-          final String candidate = properties[later];
-          if (!call.kwargs.containsKey(candidate) &&
-              acceptsNumber(helper.propertySchema(name, candidate))) {
-            position = later;
-            break;
+        var moved = false;
+        if (argIdx == posArgs.length - 1) {
+          final numericLater = <int>[
+            for (int later = position + 1; later < properties.length; later++)
+              if (!call.kwargs.containsKey(properties[later]) &&
+                  helper.acceptsNumber(
+                    helper.propertySchema(name, properties[later]),
+                  ))
+                later,
+          ];
+          if (numericLater.length == 1) {
+            final int target = numericLater.single;
+            bool canSkip(int idx) {
+              final String prop = properties[idx];
+              if (required.contains(prop)) return false;
+              if (enumOf(helper.propertySchema(name, prop)) != null) return true;
+              return prop == 'accessibility';
+            }
+
+            if ([for (int idx = position; idx < target; idx++) idx]
+                .every(canSkip)) {
+              position = target;
+              moved = true;
+            }
           }
+        }
+        if (!moved && !required.contains(properties[position])) {
+          throw A2uiValidationError(
+            "Positional argument ${argIdx + 1} for component '$name' is a "
+            'number, which is not valid for optional property '
+            "'${properties[position]}'.",
+          );
         }
       }
       assigned.add((properties[position++], arg));

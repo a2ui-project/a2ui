@@ -265,14 +265,25 @@ class _Reader {
     return (message: message, closed: !_cut);
   }
 
+  static const Set<String> _newlineStrippedKeys = {
+    'id',
+    'component',
+    'child',
+    'surfaceId',
+    'catalogId',
+    'componentId',
+  };
+
   /// Reads one value. [healable] says whether a string value may be closed
   /// early, which holds for the value of a progressive key.
-  Object? _value({required bool healable}) {
+  Object? _value({required bool healable, bool stripNewlines = false}) {
     if (_atEnd) _end();
     final String c = text[_i];
     if (c == '{') return _object();
     if (c == '[') return _array();
-    if (c == '"') return _string(healable: healable);
+    if (c == '"') {
+      return _string(healable: healable, stripNewlines: stripNewlines);
+    }
     if (c == '-' || _isDigit(c)) return _number();
     for (final (String word, Object? value) in const [
       ('true', true),
@@ -320,16 +331,21 @@ class _Reader {
         return map;
       }
       if (text[_i] != '"') _fail('expected a key');
-      final String key = _string(healable: false, isKey: true);
+      final String key = _string(healable: false, stripNewlines: true);
       _skipSpace();
       if (_atEnd) _end();
       if (text[_i] != ':') _fail("expected ':' after key '$key'");
       _i++;
       _skipSpace();
-      map[key] =
-          !_atEnd && text[_i] == '[' && _partial && wholeItemKeys.contains(key)
-          ? _array(wholeItems: true)
-          : _value(healable: progressiveKeys?.contains(key) ?? false);
+      map[key] = !_atEnd && text[_i] == '['
+          ? _array(
+              wholeItems: _partial && wholeItemKeys.contains(key),
+              stripItemNewlines: key == 'children',
+            )
+          : _value(
+              healable: progressiveKeys?.contains(key) ?? false,
+              stripNewlines: _newlineStrippedKeys.contains(key),
+            );
       _skipSpace();
       if (_atEnd) return _healed(map);
       if (text[_i] == ',') {
@@ -342,10 +358,20 @@ class _Reader {
 
   /// Reads a list. When [wholeItems] is true, an item the text ends in is
   /// left out rather than healed.
-  List<Object?> _array({bool wholeItems = false}) =>
-      _closedOr(() => _readArray(wholeItems: wholeItems));
+  List<Object?> _array({
+    bool wholeItems = false,
+    bool stripItemNewlines = false,
+  }) => _closedOr(
+    () => _readArray(
+      wholeItems: wholeItems,
+      stripItemNewlines: stripItemNewlines,
+    ),
+  );
 
-  List<Object?> _readArray({required bool wholeItems}) {
+  List<Object?> _readArray({
+    required bool wholeItems,
+    bool stripItemNewlines = false,
+  }) {
     final int start = _i;
     _i++;
     var list = <Object?>[];
@@ -393,13 +419,13 @@ class _Reader {
       final Object? item;
       if (wholeItems) {
         try {
-          item = _value(healable: false);
+          item = _value(healable: false, stripNewlines: stripItemNewlines);
         } on _Unfinished {
           return healed();
         }
         if (_cut) return healed();
       } else {
-        item = _value(healable: false);
+        item = _value(healable: false, stripNewlines: stripItemNewlines);
       }
       list.add(item);
       // An item closed early ends the text, so the list closes early too.
@@ -420,34 +446,20 @@ class _Reader {
   /// The start of a `\uXXXX` escape cut short, or nothing.
   static final RegExp _cutEscape = RegExp(r'^(\\(u[0-9a-fA-F]{0,3})?)?$');
 
-  String _string({required bool healable, bool isKey = false}) {
+  String _string({required bool healable, bool stripNewlines = false}) {
     _i++;
     final chars = <String>[];
-    final rawIndices = <int>{};
     while (!_atEnd) {
       final String c = text[_i];
       if (c == '"') {
         _i++;
-        if (rawIndices.isEmpty) return chars.join();
-        final bool hasSpace = chars.contains(' ');
-        var start = 0;
-        int end = chars.length;
-        while (start < end && rawIndices.contains(start)) {
-          start++;
-        }
-        while (end > start && rawIndices.contains(end - 1)) {
-          end--;
-        }
-        if (isKey || !hasSpace) {
-          return [
-            for (int idx = start; idx < end; idx++)
-              if (!rawIndices.contains(idx)) chars[idx],
-          ].join();
-        }
-        return chars.sublist(start, end).join();
+        return chars.join();
       }
       if (c != r'\') {
-        if (c == '\r' || c == '\n') rawIndices.add(chars.length);
+        if (stripNewlines && (c == '\r' || c == '\n')) {
+          _i++;
+          continue;
+        }
         chars.add(c);
         _i++;
         continue;

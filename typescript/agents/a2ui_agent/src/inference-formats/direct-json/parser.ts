@@ -59,10 +59,17 @@ export class DirectJsonParser extends Parser {
   }
 
   compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
-    if (!formatContent.trim()) {
+    const cleaned = formatContent
+      .trim()
+      .replace(/^```[A-Za-z0-9_-]*[ \t]*\r?\n?/, '')
+      .replace(/\r?\n?```\s*$/, '')
+      .trim()
+      .replace(/^`+|`+$/g, '')
+      .trim();
+    if (!cleaned) {
       throw new ParseError('A2UI JSON part is empty.');
     }
-    const jsonData = parseAndFix(formatContent);
+    const jsonData = parseAndFix(cleaned);
 
     if (isFinal) {
       validatePayload(this.catalogs, jsonData);

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/weighted_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Weighted Catalog (v1.0)",
+  "description": "A catalog for testing positional numeric argument placement when optional enum properties precede a numeric property such as weight.",
+  "catalogId": "conformance/weighted",
+  "components": {
+    "Text": {
+      "type": "object",
+      "description": "Displays a run of text.",
+      "properties": {
+        "component": { "const": "Text" },
+        "text": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "variant": {
+          "type": "string",
+          "enum": ["body", "caption"],
+          "default": "body"
+        },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "text"]
+    },
+    "Column": {
+      "type": "object",
+      "description": "A layout that stacks its children vertically.",
+      "properties": {
+        "component": { "const": "Column" },
+        "children": { "$ref": "common_types.json#/$defs/ChildList" },
+        "justify": {
+          "type": "string",
+          "enum": ["start", "center", "end"],
+          "default": "start"
+        },
+        "align": {
+          "type": "string",
+          "enum": ["start", "center", "end"],
+          "default": "start"
+        },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "children"]
+    },
+    "Image": {
+      "type": "object",
+      "description": "Displays an image.",
+      "properties": {
+        "component": { "const": "Image" },
+        "url": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "description": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "url"]
+    },
+    "TextField": {
+      "type": "object",
+      "description": "A single-line text input.",
+      "properties": {
+        "component": { "const": "TextField" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "value": { "$ref": "common_types.json#/$defs/DataBinding" },
+        "placeholder": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "label"]
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/Text" },
+        { "$ref": "#/components/Column" },
+        { "$ref": "#/components/Image" },
+        { "$ref": "#/components/TextField" }
+      ],
+      "discriminator": { "propertyName": "component" }
+    },
+    "anyFunction": {
+      "not": {}
+    }
+  }
+}

@@ -127,26 +127,117 @@ final class ExpressionStatement extends ExpressStatement {
 final RegExp _sqlCommentOrToken = RegExp(
   r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)',
 );
-final RegExp _splitDataPath = RegExp(r'\$/\r?\n[ \t]*([a-zA-Z0-9_/]+)');
-final RegExp _splitLhsIdentifier = RegExp(
-  r'^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z0-9_]+[ \t]*=)',
+final RegExp _declaredLhs = RegExp(
+  r'^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)',
   multiLine: true,
 );
+final RegExp _splitLhsIdentifier = RegExp(
+  r'^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*=(?!=))',
+  multiLine: true,
+);
+final RegExp _splitDataPath = RegExp(
+  r'(\$[a-zA-Z0-9_/]*/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)',
+);
 final RegExp _splitArgIdentifier = RegExp(
-  r'([(\[,:=]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z0-9_]+(?=\s*[,)\]}]))',
+  r'([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)',
 );
 final RegExp _edgeNewlines = RegExp(r'^[\r\n]+|[\r\n]+$');
+
+String _normalizeExpressSource(String source) {
+  final segments = <(bool isTok, String text)>[];
+  var pos = 0;
+  for (final RegExpMatch m in _sqlCommentOrToken.allMatches(source)) {
+    if (m.start > pos) {
+      segments.add((false, source.substring(pos, m.start)));
+    }
+    if (m[1] case final String tok) {
+      segments.add((true, tok));
+    } else {
+      segments.add((true, '//${m[2] ?? ''}'));
+    }
+    pos = m.end;
+  }
+  if (pos < source.length) {
+    segments.add((false, source.substring(pos)));
+  }
+
+  final splitP2Starts = <(int, int)>{
+    for (int segIdx = 0; segIdx < segments.length; segIdx++)
+      if (!segments[segIdx].$1)
+        for (final RegExpMatch m
+            in _splitLhsIdentifier.allMatches(segments[segIdx].$2))
+          (segIdx, m.end - m[3]!.length),
+  };
+
+  final directDeclared = <String>{
+    for (int segIdx = 0; segIdx < segments.length; segIdx++)
+      if (!segments[segIdx].$1)
+        for (final RegExpMatch m
+            in _declaredLhs.allMatches(segments[segIdx].$2))
+          if (!splitP2Starts.contains((
+            segIdx,
+            m.start + m[0]!.indexOf(m[1]!),
+          )))
+            m[1]!,
+  };
+
+  final declared = <String>{...directDeclared};
+  for (final (bool isTok, String seg) in segments) {
+    if (!isTok) {
+      for (final RegExpMatch m in _splitLhsIdentifier.allMatches(seg)) {
+        final String p1 = m[1]!.trim();
+        final String p2 = m[3]!;
+        if (!directDeclared.contains(p1) && !directDeclared.contains(p2)) {
+          declared.add('$p1$p2');
+        }
+      }
+    }
+  }
+
+  final out = StringBuffer();
+  for (final (bool isTok, String seg) in segments) {
+    if (isTok) {
+      out.write(seg);
+      continue;
+    }
+    String text = seg.replaceAllMapped(
+      _splitDataPath,
+      (m) => '${m[1]}${m[3]}${m[2]}',
+    );
+    text = text.replaceAllMapped(_splitLhsIdentifier, (m) {
+      final String p1Raw = m[1]!;
+      final String nl = m[2]!;
+      final String p2 = m[3]!;
+      final String p1 = p1Raw.trim();
+      if (!directDeclared.contains(p1) && !directDeclared.contains(p2)) {
+        return '$p1Raw$p2$nl';
+      }
+      return m[0]!;
+    });
+    text = text.replaceAllMapped(_splitArgIdentifier, (m) {
+      final String prefix = m[1]!;
+      final String p1 = m[2]!;
+      final String nl = m[3]!;
+      final String p2 = m[4]!;
+      final String joined = '$p1$p2';
+      if (declared.contains(joined) &&
+          !declared.contains(p1) &&
+          !declared.contains(p2)) {
+        return '$prefix$joined$nl';
+      }
+      return m[0]!;
+    });
+    out.write(text);
+  }
+  return out.toString();
+}
 
 /// Parses an Express block into its statements.
 ///
 /// Throws [A2uiParseError] if [source] does not match the grammar.
 List<ExpressStatement> parseExpress(String source) {
-  final String normalized = source
-      .replaceAllMapped(_sqlCommentOrToken, (m) => m[1] ?? '//${m[2] ?? ''}')
-      .replaceAllMapped(_splitDataPath, (m) => '\$/${m[1]}')
-      .replaceAllMapped(_splitLhsIdentifier, (m) => '${m[1]}${m[2]}')
-      .replaceAllMapped(_splitArgIdentifier, (m) => '${m[1]}${m[2]}');
-  final listener = _ErrorListener(normalized);
+  final String normalized = _normalizeExpressSource(source);
+  final listener = _ErrorListener(source);
   final lexer = ExpressLexer(InputStream.fromString(normalized))
     ..removeErrorListeners()
     ..addErrorListener(listener);

@@ -224,20 +224,93 @@ def _schema_expects_option_objects(schema: Any) -> bool:
     return False
 
 
-def _schema_accepts_number(schema: Any) -> bool:
-    """Checks if a property's schema accepts a numeric value."""
-    if not isinstance(schema, dict):
-        return False
-    if schema.get("type") in ("number", "integer"):
-        return True
-    ref = schema.get("$ref")
-    if isinstance(ref, str) and ref.endswith("Number"):
-        return True
-    for key in ("allOf", "oneOf", "anyOf"):
-        subs = schema.get(key)
-        if isinstance(subs, list) and any(_schema_accepts_number(sub) for sub in subs):
-            return True
-    return False
+_SQL_COMMENT_OR_TOKEN_RE = re.compile(
+    r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)'
+)
+_DECLARED_LHS_RE = re.compile(
+    r"(?m)^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)"
+)
+_SPLIT_LHS_RE = re.compile(
+    r"(?m)^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*=(?!=))"
+)
+_SPLIT_DATA_PATH_RE = re.compile(
+    r"(\$[a-zA-Z0-9_/]*/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)"
+)
+_SPLIT_ARG_IDENT_RE = re.compile(
+    r"([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)"
+)
+
+
+def _normalize_express_source(source: str) -> str:
+    """Normalizes `--` comments and line-broken tokens outside strings and comments.
+
+    Preserves line counts so syntax error line numbers match the original source.
+    """
+    segments: list[tuple[bool, str]] = []
+    pos = 0
+    for m in _SQL_COMMENT_OR_TOKEN_RE.finditer(source):
+        if m.start() > pos:
+            segments.append((False, source[pos : m.start()]))
+        if m.group(1) is not None:
+            segments.append((True, m.group(1)))
+        else:
+            segments.append((True, f"//{m.group(2)}"))
+        pos = m.end()
+    if pos < len(source):
+        segments.append((False, source[pos:]))
+
+    split_p2_starts = {
+        sm.start(3)
+        for is_tok, seg in segments
+        if not is_tok
+        for sm in _SPLIT_LHS_RE.finditer(seg)
+    }
+    direct_declared: set[str] = set()
+    for is_tok, seg in segments:
+        if not is_tok:
+            for dm in _DECLARED_LHS_RE.finditer(seg):
+                if dm.start(1) not in split_p2_starts:
+                    direct_declared.add(dm.group(1))
+
+    declared = set(direct_declared)
+    for is_tok, seg in segments:
+        if not is_tok:
+            for sm in _SPLIT_LHS_RE.finditer(seg):
+                p1 = sm.group(1).strip()
+                p2 = sm.group(3)
+                if p1 not in direct_declared and p2 not in direct_declared:
+                    declared.add(p1 + p2)
+
+    out: list[str] = []
+    for is_tok, seg in segments:
+        if is_tok:
+            out.append(seg)
+            continue
+        seg = _SPLIT_DATA_PATH_RE.sub(r"\1\3\2", seg)
+
+        def _join_lhs(m: re.Match[str]) -> str:
+            p1_raw, nl, p2 = m.group(1), m.group(2), m.group(3)
+            p1 = p1_raw.strip()
+            if p1 not in direct_declared and p2 not in direct_declared:
+                return f"{p1_raw}{p2}{nl}"
+            return m.group(0)
+
+        seg = _SPLIT_LHS_RE.sub(_join_lhs, seg)
+
+        def _join_arg(m: re.Match[str]) -> str:
+            prefix, p1, nl, p2 = m.group(1), m.group(2), m.group(3), m.group(4)
+            joined = p1 + p2
+            if (
+                joined in declared
+                and p1 not in declared
+                and p2 not in declared
+            ):
+                return f"{prefix}{joined}{nl}"
+            return m.group(0)
+
+        seg = _SPLIT_ARG_IDENT_RE.sub(_join_arg, seg)
+        out.append(seg)
+    return "".join(out)
 
 
 def _is_check_expression(val: Any) -> bool:
@@ -521,29 +594,7 @@ class ExpressCompiler:
             if inside_a2ui:
                 lines.append(line)
 
-        dsl_body = "\n".join(lines)
-        dsl_body = re.sub(
-            r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)',
-            lambda m: m.group(1) if m.group(1) is not None else f"//{m.group(2)}",
-            dsl_body,
-        )
-        dsl_body = re.sub(
-            r"\$/\r?\n[ \t]*([a-zA-Z0-9_/]+)",
-            r"$/\1",
-            dsl_body,
-        )
-        dsl_body = re.sub(
-            r"(?m)^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n["
-            r" \t]*([a-zA-Z0-9_]+[ \t]*=)",
-            r"\1\2",
-            dsl_body,
-        )
-        dsl_body = re.sub(
-            r"([(\[,:=]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n["
-            r" \t]*([a-zA-Z0-9_]+(?=\s*[,)\]}]))",
-            r"\1\2",
-            dsl_body,
-        )
+        dsl_body = _normalize_express_source("\n".join(lines))
 
         input_stream = InputStream(dsl_body)
         lexer = ExpressLexer(input_stream)
@@ -951,7 +1002,7 @@ class ExpressCompiler:
 
         # Collect (prop_name, arg_val) pairs from positional and keyword args
         prop_arg_pairs = []
-        prop_idx = 0
+        pos_args = []
         for arg in args:
             if _is_check_expression(arg):
                 if isinstance(arg, list):
@@ -959,26 +1010,61 @@ class ExpressCompiler:
                 else:
                     raw_checks.append(arg)
                 continue
+            pos_args.append(arg)
 
-            if prop_idx < len(non_check_properties):
-                if (
-                    isinstance(arg, (int, float))
-                    and not isinstance(arg, bool)
-                    and not _schema_accepts_number(
-                        comp_helper.get_property_schema(
-                            comp_name, non_check_properties[prop_idx]
-                        )
+        required_props = set(comp_helper.get_component_required(comp_name))
+        prop_idx = 0
+        for arg_idx, arg in enumerate(pos_args):
+            if prop_idx >= len(non_check_properties):
+                raise ExpressValidationError(
+                    f"{comp_name} takes at most {len(non_check_properties)}"
+                    f" positional arguments ({', '.join(non_check_properties)}),"
+                    f" but component '{comp_id}' passes {len(pos_args)}."
+                )
+            if (
+                isinstance(arg, (int, float))
+                and not isinstance(arg, bool)
+                and not comp_helper.accepts_number(
+                    comp_helper.get_property_schema(
+                        comp_name, non_check_properties[prop_idx]
                     )
-                ):
-                    for later_idx in range(prop_idx + 1, len(non_check_properties)):
-                        later_prop = non_check_properties[later_idx]
-                        if later_prop not in kwargs and _schema_accepts_number(
-                            comp_helper.get_property_schema(comp_name, later_prop)
+                )
+            ):
+                moved = False
+                if arg_idx == len(pos_args) - 1:
+                    numeric_later = [
+                        later_idx
+                        for later_idx in range(
+                            prop_idx + 1, len(non_check_properties)
+                        )
+                        if non_check_properties[later_idx] not in kwargs
+                        and comp_helper.accepts_number(
+                            comp_helper.get_property_schema(
+                                comp_name, non_check_properties[later_idx]
+                            )
+                        )
+                    ]
+                    if len(numeric_later) == 1:
+                        target_idx = numeric_later[0]
+                        if all(
+                            non_check_properties[idx] not in required_props
+                            and bool(
+                                comp_helper.get_property_enum(
+                                    comp_name, non_check_properties[idx]
+                                )
+                            )
+                            for idx in range(prop_idx, target_idx)
                         ):
-                            prop_idx = later_idx
-                            break
-                prop_arg_pairs.append((non_check_properties[prop_idx], arg))
-                prop_idx += 1
+                            prop_idx = target_idx
+                            moved = True
+                if not moved and non_check_properties[prop_idx] not in required_props:
+                    raise ExpressValidationError(
+                        f"Positional argument {arg_idx + 1} for component"
+                        f" '{comp_name}' is a number, which is not valid for"
+                        f" optional property '{non_check_properties[prop_idx]}'."
+                    )
+            prop_arg_pairs.append((non_check_properties[prop_idx], arg))
+            prop_idx += 1
 
         for k, v in kwargs.items():
             if _is_check_expression(v):

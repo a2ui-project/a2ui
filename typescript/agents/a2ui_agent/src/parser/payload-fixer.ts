@@ -16,6 +16,15 @@
 
 import {ParseError} from '../errors.js';
 
+const NEWLINE_STRIPPED_KEYS = new Set([
+  'id',
+  'component',
+  'child',
+  'surfaceId',
+  'catalogId',
+  'componentId',
+]);
+
 /**
  * Validates and applies autofixes to a raw JSON string and returns the parsed payload.
  *
@@ -23,12 +32,16 @@ import {ParseError} from '../errors.js';
  * @returns A parsed and potentially fixed payload (array of objects).
  */
 export function parseAndFix(payload: string): Record<string, unknown>[] {
-  const normalizedPayload = repairStringNewlines(normalizeSmartQuotes(payload));
   try {
-    return parse(normalizedPayload);
+    return parse(payload);
   } catch {
-    const updatedPayload = removeTrailingCommas(normalizedPayload);
-    return parse(updatedPayload);
+    const normalizedPayload = repairStringNewlines(normalizeSmartQuotes(payload));
+    try {
+      return parse(normalizedPayload);
+    } catch {
+      const updatedPayload = removeTrailingCommas(normalizedPayload);
+      return parse(updatedPayload);
+    }
   }
 }
 
@@ -72,25 +85,47 @@ function normalizeSmartQuotes(jsonStr: string): string {
 
 /**
  * Repairs raw unescaped line breaks inside JSON string literals.
+ *
+ * Strips raw `\r` and `\n` inside object keys and identifier-like property
+ * values (`id`, `component`, `child`, `surfaceId`, `catalogId`, `componentId`,
+ * and string items of `children` arrays), while escaping raw `\r` and `\n` in
+ * all other string values so free-form text preserves its line breaks.
  */
 function repairStringNewlines(jsonStr: string): string {
   const out: string[] = [];
+  const stack: Array<{type: 'object' | 'array'; parentKey?: string}> = [];
+  let lastKey: string | undefined;
   let i = 0;
   const n = jsonStr.length;
   while (i < n) {
-    if (jsonStr[i] !== '"') {
-      out.push(jsonStr[i]);
+    const ch = jsonStr[i];
+    if (ch !== '"') {
+      if (ch === '{') {
+        stack.push({type: 'object'});
+        lastKey = undefined;
+      } else if (ch === '}') {
+        stack.pop();
+        lastKey = undefined;
+      } else if (ch === '[') {
+        stack.push({type: 'array', parentKey: lastKey});
+        lastKey = undefined;
+      } else if (ch === ']') {
+        stack.pop();
+        lastKey = undefined;
+      } else if (ch === ',' && stack[stack.length - 1]?.type === 'object') {
+        lastKey = undefined;
+      }
+      out.push(ch);
       i++;
       continue;
     }
     const strChars: string[] = [];
-    const rawIndices = new Set<number>();
     i++; // skip opening quote
     let closed = false;
     while (i < n) {
-      const ch = jsonStr[i];
-      if (ch === '\\') {
-        strChars.push(ch);
+      const c = jsonStr[i];
+      if (c === '\\') {
+        strChars.push(c);
         i++;
         if (i < n) {
           strChars.push(jsonStr[i]);
@@ -98,41 +133,45 @@ function repairStringNewlines(jsonStr: string): string {
         }
         continue;
       }
-      if (ch === '"') {
+      if (c === '"') {
         closed = true;
         i++;
         break;
       }
-      if (ch === '\r' || ch === '\n') {
-        rawIndices.add(strChars.length);
-      }
-      strChars.push(ch);
+      strChars.push(c);
       i++;
     }
-    if (!closed || rawIndices.size === 0) {
-      out.push('"', ...strChars);
-      if (closed) out.push('"');
+    if (!closed) {
+      out.push('"', strChars.join(''));
       continue;
     }
     let lookahead = i;
     while (lookahead < n && /\s/.test(jsonStr[lookahead])) lookahead++;
     const isKey = lookahead < n && jsonStr[lookahead] === ':';
-    const hasSpace = strChars.includes(' ');
-    let start = 0;
-    let end = strChars.length;
-    while (start < end && rawIndices.has(start)) start++;
-    while (end > start && rawIndices.has(end - 1)) end--;
-    out.push('"');
-    for (let idx = start; idx < end; idx++) {
-      if (rawIndices.has(idx)) {
-        if (!isKey && hasSpace) {
-          out.push(strChars[idx] === '\n' ? '\\n' : '');
+    const top = stack[stack.length - 1];
+    const inChildrenArray = top?.type === 'array' && top.parentKey === 'children';
+    const stripNewlines =
+      isKey ||
+      (lastKey !== undefined && NEWLINE_STRIPPED_KEYS.has(lastKey)) ||
+      inChildrenArray;
+
+    const processed: string[] = [];
+    for (const c of strChars) {
+      if (c === '\r' || c === '\n') {
+        if (!stripNewlines) {
+          processed.push(c === '\r' ? '\\r' : '\\n');
         }
       } else {
-        out.push(strChars[idx]);
+        processed.push(c);
       }
     }
-    out.push('"');
+    const inner = processed.join('');
+    if (isKey) {
+      lastKey = inner;
+    } else if (top?.type === 'object') {
+      lastKey = undefined;
+    }
+    out.push('"', inner, '"');
   }
   return out.join('');
 }

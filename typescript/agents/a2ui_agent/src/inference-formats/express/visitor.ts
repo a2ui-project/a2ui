@@ -415,27 +415,109 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
 
 const SQL_COMMENT_OR_TOKEN_REGEX =
   /([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|\/\/)[^\r\n]*|\/\*[\s\S]*?\*\/)|--([^\r\n]*)/g;
+const DECLARED_LHS_REGEX = /^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)/gm;
+const SPLIT_LHS_REGEX =
+  /^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*=(?!=))/gm;
+const SPLIT_DATA_PATH_REGEX = /(\$[a-zA-Z0-9_/]*\/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)/g;
+const SPLIT_ARG_IDENT_REGEX =
+  /([([,:=][ \t]*\r?\n?[ \t]*|[([,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)/g;
+
+/**
+ * Normalizes `--` comments and line-broken tokens outside strings and comments,
+ * keeping line counts intact so syntax error positions match the original source.
+ */
+export function normalizeExpressSource(source: string): string {
+  const segments: Array<{isTok: boolean; text: string}> = [];
+  let pos = 0;
+  for (const m of source.matchAll(SQL_COMMENT_OR_TOKEN_REGEX)) {
+    const idx = m.index ?? 0;
+    if (idx > pos) {
+      segments.push({isTok: false, text: source.slice(pos, idx)});
+    }
+    if (m[1] !== undefined) {
+      segments.push({isTok: true, text: m[1]});
+    } else {
+      segments.push({isTok: true, text: `//${m[2] ?? ''}`});
+    }
+    pos = idx + m[0].length;
+  }
+  if (pos < source.length) {
+    segments.push({isTok: false, text: source.slice(pos)});
+  }
+
+  const splitP2Starts = new Set<string>();
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
+    if (!seg.isTok) {
+      for (const m of seg.text.matchAll(SPLIT_LHS_REGEX)) {
+        const fullIdx = m.index ?? 0;
+        const p2Offset = fullIdx + m[0].length - m[3].length;
+        splitP2Starts.add(`${segIdx}:${p2Offset}`);
+      }
+    }
+  }
+
+  const directDeclared = new Set<string>();
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
+    if (!seg.isTok) {
+      for (const m of seg.text.matchAll(DECLARED_LHS_REGEX)) {
+        const fullIdx = m.index ?? 0;
+        const identOffset = fullIdx + m[0].indexOf(m[1]);
+        if (!splitP2Starts.has(`${segIdx}:${identOffset}`)) {
+          directDeclared.add(m[1]);
+        }
+      }
+    }
+  }
+
+  const declared = new Set<string>(directDeclared);
+  for (const seg of segments) {
+    if (!seg.isTok) {
+      for (const m of seg.text.matchAll(SPLIT_LHS_REGEX)) {
+        const p1 = m[1].trim();
+        const p2 = m[3];
+        if (!directDeclared.has(p1) && !directDeclared.has(p2)) {
+          declared.add(p1 + p2);
+        }
+      }
+    }
+  }
+
+  const out: string[] = [];
+  for (const seg of segments) {
+    if (seg.isTok) {
+      out.push(seg.text);
+      continue;
+    }
+    let text = seg.text.replace(SPLIT_DATA_PATH_REGEX, '$1$3$2');
+    text = text.replace(SPLIT_LHS_REGEX, (full, p1Raw: string, nl: string, p2: string) => {
+      const p1 = p1Raw.trim();
+      if (!directDeclared.has(p1) && !directDeclared.has(p2)) {
+        return `${p1Raw}${p2}${nl}`;
+      }
+      return full;
+    });
+    text = text.replace(
+      SPLIT_ARG_IDENT_REGEX,
+      (full, prefix: string, p1: string, nl: string, p2: string) => {
+        const joined = p1 + p2;
+        if (declared.has(joined) && !declared.has(p1) && !declared.has(p2)) {
+          return `${prefix}${joined}${nl}`;
+        }
+        return full;
+      },
+    );
+    out.push(text);
+  }
+  return out.join('');
+}
 
 /**
  * Parses Express DSL source into syntax errors and statements.
  *
  * Runs the parsing pipeline mirroring compiler.py:256-283.
  */
-export function normalizeExpressSource(source: string): string {
-  return source
-    .replace(
-      SQL_COMMENT_OR_TOKEN_REGEX,
-      (_m, token: string | undefined, comment: string | undefined) =>
-        token !== undefined ? token : `//${comment ?? ''}`,
-    )
-    .replace(/\$\/\r?\n[ \t]*([a-zA-Z0-9_/]+)/g, '$/$1')
-    .replace(/^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z0-9_]+[ \t]*=)/gm, '$1$2')
-    .replace(
-      /([([,:=]\s*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*\r?\n[ \t]*([a-zA-Z0-9_]+(?=\s*[,)\]}]))/g,
-      '$1$2',
-    );
-}
-
 export function parseExpress(source: string): {
   errors: ExpressErrorRecord[];
   statements: ExpressStatement[];

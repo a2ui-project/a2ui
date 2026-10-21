@@ -84,4 +84,11 @@ describe('PayloadFixer', () => {
       },
     ]);
   });
+
+  it('handles 200k-character strings without throwing RangeError', () => {
+    const largeText = 'A'.repeat(200_000);
+    const payload = `[{"id": "\\ncard1", "text": "${largeText}"}]`.replace('\\n', '\n');
+    const res = parseAndFix(payload);
+    expect(res).toEqual([{id: 'card1', text: largeText}]);
+  });
 });
