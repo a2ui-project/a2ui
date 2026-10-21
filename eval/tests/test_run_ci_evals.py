@@ -88,8 +88,6 @@ def test_build_main_command_default() -> None:
         f"logs/{seed}",
         "--max-retries",
         "10",
-        "--max-tasks",
-        "1",
         "--grading-model",
         "google/gemini-3.6-flash",
         "--limit",
