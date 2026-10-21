@@ -15,21 +15,21 @@
  */
 
 /**
- * Copies the canonical VegaChart catalog schema from the top-level `catalogs/`
- * directory into `src/catalog.json` before `tsc` runs, so the published npm
- * tarball stays self-contained and bundles the exact `catalog.json` it
- * implements (exposed as `@a2ui/catalog-vegachart/catalog.json`).
+ * Copies the canonical VegaChart catalog schemas from the top-level
+ * `catalogs/vegachart/` directory into `src/` before `tsc` runs, so the
+ * published npm tarball bundles the exact schemas it implements (exposed as
+ * `@a2ui/catalog-vegachart/v0_9/catalog.json` and `.../v1/catalog.json`).
  */
 
-(async () => {
-  const {copyFileSync, mkdirSync} = await import('node:fs');
-  const {dirname, resolve} = await import('node:path');
-  const {fileURLToPath} = await import('node:url');
+import {copyFileSync, mkdirSync} from 'node:fs';
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
-  const pkgRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  const src = resolve(pkgRoot, '../../../catalogs/vegachart/catalog.json');
-  const dest = resolve(pkgRoot, 'src/catalog.json');
+const pkgRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const catalogsRoot = resolve(pkgRoot, '../../../catalogs/vegachart');
 
+for (const version of ['v0_9', 'v1']) {
+  const dest = resolve(pkgRoot, 'src', version, 'catalog.json');
   mkdirSync(dirname(dest), {recursive: true});
-  copyFileSync(src, dest);
-})();
+  copyFileSync(resolve(catalogsRoot, version, 'catalog.json'), dest);
+}

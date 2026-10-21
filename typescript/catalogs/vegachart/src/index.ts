@@ -14,23 +14,28 @@
  * limitations under the License.
  */
 
+/**
+ * A2UI VegaChart catalog.
+ *
+ * Import `@a2ui/catalog-vegachart/v0_9` or `@a2ui/catalog-vegachart/v1` for a
+ * single protocol version. This root entry re-exports both.
+ */
+
 export {
-  A2uiVegaChart,
   A2uiVegaChartElement,
-  A2uiVegaChartV1,
-  CatalogComponentCommonSchema,
-  createVegaChartCatalog,
-  createVegaChartV1Catalog,
+  calculateFacetSize,
   DEFAULT_HEIGHT,
+  type FacetSize,
+  FALLBACK_WIDTH_PX,
   transformSpec,
-  VEGACHART_CATALOG_ID,
-  VEGACHART_V1_CATALOG_ID,
-  VegaChartApi,
-  vegachartCatalog,
-  type VegaChartCatalogOptions,
-  VegaChartV1Api,
-  vegachartV1Catalog,
   type VegaEmbedFn,
   type VegaEmbedOptions,
   type VegaEmbedResult,
 } from './components/vegaChart.js';
+export {A2uiVegaChart, VEGACHART_CATALOG_ID, VegaChartApi, vegachartCatalog} from './v0_9/index.js';
+export {
+  A2uiVegaChartV1,
+  VEGACHART_V1_CATALOG_ID,
+  VegaChartV1Api,
+  vegachartV1Catalog,
+} from './v1/index.js';

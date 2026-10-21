@@ -1,2 +1,3 @@
-# Copied from catalogs/vegachart/catalog.json by scripts/copy-catalog.js
-src/catalog.json
+# Copied from catalogs/vegachart/ by scripts/copy-catalog.js
+src/v0_9/catalog.json
+src/v1/catalog.json

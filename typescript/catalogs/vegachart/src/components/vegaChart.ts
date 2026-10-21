@@ -17,38 +17,22 @@
 // tslint:disable:no-new-decorators
 import {css, html, LitElement, type PropertyValues} from 'lit';
 import {property} from 'lit/decorators.js';
-import {z} from 'zod';
 
-import {
-  A2uiController,
-  A2uiLitElement,
-  Catalog,
-  type ComponentApi,
-  DynamicNumberSchema,
-  type DynamicValue,
-  DynamicValueSchema,
-  type FunctionImplementation,
-  spec,
-  specDef,
-  type WebComponentImplementation,
-} from '@a2ui/web_core/v1_0';
+import {A2uiLitElement} from '@a2ui/web_core/v1_0';
 
-/**
- * The canonical catalog ID of the A2UI VegaChart catalog (protocol v0.9).
- * Matches `$id` and `catalogId` in `catalogs/vegachart/catalog.json`.
- */
-export const VEGACHART_CATALOG_ID =
-  'https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json';
+import type {VegaChartApi} from '../v0_9/index.js';
+import type {VegaChartV1Api} from '../v1/index.js';
 
-/**
- * The canonical catalog ID of the A2UI VegaChart v1 catalog (protocol v1.0).
- * Matches `$id` and `catalogId` in `catalogs/vegachart/v1/catalog.json`.
- */
-export const VEGACHART_V1_CATALOG_ID =
-  'https://a2ui.org/specification/v1_0/catalogs/vegachart/catalog.json';
-
-/** Default height of the VegaChart component in pixels when `height` is not specified. */
+/** Default chart height in pixels when `height` is not specified. */
 export const DEFAULT_HEIGHT = 290;
+
+/**
+ * Width in pixels used when the container reports `width: 0` on two
+ * consecutive animation frames, for example inside an intrinsically sized flex
+ * item. The `ResizeObserver` re-renders at the measured width once the
+ * container gets one.
+ */
+export const FALLBACK_WIDTH_PX = 400;
 
 const MIN_FACET_WIDTH = 150;
 const FACET_DEFAULT_COLUMNS = 3;
@@ -106,8 +90,8 @@ export interface VegaEmbedOptions {
 }
 
 /**
- * Signature for an embed function (such as `vega-embed` or a sandboxed Vega
- * renderer) that renders a Vega/Vega-Lite specification into a DOM element.
+ * Renders a Vega or Vega-Lite specification into a DOM element. `vega-embed`
+ * has this signature; a sandboxed renderer or a test double can replace it.
  */
 export type VegaEmbedFn = (
   el: HTMLElement,
@@ -128,108 +112,13 @@ async function defaultVegaEmbed(
   return embedFn(el, chartSpec, options);
 }
 
-/** Common layout mixin for v0.9 catalog components. */
-export const CatalogComponentCommonSchema = specDef(
-  'CatalogComponentCommon',
-  z.object({
-    weight: z
-      .number()
-      .describe(
-        "The relative weight of this component within a Row or Column. This corresponds to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-      )
-      .optional(),
-  }),
-);
-
-const V09SpecSchema: z.ZodType<DynamicValue> = spec(
-  z.unknown().superRefine((val, ctx) => {
-    const parsed = DynamicValueSchema.safeParse(val);
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        ctx.addIssue(issue);
-      }
-    }
-  }),
-  {
-    keywords: {
-      description: 'The Vega-Lite spec to render as a JSON object.',
-      anyOf: [
-        {
-          $ref: 'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue',
-        },
-        {
-          type: 'object',
-        },
-      ],
-    },
-  },
-);
-Object.defineProperty(V09SpecSchema, 'description', {
-  value: 'REF:#/$defs/DynamicValue',
-});
-
-/**
- * Component API definition for `VegaChart` (protocol v0.9).
- * Matches `catalogs/vegachart/catalog.json`.
- */
-export const VegaChartApi = {
-  name: 'VegaChart',
-  schema: spec(
-    z
-      .object({
-        ...CatalogComponentCommonSchema.shape,
-        spec: V09SpecSchema,
-        height: DynamicNumberSchema.describe(
-          'REF:#/$defs/DynamicNumber|Optional height of the chart in pixels. Defaults to 290.',
-        ).optional(),
-      })
-      .describe('Displays a Vega or Vega-Lite chart.')
-      .strict(),
-    {
-      mixins: ['ComponentCommon', CatalogComponentCommonSchema],
-      required: ['spec'],
-    },
-  ),
-} satisfies ComponentApi;
-
-/**
- * Component API definition for `VegaChart` (protocol v1.0).
- * Matches `catalogs/vegachart/v1/catalog.json`.
- */
-export const VegaChartV1Api = {
-  name: 'VegaChart',
-  schema: spec(
-    z
-      .object({
-        spec: DynamicValueSchema.describe(
-          'REF:#/$defs/DynamicValue|The Vega-Lite spec to render as a JSON object.',
-        ),
-        height: DynamicNumberSchema.describe(
-          'REF:#/$defs/DynamicNumber|Optional height of the chart in pixels. Defaults to 290.',
-        ).optional(),
-        weight: z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
-      })
-      .describe('Displays a Vega or Vega-Lite chart.')
-      .strict(),
-    {
-      mixins: [],
-      required: ['spec'],
-    },
-  ),
-} satisfies ComponentApi;
-
 function isPlainObject(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
 
 /**
- * Extracts data values from a Vega-Lite specification.
- * Supports `data.values` as an array, or `datasets[data.name]` if `data.name` is specified.
+ * Returns the inline data of a Vega-Lite spec: `data.values`, or
+ * `datasets[data.name]` when `data.name` is set.
  */
 function getDataValues(vegaSpec: Record<string, unknown>): Array<Record<string, unknown>> {
   const data = vegaSpec['data'];
@@ -248,8 +137,8 @@ function getDataValues(vegaSpec: Record<string, unknown>): Array<Record<string, 
 }
 
 /**
- * Estimates the maximum number of distinct values for a field within a single facet.
- * This is used to dynamically size faceted subplots based on their content.
+ * Returns the largest number of distinct values of `fieldObj.field` within a
+ * single facet, used to size faceted subplots by their content.
  */
 function estimateNumValuesInFacet(
   data: Array<Record<string, unknown>>,
@@ -260,37 +149,48 @@ function estimateNumValuesInFacet(
   if (typeof fieldName !== 'string') return 0;
 
   if (!facetFieldName) {
-    const uniqueValues = new Set(data.map(d => d[fieldName]));
-    return uniqueValues.size;
+    return new Set(data.map(d => d[fieldName])).size;
   }
 
   const facetGroups = new Map<unknown, Set<unknown>>();
   for (const row of data) {
     const facetVal = row[facetFieldName];
-    const targetVal = row[fieldName];
     let group = facetGroups.get(facetVal);
     if (!group) {
       group = new Set();
       facetGroups.set(facetVal, group);
     }
-    group.add(targetVal);
+    group.add(row[fieldName]);
   }
 
   let maxUnique = 0;
   for (const uniqueSet of facetGroups.values()) {
-    if (uniqueSet.size > maxUnique) {
-      maxUnique = uniqueSet.size;
-    }
+    maxUnique = Math.max(maxUnique, uniqueSet.size);
   }
   return maxUnique;
 }
 
+/** Layout computed for a faceted chart. */
+export interface FacetSize {
+  /** Width of each subplot in pixels. */
+  width: number;
+  /** Height of each subplot in pixels. */
+  height: number;
+  /** Estimated total chart width in pixels, including axes and padding. */
+  totalEstimatedWidth: number;
+  /** Estimated total chart height in pixels, including headers and padding. */
+  totalEstimatedHeight: number;
+}
+
 /**
- * Calculates appropriate dimensions and layout parameters for faceted Vega-Lite charts.
- * In Vega-Lite, `width` and `height` on a faceted spec apply to each individual subplot
- * rather than the overall chart container.
+ * Computes subplot dimensions for a faceted Vega-Lite chart, or returns `null`
+ * when the spec is not faceted. In Vega-Lite, `width` and `height` on a
+ * faceted spec apply to each subplot, not to the whole chart.
  */
-function calculateFacetSize(vegaSpec: Record<string, unknown>, containerWidth: number) {
+export function calculateFacetSize(
+  vegaSpec: Record<string, unknown>,
+  containerWidth: number,
+): FacetSize | null {
   let isFaceted = false;
   let facetFieldName: string | undefined;
   let columns = 0;
@@ -326,12 +226,10 @@ function calculateFacetSize(vegaSpec: Record<string, unknown>, containerWidth: n
         facetFieldName =
           typeof facet['column']['field'] === 'string' ? facet['column']['field'] : undefined;
       }
-      if (isPlainObject(facet['row'])) {
-        if (!facetFieldName) {
-          facetFieldName =
-            typeof facet['row']['field'] === 'string' ? facet['row']['field'] : undefined;
-          columns = 1;
-        }
+      if (isPlainObject(facet['row']) && !facetFieldName) {
+        facetFieldName =
+          typeof facet['row']['field'] === 'string' ? facet['row']['field'] : undefined;
+        columns = 1;
       }
     }
   }
@@ -344,8 +242,7 @@ function calculateFacetSize(vegaSpec: Record<string, unknown>, containerWidth: n
 
   let numFacets = 1;
   if (facetFieldName && data.length > 0) {
-    const uniqueFacets = new Set(data.map(d => d[facetFieldName!]));
-    numFacets = Math.max(1, uniqueFacets.size);
+    numFacets = Math.max(1, new Set(data.map(d => d[facetFieldName])).size);
   }
 
   if (columns === 0) {
@@ -408,42 +305,71 @@ function calculateFacetSize(vegaSpec: Record<string, unknown>, containerWidth: n
     height = FACET_DEFAULT_SUBPLOT_PX;
   }
 
-  const totalEstimatedWidth = effectiveCols * (width + 60) + 40;
-  const totalEstimatedHeight = rows * (height + 80) + 60;
-
   return {
     width,
     height,
-    totalEstimatedWidth,
-    totalEstimatedHeight,
+    totalEstimatedWidth: effectiveCols * (width + 60) + 40,
+    totalEstimatedHeight: rows * (height + 80) + 60,
   };
 }
 
 /**
- * Transforms a raw Vega-Lite specification to prepare it for responsive rendering.
+ * Rewrites temporal axes whose `format` contains `%b` (month name) but no
+ * `%Y` (year) to `%b %Y` with a -45 degree label angle, so month labels
+ * spanning several years are not ambiguous. Recurses into `layer` and `spec`.
+ */
+function fixTemporalAxes(specObj: Record<string, unknown>) {
+  const encoding = specObj['encoding'];
+  if (isPlainObject(encoding)) {
+    for (const channel of ['x', 'y']) {
+      const channelDef = encoding[channel];
+      if (!isPlainObject(channelDef)) continue;
+      const isTemporal = channelDef['type'] === 'temporal' || Boolean(channelDef['timeUnit']);
+      const axis = isPlainObject(channelDef['axis']) ? channelDef['axis'] : undefined;
+      if (isTemporal && axis && typeof axis['format'] === 'string') {
+        const fmt = axis['format'];
+        if (fmt.includes('%b') && !fmt.includes('%Y')) {
+          axis['format'] = fmt.replace('%b', '%b %Y');
+          if (axis['labelAngle'] === undefined) {
+            axis['labelAngle'] = -45;
+          }
+        }
+      }
+    }
+  }
+  if (Array.isArray(specObj['layer'])) {
+    for (const layer of specObj['layer']) {
+      if (isPlainObject(layer)) {
+        fixTemporalAxes(layer);
+      }
+    }
+  }
+  if (isPlainObject(specObj['spec'])) {
+    fixTemporalAxes(specObj['spec']);
+  }
+}
+
+/**
+ * Returns a copy of `vegaSpec` prepared for responsive rendering:
  *
- * This function performs several adjustments:
- * 1. Injects default styling configuration (`DEFAULT_CHART_CONFIG`) while preserving
- *    any user-defined `config`, `axis`, and `view` overrides.
- * 2. Sets `autosize` behavior (`pad` for faceted charts, `fit` for standard charts).
- * 3. Adjusts `width` and `height` properties: for standard charts, it applies the
- *    container dimensions; for faceted charts, it calculates individual subplot dimensions
- *    using `calculateFacetSize` and applies them to the inner `spec` or top-level spec.
- * 4. Fixes temporal axis formatting where `%b` (month name) is used without `%Y` (year),
- *    updating it to `%b %Y` with a `-45` label angle to prevent ambiguous date labels.
+ * - Merges `DEFAULT_CHART_CONFIG` under any user-defined `config`.
+ * - Sets `autosize` to `fit` for standard charts and `pad` for faceted charts.
+ * - Sets `width` and `height` from the container for standard charts, or
+ *   per-subplot dimensions from `calculateFacetSize` for faceted charts.
+ * - Applies `fixTemporalAxes`.
  *
- * @param vegaSpec The raw Vega-Lite specification object.
- * @param containerHeight The target height for the chart container in pixels.
- * @param containerWidth The measured width of the chart container in pixels.
- * @returns A cloned and modified Vega-Lite specification ready for embedding.
+ * @param vegaSpec The raw Vega-Lite specification.
+ * @param containerHeight Target chart height in pixels.
+ * @param containerWidth Measured container width in pixels, or 0 if unknown.
+ * @param precomputedFacetSize Facet layout, if the caller already computed it.
  */
 export function transformSpec(
   vegaSpec: Record<string, unknown>,
   containerHeight: number = DEFAULT_HEIGHT,
   containerWidth = 0,
-  precomputedFacetSize?: ReturnType<typeof calculateFacetSize>,
+  precomputedFacetSize?: FacetSize | null,
 ): Record<string, unknown> {
-  const transformedSpec = JSON.parse(JSON.stringify(vegaSpec)) as Record<string, unknown>;
+  const transformedSpec = structuredClone(vegaSpec);
 
   const facetSize =
     precomputedFacetSize !== undefined
@@ -457,62 +383,12 @@ export function transformSpec(
   transformedSpec['config'] = {
     ...DEFAULT_CHART_CONFIG,
     ...existingConfig,
-    axis: {
-      ...DEFAULT_CHART_CONFIG.axis,
-      ...existingAxis,
-    },
-    view: {
-      ...DEFAULT_CHART_CONFIG.view,
-      ...existingView,
-    },
+    axis: {...DEFAULT_CHART_CONFIG.axis, ...existingAxis},
+    view: {...DEFAULT_CHART_CONFIG.view, ...existingView},
   };
 
-  if (facetSize) {
-    transformedSpec['autosize'] = {
-      type: 'pad',
-    };
-  } else {
-    transformedSpec['autosize'] = {
-      type: 'fit',
-      contains: 'padding',
-    };
-  }
+  transformedSpec['autosize'] = facetSize ? {type: 'pad'} : {type: 'fit', contains: 'padding'};
 
-  // Fix axis formatting if needed (e.g. Temporal axis with %b format missing year)
-  const fixAxisFormat = (encoding: Record<string, unknown>) => {
-    for (const channel of ['x', 'y']) {
-      const channelDef = encoding[channel];
-      if (isPlainObject(channelDef)) {
-        const isTemporal = channelDef['type'] === 'temporal' || Boolean(channelDef['timeUnit']);
-        const axis = isPlainObject(channelDef['axis']) ? channelDef['axis'] : undefined;
-        if (isTemporal && axis && typeof axis['format'] === 'string') {
-          const fmt = axis['format'];
-          if (fmt.includes('%b') && !fmt.includes('%Y')) {
-            axis['format'] = fmt.replace('%b', '%b %Y');
-            if (axis['labelAngle'] === undefined) {
-              axis['labelAngle'] = -45;
-            }
-          }
-        }
-      }
-    }
-  };
-
-  const fixTemporalAxes = (specObj: Record<string, unknown>) => {
-    if (isPlainObject(specObj['encoding'])) {
-      fixAxisFormat(specObj['encoding']);
-    }
-    if (Array.isArray(specObj['layer'])) {
-      for (const layer of specObj['layer']) {
-        if (isPlainObject(layer)) {
-          fixTemporalAxes(layer);
-        }
-      }
-    }
-    if (isPlainObject(specObj['spec'])) {
-      fixTemporalAxes(specObj['spec']);
-    }
-  };
   fixTemporalAxes(transformedSpec);
 
   const effectiveHeight = Number(containerHeight) || DEFAULT_HEIGHT;
@@ -535,8 +411,11 @@ export function transformSpec(
 }
 
 /**
- * Universal A2UI Lit custom element (`<a2ui-vega-chart>`) that renders a
- * Vega or Vega-Lite specification.
+ * `<a2ui-vega-chart>`: renders a Vega or Vega-Lite specification.
+ *
+ * The element serves both the v0.9 and v1.0 catalogs. Inside an A2UI surface
+ * it reads `spec`, `height`, and `weight` from its controller. Outside a
+ * surface it reads the `spec` and `height` properties directly.
  */
 export class A2uiVegaChartElement extends A2uiLitElement<
   typeof VegaChartApi | typeof VegaChartV1Api
@@ -544,36 +423,18 @@ export class A2uiVegaChartElement extends A2uiLitElement<
   static readonly tagName = 'a2ui-vega-chart';
 
   /**
-   * Fallback width (in px) used when the host container reports `width: 0` on
-   * two consecutive animation frames (e.g. inside an intrinsically-sized parent
-   * flex item without `width: 100%`). If the container later resizes to a real
-   * width, the `ResizeObserver` triggers a re-render at the measured width.
-   */
-  static readonly FALLBACK_WIDTH_PX = 400;
-
-  /**
-   * Default embed implementation used when an element instance does not set
-   * its own `embedFn` property. Defaults to dynamically importing `vega-embed`.
+   * Embed function used when an element does not set its own `embedFn`.
+   * Defaults to dynamically importing `vega-embed`.
    */
   static defaultEmbedFn: VegaEmbedFn = defaultVegaEmbed;
 
-  /**
-   * Optional direct Vega-Lite specification property for standalone usage
-   * outside an A2UI `ComponentContext`. When rendered inside an A2UI surface,
-   * `this.controller.props.spec` takes precedence.
-   */
+  /** Vega-Lite spec for standalone use; `controller.props.spec` takes precedence. */
   @property({attribute: false}) spec?: Record<string, unknown> | null;
 
-  /**
-   * Optional direct height property (in px) for standalone usage outside an
-   * A2UI `ComponentContext`. Defaults to `290`.
-   */
+  /** Height in pixels for standalone use; `controller.props.height` takes precedence. */
   @property({attribute: false}) height: number | null = DEFAULT_HEIGHT;
 
-  /**
-   * Optional custom Vega embed function (for example a sandboxed iframe
-   * renderer or a test double). Falls back to `A2uiVegaChartElement.defaultEmbedFn`.
-   */
+  /** Per-element embed function override. */
   @property({attribute: false}) embedFn?: VegaEmbedFn;
 
   static override styles = css`
@@ -618,6 +479,10 @@ export class A2uiVegaChartElement extends A2uiLitElement<
     return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_HEIGHT;
   }
 
+  private get chartContainer(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('#chart-container');
+  }
+
   /** Renders into the light DOM, like the basic catalog, so page styles reach the chart. */
   override createRenderRoot() {
     return this;
@@ -625,57 +490,26 @@ export class A2uiVegaChartElement extends A2uiLitElement<
 
   override willUpdate(changedProperties: PropertyValues) {
     super.willUpdate(changedProperties);
-    const props = this.controller?.props;
-    if (props && props.weight !== undefined) {
-      this.style.flex = String(props.weight);
-    } else if (this.style && typeof this.style.removeProperty === 'function') {
+    const weight = this.controller?.props?.weight;
+    if (weight !== undefined) {
+      this.style.flex = String(weight);
+    } else {
       this.style.removeProperty('flex');
-    } else if (this.style) {
-      this.style.flex = '';
     }
   }
 
-  protected override createController() {
-    try {
-      return super.createController();
-    } catch {
-      return new A2uiController(this, VegaChartApi);
-    }
-  }
-
+  /**
+   * `A2uiLitElement.update` skips rendering without a controller. Standalone
+   * use has no controller, so render whenever a `spec` property is set.
+   */
   protected override update(changedProperties: PropertyValues) {
-    if (!this.controller && this.spec === undefined) {
-      return;
-    }
-    if (typeof HTMLTemplateElement !== 'undefined') {
-      if (this.controller) {
-        super.update(changedProperties);
-      } else {
-        (
-          LitElement.prototype as unknown as {
-            update(changedProps: PropertyValues): void;
-          }
-        ).update.call(this, changedProperties);
-      }
-      return;
-    }
-    // Fallback for headless Node test environments without HTMLTemplateElement
-    (
-      Object.getPrototypeOf(LitElement.prototype) as {
-        update(changedProps: PropertyValues): void;
-      }
-    ).update.call(this, changedProperties);
-    const effectiveHeight = this.resolvedHeight;
-    let container = this.renderRoot.querySelector<HTMLElement>('#chart-container');
-    if (!container && typeof document !== 'undefined') {
-      container = document.createElement('div');
-      container.id = 'chart-container';
-      container.className = 'vega-chart-container';
-      this.renderRoot.appendChild(container);
-    }
-    if (container?.style) {
-      container.style.height = `${effectiveHeight}px`;
-      container.style.minHeight = `${effectiveHeight}px`;
+    if (this.controller) {
+      super.update(changedProperties);
+    } else if (this.spec !== undefined) {
+      (LitElement.prototype as unknown as {update(p: PropertyValues): void}).update.call(
+        this,
+        changedProperties,
+      );
     }
   }
 
@@ -690,8 +524,39 @@ export class A2uiVegaChartElement extends A2uiLitElement<
     }
   }
 
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.resizeObserver?.disconnect();
+    this.hasValidDimensions = false;
+    this.useFallbackWidth = false;
+    this.destroyChart();
+  }
+
+  protected override updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+    if (this.hasValidDimensions) {
+      void this.renderChart();
+    }
+  }
+
+  override render() {
+    const effectiveHeight = this.resolvedHeight;
+    return html`
+      <div
+        id="chart-container"
+        class="vega-chart-container"
+        style="height: ${effectiveHeight}px; min-height: ${effectiveHeight}px;"
+      ></div>
+    `;
+  }
+
+  /**
+   * Renders once the container has a measurable size, then re-renders on
+   * width changes. If the container stays at width 0 for two animation frames
+   * while attached to a visible tree, renders at `FALLBACK_WIDTH_PX`.
+   */
   private observeContainer() {
-    const container = this.renderRoot.querySelector<HTMLElement>('#chart-container');
+    const container = this.chartContainer;
     if (!container) return;
 
     this.resizeObserver?.disconnect();
@@ -715,12 +580,7 @@ export class A2uiVegaChartElement extends A2uiLitElement<
       this.resizeObserver.observe(container);
     }
 
-    const scheduleFrame =
-      typeof requestAnimationFrame === 'function'
-        ? requestAnimationFrame
-        : (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 0);
-
-    const checkDimensions = (attempt = 0) => {
+    const checkDimensions = (attempt: number) => {
       if (!this.isConnected || this.hasValidDimensions) return;
       const rect = container.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
@@ -729,68 +589,35 @@ export class A2uiVegaChartElement extends A2uiLitElement<
         this.hasValidDimensions = true;
         void this.renderChart();
       } else if (attempt < 1) {
-        scheduleFrame(() => {
-          checkDimensions(attempt + 1);
-        });
+        requestAnimationFrame(() => checkDimensions(attempt + 1));
       } else if (rect.height > 0 && this.isAttachedButUnsized()) {
-        // Container has height (from min-height / style) and is attached to a
-        // visible tree (not inside `display: none`), yet still has width 0
-        // after two rAFs because an ancestor shrinks to content. Fall back to a
-        // finite width so the chart renders instead of staying blank forever.
         this.useFallbackWidth = true;
         this.hasValidDimensions = true;
         void this.renderChart();
       }
     };
-    requestAnimationFrame(() => {
-      checkDimensions(0);
-    });
+    requestAnimationFrame(() => checkDimensions(0));
   }
 
-  override disconnectedCallback() {
-    super.disconnectedCallback();
-    this.resizeObserver?.disconnect();
-    this.hasValidDimensions = false;
-    this.useFallbackWidth = false;
-    this.destroyChart();
-  }
-
-  protected override updated(changedProperties: PropertyValues) {
-    super.updated(changedProperties);
-    if (
-      changedProperties.has('spec') ||
-      changedProperties.has('height') ||
-      changedProperties.has('embedFn') ||
-      changedProperties.has('context') ||
-      changedProperties.has('node') ||
-      this.controller
-    ) {
-      if (this.hasValidDimensions) {
-        void this.renderChart();
-      }
-    }
+  /** True when attached to the layout tree (not inside `display: none`). */
+  private isAttachedButUnsized(): boolean {
+    if (!this.isConnected) return false;
+    return this.offsetParent !== null || this.getClientRects().length > 0;
   }
 
   private destroyChart() {
     this.renderAbortController?.abort();
     this.renderAbortController = undefined;
-    if (this.embedResult) {
-      this.embedResult.finalize?.();
-      this.embedResult.view?.finalize?.();
-      this.embedResult = undefined;
-    }
-    const container = this.renderRoot?.querySelector<HTMLElement>('#chart-container');
-    if (container) {
-      container.replaceChildren();
-    }
+    this.embedResult?.finalize?.();
+    this.embedResult?.view?.finalize?.();
+    this.embedResult = undefined;
+    this.chartContainer?.replaceChildren();
   }
 
   private async renderChart() {
     const vegaSpec = this.resolvedSpec;
-    if (!vegaSpec) return;
-
-    const container = this.renderRoot.querySelector<HTMLElement>('#chart-container');
-    if (!container) return;
+    const container = this.chartContainer;
+    if (!vegaSpec || !container) return;
 
     this.destroyChart();
     const abortController = new AbortController();
@@ -801,31 +628,20 @@ export class A2uiVegaChartElement extends A2uiLitElement<
         this.containerWidth > 0
           ? this.containerWidth
           : this.useFallbackWidth
-            ? A2uiVegaChartElement.FALLBACK_WIDTH_PX
+            ? FALLBACK_WIDTH_PX
             : 0;
-      const effectiveHeight = this.resolvedHeight;
       const facetSize = calculateFacetSize(vegaSpec, effectiveWidth);
-
-      let containerHeight = effectiveHeight;
-      if (facetSize) {
-        containerHeight = Math.max(containerHeight, facetSize.totalEstimatedHeight);
-      }
-
+      const containerHeight = facetSize
+        ? Math.max(this.resolvedHeight, facetSize.totalEstimatedHeight)
+        : this.resolvedHeight;
       const transformedSpec = transformSpec(vegaSpec, containerHeight, effectiveWidth, facetSize);
 
-      if (this.useFallbackWidth) {
-        this.style.width = `${effectiveWidth}px`;
-      } else {
-        this.style.width = '';
-      }
+      this.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '';
       container.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '100%';
       container.style.overflow = facetSize ? 'auto' : 'hidden';
 
-      const activeEmbed = this.embedFn ?? A2uiVegaChartElement.defaultEmbedFn;
-      const result = await activeEmbed(container, transformedSpec, {
-        actions: false,
-        renderer: 'svg',
-      });
+      const embed = this.embedFn ?? A2uiVegaChartElement.defaultEmbedFn;
+      const result = await embed(container, transformedSpec, {actions: false, renderer: 'svg'});
 
       if (abortController.signal.aborted) {
         result?.finalize?.();
@@ -834,21 +650,14 @@ export class A2uiVegaChartElement extends A2uiLitElement<
       }
       this.embedResult = result;
 
+      // Sandboxed embedders render into an iframe; size and label it.
       const iframe = container.querySelector('iframe');
       if (iframe) {
         iframe.style.height = `${containerHeight}px`;
-        if (facetSize) {
-          iframe.style.width = `${Math.max(effectiveWidth, facetSize.totalEstimatedWidth)}px`;
-        } else {
-          iframe.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '100%';
-        }
-        const a11yLabel = this.resolveAccessibleLabel(vegaSpec);
-        if (!iframe.getAttribute('title')) {
-          iframe.setAttribute('title', a11yLabel);
-        }
-        if (!iframe.getAttribute('aria-label')) {
-          iframe.setAttribute('aria-label', a11yLabel);
-        }
+        iframe.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '100%';
+        const label = this.resolveAccessibleLabel(vegaSpec);
+        if (!iframe.getAttribute('title')) iframe.setAttribute('title', label);
+        if (!iframe.getAttribute('aria-label')) iframe.setAttribute('aria-label', label);
       }
     } catch (e) {
       if (!abortController.signal.aborted) {
@@ -863,137 +672,21 @@ export class A2uiVegaChartElement extends A2uiLitElement<
     if (typeof a11y?.label === 'string' && a11y.label.trim() !== '') {
       return a11y.label;
     }
-    if (typeof vegaSpec['description'] === 'string' && vegaSpec['description'].trim() !== '') {
-      return vegaSpec['description'];
-    }
-    if (typeof vegaSpec['title'] === 'string' && vegaSpec['title'].trim() !== '') {
-      return vegaSpec['title'];
-    }
-    if (
-      isPlainObject(vegaSpec['title']) &&
-      typeof vegaSpec['title']['text'] === 'string' &&
-      vegaSpec['title']['text'].trim() !== ''
-    ) {
-      return vegaSpec['title']['text'];
+    for (const candidate of [vegaSpec['description'], vegaSpec['title']]) {
+      if (typeof candidate === 'string' && candidate.trim() !== '') {
+        return candidate;
+      }
+      if (
+        isPlainObject(candidate) &&
+        typeof candidate['text'] === 'string' &&
+        candidate['text'].trim() !== ''
+      ) {
+        return candidate['text'];
+      }
     }
     return 'Vega visualization';
   }
-
-  /**
-   * Returns true if the element is attached to the layout tree (not inside a
-   * `display: none` subtree), even if its width is currently 0 due to an
-   * intrinsically-sized flex/grid ancestor.
-   */
-  private isAttachedButUnsized(): boolean {
-    if (!this.isConnected) return false;
-    return this.offsetParent !== null || this.getClientRects().length > 0;
-  }
-
-  override render() {
-    const effectiveHeight = this.resolvedHeight;
-    return html`
-      <div
-        id="chart-container"
-        class="vega-chart-container"
-        style="height: ${effectiveHeight}px; min-height: ${effectiveHeight}px;"
-      ></div>
-    `;
-  }
 }
-
-if (typeof customElements !== 'undefined' && !customElements.get(A2uiVegaChartElement.tagName)) {
-  customElements.define(A2uiVegaChartElement.tagName, A2uiVegaChartElement);
-}
-
-/**
- * Universal WebComponentImplementation for `VegaChart` (protocol v0.9).
- */
-export const A2uiVegaChart: WebComponentImplementation = {
-  ...VegaChartApi,
-  tagName: A2uiVegaChartElement.tagName,
-  element: A2uiVegaChartElement,
-};
-
-/**
- * Universal WebComponentImplementation for `VegaChart` (protocol v1.0).
- */
-export const A2uiVegaChartV1: WebComponentImplementation = {
-  ...VegaChartV1Api,
-  tagName: A2uiVegaChartElement.tagName,
-  element: A2uiVegaChartElement,
-};
-
-/** Options for creating a VegaChart catalog instance. */
-export interface VegaChartCatalogOptions {
-  /**
-   * Optional custom Vega embed function to set as the default embedder on
-   * `A2uiVegaChartElement.defaultEmbedFn`. Note that this updates the static
-   * default across all `<a2ui-vega-chart>` elements that do not specify an
-   * instance-level `embedFn` property.
-   */
-  embedFn?: VegaEmbedFn;
-  /**
-   * Additional functions to register alongside the VegaChart component.
-   */
-  functions?: FunctionImplementation[];
-}
-
-/**
- * Creates an A2UI v0.9 `Catalog` containing the `VegaChart` web component.
- */
-export function createVegaChartCatalog(
-  options?: VegaChartCatalogOptions,
-): Catalog<WebComponentImplementation> {
-  if (options?.embedFn) {
-    A2uiVegaChartElement.defaultEmbedFn = options.embedFn;
-  }
-  return new Catalog<WebComponentImplementation>(
-    VEGACHART_CATALOG_ID,
-    '0.9',
-    [A2uiVegaChart],
-    options?.functions ?? [],
-    {
-      schemaUri: 'https://json-schema.org/draft/2020-12/schema',
-      schemaId: VEGACHART_CATALOG_ID,
-      declaredProtocolVersion: null,
-      title: 'A2UI VegaChart Catalog',
-      description:
-        'Catalog for rendering Vega and Vega-Lite charts in A2UI surfaces. Includes the VegaChart component for displaying interactive data visualizations from Vega-Lite JSON specifications.',
-      commonTypesUri: 'https://a2ui.org/specification/v0_9/common_types.json',
-      unions: {anyComponent: true, anyFunction: true},
-    },
-  );
-}
-
-/**
- * Creates an A2UI v1.0 `Catalog` containing the `VegaChart` web component.
- */
-export function createVegaChartV1Catalog(
-  options?: VegaChartCatalogOptions,
-): Catalog<WebComponentImplementation> {
-  if (options?.embedFn) {
-    A2uiVegaChartElement.defaultEmbedFn = options.embedFn;
-  }
-  return new Catalog<WebComponentImplementation>(
-    VEGACHART_V1_CATALOG_ID,
-    '1.0',
-    [A2uiVegaChartV1],
-    options?.functions ?? [],
-    {
-      schemaUri: 'https://json-schema.org/draft/2020-12/schema',
-      schemaId: VEGACHART_V1_CATALOG_ID,
-      title: 'A2UI VegaChart Catalog',
-      description:
-        'Catalog for rendering Vega and Vega-Lite charts in A2UI surfaces. Declares the VegaChart component for displaying interactive data visualizations from Vega-Lite JSON specifications.',
-    },
-  );
-}
-
-/** Default A2UI v0.9 VegaChart catalog instance. */
-export const vegachartCatalog: Catalog<WebComponentImplementation> = createVegaChartCatalog();
-
-/** Default A2UI v1.0 VegaChart catalog instance. */
-export const vegachartV1Catalog: Catalog<WebComponentImplementation> = createVegaChartV1Catalog();
 
 declare global {
   interface HTMLElementTagNameMap {

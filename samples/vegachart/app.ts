@@ -18,7 +18,7 @@
  * Client application for the standalone A2UI VegaChart catalog sample.
  *
  * Registers both `basicCatalog` (`@a2ui/lit/v0_9`) and `vegachartCatalog`
- * (`@a2ui/catalog-vegachart`) with a `MessageProcessor` and renders a static
+ * (`@a2ui/catalog-vegachart/v0_9`) with a `MessageProcessor` and renders a static
  * A2UI payload (`a2ui_vegachart.json`) without an LLM agent.
  */
 
@@ -26,7 +26,7 @@ import {provide} from '@lit/context';
 import {css, html, LitElement} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 
-import {VEGACHART_CATALOG_ID, vegachartCatalog} from '@a2ui/catalog-vegachart';
+import {VEGACHART_CATALOG_ID, vegachartCatalog} from '@a2ui/catalog-vegachart/v0_9';
 import {basicCatalog, Context} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';

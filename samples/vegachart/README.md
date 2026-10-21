@@ -14,7 +14,7 @@ Basic Catalog (`@a2ui/lit/v0_9`), with no LLM agent involved.
   `MessageProcessor` with both `basicCatalog` and `vegachartCatalog`. Layout and
   typography components (`Column`, `Row`, `Card`, `Text`) resolve from the
   surface's default Basic Catalog, while `VegaChart` components declare
-  `"catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json"`.
+  `"catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json"`.
 - **Reactive data model bindings**: Each `VegaChart` component binds its `spec`
   property to a JSON pointer in the surface data model:
   - `/charts/quarterlyRevenue`: Bar chart of quarterly revenue.

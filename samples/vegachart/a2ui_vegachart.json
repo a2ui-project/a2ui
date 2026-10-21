@@ -60,7 +60,7 @@
         {
           "id": "revenue_chart",
           "component": "VegaChart",
-          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
           "height": 280,
           "spec": {
             "path": "/charts/quarterlyRevenue"
@@ -86,7 +86,7 @@
         {
           "id": "traffic_chart",
           "component": "VegaChart",
-          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
           "height": 280,
           "spec": {
             "path": "/charts/monthlyTraffic"
@@ -111,7 +111,7 @@
         {
           "id": "regional_facet_chart",
           "component": "VegaChart",
-          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
           "height": 260,
           "spec": {
             "path": "/charts/regionalSales"

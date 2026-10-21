@@ -30,7 +30,16 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./catalog.json": "./dist/catalog.json"
+    "./v0_9": {
+      "types": "./dist/v0_9/index.d.ts",
+      "default": "./dist/v0_9/index.js"
+    },
+    "./v1": {
+      "types": "./dist/v1/index.d.ts",
+      "default": "./dist/v1/index.js"
+    },
+    "./v0_9/catalog.json": "./dist/v0_9/catalog.json",
+    "./v1/catalog.json": "./dist/v1/catalog.json"
   },
   "type": "module",
   "sideEffects": false,
@@ -46,10 +55,8 @@
     "build": "wireit",
     "build:tsc": "wireit",
     "test": "wireit",
-    "compile": "tsc",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "fix": "gts fix",
     "format": "wireit",
     "format:check": "wireit",
     "clean": "wireit"
@@ -58,11 +65,13 @@
     "copy-catalog": {
       "command": "node scripts/copy-catalog.js",
       "files": [
-        "../../../catalogs/vegachart/catalog.json",
+        "../../../catalogs/vegachart/v0_9/catalog.json",
+        "../../../catalogs/vegachart/v1/catalog.json",
         "scripts/copy-catalog.js"
       ],
       "output": [
-        "src/catalog.json"
+        "src/v0_9/catalog.json",
+        "src/v1/catalog.json"
       ]
     },
     "build": {
@@ -94,7 +103,7 @@
       ]
     },
     "clean": {
-      "command": "rm -rf dist src/catalog.json .tsbuildinfo .wireit"
+      "command": "rm -rf dist src/v0_9/catalog.json src/v1/catalog.json .tsbuildinfo .wireit"
     },
     "format": {
       "command": "prettier --write .",
@@ -118,9 +127,10 @@
   "author": "Google",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^25.9.3",
     "eslint": "^10.4.1",
-    "gts": "^7.0.0",
+    "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"

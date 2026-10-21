@@ -180,9 +180,10 @@ __metadata:
   resolution: "@a2ui/catalog-vegachart@workspace:typescript/catalogs/vegachart"
   dependencies:
     "@a2ui/web_core": "workspace:*"
+    "@types/jsdom": "npm:^28.0.3"
     "@types/node": "npm:^25.9.3"
     eslint: "npm:^10.4.1"
-    gts: "npm:^7.0.0"
+    jsdom: "npm:^29.1.1"
     lit: "npm:^3.3.3"
     prettier: "npm:^3.8.4"
     typescript: "npm:5.9.3"

@@ -2,78 +2,49 @@
 
 <!-- disableFinding(LINK_RELATIVE_G3DOC) -->
 
-TypeScript implementation of the [A2UI VegaChart Catalog](../../../catalogs/vegachart/README.md)
-for rendering [Vega](https://vega.github.io/vega/) and
-[Vega-Lite](https://vega.github.io/vega-lite/) visualizations in A2UI surfaces.
+TypeScript implementation of the
+[A2UI VegaChart Catalog](../../../catalogs/vegachart/README.md): a single
+`<a2ui-vega-chart>` element that renders [Vega](https://vega.github.io/vega/)
+and [Vega-Lite](https://vega.github.io/vega-lite/) specifications with
+`vega-embed`.
 
-## Overview
+## Entry Points
 
-The canonical schemas live at:
-
-- [`catalogs/vegachart/catalog.json`](../../../catalogs/vegachart/catalog.json) (protocol v0.9, catalog ID `https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json`)
-- [`catalogs/vegachart/v1/catalog.json`](../../../catalogs/vegachart/v1/catalog.json) (protocol v1.0, catalog ID `https://a2ui.org/specification/v1_0/catalogs/vegachart/catalog.json`)
-
-The v0.9 schema is copied into `dist/catalog.json` at build time and exposed as
-`@a2ui/catalog-vegachart/catalog.json`.
-
-### Exports
-
-| Export                     | Description                                                                  |
-| -------------------------- | ---------------------------------------------------------------------------- |
-| `VEGACHART_CATALOG_ID`     | Canonical v0.9 catalog ID URI                                                |
-| `VEGACHART_V1_CATALOG_ID`  | Canonical v1.0 catalog ID URI                                                |
-| `VegaChartApi`             | `ComponentApi` definition for `VegaChart` (v0.9)                             |
-| `VegaChartV1Api`           | `ComponentApi` definition for `VegaChart` (v1.0)                             |
-| `A2uiVegaChartElement`     | Universal Lit custom element (`<a2ui-vega-chart>`)                           |
-| `A2uiVegaChart`            | `WebComponentImplementation` pairing `A2uiVegaChartElement` & `VegaChartApi` |
-| `A2uiVegaChartV1`          | `WebComponentImplementation` for protocol v1.0                               |
-| `vegachartCatalog`         | Pre-built v0.9 `Catalog` instance                                            |
-| `vegachartV1Catalog`       | Pre-built v1.0 `Catalog` instance                                            |
-| `createVegaChartCatalog`   | Factory for creating a configured v0.9 `Catalog`                             |
-| `createVegaChartV1Catalog` | Factory for creating a configured v1.0 `Catalog`                             |
-| `transformSpec`            | Transforms a raw Vega-Lite spec for responsive & faceted rendering           |
+| Import path                                 | Protocol | Exports                                                                              |
+| ------------------------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `@a2ui/catalog-vegachart/v0_9`              | v0.9     | `vegachartCatalog`, `VegaChartApi`, `A2uiVegaChart`, `VEGACHART_CATALOG_ID`          |
+| `@a2ui/catalog-vegachart/v1`                | v1.0     | `vegachartV1Catalog`, `VegaChartV1Api`, `A2uiVegaChartV1`, `VEGACHART_V1_CATALOG_ID` |
+| `@a2ui/catalog-vegachart`                   | both     | Everything above plus `A2uiVegaChartElement` and `transformSpec`                     |
+| `@a2ui/catalog-vegachart/v0_9/catalog.json` | v0.9     | The canonical schema, copied from `catalogs/vegachart/v0_9/` at build time           |
+| `@a2ui/catalog-vegachart/v1/catalog.json`   | v1.0     | The canonical schema, copied from `catalogs/vegachart/v1/` at build time             |
 
 ## Usage
 
-### Registering the catalog with `MessageProcessor`
+Register the catalog alongside the basic catalog:
 
 ```ts
-import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v0_9';
-import {vegachartCatalog} from '@a2ui/catalog-vegachart';
+import {vegachartCatalog} from '@a2ui/catalog-vegachart/v0_9';
+import {basicCatalog} from '@a2ui/lit/v0_9';
+import {MessageProcessor} from '@a2ui/web_core/v0_9';
 
 const processor = new MessageProcessor([basicCatalog, vegachartCatalog]);
 ```
 
-### Custom Embed Function (e.g. Sandboxed Renderer)
-
-By default, `<a2ui-vega-chart>` renders charts using `vega-embed` with the SVG
-renderer (`{actions: false, renderer: 'svg'}`). Host applications that use a
-custom or sandboxed Vega embedder can configure it via `createVegaChartCatalog`:
-
-```ts
-import {createVegaChartCatalog} from '@a2ui/catalog-vegachart';
-import {embed as safeVegaEmbed} from './my-sandboxed-vega';
-
-const catalog = createVegaChartCatalog({
-  embedFn: safeVegaEmbed,
-});
-```
-
-### Example A2UI Payload (v0.9)
+Then reference the catalog from a surface:
 
 ```json
 [
   {
     "version": "v0.9",
     "createSurface": {
-      "surfaceId": "sales-dashboard",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/vegachart_catalog.json"
+      "surfaceId": "sales",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json"
     }
   },
   {
     "version": "v0.9",
     "updateComponents": {
-      "surfaceId": "sales-dashboard",
+      "surfaceId": "sales",
       "components": [
         {
           "id": "root",
@@ -81,19 +52,16 @@ const catalog = createVegaChartCatalog({
           "height": 320,
           "spec": {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-            "description": "Quarterly revenue by region",
             "data": {
               "values": [
-                {"quarter": "Q1", "revenue": 120},
-                {"quarter": "Q2", "revenue": 150},
-                {"quarter": "Q3", "revenue": 180},
-                {"quarter": "Q4", "revenue": 210}
+                {"q": "Q1", "r": 120},
+                {"q": "Q2", "r": 150}
               ]
             },
             "mark": "bar",
             "encoding": {
-              "x": {"field": "quarter", "type": "ordinal"},
-              "y": {"field": "revenue", "type": "quantitative"}
+              "x": {"field": "q", "type": "ordinal"},
+              "y": {"field": "r", "type": "quantitative"}
             }
           }
         }
@@ -101,6 +69,32 @@ const catalog = createVegaChartCatalog({
     }
   }
 ]
+```
+
+See [`samples/vegachart/`](../../../samples/vegachart/) for a runnable example.
+
+### Rendering behavior
+
+The element measures its container with a `ResizeObserver` and calls
+`transformSpec` before embedding. `transformSpec` returns a copy of the spec
+that:
+
+- merges a default theme under any user-provided `config`;
+- sets `width` and `height` from the container (`autosize: fit`), or sizes
+  each subplot of a faceted chart from its data (`autosize: pad`);
+- rewrites temporal axes formatted with `%b` but no `%Y` to `%b %Y`.
+
+### Custom embed function
+
+`A2uiVegaChartElement.defaultEmbedFn` is the function used to render; it
+defaults to `vega-embed` with `{actions: false, renderer: 'svg'}`. Replace it to
+use a sandboxed renderer, or set `embedFn` on an individual element:
+
+```ts
+import {A2uiVegaChartElement} from '@a2ui/catalog-vegachart';
+import {embed} from './my-sandboxed-vega';
+
+A2uiVegaChartElement.defaultEmbedFn = embed;
 ```
 
 ## Building and Testing
