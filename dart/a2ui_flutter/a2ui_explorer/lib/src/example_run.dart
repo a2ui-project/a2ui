@@ -14,7 +14,6 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import 'demo_catalog.dart';
@@ -117,11 +116,9 @@ class ExampleRun extends ChangeNotifier {
     _changed();
   }
 
-  /// Notifies the listeners outside a build, since a surface can report an
-  /// error while it builds.
-  void _changed() => runOutsideBuild(() {
+  void _changed() {
     if (!_disposed) notifyListeners();
-  });
+  }
 
   /// Disposes the processor and its surfaces.
   @override
@@ -129,15 +126,5 @@ class ExampleRun extends ChangeNotifier {
     _disposed = true;
     _processor.dispose();
     super.dispose();
-  }
-}
-
-/// Runs [callback] now, or after the current frame while a frame builds.
-void runOutsideBuild(VoidCallback callback) {
-  final SchedulerBinding scheduler = SchedulerBinding.instance;
-  if (scheduler.schedulerPhase == SchedulerPhase.persistentCallbacks) {
-    scheduler.addPostFrameCallback((_) => callback());
-  } else {
-    callback();
   }
 }
