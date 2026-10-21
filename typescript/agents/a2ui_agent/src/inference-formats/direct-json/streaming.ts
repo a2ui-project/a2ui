@@ -195,8 +195,11 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
       if (!this.foundDelimiter) {
         const openIdx = this.buffer.indexOf(A2UI_OPEN_TAG);
         if (openIdx !== -1) {
-          const textBefore = this.buffer.substring(0, openIdx);
-          if (textBefore && !/^[` \t\r\n]*$/.test(textBefore)) {
+          let textBefore = this.buffer.substring(0, openIdx);
+          if (textBefore.endsWith('`')) {
+            textBefore = textBefore.replace(/`+$/, '');
+          }
+          if (textBefore.length > 0 && !/^`+$/.test(textBefore.trim())) {
             messages.push({type: 'text', text: textBefore});
           }
           this.foundDelimiter = true;
@@ -212,7 +215,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           if (this.buffer.length > keepLen) {
             const safeLen = this.buffer.length - keepLen;
             const textToYield = this.buffer.substring(0, safeLen);
-            if (!/^[` \t\r\n]*$/.test(textToYield)) {
+            if (textToYield.length > 0 && !/^`+$/.test(textToYield.trim())) {
               messages.push({type: 'text', text: textToYield});
             }
             this.buffer = this.buffer.substring(safeLen);
@@ -234,6 +237,9 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           this.foundDelimiter = false;
           this.resetJsonState();
           this.buffer = this.buffer.substring(closeIdx + A2UI_CLOSE_TAG.length);
+          if (this.buffer.startsWith('`')) {
+            this.buffer = this.buffer.replace(/^`+/, '');
+          }
         } else {
           let keepLen = 0;
           for (let i = 1; i < A2UI_CLOSE_TAG.length; i++) {
