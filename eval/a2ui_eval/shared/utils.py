@@ -12,21 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 import time
-
+from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model._model import sample_model_usage
-from inspect_ai.solver import Generate, Solver, TaskState, solver
+from pathlib import Path
 
 GIT_ROOT = (Path(__file__).resolve().parent / "../../..").resolve()
-PAYLOAD_STORE_KEY = "a2ui_payload"
 
 
 @solver
 def measured_generate() -> Solver:
-    """Solver that wraps generate() and records duration and token metrics."""
+    """Solver that wraps generate() and records the duration in metadata."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        start_time = time.time()
+
         usage_before = sample_model_usage().get(str(state.model))
         before_input = usage_before.input_tokens if usage_before else 0
         before_cr = usage_before.input_tokens_cache_read or 0 if usage_before else 0
@@ -36,16 +36,7 @@ def measured_generate() -> Solver:
         before_output = usage_before.output_tokens if usage_before else 0
         before_reasoning = usage_before.reasoning_tokens or 0 if usage_before else 0
 
-        call_start = time.time()
         state = await generate(state)
-
-        output_call = (
-            getattr(state.output, "call", None) if hasattr(state, "output") else None
-        )
-        if output_call and getattr(output_call, "time", None):
-            duration = float(output_call.time)
-        else:
-            duration = time.time() - call_start
 
         usage_after = sample_model_usage().get(str(state.model))
         after_input = usage_after.input_tokens if usage_after else 0
@@ -56,6 +47,17 @@ def measured_generate() -> Solver:
         after_output = usage_after.output_tokens if usage_after else 0
         after_reasoning = usage_after.reasoning_tokens or 0 if usage_after else 0
 
+        # Redefine inference_duration_seconds to measure pure working time of successful model call
+        working_time = None
+        output_call = (
+            getattr(state.output, "call", None) if hasattr(state, "output") else None
+        )
+        if output_call and getattr(output_call, "time", None):
+            working_time = output_call.time
+
+        duration = (
+            working_time if working_time is not None else (time.time() - start_time)
+        )
         state.metadata["inference_duration_seconds"] = duration
         state.metadata["inference_input_tokens"] = (
             after_total_input - before_total_input

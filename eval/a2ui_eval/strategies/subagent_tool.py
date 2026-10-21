@@ -40,11 +40,9 @@ from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
 from ..bridges import DEFAULT_PARSE_TIMEOUT_SEC, get_sdk_bridge, normalize_sdk_name
-from ..shared.utils import (
-    GIT_ROOT,
-    PAYLOAD_STORE_KEY,
-    measured_generate,
-)
+from ..shared.utils import GIT_ROOT, measured_generate
+
+PAYLOAD_STORE_KEY = "a2ui_payload"
 
 
 @tool
