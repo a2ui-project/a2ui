@@ -41,9 +41,7 @@ from inspect_ai.util import store
 
 from ..bridges import DEFAULT_PARSE_TIMEOUT_SEC, get_sdk_bridge, normalize_sdk_name
 from ..shared.utils import (
-    GENERIC_NUDGE,
     GIT_ROOT,
-    NON_RETRYABLE_STOP_REASONS,
     PAYLOAD_STORE_KEY,
     measured_generate,
 )
@@ -89,10 +87,12 @@ def a2ui_specialist() -> Tool:
             " any tools or emit tool-call syntax; instead, directly construct"
             " the complete A2UI JSON payload enclosed in `<a2ui-json>` and"
             " `</a2ui-json>` tags using synthesized sample data.\n"
-            "- Always set `catalogId` in `createSurface` to the exact"
-            " `catalogId` value defined in the provided Catalog Schema; never"
-            " invent a custom or placeholder `catalogId` URL or identifier,"
-            " even if the user prompt mentions a custom catalog."
+            "- When specifying `catalogId` (in `createSurface` as the surface"
+            " default, or on individual components and function calls), always"
+            " use the exact `catalogId` value(s) defined in the provided"
+            " Catalog Schema(s); never invent a custom or placeholder"
+            " `catalogId` URL or identifier (such as `example.com`), even if"
+            " the user prompt mentions a custom catalog."
         )
         prompt_parts.append(generated_snippet)
         system_content = "\n\n".join(prompt_parts)
@@ -106,19 +106,6 @@ def a2ui_specialist() -> Tool:
         surface_id = allowed_surface_ids[0]
 
         output = await get_model().generate(messages)
-        stop_reason = getattr(output, "stop_reason", None)
-        completion = output.completion or ""
-        lower_comp = completion.lower()
-        has_open_tag = "<a2ui-json>" in lower_comp or "<a2ui-json " in lower_comp
-        if (
-            stop_reason not in NON_RETRYABLE_STOP_REASONS
-            and "</a2ui-json>" not in lower_comp
-            and not has_open_tag
-        ):
-            if completion.strip():
-                messages.append(ChatMessageAssistant(content=completion))
-                messages.append(ChatMessageUser(content=GENERIC_NUDGE))
-            output = await get_model().generate(messages)
         if output.completion:
             try:
                 # The specialist only parses, as it did before the SDK bridges
@@ -178,28 +165,8 @@ def push_metadata_to_store(version: str, sdk: str = "python") -> Solver:
 def extract_subagent_payload() -> Solver:
     """Extracts the A2UI payload from the tool response messages."""
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        state.metadata.setdefault("subagent_nudged", False)
+    async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         payload = state.store.get(PAYLOAD_STORE_KEY)
-        if payload is None:
-            stop_reason = (
-                getattr(state.output, "stop_reason", None)
-                if getattr(state, "output", None) is not None
-                else None
-            )
-            if stop_reason not in NON_RETRYABLE_STOP_REASONS:
-                state.messages.append(
-                    ChatMessageUser(
-                        content=(
-                            "Please call the `a2ui_specialist` tool now to"
-                            " generate the requested UI layout."
-                        )
-                    )
-                )
-                state.metadata["subagent_nudged"] = True
-                state = await measured_generate(max_attempts=1)(state, generate)
-                payload = state.store.get(PAYLOAD_STORE_KEY)
-
         if payload is not None and state.output and state.output.choices:
             formatted_payload = f"<a2ui-json>\n{payload}\n</a2ui-json>"
             state.output = ModelOutput(

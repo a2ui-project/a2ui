@@ -127,16 +127,12 @@ async def test_extract_subagent_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_extract_subagent_payload_retries_when_missing() -> None:
+async def test_extract_subagent_payload_leaves_completion_when_missing() -> None:
     solver = extract_subagent_payload()
     state = _state({}, completion="I will help you with that.")
 
-    async def populate_on_retry(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        s.store.set(PAYLOAD_STORE_KEY, '[{"version": "v0.9"}]')
-        return s
-
-    state = await solver(state, populate_on_retry)
-    assert state.output.completion == '<a2ui-json>\n[{"version": "v0.9"}]\n</a2ui-json>'
+    state = await solver(state, dummy_generate)
+    assert state.output.completion == "I will help you with that."
 
 
 def test_subagent_tool_solver() -> None:
@@ -341,123 +337,52 @@ async def test_compile_format_payload_empty_output_and_error_recovery() -> None:
 
 
 @pytest.mark.asyncio
-async def test_measured_generate_retries_when_required_close_tag_missing() -> None:
-    solver = measured_generate(required_close_tag="</a2ui>")
-    state = _state({}, completion="print(get_store_sales())")
+async def test_measured_generate_records_metrics_single_attempt() -> None:
+    solver = measured_generate()
+    state = _state({}, completion='<a2ui>\nroot = Text("Hello")\n</a2ui>')
     calls = 0
 
-    async def gen_with_retry(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            _set_completion(s, '<a2ui>\nroot = Text("Recovered")\n</a2ui>')
-        return s
-
-    state = await solver(state, gen_with_retry)
-    assert calls == 2
-    assert "</a2ui>" in state.output.completion
-    assert state.metadata["generate_attempts"] == 2
-    assert "<a2ui>" not in state.messages[-1].content
-    assert "</a2ui>" not in state.messages[-1].content
-
-
-@pytest.mark.asyncio
-async def test_measured_generate_caps_at_one_retry_and_skips_truncated_or_max_tokens() -> (
-    None
-):
-    solver = measured_generate(required_close_tag="</a2ui>")
-
-    # 1. Capped at 2 total attempts even when close tag never appears.
-    state = _state({}, completion="still prose")
-    calls = 0
-
-    async def always_prose(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
+    async def single_gen(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
         nonlocal calls
         calls += 1
         return s
 
-    state = await solver(state, always_prose)
-    assert calls == 2
-    assert state.metadata["generate_attempts"] == 2
-
-    # 2. Empty completion also caps at 2 attempts.
-    empty_state = _state({}, completion="")
-    empty_calls = 0
-
-    async def always_empty(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        nonlocal empty_calls
-        empty_calls += 1
-        return s
-
-    await solver(empty_state, always_empty)
-    assert empty_calls == 2
-    assert empty_state.metadata["generate_attempts"] == 2
-
-    # 3. Truncated output (open tag present, close tag missing) does not retry.
-    trunc_state = _state({}, completion='<a2ui>\nroot = Text("unfinished')
-    trunc_calls = 0
-
-    async def gen_trunc(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        nonlocal trunc_calls
-        trunc_calls += 1
-        return s
-
-    await solver(trunc_state, gen_trunc)
-    assert trunc_calls == 1
-    assert trunc_state.metadata["generate_attempts"] == 1
-
-    # 4. stop_reason == "max_tokens" does not retry.
-    max_tok_state = _state({}, completion="partial")
-    max_tok_state.output.choices[0].stop_reason = "max_tokens"
-    max_tok_calls = 0
-
-    async def gen_max_tok(s: TaskState, *args: Any, **kwargs: Any) -> TaskState:
-        nonlocal max_tok_calls
-        max_tok_calls += 1
-        return s
-
-    await solver(max_tok_state, gen_max_tok)
-    assert max_tok_calls == 1
-    assert max_tok_state.metadata["generate_attempts"] == 1
+    state = await solver(state, single_gen)
+    assert calls == 1
+    assert state.metadata["generate_attempts"] == 1
+    assert "inference_duration_seconds" in state.metadata
 
 
 @pytest.mark.asyncio
-async def test_a2ui_specialist_retries_when_close_tag_missing() -> None:
+async def test_a2ui_specialist_generates_single_attempt_and_sets_payload() -> None:
     bridge = _FakeBridge()
     store().set("version", "0.9.1")
     store().set("sdk", "python")
     store().set("catalog", str(V091_CATALOG))
     calls = 0
-    seen_messages: list[Any] = []
 
-    class _RetryingModel:
+    class _SingleModel:
 
         async def generate(self, messages: list[Any]) -> ModelOutput:
             nonlocal calls
             calls += 1
-            seen_messages.extend(messages)
-            if calls == 1:
-                return ModelOutput.from_content(
-                    "mock/model", "print(get_pong_app_a2ui_json())"
-                )
             return ModelOutput.from_content("mock/model", "<a2ui-json>[]</a2ui-json>")
 
     with patch(
         "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
     ), patch(
         "a2ui_eval.strategies.subagent_tool.get_model",
-        return_value=_RetryingModel(),
+        return_value=_SingleModel(),
     ):
         result = await a2ui_specialist()(input="Spin up Pong")
 
-    assert calls == 2
+    assert calls == 1
     assert result.startswith("Success")
     assert store().get(PAYLOAD_STORE_KEY) is not None
-    assert "<a2ui-json>" not in seen_messages[-1].content
 
 
 @pytest.mark.asyncio
-async def test_a2ui_specialist_clears_stale_payload_and_caps_retries() -> None:
+async def test_a2ui_specialist_clears_stale_payload_on_failure() -> None:
     bridge = _FakeBridge()
     store().set("version", "0.9.1")
     store().set("sdk", "python")
@@ -480,7 +405,7 @@ async def test_a2ui_specialist_clears_stale_payload_and_caps_retries() -> None:
     ):
         result = await a2ui_specialist()(input="Spin up Pong")
 
-    assert calls == 2
+    assert calls == 1
     assert result.startswith("Error")
     assert store().get(PAYLOAD_STORE_KEY) is None
 

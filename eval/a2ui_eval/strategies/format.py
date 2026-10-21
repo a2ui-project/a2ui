@@ -68,11 +68,12 @@ def format_system_prompt(format_name: str, version: str, sdk: str = "python") ->
         if format_name == "direct_json":
             prompt_parts.append(
                 "## Environment Notes:\n"
-                "- Always set `catalogId` in `createSurface` to the exact"
-                " `catalogId` value defined in the provided Catalog Schema;"
-                " never invent a custom or placeholder `catalogId` URL or"
-                " identifier, even if the user prompt mentions a custom"
-                " catalog."
+                "- When specifying `catalogId` (in `createSurface` as the surface"
+                " default, or on individual components and function calls), always"
+                " use the exact `catalogId` value(s) defined in the provided"
+                " Catalog Schema(s); never invent a custom or placeholder"
+                " `catalogId` URL or identifier (such as `example.com`), even if"
+                " the user prompt mentions a custom catalog."
             )
         prompt_parts.append(generated_snippet)
         a2ui_prompt = "\n\n".join(prompt_parts)
