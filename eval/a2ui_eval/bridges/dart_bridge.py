@@ -16,7 +16,8 @@
 
 The bridge compiles `dart_runner.dart` against `dart/a2ui_agent` and
 `dart/a2ui_core` into a native executable once, then runs it per request with a
-JSON payload on stdin.
+JSON payload on stdin. `BridgeOptions` travel in the payload's `options` field
+in their `to_dict` form (snake_case keys), or null when no options are given.
 
 The executable is cached per checkout under
 `<repo>/.dart_tool/a2ui_eval/bridge_<hash>`, where the hash covers the runner,
@@ -43,6 +44,7 @@ from typing import Any
 from ..shared.utils import GIT_ROOT
 from .base import (
     AgentSdkBridge,
+    BridgeOptions,
     DEFAULT_PARSE_TIMEOUT_SEC,
     validate_sdk_format,
     validate_sdk_version,
@@ -63,6 +65,16 @@ _PUB_GET_TIMEOUT_SEC = 900.0
 _COMPILE_TIMEOUT_SEC = 600.0
 _PROMPT_TIMEOUT_SEC = 15.0
 _MAX_ERROR_OUTPUT_CHARS = 4000
+
+
+def _options_payload(options: BridgeOptions | None) -> dict[str, Any] | None:
+    """The `options` field of a runner request: snake_case keys, or None."""
+    return None if options is None else options.to_dict()
+
+
+def _options_cache_key(options: BridgeOptions | None) -> str:
+    """The part of a prompt cache key that identifies `options`."""
+    return "" if options is None else options.cache_key()
 
 
 def _tail(text: str, limit: int = _MAX_ERROR_OUTPUT_CHARS) -> str:
@@ -229,7 +241,7 @@ class DartSdkBridge(AgentSdkBridge):
         self._runner_path = runner_path if runner_path is not None else DART_RUNNER_PATH
         self._compiled_exe: Path | None = None
         self._lock = threading.Lock()
-        self._prompt_cache: dict[tuple[str, str, str, str], str] = {}
+        self._prompt_cache: dict[tuple[str, str, str, str, str], str] = {}
 
     @property
     def cache_dir(self) -> Path:
@@ -399,10 +411,20 @@ class DartSdkBridge(AgentSdkBridge):
         version: str,
         resolved_catalog_path: str,
         surface_id: str = "main",
+        *,
+        options: BridgeOptions | None = None,
     ) -> str:
         validate_sdk_format(self.sdk_name, format_name)
         norm_version = validate_sdk_version(self.sdk_name, version)
-        cache_key = (format_name, norm_version, resolved_catalog_path, surface_id)
+        # Options change the prompt (pruning, examples, allowed messages), so
+        # two calls share a cached prompt only when their options match too.
+        cache_key = (
+            format_name,
+            norm_version,
+            resolved_catalog_path,
+            surface_id,
+            _options_cache_key(options),
+        )
         cached = self._prompt_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -414,6 +436,7 @@ class DartSdkBridge(AgentSdkBridge):
                 "version": norm_version,
                 "resolved_catalog_path": resolved_catalog_path,
                 "surface_id": surface_id,
+                "options": _options_payload(options),
             },
             timeout_sec=_PROMPT_TIMEOUT_SEC,
         )
@@ -432,6 +455,7 @@ class DartSdkBridge(AgentSdkBridge):
         require_complete_tags: bool = False,
         *,
         validate: bool = True,
+        options: BridgeOptions | None = None,
     ) -> dict[str, Any]:
         validate_sdk_format(self.sdk_name, format_name)
         norm_version = validate_sdk_version(self.sdk_name, version)
@@ -445,6 +469,7 @@ class DartSdkBridge(AgentSdkBridge):
                 "completion": completion,
                 "require_complete_tags": require_complete_tags,
                 "validate": validate,
+                "options": _options_payload(options),
             },
             timeout_sec=timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC,
         )
