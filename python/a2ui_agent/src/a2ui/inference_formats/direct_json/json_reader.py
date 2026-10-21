@@ -227,10 +227,9 @@ class _Reader:
                 self._fail(f"expected ':' after key '{key}'")
             self._i += 1
             self._skip_space()
-            is_data_value = (
-                not self._in_data_model
-                and parent_key == "updateDataModel"
-                and key == "value"
+            is_data_value = not self._in_data_model and (
+                (parent_key == "updateDataModel" and key == "value")
+                or (parent_key == "createSurface" and key == "dataModel")
             )
             if is_data_value:
                 self._in_data_model = True

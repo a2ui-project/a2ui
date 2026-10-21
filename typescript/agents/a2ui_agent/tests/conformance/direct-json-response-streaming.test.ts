@@ -41,6 +41,9 @@ import {conformancePath, registerCase} from './suite-helpers.js';
  */
 const KNOWN_FAILURES = new Map<string, string>([
   ...group('text outside a block keeps the whitespace at its edges instead of trimming it', [
+    'test_chunk_inline_code_in_prose_followed_by_block',
+    'test_chunk_inline_code_in_prose_with_trailing_newline',
+    'test_chunk_inline_code_in_prose_with_trailing_space',
     'test_chunk_open_tag_split_across_chunks',
     'test_chunk_text_then_block_at_part_boundaries',
     'test_chunk_two_blocks_in_one_stream',
@@ -190,6 +193,24 @@ function expectError(fn: () => unknown, expected: NonNullable<Step['expect_error
   }
 }
 
+function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const merged: Array<Record<string, unknown>> = [];
+  for (const p of parts) {
+    if (
+      merged.length > 0 &&
+      typeof merged[merged.length - 1].text === 'string' &&
+      typeof p.text === 'string'
+    ) {
+      merged[merged.length - 1] = {
+        text: (merged[merged.length - 1].text as string) + (p.text as string),
+      };
+    } else {
+      merged.push(p);
+    }
+  }
+  return merged;
+}
+
 function runCase(testCase: LoadedCase): void {
   const args = testCase.args as unknown as StreamingArgs;
   const wrapped = args.wrapped ?? true;
@@ -208,9 +229,14 @@ function runCase(testCase: LoadedCase): void {
     yielded.push(...parts);
   }
 
+  const flushed = parser.flush().map(partToDict);
+  yielded.push(...flushed);
+
   if (testCase.expect_matches_single_shot) {
     const singleShot = makeParser(args).parseResponse(chunks.join(''), wrapped);
-    expect(singleShot.map(partToDict)).toEqual(yielded);
+    expect(mergeAdjacentText(yielded)).toEqual(
+      mergeAdjacentText(singleShot.map(partToDict)),
+    );
   }
 }
 

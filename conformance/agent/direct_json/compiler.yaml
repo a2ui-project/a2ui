@@ -361,3 +361,27 @@
           id: "item\n1"
           component: "comp\n2"
           notes: "line\n3"
+
+- name: test_compile_json_newline_in_create_surface_data_model_preserved
+  description: Raw line breaks inside strings under createSurface.dataModel in v1.0 are preserved even if property names match identifier keys.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified", "dataModel": {
+        "id": "item
+    1",
+        "notes": "line
+    2"
+      }}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        dataModel:
+          id: "item\n1"
+          notes: "line\n2"

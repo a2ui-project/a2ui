@@ -310,10 +310,13 @@ def _normalize_express_source(source: str) -> str:
         if is_tok:
             out.append(seg)
             continue
+
         def _join_data_path(m: re.Match[str]) -> str:
             p1, nl, p2 = m.group(1), m.group(2), m.group(3)
-            rest = seg[m.end():]
-            if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", p2) and re.match(r"^[ \t]*=(?!=)", rest):
+            rest = seg[m.end() :]
+            if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", p2) and re.match(
+                r"^[ \t]*=(?!=)", rest
+            ):
                 return m.group(0)
             return f"{p1}{p2}{nl}"
 
@@ -1137,7 +1140,7 @@ class ExpressCompiler:
             enum_vals = comp_helper.get_property_enum(comp_name, prop_name)
             if (
                 enum_vals
-                and not isinstance(mapped_val, dict)
+                and not isinstance(mapped_val, (dict, list))
                 and not _has_databinding(mapped_val)
             ):
                 if mapped_val not in enum_vals:

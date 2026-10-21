@@ -468,4 +468,3 @@ def test_stream_text_with_lone_backticks_kept(basic_catalog_v10):
         parts.extend(parser.parse_chunk(chunk))
     texts = [p.text for p in parts if isinstance(p, TextPart)]
     assert "".join(texts) == "Use `Text` for labels."
-

@@ -95,6 +95,13 @@ export abstract class Parser {
   }
 
   /**
+   * Flushes any buffered tokens or parts held at the end of the stream.
+   */
+  flush(): ResponsePart[] {
+    return [];
+  }
+
+  /**
    * Reports whether the content carries a block written in this format.
    *
    * Tokenizes blocks without compiling, so a caller can decide whether a response is this

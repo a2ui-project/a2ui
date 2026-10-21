@@ -208,6 +208,20 @@ class DirectJsonParser(Parser):
                 input_str = input_str.lstrip("`")
             if input_str:
                 self._strip_close_backticks = False
+
+        if not self._in_block and self._held_backticks:
+            trimmed = input_str.lstrip()
+            is_open_tag = bool(
+                _OPEN_TAG_RE.match(trimmed)
+                or _OPEN_TAG_START_RE.match(trimmed)
+                or "<a2ui-json".startswith(trimmed.lower())
+            )
+            if is_open_tag:
+                self._held_backticks = ""
+            else:
+                input_str = self._held_backticks + input_str
+                self._held_backticks = ""
+
         while input_str:
             if self._in_block:
                 self._block += input_str
@@ -246,40 +260,40 @@ class DirectJsonParser(Parser):
                 continue
 
             hold = self._possible_tag_start(input_str)
-            self._emit_text(parts, input_str[:hold])
+            text_to_emit = input_str[:hold]
             self._held = input_str[hold:]
             input_str = ""
+            if not self._held:
+                m = re.search(r"`+\Z", text_to_emit)
+                if m:
+                    self._held_backticks = m.group(0)
+                    text_to_emit = text_to_emit[: m.start()]
+            else:
+                text_to_emit = text_to_emit.rstrip("`")
+            self._emit_text(parts, text_to_emit)
 
+        return parts
+
+    def flush(self) -> list[ResponsePart]:
+        """Flushes buffered text or backticks when the stream ends."""
+        parts: list[ResponsePart] = []
+        if self._held_backticks:
+            self._emit_text(parts, self._held_backticks)
+            self._held_backticks = ""
+        elif self._held:
+            self._emit_text(parts, self._held)
+            self._held = ""
         return parts
 
     def _emit_text(self, parts: list[ResponsePart], text: str) -> None:
         body = (text if self._run_started else text.lstrip()).rstrip()
-        m = re.search(r"`+$", body)
-        if m:
-            ticks = m.group(0)
-            body_no_ticks = body[: m.start()].rstrip()
-        else:
-            ticks = ""
-            body_no_ticks = body
-
-        if not body_no_ticks:
-            if self._run_started:
-                self._held_backticks += ticks
-                self._held_space += text[: len(text) - len(ticks)] if ticks else text
-            elif ticks:
-                self._held_backticks += ticks
+        if not body:
+            if self._run_started and not body:
+                self._held_space += text
             return
-
-        start = 0 if self._run_started else text.find(body_no_ticks)
-        parts.append(
-            TextPart(text=f"{self._held_space}{self._held_backticks}{body_no_ticks}")
-        )
-        self._held_space = text[start + len(body_no_ticks) :]
-        if ticks:
-            self._held_backticks = ticks
-            self._held_space = re.sub(r"`+$", "", self._held_space)
-        else:
-            self._held_backticks = ""
+        start = 0 if self._run_started else text.find(body)
+        parts.append(TextPart(text=f"{self._held_space}{body}"))
+        self._held_space = text[start + len(body) :]
         self._run_started = True
 
     def _emit_ready(self, parts: list[ResponsePart], block: str) -> None:

@@ -344,7 +344,9 @@ class _Reader {
       _i++;
       _skipSpace();
       final bool isDataValue =
-          !_inDataModel && parentKey == 'updateDataModel' && key == 'value';
+          !_inDataModel &&
+          ((parentKey == 'updateDataModel' && key == 'value') ||
+              (parentKey == 'createSurface' && key == 'dataModel'));
       if (isDataValue) _inDataModel = true;
       try {
         map[key] = !_atEnd && text[_i] == '['

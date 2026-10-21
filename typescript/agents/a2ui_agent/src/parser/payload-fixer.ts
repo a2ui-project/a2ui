@@ -109,7 +109,9 @@ export function repairStringNewlines(jsonStr: string): string {
         const top = stack[stack.length - 1];
         const inDataModel =
           top?.inDataModel ||
-          (top?.type === 'object' && top.parentKey === 'updateDataModel' && lastKey === 'value');
+          (top?.type === 'object' &&
+            ((top.parentKey === 'updateDataModel' && lastKey === 'value') ||
+              (top.parentKey === 'createSurface' && lastKey === 'dataModel')));
         stack.push({type: 'object', parentKey: lastKey, inDataModel});
         lastKey = undefined;
       } else if (ch === '}') {
@@ -119,7 +121,9 @@ export function repairStringNewlines(jsonStr: string): string {
         const top = stack[stack.length - 1];
         const inDataModel =
           top?.inDataModel ||
-          (top?.type === 'object' && top.parentKey === 'updateDataModel' && lastKey === 'value');
+          (top?.type === 'object' &&
+            ((top.parentKey === 'updateDataModel' && lastKey === 'value') ||
+              (top.parentKey === 'createSurface' && lastKey === 'dataModel')));
         stack.push({type: 'array', parentKey: lastKey, inDataModel});
         lastKey = undefined;
       } else if (ch === ']') {
@@ -164,7 +168,9 @@ export function repairStringNewlines(jsonStr: string): string {
     const top = stack[stack.length - 1];
     const inDataModel =
       top?.inDataModel ||
-      (top?.type === 'object' && top.parentKey === 'updateDataModel' && lastKey === 'value');
+      (top?.type === 'object' &&
+        ((top.parentKey === 'updateDataModel' && lastKey === 'value') ||
+          (top.parentKey === 'createSurface' && lastKey === 'dataModel')));
     const inChildrenArray = !inDataModel && top?.type === 'array' && top.parentKey === 'children';
     const stripNewlines =
       !inDataModel &&

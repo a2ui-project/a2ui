@@ -12,7 +12,7 @@
 - The Direct JSON and Express compilers strip stray unescaped line breaks inside
   JSON object keys and identifier/reference properties (`id`, `component`,
   `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
-  leaving user data under `updateDataModel` values untouched), at the edges of
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
   single-line Express strings, and inside Express data paths and line-wrapped
   identifiers (outside strings and comments, when the joined name resolves to
   a declared variable), accept SQL/Lua-style `--` comments in Express, and map

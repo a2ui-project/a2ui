@@ -108,17 +108,17 @@
     },
     "Meter": {
       "type": "object",
-      "description": "A meter component with title, numeric count, unit enum, and weight.",
+      "description": "A meter component with title, optional unit enum, numeric level, and optional description.",
       "properties": {
         "component": { "const": "Meter" },
         "label": { "$ref": "common_types.json#/$defs/DynamicString" },
-        "level": { "type": "number" },
         "unit": {
           "type": "string",
           "enum": ["percent", "ratio"],
           "default": "percent"
         },
-        "weight": { "type": "number" }
+        "level": { "type": "number" },
+        "description": { "type": "string" }
       },
       "required": ["component", "label"]
     }

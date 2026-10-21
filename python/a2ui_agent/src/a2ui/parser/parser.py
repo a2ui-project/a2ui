@@ -120,3 +120,7 @@ class Parser(ABC):
         raise NotImplementedError(
             f"Streaming is not supported by {self.__class__.__name__}"
         )
+
+    def flush(self) -> list[ResponsePart]:
+        """Flushes any buffered tokens or parts held at the end of the stream."""
+        return []

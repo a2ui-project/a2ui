@@ -202,6 +202,19 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
       }
     }
 
+    if (!this.foundDelimiter && this.heldBackticks.length > 0) {
+      const trimmed = this.buffer.trimStart();
+      const isOpenTag =
+        trimmed.startsWith(A2UI_OPEN_TAG) ||
+        (trimmed.length > 0 && A2UI_OPEN_TAG.startsWith(trimmed));
+      if (isOpenTag) {
+        this.heldBackticks = '';
+      } else {
+        this.buffer = this.heldBackticks + this.buffer;
+        this.heldBackticks = '';
+      }
+    }
+
     while (true) {
       if (!this.foundDelimiter) {
         const openIdx = this.buffer.indexOf(A2UI_OPEN_TAG);
@@ -226,22 +239,20 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           }
           if (this.buffer.length > keepLen) {
             const safeLen = this.buffer.length - keepLen;
-            const textToYield = this.buffer.substring(0, safeLen);
+            let textToYield = this.buffer.substring(0, safeLen);
             this.buffer = this.buffer.substring(safeLen);
 
-            const matchTicks = textToYield.match(/`+$/);
-            if (matchTicks) {
-              const ticks = matchTicks[0];
-              const prefix = textToYield.substring(0, textToYield.length - ticks.length);
-              if (prefix.length > 0) {
-                messages.push({type: 'text', text: this.heldBackticks + prefix});
-                this.heldBackticks = ticks;
-              } else {
-                this.heldBackticks += ticks;
+            if (keepLen === 0) {
+              const matchTicks = textToYield.match(/`+$/);
+              if (matchTicks) {
+                this.heldBackticks = matchTicks[0];
+                textToYield = textToYield.substring(0, textToYield.length - matchTicks[0].length);
               }
             } else {
-              messages.push({type: 'text', text: this.heldBackticks + textToYield});
-              this.heldBackticks = '';
+              textToYield = textToYield.replace(/`+$/, '');
+            }
+            if (textToYield.length > 0) {
+              messages.push({type: 'text', text: textToYield});
             }
           }
           break;
@@ -1374,5 +1385,17 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
         throw e;
       }
     }
+  }
+
+  flush(): ResponsePart[] {
+    const messages: ResponsePart[] = [];
+    if (this.heldBackticks.length > 0) {
+      messages.push({type: 'text', text: this.heldBackticks});
+      this.heldBackticks = '';
+    } else if (this.buffer.length > 0 && !this.foundDelimiter) {
+      messages.push({type: 'text', text: this.buffer});
+      this.buffer = '';
+    }
+    return messages;
   }
 }

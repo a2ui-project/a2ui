@@ -279,6 +279,72 @@
       expect: []
   expect_matches_single_shot: true
 
+- name: test_chunk_inline_code_in_prose_with_trailing_space
+  description: Inline code followed by whitespace in a chunk is not held as an edge backtick.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "Use `Text` "
+      expect:
+        - text: "Use `Text`"
+    - input: "for labels."
+      expect:
+        - text: " for labels."
+  expect_matches_single_shot: true
+
+- name: test_chunk_inline_code_in_prose_with_trailing_newline
+  description: Inline code followed by a newline in a chunk is not held as an edge backtick.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "Use `x`\n"
+      expect:
+        - text: "Use `x`"
+    - input: "More"
+      expect:
+        - text: "\nMore"
+  expect_matches_single_shot: true
+
+- name: test_chunk_inline_code_at_end_of_stream
+  description: Inline code whose closing backtick is at the very end of the stream is flushed when the stream ends.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "Run `ls`"
+      expect:
+        - text: "Run `ls"
+  expect_matches_single_shot: true
+
+- name: test_chunk_inline_code_in_prose_followed_by_block
+  description: Inline code at the end of a chunk followed by conversational text and a block emits the backtick as prose rather than stripping it.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "Use `Text`"
+      expect:
+        - text: "Use `Text"
+    - input: ' here. <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
+      expect:
+        - text: "` here."
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+  expect_matches_single_shot: true
+
 - name: test_chunk_missing_open_tag_is_emitted_as_text
   description: Missing-open-tag recovery is one-shot only; a stream with no opening <a2ui-json> tag emits its chunks as text rather than holding the whole turn back.
   action: parse_chunk

@@ -99,6 +99,10 @@ export class DirectJsonParser extends Parser {
     return this.streamProcessor.processChunk(chunk);
   }
 
+  override flush(): ResponsePart[] {
+    return this.streamProcessor?.flush ? this.streamProcessor.flush() : [];
+  }
+
   decompile(a2uiPayload: AgentToRendererMessage[]): string {
     return this.decompiler.decompile(a2uiPayload);
   }

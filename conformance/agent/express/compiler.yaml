@@ -1322,7 +1322,7 @@
     format: express
     catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
   input: |-
-    root = Status(1)
+    root = Status(1, state = "active")
   expect_error:
     category: "ValidationError"
 
@@ -1380,14 +1380,14 @@
   expect_error:
     category: "ParseError"
 
-- name: test_compile_express_positional_number_followed_by_more_args_pins_exact_assignment
-  description: A numeric positional argument followed by more arguments does not skip ahead to weight, assigning to the earlier numeric property instead.
+- name: test_compile_express_positional_number_skips_optional_enum_to_level_when_last_arg
+  description: A numeric positional argument skips an optional enum property when it is the last positional argument and a single later property accepts numbers.
   action: compile
   args:
     format: express
     catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
   input: |-
-    root = Meter("CPU", 75, "percent")
+    root = Meter("CPU", 75)
   expect:
     - version: "v1.0"
       createSurface:
@@ -1398,7 +1398,17 @@
             component: "Meter"
             label: "CPU"
             level: 75
-            unit: "percent"
+
+- name: test_compile_express_positional_number_followed_by_more_args_pins_exact_assignment
+  description: A numeric positional argument followed by more arguments does not skip ahead to level, rejecting the invalid enum assignment instead of succeeding.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Meter("CPU", 75, "High priority")
+  expect_error:
+    category: "ValidationError"
 
 - name: test_compile_express_raw_newline_in_plain_string_preserved
   description: A raw newline inside a plain string literal is preserved and not altered by source normalization.

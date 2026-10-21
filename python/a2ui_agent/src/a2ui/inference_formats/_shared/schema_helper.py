@@ -379,7 +379,8 @@ class CatalogSchemaHelper:
 
             enum_val = s.get("enum")
             if isinstance(enum_val, list) and any(
-                isinstance(v, (int, float)) and not isinstance(v, bool) for v in enum_val
+                isinstance(v, (int, float)) and not isinstance(v, bool)
+                for v in enum_val
             ):
                 return True
 

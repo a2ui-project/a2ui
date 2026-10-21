@@ -55,6 +55,11 @@ export interface DirectJsonStreamProcessor {
    * @returns An array of response parts processed so far in the stream.
    */
   processChunk(chunk: string): ResponsePart[];
+
+  /**
+   * Flushes any buffered text or backticks when the stream ends.
+   */
+  flush?(): ResponsePart[];
 }
 
 /**

@@ -138,7 +138,10 @@ class DirectJsonResponseStream extends ResponseStream {
       _fail(_touched);
       rethrow;
     }
-    if (_held.isNotEmpty) {
+    if (_heldBackticks.isNotEmpty) {
+      _emitText(parts, _heldBackticks);
+      _heldBackticks = '';
+    } else if (_held.isNotEmpty) {
       _emitText(parts, _held);
       _held = '';
     }
@@ -171,6 +174,18 @@ class DirectJsonResponseStream extends ResponseStream {
       }
       if (input.isNotEmpty) {
         _stripCloseBackticks = false;
+      }
+    }
+    if (!_inBlock && _heldBackticks.isNotEmpty) {
+      final String trimmed = input.trimLeft();
+      final bool isOpenTag =
+          openTag.matchAsPrefix(trimmed) != null ||
+          openTagText.startsWith(trimmed.toLowerCase());
+      if (isOpenTag) {
+        _heldBackticks = '';
+      } else {
+        input = '$_heldBackticks$input';
+        _heldBackticks = '';
       }
     }
     while (input.isNotEmpty) {
@@ -209,9 +224,22 @@ class DirectJsonResponseStream extends ResponseStream {
         continue;
       }
       final int hold = possibleTagStart(input);
-      _emitText(parts, input.substring(0, hold));
+      String textToEmit = input.substring(0, hold);
       _held = input.substring(hold);
       input = '';
+      if (_held.isEmpty) {
+        final Match? ticksMatch = RegExp(r'`+$').firstMatch(textToEmit);
+        if (ticksMatch != null) {
+          _heldBackticks = ticksMatch.group(0)!;
+          textToEmit = textToEmit.substring(
+            0,
+            textToEmit.length - _heldBackticks.length,
+          );
+        }
+      } else {
+        textToEmit = textToEmit.replaceAll(RegExp(r'`+$'), '');
+      }
+      _emitText(parts, textToEmit);
     }
     return parts;
   }
@@ -220,31 +248,13 @@ class DirectJsonResponseStream extends ResponseStream {
   /// run and trailing whitespace, which is held until more text arrives.
   void _emitText(List<ResponsePart> parts, String text) {
     final String body = (_runStarted ? text : text.trimLeft()).trimRight();
-    final Match? ticksMatch = RegExp(r'`+$').firstMatch(body);
-    final String ticks = ticksMatch != null ? ticksMatch.group(0)! : '';
-    final String bodyNoTicks = ticks.isNotEmpty
-        ? body.substring(0, body.length - ticks.length).trimRight()
-        : body;
-
-    if (bodyNoTicks.isEmpty) {
-      if (_runStarted) {
-        _heldBackticks += ticks;
-        _heldSpace += text.substring(0, text.length - ticks.length);
-      } else if (ticks.isNotEmpty) {
-        _heldBackticks += ticks;
-      }
+    if (body.isEmpty) {
+      if (_runStarted && body.isEmpty) _heldSpace += text;
       return;
     }
-
-    final int start = _runStarted ? 0 : text.indexOf(bodyNoTicks);
-    parts.add(TextPart('$_heldSpace$_heldBackticks$bodyNoTicks'));
-    _heldSpace = text.substring(start + bodyNoTicks.length);
-    if (ticks.isNotEmpty) {
-      _heldBackticks = ticks;
-      _heldSpace = _heldSpace.replaceAll(RegExp(r'`+$'), '');
-    } else {
-      _heldBackticks = '';
-    }
+    final int start = _runStarted ? 0 : text.indexOf(body);
+    parts.add(TextPart('$_heldSpace$body'));
+    _heldSpace = text.substring(start + body.length);
     _runStarted = true;
   }
 
