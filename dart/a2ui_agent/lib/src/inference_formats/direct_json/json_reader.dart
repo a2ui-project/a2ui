@@ -431,7 +431,7 @@ class _Reader {
         if (rawIndices.isEmpty) return chars.join();
         final bool hasSpace = chars.contains(' ');
         var start = 0;
-        var end = chars.length;
+        int end = chars.length;
         while (start < end && rawIndices.contains(start)) {
           start++;
         }
@@ -440,7 +440,7 @@ class _Reader {
         }
         if (isKey || !hasSpace) {
           return [
-            for (var idx = start; idx < end; idx++)
+            for (int idx = start; idx < end; idx++)
               if (!rawIndices.contains(idx)) chars[idx],
           ].join();
         }
