@@ -54,11 +54,12 @@ export class A2uiGenerator {
    * @throws {A2uiCatalogError} If `rendererCapabilities` is missing, since there is
    *     nothing to negotiate against, if negotiation leaves no catalog, or if
    *     `options.state` holds other catalogs than the negotiated ones.
-   * @throws {A2uiValidationError} If an example message is not an object, or a renderer
-   *     holding the negotiated catalogs would reject an example.
+   * @throws {A2uiValidationError} If the capabilities lack an entry for the catalogs'
+   *     protocol version, if an example message is not an object, or if a renderer holding
+   *     the negotiated catalogs would reject an example.
    */
   createProcessor(
-    rendererCapabilities: RendererCapabilities,
+    rendererCapabilities: Record<string, RendererCapabilities> | RendererCapabilities,
     inferenceFormatFactory?: InferenceFormatFactory,
     options: A2uiRequestProcessorOptions = {},
   ): A2uiRequestProcessor {

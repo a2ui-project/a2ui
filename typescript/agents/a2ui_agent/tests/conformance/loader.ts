@@ -77,7 +77,7 @@ const SUPERSEDED = new Map<string, string>([
     'test_parse_response_empty_tags',
   ].map((name): [string, string] => [
     name,
-    'superseded by direct_json/response_parser.yaml, where a response without tags is text and an empty block fails when it compiles',
+    'superseded by direct_json/response_parser.yaml, where a response without tags is a text part, an empty response has no parts, and an empty block fails when it compiles',
   ]),
 ]);
 

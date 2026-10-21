@@ -6,13 +6,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ## 1. `@a2ui/agent` (This package)
 
-### `resolveCatalogs` can't tell when capabilities omit the catalogs' version
-
-- **What it is:** `resolveCatalogs` and `A2uiGenerator.createProcessor` take the renderer capabilities entry for one protocol version, not the object keyed by version that the renderer sends. Python takes the keyed object, looks up the entry for the registered catalogs' version, and raises a validation error when it's missing.
-- **Why it exists:** The TypeScript SDK was written against v1.0 only, so callers unwrap the `v1.0` entry before calling in.
-- **What it risks:** A caller that unwraps the wrong key, or passes `undefined` because the key is missing, gets every registered catalog instead of an error.
-- **Done looks like:** The resolver takes the version-keyed capabilities, picks the entry for the catalogs' protocol version, and throws `A2uiValidationError` when there is none, so `test_capabilities_without_the_catalogs_version_are_invalid` in `conformance/agent/catalog_resolution.yaml` passes.
-
 ### Partial protocol version support and unimplemented formats
 
 - **What it is:** The package supports `v1.0`, `v0.9` and `v0.9.1`, a patch release that shares the v0.9 schemas. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
@@ -43,7 +36,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Some blueprint conformance suites are not run
 
-- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness still reads `legacy/parser.yaml` and `legacy/inference_format.yaml` there, skipping the cases the newer suites replaced. The blueprint suites `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, every `agent/direct_json/*.yaml` file and every `agent/express/*.yaml` file run. The timing suites among them, `agent/direct_json/scaling.yaml` and `agent/express/scaling.yaml`, run with `yarn test:timing` rather than `yarn test`. `agent/catalog_transformer.yaml` and `agent/builder/` do not run.
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness still reads `legacy/parser.yaml` and `legacy/inference_format.yaml` there, skipping the cases the newer suites replaced. The blueprint suites `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, every `agent/direct_json/*.yaml` file and every `agent/express/*.yaml` file run. The timing suites among them, `agent/direct_json/scaling.yaml` and `agent/express/scaling.yaml`, run with `yarn test:timing` rather than `yarn test`. `agent/builder/` and `agent/macros/` do not run.
 - **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
 - **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
@@ -63,13 +56,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The generic typing in `web_core` does not differentiate between execution catalogs and schema-only catalogs.
 - **What it risks:** Forces a double cast (`as unknown as Catalog<ComponentApi, FunctionImplementation>[]`) in `processor.ts` when passing schema-only catalogs.
 - **Done looks like:** `MessageProcessor` relaxes its type constraint to allow omitting `FunctionImplementation` when no action handler is provided.
-
-### Catalog loader keeps a second copy of the common types map
-
-- **What it is:** `schema_loader.ts` resolves protocol `$ref`s through its own `COMMON_TYPE_SCHEMAS` table, a partial copy of the complete `CommonSchemas` map that `types/common-types.ts` already exports.
-- **Why it exists:** The two grew independently.
-- **What it risks:** The copy falls behind silently. It already has once: it lacked `Child`, so every v1.0 single-child reference resolved to nothing and the basic catalog lost its child references with no test noticing. That was fixed by adding the entry, not by removing the duplication, so the next new common type will hit the same wall.
-- **Done looks like:** The loader resolves against `CommonSchemas` directly and the local table is deleted.
 
 ### No v0.9.1 basic catalog
 

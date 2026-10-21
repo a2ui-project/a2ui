@@ -73,13 +73,23 @@ describe('DirectJsonParser', () => {
   it('unwraps an empty block as an empty raw part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\n<a2ui-json>\n</a2ui-json>';
-    expect(parser.unwrap(content)[1]).toEqual({type: 'a2ui', a2uiRaw: '', isFinal: true});
+    expect(parser.unwrap(content)).toEqual([
+      {type: 'text', text: 'Text before', isFinal: true},
+      {type: 'a2ui', a2uiRaw: '', isFinal: true},
+    ]);
+    expect(() => parser.parseResponse(content)).toThrow(ParseError);
   });
 
   it('unwraps a response without tags as one text part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\nNo tags here';
     expect(parser.unwrap(content)).toEqual([{type: 'text', text: content, isFinal: true}]);
+    expect(parser.parseResponse(content)).toEqual([{type: 'text', text: content}]);
+  });
+
+  it('unwraps an empty response as no parts', () => {
+    const parser = new DirectJsonParser([basicCatalogV10]);
+    expect(parser.unwrap('')).toEqual([]);
   });
 
   it('throws ParseError on an empty block or one that is not JSON', () => {

@@ -122,56 +122,15 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 
 /**
  * Transition skip list containing specific test case names to skip.
- *
- * The entries are known web_core divergences that the Python and Dart engines
- * already satisfy:
- *
- * - 'test_v08_topology_card_child_reachable': the v0.8 reference map does not
- *   treat a single-child property such as `Card.child` as a component
- *   reference, so strict validation reports the child as orphaned.
  */
-const SKIP_TEST_NAMES = new Set(['test_v08_topology_card_child_reachable']);
+const SKIP_TEST_NAMES = new Set();
 
 /**
  * Cases that web_core's behaviour does not satisfy, keyed by suite path and
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const FUNCTION_CALL_EXTRA_KEY_ACCEPTED =
-  'the validator accepts a function call carrying a key its catalog function' +
-  ' definition does not declare';
-const KNOWN_DIVERGENCES = new Map([
-  [
-    'core/catalog.yaml',
-    new Map([
-      [
-        'test_v09_published_basic_catalog_rejects_function_call_extra_key',
-        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
-      ],
-      [
-        'test_v09_published_minimal_catalog_rejects_function_call_extra_key',
-        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
-      ],
-      [
-        'test_v091_published_basic_catalog_rejects_function_call_extra_key',
-        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
-      ],
-      [
-        'test_v10_published_basic_catalog_rejects_function_call_extra_key',
-        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
-      ],
-    ]),
-  ],
-  [
-    'core/message_processor_v1_0.yaml',
-    new Map([
-      [
-        'test_v10_create_surface_metadata_extension_key_must_be_identifier',
-        'the v1.0 CreateSurface schema does not yet enforce UAX #31 identifier syntax on metadata.extensions keys',
-      ],
-    ]),
-  ],
-]);
+const KNOWN_DIVERGENCES = new Map();
 
 /**
  * The `expect` keys a `from_json` case may use (`FromJsonExpect` in
