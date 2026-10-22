@@ -21,15 +21,14 @@ import {
   A2uiRequestProcessor,
   CatalogConfig,
   DirectJsonFormatFactory,
-  DirectJsonStreamProcessorImpl,
   ExpressFormatFactory,
+  type ResponsePart,
 } from '@a2ui/agent';
 
 import {readInboundMessage, TaskEvents, toA2aParts} from './a2a.js';
 import type {BasicCatalogs} from './catalogs.js';
 import type {A2uiFormat} from './config.js';
 import {loadExamples} from './examples.js';
-import {LruCache} from './lru-cache.js';
 import type {ModelBackend, TurnInput} from './model.js';
 import {pickA2ui} from './pick-a2ui.js';
 import {buildSystemPrompt, FALLBACK_TEXT, retryQuery} from './prompt.js';
@@ -38,11 +37,6 @@ import {VERSIONS, type VersionProfile} from './versions.js';
 
 /** How many times a turn is tried: once, plus one retry after a validation failure, as in Python. */
 const MAX_ATTEMPTS = 2;
-
-/** Keys a conversation's Direct JSON stream processor. */
-function streamProcessorKey(contextId: string, profile: VersionProfile): string {
-  return `${contextId}:${profile.version}`;
-}
 
 /**
  * Answers restaurant requests with A2UI, in the version the renderer asks for.
@@ -53,13 +47,6 @@ function streamProcessorKey(contextId: string, profile: VersionProfile): string 
 export class RestaurantExecutor implements AgentExecutor {
   /** One generator per served version, holding its basic catalog and examples. */
   private readonly generators = new Map<string, A2uiGenerator>();
-  /**
-   * Direct JSON stream processors per conversation and version. A processor remembers
-   * which surfaces, components and data it has already streamed, and skips them in later
-   * turns, so it has to live as long as the conversation, as in the Python sample. An
-   * attempt that fails validation drops it, so the retry starts from a clean one.
-   */
-  private readonly streamProcessors = new LruCache<DirectJsonStreamProcessorImpl>(1000);
 
   constructor(
     private readonly format: A2uiFormat,
@@ -148,20 +135,15 @@ export class RestaurantExecutor implements AgentExecutor {
           }
         : undefined;
 
-      const fullText = await this.streamText({...turn, query}, track);
       try {
-        const parts = this.validate(fullText, turn.profile, catalogIds);
-        // Express is parsed only once the whole response is in, so its parts go out now.
-        if (this.format === 'express') {
-          track?.(parts);
+        const parts = await this.answer({...turn, query}, catalogIds, track);
+        if (!parts.some(part => part.kind === 'data')) {
+          throw new Error('The response contains no A2UI messages');
         }
         return {parts, published};
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
         console.warn(`--- A2UI validation failed: ${error} (Attempt ${attempt + 1}) ---`);
-        // The processor holds the failed attempt's unfinished text and remembers what it
-        // emitted, so the retry would build on it. Start the retry with a new one.
-        this.streamProcessors.delete(streamProcessorKey(turn.contextId, turn.profile));
         query = retryQuery(this.format, error, turn.query);
       }
     }
@@ -170,55 +152,50 @@ export class RestaurantExecutor implements AgentExecutor {
     return {parts: [{kind: 'text', text: FALLBACK_TEXT}], published: false};
   }
 
-  /** Streams one attempt's text. In Direct JSON, parts are published as they arrive. */
-  private async streamText(turn: TurnInput, publish?: (parts: Part[]) => void): Promise<string> {
-    const processor = this.streamProcessorFor(turn.contextId, turn.profile);
+  /**
+   * Generates one attempt's reply and returns its A2A parts.
+   *
+   * Each reply shows new UI, so it is checked on its own, against a new renderer state. When
+   * the client streams a Direct JSON reply, `openStream` checks each message before it is
+   * published, and closing the stream checks the end of the reply. Otherwise, and for
+   * Express, which does not stream, `parseResponse` checks the whole reply, and its parts
+   * are published at once.
+   */
+  private async answer(
+    turn: TurnInput,
+    catalogIds: string[],
+    publish?: (parts: Part[]) => void,
+  ): Promise<Part[]> {
+    const processor = this.createProcessor(turn.profile, catalogIds);
+    if (publish && processor.parser.supportsStreaming) {
+      const stream = processor.openStream();
+      const parts: Part[] = [];
+      const send = (ready: ResponsePart[]) => {
+        const a2aParts = ready.flatMap(toA2aParts);
+        if (a2aParts.length > 0) {
+          parts.push(...a2aParts);
+          publish(a2aParts);
+        }
+      };
+      for await (const chunk of this.backend.streamTurn(turn)) {
+        send(stream.feed(chunk));
+      }
+      send(stream.close());
+      return parts;
+    }
+
     let fullText = '';
     for await (const chunk of this.backend.streamTurn(turn)) {
       fullText += chunk;
-      const parts = (processor?.processChunk(chunk) ?? []).flatMap(toA2aParts);
-      if (parts.length > 0) {
-        publish?.(parts);
-      }
     }
-    return fullText;
-  }
-
-  /** Returns the conversation's Direct JSON stream processor; Express does not stream. */
-  private streamProcessorFor(
-    contextId: string,
-    profile: VersionProfile,
-  ): DirectJsonStreamProcessorImpl | undefined {
-    if (this.format !== 'direct_json') {
-      return undefined;
-    }
-    return this.streamProcessors.getOrCreate(
-      streamProcessorKey(contextId, profile),
-      () =>
-        new DirectJsonStreamProcessorImpl([this.catalogs.get(profile.version)!], {
-          progressiveKeys: ['text', 'literalString'],
-        }),
-    );
-  }
-
-  /**
-   * Validates the full text with a fresh processor and returns its A2A parts.
-   *
-   * A reply with no A2UI fails too, so it is retried like an invalid one, as in the
-   * Python sample. Both the Direct JSON and Express parsers return a reply without tags as
-   * a text part.
-   */
-  private validate(fullText: string, profile: VersionProfile, catalogIds: string[]): Part[] {
-    const parts = this.createProcessor(profile, catalogIds)
-      .parseResponse(fullText)
-      .flatMap(toA2aParts);
-    if (!parts.some(part => part.kind === 'data')) {
-      throw new Error('The response contains no A2UI messages');
+    const parts = processor.parseResponse(fullText).flatMap(toA2aParts);
+    if (parts.some(part => part.kind === 'data')) {
+      publish?.(parts);
     }
     return parts;
   }
 
-  /** Creates a processor for one parse; it keeps state, so it is not reused. */
+  /** Creates a processor negotiated for the request's catalogs. */
   private createProcessor(profile: VersionProfile, catalogIds: string[]): A2uiRequestProcessor {
     const formatFactory =
       this.format === 'express'

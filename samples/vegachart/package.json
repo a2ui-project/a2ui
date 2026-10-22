@@ -1,0 +1,82 @@
+{
+  "name": "@a2ui/vegachart-sample",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Standalone A2UI VegaChart catalog sample (no LLM agent)",
+  "type": "module",
+  "scripts": {
+    "dev": "wireit",
+    "build": "wireit",
+    "preview": "vite preview",
+    "test": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "rm -rf dist .wireit"
+  },
+  "wireit": {
+    "build:deps": {
+      "dependencies": [
+        "../../typescript/catalogs/vegachart:build",
+        "../../typescript/renderers/lit:build",
+        "../../typescript/renderers/markdown-it:build"
+      ]
+    },
+    "dev": {
+      "command": "vite",
+      "service": true,
+      "dependencies": [
+        "build:deps"
+      ]
+    },
+    "build": {
+      "command": "tsc --noEmit && vite build",
+      "dependencies": [
+        "build:deps"
+      ],
+      "files": [
+        "*.ts",
+        "*.json",
+        "index.html",
+        "tsconfig.json",
+        "vite.config.ts"
+      ],
+      "output": [
+        "dist/"
+      ]
+    },
+    "test": {
+      "command": "vitest run",
+      "dependencies": [
+        "build:deps"
+      ],
+      "files": [
+        "*.ts",
+        "*.json",
+        "tsconfig.json",
+        "vite.config.ts"
+      ],
+      "output": []
+    }
+  },
+  "dependencies": {
+    "@a2ui/catalog-vegachart": "workspace:*",
+    "@a2ui/lit": "workspace:*",
+    "@a2ui/markdown-it": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "@lit/context": "^1.1.6",
+    "lit": "^3.3.3",
+    "vega-embed": "^6.26.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8",
+    "wireit": "^0.15.0-pre.2"
+  }
+}

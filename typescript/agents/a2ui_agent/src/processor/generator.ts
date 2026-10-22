@@ -19,8 +19,9 @@ import {InferenceFormatFactory} from '../inference-format.js';
 import {ExpressFormatFactory} from '../inference-formats/express/format.js';
 import {AgentToRendererMessage, RendererCapabilities} from '../internal/web-core.js';
 import {resolveCatalogs} from '../utils/catalog-resolver.js';
+import {validatePayload} from '../utils/validation.js';
 import {CatalogConfig} from './catalog-config.js';
-import {A2uiRequestProcessor} from './processor.js';
+import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js';
 
 /**
  * Agent-lifetime object holding every catalog the agent supports.
@@ -42,18 +43,25 @@ export class A2uiGenerator {
   /**
    * Creates a processor negotiated against one renderer's capabilities.
    *
-   * Validates the configured examples against the resolved catalogs and throws if an
-   * example uses a component the negotiated catalogs do not support.
+   * Checks each configured example against the resolved catalogs, as `validatePayload`
+   * does, and throws if a renderer holding them would reject it. Text examples are not
+   * checked.
    *
+   * @param rendererCapabilities The capabilities of the renderer the processor serves.
+   * @param inferenceFormatFactory Overrides the generator's format for this processor.
+   * @param options The renderer state a canvas agent keeps for the conversation, bound to
+   *     the processor so that its `parseResponse` and `openStream` use it.
    * @throws {A2uiCatalogError} If `rendererCapabilities` is missing, since there is
-   *     nothing to negotiate against, or if negotiation leaves no catalog.
+   *     nothing to negotiate against, if negotiation leaves no catalog, or if
+   *     `options.state` holds other catalogs than the negotiated ones.
    * @throws {A2uiValidationError} If the capabilities lack an entry for the catalogs'
-   *     protocol version, or if an example message is not an object or uses a component
-   *     the negotiated catalogs do not declare.
+   *     protocol version, if an example message is not an object, or if a renderer holding
+   *     the negotiated catalogs would reject an example.
    */
   createProcessor(
     rendererCapabilities: Record<string, RendererCapabilities> | RendererCapabilities,
     inferenceFormatFactory?: InferenceFormatFactory,
+    options: A2uiRequestProcessorOptions = {},
   ): A2uiRequestProcessor {
     if (!rendererCapabilities) {
       throw new A2uiCatalogError(
@@ -72,26 +80,20 @@ export class A2uiGenerator {
               `Example '${exampleName}' contains a message that is not an object`,
             );
           }
-          const components: {component?: string}[] = [];
-          if ('createSurface' in msg && msg.createSurface?.components)
-            components.push(...msg.createSurface.components);
-          if ('updateComponents' in msg && msg.updateComponents?.components)
-            components.push(...msg.updateComponents.components);
-
-          for (const comp of components) {
-            const compName = comp.component;
-            if (compName) {
-              const supported = activeCatalogs.some(cat => cat.components.has(compName));
-              if (!supported) {
-                throw new A2uiValidationError(`Example uses unsupported component '${compName}'`);
-              }
-            }
-          }
+        }
+        try {
+          validatePayload(activeCatalogs, msgs);
+        } catch (e) {
+          if (!(e instanceof A2uiValidationError)) throw e;
+          throw new A2uiValidationError(
+            `Example '${exampleName}' is invalid for the negotiated catalogs: ${e.message}`,
+            e.details,
+          );
         }
       }
     }
 
     const formatFactory = inferenceFormatFactory || this.factory;
-    return new A2uiRequestProcessor(activeCatalogs, this.examples, formatFactory);
+    return new A2uiRequestProcessor(activeCatalogs, this.examples, formatFactory, options);
   }
 }

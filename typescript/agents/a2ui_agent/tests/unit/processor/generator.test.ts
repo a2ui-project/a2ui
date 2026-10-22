@@ -20,7 +20,9 @@ import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
 import {DirectJsonFormatFactory} from '../../../src/inference-formats/direct-json/format.js';
 import {V10RendererCapabilities} from '../../../src/internal/web-core.js';
 import {CatalogConfig} from '../../../src/processor/catalog-config.js';
+import {InMemoryCatalogProvider} from '../../../src/processor/catalog-providers.js';
 import {A2uiGenerator} from '../../../src/processor/generator.js';
+import {RendererState} from '../../../src/utils/renderer-state.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
@@ -110,6 +112,28 @@ describe('A2uiGenerator', () => {
     expect(() => generator.createProcessor(missing)).toThrow(/renderer capabilities/);
   });
 
+  test('checks an example that creates a surface in full', () => {
+    const config = new CatalogConfig(basicCatalogV10);
+    const examples = {
+      'dangling_turn': [
+        {
+          version: 'v1.0' as const,
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: basicCatalogV10.id,
+            components: [{id: 'root', component: 'Column', children: ['missing']}],
+          },
+        },
+      ],
+    };
+    const generator = new A2uiGenerator([config], examples);
+
+    expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
+    expect(() => generator.createProcessor(mockCapabilities)).toThrow(
+      /Example 'dangling_turn' is invalid.*Dangling reference 'missing'/,
+    );
+  });
+
   test('throws a validation error when an example message is not an object', () => {
     const config = new CatalogConfig(basicCatalogV10);
     // Examples loaded from JSON bypass the type, so a null entry can reach the generator.
@@ -120,6 +144,29 @@ describe('A2uiGenerator', () => {
 
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(/broken_turn/);
+  });
+
+  test('binds the state to the processor', () => {
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
+    const state = generator.createProcessor(mockCapabilities).createState();
+
+    const processor = generator.createProcessor(mockCapabilities, undefined, {state});
+
+    expect(processor.state).toBe(state);
+  });
+
+  test('rejects a state for other catalogs', () => {
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
+    const other = new RendererState([
+      new InMemoryCatalogProvider({catalogId: 'other', components: {}}, 'v1.0').load(),
+    ]);
+
+    expect(() => generator.createProcessor(mockCapabilities, undefined, {state: other})).toThrow(
+      A2uiCatalogError,
+    );
+    expect(() => generator.createProcessor(mockCapabilities, undefined, {state: other})).toThrow(
+      /active catalogs/,
+    );
   });
 
   test('accepts version-keyed renderer capabilities and rejects capabilities lacking the catalogs version', () => {

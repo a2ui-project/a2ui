@@ -302,6 +302,39 @@ describe('RendererState', () => {
     expect(state.getSurface('s')?.dataModel.get('/')).toEqual({name: 'Ada'});
   });
 
+  it('stops holding changed components against checks once marked checked', () => {
+    const state = canvas();
+    state.apply(update(text('orphan')));
+
+    state.markChecked(['s']);
+
+    expect(() => state.checkTopology(['s'])).not.toThrow();
+  });
+
+  it('still reports a dangling reference after a surface is marked checked', () => {
+    const state = canvas();
+    state.apply(update(column(['a', 'missing'])));
+
+    state.markChecked(['s']);
+
+    expect(() => state.checkTopology(['s'])).toThrow(A2uiIntegrityError);
+    expect(() => state.checkTopology(['s'])).toThrow(/Dangling reference/);
+  });
+
+  it('undoes markChecked when the transaction it was made in fails', () => {
+    const state = canvas();
+    state.apply(update(text('orphan')));
+
+    expect(() =>
+      state.transaction(() => {
+        state.markChecked(['s']);
+        throw new Error('the stream failed later');
+      }),
+    ).toThrow('the stream failed later');
+
+    expect(() => state.checkTopology(['s'])).toThrow(A2uiIntegrityError);
+  });
+
   it('restores the state where a failed inner transaction started, and the outer goes on', () => {
     const state = canvas();
 
@@ -635,6 +668,9 @@ describe('RendererState', () => {
         }
       }),
     ).toThrow(TypeError);
+    // Until the promise settles, nothing changes the state.
+    expect(() => state.apply(update(text('a', 'Other')))).toThrow(TypeError);
+    expect(() => state.markChecked(['s'])).toThrow(TypeError);
     resume();
     await new Promise(resolve => setTimeout(resolve, 0));
 

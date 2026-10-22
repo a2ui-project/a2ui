@@ -43,7 +43,12 @@ import {
 } from '../../src/index.js';
 import {CatalogApi, RendererCapabilities} from '../../src/internal/web-core.js';
 import {loadCases, LoadedCase} from './loader.js';
-import {CatalogRegistration, conformancePath, expectCatalogContents} from './suite-helpers.js';
+import {
+  CatalogRegistration,
+  compileChecked,
+  conformancePath,
+  expectCatalogContents,
+} from './suite-helpers.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
@@ -272,13 +277,13 @@ function runFormatCase(testCase: LoadedCase): void {
     if (testCase.expect_error) {
       assertThrows(
         () => {
-          parser.compile(testCase.input as string);
+          compileChecked(parser, testCase.input as string);
         },
         testCase.expect_error as Record<string, unknown>,
       );
       return;
     }
-    const compiled = parser.compile(testCase.input as string);
+    const compiled = compileChecked(parser, testCase.input as string);
     expect(sortComponentsById(compiled)).toEqual(
       sortComponentsById(testCase.expect as AgentToRendererMessage[]),
     );
@@ -292,7 +297,7 @@ function runFormatCase(testCase: LoadedCase): void {
       testCase.expect_absent as string[] | undefined,
     );
     if (testCase.expect_round_trip) {
-      const recompiled = parser.compile(notation);
+      const recompiled = compileChecked(parser, notation);
       expect(sortComponentsById(recompiled)).toEqual(sortComponentsById(messages));
     }
   } else if (action === 'parse_response') {
@@ -346,7 +351,10 @@ function runFormatCase(testCase: LoadedCase): void {
     }
     if (expected.parser_state_isolated) {
       const chunks = args.probe_chunks as string[];
-      const read = (p: Parser) => chunks.map(chunk => p.parseChunk(chunk));
+      const read = (p: Parser) => {
+        const stream = p.openStream();
+        return chunks.map(chunk => stream.feed(chunk));
+      };
       const firstParts = read(fmt.createParser());
       expect(firstParts.some(arr => arr.length > 0)).toBe(true);
       expect(read(fmt.createParser())).toEqual(firstParts);

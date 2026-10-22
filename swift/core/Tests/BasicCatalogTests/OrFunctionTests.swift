@@ -59,4 +59,39 @@ struct OrFunctionTests {
         arguments: ["values": .array([])], context: context)
     }
   }
+
+  // MARK: - ValidationResult Operands
+
+  @Test func readsFailingValidationResultOperandsAsFalseInV10() throws {
+    let result = try OrFunction(readsValidationResults: true).evaluate(
+      arguments: [
+        "values": .array([
+          .object(["valid": .boolean(false)]),
+          .object(["valid": .boolean(false)]),
+        ])
+      ],
+      context: context)
+    #expect(result == .boolean(false))
+  }
+
+  @Test func readsOnePassingValidationResultOperandAsTrueInV10() throws {
+    let result = try OrFunction(readsValidationResults: true).evaluate(
+      arguments: [
+        "values": .array([
+          .object(["valid": .boolean(false)]),
+          .object(["valid": .boolean(true)]),
+        ])
+      ],
+      context: context)
+    #expect(result == .boolean(true))
+  }
+
+  @Test func readsValidationResultOperandAsPlainObjectInV09() throws {
+    let result = try function.evaluate(
+      arguments: [
+        "values": .array([.object(["valid": .boolean(false)]), .boolean(false)])
+      ],
+      context: context)
+    #expect(result == .boolean(true))
+  }
 }
