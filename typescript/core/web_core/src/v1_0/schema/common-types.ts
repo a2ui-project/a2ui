@@ -104,7 +104,7 @@ export const ExtensionsSchema = z
   .record(z.string(), z.unknown())
   .superRefine((value, ctx) => {
     for (const key in value) {
-      if (!key.match(/^[\p{XID_Start}_][\p{XID_Continue}:-]*$/u)) {
+      if (!key.match(/^[\p{XID_Start}_][\p{XID_Continue}]*$/u)) {
         ctx.addIssue({
           path: [key],
           code: z.ZodIssueCode.custom,

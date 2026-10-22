@@ -29,7 +29,7 @@ permissions:
 env:
   RENDERERS_INC: "--include 'typescript/**'"
   TOOLS_INC: "--include 'tools/**'"
-  SAMPLES_INC: "--include 'samples/client/**' --include 'samples/agent/node/**'"
+  SAMPLES_INC: "--include 'samples/client/**' --include 'samples/agent/node/**' --include 'samples/vegachart/**'"
 
 jobs:
   changes:
@@ -67,6 +67,7 @@ jobs:
             samples:
               - 'samples/client/**'
               - 'samples/agent/node/**'
+              - 'samples/vegachart/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'
@@ -114,6 +115,40 @@ jobs:
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
         run: node --test typescript/scripts/publish_npm.test.mjs typescript/scripts/upload_manifest.test.mjs
+
+  # The timing cases of the conformance suites (`measure_growth` and
+  # `measure_overhead`) time an operation on payloads of two sizes and compare
+  # the medians, as conformance/agent/direct_json/scaling.yaml describes. A
+  # loaded runner slows the other tests' timings, so each package runs them
+  # with `test:timing`, apart from its `test` target, in a job of its own. A
+  # regression can make them run for minutes, so the job has a time limit.
+  ci-timing:
+    needs: changes
+    if: ${{ needs.changes.outputs.renderers == 'true' }}
+    name: timing (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace:
+          - "@a2ui/web_core"
+          - "@a2ui/agent"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-node
+      - name: Setup Wireit Cache
+        uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2.0.4
+      - name: Build
+        run: yarn workspace "$WORKSPACE" run build
+        env:
+          WORKSPACE: ${{ matrix.workspace }}
+      - name: Run timing cases
+        run: yarn workspace "$WORKSPACE" run test:timing
+        env:
+          WORKSPACE: ${{ matrix.workspace }}
 
   ci-tools:
     needs: changes

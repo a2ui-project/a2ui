@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
+  `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
+  (`DirectJsonFormat`).
 - Add `RendererState` to `a2ui.utils`, the agent's mirror of the surfaces a
   renderer holds (#3268). It wraps a `MessageProcessor` and checks each
   outbound message against the state applied before it: `apply` and nested

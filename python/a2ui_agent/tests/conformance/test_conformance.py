@@ -172,6 +172,10 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
 KNOWN_GAPS: dict[str, str] = {
+    "test_compile_express_check_with_value_on_uncheckable_component_is_a_validation_error": (
+        "ExpressCompiler does not reject check lists on components that do not"
+        " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
+    ),
     "test_compile_express_checks_on_uncheckable_component_is_a_validation_error": (
         "ExpressCompiler does not reject check lists on components that do not"
         " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
@@ -793,10 +797,14 @@ def run_create_processor_case(test_case, tmp_path):
     configs = [catalog_config_from_document(entry) for entry in args["catalogs"]]
     before = _describe_configs(configs)
     loaded_examples = stage_examples(args.get("examples", []), tmp_path)
-    base_factory = _factory_for(
-        args.get("format", "direct_json"),
-        allowed_messages=args.get("allowed_messages"),
-        progressive_keys=args.get("progressive_keys"),
+    base_factory = (
+        _factory_for(
+            args["format"],
+            allowed_messages=args.get("allowed_messages"),
+            progressive_keys=args.get("progressive_keys"),
+        )
+        if isinstance(args, dict) and args.get("format") is not None
+        else None
     )
     override_factory = (
         _factory_for(
@@ -804,7 +812,7 @@ def run_create_processor_case(test_case, tmp_path):
             allowed_messages=args.get("allowed_messages"),
             progressive_keys=args.get("progressive_keys"),
         )
-        if "format_override" in args
+        if isinstance(args, dict) and args.get("format_override") is not None
         else None
     )
     generator = A2uiGenerator(
