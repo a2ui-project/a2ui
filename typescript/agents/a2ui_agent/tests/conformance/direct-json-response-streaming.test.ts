@@ -159,9 +159,7 @@ function runCase(testCase: LoadedCase): void {
 
   if (testCase.expect_matches_single_shot) {
     const singleShot = makeParser(args).parseResponse(chunks.join(''), {wrapped});
-    expect(mergeAdjacentText(yielded)).toEqual(
-      mergeAdjacentText(singleShot.map(partToDict)),
-    );
+    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(singleShot.map(partToDict)));
   }
 }
 

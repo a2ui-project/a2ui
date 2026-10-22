@@ -390,16 +390,13 @@ void main() {
     });
 
     test('preserves lone backtick chunks in text', () {
-      expect(
-        stream(['Use ', '`', 'Text', '`', ' for labels.']),
-        [
-          ['Use'],
-          <Object?>[],
-          [' `Text'],
-          <Object?>[],
-          ['` for labels.'],
-        ],
-      );
+      expect(stream(['Use ', '`', 'Text', '`', ' for labels.']), [
+        ['Use'],
+        <Object?>[],
+        [' `Text'],
+        <Object?>[],
+        ['` for labels.'],
+      ]);
     });
 
     test('drops an escape that is cut short in a healed string', () {

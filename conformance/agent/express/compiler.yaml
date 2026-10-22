@@ -1428,4 +1428,3 @@
           - id: "root"
             component: "Text"
             text: "Hello\nWorld"
-

@@ -124,19 +124,9 @@ title = Card(Text("Nested"))
     });
 
     test('common property weight as kwarg', () {
-      expect(
-        components(
-          'root = Text("Hello", weight=2)',
-        ),
-        [
-          {
-            'id': 'root',
-            'component': 'Text',
-            'text': 'Hello',
-            'weight': 2,
-          },
-        ],
-      );
+      expect(components('root = Text("Hello", weight=2)'), [
+        {'id': 'root', 'component': 'Text', 'text': 'Hello', 'weight': 2},
+      ]);
     });
 
     test('string literals', () {

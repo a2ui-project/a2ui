@@ -334,10 +334,7 @@ class _Reader {
         return map;
       }
       if (text[_i] != '"') _fail('expected a key');
-      final String key = _string(
-        healable: false,
-        stripNewlines: !_inDataModel,
-      );
+      final String key = _string(healable: false, stripNewlines: !_inDataModel);
       _skipSpace();
       if (_atEnd) _end();
       if (text[_i] != ':') _fail("expected ':' after key '$key'");
@@ -355,12 +352,12 @@ class _Reader {
                 stripItemNewlines: key == 'children' && !_inDataModel,
               )
             : (!_atEnd && text[_i] == '{'
-                ? _object(key)
-                : _value(
-                    healable: progressiveKeys?.contains(key) ?? false,
-                    stripNewlines:
-                        _newlineStrippedKeys.contains(key) && !_inDataModel,
-                  ));
+                  ? _object(key)
+                  : _value(
+                      healable: progressiveKeys?.contains(key) ?? false,
+                      stripNewlines:
+                          _newlineStrippedKeys.contains(key) && !_inDataModel,
+                    ));
       } finally {
         if (isDataValue) _inDataModel = false;
       }

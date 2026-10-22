@@ -189,8 +189,7 @@ String _normalizeExpressSource(String source) {
         for (final RegExpMatch m in _splitLhsIdentifier.allMatches(
           segments[segIdx].$2,
         ))
-          if (segDepths[segIdx][m.start] == 0)
-            (segIdx, m.end - m[3]!.length),
+          if (segDepths[segIdx][m.start] == 0) (segIdx, m.end - m[3]!.length),
   };
 
   final directDeclared = <String>{
@@ -207,8 +206,9 @@ String _normalizeExpressSource(String source) {
   final declared = <String>{...directDeclared};
   for (var segIdx = 0; segIdx < segments.length; segIdx++) {
     if (!segments[segIdx].$1) {
-      for (final RegExpMatch m
-          in _splitLhsIdentifier.allMatches(segments[segIdx].$2)) {
+      for (final RegExpMatch m in _splitLhsIdentifier.allMatches(
+        segments[segIdx].$2,
+      )) {
         if (segDepths[segIdx][m.start] == 0) {
           final String p1 = m[1]!.trim();
           final String p2 = m[3]!;

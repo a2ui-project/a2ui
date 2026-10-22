@@ -150,7 +150,9 @@ export function clean(text: string): string {
 
 /** Strips whitespace, fences, and inline-code edge backticks from a block body. */
 export function cleanRaw(text: string): string {
-  return clean(text).replace(/^`+|`+$/g, '').trim();
+  return clean(text)
+    .replace(/^`+|`+$/g, '')
+    .trim();
 }
 
 /**
