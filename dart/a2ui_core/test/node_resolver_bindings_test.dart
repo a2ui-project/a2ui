@@ -472,7 +472,7 @@ void main() {
     Object? textOf(ComponentNode node) =>
         (node.props.peek()['text']! as ResolvedBinding<Object?>).value;
 
-    test('nested template lists expose the index of each level', () {
+    test('nested template lists expose the index of each level', () async {
       surface.dataModel.set('/rows', [
         {
           'cells': ['a', 'b'],
@@ -520,6 +520,7 @@ void main() {
           [0],
         ],
       );
+      await pumpEventQueue();
       expect(errors, isEmpty);
     });
 
@@ -544,11 +545,9 @@ void main() {
       add('root', 'Text', {
         'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
-      await pumpEventQueue();
       expect(textOf(resolver.rootNode.value!), isNull);
       await pumpEventQueue();
       expect(errors.single.code, 'EXPRESSION_ERROR');
-      await pumpEventQueue();
       expect(
         errors.single.message,
         '@index function can only be evaluated inside a collection template '
