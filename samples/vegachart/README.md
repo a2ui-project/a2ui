@@ -12,16 +12,21 @@ Basic Catalog (`@a2ui/lit/v0_9`), with no LLM agent involved.
 
 - **Multi-catalog composition**: [`app.ts`](app.ts) initializes
   `MessageProcessor` with both `basicCatalog` and `vegachartCatalog`. Layout and
-  typography components (`Column`, `Row`, `Card`, `Text`) resolve from the
-  surface's default Basic Catalog, while `VegaChart` components declare
+  typography components (`Column`, `Card`, `Text`) resolve from the surface's
+  default Basic Catalog, while `VegaChart` components declare
   `"catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json"`.
 - **Reactive data model bindings**: Each `VegaChart` component binds its `spec`
-  property to a JSON pointer in the surface data model:
-  - `/charts/quarterlyRevenue`: Bar chart of quarterly revenue.
-  - `/charts/monthlyTraffic`: Multi-series temporal line chart of monthly active
-    users by channel.
-  - `/charts/regionalSales`: Faceted bar chart breaking down category sales
-    across regions.
+  property to a JSON pointer in the surface data model. Each chart exercises a
+  different feature:
+  - `/charts/quarterlyRevenue`: grouped bars (`xOffset`) with tooltips.
+  - `/charts/monthlyTraffic`: multi-series temporal line spanning two years;
+    the renderer rewrites the `%b` axis format to `%b %Y`.
+  - `/charts/latency`: a `layer` spec combining an area band, a line, and a
+    dashed rule.
+  - `/charts/regionalSales`: `encoding.column` facets, with subplot size
+    derived from the container width and the number of categories.
+  - `/charts/ticketsByTeam`: `encoding.facet` with `columns: 2`; the chart
+    grows beyond the default height to fit every subplot.
 - **Zero agent dependency**: The host loads `a2ui_vegachart.json` directly into
   `processor.processMessages(...)` and mounts `<a2ui-surface>`.
 

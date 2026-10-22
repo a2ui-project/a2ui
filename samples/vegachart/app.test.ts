@@ -93,7 +93,9 @@ describe('the VegaChart sample payload', () => {
       string,
       unknown
     >;
-    expect(initialSpec['description']).toBe('Quarterly revenue in thousands of dollars');
+    expect(initialSpec['description']).toBe(
+      'Quarterly revenue by product line in thousands of dollars',
+    );
 
     surface.dataModel.set('/charts/quarterlyRevenue', {
       description: 'Updated annual revenue projection',
