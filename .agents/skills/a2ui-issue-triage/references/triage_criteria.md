@@ -8,8 +8,9 @@ This document defines the operational execution rules for classifying issues, as
 
 Refer directly to the project documentation for authoritative definitions and canonical response templates:
 
-- **Priority Definitions & Invariants**: [docs/contributing/triage.md](../../../../docs/contributing/triage.md#invariant-we-want-to-keep) (`P0` through `P4`).
-- **GitHub Status Labels**: [docs/contributing/triage.md](../../../../docs/contributing/triage.md#github-labels-used-in-triage) (`status: first-line-handled`, `status: waiting-for-author-response`, `status: needs-team-input`, `status: needs-triage`).
+- **Triage Instructions**: [docs/contributing/triage.md](../../../../docs/contributing/triage.md)
+- **Priority Definitions & Invariants**: [docs/internal/triage_explainer.md](../../../../docs/internal/triage_explainer.md#invariants) (`P0` through `P4`).
+- **GitHub Status Labels**: [docs/internal/triage_explainer.md](../../../../docs/internal/triage_explainer.md#github-labels-used-in-triage) (`status: first-line-handled`, `status: waiting-for-author-response`, `status: needs-team-input`, `status: needs-triage`, `status: assigned-for-triage`).
 - **Canonical Response Templates**: [docs/contributing/triage-templates.md](../../../../docs/contributing/triage-templates.md) (Standard replies for requesting information, compliance reports, assigned issues without priority, stale issue pings, duplicates, and out-of-scope requests).
 
 ---
