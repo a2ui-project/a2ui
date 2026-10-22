@@ -49,7 +49,10 @@ function isCatalogApi(value: unknown): value is CatalogApi {
   return (
     typeof value === 'object' &&
     value !== null &&
-    ('id' in value || 'components' in value || 'catalogId' in value || 'catalog_id' in value)
+    (Object.hasOwn(value, 'id') ||
+      Object.hasOwn(value, 'components') ||
+      Object.hasOwn(value, 'catalogId') ||
+      Object.hasOwn(value, 'catalog_id'))
   );
 }
 

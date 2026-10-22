@@ -36,9 +36,6 @@ export function cleanCatalogName(catalog: unknown): string {
     | undefined;
   const candidateId = rawObj?.id ?? rawObj?.catalogId ?? rawObj?.catalog_id;
   let rawId = typeof candidateId === 'string' && candidateId.length > 0 ? candidateId : 'basic';
-  if (!rawId) {
-    return 'basic';
-  }
   if (rawId.includes('/') || rawId.includes('\\')) {
     rawId = rawId.replace(/\\/g, '/');
     const parts = rawId.split('/').filter(p => p.length > 0 && !p.endsWith('.json'));
@@ -63,18 +60,12 @@ export function resolveCatalogsList(
   if (catalogs !== undefined) {
     return [...catalogs];
   }
-  const formatWithCatalogs = fmt as {
-    catalogs?: readonly CatalogApi[];
-    promptGenerator?: {catalogs?: readonly CatalogApi[]};
-  };
-  if (Array.isArray(formatWithCatalogs.catalogs) && formatWithCatalogs.catalogs.length > 0) {
-    return [...formatWithCatalogs.catalogs];
+  if (Array.isArray(fmt.catalogs) && fmt.catalogs.length > 0) {
+    return [...fmt.catalogs];
   }
-  if (
-    Array.isArray(formatWithCatalogs.promptGenerator?.catalogs) &&
-    formatWithCatalogs.promptGenerator.catalogs.length > 0
-  ) {
-    return [...formatWithCatalogs.promptGenerator.catalogs];
+  const promptGenWithCatalogs = fmt.promptGenerator as {catalogs?: readonly CatalogApi[]};
+  if (Array.isArray(promptGenWithCatalogs?.catalogs) && promptGenWithCatalogs.catalogs.length > 0) {
+    return [...promptGenWithCatalogs.catalogs];
   }
   return [];
 }
@@ -336,7 +327,9 @@ export class SkillSet implements Iterable<string> {
     }
 
     for (const skillFolder of skillDirsToClean) {
-      if (fs.existsSync(skillFolder) && fs.statSync(skillFolder).isDirectory()) {
+      const relative = path.relative(outputDir, skillFolder);
+      const isSafe = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+      if (isSafe && fs.existsSync(skillFolder) && fs.statSync(skillFolder).isDirectory()) {
         fs.rmSync(skillFolder, {recursive: true, force: true});
       }
     }
