@@ -125,6 +125,7 @@ work with all publishable web packages in the `typescript` directory of the mono
 - `web_core`
 - `agent`
 - `catalog-mcp`
+- `catalog-vegachart`
 - `markdown-it`
 - `angular`
 - `lit`

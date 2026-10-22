@@ -46,6 +46,30 @@ struct NotFunctionTests {
     }
   }
 
+  // MARK: - ValidationResult Operands
+
+  @Test func invertsValidityOfValidationResultOperandInV10() throws {
+    let notFunction = NotFunction(readsValidationResults: true)
+    let failing = try notFunction.evaluate(
+      arguments: ["value": .object(["valid": .boolean(false)])], context: context)
+    let passing = try notFunction.evaluate(
+      arguments: ["value": .object(["valid": .boolean(true)])], context: context)
+    #expect(failing == .boolean(true))
+    #expect(passing == .boolean(false))
+  }
+
+  @Test func readsNonBooleanValidMemberAsInvalidInV10() throws {
+    let result = try NotFunction(readsValidationResults: true).evaluate(
+      arguments: ["value": .object(["valid": .string("true")])], context: context)
+    #expect(result == .boolean(true))
+  }
+
+  @Test func readsValidationResultOperandAsPlainObjectInV09() throws {
+    let result = try function.evaluate(
+      arguments: ["value": .object(["valid": .boolean(false)])], context: context)
+    #expect(result == .boolean(false))
+  }
+
   @Test func evaluatesToFalseWhenValueIsNotABoolean() throws {
     let result = try function.evaluate(
       arguments: ["value": .string("true")], context: context)
