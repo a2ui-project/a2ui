@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 0.14.0
+
+- Migrate the Angular renderer stack to Angular 22. [#3405](https://github.com/a2ui-project/a2ui/issues/3405)
+  - **BREAKING CHANGE**: `peerDependencies` on `@angular/common`, `@angular/core`, and `@angular/platform-browser` move from `^21.2.5` to `^22.2.3`. Consumers must be on Angular 22.
+  - Requires TypeScript `>=6.0 <6.1` (pulled in transitively by Angular 22's `@angular/compiler-cli`).
+
 ## 0.13.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.
