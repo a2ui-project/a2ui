@@ -54,10 +54,10 @@ with `dartantic_ai`.
 
 ## Tests
 
-- `test/recorded_turn_test.dart` replays a model's streamed reply for a
-  newsletter form, types an email address into the form and presses
-  its button. It checks the action and data model the model receives, and
-  the surface the model's recorded answer leaves.
+- `test/recorded_turn_test.dart` replays a reply for a newsletter form,
+  adapted to v1.0 from one a model streamed for v0.9, types an email address
+  into the form and presses its button. It checks the action and data model
+  the model receives, and the surface the recorded answer leaves.
 - `test/chat_session_test.dart` covers a `createSurface` that grows across
   chunks, errors a surface reports as it first builds, a message the
   `MessageProcessor` rejects, blocks the `ResponseStream` rejects, an error
