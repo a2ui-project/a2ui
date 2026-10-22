@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from a2ui.constants import DEFAULT_WORKFLOW_RULES
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import check_catalogs
@@ -25,7 +26,6 @@ from a2ui.inference_formats._shared import to_message_dicts
 from a2ui.inference_formats.direct_json.decompiler import DirectJsonDecompiler
 from a2ui.inference_formats.direct_json.schema_prompt import schema_to_prompt
 from a2ui.prompt import PromptGenerator
-from a2ui.schema import DEFAULT_WORKFLOW_RULES
 from a2ui.utils import validate_payload
 
 __all__ = [

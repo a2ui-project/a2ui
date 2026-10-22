@@ -58,7 +58,8 @@ nav:
       - Use A2UI with Any Agent Framework & Harness: guides/a2ui-with-any-agent-framework.md
       - Renderer Development: guides/renderer-development.md
       - Defining Your Own Catalog: guides/defining-your-own-catalog.md
-      - Authoring Custom Components: guides/authoring-components.md
+      - Authoring Universal Components: guides/authoring-universal-components.md
+      - Authoring Custom Components (Framework-Specific): guides/authoring-components.md
       - Theming & Styling: guides/theming.md
       - A2UI + MCP:
           - A2UI over MCP: guides/a2ui_over_mcp.md

@@ -23,8 +23,11 @@ from ..schema.common_types_schema import (
 from .catalog import (
     Catalog,
     CatalogApi,
+    FunctionsForm,
+    ThemeLocation,
     inline_local_refs,
     is_valid_uax31_identifier,
+    link_catalogs,
 )
 from .components import (
     ComponentApi,
@@ -51,6 +54,7 @@ from .system_functions import (
     IndexApi,
     IndexArgs,
     IndexImplementation,
+    is_system_function_name,
     system_functions_for,
 )
 
@@ -65,12 +69,14 @@ __all__ = [
     "FunctionImplementation",
     "FunctionInvoker",
     "FunctionReturnType",
+    "FunctionsForm",
     "INDEX_FUNCTION_NAME",
     "IndexApi",
     "IndexArgs",
     "IndexImplementation",
     "InferA2uiReturnType",
     "ModelComponentApi",
+    "ThemeLocation",
     "analyze_child_ref_schema",
     "build_component_ref_map",
     "create_function_implementation",
@@ -80,6 +86,8 @@ __all__ = [
     "get_common_types_schema_json",
     "get_common_types_schema_map",
     "inline_local_refs",
+    "is_system_function_name",
     "is_valid_uax31_identifier",
+    "link_catalogs",
     "system_functions_for",
 ]

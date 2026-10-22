@@ -26,7 +26,7 @@ import pytest
 
 from a2ui.core import A2uiCatalogError, Catalog
 from a2ui.inference_formats import to_message_dicts, to_message_models
-from a2ui.inference_formats.experimental.express import (
+from a2ui.inference_formats.express import (
     EXPRESS_RULES,
     ExpressCompiler,
     ExpressFormat,

@@ -34,6 +34,7 @@ from pydantic import BaseModel
 from ..common.semver import is_at_least_version
 from ..exceptions import A2uiCatalogError
 from ..schema import ProtocolVersion
+from ..schema._dynamic_types import clean_schema_node
 from ..schema.common_types_schema import get_common_types_symbols
 
 _REF_TEMPLATE: Final[str] = "#/$defs/{model}"
@@ -267,3 +268,66 @@ class SpecShaper:
             schema["required"] = ["call", "args"]
             schema["unevaluatedProperties"] = False
         return SpecSchema(schema, {}, model_defs)
+
+
+# The properties of a component that the v0.8 message envelope declares, which
+# its catalog document leaves out.
+_V08_ENVELOPE_PROPERTIES: Final[frozenset[str]] = frozenset({"id", _COMPONENT_KEY})
+
+
+def _inline_model_defs(node: Any, defs: dict[str, Any], seen: frozenset[str]) -> Any:
+    """Writes the `#/$defs/` references of a cleaned model schema inline.
+
+    The keys beside a reference (a field's `description`) win over the
+    definition's own.
+    """
+    if isinstance(node, list):
+        return [_inline_model_defs(item, defs, seen) for item in node]
+    if not isinstance(node, dict):
+        return node
+    ref = node.get("$ref")
+    if isinstance(ref, str) and ref.startswith("#/$defs/"):
+        name = ref[len("#/$defs/") :]
+        if name in seen or name not in defs:
+            raise A2uiCatalogError(f"Cannot write the model definition {ref} inline.")
+        target = _inline_model_defs(defs[name], defs, seen | {name})
+        siblings = {k: v for k, v in node.items() if k != "$ref"}
+        return {**target, **_inline_model_defs(siblings, defs, seen)}
+    return {key: _inline_model_defs(value, defs, seen) for key, value in node.items()}
+
+
+def v08_document_schema(model: type[BaseModel], *, component: bool) -> dict[str, Any]:
+    """Returns a v0.8 catalog document's schema of a component or theme model.
+
+    A v0.8 catalog document has no common types: every nested object is
+    written inline, closed with `additionalProperties: false`, and a
+    component leaves out the `id` and `component` properties that the
+    message envelope declares.
+
+    Args:
+        model: The component or theme model.
+        component: Whether `model` is a component, whose envelope properties
+            are left out.
+    """
+    # Cleaning drops what Pydantic adds: titles and the `null` branches of
+    # optional fields.
+    cleaned: dict[str, Any] = clean_schema_node(
+        model.model_json_schema(by_alias=True, ref_template=_REF_TEMPLATE)
+    )
+    defs = cleaned.pop("$defs", {})
+    schema: dict[str, Any] = _inline_model_defs(cleaned, defs, frozenset())
+    if component:
+        properties = schema.get("properties")
+        if isinstance(properties, dict):
+            for name in _V08_ENVELOPE_PROPERTIES:
+                properties.pop(name, None)
+        required = [
+            name
+            for name in schema.get("required", [])
+            if name not in _V08_ENVELOPE_PROPERTIES
+        ]
+        if required:
+            schema["required"] = required
+        else:
+            schema.pop("required", None)
+    return schema

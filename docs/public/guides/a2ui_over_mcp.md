@@ -478,12 +478,12 @@ pip install a2ui-agent-sdk
 
 ```python
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import VERSION_0_9
 from a2ui.utils import validate_payload
 
 # Initialize the inference format with the basic catalog
-inference_format = DirectJsonFormat([BasicCatalog(VERSION_0_9)])
+inference_format = DirectJsonFormat([BasicCatalog(ProtocolVersion.V0_9)])
 
 # Validate A2UI output before sending. This raises A2uiValidationError if a
 # renderer holding the catalog would reject the payload.

@@ -69,10 +69,12 @@ app.post('/a2a', (req, res) => {
         kind: 'message',
         metadata: {
           a2uiClientCapabilities: {
-            supportedCatalogIds: [
-              'https://a2ui.org/specification/v0_9/standard_catalog_definition.json',
-              MCP_APP_CATALOG_ID,
-            ],
+            'v0.9': {
+              supportedCatalogIds: [
+                'https://a2ui.org/specification/v0_9/standard_catalog_definition.json',
+                MCP_APP_CATALOG_ID,
+              ],
+            },
           },
         },
       },

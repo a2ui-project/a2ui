@@ -264,6 +264,14 @@ def validate_catalogs_structure():
 
     catalogs_to_validate = [
         ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
@@ -308,6 +316,14 @@ def validate_catalogs_identifiers():
     """
     catalogs_to_validate = [
         ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
@@ -412,6 +428,14 @@ def validate_catalogs_ref_targets():
     """
     catalogs_to_validate = [
         ("catalogs/basic/v1/catalog.json", BASIC_CATALOG_FILE),
+        (
+            "catalogs/mcp/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 

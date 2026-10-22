@@ -66,6 +66,7 @@ public struct A2UICheckBox: View {
       }
       .buttonStyle(.plain)
       .accessibilityIdentifier("A2UICheckBox_\(node.id)")
+      .a2uiAccessibilityControl(for: node)
 
       if let firstError = node.validationErrors.first {
         Text(firstError)

@@ -24,9 +24,9 @@ from collections import Counter
 
 # Directory mapping for repo components to run git checks
 COMPONENT_DIRS = {
-    "component: lit renderer": "renderers/lit",
-    "component: angular renderer": "renderers/angular",
-    "component: react renderer": "renderers/react",
+    "component: lit renderer": "typescript/renderers/lit",
+    "component: angular renderer": "typescript/renderers/angular",
+    "component: react renderer": "typescript/renderers/react",
     "component: standard catalog specification": "specification",
     "component: specification": "specification",
     "component: samples": "samples",

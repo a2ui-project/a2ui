@@ -29,7 +29,7 @@ from a2ui.core.catalog import (
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
-from a2ui.core.validation import PayloadValidator
+from a2ui.core.validation import PayloadValidator, ValidationConfig
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
@@ -110,16 +110,16 @@ def test_catalog_initialization_requires_version():
         )
 
 
-def test_catalog_from_json_requires_version():
+def test_catalog_from_json_defaults_undeclared_version():
+    # catalog_definition.json defaults protocolVersion to 0.9; the catalog
+    # targets it, but `to_json` does not write a version the document lacks.
     schema = {
         "catalogId": "https://a2ui.org/spec/catalog.json",
         "components": {},
     }
-    with pytest.raises(
-        ValueError,
-        match="protocol_version must be provided",
-    ):
-        Catalog.from_json(schema)
+    catalog = Catalog.from_json(schema)
+    assert catalog.protocol_version == "0.9"
+    assert "protocolVersion" not in catalog.to_json()
 
 
 # ==============================================================================
@@ -355,6 +355,401 @@ def test_nested_function_validation_with_models():
             "component": "SearchButton",
             "onSearch": {"call": "doSearch", "args": {"query": 12345}},
         }])
+
+
+def _v10_nested_call_catalog() -> Catalog:
+    class SearchArgs(BaseModel):
+        model_config = {"extra": "forbid"}
+        query: str
+
+    class SearchButton(BaseModel):
+        id: str
+        component: Literal["SearchButton"] = "SearchButton"
+        onSearch: dict[str, Any]
+
+    return Catalog(
+        protocol_version="v1.0",
+        catalog_id="https://a2ui.org/v10-nested-func-test",
+        components=[ModelComponentApi(SearchButton)],
+        functions=[FunctionApi("doSearch", schema=SearchArgs)],
+    )
+
+
+def _v10_nested_call_errors(
+    validator: PayloadValidator, call: dict[str, Any]
+) -> list[str]:
+    try:
+        validator.validate_component(
+            {"id": "b1", "component": "SearchButton", "onSearch": call}
+        )
+    except A2uiValidationError as e:
+        return [d.code for d in e.details]
+    return []
+
+
+def test_v10_nested_calls_fully_checked_by_default():
+    catalog = _v10_nested_call_catalog()
+    val = PayloadValidator(catalog=catalog)
+
+    assert not _v10_nested_call_errors(
+        val, {"@call": "doSearch", "args": {"query": "test"}}
+    )
+    assert not _v10_nested_call_errors(
+        val,
+        {
+            "@call": "doSearch",
+            "catalogId": catalog.catalog_id,
+            "args": {"query": "test"},
+        },
+    )
+    assert "unrecognized_function" in _v10_nested_call_errors(
+        val, {"@call": "noSuchFn", "args": {}}
+    )
+    assert "type_mismatch" in _v10_nested_call_errors(
+        val, {"@call": "doSearch", "args": {"query": 12345}}
+    )
+    assert "extra_field" in _v10_nested_call_errors(
+        val, {"@call": "doSearch", "args": {"query": "x", "bogus": 1}}
+    )
+    # A call nested in another call's args is checked too.
+    assert "unrecognized_function" in _v10_nested_call_errors(
+        val,
+        {"@call": "doSearch", "args": {"query": {"@call": "noSuchFn", "args": {}}}},
+    )
+    # A call naming another catalog runs there, so only its identifiers are
+    # checked.
+    assert not _v10_nested_call_errors(
+        val,
+        {"@call": "anyFn", "catalogId": "https://other.example/c", "args": {"a": 1}},
+    )
+    assert "invalid_identifier" in _v10_nested_call_errors(
+        val, {"@call": "any-fn", "catalogId": "https://other.example/c"}
+    )
+    # An empty catalogId names a catalog too (one that never exists), so it
+    # is not this catalog.
+    assert not _v10_nested_call_errors(
+        val, {"@call": "noSuchFn", "catalogId": "", "args": {}}
+    )
+
+
+def _v10_nested_call_error_details(
+    validator: PayloadValidator, call: dict[str, Any]
+) -> list[tuple[str, str]]:
+    try:
+        validator.validate_component(
+            {"id": "b1", "component": "SearchButton", "onSearch": call}
+        )
+    except A2uiValidationError as e:
+        return [(d.path, d.code) for d in e.details]
+    return []
+
+
+def test_v10_nested_call_errors_are_located_in_the_component():
+    val = PayloadValidator(catalog=_v10_nested_call_catalog())
+
+    assert _v10_nested_call_error_details(
+        val, {"@call": "doSearch", "args": {"query": 12345}}
+    ) == [("components.b1.onSearch.args.query", "type_mismatch")]
+    assert (
+        "components.b1.onSearch.args.query",
+        "unrecognized_function",
+    ) in _v10_nested_call_error_details(
+        val,
+        {"@call": "doSearch", "args": {"query": {"@call": "noSuchFn", "args": {}}}},
+    )
+    assert _v10_nested_call_error_details(
+        val, {"@call": "any-fn", "catalogId": "https://other.example/c"}
+    ) == [("components.b1.onSearch", "invalid_identifier")]
+
+
+def test_v10_nested_call_with_non_string_catalog_id_is_a_type_error():
+    val = PayloadValidator(catalog=_v10_nested_call_catalog())
+
+    for bad_id in (0, False, 5):
+        assert _v10_nested_call_error_details(
+            val, {"@call": "noSuchFn", "catalogId": bad_id, "args": {}}
+        ) == [("components.b1.onSearch.catalogId", "type_mismatch")]
+
+
+def test_v10_index_call_naming_a_catalog_is_rejected():
+    catalog = _v10_nested_call_catalog()
+    assert _v10_nested_call_error_details(
+        PayloadValidator(catalog=catalog),
+        {"@call": "@index", "catalogId": catalog.catalog_id},
+    ) == [("components.b1.onSearch.catalogId", "extra_field")]
+
+
+def _v10_closed_tag_catalog() -> Catalog:
+    """A v1.0 catalog whose `Tag` schema is closed and declares no envelope."""
+    return Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/closed-tags",
+            "components": {
+                "Tag": {
+                    "type": "object",
+                    "properties": {"label": {"type": "string"}},
+                    "additionalProperties": False,
+                }
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+
+
+def _component_error_details(
+    val: PayloadValidator, comp: dict[str, Any]
+) -> list[tuple[str, str]]:
+    try:
+        val.validate_component(comp)
+    except A2uiValidationError as e:
+        return [(d.path, d.code) for d in e.details]
+    return []
+
+
+def test_v10_closed_component_schema_accepts_envelope_keys():
+    # catalogId and metadata belong to the v1.0 component envelope
+    # (ComponentCommon), not to the component's own properties.
+    catalog = _v10_closed_tag_catalog()
+    val = PayloadValidator(catalog=catalog)
+    tag = {"id": "t1", "component": "Tag", "label": "x"}
+
+    assert not _component_error_details(val, {**tag, "catalogId": catalog.catalog_id})
+    assert not _component_error_details(
+        val, {**tag, "metadata": {"extensions": {"vendor": 1}}}
+    )
+    # Other unknown keys are still rejected.
+    assert _component_error_details(val, {**tag, "bogus": 1}) == [
+        ("components.t1", "extra_field")
+    ]
+
+
+def test_v10_stripped_catalog_id_must_still_be_a_string():
+    val = PayloadValidator(catalog=_v10_closed_tag_catalog())
+
+    for bad_id in (5, None, False):
+        assert _component_error_details(
+            val, {"id": "t1", "component": "Tag", "label": "x", "catalogId": bad_id}
+        ) == [("components.t1.catalogId", "type_mismatch")]
+
+
+def test_v10_component_schema_declaring_catalog_id_still_sees_it():
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/pinned-tags",
+            "components": {
+                "Tag": {
+                    "type": "object",
+                    "properties": {"catalogId": {"const": "pinned"}},
+                    "additionalProperties": False,
+                }
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+    val = PayloadValidator(catalog=catalog)
+
+    assert not _component_error_details(
+        val, {"id": "t1", "component": "Tag", "catalogId": "pinned"}
+    )
+    assert [
+        path
+        for path, _ in _component_error_details(
+            val, {"id": "t1", "component": "Tag", "catalogId": "other"}
+        )
+    ] == ["components.t1.catalogId"]
+
+
+def test_before_v10_catalog_id_is_not_an_envelope_key():
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/closed-tags-v09",
+            "components": {
+                "Tag": {
+                    "type": "object",
+                    "properties": {"label": {"type": "string"}},
+                    "additionalProperties": False,
+                }
+            },
+            "functions": {},
+        },
+        protocol_version=PROTOCOL_VERSION,
+    )
+
+    assert _component_error_details(
+        PayloadValidator(catalog=catalog),
+        {"id": "t1", "component": "Tag", "catalogId": catalog.catalog_id},
+    ) == [("components.t1", "extra_field")]
+
+
+def test_v10_model_component_without_envelope_fields_accepts_envelope_keys():
+    class TagModel(BaseModel):
+        model_config = {"extra": "forbid"}
+        id: str
+        component: Literal["Tag"] = "Tag"
+        label: str
+
+    catalog = Catalog(
+        catalog_id="https://a2ui.org/model-tags",
+        protocol_version="1.0",
+        components=[ModelComponentApi(TagModel, "Tag")],
+        functions=[],
+    )
+    val = PayloadValidator(catalog=catalog)
+    tag = {"id": "t1", "component": "Tag", "label": "x"}
+
+    assert not _component_error_details(
+        val,
+        {**tag, "catalogId": catalog.catalog_id, "metadata": {"extensions": {}}},
+    )
+    assert _component_error_details(val, {**tag, "catalogId": 5}) == [
+        ("components.t1.catalogId", "type_mismatch")
+    ]
+
+
+def test_v10_call_with_empty_name_is_rejected():
+    val = PayloadValidator(catalog=_v10_nested_call_catalog())
+
+    assert _v10_nested_call_error_details(val, {"@call": ""}) == [
+        ("components.b1.onSearch", "invalid_identifier")
+    ]
+    # Also when the call runs in a catalog this validator can't see.
+    assert _v10_nested_call_error_details(
+        val, {"@call": "", "catalogId": "https://other.example/c"}
+    ) == [("components.b1.onSearch", "invalid_identifier")]
+
+
+def test_v10_call_with_non_object_args_is_rejected():
+    # The call envelope types `args` as an object, so the check doesn't depend
+    # on the catalog the call runs in.
+    val = PayloadValidator(catalog=_v10_nested_call_catalog())
+
+    for call in [
+        {"@call": "doSearch", "args": 123},
+        {"@call": "fn", "catalogId": "https://other.example/c", "args": 123},
+        {"@call": "fn", "catalogId": "https://other.example/c", "args": ["x"]},
+        {"@call": "@index", "args": 123},
+    ]:
+        details = _v10_nested_call_error_details(val, call)
+        assert len(details) == 1 and details[0][0] == "components.b1.onSearch", call
+
+
+def test_v10_calls_in_unknown_component_type_are_still_checked():
+    # Allowing an unknown component type leaves its properties unchecked, but
+    # the function calls in them still run, so they are checked as usual.
+    val = PayloadValidator(
+        catalog=_v10_nested_call_catalog(),
+        config=ValidationConfig(allow_unknown_elements=True),
+    )
+
+    def details(call: dict[str, Any]) -> list[tuple[str, str]]:
+        try:
+            val.validate_component({"id": "w1", "component": "Widget", "prop": call})
+        except A2uiValidationError as e:
+            return [(d.path, d.code) for d in e.details]
+        return []
+
+    assert not details({"@call": "doSearch", "args": {"query": "test"}})
+    assert not details({"@call": "@index"})
+    assert details({"@call": "@index", "catalogId": "https://a2ui.org/x"}) == [
+        ("components.w1.prop.catalogId", "extra_field")
+    ]
+    assert details({"@call": "doSearch", "args": {"query": 12345}}) == [
+        ("components.w1.prop.args.query", "type_mismatch")
+    ]
+    assert details({"@call": "doSearch", "args": {"bad-arg": "x"}})
+
+
+def test_v10_component_naming_a_catalog_leaves_its_catalogless_calls_unjudged():
+    # A call that names no catalogId runs in the surface default catalog,
+    # which a component that names a catalogId need not belong to, so only
+    # the call's identifiers are checked.
+    catalog = _v10_nested_call_catalog()
+    val = PayloadValidator(catalog=catalog)
+
+    def details(call: dict[str, Any]) -> list[tuple[str, str]]:
+        try:
+            val.validate_component({
+                "id": "b1",
+                "component": "SearchButton",
+                "catalogId": catalog.catalog_id,
+                "onSearch": call,
+            })
+        except A2uiValidationError as e:
+            return [(d.path, d.code) for d in e.details]
+        return []
+
+    assert not details({"@call": "noSuchFn", "args": {}})
+    assert not details({"@call": "doSearch", "args": {"query": 12345}})
+    assert details({"@call": "doSearch", "args": {"bad-arg": "x"}}) == [
+        ("components.b1.onSearch.args.bad-arg", "invalid_identifier")
+    ]
+    # A call that names this catalog still runs here.
+    assert details({"@call": "noSuchFn", "catalogId": catalog.catalog_id}) == [
+        ("components.b1.onSearch", "unrecognized_function")
+    ]
+    # Reserved system functions are still checked against their definition.
+    assert details({"@call": "@foo"}) == [
+        ("components.b1.onSearch", "unrecognized_function")
+    ]
+    offset_errors = details({"@call": "@index", "args": {"offset": "one"}})
+    assert offset_errors
+    assert all(
+        path.startswith("components.b1.onSearch.args.offset")
+        for path, _ in offset_errors
+    )
+    # A call nested in @index's args is judged the same way.
+    assert not details({"@call": "@index", "args": {"offset": {"@call": "noSuchFn"}}})
+    assert details(
+        {"@call": "@index", "args": {"offset": {"@call": "f", "args": {"bad-arg": 1}}}}
+    ) == [("components.b1.onSearch.args.offset.args.bad-arg", "invalid_identifier")]
+
+
+def test_v10_generated_basic_json_catalog_judges_only_calls_it_runs():
+    # The generated basic schema embeds the published `FunctionCall`, which on
+    # its own would tie every call to the basic catalog's functions.
+    catalog = Catalog.from_json(
+        BasicCatalogV1_0().catalog_schema, protocol_version="1.0"
+    )
+    val = PayloadValidator(catalog=catalog)
+
+    def errors(text: Any) -> list[tuple[str, str]]:
+        try:
+            val.validate_component({"id": "t1", "component": "Text", "text": text})
+        except A2uiValidationError as e:
+            return [(d.path, d.code) for d in e.details]
+        return []
+
+    other = "https://other.example/c"
+    assert not errors({"@call": "shout", "catalogId": other, "args": {"x": 1}})
+    assert not errors({"@call": "formatString", "catalogId": other, "args": {}})
+    assert errors({"@call": "noSuchFn"}) == [
+        ("components.t1.text", "unrecognized_function")
+    ]
+    assert errors({"@call": "noSuchFn", "catalogId": catalog.catalog_id}) == [
+        ("components.t1.text", "unrecognized_function")
+    ]
+    assert errors(
+        {"@call": "shout", "catalogId": other, "args": {"v": {"@call": "noSuchFn"}}}
+    ) == [("components.t1.text.args.v", "unrecognized_function")]
+    assert errors({"@call": "@index", "args": {"offset": 1}}) == []
+    assert errors({"@call": "@index", "catalogId": catalog.catalog_id}) == [
+        ("components.t1.text.catalogId", "extra_field")
+    ]
+    # The envelope is still checked.
+    assert ("components.t1.text", "invalid_value") in errors(
+        {"@call": "formatString", "args": {"value": "hi"}, "bogus": 1}
+    )
+
+    # In a component that names a catalog, a call that names none runs in the
+    # surface default, so this catalog doesn't judge it.
+    val.validate_component({
+        "id": "t1",
+        "component": "Text",
+        "catalogId": catalog.catalog_id,
+        "text": {"@call": "shout", "args": {"value": 3}},
+    })
 
 
 def test_theme_validation_with_models():
@@ -612,7 +1007,7 @@ def test_computed_catalog_schema():
         instructions="Sample instructions",
     )
 
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
 
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["catalogId"] == "https://a2ui.org/computed-catalog"
@@ -657,7 +1052,7 @@ def test_catalog_from_json_preserves_custom_defs():
         "type": "string",
         "enum": ["primary", "secondary"],
     }
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
     assert "$defs" in schema
     assert "CustomType" in schema["$defs"]
 
@@ -691,18 +1086,22 @@ def test_is_valid_uax31_identifier():
     assert is_valid_uax31_identifier("변수")
     assert is_valid_uax31_identifier("alpha_α")
 
-    # Single leading @
-    assert is_valid_uax31_identifier("@index")
-    assert is_valid_uax31_identifier("@custom")
+    # Single leading @ rejected by default, accepted with allow_leading_at=True
+    assert not is_valid_uax31_identifier("@index")
+    assert not is_valid_uax31_identifier("@custom")
+    assert is_valid_uax31_identifier("@index", allow_leading_at=True)
+    assert is_valid_uax31_identifier("@custom", allow_leading_at=True)
 
     # Bare "@"
     assert not is_valid_uax31_identifier("@")
+    assert not is_valid_uax31_identifier("@", allow_leading_at=True)
 
     # Invalid symbols and leading digits
     assert not is_valid_uax31_identifier("foo-bar")
     assert not is_valid_uax31_identifier("1foo")
     assert not is_valid_uax31_identifier("foo.bar")
     assert not is_valid_uax31_identifier("@@index")
+    assert not is_valid_uax31_identifier("@@index", allow_leading_at=True)
 
     # Keyword names (valid syntactic identifiers)
     assert is_valid_uax31_identifier("class")
@@ -859,7 +1258,7 @@ def test_catalog_from_json_determines_common_types_automatically():
 
     catalog = Catalog.from_json(catalog_schema)
     assert catalog.protocol_version == "1.0"
-    reconstructed = catalog.catalog_schema
+    reconstructed = catalog.validation_schema
     # The external reference should be rewritten to local #/$defs/...
     card_props = reconstructed["components"]["CustomCard"]["properties"]
     assert card_props["items"]["$ref"] == "#/$defs/ChildList"
@@ -870,7 +1269,16 @@ def test_catalog_from_json_determines_common_types_automatically():
 _INLINE_METADATA = {
     "type": "object",
     "description": "Optional component-level metadata for vendor extensions.",
-    "properties": {"extensions": {"$ref": "#/$defs/Extensions"}},
+    "properties": {
+        "extensions": {
+            "$ref": "#/$defs/Extensions",
+            "description": (
+                "Optional extension metadata. Keys MUST be Unicode identifiers"
+                " (UAX #31). Keys starting with 'a2ui_' are reserved for"
+                " official extensions."
+            ),
+        }
+    },
     "additionalProperties": False,
 }
 
@@ -887,12 +1295,11 @@ def test_v1_0_catalogs_inline_component_metadata():
                 "required": ["component"],
             }
         },
-    }).catalog_schema
-    basic_catalog = BasicCatalogV1_0().catalog_schema
+    }).validation_schema
+    basic_catalog = BasicCatalogV1_0().validation_schema
 
     assert (
-        json_catalog["$defs"]["ComponentCommon"]["properties"]["metadata"]
-        == _INLINE_METADATA
+        json_catalog["components"]["Card"]["properties"]["metadata"] == _INLINE_METADATA
     )
     assert "ComponentCommonMetadata" not in json_catalog["$defs"]
     assert "Extensions" in json_catalog["$defs"]
@@ -904,7 +1311,7 @@ def test_v1_0_catalogs_inline_component_metadata():
     for schema in (
         json_catalog,
         basic_catalog,
-        BasicCatalog(ProtocolVersion.V0_9).catalog_schema,
+        BasicCatalog(ProtocolVersion.V0_9).validation_schema,
     ):
         assert '"x-a2ui-' not in json.dumps(schema)
 
@@ -914,7 +1321,7 @@ def test_v08_basic_catalog_schema_structure():
     from a2ui.core.basic_catalog import v0_8
 
     cat = v0_8.BasicCatalog()
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert "https://a2ui.org/specification/v0_8" in schema["catalogId"]
     assert "Text" in schema["components"]
@@ -926,12 +1333,12 @@ def test_catalog_schema_caching():
     from a2ui.core.basic_catalog import v0_9
 
     cat = v0_9.BasicCatalog()
-    s1 = cat.catalog_schema
-    s2 = cat.catalog_schema
+    s1 = cat.validation_schema
+    s2 = cat.validation_schema
     assert s1 == s2
     assert s1 is not s2
     s1["mutated"] = True
-    assert "mutated" not in cat.catalog_schema
+    assert "mutated" not in cat.validation_schema
 
 
 def test_custom_component_recursive_model_inlining():
@@ -956,7 +1363,7 @@ def test_custom_component_recursive_model_inlining():
         protocol_version="v0.9",
         components=[comp],
     )
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
     assert "TreeNode" in schema.get("$defs", {})
     assert "Tree" in schema["components"]
 
@@ -975,14 +1382,9 @@ def test_concrete_component_subclassing_discriminator():
         protocol_version="v0.9",
         components=[comp],
     )
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
     comp_schema = schema["components"]["SpecialButton"]
-    inner = [
-        s
-        for s in comp_schema["allOf"]
-        if "properties" in s and "component" in s["properties"]
-    ][0]
-    assert inner["properties"]["component"] == {"const": "SpecialButton"}
+    assert comp_schema["properties"]["component"] == {"const": "SpecialButton"}
     assert "Button" not in schema.get("$defs", {})
 
 
@@ -1006,7 +1408,7 @@ def test_custom_model_collision_with_common_type_rejected():
         components=[comp],
     )
     with pytest.raises(A2uiCatalogError, match="collides with built-in common type"):
-        _ = cat.catalog_schema
+        _ = cat.validation_schema
 
 
 def test_function_api_description_fallback():
@@ -1062,3 +1464,63 @@ def test_from_json_rejects_malformed_functions(functions, message):
             {"catalogId": "inline", "components": {}, "functions": functions},
             protocol_version="0.9",
         )
+
+
+def test_v10_catalog_rejects_at_prefixed_function_names():
+    """@-prefixed function names are reserved for system functions in v1.0+."""
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
+        Catalog(
+            catalog_id="https://a2ui.org/v10-reserved-fn",
+            protocol_version="v1.0",
+            functions=[FunctionApi(name="@index", return_type="number")],
+        )
+
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
+        Catalog.from_json({
+            "catalogId": "https://a2ui.org/v10-reserved-fn",
+            "protocolVersion": "v1.0",
+            "functions": {"@index": {"returnType": "number"}},
+        })
+
+
+def test_v10_catalog_accepts_ref_and_combiner_parameters():
+    """Parameters defined with $ref or combiners are not treated as shorthand maps."""
+    cat = Catalog.from_json({
+        "catalogId": "https://a2ui.org/v10-ref-fn",
+        "protocolVersion": "v1.0",
+        "functions": {
+            "refFunc": {
+                "parameters": {"$ref": "#/$defs/MyArgs"},
+                "returnType": "string",
+            },
+            "oneOfFunc": {
+                "parameters": {"oneOf": [{"type": "string"}, {"type": "number"}]},
+                "returnType": "string",
+            },
+            "allOfFunc": {
+                "parameters": {
+                    "allOf": [
+                        {"properties": {"validArg": {"type": "string"}}},
+                    ]
+                },
+                "returnType": "string",
+            },
+        },
+    })
+    assert "refFunc" in cat.functions
+    assert "oneOfFunc" in cat.functions
+    assert "allOfFunc" in cat.functions
+
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 argument identifier"):
+        Catalog.from_json({
+            "catalogId": "https://a2ui.org/v10-invalid-param",
+            "protocolVersion": "v1.0",
+            "functions": {
+                "badFunc": {
+                    "parameters": {
+                        "allOf": [{"properties": {"123bad": {"type": "string"}}}]
+                    },
+                    "returnType": "string",
+                },
+            },
+        })

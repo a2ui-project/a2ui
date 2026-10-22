@@ -15,38 +15,41 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-import 'renderer_catalog.dart';
-
 /// What each e2e turn asks the model for.
 const String loginFormRequest =
     'Show a login form with email and password fields and a "Sign in" '
     'button.';
 
-/// Checks that [messages] build a login form from [catalog], as a renderer
-/// holding only [catalog] would apply them.
+/// Checks that [messages] are written against the protocol version [catalog]
+/// targets and build a login form from [catalog], as a renderer holding only
+/// [catalog] would apply them.
 ///
-/// The renderer validates each message against the catalog and the surface
-/// graph, and throws on the first one it rejects. [llmOutput] is printed
-/// with any failure.
+/// The renderer validates each message against the catalog, and throws on
+/// the first one it rejects. [llmOutput] is printed with any failure.
 void expectLoginForm(
   CatalogApi catalog,
   List<AgentToRendererMessage> messages, {
   required String llmOutput,
 }) {
   expect(messages, isNotEmpty, reason: 'LLM output:\n$llmOutput');
-  expect(messages.map((m) => m.version), everyElement('v0.9'));
+  expect(
+    messages.map((m) => m.version),
+    everyElement(catalog.protocolVersion!.jsonValue),
+  );
   final createSurface = messages.first as CreateSurfaceMessage;
   expect(createSurface.catalogId, catalog.id);
 
-  final renderer = MessageProcessor<ComponentApi>(
-    catalogs: [rendererCatalog(catalog)],
-    defaultVersion: A2uiProtocolVersion.v0_9,
+  final MessageProcessor<ComponentApi> renderer = MessageProcessor.forAgent(
+    catalogs: [catalog],
+    defaultVersion: catalog.protocolVersion,
+    // `parseResponse` checked the surface graph already.
+    validationConfig: null,
   );
-  addTearDown(renderer.groupModel.dispose);
+  addTearDown(renderer.model.dispose);
   renderer.processMessages(AgentToRendererMessagePayload(messages));
 
   expectLoginFormSurface(
-    renderer.groupModel.getSurface(createSurface.surfaceId)!,
+    renderer.model.getSurface(createSurface.surfaceId)!,
     llmOutput: llmOutput,
   );
 }

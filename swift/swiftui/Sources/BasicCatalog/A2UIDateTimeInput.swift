@@ -104,11 +104,13 @@ public struct A2UIDateTimeInput: View {
         Text(labelText)
           .font(.subheadline.weight(.medium))
           .foregroundStyle(hasError ? Color.red : Color.secondary)
+          .accessibilityHidden(true)
       }
 
       datePickerView
         .padding(.vertical, 2)
         .accessibilityIdentifier("A2UIDateTimeInput_\(node.id)")
+        .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
       if let firstError = validationErrors.first {
         Text(firstError)

@@ -15,7 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-/// The rule table is ported from `typescript/web_core`: the
+/// The rule table is ported from `typescript/core/web_core`: the
 /// `isCatalogVersionCompatible` cases in `processing/adapters/adapters.test.ts`
 /// and the precedence cases in `common/semver.test.ts`.
 void main() {

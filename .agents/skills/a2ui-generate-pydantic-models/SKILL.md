@@ -71,12 +71,14 @@ When executed for a target version `<version>` (e.g. `v1.0` -> `v1_0`), the scri
    - `function_apis.py` (strongly typed function schemas & `FunctionApi` classes)
    - `styles.py` (theme schema, generated when theme is defined in catalog)
    - `__init__.py`
-   - For versions with a common types schema (v0.9+), the models carry everything `Catalog.catalog_schema` needs to rebuild the specification's `catalog.json` from them, with no spec JSON copied into Python:
+   - The models and the generated `BasicCatalog` carry everything `Catalog.to_json()` needs to rebuild the published catalog document from them, with no catalog JSON copied into Python or read at runtime:
+     - `BasicCatalog` passes the document's top-level fields to `Catalog`: `$schema`, `$id`, `title`, `description`, `protocolVersion` (None when the document declares none), `catalogId` when it declares none, `instructions`, where it writes its theme (`theme_location`), its unions (`union_defs`, which must list the catalog's entries) and the document its common types references point into (`common_types_uri`). The theme is passed as `theme_model`.
+     - Without common types (v0.8), nested objects become models that keep the document's shapes: two nested objects of different shapes never share a model (the later one is prefixed with its component or parent model, for example `SliderValueItem`), and their descriptions stay on the fields, with line breaks, rather than becoming docstrings. `Catalog.to_json()` writes them inline, as the v0.8 document does.
+   - For versions with a common types schema (v0.9+), the models carry everything `Catalog.validation_schema` and `Catalog.to_json()` need to rebuild the specification's `catalog.json` shape from them:
      - A component's `allOf` references to common types defs (for example `Checkable`) become base classes, and catalog defs (`CatalogComponentCommon`) become base models. A component with more than one base sets `extra="forbid"`, because Pydantic would otherwise inherit an open base's config. A component description becomes the class docstring and fails generation if it cannot be one.
      - A function's description becomes the `FunctionApi.description` attribute. Keywords on the `args` object that fields cannot produce (`unevaluatedProperties`, `additionalProperties`, required-alternative `anyOf`) are declared with `SchemaKeywords` as the model's `json_schema_extra`, and an unknown keyword fails generation.
      - Field constraints (`minItems`, `minimum`, ...) are emitted as `Field` arguments, so they are validated and published; `format` and `default` are published through `json_schema_extra`. An `allOf` member that only adds keywords becomes a `SpecAllOf` annotation.
-     - Top-level `instructions` in `catalog.json` are passed to the `Catalog` in `__init__.py`.
-     - The conformance cases `test_v09_basic_catalog_schema` and `test_v10_basic_catalog_schema` compare the result with the specification files, so any drift fails the tests.
+   - The conformance cases `test_v08_basic_catalog_to_json`, `test_v09_basic_catalog_to_json` and `test_v10_basic_catalog_to_json`, and `python/a2ui_core/tests/test_basic_catalog_documents.py`, compare `BasicCatalog().to_json()` with the published files, so any drift fails the tests.
 
 3. **`python/a2ui_core/src/a2ui/core/schema/__init__.py`**:
    - Registers the version in `A2uiProtocolVersion` enum and updates envelope unions.

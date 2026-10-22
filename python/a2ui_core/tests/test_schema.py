@@ -195,12 +195,12 @@ def test_catalog_schema_returns_independent_copies() -> None:
         defs={"Wrapper": {"$ref": "#/$defs/DynamicString"}},
         common_types_defs={"DynamicString": {"type": "string"}},
     )
-    schema = catalog.catalog_schema
+    schema = catalog.validation_schema
     schema["$defs"]["DynamicString"]["type"] = "number"
     assert catalog.common_types_defs["DynamicString"] == {"type": "string"}
-    assert catalog.catalog_schema["$defs"]["DynamicString"]["type"] == "string"
+    assert catalog.validation_schema["$defs"]["DynamicString"]["type"] == "string"
 
 
 def test_catalog_schema_rejects_unparsable_versions() -> None:
     with pytest.raises(A2uiCatalogError):
-        Catalog(catalog_id="test", protocol_version="latest").catalog_schema
+        Catalog(catalog_id="test", protocol_version="latest").validation_schema

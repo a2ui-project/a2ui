@@ -23,9 +23,16 @@ Security Guardrails:
 - Enforces strict developer-configured MIME type allowlists.
 - Mitigates SSRF risks by enforcing strict developer-configured host allowlists for remote HTTP/HTTPS downloads.
 
-GenAI Helpers:
-- Provides utilities (`to_genai_part`, `resolve_all_to_genai_parts`) to directly convert resolved bytes into ready-to-use `google.genai.types.Part` objects.
-- Exports a powerful `as_tool_decorator` factory, enabling developers to seamlessly wrap agent tools so that incoming A2UI file pointer dictionaries are automatically downloaded, verified, and injected as GenAI parts, while gracefully handling UI error payloads.
+Tool Helpers:
+- `resolve_all` concurrently resolves a list of file pointers, optionally converting each
+  `(bytes, mime_type)` pair with a caller-supplied converter.
+- `as_tool_decorator` wraps agent tools so that incoming A2UI file pointer dictionaries are
+  automatically downloaded, verified, converted, and injected into the tool call, while
+  gracefully handling UI error payloads.
+
+This module does not depend on any agent framework or model SDK. Framework extensions
+supply converters to their own content types (for example, `a2ui.adk.GenAIFileResolver`
+converts resolved files into `google.genai.types.Part` objects).
 """
 
 from collections.abc import Mapping, Sequence
@@ -48,7 +55,7 @@ from typing import (
     Union,
 )
 import urllib.parse
-from google.genai import types as genai_types
+
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -82,6 +89,13 @@ SchemeHandler = Callable[
     [str, dict[str, Any]],
     bytes | Coroutine[Any, Any, bytes] | Awaitable[bytes],
 ]
+
+ResolvedFileConverter = Callable[[bytes, str], Any]
+"""Converts resolved file bytes and their verified MIME type into another object."""
+
+
+def _as_resolved_tuple(raw_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
+    return raw_bytes, mime_type
 
 
 class FileResolverSecurityError(Exception):
@@ -355,36 +369,51 @@ class FileResolver:
         verified_mime = self._verify_magic_bytes(raw_bytes, claimed_mime)
         return raw_bytes, verified_mime
 
-    async def to_genai_part(
-        self, file_info: dict[str, Any], session: Any | None = None
-    ) -> genai_types.Part:
-        """Resolves pointer and constructs a ready-to-use GenAI Part."""
-        raw_bytes, verified_mime = await self.resolve_bytes(file_info, session)
-        return genai_types.Part.from_bytes(data=raw_bytes, mime_type=verified_mime)
+    async def resolve_all(
+        self,
+        files: Sequence[dict[str, Any]],
+        session: Any | None = None,
+        convert: ResolvedFileConverter | None = None,
+    ) -> list[Any]:
+        """Concurrently resolves a list of file pointers with throttling protection.
 
-    async def resolve_all_to_genai_parts(
-        self, files: list[dict[str, Any]], session: Any | None = None
-    ) -> list[genai_types.Part]:
-        """Concurrently resolves a list of file attachments with throttling protection."""
-        return await asyncio.gather(*(self.to_genai_part(f, session) for f in files))
+        Args:
+            files: File pointer dictionaries to resolve.
+            session: Optional session used to resolve `inline://` pointers.
+            convert: Optional callback `(bytes, mime_type) -> Any` applied to each
+                resolved file. Without it, each item is a `(bytes, mime_type)` tuple.
+
+        Returns:
+            The resolved (and converted) files in the order of `files`.
+        """
+        converter = convert or _as_resolved_tuple
+
+        async def _resolve_one(file_info: dict[str, Any]) -> Any:
+            raw_bytes, verified_mime = await self.resolve_bytes(file_info, session)
+            return converter(raw_bytes, verified_mime)
+
+        return list(await asyncio.gather(*(_resolve_one(f) for f in files)))
 
     def as_tool_decorator(
         self,
         arg_name: str = "files",
-        inject_name: str = "genai_parts",
+        inject_name: str = "resolved_files",
         on_error: Callable[[Exception], Any] | None = None,
         preprocess: (
             Callable[[dict[str, Any], tuple[Any, ...], dict[str, Any]], None] | None
         ) = None,
+        convert: ResolvedFileConverter | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Creates a tool decorator to automatically resolve file pointers into GenAI parts.
+        """Creates a tool decorator that automatically resolves file pointers.
 
         Args:
             arg_name: The kwarg name containing the list of file pointer dicts.
-            inject_name: The kwarg name to inject the resolved GenAI Parts into.
+            inject_name: The kwarg name to inject the resolved files into.
             on_error: Optional callback `(Exception) -> Any` to handle errors (e.g., return a UI payload).
             preprocess: Optional callback `(file_info: dict, args: tuple, kwargs: dict) -> None`
                         to inject contextual data (like `base_url`) into file pointers before resolution.
+            convert: Optional callback `(bytes, mime_type) -> Any` applied to each resolved
+                     file. Without it, each injected item is a `(bytes, mime_type)` tuple.
         """
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -410,8 +439,8 @@ class FileResolver:
                         if isinstance(f, dict):
                             preprocess(f, args, kwargs)
                 try:
-                    bound_args.arguments[inject_name] = (
-                        await self.resolve_all_to_genai_parts(file_pointers, session)
+                    bound_args.arguments[inject_name] = await self.resolve_all(
+                        file_pointers, session, convert
                     )
                 except Exception as e:
                     if on_error:

@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/src/core/component_model.dart';
-import 'package:a2ui_core/src/core/minimal_catalog.dart';
-import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/validation/validation_config.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
+
+import 'support/test_catalog.dart';
 
 void main() {
   group('ComponentModel', () {
     test('onUpdated fires on every property update, not just the first', () {
       final comp = ComponentModel('c1', 'Text', {'text': 'hello'});
       var updateCount = 0;
-      comp.onUpdated.addListener((_) => updateCount++);
+      comp.onUpdated.subscribe((_) => updateCount++);
 
       comp.properties = {'text': 'world'};
       expect(updateCount, 1, reason: 'first update should notify');
@@ -33,16 +32,6 @@ void main() {
 
       comp.properties = {'text': 'and again'};
       expect(updateCount, 3, reason: 'third update should also notify');
-    });
-
-    test('toJson keeps its id and type over same-named properties', () {
-      final comp = ComponentModel('c1', 'Text', {
-        'text': 'hi',
-        'id': 'other',
-        'component': 'Bogus',
-      });
-
-      expect(comp.toJson(), {'text': 'hi', 'id': 'c1', 'component': 'Text'});
     });
 
     test('toJson emits catalogId and metadata only when set', () {
@@ -70,13 +59,23 @@ void main() {
         'text': 'a',
       });
     });
+
+    test('toJson keeps its id and type over same-named properties', () {
+      final comp = ComponentModel('c1', 'Text', {
+        'text': 'hi',
+        'id': 'other',
+        'component': 'Bogus',
+      });
+
+      expect(comp.toJson(), {'text': 'hi', 'id': 'c1', 'component': 'Text'});
+    });
   });
 
   group('SurfaceComponentsModel', () {
     late SurfaceComponentsModel model;
 
     setUp(() {
-      model = SurfaceComponentsModel(catalog: MinimalCatalog());
+      model = SurfaceComponentsModel(catalog: TestCatalog());
       model.addComponent(
         ComponentModel('root', 'Column', {
           'children': ['a', 'b'],
@@ -95,6 +94,128 @@ void main() {
       expect(model.values.map((c) => c.id), ['root', 'a']);
       expect(model.entries.map((e) => e.key), ['root', 'a']);
       expect(model.getAll().map((c) => c.id), ['root', 'a']);
+    });
+
+    test('insertComponent adds a component at a position', () {
+      final created = <String>[];
+      model.onCreated.subscribe((c) => created.add(c.id));
+      expect(model.catalogIds, [null]);
+
+      model.insertComponent(
+        1,
+        ComponentModel('b', 'Text', {'text': 'y'}, catalog: 'other'),
+      );
+      model.insertComponent(0, ComponentModel('c', 'Text', {'text': 'z'}));
+      model.insertComponent(4, ComponentModel('d', 'Text', {'text': 'w'}));
+
+      expect(model.keys, ['c', 'root', 'b', 'a', 'd']);
+      expect(created, ['b', 'c', 'd']);
+      expect(model.catalogIds, [null, 'other']);
+      expect(
+        () => model.insertComponent(0, ComponentModel('a', 'Text', {})),
+        throwsA(isA<A2uiStateError>()),
+      );
+      expect(
+        () => model.insertComponent(6, ComponentModel('e', 'Text', {})),
+        throwsRangeError,
+      );
+      expect(model.keys, ['c', 'root', 'b', 'a', 'd']);
+    });
+
+    test('insertComponent puts catalogs in the order of the components', () {
+      model.addComponent(
+        ComponentModel('b', 'Text', {'text': 'y'}, catalog: 'later'),
+      );
+      expect(model.catalogIds, [null, 'later']);
+
+      model.insertComponent(
+        0,
+        ComponentModel('c', 'Text', {'text': 'z'}, catalog: 'first'),
+      );
+
+      expect(model.catalogIds, ['first', null, 'later']);
+    });
+
+    test(
+        'restoreReferenceFields puts back the fields saveReferenceFields '
+        'found', () {
+      // Derived from the catalog on first use, so nothing is saved yet.
+      final SavedReferenceFields derived = model.saveReferenceFields();
+      model.refFields = const {};
+      expect(model.getChildIds('root'), isEmpty);
+
+      model.restoreReferenceFields(derived);
+      expect(model.getChildIds('root'), ['a', 'b']);
+
+      final Object fields = model.refFields;
+      final SavedReferenceFields saved = model.saveReferenceFields();
+      model.refFields = const {};
+      model.restoreReferenceFields(saved);
+      expect(model.refFields, same(fields));
+      expect(model.getChildIds('root'), ['a', 'b']);
+    });
+
+    test('insertComponents adds components at their positions at once', () {
+      // root, a, then b, c, d.
+      for (final id in ['b', 'c', 'd']) {
+        model.addComponent(ComponentModel(id, 'Text', {'text': id}));
+      }
+      final created = <String>[];
+      model.onCreated.subscribe((c) => created.add(c.id));
+
+      model.insertComponents([
+        (0, ComponentModel('x', 'Text', {})),
+        (2, ComponentModel('y', 'Text', {}, catalog: 'other')),
+        (3, ComponentModel('z', 'Text', {})),
+        (8, ComponentModel('w', 'Text', {})),
+      ]);
+
+      expect(model.keys, ['x', 'root', 'y', 'z', 'a', 'b', 'c', 'd', 'w']);
+      expect(model.catalogIds, [null, 'other']);
+      expect(created, ['x', 'y', 'z', 'w']);
+      model.insertComponents([]);
+      expect(model.size, 9);
+    });
+
+    test('insertComponents rejects a batch it cannot add whole', () {
+      Matcher leavesModel = predicate<void Function()>((call) {
+        try {
+          call();
+        } catch (_) {
+          return model.keys.join(',') == 'root,a';
+        }
+        return false;
+      }, 'throws and leaves the model as it was');
+
+      expect(
+        () => model.insertComponents([(0, ComponentModel('a', 'Text', {}))]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (0, ComponentModel('x', 'Text', {})),
+          (1, ComponentModel('x', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (1, ComponentModel('x', 'Text', {})),
+          (1, ComponentModel('y', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([
+          (0, ComponentModel('x', 'Text', {})),
+          (4, ComponentModel('y', 'Text', {})),
+        ]),
+        leavesModel,
+      );
+      expect(
+        () => model.insertComponents([(-1, ComponentModel('x', 'Text', {}))]),
+        throwsRangeError,
+      );
     });
 
     test('getChildIds lists referenced ids, including unresolved ones', () {
@@ -136,6 +257,39 @@ void main() {
       expect(model.detectCycles(), {'root', 'a'});
     });
 
+    test(
+      'detectCycles throws A2uiIntegrityError on cycles and self-references '
+      'and A2uiRecursionError when maxDepth is exceeded',
+      () {
+        model.addComponent(
+          ComponentModel('self', 'Column', {
+            'children': ['self'],
+          }),
+        );
+        expect(
+          () => model.detectCycles(rootId: 'self'),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+
+        model.addComponent(
+          ComponentModel('b', 'Column', {
+            'children': ['root'],
+          }),
+        );
+        expect(
+          () => model.detectCycles(),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+
+        model.removeComponent('self');
+        model.removeComponent('b');
+        expect(
+          () => model.detectCycles(maxDepth: 0),
+          throwsA(isA<A2uiRecursionError>()),
+        );
+      },
+    );
+
     test('validateComponentsUpdate checks a candidate without mutating', () {
       expect(
         () => model.validateComponentsUpdate([
@@ -157,7 +311,7 @@ void main() {
             'children': ['a2'],
           },
         ], ValidationConfig.relaxed),
-        throwsA(isA<A2uiRecursionError>()),
+        throwsA(isA<A2uiIntegrityError>()),
       );
       expect(model.get('a')!.type, 'Text');
     });

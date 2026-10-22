@@ -26,6 +26,7 @@
     - version: "v1.0"
       createSurface:
         surfaceId: s1
+        catalogId: basic
         components:
           - id: root
             component: Text
@@ -42,6 +43,7 @@
     - version: "v1.0"
       createSurface:
         surfaceId: s1
+        catalogId: basic
         components:
           - id: root
             component: Text
@@ -60,6 +62,7 @@
     - version: "v1.0"
       createSurface:
         surfaceId: s1
+        catalogId: basic
         components:
           - id: root
             component: List
@@ -78,6 +81,7 @@
     A plain object containing 'path' and 'call' keys is valid in v1.0 and is not
     intercepted as a dynamic DataBinding or FunctionCall directive.
   catalog:
+    catalogId: custom
     protocolVersion: "v1.0"
     components:
       CustomCard:
@@ -90,6 +94,7 @@
     - version: "v1.0"
       createSurface:
         surfaceId: s1
+        catalogId: custom
         components:
           - id: root
             component: CustomCard
@@ -102,6 +107,7 @@
     Literal @ keys escaped with prefix doubling (@@path, @@type) validate successfully
     as plain object keys.
   catalog:
+    catalogId: custom
     protocolVersion: "v1.0"
     components:
       CustomCard:
@@ -114,6 +120,7 @@
     - version: "v1.0"
       createSurface:
         surfaceId: s1
+        catalogId: custom
         components:
           - id: root
             component: CustomCard
@@ -126,6 +133,7 @@
     Dynamic objects containing unknown single-@ keys (^@([^@]|$)) are disallowed to preserve
     backward compatibility for future directives.
   catalog:
+    catalogId: custom
     protocolVersion: "v1.0"
     components:
       CustomCard:
@@ -138,6 +146,7 @@
     - version: "v1.0"
       createSurface:
         surfaceId: s1
+        catalogId: custom
         components:
           - id: root
             component: CustomCard
@@ -152,6 +161,7 @@
     A key consisting of a single @ with no following character is also reserved and
     disallowed. It must be escaped as "@@" to appear as literal data.
   catalog:
+    catalogId: custom
     protocolVersion: "v1.0"
     components:
       CustomCard:
@@ -164,6 +174,7 @@
     - version: "v1.0"
       createSurface:
         surfaceId: s1
+        catalogId: custom
         components:
           - id: root
             component: CustomCard
@@ -176,6 +187,7 @@
   description: >-
     Verifies that doubled-@ keys ('@@path') are unescaped to '@path' during dynamic evaluation in v1.0.
   catalog:
+    catalogId: custom
     protocolVersion: "v1.0"
     components:
       CustomCard:
@@ -188,6 +200,7 @@
     - version: "v1.0"
       createSurface:
         surfaceId: s1
+        catalogId: custom
         components:
           - id: root
             component: CustomCard

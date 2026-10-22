@@ -20,8 +20,8 @@ import tempfile
 import unittest
 
 from a2ui.core import Catalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
-from a2ui.schema import VERSION_1_0
 
 
 class TestElementalPromptGenerator(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
     def setUp(self):
         # Rich catalog testing all mapping branches of _map_schema_to_ts_type
         self.catalog = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/rich_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/rich_catalog",
@@ -145,7 +145,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
     def test_catalog_description_initializes_helper_and_decompiles_instructions(self):
         """Verifies helper initialization and JSON instructions decompiling in catalog_description."""
         custom_catalog = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
@@ -187,7 +187,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
     ):
         """Verifies helper initialization and list JSON instructions decompiling in catalog_description."""
         custom_catalog = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
@@ -303,7 +303,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
 
     def test_elemental_examples_validation(self):
         from a2ui.inference_formats import to_message_models
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         example_payload = {
             "version": "v1.0",
@@ -333,7 +333,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
     def test_catalog_instructions_json_decompilation(self):
         """Test catalog instructions containing JSON blocks are converted to HTML blocks."""
         cat_with_instructions = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/inst_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/inst_catalog",

@@ -20,8 +20,8 @@ import 'catalog_providers.dart';
 /// A catalog the agent supports, registered with an `A2uiGenerator`, and the
 /// transformers applied to it.
 ///
-/// The catalog is registered for protocol v0.9, the only version this SDK
-/// implements.
+/// The catalog is registered for the protocol version it targets, v0.9 or
+/// v1.0. The catalogs registered with one generator target the same one.
 class CatalogConfig {
   /// The catalog as its document declares it, parsed by [Catalog.fromJson] or
   /// loaded by a [CatalogProvider].
@@ -53,9 +53,19 @@ class CatalogConfig {
 
   /// [catalog] after each of [transformers] in turn, each seeing the previous
   /// result.
-  CatalogApi get transformedCatalog => transformers.fold(
-    catalog,
-    (CatalogApi current, CatalogTransformer transformer) =>
-        transformer.transform(current),
-  );
+  ///
+  /// Computed on first access and then reused, so every request sees the
+  /// same instance and its cached schemas.
+  CatalogApi get transformedCatalog =>
+      _transformedCatalogs[this] ??= transformers.fold<CatalogApi>(
+        catalog,
+        (CatalogApi current, CatalogTransformer transformer) =>
+            transformer.transform(current),
+      );
 }
+
+/// Each [CatalogConfig.transformedCatalog], by config, kept outside the config
+/// so its constructor stays `const`.
+final Expando<CatalogApi> _transformedCatalogs = Expando(
+  'CatalogConfig.transformedCatalog',
+);

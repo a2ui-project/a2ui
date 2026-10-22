@@ -26,6 +26,7 @@ import {
   A2uiGenerator,
   type AgentToRendererMessage,
   CatalogConfig,
+  DirectJsonFormatFactory,
   ExpressDecompiler,
   ExpressFormatFactory,
 } from '@a2ui/agent';
@@ -48,7 +49,7 @@ function validate(profile: VersionProfile, format: A2uiFormat, response: string)
   const processor =
     format === 'express'
       ? generator.createProcessor(capabilities, new ExpressFormatFactory({surfaceId: 'default'}))
-      : generator.createProcessor(capabilities);
+      : generator.createProcessor(capabilities, new DirectJsonFormatFactory());
   const parts = processor.parseResponse(response);
   expect(parts.some(part => part.type === 'a2ui')).toBe(true);
 }

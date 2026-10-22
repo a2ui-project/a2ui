@@ -34,7 +34,7 @@ from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats import to_message_models
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
-from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.inference_formats.express import ExpressFormat
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiPart
 from a2ui.parser import RawA2uiPart
@@ -42,8 +42,7 @@ from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.schema import load_examples
-from a2ui.utils import resolve_catalogs
+from a2ui.utils import load_examples, resolve_catalogs
 
 from .conformance_helpers import get_conformance_path
 from .conformance_helpers import load_conformance_json as load_json_file
@@ -173,6 +172,10 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
 KNOWN_GAPS: dict[str, str] = {
+    "test_compile_express_check_with_value_on_uncheckable_component_is_a_validation_error": (
+        "ExpressCompiler does not reject check lists on components that do not"
+        " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
+    ),
     "test_compile_express_checks_on_uncheckable_component_is_a_validation_error": (
         "ExpressCompiler does not reject check lists on components that do not"
         " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
@@ -665,6 +668,11 @@ def run_format_case(test_case, tmp_path):
             return
         fmt = make_format(args, tmp_path=tmp_path)
         snippet = generate(fmt)
+        if "expect_file" in test_case:
+            with open(
+                get_conformance_path(test_case["expect_file"]), encoding="utf-8"
+            ) as f:
+                assert snippet == f.read()
         _expect_snippet(
             snippet,
             test_case.get("expect_contains", []),
@@ -754,7 +762,7 @@ def _factory_for(format_name, allowed_messages=None, progressive_keys=None):
     from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
     from a2ui.inference_formats.experimental.atom import AtomFormatFactory
     from a2ui.inference_formats.experimental.elemental import ElementalFormatFactory
-    from a2ui.inference_formats.experimental.express import ExpressFormatFactory
+    from a2ui.inference_formats.express import ExpressFormatFactory
 
     if format_name == "express":
         return ExpressFormatFactory(
@@ -789,10 +797,14 @@ def run_create_processor_case(test_case, tmp_path):
     configs = [catalog_config_from_document(entry) for entry in args["catalogs"]]
     before = _describe_configs(configs)
     loaded_examples = stage_examples(args.get("examples", []), tmp_path)
-    base_factory = _factory_for(
-        args.get("format", "direct_json"),
-        allowed_messages=args.get("allowed_messages"),
-        progressive_keys=args.get("progressive_keys"),
+    base_factory = (
+        _factory_for(
+            args["format"],
+            allowed_messages=args.get("allowed_messages"),
+            progressive_keys=args.get("progressive_keys"),
+        )
+        if isinstance(args, dict) and args.get("format") is not None
+        else None
     )
     override_factory = (
         _factory_for(
@@ -800,7 +812,7 @@ def run_create_processor_case(test_case, tmp_path):
             allowed_messages=args.get("allowed_messages"),
             progressive_keys=args.get("progressive_keys"),
         )
-        if "format_override" in args
+        if isinstance(args, dict) and args.get("format_override") is not None
         else None
     )
     generator = A2uiGenerator(

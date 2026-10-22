@@ -442,6 +442,14 @@ def analyze_child_ref_schema(
                         ):
                             items = target_schema.get("items")
                             if isinstance(items, dict):
+                                # An array of ComponentId (or ChildList) refs
+                                # declared directly. Check before resolving, which
+                                # would replace the ref with its plain string type.
+                                if _is_single_child_json_schema(
+                                    items
+                                ) or _is_child_list_json_schema(items):
+                                    list_refs.add(prop_name)
+                                    continue
                                 if "$ref" in items:
                                     resolved_items = _resolve_schema_ref(
                                         items["$ref"], schema, catalog_schema
@@ -480,7 +488,7 @@ def build_component_ref_map(catalog: Any) -> dict[str, ComponentRefSpec]:
     if not catalog or not hasattr(catalog, "components"):
         return ref_map
 
-    catalog_schema = getattr(catalog, "catalog_schema", None) or getattr(
+    catalog_schema = getattr(catalog, "validation_schema", None) or getattr(
         catalog, "schema", None
     )
     comps = catalog.components
@@ -489,6 +497,13 @@ def build_component_ref_map(catalog: Any) -> dict[str, ComponentRefSpec]:
         name = getattr(comp, "name", None)
         if not name:
             continue
-        target = getattr(comp, "model_class", None) or getattr(comp, "schema", None)
+        target = getattr(comp, "model_class", None)
+        if target is None:
+            # A catalog keeps authored schemas as written; resolve their
+            # references to the catalog's own `$defs` before analyzing them.
+            resolve = getattr(catalog, "resolved_component_schema", None)
+            target = (
+                resolve(name) if callable(resolve) else getattr(comp, "schema", None)
+            )
         ref_map[name] = analyze_child_ref_schema(target, catalog_schema=catalog_schema)
     return ref_map

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/peer_matching/alpha/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "Peer Matching Alpha Catalog (v1.0)",
+  "description": "A peer catalog whose $id ends in /catalog.json. Its Badge requires a string label.",
+  "catalogId": "conformance/peer_matching/alpha",
+  "components": {
+    "Badge": {
+      "type": "object",
+      "description": "A badge that requires `label`.",
+      "properties": {
+        "component": {
+          "const": "Badge"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "label"
+      ]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Badge"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    }
+  }
+}

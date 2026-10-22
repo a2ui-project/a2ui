@@ -17,6 +17,7 @@
 from a2ui.extensions.file_resolve.file_resolver import (
     FileResolver,
     FileResolverSecurityError,
+    ResolvedFileConverter,
 )
 
-__all__ = ["FileResolver", "FileResolverSecurityError"]
+__all__ = ["FileResolver", "FileResolverSecurityError", "ResolvedFileConverter"]

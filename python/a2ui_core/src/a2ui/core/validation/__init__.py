@@ -26,6 +26,7 @@ from .payload_validator import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     ValidationConfig,
+    validate_system_function,
 )
 from .schema_validator import SchemaValidator
 
@@ -42,4 +43,5 @@ __all__ = [
     "validate_component_integrity",
     "validate_composition_constraints",
     "validate_recursion_and_paths",
+    "validate_system_function",
 ]

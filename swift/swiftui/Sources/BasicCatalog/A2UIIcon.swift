@@ -327,6 +327,11 @@ public struct A2UIIcon: View {
     return .unknown
   }
 
+  /// The agent's explicit accessibility label, which replaces the inferred icon label.
+  private var explicitLabel: String? {
+    node.explicitAccessibilityAttributes?.label
+  }
+
   public var body: some View {
     Group {
       switch iconSource {
@@ -335,19 +340,19 @@ public struct A2UIIcon: View {
         Image(systemName: symbol)
           .font(.system(size: 20))
           .frame(width: 24, height: 24)
-          .accessibilityLabel(name)
+          .accessibilityLabel(explicitLabel ?? name)
 
       case .svg(let pathData):
         SVGPathShape(pathData: pathData)
           .fill()
           .frame(width: 24, height: 24)
-          .accessibilityLabel("Custom icon")
+          .accessibilityLabel(explicitLabel ?? "Custom icon")
 
       case .unknown:
         Image(systemName: "questionmark.circle")
           .font(.system(size: 20))
           .frame(width: 24, height: 24)
-          .accessibilityLabel("Icon")
+          .accessibilityLabel(explicitLabel ?? "Icon")
       }
     }
     .accessibilityIdentifier("A2UIIcon_\(node.id)")

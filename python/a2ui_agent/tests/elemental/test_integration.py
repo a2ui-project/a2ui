@@ -17,9 +17,9 @@
 import unittest
 
 from a2ui.core import Catalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.experimental.elemental import ElementalParser
 from a2ui.parser import A2uiCompilationError
-from a2ui.schema import VERSION_0_9
 
 
 class TestElementalIntegration(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestElementalIntegration(unittest.TestCase):
     def setUp(self):
         """Initializes a standard test catalog."""
         self.catalog = Catalog.from_json(
-            protocol_version=VERSION_0_9,
+            protocol_version=ProtocolVersion.V0_9,
             catalog_id="https://a2ui.org/test_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/test_catalog",

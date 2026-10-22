@@ -15,12 +15,14 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
+import 'support/test_catalog.dart';
+
 void main() {
   group('SurfaceGroupModel', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
 
     setUp(() {
-      catalog = MinimalCatalog();
+      catalog = TestCatalog();
     });
 
     test('removes action forwarder listener when surface is deleted', () {
@@ -30,7 +32,7 @@ void main() {
 
       // Verify the forwarder works while surface is alive.
       var actionCount = 0;
-      group.onAction.addListener((_) => actionCount++);
+      group.onAction.subscribe((_) => actionCount++);
 
       surface.dispatchAction({
         'event': {'name': 'test'},
@@ -58,6 +60,42 @@ void main() {
     });
 
     test(
+        'detachSurface removes a surface without disposing of it, and '
+        'addSurface puts the same object back', () {
+      final group = SurfaceGroupModel<ComponentApi>();
+      final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog)
+        ..componentsModel.addComponent(ComponentModel('root', 'Text', {}))
+        ..dataModel.set('/k', 1);
+      group.addSurface(surface);
+      final events = <String>[];
+      group.onSurfaceCreated.subscribe((s) => events.add('created ${s.id}'));
+      group.onSurfaceDeleted.subscribe((id) => events.add('deleted $id'));
+      var actionCount = 0;
+      group.onAction.subscribe((_) => actionCount++);
+
+      expect(group.detachSurface('s1'), same(surface));
+      expect(group.getSurface('s1'), isNull);
+      expect(group.detachSurface('s1'), isNull);
+      surface.dispatchAction({
+        'event': {'name': 'detached'},
+      }, 'c1');
+      expect(actionCount, 0);
+      // Not disposed: the surface keeps its components and data.
+      expect(surface.componentsModel.keys, ['root']);
+      expect(surface.dataModel.get('/k'), 1);
+
+      group.addSurface(surface);
+      expect(group.getSurface('s1'), same(surface));
+      surface.dispatchAction({
+        'event': {'name': 'back'},
+      }, 'c1');
+      expect(actionCount, 1);
+      expect(events, ['deleted s1', 'created s1']);
+
+      group.dispose();
+    });
+
+    test(
       'reports functionCall and call actions to onError',
       () async {
         final surface = SurfaceModel<ComponentApi>(
@@ -65,9 +103,9 @@ void main() {
           defaultCatalog: catalog,
         );
         var actionCount = 0;
-        final errors = <A2uiClientError>[];
-        surface.onAction.addListener((_) => actionCount++);
-        surface.onError.addListener(errors.add);
+        final errors = <A2uiRendererError>[];
+        surface.onAction.subscribe((_) => actionCount++);
+        surface.onError.subscribe(errors.add);
 
         await surface.dispatchAction({
           'functionCall': {'call': 'doTask', 'args': <String, dynamic>{}},
@@ -88,8 +126,8 @@ void main() {
 
     test('dispatches direct name action with userMessage', () {
       final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
-      A2uiClientAction? dispatched;
-      surface.onAction.addListener((action) => dispatched = action);
+      A2uiRendererAction? dispatched;
+      surface.onAction.subscribe((action) => dispatched = action);
 
       surface.dispatchAction({
         'name': 'submit_name',
@@ -105,8 +143,8 @@ void main() {
 
     test('safely normalizes non-map context and non-string userMessage', () {
       final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
-      A2uiClientAction? dispatched;
-      surface.onAction.addListener((action) => dispatched = action);
+      A2uiRendererAction? dispatched;
+      surface.onAction.subscribe((action) => dispatched = action);
 
       surface.dispatchAction({
         'name': 'test_action',
@@ -123,10 +161,10 @@ void main() {
     test('reports an event whose name is missing, empty, or not a string',
         () async {
       final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
-      A2uiClientAction? dispatched;
-      final errors = <A2uiClientError>[];
-      surface.onAction.addListener((action) => dispatched = action);
-      surface.onError.addListener(errors.add);
+      A2uiRendererAction? dispatched;
+      final errors = <A2uiRendererError>[];
+      surface.onAction.subscribe((action) => dispatched = action);
+      surface.onError.subscribe(errors.add);
 
       await surface.dispatchAction({
         'event': {'name': 42},
@@ -196,7 +234,8 @@ void main() {
         () => surface.resolveCatalog('vendor'),
         throwsA(
           catalogError(
-            "Catalog 'vendor' is not supported by surface 's1'.",
+            "Catalog not found: vendor. Item names a catalog surface 's1' "
+            'does not have. Available: a.',
             catalogId: 'vendor',
           ),
         ),
@@ -324,8 +363,8 @@ void main() {
         's1',
         defaultCatalog: catalogNamed('a'),
       );
-      final dispatched = <A2uiClientAction>[];
-      surface.onAction.addListener(dispatched.add);
+      final dispatched = <A2uiRendererAction>[];
+      surface.onAction.subscribe(dispatched.add);
 
       await surface.dispatchAction({
         'event': {'name': 'wrapped', 'catalogId': 'b'},
@@ -347,7 +386,7 @@ void main() {
         defaultCatalog: catalogNamed('a'),
       );
       final warnings = <A2uiWarning>[];
-      surface.onWarning.addListener(warnings.add);
+      surface.onWarning.subscribe(warnings.add);
 
       await surface.dispatchWarning(
         const A2uiWarning(
@@ -380,8 +419,8 @@ void main() {
     test('dispatches action with UTC timestamp that serializes with trailing Z',
         () {
       final surface = SurfaceModel<ComponentApi>('s1');
-      A2uiClientAction? dispatched;
-      surface.onAction.addListener((action) => dispatched = action);
+      A2uiRendererAction? dispatched;
+      surface.onAction.subscribe((action) => dispatched = action);
 
       surface.dispatchAction({
         'event': {'name': 'submit'},

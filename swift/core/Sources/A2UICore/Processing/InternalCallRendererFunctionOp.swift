@@ -16,6 +16,7 @@ import OrderedJSON
 
 /// Version-neutral internal operation for invoking a renderer-side function.
 public struct InternalCallRendererFunctionOp: Sendable, Equatable {
+  public let surfaceID: String?
   public let functionCallID: String
   public let call: String
   public let version: A2UIProtocolVersion
@@ -24,6 +25,9 @@ public struct InternalCallRendererFunctionOp: Sendable, Equatable {
   public let returnType: String?
   public let isUserActivated: Bool
 
+  /// Blueprint-compatible camelCase alias for `surfaceID`.
+  public var surfaceId: String? { surfaceID }
+
   /// Blueprint-compatible camelCase alias for `functionCallID`.
   public var functionCallId: String { functionCallID }
 
@@ -31,6 +35,7 @@ public struct InternalCallRendererFunctionOp: Sendable, Equatable {
   public var catalogId: String? { catalogID }
 
   public init(
+    surfaceID: String? = nil,
     functionCallID: String,
     call: String,
     version: A2UIProtocolVersion,
@@ -39,6 +44,7 @@ public struct InternalCallRendererFunctionOp: Sendable, Equatable {
     returnType: String? = nil,
     isUserActivated: Bool = false
   ) {
+    self.surfaceID = surfaceID
     self.functionCallID = functionCallID
     self.call = call
     self.version = version

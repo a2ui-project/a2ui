@@ -79,6 +79,7 @@ public struct A2UIColumn: View {
       }
     }
     .frame(maxWidth: align == "stretch" ? .infinity : nil, alignment: frameAlignment)
+    .a2uiAccessibilityElement(for: node, children: .contain)
   }
 
   private var horizontalAlignment: HorizontalAlignment {

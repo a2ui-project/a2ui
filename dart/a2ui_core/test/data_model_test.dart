@@ -320,5 +320,99 @@ void main() {
       expect(model.get('//foo//'), 'bar');
       expect(model.hasPath(''), isTrue);
     });
+
+    test('subscribe reads value, notifies on change, and stops on unsubscribe',
+        () {
+      final model = DataModel({
+        'user': {'name': 'Alice'}
+      });
+      addTearDown(model.dispose);
+
+      final changes = <String?>[];
+      final DataSubscription<String> sub = model.subscribe<String>(
+        '/user/name',
+        changes.add,
+      );
+      expect(sub, isA<Subscription>());
+      expect(sub.value, 'Alice');
+      expect(changes, isEmpty);
+
+      model.set('/user/name', 'Bob');
+      expect(sub.value, 'Bob');
+      expect(changes, ['Bob']);
+
+      sub.unsubscribe();
+      sub.unsubscribe();
+      model.set('/user/name', 'Charlie');
+      expect(changes, ['Bob']);
+    });
+
+    test('dispose unsubscribes active DataSubscriptions', () {
+      final model = DataModel({'count': 1});
+      final changes = <int?>[];
+      model.subscribe<int>('/count', changes.add);
+
+      model.set('/count', 2);
+      expect(changes, [2]);
+
+      model.dispose();
+      model.set('/count', 3);
+      expect(changes, [2]);
+    });
+
+    test('subscribe<T> coexists with watch<Object?> on the same path', () {
+      final model = DataModel({'greeting': 'hello'});
+      addTearDown(model.dispose);
+
+      final ReadonlySignal<Object?> untyped = model.watch<Object?>('/greeting');
+      final changes = <String?>[];
+      final DataSubscription<String> sub = model.subscribe<String>(
+        '/greeting',
+        changes.add,
+      );
+
+      expect(untyped.value, 'hello');
+      expect(sub.value, 'hello');
+
+      model.set('/greeting', 'world');
+      expect(untyped.value, 'world');
+      expect(sub.value, 'world');
+      expect(changes, ['world']);
+    });
+
+    test('subscribe<T> followed by watch<String> does not throw TypeError', () {
+      final model = DataModel({'name': 'Ada'});
+      addTearDown(model.dispose);
+
+      final DataSubscription<String> sub = model.subscribe<String>(
+        '/name',
+        (_) {},
+      );
+      expect(sub.value, 'Ada');
+
+      final ReadonlySignal<String?> typedWatcher = model.watch<String>('/name');
+      expect(typedWatcher.value, 'Ada');
+
+      final ReadonlySignal<String?> secondWatcher =
+          model.watch<String>('/name');
+      expect(identical(typedWatcher, secondWatcher), isTrue);
+
+      model.set('/name', 'Grace');
+      expect(typedWatcher.value, 'Grace');
+      expect(sub.value, 'Grace');
+    });
+
+    test('watch<String> followed by non-string set does not throw TypeError',
+        () {
+      final model = DataModel({'value': 'initial'});
+      addTearDown(model.dispose);
+
+      final ReadonlySignal<String?> watcher = model.watch<String>('/value');
+      expect(watcher.value, 'initial');
+
+      // Writing a non-string value (int) to the path must not throw.
+      expect(() => model.set('/value', 42), returnsNormally);
+      expect(model.get('/value'), 42);
+    });
   });
 }

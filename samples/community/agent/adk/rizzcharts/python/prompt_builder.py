@@ -16,25 +16,30 @@
 
 # pylint: disable=g-importing-member, line-too-long
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_9, load_examples
+from a2ui.utils import load_examples, to_version_number
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 
 
 if __name__ == "__main__":
-    version = VERSION_0_9
+    version = ProtocolVersion.V0_9
     rizzcharts_catalog = CatalogConfig.from_path(
-        catalog_path=f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json",
+        catalog_path=f"../catalog_schemas/{to_version_number(version)}/rizzcharts_catalog_definition.json",
         protocol_version=version,
     ).transformed_catalog
     basic_catalog = CatalogConfig(BasicCatalog(version)).transformed_catalog
-    processor = A2uiRequestProcessor([rizzcharts_catalog, basic_catalog])
+    processor = A2uiRequestProcessor(
+        [rizzcharts_catalog, basic_catalog],
+        format_factory=DirectJsonFormatFactory(),
+    )
 
     # Generate prompt for rizzcharts catalog
     print("Building prompt and validating rizzcharts examples...")
     rizzcharts_examples = load_examples(
         processor.active_catalogs,
-        f"../examples/rizzcharts_catalog/{version}",
+        f"../examples/rizzcharts_catalog/{to_version_number(version)}",
         validate=True,
     )
     prompt_parts = [
@@ -51,7 +56,7 @@ if __name__ == "__main__":
     print("Validating standard catalog examples...")
     std_examples = load_examples(
         [basic_catalog, rizzcharts_catalog],
-        f"../examples/standard_catalog/{version}",
+        f"../examples/standard_catalog/{to_version_number(version)}",
         validate=True,
     )
     if std_examples:

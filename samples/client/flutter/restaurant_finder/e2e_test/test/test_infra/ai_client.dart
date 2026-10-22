@@ -52,14 +52,19 @@ class DartanticAiClient implements AiClient {
     String prompt, {
     required List<dartantic.ChatMessage> history,
   }) async* {
-    final Stream<dartantic.ChatResult<String>> stream = _agent.sendStream(
-      prompt,
-      history: history,
-    );
-
-    await for (final result in stream) {
-      if (result.output.isNotEmpty) {
-        yield result.output;
+    for (var attempt = 1; ; attempt++) {
+      var yielded = false;
+      try {
+        await for (final dartantic.ChatResult<String> result
+            in _agent.sendStream(prompt, history: history)) {
+          if (result.output.isEmpty) continue;
+          yielded = true;
+          yield result.output;
+        }
+        return;
+      } on Exception {
+        if (yielded || attempt == 3) rethrow;
+        await Future<void>.delayed(Duration(seconds: 5 * attempt));
       }
     }
   }

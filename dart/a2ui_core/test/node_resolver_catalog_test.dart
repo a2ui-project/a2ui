@@ -20,6 +20,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
+import 'support/test_catalog.dart';
 
 class _RecordingFunction extends FunctionImplementation {
   final List<Map<String, Object?>> calls = [];
@@ -65,6 +66,7 @@ void main() {
         protocolVersion: A2uiProtocolVersion.v0_9,
         components: parsed.components.values.toList(),
         functions: [openUrl],
+        definitions: parsed.definitions,
       );
       processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
@@ -76,11 +78,11 @@ void main() {
               version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
         ),
       );
-      surface = processor.groupModel.getSurface('s')!;
+      surface = processor.model.getSurface('s')!;
       resolver = NodeResolver(surface);
       addTearDown(() {
         resolver.dispose();
-        processor.groupModel.dispose();
+        processor.model.dispose();
       });
     });
 
@@ -153,8 +155,8 @@ void main() {
 
     test('resolves event context when the action is invoked', () async {
       surface.dataModel.set('/name', 'Ada');
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
       process([
         {
           'id': 'root',
@@ -184,8 +186,8 @@ void main() {
     });
 
     test('executes a function action without emitting an event', () async {
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
       process([
         {
           'id': 'root',
@@ -237,6 +239,7 @@ void main() {
       id: parsed.id,
       protocolVersion: A2uiProtocolVersion.v0_9,
       components: parsed.components.values.toList(),
+      definitions: parsed.definitions,
     );
     final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
     final resolver = NodeResolver<ComponentApi>(surface);
@@ -280,7 +283,7 @@ void main() {
         functions: [_ConstantFunction('capitalize', 'from second')],
       );
       processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog(), second],
+        catalogs: [TestCatalog(), second],
         defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
@@ -288,15 +291,15 @@ void main() {
           CreateSurfaceMessage(
             version: 'v0.9',
             surfaceId: 's',
-            catalogId: MinimalCatalog().id,
+            catalogId: TestCatalog().id,
           ),
         ),
       );
-      surface = processor.groupModel.getSurface('s')!;
+      surface = processor.model.getSurface('s')!;
       resolver = NodeResolver(surface);
       addTearDown(() {
         resolver.dispose();
-        processor.groupModel.dispose();
+        processor.model.dispose();
       });
     });
 
@@ -334,7 +337,7 @@ void main() {
       expect(resolver.rootNode.peek()!.state, NodeState.unknownType);
     });
 
-    test('runs a function call in the catalog it names', () {
+    test('runs a function call in the default catalog before v1.0', () {
       process([
         {
           'id': 'root',
@@ -347,8 +350,9 @@ void main() {
         },
       ]);
 
+      // A call's catalogId is honored only from v1.0.
       final Object? text = resolver.rootNode.peek()!.props.peek()['text'];
-      expect((text! as ResolvedBinding<Object?>).value, 'from second');
+      expect((text! as ResolvedBinding<Object?>).value, 'Hello');
     });
 
     test('runs a function call without a catalogId in the default', () {
