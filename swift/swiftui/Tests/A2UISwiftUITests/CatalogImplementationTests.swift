@@ -23,8 +23,8 @@ struct SwiftUICatalogRenderingTests {
 
   @Test func catalogResolvesUnqualifiedFallback() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
-    let buttonComponent = ComponentImplementation(name: "button", schema: schema) { node in
-      AnyView(Text(node.type))
+    let buttonComponent = ComponentImplementation(name: "button", schema: schema) {
+      AnyView(Text($0.node.type))
     }
     let catalog = Catalog(id: "catalogA", components: [buttonComponent])
 
@@ -34,7 +34,8 @@ struct SwiftUICatalogRenderingTests {
       catalogID: "catalogA",
       properties: [:]
     )
-    let renderedView = Surface.render(node: node, using: ["catalogA": catalog])
+    let renderedView = Surface.render(
+      componentNode: ComponentNode(node: node), using: ["catalogA": catalog])
     #expect(renderedView != nil)
   }
 
@@ -62,7 +63,9 @@ struct SwiftUICatalogRenderingTests {
       properties: [:]
     )
     _ = Surface.render(
-      node: node, using: ["catalogA": catalogA, "catalogB": catalogB], defaultCatalogID: "catalogB")
+      componentNode: ComponentNode(node: node),
+      using: ["catalogA": catalogA, "catalogB": catalogB],
+      defaultCatalogID: "catalogB")
     #expect(qualifiedCalled)
     #expect(!fallbackCalled)
   }
@@ -91,7 +94,7 @@ struct SwiftUICatalogRenderingTests {
       catalogID: "mapsCatalog",
       properties: [:]
     )
-    _ = Surface.render(node: node, using: ["mapsCatalog": catalog])
+    _ = Surface.render(componentNode: ComponentNode(node: node), using: ["mapsCatalog": catalog])
     #expect(builderCalled)
   }
 

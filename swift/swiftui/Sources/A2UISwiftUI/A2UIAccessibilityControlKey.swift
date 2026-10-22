@@ -14,7 +14,7 @@
 
 import SwiftUI
 
-/// Reports to the enclosing ``ComponentNodeView`` that a component applied its explicit
+/// Reports to the view ``ComponentNode/makeView()`` makes that a component applied its explicit
 /// accessibility label and hint to its own focusable control, so the dispatcher must not apply
 /// them to the component's root as well.
 struct A2UIAccessibilityControlKey: PreferenceKey {

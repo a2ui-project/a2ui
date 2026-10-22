@@ -27,7 +27,7 @@ struct A2UISliderTests {
       type: "Slider",
       properties: ["min": 1, "max": 7, "steps": 6]
     )
-    #expect(try #require(A2UISlider(node: node).stepValue) == 1)
+    #expect(try #require(A2UISlider(componentNode: ComponentNode(node: node)).stepValue) == 1)
   }
 
   @Test func stepValueIsNilForInvalidSteps() {
@@ -41,7 +41,7 @@ struct A2UISliderTests {
         properties: ["min": 0, "max": Double.leastNormalMagnitude, "steps": Int.max]),
     ]
     for node in invalid {
-      #expect(A2UISlider(node: node).stepValue == nil)
+      #expect(A2UISlider(componentNode: ComponentNode(node: node)).stepValue == nil)
     }
   }
 }

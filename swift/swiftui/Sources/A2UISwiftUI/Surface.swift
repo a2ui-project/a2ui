@@ -59,14 +59,11 @@ public struct Surface: View {
   }
 
   public var body: some View {
-    if let rootNode = viewModel.rootNode {
-      ComponentNodeView(node: rootNode)
-        .environment(\.a2uiTheme, viewModel.theme)
-        .environment(\.a2uiCatalogs, catalogs)
-        .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
-    } else {
-      ProgressView()
-    }
+    SurfaceContent(viewModel: viewModel, catalogs: catalogs, defaultCatalogID: defaultCatalogID)
+      .id(ObjectIdentifier(viewModel))
+      .environment(\.a2uiTheme, viewModel.theme)
+      .environment(\.a2uiCatalogs, catalogs)
+      .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
   }
 }
 
@@ -74,31 +71,53 @@ extension Surface {
   /// Resolves the view builder for a node from available component catalogs and invokes it to render.
   ///
   /// - Parameters:
-  ///   - node: The resolved engine node to render.
+  ///   - componentNode: The view model of the component to render.
   ///   - catalogs: The dictionary of available component catalogs.
   ///   - defaultCatalogID: The fallback default catalog ID if the node has no catalog ID.
   /// - Returns: The rendered `AnyView`, or `nil` if no corresponding view builder was found.
   public static func render(
-    node: Node,
+    componentNode: ComponentNode,
     using catalogs: [String: Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) -> AnyView? {
-    if let catalogID = node.catalogID, let catalog = catalogs[catalogID],
-      let component = catalog.components[node.type]
-    {
-      return component.builder(node)
-    }
+    implementation(for: componentNode.node, in: catalogs, defaultCatalogID: defaultCatalogID)?
+      .builder(componentNode)
+  }
+
+  /// Looks up the implementation that renders a node: in the node's catalog, or the default
+  /// catalog if the node has none, then in any catalog that has the node's type.
+  static func implementation(
+    for node: Node,
+    in catalogs: [String: Catalog<ComponentImplementation>],
+    defaultCatalogID: String?
+  ) -> ComponentImplementation? {
     let targetCatalogID = node.catalogID ?? defaultCatalogID
-    if let targetCatalogID, let catalog = catalogs[targetCatalogID],
-      let component = catalog.components[node.type]
-    {
-      return component.builder(node)
+    if let targetCatalogID, let component = catalogs[targetCatalogID]?.components[node.type] {
+      return component
     }
-    for catalog in catalogs.values {
-      if let component = catalog.components[node.type] {
-        return component.builder(node)
-      }
+    return catalogs.values.lazy.compactMap { $0.components[node.type] }.first
+  }
+}
+
+/// Renders the root view model of a surface.
+private struct SurfaceContent: View {
+  @StateObject private var tree: ComponentNodeTree
+
+  init(
+    viewModel: SurfaceViewModel,
+    catalogs: [String: Catalog<ComponentImplementation>],
+    defaultCatalogID: String?
+  ) {
+    _tree = StateObject(
+      wrappedValue: ComponentNodeTree(
+        surface: viewModel, catalogs: catalogs, defaultCatalogID: defaultCatalogID))
+  }
+
+  var body: some View {
+    if let root = tree.root {
+      root.makeView()
+    } else {
+      ProgressView()
     }
-    return nil
   }
 }

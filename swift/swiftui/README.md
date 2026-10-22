@@ -17,8 +17,9 @@ For the platform-agnostic rendering and layout specifications, see the
 Defined in root [Package.swift](../../Package.swift):
 
 - **`A2UISwiftUI`** (`Sources/A2UISwiftUI/`):
-  Core rendering engine. Provides the root `Surface` view, recursive `ComponentNodeView`,
-  reactive data-binding adapters, and SwiftUI environment keys (`a2uiCatalogs`, `a2uiTheme`).
+  Core rendering engine. Provides the root `Surface` view, the `ComponentNode` view models that
+  make each component's view with `makeView()`, reactive data-binding adapters, and SwiftUI
+  environment keys (`a2uiCatalogs`, `a2uiTheme`).
 - **`BasicCatalogSwiftUI`** (`Sources/BasicCatalog/`):
   Concrete native SwiftUI views for all Basic Catalog components (`A2UIText`, `A2UIButton`,
   `A2UIRow`, `A2UIColumn`, `A2UICard`, `A2UIList`, `A2UITabs`, `A2UIModal`, etc.) conforming to
@@ -62,20 +63,30 @@ import A2UICore
 import A2UISwiftUI
 import SwiftUI
 
-let customProfileImplementation = ComponentImplementation(api: UserCardAPI()) { node in
-  VStack {
-    Text(node.string(for: "name") ?? "Unknown")
+struct UserCard: View {
+  @ObservedObject var componentNode: ComponentNode
+
+  var body: some View {
+    Text(componentNode.node.string(for: "name") ?? "Unknown")
       .font(.headline)
   }
 }
+
+let customProfileImplementation = ComponentImplementation(api: UserCardAPI()) {
+  UserCard(componentNode: $0)
+}
 ```
+
+The view observes its `ComponentNode`, which publishes only when the component's own properties
+change, so the view re-renders only then. To render a child, use the view model the parent holds:
+`ComponentNode.child(for: childNode, in: componentNode).makeView()`.
 
 2. Register the `ComponentImplementation` in a `Catalog<ComponentImplementation>` and pass it to `Surface(viewModel:catalogs:)`.
 
 ### Accessibility
 
-`ComponentNodeView` applies each component's A2UI `accessibility` attributes to the rendered view,
-so custom components get them without extra work:
+`ComponentNode.makeView()` applies each component's A2UI `accessibility` attributes to the
+rendered view, so custom components get them without extra work:
 
 - `label`: `accessibilityLabel`
 - `description`: `accessibilityHint`

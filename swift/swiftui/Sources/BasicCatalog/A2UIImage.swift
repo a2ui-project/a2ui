@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let image = ComponentImplementation(api: BasicCatalogComponents.image) { node in
-    A2UIImage(node: node)
+  public static let image = ComponentImplementation(api: BasicCatalogComponents.image) {
+    A2UIImage(componentNode: $0)
   }
 }
 
@@ -31,10 +31,14 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Image` component.
 public struct A2UIImage: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var urlString: String {
@@ -54,6 +58,10 @@ public struct A2UIImage: View {
   }
 
   public var body: some View {
+    content.a2uiWeight(node)
+  }
+
+  @ViewBuilder private var content: some View {
     if let url = URL(string: urlString), !urlString.isEmpty {
       AsyncImage(url: url) { phase in
         switch phase {

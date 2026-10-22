@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let column = ComponentImplementation(api: BasicCatalogComponents.column) { node in
-    A2UIColumn(node: node)
+  public static let column = ComponentImplementation(api: BasicCatalogComponents.column) {
+    A2UIColumn(componentNode: $0)
   }
 }
 
@@ -31,10 +31,14 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Column` layout component.
 public struct A2UIColumn: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var children: [Node] {
@@ -54,41 +58,20 @@ public struct A2UIColumn: View {
   }
 
   public var body: some View {
-    VStack(alignment: horizontalAlignment, spacing: spacing) {
-      if justify == "end" || justify == "center" || justify == "spaceAround"
-        || justify == "spaceEvenly"
-      {
-        Spacer(minLength: 0)
-      }
-
-      ForEach(Array(children.enumerated()), id: \.element.id) { index, childNode in
-        ComponentNodeView(node: childNode)
-          .frame(maxWidth: align == "stretch" ? .infinity : nil, alignment: childAlignment)
-
-        if justify == "spaceBetween" && index < children.count - 1 {
-          Spacer(minLength: 0)
-        } else if (justify == "spaceAround" || justify == "spaceEvenly")
-          && index < children.count - 1
-        {
-          Spacer(minLength: 0)
-        }
-      }
-
-      if justify == "center" || justify == "spaceAround" || justify == "spaceEvenly" {
-        Spacer(minLength: 0)
-      }
-    }
-    .frame(maxWidth: align == "stretch" ? .infinity : nil, alignment: frameAlignment)
-    .a2uiAccessibilityElement(for: node, children: .contain)
+    content.a2uiWeight(node)
   }
 
-  private var horizontalAlignment: HorizontalAlignment {
-    switch align {
-    case "start", "stretch": return .leading
-    case "end": return .trailing
-    case "center": return .center
-    default: return .leading
+  @ViewBuilder private var content: some View {
+    A2UIFlexLayout(axis: .vertical, justify: justify, align: align, spacing: spacing) {
+      ForEach(children, id: \.id) { childNode in
+        ComponentNode.child(for: childNode, in: componentNode).makeView()
+          .frame(maxWidth: align == "stretch" ? .infinity : nil, alignment: childAlignment)
+          .frame(maxHeight: justify == "stretch" ? .infinity : nil)
+      }
     }
+    .environment(\.a2uiLayoutAxis, .vertical)
+    .frame(maxWidth: align == "stretch" ? .infinity : nil, alignment: frameAlignment)
+    .a2uiAccessibilityElement(for: node, children: .contain)
   }
 
   private var frameAlignment: Alignment {
@@ -109,10 +92,7 @@ public struct A2UIColumn: View {
     }
   }
 
-  private var spacing: CGFloat? {
-    if isDistributed {
-      return 0
-    }
-    return 8
+  private var spacing: CGFloat {
+    isDistributed ? 0 : 8
   }
 }

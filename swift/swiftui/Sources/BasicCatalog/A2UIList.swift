@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let list = ComponentImplementation(api: BasicCatalogComponents.list) { node in
-    A2UIList(node: node)
+  public static let list = ComponentImplementation(api: BasicCatalogComponents.list) {
+    A2UIList(componentNode: $0)
   }
 }
 
@@ -31,10 +31,14 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `List` scrollable container component.
 public struct A2UIList: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var children: [Node] {
@@ -50,11 +54,15 @@ public struct A2UIList: View {
   }
 
   public var body: some View {
+    content.a2uiWeight(node)
+  }
+
+  @ViewBuilder private var content: some View {
     if direction == "horizontal" {
       ScrollView(.horizontal, showsIndicators: false) {
         LazyHStack(alignment: verticalAlignment, spacing: 12) {
           ForEach(children) { childNode in
-            ComponentNodeView(node: childNode)
+            ComponentNode.child(for: childNode, in: componentNode).makeView()
               .frame(
                 maxHeight: align == "stretch" ? .infinity : nil, alignment: horizontalChildAlignment
               )
@@ -68,7 +76,7 @@ public struct A2UIList: View {
       ScrollView(.vertical, showsIndicators: true) {
         LazyVStack(alignment: horizontalAlignment, spacing: 8) {
           ForEach(children) { childNode in
-            ComponentNodeView(node: childNode)
+            ComponentNode.child(for: childNode, in: componentNode).makeView()
               .frame(
                 maxWidth: align == "stretch" ? .infinity : nil, alignment: verticalChildAlignment)
           }

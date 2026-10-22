@@ -25,9 +25,9 @@ extension View {
   /// focusable control (for example the text field of a `TextField` component).
   ///
   /// Call this on the control when the component's root is a stack that also holds a visible
-  /// label or error text. ``ComponentNodeView`` then leaves the label and hint off the root, so
-  /// they reach the element that assistive technologies focus. `hidden` and `live` still apply to
-  /// the whole component.
+  /// label or error text. ``ComponentNode/makeView()`` then leaves the label and hint off the
+  /// root, so they reach the element that assistive technologies focus. `hidden` and `live` still
+  /// apply to the whole component.
   ///
   /// - Parameters:
   ///   - node: The component's node.

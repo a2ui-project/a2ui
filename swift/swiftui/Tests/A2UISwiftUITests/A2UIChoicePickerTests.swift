@@ -39,7 +39,7 @@ struct A2UIChoicePickerTests {
       ]
     )
 
-    let view = A2UIChoicePicker(node: node)
+    let view = A2UIChoicePicker(componentNode: ComponentNode(node: node))
     #expect(node.string(for: "label") == "Billing Period")
     #expect(node.string(for: "displayStyle") == "chips")
     #expect(node.string(for: "variant") == "mutuallyExclusive")
@@ -64,7 +64,7 @@ struct A2UIChoicePickerTests {
       ]
     )
 
-    let view = A2UIChoicePicker(node: node)
+    let view = A2UIChoicePicker(componentNode: ComponentNode(node: node))
     #expect(node.bool(for: "filterable") == true)
     _ = view.body
   }
@@ -84,7 +84,7 @@ struct A2UIChoicePickerTests {
       ]
     )
 
-    let view = A2UIChoicePicker(node: node)
+    let view = A2UIChoicePicker(componentNode: ComponentNode(node: node))
     _ = view.body
   }
 
@@ -103,7 +103,8 @@ struct A2UIChoicePickerTests {
       ]
     )
 
-    let rendered = Surface.render(node: node, using: [catalog.id: catalog])
+    let rendered = Surface.render(
+      componentNode: ComponentNode(node: node), using: [catalog.id: catalog])
     #expect(rendered != nil)
   }
 }

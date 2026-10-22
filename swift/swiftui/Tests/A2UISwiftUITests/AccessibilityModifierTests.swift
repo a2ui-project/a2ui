@@ -270,10 +270,10 @@ struct AccessibilityModifierTests {
 
     let root = try #require(surface.rootNode)
     _ = Surface(viewModel: surface, catalogs: BasicCatalogImplementation.allCatalogs).body
-    _ = ComponentNodeView(node: root).body
-    _ = A2UIText(node: try node("title", in: surface)).body
-    _ = A2UITextField(node: try node("name", in: surface)).body
-    _ = A2UICheckBox(node: try node("agree", in: surface)).body
+    _ = ComponentNode(node: root).makeView()
+    _ = A2UIText(componentNode: ComponentNode(node: try node("title", in: surface))).body
+    _ = A2UITextField(componentNode: ComponentNode(node: try node("name", in: surface))).body
+    _ = A2UICheckBox(componentNode: ComponentNode(node: try node("agree", in: surface))).body
   }
 
   @Test func labeledContainersAndMediaRender() async throws {
@@ -319,13 +319,13 @@ struct AccessibilityModifierTests {
 
     let root = try #require(surface.rootNode)
     _ = Surface(viewModel: surface, catalogs: BasicCatalogImplementation.allCatalogs).body
-    _ = ComponentNodeView(node: root).body
-    _ = A2UIRow(node: try node("empty_row", in: surface)).body
-    _ = A2UICard(node: try node("card", in: surface)).body
-    _ = A2UIList(node: try node("list", in: surface)).body
-    _ = A2UIImage(node: try node("photo", in: surface)).body
-    _ = A2UIIcon(node: try node("star", in: surface)).body
-    _ = A2UISlider(node: try node("volume", in: surface)).body
-    _ = A2UIDateTimeInput(node: try node("when", in: surface)).body
+    _ = ComponentNode(node: root).makeView()
+    _ = A2UIRow(componentNode: ComponentNode(node: try node("empty_row", in: surface))).body
+    _ = A2UICard(componentNode: ComponentNode(node: try node("card", in: surface))).body
+    _ = A2UIList(componentNode: ComponentNode(node: try node("list", in: surface))).body
+    _ = A2UIImage(componentNode: ComponentNode(node: try node("photo", in: surface))).body
+    _ = A2UIIcon(componentNode: ComponentNode(node: try node("star", in: surface))).body
+    _ = A2UISlider(componentNode: ComponentNode(node: try node("volume", in: surface))).body
+    _ = A2UIDateTimeInput(componentNode: ComponentNode(node: try node("when", in: surface))).body
   }
 }
