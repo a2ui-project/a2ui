@@ -61,7 +61,7 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 - **`prompt/generator.py`**: Defines the `PromptGenerator` (`A2uiPromptGenerator`) abstract base class (`generate_base_rules`, `generate_catalog_instructions`, `generate_examples`, `generate`).
 - **`inference_format.py`**: Defines `InferenceFormat` and `InferenceFormatFactory`.
-- **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: `DirectJsonParser.parse_chunk` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
+- **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), Decision (`decision/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: `DirectJsonParser.parse_chunk` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
 
 ## Agent framework integrations
 

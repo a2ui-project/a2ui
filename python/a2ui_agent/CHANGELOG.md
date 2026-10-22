@@ -3,6 +3,37 @@
 - **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
   `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
   (`DirectJsonFormat`).
+- Add the decision inference format, `a2ui.inference_formats.decision`, in
+  which the model emits an intent and data and a local decision model picks
+  and binds the components.
+  - `DecisionFormat` and `DecisionFormatFactory` implement `InferenceFormat`
+    and `InferenceFormatFactory`, so
+    `A2uiRequestProcessor(catalogs, format_factory=DecisionFormatFactory())`
+    works like the Express and Direct JSON factories. `DecisionPromptGenerator`
+    asks for `<a2ui>` decision blocks and `DecisionParser` renders them through
+    `DecisionSynthesizer`.
+  - `DecisionRenderTool` supplies a JSON Schema tool declaration and
+    `run_async` / `run_sync` runners for MCP, ADK, and function-calling agents;
+    build one with `DecisionRenderTool.create(catalogs, ...)`.
+  - `DecisionSynthesizer` takes an optional `backend` (defaulting to
+    `create_decision_backend()`) or a prebuilt `CatalogDecisionGraph`, accepts
+    JSON-string and array payloads, renders a named `template_id` directly,
+    adds `synthesize_sync()`, and fills abstentions from `fallback_dsl`,
+    `fallback_fn`, or a deterministic `fallback_card`;
+    `SynthesisOutput.fallback_source` (a `FallbackSource` enum) names which
+    one applied. `DecisionFormatFactory` shares one backend across every
+    format it creates.
+  - `DecisionTask`, `DecisionWireFormat` (including `AUTO`), and
+    `DecisionBackendType` (where `ONNX` is an alias of `LOCAL`) string enums
+    replace raw string literals; `coerce_decision_payload` decodes
+    stringified payloads.
+  - Concrete backends, the `DecisionBackend` protocol, and
+    `DecisionFormatFactory` support `async with` and `aclose()`; the HTTP
+    backends own one client per active event loop and `JevHttpBackend` caches
+    ADC tokens per instance.
+  - `TemplateRegistry.promote_synthesized` reads v0.9 and v1.0 `createSurface`
+    and `updateComponents` envelopes (including v1.0 embedded components) and
+    normalizes v0.8 `surfaceUpdate` promotions to v0.9 wire envelopes.
 
 ## 0.9.0 (2026-10-17)
 
