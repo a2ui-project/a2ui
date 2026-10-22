@@ -598,7 +598,7 @@ class A2uiGenerator:
         Args:
             catalogs: List of supported CatalogConfig configurations.
             examples: Optional list of prompt example turns.
-            inference_format_factory: Optional default InferenceFormatFactory (defaults to DirectJsonFormatFactory).
+            inference_format_factory: Optional default InferenceFormatFactory (defaults to ExpressFormatFactory).
         """
         pass
 
@@ -639,7 +639,7 @@ class A2uiRequestProcessor:
         Args:
             catalogs: List of active Catalog instances.
             examples: Optional list of prompt example turns.
-            format_factory: Format factory for instantiating format strategies.
+            format_factory: Format factory for instantiating format strategies (defaults to ExpressFormatFactory).
         """
         pass
 
