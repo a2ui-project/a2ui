@@ -56,8 +56,7 @@ export 'src/resolution/component_context.dart';
 export 'src/resolution/component_node.dart'
     hide MutableComponentNode, sameValue;
 export 'src/resolution/data_context.dart' hide createSurfaceDataContext;
-export 'src/resolution/generic_binder.dart'
-    hide createReportingGenericBinder;
+export 'src/resolution/generic_binder.dart' hide createReportingGenericBinder;
 export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';
 export 'src/rpc/rpc_handler.dart';
