@@ -11,7 +11,7 @@ This document is the authoritative guide for AI agents working within the A2UI r
 
 - **For authoring code, refactoring, addressing review feedback, or reviewing PR diffs across any language:** Read [.agents/skills/coding-principles/SKILL.md](.agents/skills/coding-principles/SKILL.md) (progressively activates cross-language principles and routes by language to TypeScript/Web, Python, Swift, and Dart guides)
 - **For preparing, splitting, or reviewing a pull request:** Read [.agents/skills/pr-hygiene/SKILL.md](.agents/skills/pr-hygiene/SKILL.md)
-- **For updating `CHANGELOG.md` files across A2UI packages:** Read [.agents/skills/coding-principles/subskills/update-changelog.md](.agents/skills/coding-principles/subskills/update-changelog.md)
+- **For updating `CHANGELOG.md` files across A2UI packages:** Read [.agents/skills/update-changelog/SKILL.md](.agents/skills/update-changelog/SKILL.md)
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
 - **For developing in the TypeScript & Web codebases (`typescript/`, `samples/client/`, `tools/`):** Read [.agents/skills/coding-principles/subskills/typescript/INDEX.md](.agents/skills/coding-principles/subskills/typescript/INDEX.md)

@@ -55,7 +55,7 @@ description: >-
 - **Actionable Guidance**:
   - Write a clear, self-contained PR description that details the specific problem, solution, and verification steps for this PR alone.
   - Avoid relying on ephemeral stack metadata (e.g., avoid "Part 2 of 5" or "stacked on top of #123").
-  - When a PR modifies the public API or consumer-facing behavior of a published package, update its `CHANGELOG.md` following [`update-changelog.md`](../coding-principles/subskills/update-changelog.md).
+  - When a PR modifies the public API or consumer-facing behavior of a published package, update its `CHANGELOG.md` following [`update-changelog`](../update-changelog/SKILL.md).
   - Ensure the PR compiles cleanly and passes all format checks, lints, and unit tests independently before requesting review.
 - **Reviewer / Agent Checklist**:
   - [ ] The PR description clearly explains the motivation, changes, and verification steps independently.

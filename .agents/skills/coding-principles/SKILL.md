@@ -59,10 +59,8 @@ Evaluate the cross-language subskills below against the diff and read any activa
 
 #### 3. Updating Changelogs (`CHANGELOG.md`)
 
-- **Document**: [`subskills/update-changelog.md`](subskills/update-changelog.md)
-- **Activate if**:
-  - Any `CHANGELOG.md` is modified or a published package's public API or consumer-observable behavior changes.
-  - Breaking changes are introduced that require `**BREAKING CHANGE**:` (or `Breaking:` in Dart) annotations and migration notes.
+- **Skill**: [`update-changelog`](../update-changelog/SKILL.md)
+- **Activate if**: Any `CHANGELOG.md` is modified or a published package's public API or consumer-observable behavior changes.
 
 ---
 

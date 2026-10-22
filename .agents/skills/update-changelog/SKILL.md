@@ -1,23 +1,22 @@
-# Subskill: Updating Changelogs (`CHANGELOG.md`)
-
-## Activation Criteria
-
-Activate this subskill when:
-
-- Any `CHANGELOG.md` file is added or modified.
-- A PR adds, modifies, deprecates, or removes public exports, component schemas, properties, or consumer-observable behavior in a published package.
-- Resolving merge conflicts in a package's `CHANGELOG.md`.
-
 ---
+name: update-changelog
+description: >-
+  Instructions and best practices for updating CHANGELOG.md files across A2UI packages. Use when
+  adding or modifying a CHANGELOG.md file, when a PR adds, modifies, deprecates, or removes public
+  exports or consumer-observable behavior in a published package, or when resolving merge conflicts
+  in a CHANGELOG.md file.
+---
+
+# Updating Changelogs (`CHANGELOG.md`)
 
 ## Progressive Discoverability: Language-Specific Routing
 
 Before editing a `CHANGELOG.md` file, check which language directory the modified package belongs to:
 
 - **Dart / Flutter packages (`dart/*/CHANGELOG.md`)**:
-  - Load and follow [`a2ui-dart-versioning`](../../a2ui-dart-versioning/SKILL.md), which defines Dart-specific `Breaking:` annotations, `## Unreleased` consolidation rules, and `pubspec.yaml` versioning conventions.
+  - Load and follow [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md), which defines Dart-specific `Breaking:` annotations, `## Unreleased` consolidation rules, and `pubspec.yaml` versioning conventions.
 - **Python packages (`python/*/CHANGELOG.md`)**:
-  - Follow the core rules below for `## Unreleased` entries during feature or bugfix PRs. When cutting a Python package release, load [`a2ui-release-python`](../../a2ui-release-python/SKILL.md).
+  - Follow the core rules below for `## Unreleased` entries during feature or bugfix PRs. When cutting a Python package release, load [`a2ui-release-python`](../a2ui-release-python/SKILL.md).
 - **TypeScript / Web packages (`typescript/*/*/CHANGELOG.md`)**:
   - Follow all core rules, formatting conventions, and workflows in this document.
 
@@ -110,7 +109,7 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
 ## Step-by-Step Workflow
 
 1. **Identify Affected Packages**:
-   Find the `CHANGELOG.md` in the root of each published package modified in the PR (e.g. `typescript/core/web_core/CHANGELOG.md`, `typescript/renderers/angular/CHANGELOG.md`, `typescript/renderers/lit/CHANGELOG.md`, `typescript/renderers/react/CHANGELOG.md`, `dart/a2ui_core/CHANGELOG.md`). If modifying a Dart package under `dart/`, follow [`a2ui-dart-versioning`](../../a2ui-dart-versioning/SKILL.md).
+   Find the `CHANGELOG.md` in the root of each published package modified in the PR (e.g. `typescript/core/web_core/CHANGELOG.md`, `typescript/renderers/angular/CHANGELOG.md`, `typescript/renderers/lit/CHANGELOG.md`, `typescript/renderers/react/CHANGELOG.md`, `dart/a2ui_core/CHANGELOG.md`). If modifying a Dart package under `dart/`, follow [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md).
 
 2. **Retrieve Current PR Number**:
 
@@ -125,7 +124,7 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
    git diff main --stat
    ```
 
-   Determine whether the diff introduces a public API change or a meaningful change in behavior that requires a `**BREAKING CHANGE**:` annotation (or `Breaking:` for Dart packages). For TypeScript packages, see [Inspecting TypeScript Public API (AST Approach)](typescript/references/inspecting-typescript-public-api.md).
+   Determine whether the diff introduces a public API change or a meaningful change in behavior that requires a `**BREAKING CHANGE**:` annotation (or `Breaking:` for Dart packages). For TypeScript packages, see [Inspecting TypeScript Public API (AST Approach)](../coding-principles/subskills/typescript/references/inspecting-typescript-public-api.md).
 
 4. **Add or Update the `## Unreleased` Entry**:
    Draft concise, complete descriptions following the core rules above, and append `[#<pr-number>](https://github.com/a2ui-project/a2ui/pull/<pr-number>)`.
