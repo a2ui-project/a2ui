@@ -40,7 +40,7 @@ A case names its format with `args.format`, an `InferenceFormatName`: `direct_js
 Everything a format decides for itself is covered once per format, in a folder named for it:
 
 - `prompt_generator.yaml`: Rendering the system prompt snippet for a set of active catalogs. Both folders.
-- `response_parser.yaml`: Unwrapping a response into raw blocks, wrapping parts back into a response, and parsing a whole response end to end. Both folders.
+- `response_parser.yaml`: Unwrapping a response into raw blocks, testing whether a response carries format content (`has_format_content`), wrapping parts back into a response, and parsing a whole response end to end. Both folders.
 - `compiler.yaml`: Compiling one raw block into A2UI messages. Both folders.
 - `decompiler.yaml`: Writing messages back into the format's own notation, which is how a prompt example is authored as messages and shown to a model as notation. Both folders.
 - `response_streaming.yaml`: Parsing a response one chunk at a time, including the point at which a payload can first be emitted. `direct_json/` only, since the Express parser does not implement `parse_chunk` and an Express agent parses a buffered response whole.

@@ -35,6 +35,9 @@ class Parser(ABC):
     def has_format_content(self, content: str, complete: bool = False) -> bool:
         """Checks if the content contains format-specific syntax or blocks.
 
+        Counts both sentinel-tagged blocks and any single block recovered by
+        `unwrap` when its opening sentinel tag was omitted.
+
         Args:
           content: The string content to check.
           complete: If True, checks if at least one format block is fully closed.
@@ -49,7 +52,12 @@ class Parser(ABC):
 
     @abstractmethod
     def unwrap(self, content: str) -> list[RawResponsePart]:
-        """Splits raw LLM response content into text and raw A2UI blocks."""
+        """Splits raw LLM response content into text and raw A2UI blocks.
+
+        In one-shot parsing, also recovers at most one payload block whose
+        opening sentinel tag was omitted when closed by this format's closing
+        tag (streaming via `parse_chunk` requires the opening sentinel tag).
+        """
 
     @abstractmethod
     def compile(self, format_content: str) -> list[AgentToRendererMessage]:
@@ -112,3 +120,7 @@ class Parser(ABC):
         raise NotImplementedError(
             f"Streaming is not supported by {self.__class__.__name__}"
         )
+
+    def flush(self) -> list[ResponsePart]:
+        """Flushes any buffered tokens or parts held at the end of the stream."""
+        return []

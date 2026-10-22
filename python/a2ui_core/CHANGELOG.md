@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `to_protocol_version` is exported from the `a2ui.core` public facade.
 - Under a `ValidationConfig` that allows dangling references, and orphans or a
   missing root, as an agent mirroring a renderer's surfaces uses,
   `MessageProcessor` checks each `updateComponents` against the components it
