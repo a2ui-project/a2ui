@@ -224,20 +224,32 @@ def _schema_expects_option_objects(schema: Any) -> bool:
     return False
 
 
+_IDENT_START = r"a-zA-Z_"
+_IDENT_CHARS = r"a-zA-Z0-9_"
+_IDENTIFIER = r"[" + _IDENT_START + r"][" + _IDENT_CHARS + r"]*"
+
 _SQL_COMMENT_OR_TOKEN_RE = re.compile(
     r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)'
 )
-_DECLARED_LHS_RE = re.compile(r"(?m)^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)")
+_DECLARED_LHS_RE = re.compile(r"(?m)^[ \t]*(" + _IDENTIFIER + r")[ \t]*=(?!=)")
 _SPLIT_LHS_RE = re.compile(
-    r"(?m)^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=["
-    r" \t]*=(?!=))"
+    r"(?m)^([ \t]*"
+    + _IDENTIFIER
+    + r")[ \t]*(\r?\n)[ \t]*(["
+    + _IDENT_CHARS
+    + r"]+)(?=[ \t]*=(?!=))"
 )
 _SPLIT_DATA_PATH_RE = re.compile(
-    r"(\$[a-zA-Z0-9_/]*/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)"
+    r"(\$[" + _IDENT_CHARS + r"/]*/)[ \t]*(\r?\n)[ \t]*([" + _IDENT_CHARS + r"/]+)"
 )
+_IDENT_ONLY_RE = re.compile(r"^" + _IDENTIFIER + r"$")
+_ASSIGN_EQUALS_RE = re.compile(r"^[ \t]*=(?!=)")
 _SPLIT_ARG_IDENT_RE = re.compile(
-    r"([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)["
-    r" \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)"
+    r"([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)("
+    + _IDENTIFIER
+    + r")[ \t]*(\r?\n)[ \t]*(["
+    + _IDENT_CHARS
+    + r"]+)(?=[ \t]*[,)\]}]|\s*\r?\n)"
 )
 
 
@@ -314,9 +326,7 @@ def _normalize_express_source(source: str) -> str:
         def _join_data_path(m: re.Match[str]) -> str:
             p1, nl, p2 = m.group(1), m.group(2), m.group(3)
             rest = seg[m.end() :]
-            if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", p2) and re.match(
-                r"^[ \t]*=(?!=)", rest
-            ):
+            if _IDENT_ONLY_RE.match(p2) and _ASSIGN_EQUALS_RE.match(rest):
                 return m.group(0)
             return f"{p1}{p2}{nl}"
 

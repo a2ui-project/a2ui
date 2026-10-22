@@ -413,14 +413,27 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
   };
 }
 
+const IDENT_START = 'a-zA-Z_';
+const IDENT_CHARS = 'a-zA-Z0-9_';
+const IDENTIFIER = `[${IDENT_START}][${IDENT_CHARS}]*`;
+
 const SQL_COMMENT_OR_TOKEN_REGEX =
   /([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|\/\/)[^\r\n]*|\/\*[\s\S]*?\*\/)|--([^\r\n]*)/g;
-const DECLARED_LHS_REGEX = /^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)/gm;
-const SPLIT_LHS_REGEX =
-  /^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*=(?!=))/gm;
-const SPLIT_DATA_PATH_REGEX = /(\$[a-zA-Z0-9_/]*\/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)/g;
-const SPLIT_ARG_IDENT_REGEX =
-  /([([,:=][ \t]*\r?\n?[ \t]*|[([,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)/g;
+const DECLARED_LHS_REGEX = new RegExp(`^[ \\t]*(${IDENTIFIER})[ \\t]*=(?!=)`, 'gm');
+const SPLIT_LHS_REGEX = new RegExp(
+  `^([ \\t]*${IDENTIFIER})[ \\t]*(\\r?\\n)[ \\t]*([${IDENT_CHARS}]+)(?=[ \\t]*=(?!=))`,
+  'gm',
+);
+const SPLIT_DATA_PATH_REGEX = new RegExp(
+  '(\\$[' + IDENT_CHARS + '/]*/)[ \\t]*(\\r?\\n)[ \\t]*([' + IDENT_CHARS + '/]+)',
+  'g',
+);
+const IDENT_ONLY_REGEX = new RegExp(`^${IDENTIFIER}$`);
+const ASSIGN_EQUALS_REGEX = /^[ \t]*=(?!=)/;
+const SPLIT_ARG_IDENT_REGEX = new RegExp(
+  `([([,:=][ \\t]*\\r?\\n?[ \\t]*|[([,:=][ \\t]*)(${IDENTIFIER})[ \\t]*(\\r?\\n)[ \\t]*([${IDENT_CHARS}]+)(?=[ \\t]*[,)\\]}]|\\s*\\r?\\n)`,
+  'g',
+);
 
 /**
  * Normalizes `--` comments and line-broken tokens outside strings and comments,
@@ -523,7 +536,7 @@ export function normalizeExpressSource(source: string): string {
       SPLIT_DATA_PATH_REGEX,
       (full, p1: string, nl: string, p2: string, offset: number, string: string) => {
         const rest = string.slice(offset + full.length);
-        if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p2) && /^[ \t]*=(?!=)/.test(rest)) {
+        if (IDENT_ONLY_REGEX.test(p2) && ASSIGN_EQUALS_REGEX.test(rest)) {
           return full;
         }
         return `${p1}${p2}${nl}`;
