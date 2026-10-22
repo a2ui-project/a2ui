@@ -640,13 +640,14 @@ void unresolvedReferenceTests() {
       expect(warnings, hasLength(3));
     });
 
-    test('does not warn for child references materialized as nodes', () {
+    test('does not warn for child references materialized as nodes', () async {
       final List<LogRecord> warnings = collectWarnings();
       final TestSetup fixture = nestedSetup();
       add(fixture.surface, 'root', 'Column', {
         'children': ['a', 'b'],
       });
       expect(fixture.resolver.activeNodeCount, 3);
+      await pumpEventQueue();
       expect(warnings, isEmpty);
     });
 
