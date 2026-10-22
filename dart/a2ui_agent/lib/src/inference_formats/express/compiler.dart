@@ -266,14 +266,29 @@ String? _stringArgument(CallNode call, int index, String name) {
   );
 }
 
+final RegExp _uax31Identifier = RegExp(
+  r'^[\p{XID_Start}_][\p{XID_Continue}]*$',
+  unicode: true,
+);
+
 /// The component id of [call]: its `id` keyword argument, or [defaultId] when
 /// it has none.
-String _componentId(String defaultId, CallNode call) {
+String _componentId(
+  String defaultId,
+  CallNode call, {
+  required bool atLeastV10,
+}) {
   if (!call.kwargs.containsKey('id')) return defaultId;
   final String? explicitId = _stringArgument(call, -1, 'id');
   if (explicitId == null || explicitId.isEmpty) {
     throw A2uiValidationError(
       "Argument 'id' of ${call.name}(...) must be a non-empty string literal.",
+    );
+  }
+  if (atLeastV10 && !_uax31Identifier.hasMatch(explicitId)) {
+    throw A2uiValidationError(
+      "Component id '$explicitId' in ${call.name}(...) is not a valid UAX 31 "
+      'identifier.',
     );
   }
   return explicitId;
@@ -338,7 +353,10 @@ class _SurfaceCompiler {
     for (final MapEntry<String, ExpressNode> symbol
         in surface.symbols.entries) {
       if (symbol.value case final CallNode call when _isComponent(call)) {
-        _usedIds.add(_componentId(symbol.key, call));
+        final String id = _componentId(symbol.key, call, atLeastV10: _v1);
+        if (!_usedIds.add(id)) {
+          throw A2uiValidationError("Duplicate component id '$id'.");
+        }
       }
     }
   }
@@ -593,7 +611,7 @@ class _SurfaceCompiler {
   /// Compiles one component, followed by the components written inline in
   /// it.
   List<Map<String, Object?>> _component(String defaultId, CallNode call) {
-    final String id = _componentId(defaultId, call);
+    final String id = _componentId(defaultId, call, atLeastV10: _v1);
     final String name = call.name;
     final (CatalogSchemaHelper helper, String? catalogId) = _resolve(
       name,
@@ -836,7 +854,7 @@ class _SurfaceCompiler {
           "'${surface.surfaceId}'.",
         ));
     if (node is CallNode && _isComponent(node)) {
-      return _componentId(name, node);
+      return _componentId(name, node, atLeastV10: _v1);
     }
     if (!_resolving.add(name)) {
       throw A2uiValidationError("Variable '$name' refers to itself.");
@@ -856,9 +874,15 @@ class _SurfaceCompiler {
           'A data path cannot be assigned a component.',
         );
       }
-      final String id = call.kwargs.containsKey('id')
-          ? _componentId(context.idPrefix, call)
-          : _newId(context.idPrefix);
+      final String id;
+      if (call.kwargs.containsKey('id')) {
+        id = _componentId(context.idPrefix, call, atLeastV10: _v1);
+        if (!_usedIds.add(id)) {
+          throw A2uiValidationError("Duplicate component id '$id'.");
+        }
+      } else {
+        id = _newId(context.idPrefix);
+      }
       context.hoisted.addAll(_component(id, call));
       return id;
     }

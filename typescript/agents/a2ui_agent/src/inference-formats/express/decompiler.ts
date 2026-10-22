@@ -222,8 +222,17 @@ function decompileReference(componentId: string, varNames: ReadonlyMap<string, s
   if (assigned !== undefined) {
     return assigned;
   }
-  if (isExpressIdentifier(componentId) && !Array.from(varNames.values()).includes(componentId)) {
-    return componentId;
+  if (isExpressIdentifier(componentId)) {
+    let isTaken = false;
+    for (const value of varNames.values()) {
+      if (value === componentId) {
+        isTaken = true;
+        break;
+      }
+    }
+    if (!isTaken) {
+      return componentId;
+    }
   }
   return decompileString(componentId);
 }

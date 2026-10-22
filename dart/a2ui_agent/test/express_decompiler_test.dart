@@ -483,6 +483,12 @@ void main() {
               ]),
         ),
       );
+      expect(
+        () => v1Parser.compile(
+          'root = Card(child=t); t = Text("x", id="main-title")',
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
     });
   });
 

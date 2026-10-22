@@ -318,6 +318,15 @@ surface("s1")
         'root = Text("x"); orphan = Text("y")',
         throwsError<A2uiIntegrityError>(),
       ),
+      'two top-level components with the same explicit id': (
+        'root = Column([a, b]); a = Text("x", id="dup"); '
+            'b = Text("y", id="dup")',
+        throwsError<A2uiValidationError>(),
+      ),
+      'two inline components with the same explicit id': (
+        'root = Column([Text("x", id="dup"), Text("y", id="dup")])',
+        throwsError<A2uiValidationError>(),
+      ),
     };
     for (final MapEntry<String, (String, Matcher)> entry in cases.entries) {
       test(entry.key, () {
