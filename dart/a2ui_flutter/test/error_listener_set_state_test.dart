@@ -46,26 +46,60 @@ void main() {
     final SurfaceModel<ComponentImplementation> surface = processor.model
         .getSurface('s')!;
 
-    await tester.pumpWidget(MaterialApp(home: _ExampleRun(surface)));
+    await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(surface)));
     expect(tester.takeException(), isNull);
     await tester.pump();
 
     expect(tester.takeException(), isNull);
     expect(find.text('errors: 1'), findsOneWidget);
   });
+
+  testWidgets(
+    'an error listener may call setState for a malformed check rule',
+    (tester) async {
+      final processor = MessageProcessor<ComponentImplementation>(
+        catalogs: [basicCatalog()],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+      );
+      addTearDown(processor.model.dispose);
+      processor.processMessages(
+        AgentToRendererMessagePayload.fromJson([
+          {
+            'version': 'v1.0',
+            'createSurface': {'surfaceId': 's', 'catalogId': basicCatalog().id},
+          },
+        ], protocolVersion: A2uiProtocolVersion.v1_0),
+      );
+      final SurfaceModel<ComponentImplementation> surface = processor.model
+          .getSurface('s')!;
+      surface.componentsModel.addComponent(
+        ComponentModel('root', 'TextField', {
+          'label': 'Name',
+          'checks': [42],
+        }),
+      );
+
+      await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(surface)));
+      expect(tester.takeException(), isNull);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('errors: 1'), findsOneWidget);
+    },
+  );
 }
 
 /// Counts its surface's errors with a plain `setState`, as an app would.
-class _ExampleRun extends StatefulWidget {
-  const _ExampleRun(this.surface);
+class _ErrorCountingHost extends StatefulWidget {
+  const _ErrorCountingHost(this.surface);
 
   final SurfaceModel<ComponentImplementation> surface;
 
   @override
-  State<_ExampleRun> createState() => _ExampleRunState();
+  State<_ErrorCountingHost> createState() => _ErrorCountingHostState();
 }
 
-class _ExampleRunState extends State<_ExampleRun> {
+class _ErrorCountingHostState extends State<_ErrorCountingHost> {
   int _errors = 0;
   late final Subscription _subscription;
 
