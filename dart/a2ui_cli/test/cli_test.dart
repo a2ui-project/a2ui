@@ -89,7 +89,7 @@ void main() {
           'cli-test-v1-',
         );
         try {
-          for (final version in ['1.0', 'v1.0.0', '1.1', 'v2.0']) {
+          for (final version in ['1.0', 'v1.0', '1.0.0', '1.0.0-rc.1']) {
             final v1File = File(p.join(tmpDir.path, 'v1_catalog.json'))
               ..writeAsStringSync(
                 jsonEncode(<String, Object?>{
@@ -113,6 +113,10 @@ void main() {
               contains('from a2ui.builder.v1_0 import ('),
             );
           }
+          expect(isVersionAtLeast10('1.0'), isTrue);
+          expect(isVersionAtLeast10('v1.1'), isTrue);
+          expect(isVersionAtLeast10('2.0'), isTrue);
+          expect(isVersionAtLeast10('v0.9.1'), isFalse);
         } finally {
           tmpDir.deleteSync(recursive: true);
         }

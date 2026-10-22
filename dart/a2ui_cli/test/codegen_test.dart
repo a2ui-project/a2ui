@@ -261,7 +261,7 @@ void main() {
 
       expect(
         generated,
-        contains('"""Type-safe A2UI builders for basic (version 1.0).'),
+        contains('"""Type-safe A2UI builders for basic (version v1.0).'),
       );
       expect(generated, contains('from a2ui.builder.v1_0 import ('));
       expect(generated, contains('class Button(ComponentBuilderNode):'));
