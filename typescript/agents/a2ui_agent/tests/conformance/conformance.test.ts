@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import * as path from 'path';
-
 import {describe, expect, test} from 'vitest';
 
 import {
@@ -35,7 +33,8 @@ import {parseAndFix} from '../../src/parser/payload-fixer.js';
 import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
 import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
-import {classify, CONFORMANCE_ROOT, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
+import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
+import {conformancePath} from './suite-helpers.js';
 
 // Cases that name no catalog run against the v1.0 basic catalog.
 const basicCatalogV10 = loadBasicCatalog('v1.0');
@@ -273,8 +272,8 @@ const LEGACY_ACTION_HANDLERS: Record<string, (testCase: LoadedCase) => void | Pr
 
 describe('Conformance Harness (Legacy Agent Suites)', () => {
   const yamlFiles = [
-    path.resolve(CONFORMANCE_ROOT, 'agent/legacy/parser.yaml'),
-    path.resolve(CONFORMANCE_ROOT, 'agent/legacy/inference_format.yaml'),
+    conformancePath('agent/legacy/parser.yaml'),
+    conformancePath('agent/legacy/inference_format.yaml'),
   ];
 
   const allCases = loadCases(yamlFiles);
