@@ -44,12 +44,16 @@ void main() {
       ], specified);
     }
     for (final example in examples) {
-      expect(example.messages, isNotEmpty, reason: example.fileName);
+      expect(
+        example.messages,
+        isNotEmpty,
+        reason: '${example.version.jsonValue}/${example.fileName}',
+      );
       for (final Map<String, Object?> message in example.messages) {
         expect(
           message['version'],
           example.version.jsonValue,
-          reason: example.fileName,
+          reason: '${example.version.jsonValue}/${example.fileName}',
         );
       }
     }
