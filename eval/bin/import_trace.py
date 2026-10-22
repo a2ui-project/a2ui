@@ -252,9 +252,14 @@ def _convert_event(event: dict[str, Any], index: int) -> list[dict[str, Any]]:
                 "arguments": _parse_arguments(call.get("args")),
             })
         elif isinstance(response, dict):
+            raw_resp = response.get("response")
             tool_messages.append({
                 "role": "tool",
-                "content": json.dumps(response.get("response"), sort_keys=True),
+                "content": (
+                    raw_resp
+                    if isinstance(raw_resp, str)
+                    else json.dumps(raw_resp, sort_keys=True)
+                ),
                 "tool_call_id": str(response.get("id") or ""),
                 "function": str(response.get("name", "")),
             })

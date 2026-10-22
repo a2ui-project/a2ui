@@ -341,7 +341,11 @@ def compile_format_payload(
                 ChatMessageUser(content=_retry_prompt(result.error or ""))
             )
             state = await _generate_accumulating(state, generate, measured)
-            completion = (state.output.completion or "").strip()
+            completion = (
+                state.output.completion
+                if state.output is not None and state.output.completion
+                else ""
+            ).strip()
             result = await _attempt_compile(ctx, completion)
 
         state.metadata["pass_at_k"] = result.ok

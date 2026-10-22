@@ -392,6 +392,28 @@ async def test_compile_retries_exhausted_fails() -> None:
 
 
 @pytest.mark.asyncio
+async def test_compile_retry_handles_none_output() -> None:
+    bridge = _FakeBridge([ValueError("e1"), ValueError("e2")])
+
+    async def null_output_generate(
+        state: TaskState, *args: Any, **kwargs: Any
+    ) -> TaskState:
+        state.output = None  # type: ignore[assignment]
+        return state
+
+    solver = compile_format_payload("express", version="1.0", max_validation_retries=1)
+    state = _state({"catalog": str(V1_CATALOG)}, completion="try1")
+
+    with patch("a2ui_eval.strategies.format.get_sdk_bridge", return_value=bridge):
+        state = await solver(state, null_output_generate)  # type: ignore[arg-type]
+
+    assert state.metadata["pass_at_1"] is False
+    assert state.metadata["pass_at_k"] is False
+    assert state.metadata["validation_retries_used"] == 1
+    assert state.output.completion.startswith("Compilation/validation failed: e2")
+
+
+@pytest.mark.asyncio
 async def test_compile_without_retries_fails_once() -> None:
     bridge = _FakeBridge([ValueError("e1")])
     generate = _ScriptedGenerate(["unused"])

@@ -217,6 +217,18 @@ def test_adk_event_trace_maps_tool_calls_and_responses(tmp_path: Path) -> None:
     ]
 
 
+def test_adk_event_trace_preserves_string_function_response(tmp_path: Path) -> None:
+    trace_with_str = json.loads(json.dumps(ADK_TRACE))
+    trace_with_str["events"][2]["content"]["parts"][0]["functionResponse"][
+        "response"
+    ] = '{"orders": ["o1"]}'
+    trace = _write_json(tmp_path, "events_str.json", trace_with_str)
+    output = tmp_path / "out.yaml"
+    assert import_trace.main(_import_args(trace, output)) == 0
+    entry = yaml.safe_load(output.read_text())[0]
+    assert entry["messages"][2]["content"] == '{"orders": ["o1"]}'
+
+
 def test_sanitize_messages_redacts_secrets_and_pii() -> None:
     messages = [
         {"role": "system", "content": "Contact ada@example.com or +1 555-123-4567."},
