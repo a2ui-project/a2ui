@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
+  `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
+  (`DirectJsonFormat`).
+
 ## 0.9.0 (2026-10-17)
 
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.

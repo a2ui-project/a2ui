@@ -30,10 +30,8 @@ void main() {
       final CatalogApi catalog = loadBasicCatalog(version);
 
       // 1. At agent startup: register the catalogs the agent supports.
-      final generator = A2uiGenerator(
-        catalogs: [CatalogConfig(catalog)],
-        inferenceFormatFactory: const ExpressFormatFactory(),
-      );
+      // Express is the default format, so the generator names none.
+      final generator = A2uiGenerator(catalogs: [CatalogConfig(catalog)]);
 
       // 2. Per request: negotiate with the renderer's capabilities.
       final A2uiRequestProcessor processor = generator.createProcessor(

@@ -30,12 +30,7 @@ import {
   ResponsePart,
 } from '../../src/index.js';
 import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
-import {DirectJsonStreamProcessorImpl} from '../../src/inference-formats/direct-json/streaming.js';
-import {
-  CatalogApi,
-  STRICT_VALIDATION,
-  V10RendererCapabilities,
-} from '../../src/internal/web-core.js';
+import {V10RendererCapabilities} from '../../src/internal/web-core.js';
 import {parseAndFix} from '../../src/parser/payload-fixer.js';
 import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
@@ -161,7 +156,7 @@ describe('Conformance Harness', () => {
               const parts = [];
               for (const p of unwrapped) {
                 if (p.type === 'a2ui') {
-                  const fixed = parser.compile(p.a2uiRaw, false);
+                  const fixed = parseAndFix(p.a2uiRaw);
                   parts.push({type: 'a2ui', a2uiRaw: p.a2uiRaw, a2ui: fixed, isFinal: true});
                 } else {
                   parts.push(p);
@@ -173,7 +168,7 @@ describe('Conformance Harness', () => {
             const parts: any[] = [];
             for (const p of unwrapped) {
               if (p.type === 'a2ui') {
-                const fixed = parser.compile(p.a2uiRaw, false);
+                const fixed = parseAndFix(p.a2uiRaw);
                 parts.push({type: 'a2ui', a2uiRaw: p.a2uiRaw, a2ui: fixed, isFinal: true});
               } else {
                 parts.push(p);
@@ -275,47 +270,6 @@ describe('Conformance Harness', () => {
               }
               expect(found).toBe(true);
             }
-          }
-        }
-      } else if (action === 'process_chunk') {
-        const catalogs: CatalogApi[] = [];
-        let progressiveKeys: string[] = ['text', 'literalString'];
-
-        if (testCase.catalogs && Array.isArray(testCase.catalogs)) {
-          for (const cat of testCase.catalogs) {
-            const config = createCatalogConfig(cat);
-            catalogs.push(config.catalog);
-            if (cat.customCuttableKeys) progressiveKeys = cat.customCuttableKeys;
-          }
-        } else if (testCase.catalog) {
-          const config = createCatalogConfig(testCase.catalog as Record<string, unknown>);
-          catalogs.push(config.catalog);
-          const catalogObj = testCase.catalog as Record<string, unknown> | undefined;
-          if (catalogObj?.customCuttableKeys)
-            progressiveKeys = catalogObj.customCuttableKeys as string[];
-        } else {
-          catalogs.push(basicCatalogV10);
-        }
-
-        const processor = new DirectJsonStreamProcessorImpl(catalogs, {
-          progressiveKeys,
-          // The legacy suite's disableValidation predates ValidationConfig. Omitting the
-          // config turns validation off, as it does for web_core's MessageProcessor.
-          validationConfig: testCase.disableValidation ? undefined : STRICT_VALIDATION,
-        });
-
-        for (const step of testCase.steps as any[]) {
-          // As in Python's harness, a case-level expectError applies to every step, and a
-          // step with no expectation is an error in the suite rather than an unchecked step.
-          const expectError = step.expectError ?? testCase.expectError;
-          if (expectError) {
-            assertThrows(() => processor.processChunk(step.input), expectError);
-          } else if (step.expect !== undefined) {
-            const result = processor.processChunk(step.input);
-            const adapted = adaptParts(result);
-            expect(adapted).toEqual(step.expect);
-          } else {
-            throw new Error(`A step of ${name} has neither expect nor expectError`);
           }
         }
       } else if (action === 'skill') {
