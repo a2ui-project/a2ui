@@ -112,6 +112,62 @@ void main() {
     });
   });
 
+  testWidgets('logs an error a surface reports when it first appears', (
+    tester,
+  ) async {
+    final ExampleRun run = _run([
+      _createSurface,
+      {
+        'version': 'v0.9',
+        'updateDataModel': {
+          'surfaceId': 'test',
+          'path': '/',
+          'value': {'name': 'abc', 'pattern': '('},
+        },
+      },
+      {
+        'version': 'v0.9',
+        'updateComponents': {
+          'surfaceId': 'test',
+          'components': [
+            {
+              'id': 'root',
+              'component': 'Text',
+              'text': {
+                'call': 'formatString',
+                'args': {
+                  'value': r'${regex(value: ${/name}, pattern: ${/pattern})}',
+                },
+                'returnType': 'string',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListenableBuilder(
+            listenable: run,
+            builder: (context, _) => Column(
+              children: [
+                Text('log: ${run.log.length}'),
+                for (final surface in run.surfaces)
+                  A2uiSurface(surface: surface),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    run.runAll();
+    await tester.pump();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('log: 1'), findsOneWidget);
+  });
+
   test('drops a deleted surface', () {
     final ExampleRun run = _run([
       _createSurface,
