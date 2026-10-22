@@ -43,10 +43,12 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
 
     let timestamp: Timestamp
     if let valueDouble = arguments["value"]?.doubleValue {
-      timestamp = Timestamp(epoch: valueDouble)
+      guard let parsed = Timestamp(epoch: valueDouble) else { return .string("") }
+      timestamp = parsed
     } else if let valueString = arguments["value"]?.stringValue {
       if let parsedNumber = Double(valueString) {
-        timestamp = Timestamp(epoch: parsedNumber)
+        guard let parsed = Timestamp(epoch: parsedNumber) else { return .string("") }
+        timestamp = parsed
       } else if let parsed = Timestamp(iso8601: valueString) {
         timestamp = parsed
       } else {
@@ -81,19 +83,28 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
 /// A timestamp's instant, and the UTC offset of the wall-clock fields it was written with.
 private struct Timestamp {
   /// The calendar fields of an ISO 8601 timestamp: year, month, day, then optionally hour,
-  /// minute, second, fraction and an offset (`Z`, `+hh`, `+hhmm` or `+hh:mm`).
+  /// minute, second, fraction and an offset (`Z`, `+hh`, `+hhmm` or `+hh:mm`). The `T` and
+  /// `Z` may be lowercase, as RFC 3339 allows.
   private static let pattern = try! NSRegularExpression(
     pattern: #"^([+-]?\d{4,6})-(\d{2})-(\d{2})"#
-      + #"(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?"#
+      + #"(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?"#
       + #"(?:([zZ])|([+-])(\d{2})(?::?(\d{2}))?)?)?$"#
   )
 
   let instant: Date
   let offsetSeconds: Int
 
+  /// The largest distance from 1970, in seconds, of an instant that `formatDate` formats: the
+  /// 100,000,000 days either side that a JavaScript `Date` can hold.
+  private static let maxEpochSeconds = 8_640_000_000_000.0
+
   /// Reads seconds, or milliseconds above 10^10, since 1970 as a UTC instant.
-  init(epoch value: Double) {
+  ///
+  /// Fails for a value that is not finite or lies outside ``maxEpochSeconds``.
+  init?(epoch value: Double) {
+    guard value.isFinite else { return nil }
     let seconds = value > 10_000_000_000 ? value / 1000.0 : value
+    guard abs(seconds) <= Self.maxEpochSeconds else { return nil }
     instant = Date(timeIntervalSince1970: seconds)
     offsetSeconds = 0
   }
@@ -117,6 +128,7 @@ private struct Timestamp {
       second: number(6) ?? 0)
 
     var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = Locale(identifier: "en_US_POSIX")
     guard let utc = TimeZone(secondsFromGMT: 0) else { return nil }
     calendar.timeZone = utc
     guard let wallClock = calendar.date(from: fields) else { return nil }

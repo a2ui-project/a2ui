@@ -109,6 +109,15 @@ struct FormatDateFunctionTests {
     #expect(try format(value, "ISO") == .string("2026-09-04T18:00:00.000Z"))
   }
 
+  @Test func acceptsLowercaseTimeSeparatorAndUTCDesignator() throws {
+    let value = JSONValue.string("2026-09-04t23:30:00-05:00")
+    #expect(try format(value, "yyyy-MM-dd HH:mm") == .string("2026-09-04 23:30"))
+    #expect(try format(value, "ISO") == .string("2026-09-05T04:30:00.000Z"))
+    #expect(try format(.string("2026-09-04t23:30"), "HH:mm") == .string("23:30"))
+    #expect(
+      try format(.string("2026-09-04t23:30:00z"), "ISO") == .string("2026-09-04T23:30:00.000Z"))
+  }
+
   @Test func isoPatternEmitsUTCInstant() throws {
     #expect(
       try format(.string("2026-09-04T23:30:00-05:00"), "ISO") == .string("2026-09-05T04:30:00.000Z")
@@ -119,6 +128,28 @@ struct FormatDateFunctionTests {
     #expect(try format(.string("2026-02-30T10:00:00Z"), "yyyy-MM-dd") == .string(""))
     #expect(try format(.string("2026-13-01"), "yyyy-MM-dd") == .string(""))
     #expect(try format(.string("2026-09-04T24:30:00"), "yyyy-MM-dd") == .string(""))
+  }
+
+  @Test func returnsEmptyStringForNonFiniteEpoch() throws {
+    #expect(try format(.number(.nan), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(.infinity), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(-.infinity), "ISO") == .string(""))
+    #expect(try format(.string("NaN"), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("inf"), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("-Infinity"), "ISO") == .string(""))
+  }
+
+  @Test func returnsEmptyStringForEpochOutOfRange() throws {
+    #expect(try format(.number(1e300), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(8_640_000_000_000_001), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(-8_640_000_000_001), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("1e300"), "ISO") == .string(""))
+  }
+
+  @Test func formatsEpochAtEndOfRange() throws {
+    #expect(
+      try format(.number(8_640_000_000_000_000), "yyyy-MM-dd HH:mm")
+        == .string("275760-09-13 00:00"))
   }
 
   @Test func returnsEmptyStringWhenFormatIsMissing() throws {
