@@ -43,7 +43,6 @@
   not valid UAX 31 identifiers with `A2uiValidationError` (`invalid_identifier`);
   for pre-v1.0 catalogs (and for reserved-word IDs in any version), it derives
   a valid variable name and emits `id="..."`.
->>>>>>> origin/main
 
 ## 0.9.0 (2026-10-17)
 
