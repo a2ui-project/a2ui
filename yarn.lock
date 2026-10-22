@@ -513,6 +513,7 @@ __metadata:
     vega-embed: "npm:^6.26.0"
     vite: "npm:^8.0.16"
     vitest: "npm:^4.1.8"
+    wireit: "npm:^0.15.0-pre.2"
   languageName: unknown
   linkType: soft
 
