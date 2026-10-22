@@ -33,7 +33,7 @@ def _normalize_wire_version(protocol_version: str) -> str:
     clean = protocol_version.strip().lstrip("v")
     if clean == "1" or clean.startswith("1."):
         return "v1.0"
-    if clean in ("0.9", "0.9.1"):
+    if clean in ("0.8", "0.9", "0.9.1"):
         return "v0.9"
     return protocol_version
 
@@ -80,6 +80,18 @@ def _surface_body(msg: Mapping[str, Any]) -> Mapping[str, Any] | None:
     )
 
 
+def _normalize_extracted_component(comp: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalizes a component dict, flattening v0.8 `{id, component: {Type: props}}`."""
+    raw_comp = comp.get("component")
+    if isinstance(raw_comp, Mapping) and len(raw_comp) == 1:
+        comp_type, props = next(iter(raw_comp.items()))
+        out: dict[str, Any] = {"id": comp.get("id"), "component": str(comp_type)}
+        if isinstance(props, Mapping):
+            out.update(props)
+        return out
+    return dict(comp)
+
+
 def _components_in(msg: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     """Returns the component dicts the message carries, in order."""
     found: list[Mapping[str, Any]] = []
@@ -87,7 +99,9 @@ def _components_in(msg: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         body = _mapping_or_none(msg.get(key))
         raw = body.get("components") if body is not None else None
         if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
-            found.extend(c for c in raw if isinstance(c, Mapping))
+            found.extend(
+                _normalize_extracted_component(c) for c in raw if isinstance(c, Mapping)
+            )
     return found
 
 

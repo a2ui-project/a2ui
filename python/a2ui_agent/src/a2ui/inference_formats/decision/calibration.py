@@ -142,11 +142,16 @@ def _select_best_point(
     return max(points, key=lambda p: (p.precision, p.threshold))
 
 
-def _build_permissive_config(base: SynthesisConfig) -> SynthesisConfig:
+def _build_permissive_config(
+    base: SynthesisConfig, *, allow_low_confidence_templates: bool = True
+) -> SynthesisConfig:
     """Builds a permissive config for raw confidence collection during sweep."""
+    tpl_threshold = (
+        0.0 if allow_low_confidence_templates else base.template_confidence_threshold
+    )
     return SynthesisConfig(
-        template_confidence_threshold=0.0,
-        mutable_confidence_threshold=0.0,
+        template_confidence_threshold=tpl_threshold,
+        mutable_confidence_threshold=tpl_threshold,
         abstain_threshold=0.0,
         uncalibrated_min_logit_margin=base.uncalibrated_min_logit_margin,
         entropy_switch_margin=base.entropy_switch_margin,
@@ -161,11 +166,13 @@ async def _collect_evaluated_outputs(
     dataset: Sequence[LabeledDecisionExample],
 ) -> list[tuple[SynthesisOutput, LabeledDecisionExample]]:
     """Evaluates dataset examples with a permissive per-call config override."""
-    base_config = getattr(synthesizer, "config", None)
-    permissive_config = (
-        _build_permissive_config(base_config)
-        if isinstance(base_config, SynthesisConfig)
-        else _build_permissive_config(SynthesisConfig())
+    raw_base = getattr(synthesizer, "config", None)
+    base = raw_base if isinstance(raw_base, SynthesisConfig) else SynthesisConfig()
+    permissive_config = _build_permissive_config(
+        base, allow_low_confidence_templates=True
+    )
+    stage2_permissive_config = _build_permissive_config(
+        base, allow_low_confidence_templates=False
     )
     evaluated: list[tuple[SynthesisOutput, LabeledDecisionExample]] = []
     for ex in dataset:
@@ -175,6 +182,18 @@ async def _collect_evaluated_outputs(
             mutable_paths=ex.mutable_paths,
             config=permissive_config,
         )
+        if (
+            ex.expected_template_id is None
+            and output.stage == SynthesisStage.TEMPLATE_SELECT
+            and not _is_prediction_correct(output, ex)
+            and output.confidence < base.template_confidence_threshold
+        ):
+            output = await synthesizer.synthesize(
+                ex.intent,
+                ex.payload,
+                mutable_paths=ex.mutable_paths,
+                config=stage2_permissive_config,
+            )
         evaluated.append((output, ex))
     return evaluated
 
@@ -212,7 +231,9 @@ async def calibrate_thresholds(
 
     return CalibrationResult(
         recommended_template_threshold=best.threshold,
-        recommended_mutable_threshold=round(min(0.99, best.threshold + 0.10), 2),
+        recommended_mutable_threshold=max(
+            best.threshold, round(min(0.99, best.threshold + 0.10), 2)
+        ),
         recommended_abstain_threshold=best.threshold,
         achieved_precision=best.precision,
         achieved_coverage=best.coverage,

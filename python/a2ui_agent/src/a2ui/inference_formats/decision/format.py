@@ -25,6 +25,7 @@ Plugs local decision-model synthesis into the processor pipeline the same way
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
@@ -190,6 +191,17 @@ class DecisionFormatFactory(InferenceFormatFactory):
             fallback_card=self._fallback_card,
             fallback_fn=self._fallback_fn,
         )
+
+    async def aclose(self) -> None:
+        """Closes the shared decision backend if one has been initialized."""
+        if self._backend is not None:
+            await self._backend.aclose()
+
+    async def __aenter__(self) -> DecisionFormatFactory:
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        await self.aclose()
 
 
 __all__ = ["DecisionFormat", "DecisionFormatFactory"]

@@ -19,10 +19,10 @@ from __future__ import annotations
 from typing import Any
 
 from a2ui.core import Catalog
-from a2ui.inference_formats.decision.catalog_graph import CatalogDecisionGraph
-from a2ui.inference_formats.decision.models import SlotKind
-from a2ui.inference_formats.decision.payload_inspector import (
+from a2ui.inference_formats.decision import (
+    CatalogDecisionGraph,
     PointerSummary,
+    SlotKind,
     inspect_payload_pointers,
 )
 

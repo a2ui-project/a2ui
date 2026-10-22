@@ -142,13 +142,18 @@ class DecisionParser(Parser):
             A2uiCompilationError: If the decision model abstains and no
                 fallback produced any messages.
         """
-        messages: list[AgentToRendererMessage] = []
-        for block in self._read_blocks(format_content):
+        messages_by_surface: dict[str, list[AgentToRendererMessage]] = {}
+        blocks = self._read_blocks(format_content)
+        for idx, block in enumerate(blocks, start=1):
+            default_id = (
+                self.surface_id if len(blocks) == 1 else f"{self.surface_id}_{idx}"
+            )
+            target_surface_id = block.surface_id or default_id
             try:
                 output = self._synthesizer.synthesize_sync(
                     block.intent,
                     block.payload,
-                    surface_id=block.surface_id or self.surface_id,
+                    surface_id=target_surface_id,
                     template_id=block.template_id,
                     fallback_dsl=block.fallback_dsl,
                 )
@@ -172,14 +177,16 @@ class DecisionParser(Parser):
                     ),
                 )
             assert output.stage in SynthesisStage
-            messages.extend(output.messages)
-        return messages
+            messages_by_surface[target_surface_id] = list(output.messages)
+        return [
+            msg for surface_msgs in messages_by_surface.values() for msg in surface_msgs
+        ]
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Renders messages as a wrapped decision block.
 
-        Lossy: messages carry no intent, so the block's `intent` is empty and
-        only the data model and surface id are recovered.
+        Lossy: messages carry no intent, so a synthetic `Render <surface>`
+        intent is used and only the data model and surface id are recovered.
         """
         return DecisionPromptGenerator.wrap_block(
             decision_block_from_messages(a2ui_payload)

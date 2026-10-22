@@ -23,7 +23,7 @@ import inspect
 import re
 from typing import Any, TypeAlias, cast
 
-from a2ui.core import CatalogApi
+from a2ui.core import A2uiValidationError, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.parser.messages import to_message_models
@@ -329,6 +329,10 @@ def _build_checks(
     }]
 
 
+class _NoEligibleChildError(Exception):
+    """Raised internally when a container slot has no eligible leaf candidates."""
+
+
 def _bind_non_child_slots(
     comp: dict[str, Any],
     spec: ComponentNodeSpec,
@@ -337,6 +341,7 @@ def _bind_non_child_slots(
     *,
     is_v10: bool,
     relative: bool,
+    allow_actions: bool = True,
 ) -> None:
     """Binds DATA_VALUE, STATIC_ENUM, and ACTION slots on `comp` in place."""
     used_paths: set[str] = set()
@@ -355,7 +360,7 @@ def _bind_non_child_slots(
             enum_val = _select_enum_value(slot, intent)
             if enum_val is not None:
                 comp[slot.name] = enum_val
-        elif slot.kind == SlotKind.ACTION:
+        elif slot.kind == SlotKind.ACTION and allow_actions:
             comp[slot.name] = {"event": {"name": slot.name}}
 
 
@@ -415,6 +420,27 @@ def _best_leaf_by_pointer_overlap(
             if s.kind == SlotKind.DATA_VALUE and s.value_type in ptr_types
         ),
     )
+
+
+def _named_child_entry(
+    slot: ComponentSlot,
+    child_spec: ComponentNodeSpec,
+    child_id: str,
+    view_ptrs: Sequence[PointerSummary],
+    idx: int,
+) -> dict[str, Any]:
+    """Builds a single `NAMED_CHILD_ARRAY` item dict with label and child id."""
+    entry: dict[str, Any] = {}
+    if slot.label_key is not None:
+        ptr_label = (
+            view_ptrs[0].path.rsplit("/", 1)[-1].replace("_", " ").title()
+            if view_ptrs and view_ptrs[0].path.strip("/")
+            else f"{child_spec.name}_{idx}"
+        )
+        entry[slot.label_key] = ptr_label
+    if slot.child_id_key is not None:
+        entry[slot.child_id_key] = child_id
+    return entry
 
 
 class DecisionSynthesizer:
@@ -611,8 +637,18 @@ class DecisionSynthesizer:
             The `SynthesisOutput` from `synthesize`.
         """
 
+        async def _run() -> SynthesisOutput:
+            try:
+                return await self.synthesize(intent, payload, **kwargs)
+            finally:
+                close_fn = getattr(
+                    self.backend, "aclose_current_loop", None
+                ) or getattr(self.backend, "aclose", None)
+                if callable(close_fn):
+                    await close_fn()
+
         def run_in_new_loop() -> SynthesisOutput:
-            return asyncio.run(self.synthesize(intent, payload, **kwargs))
+            return asyncio.run(_run())
 
         try:
             asyncio.get_running_loop()
@@ -632,13 +668,15 @@ class DecisionSynthesizer:
                 f"Unknown template '{template_id}'. Registered templates:"
                 f" {known or 'none'}."
             )
+        messages = template.render_messages(data, surface_id=surface_id)
+        validate_payload(self.graph.catalogs, messages)
         tree_spec: dict[str, Any] = {"template_id": template.template_id}
         root_comp_name = template.root_component()
         if root_comp_name is not None:
             tree_spec["root_component"] = root_comp_name
         return SynthesisOutput(
             stage=SynthesisStage.TEMPLATE_SELECT,
-            messages=template.render_messages(data, surface_id=surface_id),
+            messages=messages,
             confidence=1.0,
             entropy=0.0,
             selected_template_id=template.template_id,
@@ -672,6 +710,7 @@ class DecisionSynthesizer:
             if inspect.isawaitable(produced):
                 produced = await produced
             messages = to_message_models(list(produced))
+            validate_payload(self.graph.catalogs, messages)
             source = FallbackSource.CALLBACK
         elif self._fallback_card:
             messages = await self._synthesize_fallback_card(
@@ -727,12 +766,19 @@ class DecisionSynthesizer:
     ) -> list[AgentToRendererMessage]:
         """Builds a deterministic root container bound to the payload pointers.
 
-        Uses the first container the catalogs define (or the first root
-        candidate) and the deterministic heuristic backend for child slots, so
-        the result is the same for the same catalogs and payload. Action slots
-        are left unbound because confidence was low.
+        Uses the first action-free container the catalogs define (or the first
+        action-free root candidate) and the deterministic heuristic backend for
+        child slots, so the result is the same for the same catalogs and
+        payload. Action slots are never bound because confidence was low.
         """
-        candidates = self.graph.container_candidates() or self.graph.root_candidates()
+        candidates = [
+            c
+            for c in (
+                *self.graph.container_candidates(),
+                *self.graph.leaf_candidates(),
+            )
+            if not c.has_action_slot
+        ]
         if not candidates:
             return []
         deterministic = DecisionSynthesizer(
@@ -741,16 +787,21 @@ class DecisionSynthesizer:
             registry=self.registry,
             config=config,
         )
-        components = await deterministic._build_component_subtree(
-            candidates[0],
-            "root",
-            intent,
-            pointers,
-            depth=1,
-            allow_actions=False,
-            config=config,
-        )
-        return self._build_validated_messages(surface_id, components, data)
+        for candidate in candidates:
+            try:
+                components = await deterministic._build_component_subtree(
+                    candidate,
+                    "root",
+                    intent,
+                    pointers,
+                    depth=1,
+                    allow_actions=False,
+                    config=config,
+                )
+                return self._build_validated_messages(surface_id, components, data)
+            except (_NoEligibleChildError, A2uiValidationError):
+                continue
+        return []
 
     async def _try_template_stage(
         self,
@@ -800,6 +851,7 @@ class DecisionSynthesizer:
             return None
 
         messages = template.render_messages(payload, surface_id=target_surface_id)
+        validate_payload(self.graph.catalogs, messages)
         tree_spec: dict[str, Any] = {"template_id": template.template_id}
         root_comp_name = template.root_component()
         if root_comp_name is not None:
@@ -998,7 +1050,13 @@ class DecisionSynthesizer:
         allow_actions = confidence >= config.mutable_confidence_threshold
         root_comp = self._init_component_dict(switcher, "root")
         _bind_non_child_slots(
-            root_comp, switcher, intent, pointers, is_v10=is_v10, relative=False
+            root_comp,
+            switcher,
+            intent,
+            pointers,
+            is_v10=is_v10,
+            relative=False,
+            allow_actions=allow_actions,
         )
 
         child_components: list[dict[str, Any]] = []
@@ -1007,24 +1065,32 @@ class DecisionSynthesizer:
             s for s in switcher.slots if s.kind == SlotKind.NAMED_CHILD_ARRAY
         )
 
-        for idx, view_spec in enumerate(views, start=1):
-            view_id = f"view_{idx}"
-            built = await self._build_component_subtree(
-                view_spec,
-                view_id,
-                intent,
-                pointers,
-                depth=2,
-                allow_actions=allow_actions,
-                config=config,
+        try:
+            for idx, view_spec in enumerate(views, start=1):
+                view_id = f"view_{idx}"
+                built = await self._build_component_subtree(
+                    view_spec,
+                    view_id,
+                    intent,
+                    pointers,
+                    depth=2,
+                    allow_actions=allow_actions,
+                    config=config,
+                )
+                child_components.extend(built)
+                item: dict[str, Any] = {}
+                if array_slot.label_key is not None:
+                    item[array_slot.label_key] = view_spec.name
+                if array_slot.child_id_key is not None:
+                    item[array_slot.child_id_key] = view_id
+                named_items.append(item)
+        except _NoEligibleChildError:
+            return SynthesisOutput(
+                stage=SynthesisStage.ABSTAIN_FALLBACK,
+                messages=[],
+                confidence=confidence,
+                entropy=entropy,
             )
-            child_components.extend(built)
-            item: dict[str, Any] = {}
-            if array_slot.label_key is not None:
-                item[array_slot.label_key] = view_spec.name
-            if array_slot.child_id_key is not None:
-                item[array_slot.child_id_key] = view_id
-            named_items.append(item)
 
         root_comp[array_slot.name] = named_items
         checks = _build_checks(
@@ -1073,8 +1139,14 @@ class DecisionSynthesizer:
                 entropy=entropy,
             )
 
+        allow_actions = confidence >= config.mutable_confidence_threshold
         leaf_comp = self._build_leaf_dict(
-            root_spec, "root", intent, pointers, relative=False
+            root_spec,
+            "root",
+            intent,
+            pointers,
+            relative=False,
+            allow_actions=allow_actions,
         )
         components = [leaf_comp]
         messages = self._build_validated_messages(
@@ -1116,15 +1188,23 @@ class DecisionSynthesizer:
             )
 
         allow_actions = confidence >= config.mutable_confidence_threshold
-        components = await self._build_component_subtree(
-            root_spec,
-            "root",
-            intent,
-            pointers,
-            depth=1,
-            allow_actions=allow_actions,
-            config=config,
-        )
+        try:
+            components = await self._build_component_subtree(
+                root_spec,
+                "root",
+                intent,
+                pointers,
+                depth=1,
+                allow_actions=allow_actions,
+                config=config,
+            )
+        except _NoEligibleChildError:
+            return SynthesisOutput(
+                stage=SynthesisStage.ABSTAIN_FALLBACK,
+                messages=[],
+                confidence=confidence,
+                entropy=entropy,
+            )
         messages = self._build_validated_messages(
             target_surface_id, components, payload
         )
@@ -1156,12 +1236,19 @@ class DecisionSynthesizer:
         pointers: Sequence[PointerSummary],
         *,
         relative: bool,
+        allow_actions: bool = True,
     ) -> dict[str, Any]:
         """Builds a single leaf component dictionary bound to `pointers`."""
         is_v10 = _is_v10(self.graph.protocol_version)
         comp = self._init_component_dict(spec, comp_id)
         _bind_non_child_slots(
-            comp, spec, intent, pointers, is_v10=is_v10, relative=relative
+            comp,
+            spec,
+            intent,
+            pointers,
+            is_v10=is_v10,
+            relative=relative,
+            allow_actions=allow_actions,
         )
         checks = _build_checks(
             self.graph, spec, pointers, is_v10=is_v10, relative=relative
@@ -1186,7 +1273,7 @@ class DecisionSynthesizer:
             c
             for c in self.graph.leaf_candidates()
             if allow_actions or not c.has_action_slot
-        ] or list(self.graph.leaf_candidates())
+        ]
         if not leaf_pool:
             return spec
         return _best_leaf_by_pointer_overlap(leaf_pool, pointers)
@@ -1213,14 +1300,25 @@ class DecisionSynthesizer:
         if not effective_spec.is_container:
             return [
                 self._build_leaf_dict(
-                    effective_spec, comp_id, intent, pointers, relative=False
+                    effective_spec,
+                    comp_id,
+                    intent,
+                    pointers,
+                    relative=False,
+                    allow_actions=allow_actions,
                 )
             ]
 
         is_v10 = _is_v10(self.graph.protocol_version)
         comp = self._init_component_dict(effective_spec, comp_id)
         _bind_non_child_slots(
-            comp, effective_spec, intent, pointers, is_v10=is_v10, relative=False
+            comp,
+            effective_spec,
+            intent,
+            pointers,
+            is_v10=is_v10,
+            relative=False,
+            allow_actions=allow_actions,
         )
 
         children: list[dict[str, Any]] = []
@@ -1300,7 +1398,12 @@ class DecisionSynthesizer:
             allow_actions=allow_actions,
         )
         item_comp = self._build_leaf_dict(
-            item_spec, item_id, intent, rel_pointers, relative=True
+            item_spec,
+            item_id,
+            intent,
+            rel_pointers,
+            relative=True,
+            allow_actions=allow_actions,
         )
         return item_comp, array_path
 
@@ -1324,7 +1427,12 @@ class DecisionSynthesizer:
             allow_actions=allow_actions,
         )
         return self._build_leaf_dict(
-            child_spec, child_id, intent, scalar_ptrs, relative=False
+            child_spec,
+            child_id,
+            intent,
+            scalar_ptrs,
+            relative=False,
+            allow_actions=allow_actions,
         )
 
     def _select_named_child_specs(
@@ -1335,15 +1443,14 @@ class DecisionSynthesizer:
         allow_actions: bool,
     ) -> list[ComponentNodeSpec]:
         """Selects up to `max_items` leaf specs for a `NAMED_CHILD_ARRAY` slot."""
+        del parent_name
         raw_leaves = [
             c
             for c in self.graph.leaf_candidates()
             if allow_actions or not c.has_action_slot
-        ] or list(self.graph.leaf_candidates())
+        ]
         if not raw_leaves:
-            raw_leaves = [
-                c for c in self.graph.root_candidates() if c.name != parent_name
-            ]
+            return []
         cap = min(2, max(1, max_items))
         return raw_leaves[:cap] if len(raw_leaves) >= cap else (raw_leaves * cap)[:cap]
 
@@ -1363,9 +1470,14 @@ class DecisionSynthesizer:
         fallback_specs = self._select_named_child_specs(
             parent_name, max_items=max_items, allow_actions=allow_actions
         )
+        if not fallback_specs:
+            raise _NoEligibleChildError(
+                f"No eligible leaf candidates available for child slot '{slot.name}'"
+                f" on '{parent_name}'."
+            )
         items: list[dict[str, Any]] = []
         children: list[dict[str, Any]] = []
-        for idx, fallback_spec in enumerate(fallback_specs, start=1):
+        for idx, _ in enumerate(fallback_specs, start=1):
             view_ptrs = (
                 [scalar_ptrs[idx - 1]] if idx <= len(scalar_ptrs) else scalar_ptrs
             )
@@ -1376,25 +1488,18 @@ class DecisionSynthesizer:
                 view_ptrs,
                 allow_actions=allow_actions,
             )
-            if child_spec is None:
-                child_spec = fallback_spec
             child_id = f"{prefix}view_{idx}"
             children.append(
                 self._build_leaf_dict(
-                    child_spec, child_id, intent, view_ptrs, relative=False
+                    child_spec,
+                    child_id,
+                    intent,
+                    view_ptrs,
+                    relative=False,
+                    allow_actions=allow_actions,
                 )
             )
-            entry: dict[str, Any] = {}
-            if slot.label_key is not None:
-                ptr_label = (
-                    view_ptrs[0].path.rsplit("/", 1)[-1].replace("_", " ").title()
-                    if view_ptrs and view_ptrs[0].path.strip("/")
-                    else f"{child_spec.name}_{idx}"
-                )
-                entry[slot.label_key] = ptr_label
-            if slot.child_id_key is not None:
-                entry[slot.child_id_key] = child_id
-            items.append(entry)
+            items.append(_named_child_entry(slot, child_spec, child_id, view_ptrs, idx))
         return items, children
 
     def _eligible_child_candidates(
@@ -1407,16 +1512,21 @@ class DecisionSynthesizer:
 
         Drops action-bearing components when actions are not allowed, then
         prefers components with a data slot whose required array slots the
-        pointers can satisfy. Falls back to the unfiltered pool when a filter
-        leaves nothing.
+        pointers can satisfy.
         """
-        raw_candidates = self.graph.leaf_candidates() or self.graph.root_candidates()
-        filtered = [c for c in raw_candidates if allow_actions or not c.has_action_slot]
+        raw_candidates = [
+            c
+            for c in self.graph.leaf_candidates()
+            if allow_actions or not c.has_action_slot
+        ]
+        if not raw_candidates:
+            return ()
+        filtered = list(raw_candidates)
         ptr_types = {p.value_type for p in child_pointers}
         data_capable = [c for c in filtered if _can_bind_data_pointers(c, ptr_types)]
         if child_pointers and data_capable:
             filtered = data_capable
-        return tuple(filtered) if filtered else raw_candidates
+        return tuple(filtered)
 
     def _child_slot_context(
         self,
@@ -1460,6 +1570,11 @@ class DecisionSynthesizer:
         candidates = self._eligible_child_candidates(
             child_pointers, allow_actions=allow_actions
         )
+        if not candidates:
+            raise _NoEligibleChildError(
+                f"No eligible leaf candidates available for child slot '{slot_name}'"
+                f" on '{parent_name}'."
+            )
         if len(candidates) == 1:
             return candidates[0]
         dist = await self.backend.predict(

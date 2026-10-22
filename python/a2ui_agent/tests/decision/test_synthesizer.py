@@ -741,15 +741,13 @@ async def test_any_slot_ranking_and_check_arg_binding_and_camelcase_checks() -> 
     assert comp["summaryPayload"] == {"@path": "/summaryPayload"}
     # Check function argument 'tickerSymbol' binds to /tickerSymbol instead of first pointer,
     # and camelCase function name 'isValidTickerSymbol' is preserved in message.
-    assert comp["checks"] == [
-        {
-            "condition": {
-                "@call": "isValidTickerSymbol",
-                "args": {"tickerSymbol": {"@path": "/tickerSymbol"}},
-            },
-            "message": "IsValidTickerSymbol check failed",
-        }
-    ]
+    assert comp["checks"] == [{
+        "condition": {
+            "@call": "isValidTickerSymbol",
+            "args": {"tickerSymbol": {"@path": "/tickerSymbol"}},
+        },
+        "message": "IsValidTickerSymbol check failed",
+    }]
     validate_payload([cat], out.messages)
 
 
@@ -928,3 +926,134 @@ async def test_decision_query_context_enrichment() -> None:
     assert "candidate_descriptions" in child_q.context
     assert "parent_description" in child_q.context
     assert "slot_description" in child_q.context
+
+
+@pytest.mark.asyncio
+async def test_stage2b_action_filtering_and_all_action_leaf_catalog_abstention() -> (
+    None
+):
+    """Verifies M10 (Stage 2B child action filtering below mutable_confidence_threshold), H2 (no action fallback when all leaves have actions), M5 (template/fallback_fn validation), and M6 (container-only catalog abstention)."""
+    from a2ui.core import A2uiValidationError
+
+    cat = _make_domain_catalog("1.0")
+    low_mut_backend = DeterministicMockBackend(
+        scripted={
+            "root_component": {"AlertFrame": 0.70, "TelemetryBadge": 0.30},
+            "child_component": {"ActionableControl": 0.95, "TelemetryBadge": 0.05},
+        }
+    )
+    low_mut_synth = DecisionSynthesizer(
+        [cat],
+        low_mut_backend,
+        config=SynthesisConfig(
+            abstain_threshold=0.50,
+            template_confidence_threshold=0.60,
+            mutable_confidence_threshold=0.85,
+            entropy_switch_margin=0.01,
+        ),
+    )
+    low_mut_out = await low_mut_synth.synthesize(
+        "Show alert frame",
+        {"serviceName": "billing-api", "latencyMs": 42.5},
+    )
+    assert low_mut_out.stage == SynthesisStage.CONTAINER_2PASS
+    assert low_mut_out.component_tree_spec is not None
+    child_names = [
+        c["component"] for c in low_mut_out.component_tree_spec["components"]
+    ]
+    assert "ActionableControl" not in child_names
+
+    # H2: When all leaves in a catalog have required action slots and confidence
+    # is below mutable_confidence_threshold, Stage 2B abstains and fallback_card
+    # returns [] rather than emitting an action-bearing leaf.
+    action_only_cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/catalogs/action_only/v1",
+        "protocolVersion": "1.0",
+        "components": {
+            "TradePanel": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "TradePanel"},
+                    "child": {"$ref": "common_types.json#/$defs/ComponentId"},
+                },
+                "required": ["component", "child"],
+            },
+            "TradeTicket": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "TradeTicket"},
+                    "symbol": {"$ref": "common_types.json#/$defs/DynamicString"},
+                    "onSubmit": {"$ref": "common_types.json#/$defs/Action"},
+                },
+                "required": ["component", "symbol", "onSubmit"],
+            },
+        },
+    })
+    action_only_synth = DecisionSynthesizer(
+        [action_only_cat],
+        DeterministicMockBackend(scripted={"root_component": {"TradePanel": 0.60}}),
+        config=SynthesisConfig(
+            abstain_threshold=0.50,
+            template_confidence_threshold=0.55,
+            mutable_confidence_threshold=0.85,
+            entropy_switch_margin=0.01,
+        ),
+        fallback_card=True,
+    )
+    action_only_out = await action_only_synth.synthesize(
+        "Show trade panel", {"symbol": "GOOG"}
+    )
+    assert action_only_out.stage == SynthesisStage.ABSTAIN_FALLBACK
+    assert action_only_out.messages == []
+
+    # M6: Container-only catalog abstains cleanly without raising A2uiValidationError.
+    container_only_cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/catalogs/container_only/v1",
+        "protocolVersion": "1.0",
+        "components": {
+            "OuterBox": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "OuterBox"},
+                    "childId": {"$ref": "common_types.json#/$defs/ComponentId"},
+                },
+                "required": ["component", "childId"],
+            },
+        },
+    })
+    container_only_synth = DecisionSynthesizer(
+        [container_only_cat],
+        DeterministicMockBackend(scripted={"root_component": {"OuterBox": 0.90}}),
+        fallback_card=True,
+    )
+    container_only_out = await container_only_synth.synthesize(
+        "Show outer box", {"title": "x"}
+    )
+    assert container_only_out.stage == SynthesisStage.ABSTAIN_FALLBACK
+    assert container_only_out.messages == []
+
+    # M5: Template rendering and fallback_fn validate against active catalogs.
+    bad_reg = TemplateRegistry()
+    bad_reg.register(
+        SurfaceTemplate(
+            template_id="bad_comp_tpl",
+            description="Template with component not in catalog",
+            surface_id="s1",
+            catalog_id=cat.catalog_id,
+            protocol_version="v1.0",
+            components=({"id": "root", "component": "NonExistentWidget"},),
+        )
+    )
+    bad_tpl_synth = DecisionSynthesizer(
+        [cat],
+        DeterministicMockBackend(scripted={"template_select": {"bad_comp_tpl": 0.95}}),
+        registry=bad_reg,
+    )
+    with pytest.raises(A2uiValidationError):
+        await bad_tpl_synth.synthesize("Show widget", {"serviceName": "a"})
+    with pytest.raises(A2uiValidationError):
+        await bad_tpl_synth.synthesize(
+            "Show widget", {"serviceName": "a"}, template_id="bad_comp_tpl"
+        )

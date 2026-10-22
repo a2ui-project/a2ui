@@ -24,10 +24,13 @@
     `DecisionBackendType` (where `ONNX` is an alias of `LOCAL`) string enums
     replace raw string literals; `coerce_decision_payload` decodes
     stringified payloads.
-  - Backends support `async with`; the HTTP backends re-create their client
-    per event loop and `JevHttpBackend` caches ADC tokens per instance.
-  - `TemplateRegistry.promote_synthesized` reads v1.0 `createSurface`
-    envelopes with embedded components and v0.8 `surfaceUpdate` envelopes.
+  - Concrete backends, the `DecisionBackend` protocol, and
+    `DecisionFormatFactory` support `async with` and `aclose()`; the HTTP
+    backends own one client per active event loop and `JevHttpBackend` caches
+    ADC tokens per instance.
+  - `TemplateRegistry.promote_synthesized` reads v0.9 and v1.0 `createSurface`
+    and `updateComponents` envelopes (including v1.0 embedded components) and
+    normalizes v0.8 `surfaceUpdate` promotions to v0.9 wire envelopes.
 
 ## 0.9.0 (2026-10-17)
 

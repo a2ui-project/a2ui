@@ -25,17 +25,15 @@ from typing import Any
 import httpx
 import pytest
 
-from a2ui.inference_formats.decision.backends import (
+from a2ui.inference_formats.decision import (
     DecisionBackend,
+    DecisionDistribution,
+    DecisionQuery,
     DeterministicMockBackend,
     JevHttpBackend,
     LocalCrossEncoderBackend,
     StepZeroLogprobBackend,
     create_decision_backend,
-)
-from a2ui.inference_formats.decision.models import (
-    DecisionDistribution,
-    DecisionQuery,
 )
 
 
@@ -808,3 +806,58 @@ def test_decision_synthesizer_from_env(
     })
     synth = DecisionSynthesizer.from_env([cat])
     assert isinstance(synth.backend, DeterministicMockBackend)
+
+
+@pytest.mark.asyncio
+async def test_non_finite_weights_adc_lock_and_off_thread_ensure_loaded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifies M1 (_ensure_loaded off event loop), M4 (non-finite weight rejection), and M9 (ADC lock)."""
+    import asyncio
+    import threading
+    from a2ui.inference_formats.decision import backends
+
+    # M4: "inf" and NaN weights are treated as 0.0 instead of producing NaN probabilities.
+    norm = backends._normalize_probabilities(
+        {"A": "inf", "B": float("nan"), "C": 2.0}, ("A", "B", "C")
+    )
+    assert norm == {"A": 0.0, "B": 0.0, "C": 1.0}
+    assert all(math.isfinite(v) for v in norm.values())
+
+    # M9: Concurrent ADC requests only refresh the token once.
+    adc_call_count = 0
+
+    def slow_adc_token() -> str:
+        nonlocal adc_call_count
+        import time
+
+        time.sleep(0.02)
+        adc_call_count += 1
+        return "concurrent-adc-token"
+
+    monkeypatch.setattr(backends, "_get_adc_token_sync", slow_adc_token)
+    transport = httpx.MockTransport(
+        lambda req: httpx.Response(200, json={"probabilities": {"A": 1.0}})
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        jev = JevHttpBackend("http://local/predict", auth="adc", client=client)
+        q = DecisionQuery(task="t", prompt="p", candidates=("A",))
+        await asyncio.gather(jev.predict(q), jev.predict(q), jev.predict(q))
+    assert adc_call_count == 1
+
+    # M1: LocalCrossEncoderBackend._ensure_loaded runs in a worker thread, not on the event loop thread.
+    main_tid = threading.get_ident()
+    seen_tids: list[int] = []
+    tok = _FakeTokenizer()
+    sess = _FakeSession(logits=[1.0, 0.0])
+    local = LocalCrossEncoderBackend(session=sess, tokenizer=tok)
+    orig_ensure = local._ensure_loaded
+
+    def recording_ensure() -> tuple[Any, Any]:
+        seen_tids.append(threading.get_ident())
+        return orig_ensure()
+
+    monkeypatch.setattr(local, "_ensure_loaded", recording_ensure)
+    await local.predict(DecisionQuery(task="t", prompt="p", candidates=("A", "B")))
+    assert len(seen_tids) == 1
+    assert seen_tids[0] != main_tid

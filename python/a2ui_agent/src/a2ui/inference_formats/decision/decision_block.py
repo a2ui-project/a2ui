@@ -146,12 +146,15 @@ def _data_model_in(msg: Mapping[str, Any]) -> Mapping[str, Any] | Sequence[Any] 
 
 def decision_block_from_messages(
     messages: Sequence[AgentToRendererMessage],
+    *,
+    default_intent: str | None = None,
 ) -> DecisionBlock:
     """Reconstructs a decision block from rendered messages.
 
-    The round-trip is lossy: rendered messages carry no intent, so `intent`
-    is empty. The payload is the first data model any message writes and the
-    surface id comes from the first message that names one.
+    The round-trip is lossy: rendered messages carry no intent, so a synthetic
+    `Render <surface>` intent (or `default_intent` when supplied) is used. The
+    payload is the first data model any message writes and the surface id
+    comes from the first message that names one.
     """
     surface_id: str | None = None
     payload: Mapping[str, Any] | Sequence[Any] | None = None
@@ -160,8 +163,15 @@ def decision_block_from_messages(
             surface_id = _surface_id_in(msg)
         if payload is None:
             payload = _data_model_in(msg)
+    intent = (
+        default_intent
+        if default_intent is not None
+        else f"Render {surface_id or 'surface'}"
+    )
     return DecisionBlock(
-        intent="", payload=payload if payload is not None else {}, surface_id=surface_id
+        intent=intent,
+        payload=payload if payload is not None else {},
+        surface_id=surface_id,
     )
 
 

@@ -43,11 +43,14 @@ _BackendT = TypeVar("_BackendT", bound="_AsyncClosable")
 
 
 def _safe_nonneg_float(value: Any) -> float:
-    """Converts `value` to a non-negative float, returning 0.0 on conversion error."""
+    """Converts `value` to a finite non-negative float, returning 0.0 on invalid input."""
     try:
-        return max(0.0, float(value))
+        parsed = float(value)
     except (ValueError, TypeError):
         return 0.0
+    if not math.isfinite(parsed) or parsed <= 0.0:
+        return 0.0
+    return parsed
 
 
 def _normalize_probabilities(
@@ -67,6 +70,15 @@ def _normalize_probabilities(
     return {c: val / total for c, val in filtered.items()}
 
 
+def _fill_missing_logits(
+    logits: Mapping[str, float], candidates: Sequence[str]
+) -> dict[str, float]:
+    """Populates missing candidate logits with a low floor value."""
+    present = [logits[c] for c in candidates if c in logits]
+    floor = (min(present) - 10.0) if present else -20.0
+    return {c: logits.get(c, floor) for c in candidates}
+
+
 def _softmax_with_margin(
     logits: Mapping[str, float],
     candidates: Sequence[str],
@@ -76,13 +88,7 @@ def _softmax_with_margin(
     """Computes temperature-scaled softmax probabilities and top-2 logit margin."""
     if not candidates:
         return {}, 0.0
-    cand_logits = [logits[c] for c in candidates if c in logits]
-    if len(cand_logits) < len(candidates):
-        floor = (min(cand_logits) - 10.0) if cand_logits else -20.0
-        full_logits = {c: logits.get(c, floor) for c in candidates}
-    else:
-        full_logits = {c: logits[c] for c in candidates}
-
+    full_logits = _fill_missing_logits(logits, candidates)
     z_sorted = sorted(full_logits.values(), reverse=True)
     margin = (z_sorted[0] - z_sorted[1]) if len(z_sorted) >= 2 else float("inf")
     z_max = z_sorted[0]
@@ -96,36 +102,48 @@ def _softmax_with_margin(
     return probs, margin
 
 
+def _child_slot_clause(query: DecisionQuery, *, full_template: str) -> str | None:
+    """Formats the parent/slot clause when `query.task` is `child_component`."""
+    if query.task != "child_component":
+        return None
+    parent = query.context.get("parent_description") or query.context.get("parent")
+    slot = query.context.get("slot_description") or query.context.get("slot")
+    if parent and slot:
+        return full_template.format(parent=parent, slot=slot)
+    return f"Slot: {slot}" if slot else None
+
+
+def _pointers_summary(context: Mapping[str, Any], label: str) -> str | None:
+    """Formats the available payload pointers clause if present in `context`."""
+    pointers = context.get("pointers")
+    if isinstance(pointers, (list, tuple)) and pointers:
+        return f"{label}: {', '.join(str(p) for p in pointers)}"
+    return None
+
+
+def _candidate_description(context: Mapping[str, Any], candidate: str) -> str | None:
+    """Returns the description string for `candidate` from `context`, if any."""
+    cand_descs = context.get("candidate_descriptions")
+    if isinstance(cand_descs, Mapping) and cand_descs.get(candidate):
+        return str(cand_descs[candidate])
+    return None
+
+
 def _format_query_passage_pairs(
     query: DecisionQuery,
 ) -> tuple[str, list[str]]:
     """Formats DecisionQuery into (query_text, passage_texts) for cross-encoder scoring."""
-    query_parts: list[str] = [query.prompt]
-    if query.task == "child_component":
-        parent = query.context.get("parent_description") or query.context.get("parent")
-        slot = query.context.get("slot_description") or query.context.get("slot")
-        if parent and slot:
-            query_parts.append(f"Selecting child component for {parent}, slot {slot}")
-        elif slot:
-            query_parts.append(f"Slot: {slot}")
-    pointers = query.context.get("pointers")
-    if isinstance(pointers, (list, tuple)) and pointers:
-        query_parts.append(
-            f"Available data fields: {', '.join(str(p) for p in pointers)}"
-        )
-
-    query_text = ". ".join(query_parts)
-
-    cand_descs = query.context.get("candidate_descriptions", {})
-    passage_texts: list[str] = []
-    for cand in query.candidates:
-        desc = cand_descs.get(cand) if isinstance(cand_descs, Mapping) else None
-        if desc:
-            passage_texts.append(f"{cand}: {desc}")
-        else:
-            passage_texts.append(cand)
-
-    return query_text, passage_texts
+    slot_clause = _child_slot_clause(
+        query,
+        full_template="Selecting child component for {parent}, slot {slot}",
+    )
+    ptr_clause = _pointers_summary(query.context, "Available data fields")
+    query_parts = [p for p in (query.prompt, slot_clause, ptr_clause) if p]
+    passage_texts = [
+        f"{c}: {desc}" if (desc := _candidate_description(query.context, c)) else c
+        for c in query.candidates
+    ]
+    return ". ".join(query_parts), passage_texts
 
 
 def _format_step_zero_prompt(query: DecisionQuery) -> str:
@@ -242,6 +260,16 @@ class DecisionBackend(Protocol):
         """Predicts a probability distribution over query candidates."""
         ...
 
+    async def aclose(self) -> None:
+        """Releases resources owned by this backend."""
+        ...
+
+    async def __aenter__(self) -> DecisionBackend:
+        ...
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        ...
+
 
 class _AsyncClosable:
     """Mixin giving a backend `aclose()` and `async with` support.
@@ -253,6 +281,9 @@ class _AsyncClosable:
     async def aclose(self) -> None:
         """Releases resources owned by this backend. No-op by default."""
 
+    async def aclose_current_loop(self) -> None:
+        """Closes resources owned by the currently running event loop, if any."""
+
     async def __aenter__(self: _BackendT) -> _BackendT:
         return self
 
@@ -261,64 +292,81 @@ class _AsyncClosable:
 
 
 class _HttpClientOwner(_AsyncClosable):
-    """Mixin that lazily owns an `httpx.AsyncClient` bound to one event loop.
+    """Mixin that lazily owns an `httpx.AsyncClient` per active event loop.
 
     An `httpx.AsyncClient` opens connections on the loop that first uses it,
     so a client created on one loop fails when used from another (for
     example when `DecisionSynthesizer.synthesize_sync` runs synthesis on a
-    helper thread). The owned client is therefore re-created whenever the
-    running loop changes; the previous client is closed on its own loop when
-    that loop is still alive.
+    helper thread). Owned clients are keyed by their `AbstractEventLoop` so
+    concurrent loops do not overwrite each other's client, and temporary
+    loops can close their own client via `aclose_current_loop()`.
     """
 
     _client: httpx.AsyncClient | None
-    _owned_client: httpx.AsyncClient | None
-    _owned_client_loop: asyncio.AbstractEventLoop | None
+    _owned_clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient]
     _timeout_seconds: float
 
     def _init_http_client(
         self, client: httpx.AsyncClient | None, timeout_seconds: float
     ) -> None:
         self._client = client
-        self._owned_client = None
-        self._owned_client_loop = None
+        self._owned_clients = {}
         self._timeout_seconds = timeout_seconds
+
+    @property
+    def _owned_client(self) -> httpx.AsyncClient | None:
+        """Returns the client owned by the current loop, or the most recent one."""
+        if not self._owned_clients:
+            return None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return next(reversed(self._owned_clients.values()))
+        return self._owned_clients.get(loop)
+
+    def _sweep_closed_loops(self) -> None:
+        """Removes entries whose event loop has already been closed."""
+        closed = [lp for lp in self._owned_clients if lp.is_closed()]
+        for lp in closed:
+            self._owned_clients.pop(lp, None)
 
     def _get_client(self) -> httpx.AsyncClient:
         """Returns the caller-supplied client or a loop-local owned one."""
         if self._client is not None:
             return self._client
+        self._sweep_closed_loops()
         loop = asyncio.get_running_loop()
-        if self._owned_client is not None and self._owned_client_loop is not loop:
-            self._release_owned_client()
-        if self._owned_client is None:
-            self._owned_client = httpx.AsyncClient(timeout=self._timeout_seconds)
-            self._owned_client_loop = loop
-        return self._owned_client
+        client = self._owned_clients.get(loop)
+        if client is None or client.is_closed:
+            client = httpx.AsyncClient(timeout=self._timeout_seconds)
+            self._owned_clients[loop] = client
+        return client
 
-    def _release_owned_client(self) -> None:
-        """Detaches the owned client, closing it on its own loop when possible."""
-        stale, stale_loop = self._owned_client, self._owned_client_loop
-        self._owned_client = None
-        self._owned_client_loop = None
-        if stale is None or stale_loop is None or stale_loop.is_closed():
-            return
-        try:
-            asyncio.run_coroutine_threadsafe(stale.aclose(), stale_loop)
-        except RuntimeError:
-            pass
+    async def aclose_current_loop(self) -> None:
+        """Closes and removes the client owned by the currently running event loop."""
+        self._sweep_closed_loops()
+        loop = asyncio.get_running_loop()
+        client = self._owned_clients.pop(loop, None)
+        if client is not None and not client.is_closed:
+            await client.aclose()
 
     async def aclose(self) -> None:
-        """Closes the internally owned `httpx.AsyncClient` if one was created."""
-        if self._owned_client is None:
+        """Closes all internally owned `httpx.AsyncClient` instances."""
+        if not self._owned_clients:
             return
-        if self._owned_client_loop is asyncio.get_running_loop():
-            stale = self._owned_client
-            self._owned_client = None
-            self._owned_client_loop = None
-            await stale.aclose()
-        else:
-            self._release_owned_client()
+        current_loop = asyncio.get_running_loop()
+        items = list(self._owned_clients.items())
+        self._owned_clients.clear()
+        for loop, client in items:
+            if client.is_closed:
+                continue
+            if loop is current_loop or loop.is_closed():
+                await client.aclose()
+            else:
+                try:
+                    asyncio.run_coroutine_threadsafe(client.aclose(), loop)
+                except RuntimeError:
+                    pass
 
 
 def _get_adc_token_sync() -> str | None:
@@ -327,6 +375,7 @@ def _get_adc_token_sync() -> str | None:
         import google.auth
         import google.auth.transport.requests
 
+        creds: Any
         creds, _ = google.auth.default(
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
@@ -356,28 +405,20 @@ def _get_adc_token_sync() -> str | None:
 
 def _build_systemone_request(query: DecisionQuery, model: str) -> dict[str, Any]:
     """Builds a structured /v1/systemone choice request envelope."""
-    cand_descs = query.context.get("candidate_descriptions", {})
-    criteria: dict[str, str] = {}
-    for c in query.candidates:
-        if isinstance(cand_descs, Mapping) and cand_descs.get(c):
-            criteria[c] = str(cand_descs[c])
-        else:
-            criteria[c] = f"Candidate component or template: {c}"
-
-    state_parts: list[str] = [f"User intent: {query.prompt}"]
-    if query.task == "child_component":
-        parent = query.context.get("parent_description") or query.context.get("parent")
-        slot = query.context.get("slot_description") or query.context.get("slot")
-        if parent and slot:
-            state_parts.append(f"Parent container: {parent}. Slot: {slot}")
-        elif slot:
-            state_parts.append(f"Slot: {slot}")
-    pointers = query.context.get("pointers")
-    if isinstance(pointers, (list, tuple)) and pointers:
-        state_parts.append(
-            f"Payload data fields: {', '.join(str(p) for p in pointers)}"
+    criteria = {
+        c: (
+            _candidate_description(query.context, c)
+            or f"Candidate component or template: {c}"
         )
-
+        for c in query.candidates
+    }
+    slot_clause = _child_slot_clause(
+        query, full_template="Parent container: {parent}. Slot: {slot}"
+    )
+    ptr_clause = _pointers_summary(query.context, "Payload data fields")
+    state_parts = [
+        p for p in (f"User intent: {query.prompt}", slot_clause, ptr_clause) if p
+    ]
     return {
         "model": model,
         "state": ". ".join(state_parts),
@@ -385,13 +426,24 @@ def _build_systemone_request(query: DecisionQuery, model: str) -> dict[str, Any]
             "q": {
                 "type": "choice",
                 "instructions": (
-                    "Evaluate which candidate best satisfies the user intent and UI"
-                    " structure."
+                    "Evaluate which candidate best satisfies the user intent and"
+                    " UI structure."
                 ),
                 "criteria": criteria,
             }
         },
     }
+
+
+def _probability_margin(probabilities: Mapping[str, float]) -> float:
+    """Computes log-ratio margin between the top two probabilities."""
+    sorted_probs = sorted(probabilities.values(), reverse=True)
+    if len(sorted_probs) < 2:
+        return float("inf") if sorted_probs and sorted_probs[0] > 0.0 else 0.0
+    p0, p1 = sorted_probs[0], sorted_probs[1]
+    if p0 <= 0.0:
+        return 0.0
+    return float("inf") if p1 <= 0.0 else math.log(p0 / p1)
 
 
 def _parse_systemone_response(
@@ -402,29 +454,13 @@ def _parse_systemone_response(
     if not isinstance(answers, Mapping) or not answers:
         return {c: 0.0 for c in candidates}, True, 0.0
 
-    q_data = answers.get("q")
-    if not isinstance(q_data, Mapping):
-        first_val = next(iter(answers.values()), None)
-        q_data = first_val if isinstance(first_val, Mapping) else {}
-
+    first_val = answers.get("q") or next(iter(answers.values()), None)
+    q_data = first_val if isinstance(first_val, Mapping) else {}
     raw_probs = q_data.get("probabilities")
     probs_map = raw_probs if isinstance(raw_probs, Mapping) else {}
     probabilities = _normalize_probabilities(probs_map, candidates)
-
-    sorted_probs = sorted(probabilities.values(), reverse=True)
-    if len(sorted_probs) >= 2:
-        p0, p1 = sorted_probs[0], sorted_probs[1]
-        if p0 <= 0.0:
-            margin = 0.0
-        elif p1 <= 0.0:
-            margin = float("inf")
-        else:
-            margin = math.log(p0 / p1)
-    else:
-        margin = float("inf") if sorted_probs and sorted_probs[0] > 0.0 else 0.0
-
     calibrated = "confidence" in q_data or bool(data.get("calibrated", True))
-    return probabilities, calibrated, margin
+    return probabilities, calibrated, _probability_margin(probabilities)
 
 
 class JevHttpBackend(_HttpClientOwner):
@@ -453,6 +489,7 @@ class JevHttpBackend(_HttpClientOwner):
         self._init_http_client(client, timeout_seconds)
         self._adc_token: str | None = None
         self._adc_expires_at: float = 0.0
+        self._adc_lock = asyncio.Lock()
 
     async def _resolve_adc_token(self) -> str | None:
         """Returns this instance's cached ADC token, refreshing it when expired."""
@@ -460,12 +497,16 @@ class JevHttpBackend(_HttpClientOwner):
         if self._adc_token and now < self._adc_expires_at:
             return self._adc_token
 
-        token = await asyncio.to_thread(_get_adc_token_sync)
-        if token:
-            self._adc_token = token
-            self._adc_expires_at = now + _ADC_TOKEN_TTL_SECONDS
-            return token
-        return None
+        async with self._adc_lock:
+            now = time.time()
+            if self._adc_token and now < self._adc_expires_at:
+                return self._adc_token
+            token = await asyncio.to_thread(_get_adc_token_sync)
+            if token:
+                self._adc_token = token
+                self._adc_expires_at = now + _ADC_TOKEN_TTL_SECONDS
+                return token
+            return None
 
     async def _resolve_auth_token(self) -> str | None:
         """Resolves bearer token string from auth argument or environment."""
@@ -732,7 +773,7 @@ class LocalCrossEncoderBackend(_AsyncClosable):
 
         try:
             from huggingface_hub import hf_hub_download
-            import onnxruntime as ort
+            import onnxruntime as ort  # type: ignore[import-not-found]
             from tokenizers import Tokenizer
         except ImportError as err:
             raise ImportError(
@@ -767,6 +808,34 @@ class LocalCrossEncoderBackend(_AsyncClosable):
 
         return self._session, self._tokenizer
 
+    def _infer_sync(
+        self, query: DecisionQuery
+    ) -> tuple[dict[str, float], float | None]:
+        """Loads the ONNX model if needed and scores candidates synchronously."""
+        import numpy as np
+
+        session, tokenizer = self._ensure_loaded()
+        query_text, passage_texts = _format_query_passage_pairs(query)
+        encodings = tokenizer.encode_batch([(query_text, p) for p in passage_texts])
+        feed: dict[str, Any] = {
+            "input_ids": np.array([e.ids for e in encodings], dtype=np.int64),
+            "attention_mask": np.array(
+                [e.attention_mask for e in encodings], dtype=np.int64
+            ),
+        }
+        input_names = [inp.name for inp in getattr(session, "get_inputs", lambda: ())()]
+        if "token_type_ids" in input_names:
+            feed["token_type_ids"] = np.array(
+                [e.type_ids for e in encodings], dtype=np.int64
+            )
+        logits = np.atleast_1d(np.squeeze(session.run(None, feed)[0]).astype(float))
+        token_logits = {
+            cand: float(logits[i]) for i, cand in enumerate(query.candidates)
+        }
+        return _softmax_with_margin(
+            token_logits, query.candidates, temperature=self.temperature
+        )
+
     async def predict(self, query: DecisionQuery) -> DecisionDistribution:
         """Scores candidates in-process using the ONNX cross-encoder."""
         if not query.candidates:
@@ -782,43 +851,7 @@ class LocalCrossEncoderBackend(_AsyncClosable):
                 top_logit_margin=float("inf"),
             )
 
-        session, tokenizer = self._ensure_loaded()
-        query_text, passage_texts = _format_query_passage_pairs(query)
-
-        def _infer() -> tuple[dict[str, float], float | None]:
-            import numpy as np
-
-            pairs = [(query_text, p) for p in passage_texts]
-            encodings = tokenizer.encode_batch(pairs)
-            input_ids = np.array([e.ids for e in encodings], dtype=np.int64)
-            attention_mask = np.array(
-                [e.attention_mask for e in encodings], dtype=np.int64
-            )
-
-            feed: dict[str, Any] = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-            }
-            if hasattr(session, "get_inputs"):
-                model_input_names = [inp.name for inp in session.get_inputs()]
-                if "token_type_ids" in model_input_names:
-                    feed["token_type_ids"] = np.array(
-                        [e.type_ids for e in encodings], dtype=np.int64
-                    )
-
-            outputs = session.run(None, feed)
-            raw_logits = outputs[0]
-            logits = np.squeeze(raw_logits).astype(float)
-            if logits.ndim == 0:
-                logits = np.array([float(logits)])
-            token_logits = {
-                cand: float(logits[i]) for i, cand in enumerate(query.candidates)
-            }
-            return _softmax_with_margin(
-                token_logits, query.candidates, temperature=self.temperature
-            )
-
-        probs, margin = await asyncio.to_thread(_infer)
+        probs, margin = await asyncio.to_thread(self._infer_sync, query)
         return DecisionDistribution(
             probabilities=probs,
             calibrated=self.calibrated,

@@ -21,16 +21,16 @@ from typing import Any
 
 import pytest
 
-from a2ui.inference_formats.decision.calibration import (
+from a2ui.inference_formats.decision import (
     LabeledDecisionExample,
-    SynthesizerLike,
-    calibrate_thresholds,
-    compute_bayes_optimal_threshold,
-)
-from a2ui.inference_formats.decision.models import (
+    SurfaceTemplate,
     SynthesisConfig,
     SynthesisOutput,
     SynthesisStage,
+    SynthesizerLike,
+    TemplateRegistry,
+    calibrate_thresholds,
+    compute_bayes_optimal_threshold,
 )
 
 
@@ -324,3 +324,84 @@ async def test_calibrate_thresholds_restores_config_and_matches_template_root() 
     assert res.achieved_precision == pytest.approx(1.0)
     assert res.achieved_coverage == pytest.approx(0.5)
     assert res.recommended_abstain_threshold == pytest.approx(0.40)
+
+
+@pytest.mark.asyncio
+async def test_calibrate_thresholds_stage2_shadowing_and_threshold_1_0_clamp() -> None:
+    """Verifies M7: low-confidence wrong template does not shadow Stage 2, and 1.0 threshold clamps cleanly."""
+    from a2ui.core import Catalog
+    from a2ui.inference_formats.decision import (
+        DecisionSynthesizer,
+        DeterministicMockBackend,
+    )
+
+    cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/catalogs/m7/v1",
+        "protocolVersion": "1.0",
+        "components": {
+            "RightWidget": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "RightWidget"},
+                    "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+                },
+                "required": ["component", "label"],
+            },
+            "OtherWidget": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "OtherWidget"},
+                    "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+                },
+                "required": ["component", "label"],
+            },
+        },
+    })
+    registry = TemplateRegistry()
+    registry.register(
+        SurfaceTemplate(
+            template_id="low_conf_tpl",
+            description="Unrelated template",
+            surface_id="s1",
+            catalog_id=cat.catalog_id,
+            protocol_version="v1.0",
+            components=(
+                {
+                    "id": "root",
+                    "component": "OtherWidget",
+                    "label": {"@path": "/label"},
+                },
+            ),
+            required_pointers=("/label",),
+        )
+    )
+    backend = DeterministicMockBackend(
+        scripted={
+            "template_select": {"low_conf_tpl": 0.60},
+            "root_component": {"RightWidget": 0.92, "OtherWidget": 0.08},
+        }
+    )
+    synth = DecisionSynthesizer([cat], backend, registry=registry)
+    dataset = [
+        LabeledDecisionExample(
+            intent="show right widget",
+            payload={"label": "ok"},
+            expected_root_component="RightWidget",
+        )
+    ]
+    res = await calibrate_thresholds(synth, dataset, target_precision=0.95)
+    assert res.achieved_coverage == pytest.approx(1.0)
+    assert res.achieved_precision == pytest.approx(1.0)
+
+    # Candidate threshold 1.0 must keep recommended_mutable_threshold >= recommended_template_threshold.
+    res_one = await calibrate_thresholds(
+        synth, dataset, target_precision=0.95, thresholds=[1.0]
+    )
+    assert res_one.recommended_template_threshold == pytest.approx(1.0)
+    assert res_one.recommended_mutable_threshold == pytest.approx(1.0)
+    SynthesisConfig(
+        template_confidence_threshold=res_one.recommended_template_threshold,
+        mutable_confidence_threshold=res_one.recommended_mutable_threshold,
+        abstain_threshold=res_one.recommended_abstain_threshold,
+    )

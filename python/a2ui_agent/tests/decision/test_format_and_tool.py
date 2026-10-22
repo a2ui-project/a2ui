@@ -550,8 +550,15 @@ def test_processor_with_decision_format_factory() -> None:
     back = parser.decompile(messages)
     assert back.startswith("<a2ui>") and back.endswith("</a2ui>")
     recovered = json.loads(back[len("<a2ui>") : -len("</a2ui>")])
-    assert recovered == {"intent": "", "payload": PAYLOAD, "surfaceId": "s1"}
+    assert recovered == {
+        "intent": "Render s1",
+        "payload": PAYLOAD,
+        "surfaceId": "s1",
+    }
     assert decision_block_from_messages(messages).surface_id == "s1"
+    # Decompiled output can be parsed and compiled back without error (H3).
+    round_trip_parts = processor.parse_response(back)
+    assert any(isinstance(p, A2uiPart) for p in round_trip_parts)
 
 
 def test_decision_parser_errors() -> None:
@@ -574,7 +581,8 @@ def test_decision_parser_errors() -> None:
     assert lenient.has_format_content("<a2ui>{}</a2ui>", complete=True)
     assert not lenient.has_format_content("plain text")
 
-    # A list of blocks renders every surface.
+    # A list of blocks renders every surface, and omits duplicate createSurface
+    # when surfaceId is omitted or reused (H4).
     two = lenient.compile(json.dumps([BLOCK, {**BLOCK, "surfaceId": "s2"}]))
     ids = {
         d["createSurface"]["surfaceId"]
@@ -582,6 +590,100 @@ def test_decision_parser_errors() -> None:
         if "createSurface" in d
     }
     assert ids == {"s1", "s2"}
+    validate_payload([catalog], two)
+
+    unnamed_pair = lenient.compile(
+        json.dumps([
+            {"intent": "First", "payload": PAYLOAD},
+            {"intent": "Second", "payload": PAYLOAD},
+        ])
+    )
+    unnamed_ids = [
+        d["createSurface"]["surfaceId"]
+        for d in to_message_dicts(unnamed_pair)
+        if "createSurface" in d
+    ]
+    assert unnamed_ids == ["main_1", "main_2"]
+    validate_payload([catalog], unnamed_pair)
+
+    replaced = lenient.compile(
+        json.dumps([
+            {"intent": "First", "payload": PAYLOAD, "surfaceId": "s1"},
+            {
+                "intent": "Second",
+                "payload": {"serviceName": "auth", "latencyMs": 9},
+                "surfaceId": "s1",
+            },
+        ])
+    )
+    create_count = sum(1 for d in to_message_dicts(replaced) if "createSurface" in d)
+    assert create_count == 1
+    validate_payload([catalog], replaced)
+
+
+@pytest.mark.asyncio
+async def test_prompt_generator_validates_examples_and_factory_aclose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifies H3 (example validation on generate), Q1 (factory aclose), M2 (protocol aclose), and H1 (synthesize_sync client cleanup)."""
+    from a2ui.core import A2uiValidationError
+    from a2ui.inference_formats.decision import DecisionBackend
+    from a2ui.parser.messages import to_message_models
+
+    assert hasattr(DecisionBackend, "aclose")
+    assert hasattr(DecisionBackend, "__aenter__")
+    assert hasattr(DecisionBackend, "__aexit__")
+
+    catalog = _make_catalog()
+    bad_example = to_message_models([
+        {
+            "version": "v1.0",
+            "createSurface": {"surfaceId": "s1", "catalogId": CATALOG_ID},
+        },
+        {
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "root", "component": "UnknownWidget"}],
+            },
+        },
+    ])
+    gen_bad = DecisionPromptGenerator([catalog], examples=[bad_example])
+    with pytest.raises(A2uiValidationError):
+        gen_bad.generate()
+
+    valid_example = _badge_template("s1").render_messages(PAYLOAD)
+    gen_ok = DecisionPromptGenerator([catalog], examples=[valid_example])
+    prompt_text = gen_ok.generate()
+    assert '"intent": "Render s1"' in prompt_text
+
+    # DecisionFormatFactory supports async with and aclose() (Q1).
+    monkeypatch.setenv("A2UI_DECISION_BACKEND", "mock")
+    async with DecisionFormatFactory() as factory:
+        fmt = factory.create_format([catalog])
+        assert fmt.synthesizer.backend is factory.backend
+
+    # H1: synthesize_sync closes temporary loop clients on JevHttpBackend.
+    created_clients: list[httpx.AsyncClient] = []
+    real_async_client = httpx.AsyncClient
+
+    def tracking_client(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                200, json={"probabilities": {"TelemetryBadge": 0.95}}
+            )
+        )
+        c = real_async_client(*args, transport=transport, **kwargs)
+        created_clients.append(c)
+        return c
+
+    monkeypatch.setattr(httpx, "AsyncClient", tracking_client)
+    http_backend = JevHttpBackend("http://local/predict")
+    synth = DecisionSynthesizer([catalog], http_backend)
+    synth.synthesize_sync("Show telemetry", PAYLOAD)
+    synth.synthesize_sync("Show telemetry", PAYLOAD)
+    assert len(created_clients) == 2
+    assert all(c.is_closed for c in created_clients)
 
 
 def test_decision_format_shares_synthesizer_and_default_surface() -> None:

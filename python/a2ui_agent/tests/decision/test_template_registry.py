@@ -19,9 +19,10 @@ from __future__ import annotations
 import pytest
 
 from a2ui.core import A2uiValidationError
-from a2ui.inference_formats.decision.models import SynthesisOutput, SynthesisStage
-from a2ui.inference_formats.decision.template_registry import (
+from a2ui.inference_formats.decision import (
     SurfaceTemplate,
+    SynthesisOutput,
+    SynthesisStage,
     TemplateRegistry,
 )
 from a2ui.parser.messages import to_message_dicts, to_message_models
@@ -108,14 +109,12 @@ class TestSurfaceTemplate:
             "version": "v0.9",
             "updateComponents": {
                 "surfaceId": "metrics_surface",
-                "components": [
-                    {
-                        "id": "root",
-                        "component": "MetricGauge",
-                        "label": "CPU Usage",
-                        "value": {"path": "/cpu"},
-                    }
-                ],
+                "components": [{
+                    "id": "root",
+                    "component": "MetricGauge",
+                    "label": "CPU Usage",
+                    "value": {"path": "/cpu"},
+                }],
             },
         }
 
@@ -247,38 +246,34 @@ class TestTemplateRegistry:
 
     def test_promote_synthesized_registers_reusable_template(self) -> None:
         registry = TemplateRegistry()
-        raw_messages = to_message_models(
-            [
-                {
-                    "version": "v1.0",
-                    "createSurface": {
-                        "surfaceId": "synth_surface",
-                        "catalogId": "https://example.com/catalogs/finance/v1",
-                    },
+        raw_messages = to_message_models([
+            {
+                "version": "v1.0",
+                "createSurface": {
+                    "surfaceId": "synth_surface",
+                    "catalogId": "https://example.com/catalogs/finance/v1",
                 },
-                {
-                    "version": "v1.0",
-                    "updateComponents": {
-                        "surfaceId": "synth_surface",
-                        "components": [
-                            {
-                                "id": "root",
-                                "component": "TickerCard",
-                                "symbol": {"@path": "/ticker"},
-                            }
-                        ],
-                    },
+            },
+            {
+                "version": "v1.0",
+                "updateComponents": {
+                    "surfaceId": "synth_surface",
+                    "components": [{
+                        "id": "root",
+                        "component": "TickerCard",
+                        "symbol": {"@path": "/ticker"},
+                    }],
                 },
-                {
-                    "version": "v1.0",
-                    "updateDataModel": {
-                        "surfaceId": "synth_surface",
-                        "path": "/",
-                        "value": {"ticker": "GOOG"},
-                    },
+            },
+            {
+                "version": "v1.0",
+                "updateDataModel": {
+                    "surfaceId": "synth_surface",
+                    "path": "/",
+                    "value": {"ticker": "GOOG"},
                 },
-            ]
-        )
+            },
+        ])
         output = SynthesisOutput(
             stage=SynthesisStage.FAST_1PASS_LEAF,
             messages=raw_messages,
@@ -322,3 +317,48 @@ class TestTemplateRegistry:
             registry.promote_synthesized(
                 "invalid_promotion", "Should fail", abstain_output
             )
+
+    def test_promote_synthesized_normalizes_v08_surface_update_to_v09(
+        self,
+    ) -> None:
+        registry = TemplateRegistry()
+        v08_messages = to_message_models([
+            {
+                "beginRendering": {
+                    "surfaceId": "v08_surface",
+                    "catalogId": "https://example.com/catalogs/ops/v1",
+                    "root": "root",
+                },
+            },
+            {
+                "surfaceUpdate": {
+                    "surfaceId": "v08_surface",
+                    "components": [{
+                        "id": "root",
+                        "component": {"MetricGauge": {"value": {"path": "/cpu"}}},
+                    }],
+                },
+            },
+        ])
+        output = SynthesisOutput(
+            stage=SynthesisStage.FAST_1PASS_LEAF,
+            messages=v08_messages,
+            confidence=0.90,
+            entropy=0.10,
+        )
+        promoted = registry.promote_synthesized(
+            "from_v08", "Promoted from v0.8", output, required_pointers=["/cpu"]
+        )
+        rendered = promoted.render_messages({"cpu": 55.0})
+        rendered_dicts = to_message_dicts(rendered)
+        assert [m["version"] for m in rendered_dicts] == ["v0.9", "v0.9", "v0.9"]
+        assert rendered_dicts[0]["createSurface"]["surfaceId"] == "v08_surface"
+        assert (
+            rendered_dicts[1]["updateComponents"]["components"][0]["component"]
+            == "MetricGauge"
+        )
+
+        # Also verify explicit protocol_version="v0.8" on SurfaceTemplate normalizes to v0.9.
+        explicit_v08 = _make_v09_template("explicit_v08", protocol_version="v0.8")
+        v08_dicts = to_message_dicts(explicit_v08.render_messages({"cpu": 10}))
+        assert [m["version"] for m in v08_dicts] == ["v0.9", "v0.9", "v0.9"]

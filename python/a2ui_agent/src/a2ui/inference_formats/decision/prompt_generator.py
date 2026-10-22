@@ -191,7 +191,8 @@ class DecisionPromptGenerator(PromptGenerator):
         """Renders messages as a wrapped decision block.
 
         Format-specific (not part of `PromptGenerator`): only the data model
-        survives, so `intent` is empty. See `decision_block_from_messages`.
+        and surface id survive, with a synthetic `Render <surface>` intent.
+        See `decision_block_from_messages`.
         """
         block = decision_block_from_messages(a2ui_payload)
         return self.wrap_block(block)
@@ -208,7 +209,7 @@ class DecisionPromptGenerator(PromptGenerator):
         catalog_inst = self.generate_catalog_instructions(include_schema=True)
         if catalog_inst:
             parts.append(catalog_inst)
-        examples = self.generate_examples()
+        examples = self.generate_examples(validate=True)
         if examples:
             parts.append(f"### Examples:\n{examples}")
         return "\n\n".join(parts)
