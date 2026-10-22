@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added `SurfaceComponentsModel.insertComponent`, which adds a component at
+  a given position in the model's order rather than at the end, for putting
+  a component back where it was, and `insertComponents`, which adds several
+  at their positions in one pass over the model.
+- Added `SurfaceGroupModel.detachSurface`, which removes a surface from the
+  group without disposing of it and returns it. Listeners see it as a
+  deletion; `addSurface` can put the same object back, as when a deletion is
+  undone.
+- Added `SurfaceComponentsModel.saveReferenceFields` and
+  `restoreReferenceFields`, which save and put back the fields the model
+  reads child references through, which `MessageProcessor` replaces on each
+  `updateComponents`, so undoing an update can restore them too.
 - Extracted `ComponentGraphBound` for incremental `SurfaceComponentsModel`
   component graph checks and optimized its initial height traversal to linear
   time.
@@ -17,6 +29,9 @@
   the message that passed the check, and a list or map the two hold at the
   same place is not checked again, so a message that grows as it streams is
   checked for what it gained.
+- Exported `checkDuplicateComponentIds`, which throws `A2uiIntegrityError`
+  when a batch of components names the same id twice, or names an id of an
+  earlier batch of the same message.
 
 ## 0.3.0
 

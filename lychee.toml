@@ -16,11 +16,11 @@
 # Used by the "Verify Markdown links" step in .github/workflows/docs.yml.
 # See https://lychee.cli.rs/usage/config/
 
-# HTTP status codes treated as success. 403/429 are frequent false negatives
+# HTTP status codes treated as success. 403/408/429 are frequent false negatives
 # from sites that block or throttle automated checkers rather than real breakage.
 # 503 is how github.com throttles requests for /blob/ pages from CI, even with a
 # token: on each run a different set of valid links gets it.
-accept = [200, 206, 403, 429, 503]
+accept = [200, 206, 403, 408, 429, 503]
 
 # Skip mailto: links (this is lychee's default; stated explicitly for clarity).
 include_mail = false
@@ -49,7 +49,10 @@ exclude = [
   "aistudio\\.google\\.com",
   "opal\\.google",
   "gemini\\.google\\.com",
-  "aistudio\\.google\\.com",
+  # Dynamic badge SVG endpoints on shields.io frequently return 408/5xx when
+  # upstream registries throttle them; the surrounding package links (npmjs.com,
+  # pypi.org, pub.dev) are still checked directly.
+  "img\\.shields\\.io",
   # Known-dead external references (verified 404, no published replacement).
   # Excluded to keep CI green; drop the referencing content if gone for good.
   "github\\.com/orgs/community/discussions/187776",
