@@ -342,7 +342,7 @@ class ChatSession extends ChangeNotifier {
   ///
   /// An error already reported since the current turn started is ignored.
   void _report(A2uiRendererError reported) {
-    final A2uiRendererError error = reported.details == null
+    final error = reported.details == null
         ? reported
         : A2uiRendererError(
             code: reported.code,
