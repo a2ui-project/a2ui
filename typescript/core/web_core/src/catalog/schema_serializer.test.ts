@@ -26,6 +26,7 @@ import {A2uiText as V10Text} from '../catalogs/basic/v1/components/index.js';
 import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js';
 import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
+import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {DEFAULT_PROTOCOL_VERSION} from './schema_loader.js';
 import {spec, specDef} from './spec_annotations.js';
@@ -373,6 +374,239 @@ describe('Catalog.validationSchema', () => {
     catalog.toJson();
     assert.strictEqual(JSON.stringify(catalog.validationSchema), before);
   });
+});
+
+describe('union export', () => {
+  const OVERLAPPING_BRANCHES = [{type: 'string', enum: ['md', 'lg']}, {type: 'string'}];
+
+  /** Whether the catalog's `Box` component accepts `radius`. */
+  function acceptsRadius(
+    catalog: {readonly components: ReadonlyMap<string, ComponentApi>},
+    radius: unknown,
+  ): boolean {
+    return catalog.components.get('Box')!.schema.safeParse({radius}).success;
+  }
+
+  /** The `radius` property of the `Box` component in a catalog document. */
+  function radiusSchema(document: Record<string, any>): Record<string, unknown> {
+    return document.components.Box.properties.radius;
+  }
+
+  /** A catalog document with a `Box` whose `radius` is the given union. */
+  function boxDocument(version: string, radius: Record<string, unknown>): Record<string, any> {
+    return {
+      catalogId: 'https://example.org/catalog.json',
+      protocolVersion: version,
+      components: {
+        Box: {
+          type: 'object',
+          properties: {component: {const: 'Box'}, radius},
+          required: ['component', 'radius'],
+          unevaluatedProperties: false,
+        },
+      },
+      $defs: {
+        anyComponent: {
+          oneOf: [{$ref: '#/components/Box'}],
+          discriminator: {propertyName: 'component'},
+        },
+        anyFunction: {not: {}},
+      },
+    };
+  }
+
+  for (const version of ['v0.9', 'v1.0']) {
+    it(`exports z.union as anyOf and keeps its accepted values on reload in ${version}`, () => {
+      const schema = z.object({radius: z.union([z.enum(['md', 'lg']), z.string()])});
+      const original = new Catalog('https://example.org/catalog.json', version, [
+        {name: 'Box', schema},
+      ]);
+      const document = original.toJson();
+      assert.deepStrictEqual(radiusSchema(document), {anyOf: OVERLAPPING_BRANCHES});
+
+      const reloaded = Catalog.fromJson(document);
+      for (const catalog of [original, reloaded]) {
+        assert.strictEqual(acceptsRadius(catalog, 'md'), true);
+        assert.strictEqual(acceptsRadius(catalog, '12px'), true);
+        assert.strictEqual(acceptsRadius(catalog, false), false);
+      }
+      const validation = original.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, {anyOf: OVERLAPPING_BRANCHES});
+    });
+
+    it(`keeps an authored oneOf exclusive and writes it back as oneOf in ${version}`, () => {
+      const document = boxDocument(version, {oneOf: OVERLAPPING_BRANCHES});
+      const loaded = Catalog.fromJson(document);
+      assert.strictEqual(acceptsRadius(loaded, 'md'), false, 'md matches both branches');
+      assert.strictEqual(acceptsRadius(loaded, '12px'), true);
+      assert.strictEqual(acceptsRadius(loaded, false), false);
+      assert.deepStrictEqual(radiusSchema(loaded.toJson()), {oneOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(Catalog.fromJson(loaded.toJson()).toJson(), loaded.toJson());
+
+      // A catalog defined in code from the loaded schema keeps it exclusive.
+      const reused = new Catalog('https://example.org/reused.json', version, [
+        {name: 'Box', schema: loaded.components.get('Box')!.schema},
+      ]);
+      assert.deepStrictEqual(radiusSchema(reused.toJson()), {oneOf: OVERLAPPING_BRANCHES});
+      const validation = reused.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, {oneOf: OVERLAPPING_BRANCHES});
+      const reloaded = Catalog.fromJson(reused.toJson());
+      assert.strictEqual(acceptsRadius(reloaded, 'md'), false);
+      assert.strictEqual(acceptsRadius(reloaded, '12px'), true);
+    });
+
+    it(`keeps an authored anyOf inclusive in ${version}`, () => {
+      const document = boxDocument(version, {anyOf: OVERLAPPING_BRANCHES});
+      const loaded = Catalog.fromJson(document);
+      assert.strictEqual(acceptsRadius(loaded, 'md'), true);
+      assert.deepStrictEqual(radiusSchema(loaded.toJson()), {anyOf: OVERLAPPING_BRANCHES});
+    });
+
+    it(`writes a specification-shaped union as oneOf only when its branches are disjoint in ${version}`, () => {
+      const boxSchema = spec(
+        z
+          .object({
+            radius: z.union([z.enum(['md', 'lg']), z.string()]),
+            size: z.union([z.number(), z.object({token: z.string()}).strict()]),
+          })
+          .strict(),
+        {mixins: []},
+      );
+      const catalog = new Catalog('https://example.org/shaped.json', version, [
+        {name: 'Box', schema: boxSchema},
+      ]);
+      const document = catalog.toJson();
+      const box = (document.components as Record<string, any>).Box;
+      // A v1.0 definition without mixins lists its properties itself; a v0.9
+      // one lists them in its `allOf`.
+      const properties = (box.properties ??
+        box.allOf.find((m: any) => m.properties).properties) as Record<string, unknown>;
+      assert.deepStrictEqual(properties.radius, {anyOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(properties.size, {
+        oneOf: [
+          {type: 'number'},
+          {
+            type: 'object',
+            properties: {token: {type: 'string'}},
+            required: ['token'],
+            additionalProperties: false,
+          },
+        ],
+      });
+      const reloaded = Catalog.fromJson(document).components.get('Box')!.schema;
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: 1}).success, true);
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: {token: 'x'}}).success, true);
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: 'x'}).success, false);
+    });
+
+    it(`keeps a loaded oneOf with a description and default exclusive when reused in ${version}`, () => {
+      const radius = {
+        oneOf: OVERLAPPING_BRANCHES,
+        description: 'The corner radius.',
+        default: '12px',
+      };
+      const loaded = Catalog.fromJson(boxDocument(version, radius));
+      assert.strictEqual(acceptsRadius(loaded, 'md'), false);
+      assert.strictEqual(acceptsRadius(loaded, '12px'), true);
+
+      const reused = new Catalog('https://example.org/reused.json', version, [
+        {name: 'Box', schema: loaded.components.get('Box')!.schema},
+      ]);
+      assert.deepStrictEqual(radiusSchema(reused.toJson()), radius);
+      const validation = reused.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, radius);
+    });
+
+    it(`writes function arguments as anyOf, or as oneOf when exclusive, in ${version}`, () => {
+      const branches = [z.enum(['md', 'lg']), z.string()] as const;
+      const fn = createFunctionImplementation(
+        {
+          name: 'round',
+          returnType: 'string',
+          schema: z.object({
+            inclusive: z.union(branches),
+            exclusive: exclusiveUnion(branches),
+          }),
+        },
+        () => '',
+      );
+      const catalog = new Catalog('https://example.org/functions.json', version, [], [fn]);
+      const args = (catalog.toJson().functions as Record<string, any>).round.properties.args;
+      assert.deepStrictEqual(args.properties.inclusive, {anyOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(args.properties.exclusive, {oneOf: OVERLAPPING_BRANCHES});
+
+      const reloaded = Catalog.fromJson(catalog.toJson()).functions.get('round')!.schema;
+      assert.strictEqual(reloaded.safeParse({inclusive: 'md', exclusive: '12px'}).success, true);
+      assert.strictEqual(reloaded.safeParse({inclusive: 'md', exclusive: 'md'}).success, false);
+    });
+
+    describe(`specification-shaped union keyword in ${version}`, () => {
+      /** A branch whose definition is exactly `json`. */
+      const raw = (json: Record<string, unknown>) => spec(z.any(), {keywords: json});
+      /** A branch that references a definition of the common types. */
+      const commonRef = (name: string) => z.any().describe(`REF:#/$defs/${name}`);
+
+      /** The keyword the document writes for a shaped component's `value` union. */
+      function unionKeyword(union: z.ZodTypeAny): string {
+        const schema = spec(z.object({value: union}).strict(), {mixins: []});
+        const catalog = new Catalog('https://example.org/shaped.json', version, [
+          {name: 'Box', schema},
+        ]);
+        const box = (catalog.toJson().components as Record<string, any>).Box;
+        const properties = box.properties ?? box.allOf.find((m: any) => m.properties).properties;
+        const keywords = Object.keys(properties.value).filter(k => k === 'oneOf' || k === 'anyOf');
+        assert.strictEqual(keywords.length, 1, JSON.stringify(properties.value));
+        return keywords[0];
+      }
+
+      const overlapping: Record<string, z.ZodTypeAny> = {
+        'integer and number': z.union([z.number().int(), z.number()]),
+        'open objects requiring different keys': z.union([
+          z.object({a: z.string()}),
+          z.object({b: z.string()}),
+        ]),
+        "a closed object that allows the other's required key": z.union([
+          z.object({a: z.string(), b: z.string().optional()}).strict(),
+          z.object({a: z.string()}),
+        ]),
+        'an enum and a const that share a value': z.union([z.enum(['a', 'b']), z.literal('b')]),
+        'a reference to an unknown common type': z.union([commonRef('NoSuchDef'), z.number()]),
+        "a catalog's own definition named like a common type": z.union([
+          raw({$ref: '#/$defs/DataBinding'}),
+          z.number(),
+        ]),
+        'object values that differ only in key order': z.union([
+          raw({enum: [{a: 1, b: 2}]}),
+          raw({const: {b: 2, a: 1}}),
+        ]),
+        'three branches of which two overlap': z.union([z.number(), z.string(), z.enum(['a'])]),
+      };
+      for (const [name, union] of Object.entries(overlapping)) {
+        it(`writes anyOf for ${name}`, () => assert.strictEqual(unionKeyword(union), 'anyOf'));
+      }
+
+      const disjoint: Record<string, z.ZodTypeAny> = {
+        'consts with no shared value': z.union([z.literal('a'), z.literal('b')]),
+        'enums with no shared value': z.union([z.enum(['a', 'b']), z.enum(['c'])]),
+        'a closed object and a branch requiring a key it does not allow': z.union([
+          z.object({a: z.string()}).strict(),
+          z.object({b: z.string()}),
+        ]),
+        'open objects whose required discriminators differ': z.union([
+          z.object({kind: z.literal('a'), x: z.string()}),
+          z.object({kind: z.literal('b'), y: z.string()}),
+        ]),
+        'a discriminated union': z.discriminatedUnion('kind', [
+          z.object({kind: z.literal('a')}),
+          z.object({kind: z.literal('b')}),
+        ]),
+        'a common type reference and a number': z.union([commonRef('DataBinding'), z.number()]),
+      };
+      for (const [name, union] of Object.entries(disjoint)) {
+        it(`writes oneOf for ${name}`, () => assert.strictEqual(unionKeyword(union), 'oneOf'));
+      }
+    });
+  }
 });
 
 describe('Catalog.fromJson', () => {
