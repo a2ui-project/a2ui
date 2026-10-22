@@ -20,6 +20,11 @@ import Testing
 
 /// Runs the shared `conformance/core/expressions.yaml` suite.
 struct ExpressionsConformanceTests {
+  /// `validate` cases whose output depends on the host locale until #3144 is fixed.
+  private static let hostLocaleDependent: Set<String> = [
+    "test_expression_parser_nested_function_call"
+  ]
+
   private let parser = ExpressionParser()
 
   @Test func expressionsConformance() throws {
@@ -88,6 +93,120 @@ struct ExpressionsConformanceTests {
     }
 
     #expect(executed > 0, "No cases of expressions.yaml could be executed")
+  }
+
+  /// Runs the `validate` cases of `core/expressions.yaml`, which render `formatString` templates
+  /// on a v1.0 surface and compare the resolved component properties.
+  @MainActor
+  @Test func expressionsValidateConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/expressions.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)
+
+    var executed = 0
+
+    for testCase in testCases where testCase.action == "validate" {
+      executed += 1
+      if Self.hostLocaleDependent.contains(testCase.name) {
+        // Only a locale mismatch is known. Raw directive JSON (`{"call":…}`) in the output is a
+        // real interpolation failure and must still fail the test.
+        try withKnownIssue("#3144: formatCurrency uses the host locale", isIntermittent: true) {
+          try runValidateCase(testCase)
+        } matching: { issue in
+          !String(describing: issue).contains("{\"")
+        }
+      } else {
+        try runValidateCase(testCase)
+      }
+    }
+
+    #expect(executed > 0, "No validate case of expressions.yaml could be executed")
+  }
+
+  @MainActor
+  private func runValidateCase(_ testCase: ConformanceTestCase) throws {
+    let processor = MessageProcessor(
+      catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
+      validationConfig: ValidationConfig(targetVersion: "v1.0")
+    )
+    // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
+    // rather than being thrown out of `processMessages`.
+    var capturedErrors: [RendererError] = []
+    processor.outboundListener = { message in
+      MainActor.assumeIsolated {
+        if case .error(let error) = message {
+          capturedErrors.append(error)
+        }
+      }
+    }
+
+    for (stepIndex, step) in testCase.steps.enumerated() {
+      guard let payload = step.payload else {
+        continue
+      }
+      capturedErrors.removeAll()
+
+      let isFinalStep = stepIndex == testCase.steps.count - 1
+      if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
+        var errorMessages: [String] = []
+        do {
+          try processor.processMessages(payload)
+        } catch {
+          let message = (error as? (any A2UIError))?.message ?? error.localizedDescription
+          errorMessages.append(message)
+        }
+        for error in capturedErrors {
+          switch error {
+          case .validationFailed(let validationError):
+            errorMessages.append(validationError.message)
+          case .generic(let genericError):
+            errorMessages.append(genericError.message)
+          }
+        }
+        #expect(
+          !errorMessages.isEmpty,
+          "\(testCase.name): expected an error at step \(stepIndex)"
+        )
+        if let expectedMessage = expectedError.message {
+          #expect(
+            errorMessages.contains { $0.localizedCaseInsensitiveContains(expectedMessage) },
+            "\(testCase.name): messages \(errorMessages) do not contain '\(expectedMessage)'"
+          )
+        }
+        continue
+      }
+
+      try processor.processMessages(payload)
+      #expect(
+        capturedErrors.isEmpty,
+        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors)"
+      )
+
+      let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue ?? [:]
+      for (surfaceID, expectedSurface) in expectedSurfaces {
+        let surface = try #require(
+          processor.surfaceGroupModel[surfaceID],
+          "\(testCase.name): expected surface '\(surfaceID)'"
+        )
+        let expectedComponents = expectedSurface["components"]?.objectValue ?? [:]
+        for (componentID, expectedComponent) in expectedComponents {
+          let node = try #require(
+            surface.findNode(id: componentID),
+            "\(testCase.name): expected resolved node '\(componentID)'"
+          )
+          for (property, expectedValue) in expectedComponent.objectValue ?? [:]
+          where property != "component" {
+            let binding = try #require(
+              node.properties[property] as? DataBinding<String>,
+              "\(testCase.name): '\(componentID).\(property)' is not a string binding"
+            )
+            #expect(
+              binding.value == expectedValue.stringValue,
+              "\(testCase.name): '\(componentID).\(property)' is '\(binding.value)'"
+            )
+          }
+        }
+      }
+    }
   }
 
   /// Joins adjacent literal strings and drops empty string literals.

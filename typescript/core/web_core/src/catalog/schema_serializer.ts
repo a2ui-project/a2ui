@@ -19,6 +19,7 @@ import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
 import {
@@ -260,10 +261,6 @@ function rewriteRefMarkers(
     return;
   }
 
-  if (Array.isArray(node.anyOf)) {
-    node.oneOf = node.anyOf;
-    delete node.anyOf;
-  }
   for (const key of ['additionalProperties', 'unevaluatedProperties']) {
     const value = node[key];
     if (isObject(value) && Object.keys(value).length === 0) node[key] = true;
@@ -286,6 +283,7 @@ function zodToUnbundledJson(
   const json = zodToJsonSchema(schema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
+    override: exclusiveUnionOverride,
   }) as JsonObject;
   delete json.definitions;
   delete json.$defs;
