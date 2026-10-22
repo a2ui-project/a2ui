@@ -5392,6 +5392,7 @@ __metadata:
     "@modelcontextprotocol/server-filesystem": "npm:^2026.8.31"
     concurrently: "npm:^10.0.3"
     mcp-proxy: "npm:6.7.16"
+    vitest: "npm:^4.1.8"
   languageName: unknown
   linkType: soft
 

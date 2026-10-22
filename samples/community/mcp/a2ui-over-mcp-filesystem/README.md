@@ -236,6 +236,41 @@ yarn workspace a2ui-over-mcp-filesystem run test
 yarn workspace a2ui-over-mcp-filesystem run build
 ```
 
-The tests mock the MCP server with responses captured from a real one. They
-cover the payload validating against the catalog it names, the startup call, and
-each expression turning server text into the data model.
+`test` runs two suites:
+
+- `test:surface` runs
+  [a2ui_filesystem.test.ts](a2ui_filesystem.test.ts), the companion test of
+  the payload. It drives `a2ui_filesystem.json` through
+  [`@a2ui/testing`](../../../../typescript/testing/README.md) by component id
+  and data model path against a stub filesystem server from
+  [`@a2ui/catalog-mcp/testing`](../../../../typescript/catalogs/mcp/README.md#testing-a-surface).
+  No renderer or host is involved: the test checks that mounting the surface
+  lists `~`, that each row calls the tool its entry names with the path its
+  row base builds, and that every expression turns server text into the data
+  model values the viewer binds to.
+- `test:client` runs [client/app.test.ts](client/app.test.ts), which covers
+  the host: connecting, rendering through `@a2ui/lit`, and reporting errors.
+
+The surface test resolves `@a2ui/testing`, `@a2ui/catalog-mcp`, and
+`@a2ui/web_core` from this repository's sources (see
+[vitest.config.ts](vitest.config.ts)) until those packages are published; the
+client test runs on the published `@a2ui/lit`.
+
+A surface test for your own payload looks like this:
+
+```ts
+const mcp = stubMcp({tools: {list_directory_with_sizes: () => LISTING}});
+const h = await createSurfaceHarness({
+  messages: surface,
+  plugins: [mcp],
+  functions: [JmespathImplementation, SplitImplementation /* ... */],
+});
+
+await h.click('entry_button', {scope: '/entries/0'});
+
+expect(mcp.calls.at(-1)).toEqual({
+  name: 'list_directory_with_sizes',
+  arguments: {path: '~/Documents'},
+});
+expect(h.prop('viewer_title', 'text')).toBe('~/Documents');
+```

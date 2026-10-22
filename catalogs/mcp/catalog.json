@@ -21,11 +21,21 @@
               "description": "The name of the MCP tool to execute."
             },
             "arguments": {
-              "type": "object",
-              "description": "The arguments to pass to the MCP tool.",
-              "additionalProperties": {
-                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
-              }
+              "description": "The arguments to pass to the MCP tool. Either an object of dynamic values, or a function call or data binding that evaluates to that object.",
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+                  }
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/FunctionCall"
+                },
+                {
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                }
+              ]
             }
           },
           "required": ["name"],

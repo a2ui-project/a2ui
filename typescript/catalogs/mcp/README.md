@@ -171,12 +171,56 @@ A host that needs such a chain registers its own transformation functions (for e
 
 ## Module layout
 
-| File                           | Responsibility                                                                         |
-| :----------------------------- | :------------------------------------------------------------------------------------- |
-| `src/catalog.json`             | Copy of `catalogs/mcp/catalog.json` made by `scripts/copy-catalog.js` at build time    |
-| `src/index.ts`                 | Package entry: `MCP_CATALOG_ID`, `createCallMcpToolImplementation`, and public exports |
-| `src/functions/callMcpTool.ts` | MCP tool execution, UI resource discovery, caching, and message decoding               |
-| `src/dynamic-values.ts`        | Resolution of dynamic values nested in literal containers                              |
+| File                             | Responsibility                                                                         |
+| :------------------------------- | :------------------------------------------------------------------------------------- |
+| `src/catalog.json`               | Copy of `catalogs/mcp/catalog.json` made by `copy-catalog` at build time               |
+| `src/index.ts`                   | Package entry: `MCP_CATALOG_ID`, `createCallMcpToolImplementation`, and public exports |
+| `src/functions/callMcpTool.ts`   | MCP tool execution, UI resource discovery, caching, and message decoding               |
+| `src/dynamic-values.ts`          | Resolution of dynamic values nested in literal containers                              |
+| `src/testing/index.ts`           | `@a2ui/catalog-mcp/testing`: `createStubMcpClient` and the `stubMcp` harness plugin    |
+| `src/testing/stub-mcp-client.ts` | In-memory MCP client that answers from a tool table and records traffic                |
+
+## Testing a surface
+
+`@a2ui/catalog-mcp/testing` stands in for a connected MCP server. On its own,
+`createStubMcpClient` is a `McpToolClient` a host can hand to
+`createCallMcpToolImplementation`. Paired with
+[`@a2ui/testing`](../../testing/README.md), `stubMcp` is a harness plugin: it
+registers `callMcpTool` against the stub, lets the harness wait for tool
+answers, and records every call.
+
+```ts
+import {createSurfaceHarness} from '@a2ui/testing';
+import {stubMcp} from '@a2ui/catalog-mcp/testing';
+
+const mcp = stubMcp({
+  tools: {
+    // A string becomes one text block; a function receives the resolved arguments.
+    read_text_file: 'line one\nline two',
+    // A full CallToolResult can name a UI resource or embed A2UI messages.
+    get_recipe_a2ui: args => ({
+      content: [recipeDataBlock(args)],
+      _meta: {ui: {resourceUri: 'a2ui://recipe-card'}},
+    }),
+  },
+  resources: {'a2ui://recipe-card': recipeCardMessages},
+  toolMeta: {read_text_file: {ui: {resourceUri: 'a2ui://viewer'}}},
+});
+
+const h = await createSurfaceHarness({messages: recipeForm, plugins: [mcp]});
+await h.setValue('protein-picker', ['Tofu']);
+await h.click('submit-button');
+
+expect(mcp.calls).toEqual([{name: 'get_recipe_a2ui', arguments: {protein: ['Tofu']}}]);
+expect(mcp.reads).toEqual(['a2ui://recipe-card']);
+expect(h.prop('title', 'text', {surfaceId: 'recipe-card'})).toBe('Grilled Tofu');
+```
+
+A call to a tool that is not stubbed fails with `Unstubbed MCP tool '<name>'`,
+which `callMcpTool` reports as an expression error and the harness turns into
+a failing step. The plugin also synthesizes the
+`.../catalogs/basic_with_mcp/catalog.json` id the samples use, so their
+payloads load without extra setup.
 
 ## Building
 

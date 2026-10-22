@@ -8,10 +8,12 @@ The catalog ID is `https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.
 
 `callMcpTool` takes two arguments, declared in [catalog.json](catalog.json):
 
-| Parameter   | Type            | Required          | Description                   |
-| :---------- | :-------------- | :---------------- | :---------------------------- |
-| `name`      | `DynamicString` | Yes               | The MCP tool to execute.      |
-| `arguments` | `object`        | No (default `{}`) | Arguments passed to the tool. |
+| Parameter   | Type                                       | Required          | Description                                                                                            |
+| :---------- | :----------------------------------------- | :---------------- | :----------------------------------------------------------------------------------------------------- |
+| `name`      | `DynamicString`                            | Yes               | The MCP tool to execute.                                                                               |
+| `arguments` | `object`, `FunctionCall`, or `DataBinding` | No (default `{}`) | Arguments passed to the tool: an object of dynamic values, or a call or binding that evaluates to one. |
+
+An argument literally named `path` cannot be written inline, because `{"path": "~"}` is a data binding; build the object with a function call instead, for example `{"call": "jmespath", "args": {"expression": "{path: @}", "data": "~"}}`.
 
 Tools are addressed by name only. A2UI payloads never name a server, because multi-server routing is resolved by the host inside `getMcpClientForTool`.
 

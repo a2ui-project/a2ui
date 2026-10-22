@@ -37,7 +37,7 @@
     "node_modules",
     "dist",
     "src/**/*.test.ts",
-    "src/**/testing/**",
+    "src/testing/fixtures/**",
     "src/shared/sandbox/sandbox_main.ts"
   ]
 }
