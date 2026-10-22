@@ -103,7 +103,7 @@
       ]
     },
     "clean": {
-      "command": "rm -rf dist src/v0_9/catalog.json src/v1/catalog.json .tsbuildinfo .wireit"
+      "command": "rm -rf dist src/v0_9/catalog.json src/v1/catalog.json tsconfig.tsbuildinfo .wireit"
     },
     "format": {
       "command": "prettier --write .",

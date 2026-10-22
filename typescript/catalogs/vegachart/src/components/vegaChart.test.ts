@@ -239,7 +239,7 @@ describe('A2uiVegaChartElement', () => {
       new ComponentModel(
         'chart-1',
         'VegaChart',
-        {spec: {path: '/chartSpec'}, height: 340, weight: 2},
+        {spec: {path: '/chartSpec'}, height: 340},
         vegachartCatalog,
       ),
     );
@@ -248,7 +248,6 @@ describe('A2uiVegaChartElement', () => {
     el.context = new ComponentContext(surface, 'chart-1');
     host.appendChild(el);
     await el.updateComplete;
-    assert.strictEqual(el.style.flexGrow, '2');
 
     const container = el.querySelector<HTMLElement>('#chart-container')!;
     mockRect(container, 640, 340);

@@ -18,11 +18,10 @@ Both schemas declare the same single component.
 
 Renders a Vega or Vega-Lite chart specification.
 
-| Property | Type            | Required | Description                                                                     |
-| -------- | --------------- | -------- | ------------------------------------------------------------------------------- |
-| `spec`   | `DynamicValue`  | yes      | The Vega-Lite (or Vega) specification as a JSON object or a data binding.       |
-| `height` | `DynamicNumber` | no       | Chart height in pixels. Defaults to `290`.                                      |
-| `weight` | `number`        | no       | Flex weight when the chart is a direct child of a basic catalog `Row`/`Column`. |
+| Property | Type            | Required | Description                                                               |
+| -------- | --------------- | -------- | ------------------------------------------------------------------------- |
+| `spec`   | `DynamicValue`  | yes      | The Vega-Lite (or Vega) specification as a JSON object or a data binding. |
+| `height` | `DynamicNumber` | no       | Chart height in pixels. Defaults to `290`.                                |
 
 ## Language Packages
 

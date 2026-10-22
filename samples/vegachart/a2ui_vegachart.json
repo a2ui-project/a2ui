@@ -43,7 +43,6 @@
         {
           "id": "revenue_card",
           "component": "Card",
-          "weight": 1,
           "child": "revenue_col"
         },
         {
@@ -69,7 +68,6 @@
         {
           "id": "traffic_card",
           "component": "Card",
-          "weight": 1,
           "child": "traffic_col"
         },
         {

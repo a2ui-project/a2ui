@@ -44,7 +44,7 @@ describe('VegaChart v1.0 catalog', () => {
   it('validates VegaChart properties', () => {
     const parse = (props: unknown) => VegaChartV1Api.schema.safeParse(props).success;
     assert.strictEqual(parse({spec: {mark: 'bar', data: {values: [{x: 'A', y: 10}]}}}), true);
-    assert.strictEqual(parse({spec: {'@path': '/s'}, height: {'@path': '/h'}, weight: 1}), true);
+    assert.strictEqual(parse({spec: {'@path': '/s'}, height: {'@path': '/h'}}), true);
     assert.strictEqual(parse({}), false);
     assert.strictEqual(parse({spec: {mark: 'bar'}, unknownProp: true}), false);
   });

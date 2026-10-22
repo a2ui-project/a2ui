@@ -414,7 +414,7 @@ export function transformSpec(
  * `<a2ui-vega-chart>`: renders a Vega or Vega-Lite specification.
  *
  * The element serves both the v0.9 and v1.0 catalogs. Inside an A2UI surface
- * it reads `spec`, `height`, and `weight` from its controller. Outside a
+ * it reads `spec` and `height` from its controller. Outside a
  * surface it reads the `spec` and `height` properties directly.
  */
 export class A2uiVegaChartElement extends A2uiLitElement<
@@ -486,16 +486,6 @@ export class A2uiVegaChartElement extends A2uiLitElement<
   /** Renders into the light DOM, like the basic catalog, so page styles reach the chart. */
   override createRenderRoot() {
     return this;
-  }
-
-  override willUpdate(changedProperties: PropertyValues) {
-    super.willUpdate(changedProperties);
-    const weight = this.controller?.props?.weight;
-    if (weight !== undefined) {
-      this.style.flex = String(weight);
-    } else {
-      this.style.removeProperty('flex');
-    }
   }
 
   /**
