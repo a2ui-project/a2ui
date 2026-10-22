@@ -300,13 +300,13 @@ def test_out_of_scope_reference_colliding_with_block_variable_is_quoted(
     assert _normalize(recompiled) == _normalize(messages)
 
 
-def test_compiler_id_argument_sets_component_id_and_references(compiler):
+def test_compiler_id_argument_sets_component_id_and_references(compiler_v09):
     dsl = (
         'root = Column([grid, Text("inline", id="inline-text")])\n'
         'grid = Text("Hi", id="content-grid")'
     )
 
-    components = to_message_dicts(compiler.compile(dsl))[0]["createSurface"][
+    components = to_message_dicts(compiler_v09.compile(dsl))[1]["updateComponents"][
         "components"
     ]
 
@@ -319,6 +319,11 @@ def test_compiler_id_argument_sets_component_id_and_references(compiler):
         {"id": "inline-text", "component": "Text", "text": "inline"},
         {"id": "content-grid", "component": "Text", "text": "Hi"},
     ]
+
+
+def test_compiler_rejects_non_uax31_id_in_v1_0(compiler):
+    with pytest.raises(ExpressValidationError, match="not a valid UAX 31 identifier"):
+        compiler.compile('root = Column([grid]); grid = Text("Hi", id="a-b")')
 
 
 def test_compiler_rejects_non_string_id(compiler):

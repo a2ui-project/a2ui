@@ -27,6 +27,7 @@ import {CharStream, CommonTokenStream} from 'antlr4ng';
 
 import {A2uiCatalogError} from '../../errors.js';
 import {
+  isValidUax31Identifier,
   normalizeVersionString,
   type AgentToRendererMessage,
   type CatalogApi,
@@ -706,6 +707,11 @@ export class ExpressCompiler {
               `id on component '${compName}' must be a non-empty string.`,
             );
           }
+          if (targetMajorMinor[0] >= 1 && !isValidUax31Identifier(explicitId)) {
+            throw new ExpressValidationError(
+              `Component id '${explicitId}' on '${compName}' is not a valid UAX 31 identifier.`,
+            );
+          }
         }
         if (this.definesComponent(compName, callAst.kwargs?.catalogId)) {
           compIds.set(varName, (explicitId as string | undefined) ?? varName);
@@ -873,8 +879,17 @@ export class ExpressCompiler {
     const explicitId = rawKwargs.id;
     delete rawKwargs.id;
 
-    if (explicitId !== undefined && (typeof explicitId !== 'string' || explicitId.length === 0)) {
-      throw new ExpressValidationError(`id on component '${compName}' must be a non-empty string.`);
+    if (explicitId !== undefined) {
+      if (typeof explicitId !== 'string' || explicitId.length === 0) {
+        throw new ExpressValidationError(
+          `id on component '${compName}' must be a non-empty string.`,
+        );
+      }
+      if (targetMajorMinor[0] >= 1 && !isValidUax31Identifier(explicitId)) {
+        throw new ExpressValidationError(
+          `Component id '${explicitId}' on '${compName}' is not a valid UAX 31 identifier.`,
+        );
+      }
     }
 
     if (

@@ -1127,3 +1127,13 @@
     root = Text("hi")
   expect_error:
     category: "ValidationError"
+
+- name: test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error
+  description: From v1.0, component IDs must be valid UAX 31 identifiers, so setting id="..." to a non-identifier string is rejected with a validation error at compile time.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Column([t]); t = Text("x", id="main-title")'
+  expect_error:
+    category: "ValidationError"

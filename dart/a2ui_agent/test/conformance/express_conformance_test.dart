@@ -73,6 +73,8 @@ const Map<String, String> _v1OnlyCases = {
   'test_decompile_express_non_identifier_id_from_v1_0_is_a_validation_error':
       'Before v1.0, component ids that are not UAX 31 identifiers are derived '
       'into variables rather than rejected.',
+  'test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error':
+      'Before v1.0, component ids need not be UAX 31 identifiers.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.

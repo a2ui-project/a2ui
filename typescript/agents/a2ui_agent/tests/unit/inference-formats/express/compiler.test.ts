@@ -631,7 +631,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = compiler.compile(
         'surface("s1", sendDataModel=true)\n' +
           'root = Card(child_var)\n' +
-          'child_var = Text("Hello", id="custom-child-id")\n' +
+          'child_var = Text("Hello", id="true")\n' +
           'surface("s1", update=true)\n' +
           'root = Text("Updated root")\n' +
           'openUrl("https://example.com", functionCallId="custom-call-1")\n' +
@@ -645,8 +645,8 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
             catalogId: simplifiedCatalog.id,
             sendDataModel: true,
             components: [
-              {id: 'root', component: 'Card', child: 'custom-child-id'},
-              {id: 'custom-child-id', component: 'Text', text: 'Hello'},
+              {id: 'root', component: 'Card', child: 'true'},
+              {id: 'true', component: 'Text', text: 'Hello'},
             ],
           },
         },
@@ -675,6 +675,9 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           },
         },
       ]);
+      expect(() =>
+        compiler.compile('root = Card(child_var)\nchild_var = Text("Hello", id="custom-child-id")'),
+      ).toThrow("Component id 'custom-child-id' on 'Text' is not a valid UAX 31 identifier.");
     });
 
     it('determines createSurface vs updateComponents from compiled component id="root"', () => {

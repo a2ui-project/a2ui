@@ -28,7 +28,7 @@ from typing import Any, Literal
 from antlr4 import CommonTokenStream, InputStream
 
 from a2ui.core import A2uiCatalogError, CatalogApi
-from a2ui.core.common import is_at_least_version
+from a2ui.core.common import is_at_least_version, is_valid_uax31_identifier
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
@@ -69,14 +69,15 @@ _SEND_DATA_MODEL_KEY = "sendDataModel"
 _UPDATE_KEY = "update"
 
 
-def _component_id(var_name: str, ast: Any) -> str:
+def _component_id(var_name: str, ast: Any, *, at_least_v10: bool = False) -> str:
     """Returns the ID of the component a variable holds.
 
     The ID is the variable name unless the component call sets `id=`.
 
     Raises:
         ExpressValidationError: If `id=` is set to something other than a
-            non-empty string.
+            non-empty string, or (in v1.0 and later) is not a valid UAX 31
+            identifier.
     """
     kwargs = ast.get("kwargs") if isinstance(ast, dict) else None
     if not isinstance(kwargs, dict) or _ID_KEY not in kwargs:
@@ -85,6 +86,10 @@ def _component_id(var_name: str, ast: Any) -> str:
     if not isinstance(explicit_id, str) or not explicit_id:
         raise ExpressValidationError(
             f"Component id must be a non-empty string, got: {explicit_id!r}"
+        )
+    if at_least_v10 and not is_valid_uax31_identifier(explicit_id):
+        raise ExpressValidationError(
+            f"Component id {explicit_id!r} is not a valid UAX 31 identifier."
         )
     return explicit_id
 
@@ -900,7 +905,7 @@ class ExpressCompiler:
         )
 
         properties = comp_helper.get_component_properties(comp_name)
-        comp_id = _component_id(var_name, ast)
+        comp_id = _component_id(var_name, ast, at_least_v10=ctx.at_least_v10)
         kwargs.pop(_ID_KEY, None)
         comp_dict: dict[str, Any] = {"id": comp_id, "component": comp_name}
         if write_cat_id is not None:
@@ -1121,7 +1126,9 @@ class ExpressCompiler:
                         else None
                     )
                     if self._defines_component(symbol_val["call"], sym_cat_id):
-                        return _component_id(ref_name, symbol_val)
+                        return _component_id(
+                            ref_name, symbol_val, at_least_v10=ctx.at_least_v10
+                        )
                 return self._compile_value(
                     symbol_val,
                     raw_symbols,

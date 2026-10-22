@@ -266,11 +266,6 @@ String? _stringArgument(CallNode call, int index, String name) {
   );
 }
 
-final RegExp _uax31Identifier = RegExp(
-  r'^[\p{XID_Start}_][\p{XID_Continue}]*$',
-  unicode: true,
-);
-
 /// The component id of [call]: its `id` keyword argument, or [defaultId] when
 /// it has none.
 String _componentId(
@@ -285,7 +280,7 @@ String _componentId(
       "Argument 'id' of ${call.name}(...) must be a non-empty string literal.",
     );
   }
-  if (atLeastV10 && !_uax31Identifier.hasMatch(explicitId)) {
+  if (atLeastV10 && !isValidUax31Identifier(explicitId)) {
     throw A2uiValidationError(
       "Component id '$explicitId' in ${call.name}(...) is not a valid UAX 31 "
       'identifier.',
