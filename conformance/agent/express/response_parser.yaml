@@ -42,6 +42,23 @@
 # - An empty response unwraps to no parts at all.
 # - A text run is trimmed of leading and trailing whitespace, and a run left
 #   empty by that is dropped. The whitespace between two blocks is not a part.
+# - Backticks at the edges of a block are removed, since no Express payload
+#   starts or ends with one. They are what is left when a model writes the tags
+#   as inline code (`` `<a2ui>` ... `</a2ui>` ``). A text run made of nothing
+#   but backticks is dropped, while a backtick inside other text is kept.
+# - In one-shot unwrapping (`unwrap` and `parse_response`), at most one block
+#   whose opening `<a2ui>` tag was omitted is recovered when closed by
+#   `</a2ui>`. Recovery splits at an opening markdown code fence anchored to the
+#   start of a line (` ```a2ui ` / ` ``` `) or at the first line that begins an
+#   Express statement (`surface(`, `deleteSurface(`, `$path =`, or `ident =`)
+#   after any closed prose fences, using the string- and comment-aware scanner
+#   so a `</a2ui>` inside a string literal does not terminate the block early
+#   and a `</a2ui>` on the same line as a single-line comment still closes it.
+#   When a closing `</a2ui>` is only mentioned in prose with no payload-start
+#   line or fence, the response stays conversational text.
+# - `has_format_content` uses the same unwrapping rules, so a block recovered
+#   without an explicit opening tag counts as a closed format block, while a
+#   closing tag mentioned only in prose does not.
 #
 # The `parse_response` cases compile as well as unwrap, so a compilation failure
 # surfaces through them. `ParseError` is for payload text the format cannot
@@ -153,6 +170,212 @@
     ```
     </a2ui>
   expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_inline_code_tags_stripped
+  description: Tags the model wrote as inline code leave a backtick at each edge of the block and one on each side of it; all of them are removed.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    `<a2ui>`
+    root = Text("Hello")
+    `</a2ui>`
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_inline_code_around_block_stripped
+  description: A block wrapped in a single pair of backticks unwraps to the block alone.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    `<a2ui>
+    root = Text("Hello")
+    </a2ui>`
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_fenced_open_with_close_tag
+  description: A block opened with a markdown fence such as ```a2ui and closed with </a2ui> unwraps to the payload part.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Here is the greeting.
+    ```a2ui
+    root = Text("Hello")
+    </a2ui>
+    ```
+  expect:
+    - text: "Here is the greeting."
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_closed_fence_before_close_tag
+  description: A block opened and closed with markdown fences right before a stray </a2ui> tag recovers the fenced payload.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Here is the greeting.
+    ```a2ui
+    root = Text("Hello")
+    ```
+    </a2ui>
+  expect:
+    - text: "Here is the greeting."
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_bare_payload_with_close_tag
+  description: A bare Express payload with no opening tag and a closing </a2ui> tag recovers the payload.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_prose_before_bare_payload_with_close_tag
+  description: Prose before a bare Express payload closed by </a2ui> stays a text part while the payload is recovered.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Here is the greeting.
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - text: "Here is the greeting."
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_close_tag_in_prose_stays_text
+  description: A closing </a2ui> tag mentioned in conversational prose with no payload-start line stays conversational text.
+  action: unwrap
+  args:
+    format: express
+  input: "Close every block with </a2ui> when you are done."
+  expect:
+    - text: "Close every block with </a2ui> when you are done."
+
+- name: test_unwrap_express_stray_close_tag_in_prose_then_recovered_payload
+  description: A closing tag mentioned in prose before a bare payload does not prevent recovering the payload at the closing tag after it.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Remember to close with </a2ui> at the end.
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - text: "Remember to close with </a2ui> at the end."
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_prose_with_punctuation_before_payload_with_close_tag
+  description: Prose containing parentheses, equals signs, or brackets before a bare payload stays in the leading text part.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Sure (here is the layout [v1] where x = 1):
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - text: "Sure (here is the layout [v1] where x = 1):"
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_close_tag_inside_string_without_open_tag
+  description: When recovering a bare payload without an opening tag, a </a2ui> inside a string literal does not end the block early.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    root = Text("</a2ui>")
+    </a2ui>
+  expect:
+    - a2ui_raw: 'root = Text("</a2ui>")'
+
+- name: test_unwrap_express_inline_backticks_in_prose_before_payload_with_close_tag
+  description: Inline triple backticks in conversational prose do not act as an opening fence for missing-open-tag recovery.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Do not wrap the block in ``` fences.
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - text: "Do not wrap the block in ``` fences."
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_close_tag_on_comment_line
+  description: A closing </a2ui> tag on the same line as a single-line comment still closes the block.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    root = Text("Hello") -- end of greeting </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: 'root = Text("Hello") -- end of greeting'
+    - text: "Trailing text."
+
+- name: test_has_format_content_express_recovered_bare_payload
+  description: A bare Express payload closed by </a2ui> counts as complete format content.
+  action: has_format_content
+  args:
+    format: express
+    complete: true
+  input: |-
+    root = Text("Hello")
+    </a2ui>
+  expect: true
+
+- name: test_has_format_content_express_recovered_fenced_payload
+  description: A fenced Express payload closed by </a2ui> counts as complete format content.
+  action: has_format_content
+  args:
+    format: express
+    complete: true
+  input: |-
+    ```a2ui
+    root = Text("Hello")
+    </a2ui>
+  expect: true
+
+- name: test_has_format_content_express_close_tag_in_prose_is_false
+  description: A closing </a2ui> tag mentioned in prose with no payload is not format content.
+  action: has_format_content
+  args:
+    format: express
+  input: "Close every block with </a2ui> when you are done."
+  expect: false
+
+- name: test_has_format_content_express_unterminated_block
+  description: An unterminated <a2ui> block counts as format content when complete is false, and not when complete is true.
+  action: has_format_content
+  args:
+    format: express
+    complete: true
+  input: |-
+    <a2ui>
+    root = Text("Hello")
+  expect: false
+
+- name: test_unwrap_express_backtick_in_text_kept
+  description: Only text made of nothing but backticks is dropped; inline code in conversational text is kept.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Use `Text` for labels.
+    <a2ui>
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - text: "Use `Text` for labels."
     - a2ui_raw: 'root = Text("Hello")'
 
 - name: test_unwrap_express_attributes_on_open_tag_tolerated

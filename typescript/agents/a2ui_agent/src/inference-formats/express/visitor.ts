@@ -407,10 +407,161 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
     }
     if (ctx.STANDARD_STRING()) {
       const val = ctx.STANDARD_STRING()!.getText();
-      return unescapeString(val.slice(1, -1));
+      return unescapeString(val.slice(1, -1).replace(/^[\r\n]+|[\r\n]+$/g, ''));
     }
     return ctx.getText();
   };
+}
+
+const IDENT_START = 'a-zA-Z_';
+const IDENT_CHARS = 'a-zA-Z0-9_';
+const IDENTIFIER = `[${IDENT_START}][${IDENT_CHARS}]*`;
+
+const SQL_COMMENT_OR_TOKEN_REGEX =
+  /([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|\/\/)[^\r\n]*|\/\*[\s\S]*?\*\/)|--([^\r\n]*)/g;
+const DECLARED_LHS_REGEX = new RegExp(`^[ \\t]*(${IDENTIFIER})[ \\t]*=(?!=)`, 'gm');
+const SPLIT_LHS_REGEX = new RegExp(
+  `^([ \\t]*${IDENTIFIER})[ \\t]*(\\r?\\n)[ \\t]*([${IDENT_CHARS}]+)(?=[ \\t]*=(?!=))`,
+  'gm',
+);
+const SPLIT_DATA_PATH_REGEX = new RegExp(
+  '(\\$[' + IDENT_CHARS + '/]*/)[ \\t]*(\\r?\\n)[ \\t]*([' + IDENT_CHARS + '/]+)',
+  'g',
+);
+const IDENT_ONLY_REGEX = new RegExp(`^${IDENTIFIER}$`);
+const ASSIGN_EQUALS_REGEX = /^[ \t]*=(?!=)/;
+const SPLIT_ARG_IDENT_REGEX = new RegExp(
+  `([([,:=][ \\t]*\\r?\\n?[ \\t]*|[([,:=][ \\t]*)(${IDENTIFIER})[ \\t]*(\\r?\\n)[ \\t]*([${IDENT_CHARS}]+)(?=[ \\t]*[,)\\]}]|\\s*\\r?\\n)`,
+  'g',
+);
+
+/**
+ * Normalizes `--` comments and line-broken tokens outside strings and comments,
+ * keeping line counts intact so syntax error positions match the original source.
+ */
+export function normalizeExpressSource(source: string): string {
+  const segments: Array<{isTok: boolean; text: string}> = [];
+  let pos = 0;
+  for (const m of source.matchAll(SQL_COMMENT_OR_TOKEN_REGEX)) {
+    const idx = m.index ?? 0;
+    if (idx > pos) {
+      segments.push({isTok: false, text: source.slice(pos, idx)});
+    }
+    if (m[1] !== undefined) {
+      segments.push({isTok: true, text: m[1]});
+    } else {
+      segments.push({isTok: true, text: `//${m[2] ?? ''}`});
+    }
+    pos = idx + m[0].length;
+  }
+  if (pos < source.length) {
+    segments.push({isTok: false, text: source.slice(pos)});
+  }
+
+  let depth = 0;
+  const segDepths: number[][] = [];
+  for (const seg of segments) {
+    if (seg.isTok) {
+      segDepths.push([]);
+      continue;
+    }
+    const depths: number[] = [];
+    for (let i = 0; i < seg.text.length; i++) {
+      const ch = seg.text[i];
+      depths.push(depth);
+      if (ch === '(' || ch === '[' || ch === '{') {
+        depth++;
+      } else if (ch === ')' || ch === ']' || ch === '}') {
+        if (depth > 0) depth--;
+      }
+    }
+    segDepths.push(depths);
+  }
+
+  const splitP2Starts = new Set<string>();
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
+    if (!seg.isTok) {
+      const depths = segDepths[segIdx];
+      for (const m of seg.text.matchAll(SPLIT_LHS_REGEX)) {
+        const fullIdx = m.index ?? 0;
+        if (depths[fullIdx] === 0) {
+          const p2Offset = fullIdx + m[0].length - m[3].length;
+          splitP2Starts.add(`${segIdx}:${p2Offset}`);
+        }
+      }
+    }
+  }
+
+  const directDeclared = new Set<string>();
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
+    if (!seg.isTok) {
+      const depths = segDepths[segIdx];
+      for (const m of seg.text.matchAll(DECLARED_LHS_REGEX)) {
+        const fullIdx = m.index ?? 0;
+        const identOffset = fullIdx + m[0].indexOf(m[1]);
+        if (depths[identOffset] === 0 && !splitP2Starts.has(`${segIdx}:${identOffset}`)) {
+          directDeclared.add(m[1]);
+        }
+      }
+    }
+  }
+
+  const declared = new Set<string>(directDeclared);
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
+    if (!seg.isTok) {
+      const depths = segDepths[segIdx];
+      for (const m of seg.text.matchAll(SPLIT_LHS_REGEX)) {
+        const fullIdx = m.index ?? 0;
+        if (depths[fullIdx] === 0) {
+          const p1 = m[1].trim();
+          const p2 = m[3];
+          if (!directDeclared.has(p1) && !directDeclared.has(p2)) {
+            declared.add(p1 + p2);
+          }
+        }
+      }
+    }
+  }
+
+  const out: string[] = [];
+  for (const seg of segments) {
+    if (seg.isTok) {
+      out.push(seg.text);
+      continue;
+    }
+    let text = seg.text.replace(
+      SPLIT_DATA_PATH_REGEX,
+      (full, p1: string, nl: string, p2: string, offset: number, string: string) => {
+        const rest = string.slice(offset + full.length);
+        if (IDENT_ONLY_REGEX.test(p2) && ASSIGN_EQUALS_REGEX.test(rest)) {
+          return full;
+        }
+        return `${p1}${p2}${nl}`;
+      },
+    );
+    text = text.replace(SPLIT_LHS_REGEX, (full, p1Raw: string, nl: string, p2: string) => {
+      const p1 = p1Raw.trim();
+      if (!directDeclared.has(p1) && !directDeclared.has(p2)) {
+        return `${p1Raw}${p2}${nl}`;
+      }
+      return full;
+    });
+    text = text.replace(
+      SPLIT_ARG_IDENT_REGEX,
+      (full, prefix: string, p1: string, nl: string, p2: string) => {
+        const joined = p1 + p2;
+        if (declared.has(joined) && !declared.has(p1) && !declared.has(p2)) {
+          return `${prefix}${joined}${nl}`;
+        }
+        return full;
+      },
+    );
+    out.push(text);
+  }
+  return out.join('');
 }
 
 /**
@@ -422,7 +573,7 @@ export function parseExpress(source: string): {
   errors: ExpressErrorRecord[];
   statements: ExpressStatement[];
 } {
-  const inputStream = CharStream.fromString(source);
+  const inputStream = CharStream.fromString(normalizeExpressSource(source));
   const lexer = new ExpressLexer(inputStream);
   const errorListener = new ExpressErrorListener();
   lexer.removeErrorListeners();

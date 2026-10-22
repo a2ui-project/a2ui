@@ -37,10 +37,8 @@ from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressDuplicateParamError,
     ExpressDuplicatePropertyError,
-    ExpressForbiddenDatabindingError,
     ExpressInvalidParamError,
     ExpressParser,
-    ExpressPromptGenerator,
     ExpressUndefinedRootError,
     ExpressUnknownPropertyError,
 )
@@ -240,6 +238,48 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         with self.assertRaises(ExpressUndefinedRootError) as ctx:
             compiler.compile('some_var = Text("Hello")')
         self.assertEqual(ctx.exception.root_target, "root")
+
+    def test_line_wrapped_identifiers_and_strings(self):
+        """Verifies stray newlines inside identifiers, paths, and single-line strings are repaired."""
+        compiler = ExpressCompiler([self.catalog])
+        dsl = (
+            'surface("main")\n'
+            '$/\nform/phone = "555-0100"\n'
+            "root = Column([\n"
+            "  card2\nRating\n"
+            '], justify="start\n")\n'
+            "card2\nRating = Card(lights\nCheckbox)\n"
+            "lightsCheckbox = Text($/\nform/phone)\n"
+        )
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(comps["root"]["justify"], "start")
+        self.assertEqual(comps["root"]["children"], ["card2Rating"])
+        self.assertEqual(comps["card2Rating"]["child"], "lightsCheckbox")
+        self.assertEqual(comps["lightsCheckbox"]["text"], {"@path": "/form/phone"})
+
+    def test_sql_comments_and_positional_numeric_skip(self):
+        """Verifies `--` comments and positional numeric argument skipping non-numeric properties."""
+        compiler = ExpressCompiler([self.catalog])
+        dsl = '-- SQL comment\nroot = Column([t], 2)\nt = Text("Hello")'
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(comps["root"]["children"], ["t"])
+        self.assertEqual(comps["root"]["weight"], 2)
+
+    def test_enum_property_with_function_call_not_rejected_by_enum_check(self):
+        """Verifies that an enum property passed a function call is not rejected as an invalid enum choice."""
+        compiler = ExpressCompiler([self.catalog])
+        dsl = 'root = Column([t], justify=formatString("start"))\nt = Text("Hello")'
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(
+            comps["root"]["justify"],
+            {"@call": "formatString", "args": {"value": "start"}},
+        )
 
 
 if __name__ == "__main__":

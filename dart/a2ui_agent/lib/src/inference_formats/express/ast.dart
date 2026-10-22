@@ -124,12 +124,165 @@ final class ExpressionStatement extends ExpressStatement {
   const ExpressionStatement(this.value);
 }
 
+const String _identStart = r'a-zA-Z_';
+const String _identChars = r'a-zA-Z0-9_';
+const String _identifier = '[$_identStart][$_identChars]*';
+
+final RegExp _sqlCommentOrToken = RegExp(
+  r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)',
+);
+final RegExp _declaredLhs = RegExp(
+  r'^[ \t]*(' + _identifier + r')[ \t]*=(?!=)',
+  multiLine: true,
+);
+final RegExp _splitLhsIdentifier = RegExp(
+  r'^([ \t]*' +
+      _identifier +
+      r')[ \t]*(\r?\n)[ \t]*([' +
+      _identChars +
+      r']+)(?=[ \t]*=(?!=))',
+  multiLine: true,
+);
+final RegExp _splitDataPath = RegExp(
+  r'(\$[' + _identChars + r'/]*/)[ \t]*(\r?\n)[ \t]*([' + _identChars + r'/]+)',
+);
+final RegExp _identOnly = RegExp(r'^' + _identifier + r'$');
+final RegExp _assignEquals = RegExp(r'^[ \t]*=(?!=)');
+final RegExp _splitArgIdentifier = RegExp(
+  r'([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)(' +
+      _identifier +
+      r')[ \t]*(\r?\n)[ \t]*([' +
+      _identChars +
+      r']+)(?=[ \t]*[,)\]}]|\s*\r?\n)',
+);
+final RegExp _edgeNewlines = RegExp(r'^[\r\n]+|[\r\n]+$');
+
+String _normalizeExpressSource(String source) {
+  final segments = <(bool isTok, String text)>[];
+  var pos = 0;
+  for (final RegExpMatch m in _sqlCommentOrToken.allMatches(source)) {
+    if (m.start > pos) {
+      segments.add((false, source.substring(pos, m.start)));
+    }
+    if (m[1] case final String tok) {
+      segments.add((true, tok));
+    } else {
+      segments.add((true, '//${m[2] ?? ''}'));
+    }
+    pos = m.end;
+  }
+  if (pos < source.length) {
+    segments.add((false, source.substring(pos)));
+  }
+
+  var depth = 0;
+  final segDepths = <List<int>>[];
+  for (final (bool isTok, String seg) in segments) {
+    if (isTok) {
+      segDepths.add(const []);
+      continue;
+    }
+    final depths = <int>[];
+    for (var i = 0; i < seg.length; i++) {
+      final int code = seg.codeUnitAt(i);
+      depths.add(depth);
+      if (code == 40 || code == 91 || code == 123) {
+        depth++;
+      } else if (code == 41 || code == 93 || code == 125) {
+        if (depth > 0) depth--;
+      }
+    }
+    segDepths.add(depths);
+  }
+
+  final splitP2Starts = <(int, int)>{
+    for (int segIdx = 0; segIdx < segments.length; segIdx++)
+      if (!segments[segIdx].$1)
+        for (final RegExpMatch m in _splitLhsIdentifier.allMatches(
+          segments[segIdx].$2,
+        ))
+          if (segDepths[segIdx][m.start] == 0) (segIdx, m.end - m[3]!.length),
+  };
+
+  final directDeclared = <String>{
+    for (int segIdx = 0; segIdx < segments.length; segIdx++)
+      if (!segments[segIdx].$1)
+        for (final RegExpMatch m in _declaredLhs.allMatches(
+          segments[segIdx].$2,
+        ))
+          if (segDepths[segIdx][m.start + m[0]!.indexOf(m[1]!)] == 0 &&
+              !splitP2Starts.contains((segIdx, m.start + m[0]!.indexOf(m[1]!))))
+            m[1]!,
+  };
+
+  final declared = <String>{...directDeclared};
+  for (var segIdx = 0; segIdx < segments.length; segIdx++) {
+    if (!segments[segIdx].$1) {
+      for (final RegExpMatch m in _splitLhsIdentifier.allMatches(
+        segments[segIdx].$2,
+      )) {
+        if (segDepths[segIdx][m.start] == 0) {
+          final String p1 = m[1]!.trim();
+          final String p2 = m[3]!;
+          if (!directDeclared.contains(p1) && !directDeclared.contains(p2)) {
+            declared.add('$p1$p2');
+          }
+        }
+      }
+    }
+  }
+
+  final out = StringBuffer();
+  for (final (bool isTok, String seg) in segments) {
+    if (isTok) {
+      out.write(seg);
+      continue;
+    }
+    String text = seg.replaceAllMapped(_splitDataPath, (m) {
+      final String p1 = m[1]!;
+      final String nl = m[2]!;
+      final String p2 = m[3]!;
+      final String rest = seg.substring(m.end);
+      if (_identOnly.hasMatch(p2) && _assignEquals.hasMatch(rest)) {
+        return m[0]!;
+      }
+      return '$p1$p2$nl';
+    });
+    text = text.replaceAllMapped(_splitLhsIdentifier, (m) {
+      final String p1Raw = m[1]!;
+      final String nl = m[2]!;
+      final String p2 = m[3]!;
+      final String p1 = p1Raw.trim();
+      if (!directDeclared.contains(p1) && !directDeclared.contains(p2)) {
+        return '$p1Raw$p2$nl';
+      }
+      return m[0]!;
+    });
+    text = text.replaceAllMapped(_splitArgIdentifier, (m) {
+      final String prefix = m[1]!;
+      final String p1 = m[2]!;
+      final String nl = m[3]!;
+      final String p2 = m[4]!;
+      final joined = '$p1$p2';
+      if (declared.contains(joined) &&
+          !declared.contains(p1) &&
+          !declared.contains(p2)) {
+        return '$prefix$joined$nl';
+      }
+      return m[0]!;
+    });
+    out.write(text);
+  }
+  return out.toString();
+}
+
 /// Parses an Express block into its statements.
 ///
 /// Throws [A2uiParseError] if [source] does not match the grammar.
 List<ExpressStatement> parseExpress(String source) {
+  final String normalized = _normalizeExpressSource(source);
   final listener = _ErrorListener(source);
-  final lexer = ExpressLexer(InputStream.fromString(source))
+  final lexer = ExpressLexer(InputStream.fromString(normalized))
     ..removeErrorListeners()
     ..addErrorListener(listener);
   final parser = ExpressParser(CommonTokenStream(lexer))
@@ -139,7 +292,7 @@ List<ExpressStatement> parseExpress(String source) {
   final ProgramContext program = parser.program();
   return [
     for (final StatementContext statement in program.statements())
-      _statement(source, statement),
+      _statement(normalized, statement),
   ];
 }
 
@@ -263,7 +416,9 @@ String _string(StringContext string) {
     ExpressParser.TOKEN_TRIPLE_STRING => _unescape(
       text.substring(3, text.length - 3),
     ),
-    _ => _unescape(text.substring(1, text.length - 1)),
+    _ => _unescape(
+      text.substring(1, text.length - 1).replaceAll(_edgeNewlines, ''),
+    ),
   };
 }
 

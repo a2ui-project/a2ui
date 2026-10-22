@@ -1,8 +1,32 @@
 ## Unreleased
 
+- Package dependency updated to require `a2ui-core>=0.4.1,<0.5.0`.
+- The response parsers for Direct JSON, Express, Elemental and Atom remove the
+  backticks left at the edges of a block when a model writes the tags as inline
+  code (`` `<a2ui>` ... `</a2ui>` `` or `` `<a2ui-json>` ... `</a2ui-json>` ``),
+  drop text made of nothing but backticks, and in one-shot unwrapping (`unwrap`
+  and `parse_response`) recover at most one block closed with a closing tag when
+  the model opened the block with a Markdown code fence (such as ` ```a2ui `) or
+  omitted the opening tag; `has_format_content` counts recovered blocks as
+  complete format blocks.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
 - **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
   `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
   (`DirectJsonFormat`).
+- Express variable and check identifiers now follow Unicode UAX 31 in the
+  grammar and decompiler ([#3390](https://github.com/a2ui-project/a2ui/issues/3390)).
+  From protocol v1.0 onward, `ExpressDecompiler` rejects component IDs that are
+  not valid UAX 31 identifiers with `A2uiValidationError` (`invalid_identifier`);
+  for pre-v1.0 catalogs (and for reserved-word IDs in any version), it derives
+  a valid variable name and emits `id="..."`.
 
 ## 0.9.0 (2026-10-17)
 

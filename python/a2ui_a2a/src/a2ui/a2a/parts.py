@@ -235,3 +235,9 @@ async def stream_response_to_parts(
             elif isinstance(part, A2uiPart):
                 for message in to_message_dicts(part.a2ui):
                     yield create_a2ui_part(message, version=version)
+    for part in parser.flush():
+        if isinstance(part, TextPart) and part.text:
+            yield Part(root=A2aTextPart(text=part.text))
+        elif isinstance(part, A2uiPart):
+            for message in to_message_dicts(part.a2ui):
+                yield create_a2ui_part(message, version=version)

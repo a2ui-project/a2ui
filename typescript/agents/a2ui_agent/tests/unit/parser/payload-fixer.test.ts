@@ -71,4 +71,30 @@ describe('PayloadFixer', () => {
     const res = parseAndFix(validSmartQuotePayload);
     expect(res).toEqual(['version', 'str']);
   });
+
+  it('repairs raw line breaks in keys and single-token strings while keeping prose newlines', () => {
+    const payload =
+      '[{"children\\n": ["work\\nText"], "\\nevent": {"id": "\\ntext3", "text": "Line 1\\nLine 2"}}]';
+    const rawNewlinePayload = payload.replace(/\\n/g, '\n');
+    const res = parseAndFix(rawNewlinePayload);
+    expect(res).toEqual([
+      {
+        children: ['workText'],
+        event: {id: 'text3', text: 'Line 1\nLine 2'},
+      },
+    ]);
+  });
+
+  it('repairs raw newlines in string containing smart quotes without corrupting inner quotes', () => {
+    const rawPayload = '{"text": "He said \u201chi\u201d\nbye"}';
+    const res = parseAndFix(rawPayload);
+    expect(res).toEqual([{text: 'He said \u201chi\u201d\nbye'}]);
+  });
+
+  it('handles 200k-character strings without throwing RangeError', () => {
+    const largeText = 'A'.repeat(200_000);
+    const payload = `[{"id": "\\ncard1", "text": "${largeText}"}]`.replace('\\n', '\n');
+    const res = parseAndFix(payload);
+    expect(res).toEqual([{id: 'card1', text: largeText}]);
+  });
 });
