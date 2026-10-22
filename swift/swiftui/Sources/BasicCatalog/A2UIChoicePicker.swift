@@ -196,12 +196,16 @@ public struct A2UIChoicePicker: View {
     !validationErrors.isEmpty
   }
 
-  /// The state of the option with the given value as reported to assistive technologies: a
-  /// radio button for `mutuallyExclusive` pickers and a checkbox otherwise.
-  public func selectionAccessibility(forOptionValue value: String) -> A2UISelectionAccessibility {
-    A2UISelectionAccessibility(
-      role: variant == "mutuallyExclusive" ? .radio : .checkbox,
-      isSelected: selectedValues.contains(value)
+  /// Whether the option with the given value is selected. Setting it selects or deselects the
+  /// option the same way tapping it does; deselecting a `mutuallyExclusive` option has no effect.
+  public func selectionBinding(forOptionValue value: String) -> Binding<Bool> {
+    Binding(
+      get: { selectedValues.contains(value) },
+      set: { isOn in
+        guard isOn != selectedValues.contains(value) else { return }
+        guard isOn || variant != "mutuallyExclusive" else { return }
+        toggleSelection(value)
+      }
     )
   }
 
@@ -283,7 +287,11 @@ public struct A2UIChoicePicker: View {
             )
         }
         .buttonStyle(.plain)
-        .modifier(selectionAccessibility(forOptionValue: option.value))
+        .a2uiOptionAccessibility(
+          label: option.label,
+          isSelected: selectionBinding(forOptionValue: option.value),
+          isMultipleSelection: variant != "mutuallyExclusive"
+        )
         .accessibilityIdentifier("A2UIChoiceOption_\(option.value)")
       }
     }
@@ -314,9 +322,34 @@ public struct A2UIChoicePicker: View {
           .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
-        .modifier(selectionAccessibility(forOptionValue: option.value))
+        .a2uiOptionAccessibility(
+          label: option.label,
+          isSelected: selectionBinding(forOptionValue: option.value),
+          isMultipleSelection: variant != "mutuallyExclusive"
+        )
         .accessibilityIdentifier("A2UIChoiceOption_\(option.value)")
       }
+    }
+  }
+}
+
+extension View {
+  /// Exposes the state of a `ChoicePicker` option to assistive technologies. A
+  /// `multipleSelection` option is represented as a standard toggle; a `mutuallyExclusive` option
+  /// keeps its button role and carries the selected trait while selected, like the segments of a
+  /// native segmented picker.
+  @ViewBuilder
+  fileprivate func a2uiOptionAccessibility(
+    label: String,
+    isSelected: Binding<Bool>,
+    isMultipleSelection: Bool
+  ) -> some View {
+    if isMultipleSelection {
+      accessibilityRepresentation {
+        Toggle(label, isOn: isSelected)
+      }
+    } else {
+      accessibilityAddTraits(isSelected.wrappedValue ? .isSelected : [])
     }
   }
 }

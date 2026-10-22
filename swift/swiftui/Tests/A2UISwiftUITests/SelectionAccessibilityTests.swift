@@ -98,50 +98,34 @@ struct SelectionAccessibilityTests {
     return surface
   }
 
-  // MARK: - Modifier semantics
-
-  @Test func checkboxReportsCheckedStateAsValue() {
-    let checked = A2UISelectionAccessibility(role: .checkbox, isSelected: true)
-    let unchecked = A2UISelectionAccessibility(role: .checkbox, isSelected: false)
-
-    #expect(checked.value == "checked")
-    #expect(unchecked.value == "unchecked")
-    // The state is in the value, so the selected trait would announce it twice.
-    #expect(!checked.traits.contains(.isSelected))
-    if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *) {
-      #expect(checked.traits.contains(.isToggle))
-      #expect(unchecked.traits.contains(.isToggle))
-    }
+  /// The selection binding of a picker option, read from the current resolved tree so it sees the
+  /// latest data model, as a re-rendered view would.
+  private func option(
+    _ value: String,
+    in surface: SurfaceViewModel
+  ) async throws -> Binding<Bool> {
+    await Task.yield()
+    return A2UIChoicePicker(node: try node("root", in: surface)).selectionBinding(
+      forOptionValue: value)
   }
 
-  @Test func radioAndTabReportSelectionAsTrait() {
-    for role in [A2UISelectionAccessibility.Role.radio, .tab] {
-      let selected = A2UISelectionAccessibility(role: role, isSelected: true)
-      let unselected = A2UISelectionAccessibility(role: role, isSelected: false)
-
-      #expect(selected.traits == .isSelected)
-      #expect(unselected.traits == [])
-      #expect(selected.value == nil)
-      #expect(unselected.value == nil)
-    }
+  private func selection(in surface: SurfaceViewModel) -> [String]? {
+    surface.dataModel.get("/choice")?.arrayValue?.compactMap(\.stringValue)
   }
 
   // MARK: - CheckBox
 
-  @Test func checkBoxFollowsItsBoundValue() async throws {
+  @Test func checkBoxToggleBindingFollowsTheDataModel() async throws {
     let (processor, surface) = try await makeSurface(
       components: [
         [
           "id": "root", "component": "CheckBox", "label": "I agree to terms",
           "value": ["@path": "/agree"],
-          "accessibility": ["label": "Accept Terms and Conditions"],
         ]
       ],
       dataModel: ["agree": true]
     )
-
-    let before = A2UICheckBox(node: try node("root", in: surface)).selectionAccessibility
-    #expect(before == A2UISelectionAccessibility(role: .checkbox, isSelected: true))
+    #expect(A2UICheckBox(node: try node("root", in: surface)).isOn.wrappedValue)
 
     try process(
       [
@@ -154,78 +138,68 @@ struct SelectionAccessibilityTests {
     )
     await Task.yield()
 
-    let after = A2UICheckBox(node: try node("root", in: surface)).selectionAccessibility
-    #expect(after == A2UISelectionAccessibility(role: .checkbox, isSelected: false))
-    #expect(after.value == "unchecked")
+    #expect(!A2UICheckBox(node: try node("root", in: surface)).isOn.wrappedValue)
+  }
+
+  /// The binding behind the checkbox's accessibility toggle writes back like a tap does, so
+  /// toggling the checkbox with assistive technologies updates the data model.
+  @Test func checkBoxToggleBindingWritesTheDataModel() async throws {
+    let (_, surface) = try await makeSurface(
+      components: [
+        [
+          "id": "root", "component": "CheckBox", "label": "I agree to terms",
+          "value": ["@path": "/agree"],
+          "accessibility": ["label": "Accept Terms and Conditions"],
+        ]
+      ],
+      dataModel: ["agree": false]
+    )
+    let checkBox = A2UICheckBox(node: try node("root", in: surface))
+
+    checkBox.isOn.wrappedValue = true
+    #expect(surface.dataModel.get("/agree")?.boolValue == true)
+    #expect(A2UICheckBox(node: try node("root", in: surface)).isOn.wrappedValue)
+
+    checkBox.isOn.wrappedValue = false
+    #expect(surface.dataModel.get("/agree")?.boolValue == false)
   }
 
   // MARK: - ChoicePicker
 
-  @Test func mutuallyExclusiveOptionsAreRadios() async throws {
-    let surface = try await choicePickerSurface(
-      variant: "mutuallyExclusive", displayStyle: "checkbox", selected: ["2"])
-    let picker = A2UIChoicePicker(node: try node("root", in: surface))
+  @Test func multipleSelectionOptionBindingsToggleTheirOption() async throws {
+    for displayStyle in ["checkbox", "chips"] {
+      let surface = try await choicePickerSurface(
+        variant: "multipleSelection", displayStyle: displayStyle, selected: ["1", "3"])
+      #expect(try await option("1", in: surface).wrappedValue)
+      #expect(try await option("2", in: surface).wrappedValue == false)
 
-    #expect(
-      picker.selectionAccessibility(forOptionValue: "1")
-        == A2UISelectionAccessibility(role: .radio, isSelected: false))
-    #expect(
-      picker.selectionAccessibility(forOptionValue: "2")
-        == A2UISelectionAccessibility(role: .radio, isSelected: true))
+      try await option("2", in: surface).wrappedValue = true
+      #expect(selection(in: surface) == ["1", "3", "2"])
+
+      try await option("1", in: surface).wrappedValue = false
+      #expect(selection(in: surface) == ["3", "2"])
+
+      // Setting an option to the state it already has leaves the selection alone.
+      try await option("3", in: surface).wrappedValue = true
+      try await option("1", in: surface).wrappedValue = false
+      #expect(selection(in: surface) == ["3", "2"])
+    }
   }
 
-  @Test func multipleSelectionOptionsAreCheckboxes() async throws {
-    let surface = try await choicePickerSurface(
-      variant: "multipleSelection", displayStyle: "checkbox", selected: ["1", "3"])
-    let picker = A2UIChoicePicker(node: try node("root", in: surface))
+  @Test func mutuallyExclusiveOptionBindingsSelectOneOption() async throws {
+    for displayStyle in ["checkbox", "chips"] {
+      let surface = try await choicePickerSurface(
+        variant: "mutuallyExclusive", displayStyle: displayStyle, selected: ["2"])
+      #expect(try await option("2", in: surface).wrappedValue)
+      #expect(try await option("1", in: surface).wrappedValue == false)
 
-    #expect(
-      picker.selectionAccessibility(forOptionValue: "1")
-        == A2UISelectionAccessibility(role: .checkbox, isSelected: true))
-    #expect(
-      picker.selectionAccessibility(forOptionValue: "2")
-        == A2UISelectionAccessibility(role: .checkbox, isSelected: false))
-    #expect(
-      picker.selectionAccessibility(forOptionValue: "3")
-        == A2UISelectionAccessibility(role: .checkbox, isSelected: true))
-  }
+      try await option("1", in: surface).wrappedValue = true
+      #expect(selection(in: surface) == ["1"])
 
-  @Test func chipsUseTheSameRolesAsTheCheckboxList() async throws {
-    let single = try await choicePickerSurface(
-      variant: "mutuallyExclusive", displayStyle: "chips", selected: ["1"])
-    let multiple = try await choicePickerSurface(
-      variant: "multipleSelection", displayStyle: "chips", selected: ["1"])
-
-    #expect(
-      A2UIChoicePicker(node: try node("root", in: single)).selectionAccessibility(
-        forOptionValue: "1") == A2UISelectionAccessibility(role: .radio, isSelected: true))
-    #expect(
-      A2UIChoicePicker(node: try node("root", in: multiple)).selectionAccessibility(
-        forOptionValue: "1") == A2UISelectionAccessibility(role: .checkbox, isSelected: true))
-  }
-
-  // MARK: - Tabs
-
-  @Test func firstTabIsSelectedInitially() async throws {
-    let (_, surface) = try await makeSurface(components: [
-      [
-        "id": "root", "component": "Tabs",
-        "tabs": [
-          ["title": "Overview", "child": "overview"],
-          ["title": "Details", "child": "details"],
-        ],
-      ],
-      ["id": "overview", "component": "Text", "text": "Overview content"],
-      ["id": "details", "component": "Text", "text": "Details content"],
-    ])
-    let tabs = A2UITabs(node: try node("root", in: surface))
-
-    #expect(
-      tabs.selectionAccessibility(forTabAt: 0)
-        == A2UISelectionAccessibility(role: .tab, isSelected: true))
-    #expect(
-      tabs.selectionAccessibility(forTabAt: 1)
-        == A2UISelectionAccessibility(role: .tab, isSelected: false))
+      // A radio option cannot be deselected; another option has to be picked instead.
+      try await option("1", in: surface).wrappedValue = false
+      #expect(selection(in: surface) == ["1"])
+    }
   }
 
   // MARK: - Rendering

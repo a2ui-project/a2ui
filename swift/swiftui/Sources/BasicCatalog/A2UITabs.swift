@@ -69,11 +69,6 @@ public struct A2UITabs: View {
     return []
   }
 
-  /// The state of the tab header at `index` as reported to assistive technologies.
-  public func selectionAccessibility(forTabAt index: Int) -> A2UISelectionAccessibility {
-    A2UISelectionAccessibility(role: .tab, isSelected: selectedIndex == index)
-  }
-
   public var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       // Tab Bar Headers
@@ -98,7 +93,7 @@ public struct A2UITabs: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
-            .modifier(selectionAccessibility(forTabAt: tab.id))
+            .accessibilityAddTraits(selectedIndex == tab.id ? .isSelected : [])
           }
         }
         .modifier(TabBarAccessibility())
