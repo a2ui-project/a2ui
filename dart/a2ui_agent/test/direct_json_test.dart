@@ -638,17 +638,6 @@ void main() {
       ]);
     });
 
-    test('rejects catalogs of different versions when it opens', () {
-      final mixed = DirectJsonParser([basic, v1_0Catalog]);
-      for (final wrapped in [true, false]) {
-        expect(
-          () => mixed.openStream(wrapped: wrapped),
-          throwsError<A2uiCatalogError>(),
-          reason: 'wrapped: $wrapped',
-        );
-      }
-    });
-
     test('emits nothing for a number out of range until the block closes '
         'with a parse error', () {
       final DirectJsonResponseStream reader = parser().openStream();
@@ -661,6 +650,17 @@ void main() {
       );
       expect(reader.feed('}}'), isEmpty);
       expect(() => reader.feed(']</a2ui-json>'), throwsError<A2uiParseError>());
+    });
+
+    test('rejects catalogs of different versions when it opens', () {
+      final mixed = DirectJsonParser([basic, v1_0Catalog]);
+      for (final wrapped in [true, false]) {
+        expect(
+          () => mixed.openStream(wrapped: wrapped),
+          throwsError<A2uiCatalogError>(),
+          reason: 'wrapped: $wrapped',
+        );
+      }
     });
 
     test('emits the text it held back as a possible tag when it closes', () {
