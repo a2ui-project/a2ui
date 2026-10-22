@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let tabs = ComponentImplementation(api: BasicCatalogComponents.tabs) { node in
-    A2UITabs(node: node)
+  public static let tabs = ComponentImplementation(api: BasicCatalogComponents.tabs) {
+    A2UITabs(componentNode: $0)
   }
 }
 
@@ -31,13 +31,17 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Tabs` component.
 public struct A2UITabs: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
+
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
+  }
 
   @State private var selectedIndex = 0
-
-  public init(node: Node) {
-    self.node = node
-  }
 
   private struct TabData: Identifiable {
     let id: Int
@@ -101,7 +105,7 @@ public struct A2UITabs: View {
 
       // Selected Tab Content
       if selectedIndex < tabs.count, let childNode = tabs[selectedIndex].childNode {
-        ComponentNodeView(node: childNode)
+        ComponentNodeView(componentNode: .child(for: childNode, in: componentNode))
       }
     }
   }

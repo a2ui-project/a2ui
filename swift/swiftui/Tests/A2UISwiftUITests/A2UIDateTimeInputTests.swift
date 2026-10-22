@@ -36,7 +36,7 @@ struct A2UIDateTimeInputTests {
       ]
     )
 
-    let view = A2UIDateTimeInput(node: node)
+    let view = A2UIDateTimeInput(componentNode: ComponentNode(node: node))
     #expect(node.string(for: "label") == "Event Date")
     #expect(node.string(for: "value") == "2024-12-15T14:30:00Z")
     #expect(node.bool(for: "enableDate") == true)
@@ -58,7 +58,7 @@ struct A2UIDateTimeInputTests {
       ]
     )
 
-    let view = A2UIDateTimeInput(node: node)
+    let view = A2UIDateTimeInput(componentNode: ComponentNode(node: node))
     _ = view.body
   }
 
@@ -74,7 +74,7 @@ struct A2UIDateTimeInputTests {
       ]
     )
 
-    let view = A2UIDateTimeInput(node: node)
+    let view = A2UIDateTimeInput(componentNode: ComponentNode(node: node))
     _ = view.body
   }
 
@@ -91,7 +91,8 @@ struct A2UIDateTimeInputTests {
       ]
     )
 
-    let rendered = Surface.render(node: node, using: [catalog.id: catalog])
+    let rendered = Surface.render(
+      componentNode: ComponentNode(node: node), using: [catalog.id: catalog])
     #expect(rendered != nil)
   }
 
@@ -112,7 +113,7 @@ struct A2UIDateTimeInputTests {
       ]
     )
 
-    let view = A2UIDateTimeInput(node: node)
+    let view = A2UIDateTimeInput(componentNode: ComponentNode(node: node))
     _ = view.body
     #expect(node.string(for: "value") == "2024-12-25")
   }

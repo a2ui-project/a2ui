@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let button = ComponentImplementation(api: BasicCatalogComponents.button) { node in
-    A2UIButton(node: node)
+  public static let button = ComponentImplementation(api: BasicCatalogComponents.button) {
+    A2UIButton(componentNode: $0)
   }
 }
 
@@ -33,10 +33,14 @@ extension BasicCatalogImplementation {
 public struct A2UIButton: View {
   @Environment(\.a2uiTheme) private var theme
 
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var childNode: Node? {
@@ -55,7 +59,7 @@ public struct A2UIButton: View {
     Button(action: { action?() }) {
       Group {
         if let childNode {
-          ComponentNodeView(node: childNode)
+          ComponentNodeView(componentNode: .child(for: childNode, in: componentNode))
         }
       }
       .padding(.horizontal, variant == "borderless" ? 0 : 16)

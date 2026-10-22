@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let row = ComponentImplementation(api: BasicCatalogComponents.row) { node in
-    A2UIRow(node: node)
+  public static let row = ComponentImplementation(api: BasicCatalogComponents.row) {
+    A2UIRow(componentNode: $0)
   }
 }
 
@@ -31,10 +31,14 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Row` layout component.
 public struct A2UIRow: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var children: [Node] {
@@ -64,7 +68,7 @@ public struct A2UIRow: View {
       ForEach(Array(children.enumerated()), id: \.element.id) { index, childNode in
         let isWeighted =
           childNode.double(for: "weight") != nil || childNode.int(for: "weight") != nil
-        ComponentNodeView(node: childNode)
+        ComponentNodeView(componentNode: .child(for: childNode, in: componentNode))
           .frame(maxWidth: (isWeighted || justify == "stretch") ? .infinity : nil)
 
         if justify == "spaceBetween" && index < children.count - 1 {

@@ -31,7 +31,7 @@ struct A2UIIconTests {
       properties: ["name": "star"]
     )
 
-    let view = A2UIIcon(node: node)
+    let view = A2UIIcon(componentNode: ComponentNode(node: node))
     _ = view.body
   }
 
@@ -46,7 +46,7 @@ struct A2UIIconTests {
       ]
     )
 
-    let view = A2UIIcon(node: node)
+    let view = A2UIIcon(componentNode: ComponentNode(node: node))
     #expect(view.iconSource == .svg("M10 10 H 90 V 90 H 10 Z"))
     _ = view.body
   }
@@ -62,7 +62,7 @@ struct A2UIIconTests {
       ]
     )
 
-    let view = A2UIIcon(node: node)
+    let view = A2UIIcon(componentNode: ComponentNode(node: node))
     #expect(view.iconSource == .svg("M0 0 L10 10 Z"))
     _ = view.body
   }
@@ -137,7 +137,7 @@ struct A2UIIconTests {
 
     await Task.yield()
     let nodeAfter = try #require(surface.rootNode)
-    let iconView = A2UIIcon(node: nodeAfter)
+    let iconView = A2UIIcon(componentNode: ComponentNode(node: nodeAfter))
     #expect(
       iconView.iconSource
         == A2UIIcon.IconSource.svg(

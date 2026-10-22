@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let modal = ComponentImplementation(api: BasicCatalogComponents.modal) { node in
-    A2UIModal(node: node)
+  public static let modal = ComponentImplementation(api: BasicCatalogComponents.modal) {
+    A2UIModal(componentNode: $0)
   }
 }
 
@@ -31,13 +31,17 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Modal` component.
 public struct A2UIModal: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
+
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
+  }
 
   @State private var isPresented = false
-
-  public init(node: Node) {
-    self.node = node
-  }
 
   private var triggerNode: Node? {
     node.child(for: "trigger")
@@ -50,7 +54,7 @@ public struct A2UIModal: View {
   public var body: some View {
     Group {
       if let triggerNode {
-        ComponentNodeView(node: triggerNode)
+        ComponentNodeView(componentNode: .child(for: triggerNode, in: componentNode))
           .simultaneousGesture(
             TapGesture().onEnded {
               isPresented = true
@@ -62,7 +66,7 @@ public struct A2UIModal: View {
       NavigationStack {
         ScrollView {
           if let contentNode {
-            ComponentNodeView(node: contentNode)
+            ComponentNodeView(componentNode: .child(for: contentNode, in: componentNode))
               .padding()
           }
         }
