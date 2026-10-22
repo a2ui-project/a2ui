@@ -21,7 +21,6 @@
 import * as fs from 'node:fs';
 
 import {CatalogConfig, DirectJsonFormat, ExpressFormat} from '@a2ui/agent';
-import {MessageProcessor, STRICT_VALIDATION} from '@a2ui/web_core';
 
 function toWireVersion(version) {
   const cleaned = String(version ?? '').trim();
@@ -53,6 +52,17 @@ function createStrategy(formatName, catalog, version, surfaceId) {
     });
   }
   throw new Error(`Unknown format strategy for TypeScript SDK: ${formatName}`);
+}
+
+/** Splits a response and compiles its blocks without checking them. */
+function compileOnly(parser, completion) {
+  return parser
+    .unwrap(completion)
+    .map(raw =>
+      raw.type === 'text'
+        ? {type: 'text', text: raw.text}
+        : {type: 'a2ui', a2ui: parser.compile(raw.a2uiRaw, raw.isFinal)},
+    );
 }
 
 function main() {
@@ -88,7 +98,9 @@ function main() {
         throw new Error("A2UI tags '<a2ui>' and '</a2ui>' not found in response.");
       }
 
-      const parts = parser.parseResponse(completion);
+      // When `validate` is true, the parser checks the messages against a new renderer
+      // state, so they must form complete surfaces. Otherwise the blocks are only compiled.
+      const parts = validate ? parser.parseResponse(completion) : compileOnly(parser, completion);
       const compiledJsons = [];
       const serializedParts = [];
 
@@ -106,13 +118,6 @@ function main() {
           throw new Error('No A2UI JSON found in response (tags missing or empty)');
         }
         throw new Error(`No compiled A2UI ${formatName} user interface found in parsed parts.`);
-      }
-
-      if (validate) {
-        const processor = new MessageProcessor([catalog], undefined, {
-          validationConfig: STRICT_VALIDATION,
-        });
-        processor.processMessages(compiledJsons);
       }
 
       process.stdout.write(

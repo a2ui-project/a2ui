@@ -608,7 +608,10 @@ void main() {
 
   group('A2uiRequestProcessor', () {
     test('parses canvas turns against a state it creates', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       final RendererState state = processor.createState();
       processor.parseResponse(
         block([
@@ -653,7 +656,10 @@ void main() {
     });
 
     test('rejects a state for other catalogs', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       final other = RendererState([
         Catalog.fromJson({
           'catalogId': 'other',
@@ -684,7 +690,10 @@ void main() {
         'protocolVersion': '0.9',
         'components': <String, Object?>{},
       });
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic, other]);
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic, other],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
 
       expect(processor.acceptsState(processor.createState()), isTrue);
       expect(processor.acceptsState(RendererState([basic, other])), isTrue);
@@ -697,6 +706,7 @@ void main() {
       final state = RendererState([basic]);
       final processor = A2uiRequestProcessor(
         activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
         state: state,
       );
 

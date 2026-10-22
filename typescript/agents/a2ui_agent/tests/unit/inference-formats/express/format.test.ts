@@ -110,11 +110,11 @@ describe('ExpressFormat', () => {
     expect((parser as ExpressParser).catalogs[0]).toBe(catalog1);
   });
 
-  it('createParser result has supportsStreaming false and parseChunk throws', () => {
+  it('createParser result has supportsStreaming false and openStream throws', () => {
     const format = new ExpressFormat([catalog1]);
     const parser = format.createParser();
     expect(parser.supportsStreaming).toBe(false);
-    expect(() => parser.parseChunk('chunk')).toThrow('Streaming is not supported by ExpressParser');
+    expect(() => parser.openStream()).toThrow('Streaming is not supported by ExpressParser');
   });
 
   describe('Version handling', () => {
