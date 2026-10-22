@@ -38,11 +38,12 @@ fill it in and press its button.
    the v1.0 `action` message, with the renderer data model of each surface
    created with `sendDataModel`. The model answers with text, updates to the
    surface or new surfaces.
-5. Errors go back the same way, as v1.0 `error` messages, each with the id
-   of the surface whose message failed when there is one:
-   - errors a surface reports to `onError`
-   - messages the `MessageProcessor` rejects
-   - blocks the parser rejects
+5. Errors go back the same way, as v1.0 `error` messages:
+   - errors a surface reports to `onError`, with the id of the surface
+   - messages the `MessageProcessor` rejects, with the id of the surface
+     they target
+   - blocks the `ResponseStream` rejects, malformed or holding a message
+     the agent SDK finds invalid, with an empty surface id
 
    The rest of a reply after a rejected block is not read. At most two turns
    of errors in a row go back before the user's next turn.
@@ -58,9 +59,10 @@ with `dartantic_ai`.
   its button. It checks the action and data model the model receives, and
   the surface the model's recorded answer leaves.
 - `test/chat_session_test.dart` covers a `createSurface` that grows across
-  chunks, messages the `MessageProcessor` and the parser reject, an error the
-  model repeats, a request that fails or gives no reply, disposal, and the
-  renderer data model sent after a typed turn.
+  chunks, errors a surface reports as it first builds, a message the
+  `MessageProcessor` rejects, blocks the `ResponseStream` rejects, an error
+  the model repeats, a request that fails or gives no reply, disposal, and
+  the renderer data model sent after a typed turn.
 - [../e2e_test](../e2e_test) runs the app against the live model. It needs
   an API key, so it lives in a separate package and runs in a separate CI
   pipeline.
