@@ -158,6 +158,65 @@ void main() {
     expect(client.requests[1].last.text, contains('Bogus'));
   });
 
+  testWidgets('sends an error a surface reports as it first builds', (
+    tester,
+  ) async {
+    final client = FakeClient([
+      [
+        block([
+          createSurface('s'),
+          updateDataModel('s', {'amount': 'abc'}),
+          {
+            'version': 'v0.9',
+            'updateComponents': {
+              'surfaceId': 's',
+              'components': [
+                {
+                  'id': 'root',
+                  'component': 'Text',
+                  'text': {
+                    'call': 'formatCurrency',
+                    'args': {
+                      'value': {'path': '/amount'},
+                      'currency': 'USD',
+                    },
+                    'returnType': 'string',
+                  },
+                },
+              ],
+            },
+          },
+        ]),
+      ],
+      ['Fixed the amount.'],
+    ]);
+    final session = ChatSession(client: client);
+    addTearDown(session.dispose);
+    await tester.pumpWidget(ChatApp(session: session));
+
+    unawaited(session.send('Show the price.'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(errorsOf(session), [startsWith('EXPRESSION_ERROR on "s"')]);
+    expect(client.requests, hasLength(2));
+    expect(jsonDecode(client.requests[1].last.text), {
+      'a2ui': {
+        'messages': [
+          {
+            'version': 'v0.9',
+            'error': allOf(
+              containsPair('code', 'EXPRESSION_ERROR'),
+              containsPair('surfaceId', 's'),
+            ),
+          },
+        ],
+      },
+    });
+    expect(find.text('Fixed the amount.'), findsOneWidget);
+  });
+
   testWidgets('sends an error whose details are not JSON', (tester) async {
     final client = FakeClient([
       [
