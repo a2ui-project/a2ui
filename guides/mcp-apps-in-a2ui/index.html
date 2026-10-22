@@ -1620,7 +1620,7 @@
 <p>To prevent this, A2UI strictly excludes <code>allow-same-origin</code> for the inner iframe where the third-party application runs.</p>
 <h3 id="the-architecture">The Architecture<a class="headerlink" href="#the-architecture" title="Permanent link">¶</a></h3>
 <ol>
-<li><strong><a href="https://github.com/a2ui-project/a2ui/blob/main/samples/client/shared/mcp_apps_inner_iframe/sandbox.html">Sandbox Proxy (<code>sandbox.html</code>)</a></strong>: An intermediate <code>iframe</code> served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.<ul>
+<li><strong><a href="https://github.com/a2ui-project/a2ui/blob/main/samples/community/client/shared/mcp_apps_inner_iframe/sandbox.html">Sandbox Proxy (<code>sandbox.html</code>)</a></strong>: An intermediate <code>iframe</code> served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.<ul>
 <li>Permissions: <strong>Do not sandbox</strong> in the host template (e.g., <a href="https://github.com/a2ui-project/a2ui/blob/main/samples/community/client/lit/mcp-apps-in-a2ui-sample/mcp-app.ts"><code>mcp-app.ts</code></a> or <a href="https://github.com/a2ui-project/a2ui/blob/main/samples/community/client/lit/mcp-apps-in-a2ui-sample/ui/custom-components/mcp-apps-component.ts"><code>mcp-apps-component.ts</code></a>).</li>
 <li>Host origin validation: Validates that messages come from the expected host origin.</li>
 </ul>
@@ -1780,21 +1780,23 @@
 </span></code></pre></div>
 </blockquote>
 <h2 id="samples">Samples<a class="headerlink" href="#samples" title="Permanent link">¶</a></h2>
-<p>There are two primary samples demonstrating MCP Apps integration. Each sample requires running <strong>multiple terminals</strong> — one for each backend service and one for the client.</p>
+<p>There are two primary samples demonstrating MCP Apps integration. Both live under <code>samples/community/</code> and predate protocol v1.0: Sample 1 uses A2UI v0.8 and Sample 2 uses A2UI v0.9. Each defines its own MCP App component rather than using the <code>McpApp</code> component from the <a href="https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/README.md#v1-catalog-protocol-v10">v1.0 MCP catalog</a>. Each sample requires running <strong>multiple terminals</strong> — one for each backend service and one for the client.</p>
 <hr/>
 <h3 id="sample-1-mcp-app-standalone-sample-lit-client-adk-agent">Sample 1: MCP App Standalone Sample (Lit Client &amp; ADK Agent)<a class="headerlink" href="#sample-1-mcp-app-standalone-sample-lit-client-adk-agent" title="Permanent link">¶</a></h3>
 <p>This sample verifies the sandbox with a Lit-based client and an ADK-based A2A agent.</p>
 <h4 id="step-1-start-the-agent">Step 1: Start the Agent<a class="headerlink" href="#step-1-start-the-agent" title="Permanent link">¶</a></h4>
 <p>In a separate terminal, navigate to the agent directory and start the agent:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>samples/agent/adk/mcp-apps-in-a2ui-sample
-</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a>uv<span class="w"> </span>run<span class="w"> </span>agent.py
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="c1"># Run from the repository root</span>
+</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="nb">cd</span><span class="w"> </span>samples/community/agent/adk/mcp-apps-in-a2ui-sample
+</span><span id="__span-4-3"><a href="#__codelineno-4-3" id="__codelineno-4-3" name="__codelineno-4-3"></a>uv<span class="w"> </span>run<span class="w"> </span>agent.py
 </span></code></pre></div>
 <p>The agent will run on <code>http://localhost:8000</code>.</p>
 <h4 id="step-2-start-the-client">Step 2: Start the Client<a class="headerlink" href="#step-2-start-the-client" title="Permanent link">¶</a></h4>
 <p>In a new terminal, navigate to the client directory and start the dev server (requires building the Lit renderer first):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>samples/client/lit/mcp-apps-in-a2ui-sample
-</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a>yarn<span class="w"> </span>install
-</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a>yarn<span class="w"> </span>dev
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="c1"># Run from the repository root</span>
+</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="nb">cd</span><span class="w"> </span>samples/community/client/lit/mcp-apps-in-a2ui-sample
+</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a>yarn<span class="w"> </span>install
+</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a>yarn<span class="w"> </span>dev
 </span></code></pre></div>
 <p>The client starts at <code>http://localhost:5173/</code>.</p>
 <h4 id="step-3-open-in-browser">Step 3: Open in Browser<a class="headerlink" href="#step-3-open-in-browser" title="Permanent link">¶</a></h4>
