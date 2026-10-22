@@ -126,3 +126,21 @@ jobs:
         run: uv run python3 scripts/run_skills_tests.py
       - name: Run Workflow Script Unit Tests
         run: python3 -m unittest discover -s .github/scripts/tests
+
+  # The tests marked `performance` time processing payloads of two sizes, as
+  # conformance/core/message_processor_scaling.yaml describes. A slow or loaded
+  # runner can fail them, so the root pyproject.toml deselects them in the job
+  # above and they run here, in a job of their own. A regression can make them
+  # run for minutes, so the job has a time limit of its own.
+  python-performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python
+      - name: Install Dependencies
+        run: uv sync --all-packages
+      - name: Run Performance Tests
+        run: uv run pytest -m performance python/a2ui_core/tests python/a2ui_agent/tests
