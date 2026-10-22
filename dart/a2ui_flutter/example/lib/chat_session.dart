@@ -320,6 +320,9 @@ class ChatSession extends ChangeNotifier {
   /// Reports [error], thrown reading or processing a message of the surface
   /// [surfaceId], under its code and with its path, or as `UNKNOWN_ERROR` if
   /// it is not an [A2uiError] or is a validation failure with no path.
+  ///
+  /// [surfaceId] is empty for an error thrown reading the reply, which comes
+  /// with no message to take the id from.
   void _reportFailure(Object error, String surfaceId) {
     final A2uiError failure = error is A2uiError ? error : A2uiError('$error');
     final String? path = failure is A2uiValidationError ? failure.path : null;
