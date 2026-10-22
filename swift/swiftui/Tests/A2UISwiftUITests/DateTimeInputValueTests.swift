@@ -24,6 +24,11 @@ struct DateTimeInputValueTests {
     ("2026-10-12T10:00:00-05:30", "2026-10-12T15:30:00Z"),
     ("2026-10-12T10:00Z", "2026-10-12T10:00:00Z"),
     ("2026-10-12T10:00:00Z", "2026-10-12T10:00:00Z"),
+    ("2026-10-12T10:00+0200", "2026-10-12T08:00:00Z"),
+    ("2026-10-12T10:00+02", "2026-10-12T08:00:00Z"),
+    ("2026-10-12T10:00:00-05", "2026-10-12T15:00:00Z"),
+    ("2026-10-12t10:00z", "2026-10-12T10:00:00Z"),
+    ("2026-10-12t10:00:00+02:00", "2026-10-12T08:00:00Z"),
   ])
   func parsesTheInstantOfAValueWithAnOffset(value: String, utc: String) throws {
     let expected = try #require(ISO8601DateFormatter().date(from: utc))
@@ -51,7 +56,15 @@ struct DateTimeInputValueTests {
     #expect(components.second == 0)
   }
 
-  @Test(arguments: ["", "2026-10-12T", "2026-10-12Tnoon", "2026-10-12T10:00+99:00", "noon"])
+  @Test(arguments: [
+    "", "2026-10-12T", "2026-10-12Tnoon", "2026-10-12T10:00+99:00", "noon",
+    // Fractional seconds without seconds.
+    "2026-10-12T10:00.000Z", "2026-10-12T10:00.5",
+    // Dates that are not `yyyy-MM-dd`.
+    "2026-1-12", "2026-10-1", "26-10-12", "02026-10-12", "2026-1-12T10:00Z",
+    // Malformed offsets.
+    "2026-10-12T10:00+2", "2026-10-12T10:00+020", "2026-10-12T10:00+02:0", "2026-10-12T10:00+0:200",
+  ])
   func rejectsMalformedValues(value: String) {
     #expect(DateTimeInputValue(parsing: value) == nil)
   }
@@ -89,6 +102,10 @@ struct DateTimeInputValueTests {
     ("2026-10-12T10:00:00-05:30", "2026-10-12T11:30:00-05:30"),
     ("2026-10-12T10:00", "2026-10-12T11:30"),
     ("2026-10-12T10:00:00", "2026-10-12T11:30:00"),
+    ("2026-10-12T10:00+0200", "2026-10-12T11:30+0200"),
+    ("2026-10-12T10:00:00-05", "2026-10-12T11:30:00-05"),
+    ("2026-10-12t10:00z", "2026-10-12T11:30Z"),
+    ("2026-10-12t10:00:00+02", "2026-10-12T11:30:00+02"),
   ])
   func writesAPickedTimeInTheShapeOfThePreviousValue(previous: String, expected: String) throws {
     let parsed = try #require(DateTimeInputValue(parsing: previous))
@@ -105,5 +122,17 @@ struct DateTimeInputValueTests {
     let date = try #require(ISO8601DateFormatter().date(from: "2026-10-12T08:00:00Z"))
     let written = DateTimeInputValue.format(date, enableDate: true, enableTime: true, like: nil)
     #expect(written == "2026-10-12T08:00:00Z")
+  }
+
+  @Test func parsesTheSameValueOnManyThreadsAtOnce() async throws {
+    let expected = try #require(ISO8601DateFormatter().date(from: "2026-10-12T08:00:00Z"))
+    let dates = await withTaskGroup(of: Date?.self) { group in
+      for _ in 0..<200 {
+        group.addTask { DateTimeInputValue(parsing: "2026-10-12T10:00:00+02:00")?.date }
+      }
+      return await group.reduce(into: []) { $0.append($1) }
+    }
+    #expect(dates.count == 200)
+    #expect(dates.allSatisfy { $0 == expected })
   }
 }

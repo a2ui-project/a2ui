@@ -20,6 +20,10 @@ import Foundation
 /// `2026-10-12T10:00:00Z` and `2026-10-12T10:00+02:00`. A value is parsed only when the whole
 /// string matches one of these shapes, and a picked date is written back in the shape of the
 /// previous value, so the input does not change a value's time zone or precision.
+///
+/// As in RFC 3339, the `T` separator and the `Z` designator may also be written in lowercase, and
+/// an offset may also be written as `±HHmm` or `±HH`. A picked date-time is written back with an
+/// uppercase `T` and `Z`, and with the offset in the form the previous value used.
 package struct DateTimeInputValue {
   /// How a value is written.
   package enum Shape: Equatable, Sendable {
@@ -28,7 +32,7 @@ package struct DateTimeInputValue {
     /// `HH:mm` or `HH:mm:ss`, in the local time zone.
     case time(includesSeconds: Bool)
     /// `yyyy-MM-ddTHH:mm` or `yyyy-MM-ddTHH:mm:ss`, followed by `zoneDesignator`: `Z`, an
-    /// offset such as `+02:00`, or nothing for local time.
+    /// offset such as `+02:00`, `+0200` or `+02`, or nothing for local time.
     case dateTime(includesSeconds: Bool, zoneDesignator: String)
   }
 
@@ -39,8 +43,9 @@ package struct DateTimeInputValue {
 
   /// Parses an ISO 8601 date, time or date-time, or returns `nil` when `string` is not one.
   package init?(parsing string: String) {
-    guard let tIndex = string.firstIndex(of: "T") else {
-      if let date = Self.date(from: string, format: "yyyy-MM-dd", in: .current) {
+    guard let tIndex = string.firstIndex(where: { $0 == "T" || $0 == "t" }) else {
+      if string.count == 10, let date = Self.date(from: string, format: "yyyy-MM-dd", in: .current)
+      {
         self.init(date: date, shape: .date)
       } else if let includesSeconds = Self.includesSeconds(string),
         let date = Self.date(from: string, format: Self.time(includesSeconds), in: .current)
@@ -53,21 +58,22 @@ package struct DateTimeInputValue {
     }
 
     let day = string[..<tIndex]
+    guard day.count == 10 else { return nil }
     var rest = string[string.index(after: tIndex)...]
     let designator = Self.zoneDesignator(of: rest)
     rest = rest.dropLast(designator.count)
     guard let timeZone = Self.timeZone(for: designator) else { return nil }
 
-    var fraction: TimeInterval = 0
+    var fraction: TimeInterval?
     if let dot = rest.firstIndex(of: ".") {
       let digits = rest[rest.index(after: dot)...]
-      guard !digits.isEmpty, digits.allSatisfy { $0.isASCII && $0.isNumber },
+      guard !digits.isEmpty, (digits.allSatisfy { $0.isASCII && $0.isNumber }),
         let value = TimeInterval("0." + digits)
       else { return nil }
       fraction = value
       rest = rest[..<dot]
     }
-    guard let includesSeconds = Self.includesSeconds(rest), fraction == 0 || includesSeconds,
+    guard let includesSeconds = Self.includesSeconds(rest), fraction == nil || includesSeconds,
       let date = Self.date(
         from: "\(day)T\(rest)",
         format: "yyyy-MM-dd'T'" + Self.time(includesSeconds),
@@ -75,7 +81,7 @@ package struct DateTimeInputValue {
       )
     else { return nil }
     self.init(
-      date: date.addingTimeInterval(fraction),
+      date: date.addingTimeInterval(fraction ?? 0),
       shape: .dateTime(includesSeconds: includesSeconds, zoneDesignator: designator)
     )
   }
@@ -119,10 +125,12 @@ package struct DateTimeInputValue {
     }
   }
 
-  /// Returns the `Z` or `±HH:mm` / `±HHmm` suffix of the time part of a date-time, or `""`.
+  /// Returns the `Z`, `±HH:mm`, `±HHmm` or `±HH` suffix of the time part of a date-time, or `""`.
+  ///
+  /// A lowercase `z` is returned as `Z`, so that a picked date-time is written back with `Z`.
   private static func zoneDesignator(of time: Substring) -> String {
-    if time.hasSuffix("Z") { return "Z" }
-    for length in [6, 5] where time.count > length {
+    if time.hasSuffix("Z") || time.hasSuffix("z") { return "Z" }
+    for length in [6, 5, 3] where time.count > length {
       let suffix = time.suffix(length)
       if let sign = suffix.first, sign == "+" || sign == "-" {
         return String(suffix)
@@ -137,10 +145,14 @@ package struct DateTimeInputValue {
     case "": return .current
     case "Z": return .gmt
     default:
+      // `±HH`, `±HHmm` or `±HH:mm`.
       let digits = designator.dropFirst().filter { $0 != ":" }
-      guard digits.count == 4, digits.allSatisfy { $0.isASCII && $0.isNumber },
-        designator.count == 5 || designator.dropFirst(3).first == ":",
-        let hours = Int(digits.prefix(2)), let minutes = Int(digits.suffix(2)),
+      guard digits.count == 2 || digits.count == 4,
+        (digits.allSatisfy { $0.isASCII && $0.isNumber }),
+        designator.count == digits.count + 1
+          || (designator.count == 6 && designator.dropFirst(3).first == ":"),
+        let hours = Int(digits.prefix(2)),
+        let minutes = digits.count == 2 ? 0 : Int(digits.suffix(2)),
         hours <= 18, minutes < 60
       else { return nil }
       let seconds = (hours * 60 + minutes) * 60
@@ -170,12 +182,40 @@ package struct DateTimeInputValue {
     formatter(format, in: timeZone).string(from: date)
   }
 
+  /// Returns a POSIX formatter for `format` in `timeZone`.
+  ///
+  /// Formatters are cached per thread, so a formatter is never shared between threads.
   private static func formatter(_ format: String, in timeZone: TimeZone) -> DateFormatter {
+    let threadDictionary = Thread.current.threadDictionary
+    let cache: FormatterCache
+    if let existing = threadDictionary[FormatterCache.threadKey] as? FormatterCache {
+      cache = existing
+    } else {
+      cache = FormatterCache()
+      threadDictionary[FormatterCache.threadKey] = cache
+    }
+    let key = FormatterCache.Key(format: format, timeZone: timeZone)
+    if let formatter = cache.formatters[key] {
+      return formatter
+    }
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.calendar = Calendar(identifier: .gregorian)
     formatter.timeZone = timeZone
     formatter.dateFormat = format
+    cache.formatters[key] = formatter
     return formatter
+  }
+
+  /// The formatters one thread has created, stored in that thread's `threadDictionary`.
+  private final class FormatterCache {
+    struct Key: Hashable {
+      let format: String
+      let timeZone: TimeZone
+    }
+
+    static let threadKey = "A2UIDateTimeInputValueFormatters"
+
+    var formatters: [Key: DateFormatter] = [:]
   }
 }
