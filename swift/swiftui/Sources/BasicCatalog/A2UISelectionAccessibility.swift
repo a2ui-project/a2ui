@@ -62,6 +62,7 @@ public struct A2UISelectionAccessibility: ViewModifier, Equatable, Sendable {
     }
   }
 
+  @ViewBuilder
   public func body(content: Content) -> some View {
     let traited = content.accessibilityAddTraits(traits)
     if let value {
