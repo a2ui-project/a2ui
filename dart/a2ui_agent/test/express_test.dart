@@ -49,10 +49,7 @@ void main() {
   });
 
   A2uiRequestProcessor processor([List<CatalogApi>? catalogs]) =>
-      A2uiRequestProcessor(
-        activeCatalogs: catalogs ?? [basic],
-        formatFactory: const ExpressFormatFactory(),
-      );
+      A2uiRequestProcessor(activeCatalogs: catalogs ?? [basic]);
 
   /// The messages one block compiles to, as JSON.
   List<Map<String, Object?>> compile(String block) {

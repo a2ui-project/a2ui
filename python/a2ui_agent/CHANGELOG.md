@@ -18,6 +18,9 @@
   a declared variable), accept SQL/Lua-style `--` comments in Express, and map
   a trailing numeric positional argument across optional enum properties when a
   component schema declares a single later numeric property.
+- **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
+  `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
+  (`DirectJsonFormat`).
 
 ## 0.9.0 (2026-10-17)
 
