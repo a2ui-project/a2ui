@@ -628,7 +628,12 @@ export class A2uiVegaChartElement extends A2uiLitElement<
 
       this.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '';
       container.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '100%';
-      container.style.overflow = facetSize ? 'auto' : 'hidden';
+      // Faceted charts grow to fit every subplot; standard charts fill the
+      // requested height exactly.
+      container.style.height = facetSize ? 'auto' : `${containerHeight}px`;
+      container.style.minHeight = `${containerHeight}px`;
+      container.style.overflowX = facetSize ? 'auto' : 'hidden';
+      container.style.overflowY = 'hidden';
 
       const embed = this.embedFn ?? A2uiVegaChartElement.defaultEmbedFn;
       const result = await embed(container, transformedSpec, {actions: false, renderer: 'svg'});

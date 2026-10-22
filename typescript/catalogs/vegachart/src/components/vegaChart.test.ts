@@ -297,6 +297,30 @@ describe('A2uiVegaChartElement', () => {
     assert.strictEqual(rendered.length, 0);
   });
 
+  it('grows the container to fit a faceted chart instead of scrolling it', async () => {
+    const values = ['A', 'B', 'C', 'D'].flatMap(team =>
+      ['P0', 'P1', 'P2'].map(priority => ({team, priority, n: 1})),
+    );
+    const {container, rendered} = await mount({
+      data: {values},
+      mark: 'bar',
+      encoding: {
+        facet: {field: 'team', columns: 2},
+        x: {field: 'priority', type: 'ordinal'},
+        y: {field: 'n', type: 'quantitative'},
+      },
+    });
+    mockRect(container, 600, 290);
+    latestResizeObserver()?.trigger(600, 290);
+    await settle();
+
+    assert.strictEqual(rendered.length, 1);
+    assert.strictEqual(container.style.height, 'auto');
+    assert.strictEqual(container.style.overflowY, 'hidden');
+    // Two rows of subplots need more than the default 290px.
+    assert.ok(parseInt(container.style.minHeight, 10) > DEFAULT_HEIGHT);
+  });
+
   it('finalizes a stale embed when the spec changes mid-render', async () => {
     let resolveFirst!: (res: {finalize: () => void}) => void;
     let firstFinalized = false;
