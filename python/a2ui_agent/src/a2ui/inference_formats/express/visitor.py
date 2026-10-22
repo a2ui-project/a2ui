@@ -22,6 +22,7 @@ from antlr4.error.ErrorListener import ErrorListener
 
 from .generated.express_parser import ExpressParser
 from .generated.express_visitor import ExpressVisitor
+from .nodes import CallNode, CheckNode, PathNode, SkippedNode, VariableNode
 
 
 def _unescape_string(val: str) -> str:
@@ -118,18 +119,18 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
         v = self.visit(ctx.expression())
         return k, v
 
-    def visitPath(self, ctx: ExpressParser.PathContext) -> dict[str, Any]:
+    def visitPath(self, ctx: ExpressParser.PathContext) -> PathNode:
         # path : PATH ;
         text = ctx.PATH().getText()
-        return {"path": text[1:]}
+        return PathNode(text[1:])
 
-    def visitCheck(self, ctx: ExpressParser.CheckContext) -> dict[str, Any]:
+    def visitCheck(self, ctx: ExpressParser.CheckContext) -> CheckNode:
         # check : CHECK ('(' (expression (',' expression)*)? ','? ')')? ;
         name = ctx.CHECK().getText()[1:]  # strip ?
         args = []
         for expr in ctx.expression():
             args.append(self.visit(expr))
-        return {"check": name, "args": args}
+        return CheckNode(name, args)
 
     def visitArg(self, ctx: ExpressParser.ArgContext) -> dict[str, Any]:
         # arg : named_arg | expression ;
@@ -144,7 +145,7 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
         v = self.visit(ctx.expression())
         return k, v
 
-    def visitCall(self, ctx: ExpressParser.CallContext) -> dict[str, Any]:
+    def visitCall(self, ctx: ExpressParser.CallContext) -> CallNode:
         # call : identifier '(' (arg (',' arg)*)? ','? ')' ;
         name = ctx.identifier().getText()
         args = []
@@ -157,18 +158,17 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
                 args.append(res["value"])
             else:
                 args.append(res)
-        node = {"call": name, "args": args}
-        if kwargs:
-            node["kwargs"] = kwargs
-        return node
+        return CallNode(name, args, kwargs)
 
-    def visitVariable(self, ctx: ExpressParser.VariableContext) -> dict[str, Any]:
+    def visitVariable(
+        self, ctx: ExpressParser.VariableContext
+    ) -> VariableNode | SkippedNode:
         # variable : '_' | identifier ;
         if ctx.identifier():
             name = ctx.identifier().getText()
-            return {"variable": name}
+            return VariableNode(name)
         else:
-            return {"skipped": True}
+            return SkippedNode()
 
     def visitLiteral(self, ctx: ExpressParser.LiteralContext) -> Any:
         # literal : string | NUMBER | BOOLEAN | 'null' ;

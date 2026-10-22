@@ -59,11 +59,10 @@ import {
   type ReservedKeys,
 } from './schema-helper.js';
 import {
+  isExpressNode,
   parseExpress,
-  type ExpressCallValue,
-  type ExpressCheckValue,
-  type ExpressPathValue,
-  type ExpressSkippedValue,
+  type ExpressCallNode,
+  type ExpressCheckNode,
   type ExpressStatement,
   type ExpressValue,
 } from './visitor.js';
@@ -160,36 +159,13 @@ function isDirectBinding(v: unknown, keys: ReservedKeys): boolean {
  * Checks if a parsed AST value represents a validation check expression (compiler.py:154-160).
  */
 export function isCheckExpression(val: unknown): boolean {
-  if (val && typeof val === 'object') {
-    if (!Array.isArray(val) && 'check' in val) {
-      return true;
-    }
-    if (Array.isArray(val) && val.length > 0) {
-      return val.every(isCheckExpression);
-    }
+  if (isExpressNode(val, 'check')) {
+    return true;
+  }
+  if (Array.isArray(val) && val.length > 0) {
+    return val.every(isCheckExpression);
   }
   return false;
-}
-
-/**
- * Checks if an AST argument inside a `?check(...)` call is a plain map literal
- * rather than a path, call, check, variable, or skipped-argument node.
- */
-function isPlainAstMap(arg: unknown): arg is Record<string, unknown> {
-  if (!arg || typeof arg !== 'object' || Array.isArray(arg)) {
-    return false;
-  }
-  const obj = arg as Record<string, unknown>;
-  if (
-    ('path' in obj && Object.keys(obj).length === 1) ||
-    ('call' in obj && Array.isArray(obj.args)) ||
-    ('check' in obj && Array.isArray(obj.args)) ||
-    ('variable' in obj && Object.keys(obj).length === 1) ||
-    ('skipped' in obj && obj.skipped === true && Object.keys(obj).length === 1)
-  ) {
-    return false;
-  }
-  return true;
 }
 
 /**
@@ -288,7 +264,7 @@ class SurfaceScope {
 type CompilationUnit =
   | {kind: 'scope'; scope: SurfaceScope}
   | {kind: 'delete'; surfaceId: string}
-  | {kind: 'call'; stmt: ExpressCallValue; scope: SurfaceScope | null};
+  | {kind: 'call'; stmt: ExpressCallNode; scope: SurfaceScope | null};
 
 /**
  * Compilation pipeline for A2UI Express.
@@ -386,14 +362,14 @@ export class ExpressCompiler {
   /**
    * Parses and validates a `surface(...)` statement.
    */
-  private parseSurfaceCall(callVal: ExpressCallValue): {
+  private parseSurfaceCall(callVal: ExpressCallNode): {
     surfaceId: string;
     catalogId: string;
     sendDataModel?: boolean;
     update: boolean;
   } {
-    const args = callVal.args ?? [];
-    const kwargs = callVal.kwargs ?? {};
+    const args = callVal.args;
+    const kwargs = callVal.kwargs;
 
     if (args.length === 0) {
       throw new ExpressValidationError(
@@ -559,24 +535,13 @@ export class ExpressCompiler {
       const [stmtType, ...stmtArgs] = stmt;
       if (stmtType === 'EXPR') {
         const parsedVal = stmtArgs[0];
-        if (
-          parsedVal &&
-          typeof parsedVal === 'object' &&
-          'call' in parsedVal &&
-          (parsedVal as ExpressCallValue).call === 'surface'
-        ) {
-          const parsed = this.parseSurfaceCall(parsedVal as ExpressCallValue);
+        if (isExpressNode(parsedVal, 'call') && parsedVal.name === 'surface') {
+          const parsed = this.parseSurfaceCall(parsedVal);
           currentScope = new SurfaceScope(parsed.surfaceId, parsed.sendDataModel, parsed.update);
           units.push({kind: 'scope', scope: currentScope});
-        } else if (
-          parsedVal &&
-          typeof parsedVal === 'object' &&
-          'call' in parsedVal &&
-          (parsedVal as ExpressCallValue).call === 'deleteSurface'
-        ) {
-          const callVal = parsedVal as ExpressCallValue;
-          const args = callVal.args ?? [];
-          const kwargs = callVal.kwargs ?? {};
+        } else if (isExpressNode(parsedVal, 'call') && parsedVal.name === 'deleteSurface') {
+          const args = parsedVal.args;
+          const kwargs = parsedVal.kwargs;
           let targetDeleteSurfaceId: string | null = null;
           if (args.length > 0 && typeof args[0] === 'string') {
             targetDeleteSurfaceId = args[0];
@@ -589,10 +554,10 @@ export class ExpressCompiler {
             );
           }
           units.push({kind: 'delete', surfaceId: targetDeleteSurfaceId});
-        } else if (parsedVal && typeof parsedVal === 'object' && 'call' in parsedVal) {
+        } else if (isExpressNode(parsedVal, 'call')) {
           units.push({
             kind: 'call',
-            stmt: parsedVal as ExpressCallValue,
+            stmt: parsedVal,
             scope: currentScope,
           });
         }
@@ -677,10 +642,9 @@ export class ExpressCompiler {
 
     const compIds = new Map<string, string>();
     for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
-      if (ast && typeof ast === 'object' && 'call' in ast) {
-        const callAst = ast as ExpressCallValue;
-        const compName = callAst.call;
-        const explicitId = callAst.kwargs?.id;
+      if (isExpressNode(ast, 'call')) {
+        const compName = ast.name;
+        const explicitId = ast.kwargs.id;
         if (explicitId !== undefined) {
           if (typeof explicitId !== 'string' || explicitId.length === 0) {
             throw new ExpressValidationError(
@@ -693,7 +657,7 @@ export class ExpressCompiler {
             );
           }
         }
-        if (this.definesComponent(compName, callAst.kwargs?.catalogId)) {
+        if (this.definesComponent(compName, ast.kwargs.catalogId)) {
           compIds.set(varName, (explicitId as string | undefined) ?? varName);
         }
       }
@@ -844,14 +808,13 @@ export class ExpressCompiler {
     ctx: CompileContext,
     targetMajorMinor: [number, number],
   ): Record<string, unknown> | null {
-    if (!ast || typeof ast !== 'object' || !('call' in ast)) {
+    if (!isExpressNode(ast, 'call')) {
       return null;
     }
 
-    const callAst = ast as ExpressCallValue;
-    const compName = callAst.call;
-    const args = callAst.args ?? [];
-    const rawKwargs = {...(callAst.kwargs ?? {})};
+    const compName = ast.name;
+    const args = ast.args;
+    const rawKwargs = {...ast.kwargs};
 
     const explicitCatalogId = rawKwargs.catalogId;
     delete rawKwargs.catalogId;
@@ -907,7 +870,7 @@ export class ExpressCompiler {
       ? properties.filter(p => p !== checkPropName)
       : properties;
 
-    const rawChecks: ExpressCheckValue[] = [];
+    const rawChecks: ExpressCheckNode[] = [];
     const propArgPairs: Array<[string, unknown]> = [];
     let propIdx = 0;
 
@@ -915,9 +878,9 @@ export class ExpressCompiler {
     for (const arg of args) {
       if (isCheckExpression(arg)) {
         if (Array.isArray(arg)) {
-          rawChecks.push(...(arg as ExpressCheckValue[]));
+          rawChecks.push(...(arg as ExpressCheckNode[]));
         } else {
-          rawChecks.push(arg as ExpressCheckValue);
+          rawChecks.push(arg as ExpressCheckNode);
         }
         continue;
       }
@@ -986,9 +949,9 @@ export class ExpressCompiler {
     for (const [k, v] of Object.entries(rawKwargs)) {
       if (isCheckExpression(v)) {
         if (Array.isArray(v)) {
-          rawChecks.push(...(v as ExpressCheckValue[]));
+          rawChecks.push(...(v as ExpressCheckNode[]));
         } else {
-          rawChecks.push(v as ExpressCheckValue);
+          rawChecks.push(v as ExpressCheckNode);
         }
         continue;
       }
@@ -1007,12 +970,7 @@ export class ExpressCompiler {
       }
       seenProperties.add(propName);
 
-      if (
-        arg &&
-        typeof arg === 'object' &&
-        'skipped' in arg &&
-        (arg as ExpressSkippedValue).skipped
-      ) {
+      if (isExpressNode(arg, 'skipped')) {
         compDict[propName] = null;
         continue;
       }
@@ -1101,7 +1059,7 @@ export class ExpressCompiler {
 
       const compiledChecks: Record<string, unknown>[] = [];
       for (const rc of rawChecks) {
-        if (rc && typeof rc === 'object' && 'check' in rc) {
+        if (isExpressNode(rc, 'check')) {
           compiledChecks.push(
             this.compileCheckCall(rc, rawSymbols, compIds, ctx, targetMajorMinor, false),
           );
@@ -1128,45 +1086,35 @@ export class ExpressCompiler {
    * Compiles a `?check(...)` expression into a condition and failure message.
    */
   private compileCheckCall(
-    rc: ExpressCheckValue,
+    rc: ExpressCheckNode,
     rawSymbols: Record<string, unknown>,
     compIds: Map<string, string>,
     ctx: CompileContext,
     targetMajorMinor: [number, number],
     isAction = false,
   ): {condition: Record<string, unknown>; message: string} {
-    const checkName = rc.check;
-    const rawArgs = rc.args ?? [];
+    const checkName = rc.name;
+    const rawArgs = rc.args;
     const remainingArgs: ExpressValue[] = [];
-    let checkCatalogId: unknown = (rc as unknown as {catalogId?: unknown}).catalogId;
+    let checkCatalogId: unknown = undefined;
 
     for (const arg of rawArgs) {
-      if (isPlainAstMap(arg) && 'catalogId' in arg) {
-        const otherKeys = Object.keys(arg).filter(k => k !== 'catalogId');
+      if (isExpressNode(arg, 'map') && 'catalogId' in arg.entries) {
+        const otherKeys = Object.keys(arg.entries).filter(k => k !== 'catalogId');
         if (otherKeys.length > 0) {
           throw new ExpressValidationError(
             `Unsupported key(s) in check options for '?${checkName}': ${otherKeys.join(', ')}. Only 'catalogId' is allowed.`,
           );
         }
-        if (checkCatalogId !== undefined && checkCatalogId !== arg.catalogId) {
+        if (checkCatalogId !== undefined && checkCatalogId !== arg.entries.catalogId) {
           throw new ExpressValidationError(
             `Check '?${checkName}' specifies conflicting catalogId values.`,
           );
         }
-        checkCatalogId = arg.catalogId;
+        checkCatalogId = arg.entries.catalogId;
         continue;
       }
       remainingArgs.push(arg);
-    }
-
-    const rcKwargs = (rc as unknown as {kwargs?: Record<string, ExpressValue>}).kwargs;
-    if (rcKwargs && 'catalogId' in rcKwargs) {
-      if (checkCatalogId !== undefined && checkCatalogId !== rcKwargs.catalogId) {
-        throw new ExpressValidationError(
-          `Check '?${checkName}' specifies conflicting catalogId values.`,
-        );
-      }
-      checkCatalogId = rcKwargs.catalogId;
     }
 
     const {helper: checkHelper} = this.resolveSymbol(
@@ -1185,17 +1133,13 @@ export class ExpressCompiler {
     // Sanctioned departure §5.2 item 3: implicit first argument injection
     if (checkProps.length > 0) {
       const first = checkProps[0];
-      const firstIsPath =
-        remainingArgs.length > 0 &&
-        remainingArgs[0] &&
-        typeof remainingArgs[0] === 'object' &&
-        'path' in remainingArgs[0];
+      const firstIsPath = remainingArgs.length > 0 && isExpressNode(remainingArgs[0], 'path');
 
       if (!firstIsPath) {
         const bound = ctx.activeBoundPaths.get(first);
         if (bound) {
           const rawPath = String(bound[ctx.keys.path] ?? '');
-          callArgs.push({path: rawPath});
+          callArgs.push({kind: 'path', path: rawPath});
           isValueInjected = true;
         }
       }
@@ -1233,15 +1177,16 @@ export class ExpressCompiler {
       }
     }
 
-    const innerKwargs: Record<string, ExpressValue> = {...(rcKwargs ?? {})};
+    const innerKwargs: Record<string, ExpressValue> = {};
     if (checkCatalogId !== undefined) {
       innerKwargs.catalogId = checkCatalogId as ExpressValue;
     }
 
-    const conditionCall: ExpressCallValue = {
-      call: checkName,
+    const conditionCall: ExpressCallNode = {
+      kind: 'call',
+      name: checkName,
       args: callArgs,
-      ...(Object.keys(innerKwargs).length > 0 ? {kwargs: innerKwargs} : {}),
+      kwargs: innerKwargs,
     };
 
     const [condition] = this.compileFunctionCall(
@@ -1261,7 +1206,7 @@ export class ExpressCompiler {
    * Compiles a function call AST node into a wire function call object.
    */
   private compileFunctionCall(
-    callVal: ExpressCallValue,
+    callVal: ExpressCallNode,
     rawSymbols: Record<string, unknown>,
     compIds: Map<string, string>,
     ctx: CompileContext,
@@ -1269,9 +1214,9 @@ export class ExpressCompiler {
     isAction = false,
     allowCallId = false,
   ): [Record<string, unknown>, string | undefined] {
-    const fnName = callVal.call;
-    const fnArgs = callVal.args ?? [];
-    const fnKwargs = {...(callVal.kwargs ?? {})};
+    const fnName = callVal.name;
+    const fnArgs = callVal.args;
+    const fnKwargs = {...callVal.kwargs};
 
     const explicitCatalogId = fnKwargs.catalogId;
     delete fnKwargs.catalogId;
@@ -1300,12 +1245,7 @@ export class ExpressCompiler {
     for (let idx = 0; idx < fnArgs.length; idx++) {
       const arg = fnArgs[idx];
       if (idx < fnProps.length) {
-        if (
-          arg &&
-          typeof arg === 'object' &&
-          'skipped' in arg &&
-          (arg as ExpressSkippedValue).skipped
-        ) {
+        if (isExpressNode(arg, 'skipped')) {
           continue;
         }
         const valItem = this._compileValue(
@@ -1329,7 +1269,7 @@ export class ExpressCompiler {
       if (k in compiledArgs) {
         throw new ExpressDuplicateParamError(fnName, k);
       }
-      if (v && typeof v === 'object' && 'skipped' in v && (v as ExpressSkippedValue).skipped) {
+      if (isExpressNode(v, 'skipped')) {
         continue;
       }
       const valItem = this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
@@ -1369,194 +1309,192 @@ export class ExpressCompiler {
     isAction = false,
     inlineCtx?: {parentId: string; property: string; index?: number},
   ): unknown {
-    if (val && typeof val === 'object') {
-      if ('path' in val) {
-        return {[ctx.keys.path]: (val as ExpressPathValue).path};
-      }
+    if (Array.isArray(val)) {
+      return val.map((item, index) =>
+        this._compileValue(
+          item,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          isAction,
+          inlineCtx ? {...inlineCtx, index} : undefined,
+        ),
+      );
+    }
 
-      if ('variable' in val) {
-        const refName = (val as {variable: string}).variable;
-        if (compIds.has(refName)) {
-          return compIds.get(refName)!;
-        }
-        if (refName in rawSymbols) {
-          const symbolVal = rawSymbols[refName];
-          return this._compileValue(
-            symbolVal,
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
+    if (isExpressNode(val, 'map')) {
+      // A map literal is always data, whatever its keys are.
+      const dictRes: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(val.entries)) {
+        dictRes[k] = this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+      }
+      return dictRes;
+    }
+
+    if (isExpressNode(val, 'path')) {
+      return {[ctx.keys.path]: val.path};
+    }
+
+    if (isExpressNode(val, 'variable')) {
+      const refName = val.name;
+      if (compIds.has(refName)) {
+        return compIds.get(refName)!;
+      }
+      if (refName in rawSymbols) {
+        const symbolVal = rawSymbols[refName];
+        return this._compileValue(symbolVal, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+      }
+      return refName;
+    }
+
+    if (isExpressNode(val, 'skipped')) {
+      throw new ExpressValidationError("'_' can only stand in for an argument.");
+    }
+
+    if (isExpressNode(val, 'check')) {
+      const {condition} = this.compileCheckCall(
+        val,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        isAction,
+      );
+      return condition;
+    }
+
+    if (isExpressNode(val, 'call')) {
+      const callVal = val;
+      const fnName = callVal.name;
+      const fnArgs = callVal.args;
+      const fnKwargs = callVal.kwargs;
+
+      // 1. Is it a reserved _template signature?
+      if (fnName === '_template') {
+        if (fnArgs.length < 2) {
+          throw new ExpressParseError(
+            '_template helper requires exactly 2 arguments: path and templateComponent.',
           );
         }
-        return refName;
-      }
-
-      if ('check' in val) {
-        const {condition} = this.compileCheckCall(
-          val as ExpressCheckValue,
+        const pathVal = this._compileValue(
+          fnArgs[0],
           rawSymbols,
           compIds,
           ctx,
           targetMajorMinor,
           isAction,
         );
-        return condition;
-      }
-
-      if ('call' in val) {
-        const callVal = val as ExpressCallValue;
-        const fnName = callVal.call;
-        const fnArgs = callVal.args ?? [];
-        const fnKwargs = callVal.kwargs ?? {};
-
-        // 1. Is it a reserved _template signature?
-        if (fnName === '_template') {
-          if (fnArgs.length < 2) {
-            throw new ExpressParseError(
-              '_template helper requires exactly 2 arguments: path and templateComponent.',
-            );
-          }
-          const pathVal = this._compileValue(
-            fnArgs[0],
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
+        if (!pathVal || typeof pathVal !== 'object' || !(ctx.keys.path in pathVal)) {
+          throw new ExpressParseError(
+            `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
           );
-          if (!pathVal || typeof pathVal !== 'object' || !(ctx.keys.path in pathVal)) {
-            throw new ExpressParseError(
-              `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
-            );
-          }
-          const compIdVal = this._compileValue(
-            fnArgs[1],
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
-          );
-          // A template's path is a plain property of ChildList, not a data binding, so it
-          // keeps the unprefixed name in every version.
-          return {
-            path: (pathVal as Record<string, unknown>)[ctx.keys.path],
-            componentId: compIdVal,
-          };
         }
-
-        // 2. Is it a reserved Event signature?
-        if (fnName === 'Event') {
-          const compiledEventName =
-            fnArgs.length > 0
-              ? this._compileValue(fnArgs[0], rawSymbols, compIds, ctx, targetMajorMinor, isAction)
-              : '';
-
-          if (fnArgs.length <= 1) {
-            return {
-              event: {
-                name: compiledEventName,
-              },
-            };
-          }
-
-          const rawContext = this._compileValue(
-            fnArgs[1],
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
-          );
-          const compiledContext: Record<string, unknown> = {};
-          if (rawContext && typeof rawContext === 'object') {
-            if (Array.isArray(rawContext)) {
-              for (const item of rawContext) {
-                if (item && typeof item === 'object' && !Array.isArray(item)) {
-                  Object.assign(compiledContext, item);
-                }
-              }
-            } else {
-              Object.assign(compiledContext, rawContext);
-            }
-          }
-          return {
-            event: {
-              name: compiledEventName,
-              context: compiledContext,
-            },
-          };
-        }
-
-        // 3. Is it an inline component constructor?
-        if (this.definesComponent(fnName, fnKwargs.catalogId)) {
-          ctx.inlineCounter += 1;
-          const inlineId = inlineCtx
-            ? inlineCtx.index !== undefined
-              ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
-              : `${inlineCtx.parentId}_${inlineCtx.property}`
-            : `_inline_${ctx.inlineCounter}`;
-          if (
-            inlineId in rawSymbols ||
-            Array.from(compIds.values()).includes(inlineId) ||
-            ctx.generatedIds.has(inlineId)
-          ) {
-            throw new ExpressIdCollisionError(inlineId);
-          }
-          ctx.generatedIds.add(inlineId);
-          const extraStartIndex = ctx.extraComponents.length;
-          const compiledInline = this._compileAstNode(
-            inlineId,
-            val,
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-          );
-          if (compiledInline) {
-            ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
-            return compiledInline.id as string;
-          }
-          return inlineId;
-        }
-
-        // 4. Regular catalog function call
-        const [compiledFn] = this.compileFunctionCall(
-          callVal,
+        const compIdVal = this._compileValue(
+          fnArgs[1],
           rawSymbols,
           compIds,
           ctx,
           targetMajorMinor,
-          false,
-          false,
+          isAction,
         );
-        if (isAction) {
-          return {functionCall: compiledFn};
+        // A template's path is a plain property of ChildList, not a data binding, so it
+        // keeps the unprefixed name in every version.
+        return {
+          path: (pathVal as Record<string, unknown>)[ctx.keys.path],
+          componentId: compIdVal,
+        };
+      }
+
+      // 2. Is it a reserved Event signature?
+      if (fnName === 'Event') {
+        const compiledEventName =
+          fnArgs.length > 0
+            ? this._compileValue(fnArgs[0], rawSymbols, compIds, ctx, targetMajorMinor, isAction)
+            : '';
+
+        if (fnArgs.length <= 1) {
+          return {
+            event: {
+              name: compiledEventName,
+            },
+          };
         }
-        return compiledFn;
-      }
 
-      if (Array.isArray(val)) {
-        return val.map((item, index) =>
-          this._compileValue(
-            item,
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
-            inlineCtx ? {...inlineCtx, index} : undefined,
-          ),
+        const rawContext = this._compileValue(
+          fnArgs[1],
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          isAction,
         );
+        const compiledContext: Record<string, unknown> = {};
+        if (rawContext && typeof rawContext === 'object') {
+          if (Array.isArray(rawContext)) {
+            for (const item of rawContext) {
+              if (item && typeof item === 'object' && !Array.isArray(item)) {
+                Object.assign(compiledContext, item);
+              }
+            }
+          } else {
+            Object.assign(compiledContext, rawContext);
+          }
+        }
+        return {
+          event: {
+            name: compiledEventName,
+            context: compiledContext,
+          },
+        };
       }
 
-      const dictRes: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-        dictRes[k] = this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+      // 3. Is it an inline component constructor?
+      if (this.definesComponent(fnName, fnKwargs.catalogId)) {
+        ctx.inlineCounter += 1;
+        const inlineId = inlineCtx
+          ? inlineCtx.index !== undefined
+            ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
+            : `${inlineCtx.parentId}_${inlineCtx.property}`
+          : `_inline_${ctx.inlineCounter}`;
+        if (
+          inlineId in rawSymbols ||
+          Array.from(compIds.values()).includes(inlineId) ||
+          ctx.generatedIds.has(inlineId)
+        ) {
+          throw new ExpressIdCollisionError(inlineId);
+        }
+        ctx.generatedIds.add(inlineId);
+        const extraStartIndex = ctx.extraComponents.length;
+        const compiledInline = this._compileAstNode(
+          inlineId,
+          val,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+        );
+        if (compiledInline) {
+          ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
+          return compiledInline.id as string;
+        }
+        return inlineId;
       }
-      return dictRes;
+
+      // 4. Regular catalog function call
+      const [compiledFn] = this.compileFunctionCall(
+        callVal,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        false,
+        false,
+      );
+      if (isAction) {
+        return {functionCall: compiledFn};
+      }
+      return compiledFn;
     }
 
     return val;

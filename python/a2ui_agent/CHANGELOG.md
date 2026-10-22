@@ -1,5 +1,13 @@
 ## Unreleased
 
+- The Express compiler keeps a map literal as written, quoted keys or not, when
+  one of its keys shares a name with an Express construct (`variable`, `path`,
+  `call`, `check`, `skipped`); before, such a map was read as a variable
+  reference, data binding, function call or check, and lost its data
+  ([#3410](https://github.com/a2ui-project/a2ui/issues/3410)). In v1.0 and
+  later, only `@path` marks a data binding when the compiler checks a property
+  that does not admit one, so a plain `path` key is data. A `_` anywhere but in
+  place of an argument now raises `ExpressValidationError`.
 - Package dependency updated to require `a2ui-core>=0.4.1,<0.5.0`.
 - The response parsers for Direct JSON, Express, Elemental and Atom remove the
   backticks left at the edges of a block when a model writes the tags as inline

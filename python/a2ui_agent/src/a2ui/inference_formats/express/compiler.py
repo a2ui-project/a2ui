@@ -22,7 +22,7 @@ The grammar for A2UI Express is defined in Express.g4.
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import re
 from typing import Any, Literal
 
@@ -54,6 +54,7 @@ from .errors import (
 )
 from .generated.express_lexer import ExpressLexer
 from .generated.express_parser import ExpressParser
+from .nodes import CallNode, CheckNode, PathNode, SkippedNode, VariableNode
 from .visitor import ExpressAstVisitor, ExpressErrorListener
 
 # Statements that the compiler handles itself rather than as catalog calls.
@@ -80,8 +81,8 @@ def _component_id(var_name: str, ast: Any, *, at_least_v10: bool = False) -> str
             non-empty string, or (in v1.0 and later) is not a valid UAX 31
             identifier.
     """
-    kwargs = ast.get("kwargs") if isinstance(ast, dict) else None
-    if not isinstance(kwargs, dict) or _ID_KEY not in kwargs:
+    kwargs = ast.kwargs if isinstance(ast, CallNode) else None
+    if not kwargs or _ID_KEY not in kwargs:
         return var_name
     explicit_id = kwargs[_ID_KEY]
     if not isinstance(explicit_id, str) or not explicit_id:
@@ -164,38 +165,38 @@ def _schema_allows_databinding(schema: Any) -> bool:
     return False
 
 
-def _binding_path(v: Any) -> str | None:
+def _binding_path(v: Any, path_key: str) -> str | None:
     """Returns the path of a compiled data binding, or None if `v` is not one.
 
-    Accepts the v1.0 `@path` spelling and the v0.9 `path` spelling. A child list
+    `path_key` is the binding key of the target version: `@path` in v1.0 and
+    later, `path` before. A plain `path` key in v1.0 is data. A child list
     template (`{"componentId": ..., "path": ...}`) is not a data binding.
     """
     if not isinstance(v, dict) or "componentId" in v:
         return None
-    for key in ("@path", "path"):
-        val = v.get(key)
-        if isinstance(val, str):
-            return val
-    return None
+    val = v.get(path_key)
+    return val if isinstance(val, str) else None
 
 
-def _has_databinding(v: Any) -> bool:
+def _has_databinding(v: Any, path_key: str, call_key: str) -> bool:
     """Recursively checks if a value structure contains a dynamic data binding.
 
     Args:
         v: The value (dict, list, or primitive) to inspect.
+        path_key: The data binding key of the target version.
+        call_key: The function call key of the target version.
 
     Returns:
         True if a dynamic DataBinding is found; False otherwise.
     """
     if isinstance(v, dict):
-        if any(k in v for k in ("call", "@call", "event", "functionCall")):
+        if any(k in v for k in (call_key, "event", "functionCall")):
             return False
-        if _binding_path(v) is not None:
+        if _binding_path(v, path_key) is not None:
             return True
-        return any(_has_databinding(x) for x in v.values())
+        return any(_has_databinding(x, path_key, call_key) for x in v.values())
     if isinstance(v, list):
-        return any(_has_databinding(x) for x in v)
+        return any(_has_databinding(x, path_key, call_key) for x in v)
     return False
 
 
@@ -360,26 +361,24 @@ def _normalize_express_source(source: str) -> str:
 
 def _is_check_expression(val: Any) -> bool:
     """Checks if a parsed AST value represents a validation check expression."""
-    if isinstance(val, dict) and "check" in val:
+    if isinstance(val, CheckNode):
         return True
     if isinstance(val, list) and val:
         return all(_is_check_expression(item) for item in val)
     return False
 
 
-def _call_arg(node: dict[str, Any], index: int, key: str) -> Any:
+def _call_arg(node: CallNode, index: int, key: str) -> Any:
     """Returns a call's argument given by keyword `key` or at position `index`."""
-    kwargs = node.get("kwargs", {})
-    if isinstance(kwargs, dict) and key in kwargs:
-        return kwargs[key]
-    args = node.get("args", [])
-    if isinstance(args, list) and len(args) > index:
-        return args[index]
+    if key in node.kwargs:
+        return node.kwargs[key]
+    if len(node.args) > index:
+        return node.args[index]
     return None
 
 
 def _string_call_arg(
-    node: dict[str, Any], index: int, key: str, statement: str
+    node: CallNode, index: int, key: str, statement: str
 ) -> str | None:
     """Returns a string argument of a reserved statement, or None when absent.
 
@@ -451,7 +450,7 @@ class _DeleteSurface:
 
 @dataclass
 class _StandaloneCall:
-    node: dict[str, Any]
+    node: CallNode
     scope: _SurfaceScope | None
 
 
@@ -720,9 +719,9 @@ class ExpressCompiler:
             stmt_type, *stmt_args = stmt
             if stmt_type == "EXPR":
                 parsed_val = stmt_args[0]
-                if not isinstance(parsed_val, dict) or "call" not in parsed_val:
+                if not isinstance(parsed_val, CallNode):
                     continue
-                name = parsed_val["call"]
+                name = parsed_val.name
                 if name == _SURFACE_STATEMENT:
                     current_scope = self._open_scope(
                         parsed_val,
@@ -786,7 +785,7 @@ class ExpressCompiler:
 
     def _open_scope(
         self,
-        node: dict[str, Any],
+        node: CallNode,
         *,
         default_surface_id: str,
     ) -> _SurfaceScope:
@@ -795,23 +794,20 @@ class ExpressCompiler:
         The line may name the single catalog as its second argument; with
         several catalogs naming one is an error.
         """
-        statement = node["call"]
+        statement = node.name
         target_surf = (
             _string_call_arg(node, 0, "surfaceId", statement) or default_surface_id
         )
         explicit_cat = _string_call_arg(node, 1, "catalogId", statement)
         if explicit_cat is not None:
             self._check_header_catalog(statement, explicit_cat)
-        kwargs = node.get("kwargs")
-        send_data_model = (
-            kwargs.get(_SEND_DATA_MODEL_KEY) if isinstance(kwargs, dict) else None
-        )
+        send_data_model = node.kwargs.get(_SEND_DATA_MODEL_KEY)
         if send_data_model is not None and not isinstance(send_data_model, bool):
             raise ExpressValidationError(
                 f"{_SEND_DATA_MODEL_KEY} must be true or false, got:"
                 f" {statement}({_SEND_DATA_MODEL_KEY}={send_data_model!r})"
             )
-        is_update = kwargs.get(_UPDATE_KEY) if isinstance(kwargs, dict) else False
+        is_update = node.kwargs.get(_UPDATE_KEY, False)
         if is_update is not None and not isinstance(is_update, bool):
             raise ExpressValidationError(
                 f"{_UPDATE_KEY} must be true or false, got:"
@@ -954,9 +950,8 @@ class ExpressCompiler:
         ctx.call_counter += 1
         node = unit.node
         function_call_id = f"call_{ctx.call_counter}"
-        kwargs = node.get("kwargs")
-        if isinstance(kwargs, dict) and _FUNCTION_CALL_ID_KEY in kwargs:
-            kwargs = dict(kwargs)
+        if _FUNCTION_CALL_ID_KEY in node.kwargs:
+            kwargs = dict(node.kwargs)
             explicit_id = kwargs.pop(_FUNCTION_CALL_ID_KEY)
             if not isinstance(explicit_id, str) or not explicit_id:
                 raise ExpressValidationError(
@@ -964,7 +959,7 @@ class ExpressCompiler:
                     f" {explicit_id!r}"
                 )
             function_call_id = explicit_id
-            node = {**node, "kwargs": kwargs}
+            node = replace(node, kwargs=kwargs)
         raw_syms = unit.scope.raw_symbols if unit.scope else {}
         compiled_val = self._compile_value(node, raw_syms, ctx)
         if not isinstance(compiled_val, dict) or ctx.call_key not in compiled_val:
@@ -1006,12 +1001,12 @@ class ExpressCompiler:
         Returns:
             The compiled component JSON dictionary, or None if it is not a component.
         """
-        if not isinstance(ast, dict) or "call" not in ast:
+        if not isinstance(ast, CallNode):
             return None
 
-        comp_name = ast["call"]
-        args = ast.get("args", [])
-        kwargs = dict(ast.get("kwargs", {}))
+        comp_name = ast.name
+        args = ast.args
+        kwargs = dict(ast.kwargs)
 
         comp_cat_id = kwargs.pop("catalogId", None)
         # A variable holding a function call, an Event or a template is inlined
@@ -1129,7 +1124,7 @@ class ExpressCompiler:
             if prop_name in seen_properties:
                 raise ExpressDuplicatePropertyError(comp_name, prop_name)
             seen_properties.add(prop_name)
-            if arg == {"skipped": True}:
+            if isinstance(arg, SkippedNode):
                 comp_dict[prop_name] = None
                 continue
 
@@ -1143,7 +1138,7 @@ class ExpressCompiler:
             )
             prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
-                if _has_databinding(mapped_val):
+                if _has_databinding(mapped_val, ctx.path_key, ctx.call_key):
                     raise ExpressForbiddenDatabindingError(comp_name, prop_name)
                 if isinstance(mapped_val, list) and _schema_expects_option_objects(
                     prop_schema
@@ -1156,7 +1151,7 @@ class ExpressCompiler:
             if (
                 enum_vals
                 and not isinstance(mapped_val, (dict, list))
-                and not _has_databinding(mapped_val)
+                and not _has_databinding(mapped_val, ctx.path_key, ctx.call_key)
             ):
                 if mapped_val not in enum_vals:
                     raise ExpressValidationError(
@@ -1166,7 +1161,10 @@ class ExpressCompiler:
                     )
             comp_dict[prop_name] = mapped_val
 
-            if prop_name == "value" and _binding_path(mapped_val) is not None:
+            if (
+                prop_name == "value"
+                and _binding_path(mapped_val, ctx.path_key) is not None
+            ):
                 sibling_value_path = mapped_val
 
         # Checks bind the component's own value implicitly.
@@ -1174,7 +1172,7 @@ class ExpressCompiler:
         if raw_checks:
             compiled_checks = []
             for rc in raw_checks:
-                if isinstance(rc, dict) and "check" in rc:
+                if isinstance(rc, CheckNode):
                     condition, message = self._compile_check(rc, raw_symbols, ctx)
                     compiled_checks.append({"condition": condition, "message": message})
             if compiled_checks:
@@ -1190,7 +1188,7 @@ class ExpressCompiler:
 
     def _compile_check(
         self,
-        rc: dict[str, Any],
+        rc: CheckNode,
         raw_symbols: dict[str, Any],
         ctx: _CompileContext,
         is_action: bool = False,
@@ -1207,19 +1205,18 @@ class ExpressCompiler:
         Returns:
             The compiled condition (a function call) and the message.
         """
-        check_name = rc["check"]
-        explicit_args = list(rc.get("args", []))
-        chk_cat_id = rc.get("catalogId")
-        if chk_cat_id is None:
-            for arg_idx, arg_item in enumerate(explicit_args):
-                if (
-                    isinstance(arg_item, dict)
-                    and set(arg_item.keys()) == {"catalogId"}
-                    and isinstance(arg_item["catalogId"], str)
-                ):
-                    chk_cat_id = arg_item["catalogId"]
-                    explicit_args.pop(arg_idx)
-                    break
+        check_name = rc.name
+        explicit_args = list(rc.args)
+        chk_cat_id = None
+        for arg_idx, arg_item in enumerate(explicit_args):
+            if (
+                isinstance(arg_item, dict)
+                and set(arg_item.keys()) == {"catalogId"}
+                and isinstance(arg_item["catalogId"], str)
+            ):
+                chk_cat_id = arg_item["catalogId"]
+                explicit_args.pop(arg_idx)
+                break
 
         chk_helper, write_cat_id = self._resolve(
             "function",
@@ -1236,10 +1233,8 @@ class ExpressCompiler:
 
         is_value_injected = False
         if check_props and check_props[0] == "value":
-            has_explicit_binding = (
-                explicit_args
-                and isinstance(explicit_args[0], dict)
-                and "path" in explicit_args[0]
+            has_explicit_binding = explicit_args and isinstance(
+                explicit_args[0], PathNode
             )
             if not has_explicit_binding and ctx.active_value_path:
                 compiled_args["value"] = ctx.active_value_path
@@ -1261,7 +1256,7 @@ class ExpressCompiler:
             ):
                 message_val = c_arg
                 break
-            if isinstance(c_arg, dict) and c_arg.get("skipped"):
+            if isinstance(c_arg, SkippedNode):
                 continue
             compiled_args[prop_name] = self._compile_value(
                 c_arg, raw_symbols, ctx, is_action
@@ -1296,46 +1291,48 @@ class ExpressCompiler:
 
         Returns:
             The semantically correct A2UI JSON structure.
-        """
-        if isinstance(val, dict):
-            if "path" in val:
-                return {ctx.path_key: val["path"]}
-            if "variable" in val:
-                ref_name = val["variable"]
-                if ref_name not in raw_symbols:
-                    return ref_name
-                symbol_val = raw_symbols[ref_name]
-                if isinstance(symbol_val, dict) and "call" in symbol_val:
-                    sym_kwargs = symbol_val.get("kwargs", {})
-                    sym_cat_id = (
-                        sym_kwargs.get("catalogId")
-                        if isinstance(sym_kwargs, dict)
-                        else None
-                    )
-                    if self._defines_component(symbol_val["call"], sym_cat_id):
-                        return _component_id(
-                            ref_name, symbol_val, at_least_v10=ctx.at_least_v10
-                        )
-                return self._compile_value(
-                    symbol_val,
-                    raw_symbols,
-                    ctx,
-                    is_action,
-                )
-            if "check" in val:
-                condition, _ = self._compile_check(val, raw_symbols, ctx, is_action)
-                return condition
-            if "call" in val:
-                return self._compile_call(
-                    val,
-                    raw_symbols,
-                    ctx,
-                    is_action,
-                    parent_id,
-                    parent_prop,
-                    list_index,
-                )
 
+        Raises:
+            ExpressValidationError: If `_` appears anywhere but in place of an
+                argument.
+        """
+        if isinstance(val, PathNode):
+            return {ctx.path_key: val.path}
+        if isinstance(val, VariableNode):
+            ref_name = val.name
+            if ref_name not in raw_symbols:
+                return ref_name
+            symbol_val = raw_symbols[ref_name]
+            if isinstance(symbol_val, CallNode):
+                sym_cat_id = symbol_val.kwargs.get("catalogId")
+                if self._defines_component(symbol_val.name, sym_cat_id):
+                    return _component_id(
+                        ref_name, symbol_val, at_least_v10=ctx.at_least_v10
+                    )
+            return self._compile_value(
+                symbol_val,
+                raw_symbols,
+                ctx,
+                is_action,
+            )
+        if isinstance(val, CheckNode):
+            condition, _ = self._compile_check(val, raw_symbols, ctx, is_action)
+            return condition
+        if isinstance(val, CallNode):
+            return self._compile_call(
+                val,
+                raw_symbols,
+                ctx,
+                is_action,
+                parent_id,
+                parent_prop,
+                list_index,
+            )
+        if isinstance(val, SkippedNode):
+            raise ExpressValidationError("'_' can only stand in for an argument.")
+
+        # A dict is always a map literal, whatever its keys are.
+        if isinstance(val, dict):
             return {
                 k: self._compile_value(v, raw_symbols, ctx, is_action)
                 for k, v in val.items()
@@ -1359,7 +1356,7 @@ class ExpressCompiler:
 
     def _compile_call(
         self,
-        val: dict[str, Any],
+        val: CallNode,
         raw_symbols: dict[str, Any],
         ctx: _CompileContext,
         is_action: bool,
@@ -1368,9 +1365,9 @@ class ExpressCompiler:
         list_index: int | None,
     ) -> Any:
         """Compiles a call node: an inline component, a helper, or a function."""
-        fn_name = val["call"]
-        fn_args = val.get("args", [])
-        raw_kwargs = dict(val.get("kwargs", {}))
+        fn_name = val.name
+        fn_args = val.args
+        raw_kwargs = dict(val.kwargs)
 
         if fn_name == "_template":
             if len(fn_args) < 2:
@@ -1379,7 +1376,7 @@ class ExpressCompiler:
                     " templateComponent."
                 )
             path_val = self._compile_value(fn_args[0], raw_symbols, ctx, is_action)
-            template_path = _binding_path(path_val)
+            template_path = _binding_path(path_val, ctx.path_key)
             if template_path is None:
                 raise ExpressParseError(
                     "The first argument to _template must be a dynamic data"
@@ -1456,7 +1453,7 @@ class ExpressCompiler:
         for idx, arg in enumerate(fn_args):
             if idx >= len(fn_props):
                 continue
-            if isinstance(arg, dict) and arg.get("skipped"):
+            if isinstance(arg, SkippedNode):
                 continue
             val_item = self._compile_value(arg, raw_symbols, ctx, is_action)
             if val_item is not None:
@@ -1467,7 +1464,7 @@ class ExpressCompiler:
                 raise ExpressInvalidParamError(fn_name, k, fn_props)
             if k in compiled_args:
                 raise ExpressDuplicateParamError(fn_name, k)
-            if v == {"skipped": True}:
+            if isinstance(v, SkippedNode):
                 continue
             val_item = self._compile_value(v, raw_symbols, ctx, is_action)
             if val_item is not None:
