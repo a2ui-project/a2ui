@@ -97,6 +97,16 @@ def _straighten_quotes(text: str) -> str:
     )
 
 
+_NEWLINE_STRIPPED_KEYS = frozenset({
+    "id",
+    "component",
+    "child",
+    "surfaceId",
+    "catalogId",
+    "componentId",
+})
+
+
 class _Unfinished(Exception):
     """Raised where the text ends before a value that cannot be healed."""
 
@@ -115,6 +125,7 @@ class _Reader:
         self.whole_item_keys = set(whole_item_keys)
         self._i = 0
         self._cut = False
+        self._in_data_model = False
 
     @property
     def _partial(self) -> bool:
@@ -173,7 +184,7 @@ class _Reader:
             elif self.text[self._i] != "]":
                 self._fail("expected ',' or ']'")
 
-    def _value(self, *, healable: bool) -> Any:
+    def _value(self, *, healable: bool, strip_newlines: bool = False) -> Any:
         if self._at_end:
             self._end()
         c = self.text[self._i]
@@ -182,7 +193,7 @@ class _Reader:
         if c == "[":
             return self._array()
         if c == '"':
-            return self._string(healable=healable)
+            return self._string(healable=healable, strip_newlines=strip_newlines)
         if c == "-" or ("0" <= c <= "9"):
             return self._number()
         for word, val in (("true", True), ("false", False), ("null", None)):
@@ -193,7 +204,7 @@ class _Reader:
                 self._end()
         self._fail(f"unexpected character '{c}'")
 
-    def _object(self) -> dict[str, Any]:
+    def _object(self, parent_key: str | None = None) -> dict[str, Any]:
         self._i += 1
         obj: dict[str, Any] = {}
         while True:
@@ -205,7 +216,10 @@ class _Reader:
                 return obj
             if self.text[self._i] != '"':
                 self._fail("expected a key")
-            key = self._string(healable=False)
+            key = self._string(
+                healable=False,
+                strip_newlines=not self._in_data_model,
+            )
             self._skip_space()
             if self._at_end:
                 self._end()
@@ -213,18 +227,36 @@ class _Reader:
                 self._fail(f"expected ':' after key '{key}'")
             self._i += 1
             self._skip_space()
-            if (
-                not self._at_end
-                and self.text[self._i] == "["
-                and self._partial
-                and key in self.whole_item_keys
-            ):
-                obj[key] = self._array(whole_items=True)
-            else:
-                healable_val = (
-                    self.progressive_keys is not None and key in self.progressive_keys
-                )
-                obj[key] = self._value(healable=healable_val)
+            is_data_value = not self._in_data_model and (
+                (parent_key == "updateDataModel" and key == "value")
+                or (parent_key == "createSurface" and key == "dataModel")
+            )
+            if is_data_value:
+                self._in_data_model = True
+            try:
+                if not self._at_end and self.text[self._i] == "[":
+                    obj[key] = self._array(
+                        whole_items=self._partial and key in self.whole_item_keys,
+                        strip_item_newlines=(
+                            key == "children" and not self._in_data_model
+                        ),
+                    )
+                elif not self._at_end and self.text[self._i] == "{":
+                    obj[key] = self._object(parent_key=key)
+                else:
+                    healable_val = (
+                        self.progressive_keys is not None
+                        and key in self.progressive_keys
+                    )
+                    obj[key] = self._value(
+                        healable=healable_val,
+                        strip_newlines=(
+                            key in _NEWLINE_STRIPPED_KEYS and not self._in_data_model
+                        ),
+                    )
+            finally:
+                if is_data_value:
+                    self._in_data_model = False
             self._skip_space()
             if self._at_end:
                 return self._healed(obj)
@@ -233,7 +265,9 @@ class _Reader:
             elif self.text[self._i] != "}":
                 self._fail("expected ',' or '}'")
 
-    def _array(self, *, whole_items: bool = False) -> list[Any]:
+    def _array(
+        self, *, whole_items: bool = False, strip_item_newlines: bool = False
+    ) -> list[Any]:
         self._i += 1
         arr: list[Any] = []
         while True:
@@ -247,7 +281,9 @@ class _Reader:
                 cut_before = self._cut
                 self._cut = False
                 try:
-                    item = self._value(healable=False)
+                    item = self._value(
+                        healable=False, strip_newlines=strip_item_newlines
+                    )
                 except _Unfinished:
                     return self._healed(arr)
                 if self._cut:
@@ -255,7 +291,9 @@ class _Reader:
                 self._cut = cut_before
                 arr.append(item)
             else:
-                arr.append(self._value(healable=False))
+                arr.append(
+                    self._value(healable=False, strip_newlines=strip_item_newlines)
+                )
             self._skip_space()
             if self._at_end:
                 return self._healed(arr)
@@ -270,7 +308,7 @@ class _Reader:
         self._cut = True
         return value
 
-    def _string(self, *, healable: bool) -> str:
+    def _string(self, *, healable: bool, strip_newlines: bool = False) -> str:
         self._i += 1
         buf: list[str] = []
         n = len(self.text)
@@ -280,6 +318,9 @@ class _Reader:
                 self._i += 1
                 return "".join(buf)
             if c != "\\":
+                if strip_newlines and c in ("\r", "\n"):
+                    self._i += 1
+                    continue
                 buf.append(c)
                 self._i += 1
                 continue

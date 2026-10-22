@@ -119,7 +119,7 @@ literal
     ;
 
 /**
- * A plain alphanumeric identifier.
+ * A UAX 31 identifier.
  */
 identifier
     : IDENTIFIER
@@ -150,8 +150,8 @@ STANDARD_STRING   : '"' ( '\\' . | ~'\\' )*? '"' ;
 // Data path literal (e.g. '$/user/id')
 PATH : '$' [a-zA-Z0-9_/]* ;
 
-// Validation check identifier (e.g. '?required')
-CHECK : '?' [a-zA-Z_] [a-zA-Z0-9_]* ;
+// Validation check identifier (e.g. '?required'); a catalog function name, UAX 31.
+CHECK : '?' [\p{XID_Start}_] [\p{XID_Continue}]* ;
 
 // Numeric literal supporting negatives and decimals
 NUMBER : '-'? [0-9]+ ('.' [0-9]+)? ;
@@ -159,8 +159,9 @@ NUMBER : '-'? [0-9]+ ('.' [0-9]+)? ;
 // Boolean literal
 BOOLEAN : 'true' | 'false' ;
 
-// Plain alphanumeric identifier
-IDENTIFIER : [a-zA-Z_] [a-zA-Z0-9_]* ;
+// UAX 31 identifier: XID_Start or '_', then XID_Continue*. Mirrors the v1.0
+// catalog entity naming rules and the SDKs' isValidUax31Identifier helpers.
+IDENTIFIER : [\p{XID_Start}_] [\p{XID_Continue}]* ;
 
 // Ignored elements: skipped completely at the lexer level.
 COMMENT : ( '#' | '//' ) ~[\r\n]* -> skip ;

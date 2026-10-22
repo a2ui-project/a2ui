@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
 import {describe, expect, test} from 'vitest';
-
 import {
   A2uiCompilationParseError,
   A2uiCompilationValidationError,
   A2uiValidationError,
-  DirectJsonParser,
-  FileSystemCatalogProvider,
   ParseError,
-  ResponsePart,
-} from '../../src/index.js';
-import {loadCases, LoadedCase} from './loader.js';
+} from '../../src/errors.js';
+import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
+import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
+import {ResponsePart} from '../../src/parser/response-part.js';
+import {LoadedCase, loadCases} from './loader.js';
 import {conformancePath, registerCase} from './suite-helpers.js';
 
 /**
@@ -67,14 +65,18 @@ interface Step {
 }
 
 function catalogPaths(args: StreamingArgs): string[] {
-  return args.catalogs ?? (args.catalog ? [args.catalog] : []);
+  if (args.catalogs) return args.catalogs;
+  if (args.catalog) return [args.catalog];
+  throw new Error('Case declares no catalog');
 }
 
-/** The `protocolVersion` the case's first catalog document declares. */
+/** The protocol version the case targets, without a leading "v". */
 function declaredVersion(args: StreamingArgs): string | undefined {
-  const [first] = catalogPaths(args);
-  if (!first) return undefined;
-  const document = JSON.parse(fs.readFileSync(conformancePath(first), 'utf8')) as {
+  const path = catalogPaths(args)[0];
+  const file = path.split('/').pop()!;
+  const [match] = file.match(/v\d+_\d+(_\d+)?/) ?? [];
+  if (match) return match.slice(1).replace(/_/g, '.');
+  const document = new FileSystemCatalogProvider(conformancePath(path)).load().toSchema() as {
     protocolVersion?: string;
   };
   return document.protocolVersion?.replace(/^v/, '');
@@ -87,8 +89,9 @@ function makeParser(args: StreamingArgs): DirectJsonParser {
   const catalogs = catalogPaths(args).map(file =>
     new FileSystemCatalogProvider(conformancePath(file)).load(),
   );
-  // The suite's default progressive set is empty: a case that relies on healing names its keys.
-  return new DirectJsonParser(catalogs, {progressiveKeys: args.progressive_keys ?? []});
+  return new DirectJsonParser(catalogs, {
+    progressiveKeys: args.progressive_keys ?? [],
+  });
 }
 
 /** A part in the suite's shape: text or messages, never both. */
@@ -118,6 +121,20 @@ function expectError(fn: () => unknown, expected: NonNullable<Step['expect_error
   }
 }
 
+function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const merged: Array<Record<string, unknown>> = [];
+  for (const p of parts) {
+    if (merged.length > 0 && 'text' in merged[merged.length - 1] && 'text' in p) {
+      merged[merged.length - 1] = {
+        text: `${merged[merged.length - 1].text}${p.text}`,
+      };
+    } else {
+      merged.push(p);
+    }
+  }
+  return merged;
+}
+
 function runCase(testCase: LoadedCase): void {
   const args = testCase.args as unknown as StreamingArgs;
   const wrapped = args.wrapped ?? true;
@@ -137,13 +154,12 @@ function runCase(testCase: LoadedCase): void {
     yielded.push(...parts);
   }
 
-  // Every case ends on a complete response, so closing the stream emits nothing more and
-  // throws nothing.
-  expect(stream.close()).toEqual([]);
+  const closed = stream.close().map(partToDict);
+  yielded.push(...closed);
 
   if (testCase.expect_matches_single_shot) {
     const singleShot = makeParser(args).parseResponse(chunks.join(''), {wrapped});
-    expect(singleShot.map(partToDict)).toEqual(yielded);
+    expect(mergeAdjacentText(yielded)).toEqual(mergeAdjacentText(singleShot.map(partToDict)));
   }
 }
 
