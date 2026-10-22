@@ -14,8 +14,8 @@
 
 import 'dart:async';
 
-import 'package:a2ui_flutter_example/chat_session.dart';
-import 'package:a2ui_flutter_example/llm_client.dart';
+import 'package:a2ui_flutter_example_v0_9/chat_session.dart';
+import 'package:a2ui_flutter_example_v0_9/llm_client.dart';
 
 /// Replies to each request with the next of [replies], chunk by chunk, and
 /// keeps the requests.
