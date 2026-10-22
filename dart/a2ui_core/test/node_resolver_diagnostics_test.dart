@@ -34,6 +34,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog() => _MutableCatalog(
           schema:
               Schema.object(properties: {'children': CommonSchemas.childList}),
         ),
+        ComponentApi(name: 'Field', schema: CommonSchemas.checkable),
       ],
     );
 
@@ -137,6 +138,23 @@ void main() {
       surface.componentsModel.get('card')!.properties = {'child': 'card'};
       await pumpEventQueue();
       expect(reports('CYCLIC_REFERENCE'), 2);
+    });
+  });
+
+  group('NodeResolver diagnostic delivery', () {
+    test('delivers a malformed check rule one microtask after construction',
+        () async {
+      resolver.dispose();
+      _add(surface, 'root', 'Field', {
+        'checks': [42],
+      });
+      resolver = NodeResolver(surface);
+      expect(errors, isEmpty);
+      await Future<void>.microtask(() {});
+      expect(
+        [for (final error in errors) (error.code, error.path)],
+        [('VALIDATION_FAILED', '/checks/0')],
+      );
     });
   });
 
