@@ -14,12 +14,111 @@
  * limitations under the License.
  */
 
-import {describe, test} from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 
+import {describe, expect, test} from 'vitest';
+
+import {CatalogConfig, DirectJsonFormat, ExpressFormat, SkillGenerator} from '../../src/index.js';
+import {CatalogApi} from '../../src/internal/web-core.js';
+import {loadBasicCatalog, REPO_ROOT} from '../helpers/basic-catalogs.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
 import {conformancePath} from './suite-helpers.js';
 
-const SKILL_ACTION_HANDLERS: Record<string, (testCase: LoadedCase) => void | Promise<void>> = {};
+const basicCatalogV10 = loadBasicCatalog('v1.0');
+
+interface SkillCaseContext {
+  args: Record<string, unknown>;
+  catalog?: CatalogApi;
+  generator: SkillGenerator;
+}
+
+/**
+ * The `skill.yaml` goldens for base rules still contain basic-catalog names that
+ * the pruning conformance case forbids (see `KNOWN_GAPS.md`). Apply the same
+ * catalog-agnostic substitutions used by `prompt-generator.test.ts`.
+ */
+function applyCatalogAgnosticRuleSubstitutions(text: string): string {
+  const substitutions: [string, string][] = [
+    ['date-time inputs (e.g. in DateTimeInput)', 'date-time properties'],
+    ['itemTemplate = Image($url)', 'itemTemplate = ComponentA($url)'],
+    [
+      "Parameters named 'action' (or annotated in component signatures)",
+      'Action parameters (or parameters annotated in component signatures)',
+    ],
+    ['root = Card(...)', 'root = ComponentA(...)'],
+  ];
+  let out = text;
+  for (const [from, to] of substitutions) {
+    out = out.replace(from, to);
+  }
+  return out;
+}
+
+function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
+  const args = (testCase.args as Record<string, unknown>) || {};
+  const catRelPath = args.catalog as string | undefined;
+  let catalog: CatalogApi | undefined;
+  if (catRelPath) {
+    const absCatPath = path.resolve(REPO_ROOT, catRelPath);
+    const catConfig = CatalogConfig.fromPath(absCatPath);
+    catalog = catConfig.transformedCatalog;
+  }
+
+  const fmtName = (args.format as string | undefined) ?? 'express';
+  const fmt =
+    fmtName === 'express'
+      ? new ExpressFormat(catalog ? [catalog] : [])
+      : new DirectJsonFormat(catalog ? [catalog] : [basicCatalogV10]);
+  const generator = new SkillGenerator(fmt);
+  return {args, catalog, generator};
+}
+
+function runFromFormatCase(testCase: LoadedCase, {args, generator}: SkillCaseContext): void {
+  const monoName = (args.name as string | undefined) ?? 'a2ui';
+  const skillObj = generator.generateSkill({name: monoName});
+  const expectedRel = testCase.expected_file as string;
+  const expectedContent = applyCatalogAgnosticRuleSubstitutions(
+    fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8'),
+  );
+  expect(skillObj.toMarkdown()).toBe(expectedContent);
+}
+
+function runCoreSyntaxCase(testCase: LoadedCase, {args, generator}: SkillCaseContext): void {
+  const coreName = (args.name as string | undefined) ?? 'a2ui-core';
+  const skillObj = generator.generateCoreSkill({name: coreName});
+  const expectedRel = testCase.expected_file as string;
+  const expectedContent = applyCatalogAgnosticRuleSubstitutions(
+    fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8'),
+  );
+  expect(skillObj.toMarkdown()).toBe(expectedContent);
+}
+
+function runFromCatalogCase(testCase: LoadedCase, {catalog, generator}: SkillCaseContext): void {
+  const skillObj = generator.generateCatalogSkill(catalog!);
+  const expectedRel = testCase.expected_file as string;
+  const expectedContent = fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8');
+  expect(skillObj.toMarkdown()).toBe(expectedContent);
+}
+
+function runSkillSetCase(testCase: LoadedCase, {generator}: SkillCaseContext): void {
+  const skillSet = generator.generateSkillset();
+  const expectedKeys = (testCase.expected_skills as string[]) || [];
+  const dict = skillSet.toDict();
+  for (const k of expectedKeys) {
+    expect(dict).toHaveProperty(k);
+  }
+}
+
+const SKILL_ACTION_HANDLERS: Record<
+  string,
+  (testCase: LoadedCase, ctx: SkillCaseContext) => void | Promise<void>
+> = {
+  from_format: runFromFormatCase,
+  core_syntax: runCoreSyntaxCase,
+  from_catalog: runFromCatalogCase,
+  skill_set: runSkillSetCase,
+};
 
 describe('Conformance: skill.yaml', () => {
   for (const testCase of loadCases([conformancePath('agent/skill.yaml')])) {
@@ -32,7 +131,8 @@ describe('Conformance: skill.yaml', () => {
       if (!handler) {
         throw new Error(`Unhandled conformance action: ${action}`);
       }
-      await handler(testCase);
+      const ctx = buildSkillContext(testCase);
+      await handler(testCase, ctx);
     };
 
     if (!verdict.runnable) {
