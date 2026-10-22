@@ -124,24 +124,36 @@ final class ExpressionStatement extends ExpressStatement {
   const ExpressionStatement(this.value);
 }
 
+const String _identStart = r'a-zA-Z_';
+const String _identChars = r'a-zA-Z0-9_';
+const String _identifier = '[$_identStart][$_identChars]*';
+
 final RegExp _sqlCommentOrToken = RegExp(
   r'([rR]"""[\s\S]*?"""|[rR]"[^\r\n"]*"|"""(?:\\[\s\S]|[^\\])*?"""|"(?:\\[\s\S]|[^\\])*?"|(?:#|//)[^\r\n]*|/\*[\s\S]*?\*/)|--([^\r\n]*)',
 );
 final RegExp _declaredLhs = RegExp(
-  r'^[ \t]*([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*=(?!=)',
+  r'^[ \t]*(' + _identifier + r')[ \t]*=(?!=)',
   multiLine: true,
 );
 final RegExp _splitLhsIdentifier = RegExp(
-  r'^([ \t]*[a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*=(?!=))',
+  r'^([ \t]*' +
+      _identifier +
+      r')[ \t]*(\r?\n)[ \t]*([' +
+      _identChars +
+      r']+)(?=[ \t]*=(?!=))',
   multiLine: true,
 );
 final RegExp _splitDataPath = RegExp(
-  r'(\$[a-zA-Z0-9_/]*/)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_/]+)',
+  r'(\$[' + _identChars + r'/]*/)[ \t]*(\r?\n)[ \t]*([' + _identChars + r'/]+)',
 );
-final RegExp _identOnly = RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$');
+final RegExp _identOnly = RegExp(r'^' + _identifier + r'$');
 final RegExp _assignEquals = RegExp(r'^[ \t]*=(?!=)');
 final RegExp _splitArgIdentifier = RegExp(
-  r'([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)([a-zA-Z_][a-zA-Z0-9_]*)[ \t]*(\r?\n)[ \t]*([a-zA-Z0-9_]+)(?=[ \t]*[,)\]}]|\s*\r?\n)',
+  r'([(\[,:=][ \t]*\r?\n?[ \t]*|[(\[,:=][ \t]*)(' +
+      _identifier +
+      r')[ \t]*(\r?\n)[ \t]*([' +
+      _identChars +
+      r']+)(?=[ \t]*[,)\]}]|\s*\r?\n)',
 );
 final RegExp _edgeNewlines = RegExp(r'^[\r\n]+|[\r\n]+$');
 
