@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_flutter_example/chat_session.dart';
+import 'package:a2ui_flutter_example_v0_9/chat_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Pumps frames until [session] is no longer busy.

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: a2ui_flutter_example
+name: a2ui_flutter_example_v0_9
 description: A chat app that renders the A2UI a Gemini model writes.
 publish_to: "none"
 

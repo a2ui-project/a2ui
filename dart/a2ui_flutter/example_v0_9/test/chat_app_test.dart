@@ -15,8 +15,8 @@
 import 'dart:async';
 
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter_example/chat_app.dart';
-import 'package:a2ui_flutter_example/chat_session.dart';
+import 'package:a2ui_flutter_example_v0_9/chat_app.dart';
+import 'package:a2ui_flutter_example_v0_9/chat_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_client.dart';

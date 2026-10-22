@@ -63,6 +63,6 @@ with `dartantic_ai`.
   `MessageProcessor` rejects, blocks the `ResponseStream` rejects, an error
   the model repeats, a request that fails or gives no reply, disposal, and
   the client data model sent after a typed turn.
-- [../e2e_test](../e2e_test) runs the app against the live model. It needs
-  an API key, so it lives in a separate package and runs in a separate CI
-  pipeline.
+- [../e2e_test_v0_9](../e2e_test_v0_9) runs the app against the live model.
+  It needs an API key, so it lives in a separate package and runs in a
+  separate CI pipeline.

@@ -14,7 +14,7 @@
 
 // ignore_for_file: avoid_print
 
-import 'package:a2ui_flutter_example/llm_client.dart';
+import 'package:a2ui_flutter_example_v0_9/llm_client.dart';
 
 /// Passes each request to another [LlmClient], and prints and keeps the
 /// user turn it ends with and the reply.

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: a2ui_flutter_e2e_test
+name: a2ui_flutter_e2e_test_v0_9
 publish_to: "none"
 
 environment:
@@ -24,8 +24,8 @@ resolution: workspace
 dependencies:
   a2ui_flutter:
     path: ..
-  a2ui_flutter_example:
-    path: ../example
+  a2ui_flutter_example_v0_9:
+    path: ../example_v0_9
   flutter:
     sdk: flutter
 

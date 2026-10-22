@@ -8,7 +8,7 @@ flutter run -d web
 ```
 
 The renderer package has a chat app of its own that renders what a Gemini
-model writes, [dart/a2ui_flutter/example](../../../dart/a2ui_flutter/example).
+model writes, [dart/a2ui_flutter/example_v0_9](../../../dart/a2ui_flutter/example_v0_9).
 
 ## Supported platforms
 
