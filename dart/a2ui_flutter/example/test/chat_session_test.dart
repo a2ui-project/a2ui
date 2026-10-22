@@ -343,6 +343,52 @@ void main() {
     expect(find.text('Hello again.'), findsOneWidget);
   });
 
+  testWidgets('applies the next reply after a request fails mid-block', (
+    tester,
+  ) async {
+    final String reply = block([
+      createSurface('s'),
+      {
+        'version': 'v0.9',
+        'updateComponents': {
+          'surfaceId': 's',
+          'components': [
+            {
+              'id': 'root',
+              'component': 'Column',
+              'children': ['a'],
+            },
+            {'id': 'a', 'component': 'Text', 'text': 'First'},
+          ],
+        },
+      },
+      updateDataModel('s', {'x': 1}),
+    ]);
+    final client = FakeClient(
+      [
+        // Ends inside the updateDataModel, so the block never closes.
+        [reply.substring(0, reply.indexOf('"value"'))],
+        [
+          block([rootComponent('s', 'Replaced')]),
+        ],
+      ],
+      failures: {0: StateError('boom')},
+    );
+    final session = ChatSession(client: client);
+    addTearDown(session.dispose);
+    await tester.pumpWidget(ChatApp(session: session));
+
+    unawaited(session.send('One.'));
+    await tester.pump();
+    unawaited(session.send('Two.'));
+    await tester.pump();
+
+    expect(errorsOf(session), ['The request failed: Bad state: boom']);
+    expect(client.requests, hasLength(2));
+    expect(find.text('Replaced'), findsOneWidget);
+    expect(find.text('First'), findsNothing);
+  });
+
   testWidgets('sends a message that fails to process back to the model', (
     tester,
   ) async {
