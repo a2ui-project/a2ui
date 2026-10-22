@@ -43,7 +43,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### `no-explicit-any` lint warnings
 
-- **What it is:** There are eslint warnings for `no-explicit-any` in `tests/conformance/conformance.test.ts` and `tests/conformance/direct-json-conformance.test.ts`. The package source has none.
+- **What it is:** There are eslint warnings for `no-explicit-any` in `tests/conformance/direct-json-conformance.test.ts`. The package source has none.
 - **Why it exists:** The harnesses read untyped YAML cases and walk them with loosely typed helpers.
 - **What it risks:** Mild technical debt.
 - **Done looks like:** The harness helpers take `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
