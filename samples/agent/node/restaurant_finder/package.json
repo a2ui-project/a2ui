@@ -98,7 +98,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "eslint": "^10.4.1",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "vitest": "^4.1.8",
     "wireit": "^0.15.0-pre.2"
   }
