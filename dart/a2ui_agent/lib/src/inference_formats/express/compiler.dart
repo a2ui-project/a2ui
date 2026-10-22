@@ -266,6 +266,29 @@ String? _stringArgument(CallNode call, int index, String name) {
   );
 }
 
+/// The component id of [call]: its `id` keyword argument, or [defaultId] when
+/// it has none.
+String _componentId(
+  String defaultId,
+  CallNode call, {
+  required bool atLeastV10,
+}) {
+  if (!call.kwargs.containsKey('id')) return defaultId;
+  final String? explicitId = _stringArgument(call, -1, 'id');
+  if (explicitId == null || explicitId.isEmpty) {
+    throw A2uiValidationError(
+      "Argument 'id' of ${call.name}(...) must be a non-empty string literal.",
+    );
+  }
+  if (atLeastV10 && !isValidUax31Identifier(explicitId)) {
+    throw A2uiValidationError(
+      "Component id '$explicitId' in ${call.name}(...) is not a valid UAX 31 "
+      'identifier.',
+    );
+  }
+  return explicitId;
+}
+
 /// The statements of one surface.
 class _Surface {
   _Surface(this.surfaceId, this.helper);
@@ -325,7 +348,10 @@ class _SurfaceCompiler {
     for (final MapEntry<String, ExpressNode> symbol
         in surface.symbols.entries) {
       if (symbol.value case final CallNode call when _isComponent(call)) {
-        _usedIds.add(symbol.key);
+        final String id = _componentId(symbol.key, call, atLeastV10: _v1);
+        if (!_usedIds.add(id)) {
+          throw A2uiValidationError("Duplicate component id '$id'.");
+        }
       }
     }
   }
@@ -579,7 +605,8 @@ class _SurfaceCompiler {
 
   /// Compiles one component, followed by the components written inline in
   /// it.
-  List<Map<String, Object?>> _component(String id, CallNode call) {
+  List<Map<String, Object?>> _component(String defaultId, CallNode call) {
+    final String id = _componentId(defaultId, call, atLeastV10: _v1);
     final String name = call.name;
     final (CatalogSchemaHelper helper, String? catalogId) = _resolve(
       name,
@@ -653,6 +680,7 @@ class _SurfaceCompiler {
       assigned.add((properties[position++], arg));
     }
     for (final MapEntry<String, ExpressNode> kwarg in call.kwargs.entries) {
+      if (kwarg.key == 'id') continue;
       if (_v1 && kwarg.key == 'catalogId') continue;
       if (_checksOf(kwarg.value) case final List<CheckNode> found) {
         checks.addAll(found);
@@ -867,7 +895,9 @@ class _SurfaceCompiler {
           "Variable '$name' is not assigned in surface "
           "'${surface.surfaceId}'.",
         ));
-    if (node is CallNode && _isComponent(node)) return name;
+    if (node is CallNode && _isComponent(node)) {
+      return _componentId(name, node, atLeastV10: _v1);
+    }
     if (!_resolving.add(name)) {
       throw A2uiValidationError("Variable '$name' refers to itself.");
     }
@@ -886,7 +916,15 @@ class _SurfaceCompiler {
           'A data path cannot be assigned a component.',
         );
       }
-      final String id = _newId(context.idPrefix);
+      final String id;
+      if (call.kwargs.containsKey('id')) {
+        id = _componentId(context.idPrefix, call, atLeastV10: _v1);
+        if (!_usedIds.add(id)) {
+          throw A2uiValidationError("Duplicate component id '$id'.");
+        }
+      } else {
+        id = _newId(context.idPrefix);
+      }
       context.hoisted.addAll(_component(id, call));
       return id;
     }

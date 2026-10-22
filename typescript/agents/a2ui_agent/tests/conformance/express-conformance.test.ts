@@ -137,7 +137,7 @@ async function getParser(args: Record<string, unknown> = {}): Promise<ExpressPar
 
   const catalogs = catalogPaths.map(p => createFileCatalogConfig(p).catalog);
 
-  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID, 'v1.0');
+  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID);
 }
 
 function assertRawPartsMatch(
@@ -221,6 +221,16 @@ describe('Express Conformance Suite', () => {
       } else if (action === 'decompile') {
         const parser = await getParser(args);
         const messages = testCase.messages as AgentToRendererMessage[];
+
+        if (testCase.expect_error) {
+          assertThrows(
+            () => {
+              parser.decompile(messages.length > 1 ? messages : messages[0]);
+            },
+            testCase.expect_error as Record<string, unknown>,
+          );
+          return;
+        }
 
         const notation = parser.decompile(messages.length > 1 ? messages : messages[0]);
 

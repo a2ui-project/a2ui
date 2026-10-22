@@ -19,17 +19,23 @@ tailored for prompt tokens compression.
 """
 
 from collections.abc import Sequence
-import re
 from typing import Any, Literal
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
-from a2ui.core import CatalogApi
-from a2ui.core.schema import AgentToRendererMessage
+from a2ui.core import (
+    A2uiErrorDetail,
+    A2uiValidationError,
+    CatalogApi,
+    is_valid_uax31_identifier,
+)
+from a2ui.core.common import is_at_least_version
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     CoalescedMessage,
     build_catalog_helpers,
     catalogs_defining,
+    catalogs_protocol_version,
     check_mixed_catalogs,
     coalesce_surface_messages,
     surface_catalog_id,
@@ -38,33 +44,42 @@ from .constants import SurfaceOperation
 from .errors import ExpressValidationError
 
 _DEFAULT_SURFACE_ID = "default_surface"
-_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
-_NON_IDENTIFIER_CHARS_RE = re.compile(r"[^a-zA-Z0-9_]")
 # Words that lex as something other than a variable name.
 _RESERVED_WORDS = frozenset({"_", "true", "false", "null"})
 
 
 def _is_variable_name(name: str) -> bool:
-    """Checks whether a component ID can be written as an Express variable."""
-    return bool(_IDENTIFIER_RE.match(name)) and name not in _RESERVED_WORDS
+    """Checks whether a component ID can be written as a bare Express variable."""
+    return is_valid_uax31_identifier(name) and name not in _RESERVED_WORDS
+
+
+def _derive_variable_name(component_id: str) -> str:
+    """Derives a valid Express variable name from an arbitrary component ID.
+
+    Replaces every character outside `XID_Continue` with `_`, then prefixes `_`
+    until the result is a valid non-reserved Express variable name.
+    """
+    base = "".join(ch if f"_{ch}".isidentifier() else "_" for ch in component_id)
+    while not _is_variable_name(base):
+        base = f"_{base}"
+    return base
 
 
 def _assign_variable_names(component_ids: Sequence[str]) -> dict[str, str]:
     """Maps each component ID to the variable name it is written under.
 
-    An ID that is a valid variable name is its own variable name. Any other
-    ID, such as `content-grid`, gets a derived name (`content_grid`) that no
-    other ID or variable of the block uses, and the component is written with
-    an `id="content-grid"` argument so that it compiles back to its ID.
+    An ID that is a valid UAX 31 variable name is its own variable name. Any
+    other ID, such as a pre-v1.0 `content-grid` or a reserved word like `true`,
+    gets a derived name (`content_grid`, `_true`) that no other ID or variable
+    of the block uses, and the component is written with an `id="..."` argument
+    so that it compiles back to its ID.
     """
     names = {cid: cid for cid in component_ids if _is_variable_name(cid)}
     taken = set(names.values())
     for cid in component_ids:
         if cid in names:
             continue
-        base = _NON_IDENTIFIER_CHARS_RE.sub("_", cid)
-        if not base or not _is_variable_name(base):
-            base = f"_{base}"
+        base = _derive_variable_name(cid)
         name, suffix = base, 2
         while name in taken:
             name, suffix = f"{base}_{suffix}", suffix + 1
@@ -78,9 +93,9 @@ def _decompile_reference(component_id: Any, var_names: dict[str, str]) -> str:
 
     A component defined in the same block is referenced by its variable name.
     A component defined elsewhere, such as in an earlier turn, is referenced
-    by a bare name when its ID is a valid variable name that the block does
-    not define, which the compiler reads back as that ID, and by a quoted ID
-    otherwise.
+    by a bare name when its ID is a valid UAX 31 variable name that the block
+    does not define, which the compiler reads back as that ID, and by a quoted
+    ID otherwise.
     """
     if not isinstance(component_id, str):
         return _decompile_string(str(component_id))
@@ -161,8 +176,8 @@ def _decompile_string(val: str) -> str:
 
 
 def _decompile_key(key: str) -> str:
-    """Writes a map key bare when it is an identifier, and quoted otherwise."""
-    return key if _IDENTIFIER_RE.match(key) else _decompile_string(key)
+    """Writes a map key bare when it is a valid identifier, and quoted otherwise."""
+    return key if _is_variable_name(key) else _decompile_string(key)
 
 
 def _decompile_path(path_str: str) -> str:
@@ -234,6 +249,25 @@ class ExpressDecompiler:
         self.helpers = build_catalog_helpers(self._catalogs)
         # The single catalog's ID, or None when several catalogs are active.
         self._sole_catalog_id = surface_catalog_id(self._catalogs)
+        self._v1 = is_at_least_version(
+            catalogs_protocol_version(self._catalogs), ProtocolVersion.V1_0
+        )
+
+    def _check_component_ids(self, component_ids: Sequence[str]) -> None:
+        """From v1.0, rejects component IDs that are not UAX 31 identifiers."""
+        if not self._v1:
+            return
+        details = [
+            A2uiErrorDetail(
+                path=f"components.{cid}.id",
+                code="invalid_identifier",
+                message=f"Component id '{cid}' must be a valid UAX #31 identifier",
+            )
+            for cid in component_ids
+            if not is_valid_uax31_identifier(cid)
+        ]
+        if details:
+            raise A2uiValidationError(details[0].message, details=details)
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -504,7 +538,9 @@ class ExpressDecompiler:
         surface_cat_id: str | None,
         use_keyword_args: bool,
     ) -> list[str]:
-        var_names = _assign_variable_names([c["id"] for c in components])
+        component_ids = [c["id"] for c in components]
+        self._check_component_ids(component_ids)
+        var_names = _assign_variable_names(component_ids)
         dsl_lines = []
         for c in components:
             comp_id = c["id"]
