@@ -279,10 +279,8 @@ describe('ExpressParser', () => {
       expect(parser.supportsStreaming).toBe(false);
     });
 
-    it('throws when parseChunk is called', () => {
-      expect(() => parser.parseChunk('chunk')).toThrow(
-        'Streaming is not supported by ExpressParser',
-      );
+    it('throws when openStream is called', () => {
+      expect(() => parser.openStream()).toThrow('Streaming is not supported by ExpressParser');
     });
   });
 });

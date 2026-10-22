@@ -30,6 +30,7 @@ from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.a2a import parse_response_to_parts, stream_response_to_parts
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
@@ -100,7 +101,10 @@ class A2uiDemoAgent:
             catalog_path=COMPOSITE_CATALOG_PATH,
             protocol_version=A2UI_VERSION,
         )
-        return A2uiGenerator([config])
+        return A2uiGenerator(
+            [config],
+            inference_format_factory=DirectJsonFormatFactory(),
+        )
 
     def _build_processor(self, generator: A2uiGenerator) -> A2uiRequestProcessor:
         return generator.create_processor({

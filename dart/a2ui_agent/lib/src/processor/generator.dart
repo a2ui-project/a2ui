@@ -15,7 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
-import '../inference_formats/direct_json/format.dart';
+import '../inference_formats/express/format.dart';
 import '../utils/catalog_resolver.dart';
 import '../utils/catalogs.dart';
 import '../utils/renderer_state.dart';
@@ -49,7 +49,7 @@ class A2uiGenerator {
   A2uiGenerator({
     required this.catalogs,
     this.examples = const [],
-    this.inferenceFormatFactory = const DirectJsonFormatFactory(),
+    this.inferenceFormatFactory = const ExpressFormatFactory(),
   });
 
   /// Creates a processor for a renderer that declared [rendererCapabilities].

@@ -232,7 +232,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['validate_common_type', 'web_core has no per-definition validators for the common types'],
   [
     'measure_growth',
-    'the timing cases depend on the machine and need a runner that keeps them apart from the other tests, which web_core does not have',
+    'the timing cases depend on the machine, so `yarn test:timing` runs them apart from the other tests (tests/timing/)',
   ],
   ['measure_overhead', 'web_core has no streaming inference parser'],
 ]);
