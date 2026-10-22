@@ -24,7 +24,6 @@ matches what an agent developer would ship from `a2ui.skill`.
 from __future__ import annotations
 
 import asyncio
-import inspect
 from typing import Any, Mapping
 
 from a2ui.skill import SkillGenerator
@@ -201,16 +200,6 @@ def record_skills_read() -> Solver:
     return solve
 
 
-def _compile_solver(
-    format_name: str, version: str, sdk: str, max_validation_retries: int
-) -> Solver:
-    """Builds the compile step, forwarding `max_validation_retries` once it exists."""
-    kwargs: dict[str, Any] = {"sdk": sdk}
-    if "max_validation_retries" in inspect.signature(compile_format_payload).parameters:
-        kwargs["max_validation_retries"] = max_validation_retries
-    return compile_format_payload(format_name, version, **kwargs)
-
-
 def skill_mode_strategy(
     format_name: str = "express",
     version: str = "1.0",
@@ -224,8 +213,10 @@ def skill_mode_strategy(
         version: The protocol version.
         sdk: The agent SDK whose bridge compiles and validates the answer. The
             skills themselves always come from the Python SDK's generator.
-        max_validation_retries: Self-retry budget for the compile step, used
-            once `compile_format_payload` supports it.
+        max_validation_retries: Self-retry budget for the compile step.
+
+    Returns:
+        The list of solvers for the `skill_mode` strategy.
     """
     norm_sdk = normalize_sdk_name(sdk)
     validate_sdk_format(norm_sdk, format_name)
@@ -234,5 +225,10 @@ def skill_mode_strategy(
         use_tools([read_a2ui_skill()]),
         measured_generate(),
         record_skills_read(),
-        _compile_solver(format_name, version, norm_sdk, max_validation_retries),
+        compile_format_payload(
+            format_name,
+            version,
+            sdk=norm_sdk,
+            max_validation_retries=max_validation_retries,
+        ),
     ]

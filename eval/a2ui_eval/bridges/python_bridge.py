@@ -66,6 +66,7 @@ from .base import (
     AgentSdkBridge,
     BridgeOptions,
     validate_sdk_format,
+    validate_sdk_version,
 )
 
 _WORKER_STARTUP_TIMEOUT_SEC = 120.0
@@ -180,6 +181,12 @@ def get_python_strategy(
         surface_id: The default surface for formats that need one.
         examples: Few-shot example turns to show in the prompt.
         allowed_messages: Message types the model may write, or None for all.
+
+    Returns:
+        The instantiated `InferenceFormat` strategy.
+
+    Raises:
+        ValueError: If `format_name` is unknown.
     """
     catalogs = (
         [catalog_config.transformed_catalog]
@@ -566,13 +573,14 @@ class PythonSdkBridge(AgentSdkBridge):
         options: BridgeOptions | None = None,
     ) -> str:
         validate_sdk_format(self.sdk_name, format_name)
+        norm_version = validate_sdk_version(self.sdk_name, version)
         opts = options.to_dict() if options is not None else None
         catalogs, examples = build_catalogs_and_examples(
-            resolved_catalog_path, version, opts
+            resolved_catalog_path, norm_version, opts
         )
         strategy = get_python_strategy(
             format_name,
-            version,
+            norm_version,
             catalogs,
             surface_id=surface_id,
             examples=examples,
@@ -602,10 +610,11 @@ class PythonSdkBridge(AgentSdkBridge):
         to the worker in their `to_dict` form under the `options` key.
         """
         validate_sdk_format(self.sdk_name, format_name)
+        norm_version = validate_sdk_version(self.sdk_name, version)
         pool = self._pool or _get_default_pool()
         request: dict[str, Any] = {
             "format_name": format_name,
-            "version": version,
+            "version": norm_version,
             "resolved_catalog_path": os.path.abspath(resolved_catalog_path),
             "surface_id": surface_id,
             "completion": completion,

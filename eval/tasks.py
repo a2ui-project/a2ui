@@ -18,6 +18,8 @@ from __future__ import annotations
 
 # pylint: disable=duplicate-code
 
+from collections.abc import Sequence
+
 from google import genai
 from google.genai import errors
 from inspect_ai import Task, task
@@ -45,7 +47,7 @@ def dataset_protocol_version(dataset_name: str) -> str | None:
     return None
 
 
-def split_dataset_names(dataset: str | list[str] | None) -> list[str]:
+def split_dataset_names(dataset: str | Sequence[str] | None) -> list[str]:
     """Splits a comma-separated dataset string or list into dataset names."""
     if not dataset:
         return []
@@ -53,7 +55,9 @@ def split_dataset_names(dataset: str | list[str] | None) -> list[str]:
     return [name.strip() for name in raw if name.strip()]
 
 
-def _check_task_inputs(sdk: str, version: str, dataset: str | list[str] | None) -> str:
+def _check_task_inputs(
+    sdk: str, version: str, dataset: str | Sequence[str] | None
+) -> str:
     """Validates the SDK, protocol version and datasets of a task.
 
     Returns:
@@ -127,9 +131,9 @@ def build_task(
     default_catalog_path: str,
     grading_model: str,
     strategy: str,
-    dataset: str | list[str] | None,
+    dataset: str | Sequence[str] | None,
     sdk: str,
-    tags: str | list[str] | None = None,
+    tags: str | Sequence[str] | None = None,
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
@@ -209,9 +213,9 @@ def a2ui_v0_9_1_eval(
     list_models: bool = False,
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "direct",
-    dataset: str | list[str] | None = None,
+    dataset: str | Sequence[str] | None = None,
     sdk: str = "python",
-    tags: str | list[str] | None = None,
+    tags: str | Sequence[str] | None = None,
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
@@ -259,9 +263,9 @@ def a2ui_v1_0_eval(
     list_models: bool = False,
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "express",
-    dataset: str | list[str] | None = None,
+    dataset: str | Sequence[str] | None = None,
     sdk: str = "python",
-    tags: str | list[str] | None = None,
+    tags: str | Sequence[str] | None = None,
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",

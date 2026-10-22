@@ -734,3 +734,30 @@ def test_bridge_options_reject_non_positive_stream_chunk_size(sdk: str) -> None:
             options=options,
             validate=False,
         )
+
+
+def test_python_bridge_normalizes_and_validates_versions() -> None:
+    bridge = get_sdk_bridge("python")
+    prompt = bridge.generate_prompt("express", "v1.0", V10_CATALOG)
+    assert "A2UI Express DSL Output Contract" in prompt
+
+    res = bridge.parse_and_validate(
+        "express",
+        "v1.0",
+        V10_CATALOG,
+        "main",
+        '<a2ui>root = Text("hi")</a2ui>',
+    )
+    assert len(res["compiled_jsons"]) > 0
+
+    with pytest.raises(ValueError, match="is not supported by SDK 'python'"):
+        bridge.generate_prompt("express", "99.0", V10_CATALOG)
+
+    with pytest.raises(ValueError, match="is not supported by SDK 'python'"):
+        bridge.parse_and_validate(
+            "express",
+            "99.0",
+            V10_CATALOG,
+            "main",
+            '<a2ui>root = Text("hi")</a2ui>',
+        )

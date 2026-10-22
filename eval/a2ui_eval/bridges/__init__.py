@@ -80,7 +80,17 @@ def __getattr__(name: str) -> Any:
 
 
 def get_sdk_bridge(sdk: str = "python") -> AgentSdkBridge:
-    """Returns the shared AgentSdkBridge instance for the specified SDK."""
+    """Returns the shared AgentSdkBridge instance for the specified SDK.
+
+    Args:
+        sdk: The name of the SDK (e.g. 'python', 'typescript', 'dart').
+
+    Returns:
+        The shared `AgentSdkBridge` instance for the SDK.
+
+    Raises:
+        ValueError: If the requested SDK is not supported.
+    """
     norm = normalize_sdk_name(sdk)
     with _bridges_lock:
         bridge = _bridges.get(norm)

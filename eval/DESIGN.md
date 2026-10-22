@@ -12,12 +12,12 @@ The core architecture of the A2UI evaluation framework is built upon the princip
 
 The framework adopts the three-pillar architecture of Inspect AI (Tasks, Solvers, and Scorers) to create a unified evaluation pipeline. In this context, a Task defines the high-level evaluation objective, such as "Validating Form Generation" or "Testing Adaptive Layouts".
 
-| Inspect Component | A2UI Implementation Detail                                                 | Primary Responsibility                                            |
-| :---------------- | :------------------------------------------------------------------------- | :---------------------------------------------------------------- |
-| Dataset           | Encrypted YAML files conforming to `datasets/dataset_schema.json`.         | Providing structured `messages` turns, catalogs, and UI targets.  |
-| Solver            | Uses an `InferenceFormat` to inject system prompt and protocol rules.      | Orchestrating the model's attempt to generate a valid UI payload. |
+| Inspect Component | A2UI Implementation Detail                                                                              | Primary Responsibility                                            |
+| :---------------- | :------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------- |
+| Dataset           | Encrypted YAML files conforming to `datasets/dataset_schema.json`.                                      | Providing structured `messages` turns, catalogs, and UI targets.  |
+| Solver            | Uses an `InferenceFormat` to inject system prompt and protocol rules.                                   | Orchestrating the model's attempt to generate a valid UI payload. |
 | Scorer            | `a2ui_scorer` (Stage 1 validation, Stage 2 assertions) then `measured_model_graded_qa` (Stage 3 judge). | Determining technical validity and semantic intent quality.       |
-| Model Provider    | Gemini, OpenAI, Anthropic, OpenRouter, and local Ollama, vLLM or OpenAI-compatible servers. | Standardizing API interactions across diverse model families.     |
+| Model Provider    | Gemini, OpenAI, Anthropic, OpenRouter, and local Ollama, vLLM or OpenAI-compatible servers.             | Standardizing API interactions across diverse model families.     |
 
 The interaction flow begins with loading a dataset sample. Each sample names one `catalog` or a list of `catalogs`, an optional domain `system_prompt`, and a list of `messages`. The messages hold the conversation history: user requests, assistant responses, and tool calls. The solver merges the domain system prompt with A2UI protocol instructions and passes the conversational context to the model. The generated UI payload then goes through the three-stage scoring funnel described below.
 
@@ -38,7 +38,7 @@ The same tasks can run against the TypeScript and Dart Agent SDKs. Each SDK has 
 
 `base.py` lists the strategies, inference formats and protocol versions each SDK supports. `main.py` and `tasks.py` check a run against these lists before any model call. Every bridge uses the same parse timeout, `DEFAULT_PARSE_TIMEOUT_SEC`.
 
-The `subagent_tool` strategy calls `parse_and_validate` with `validate=False`, so the specialist tool only parses. For `direct` and `subagent_tool`, strict validation runs once, in the Stage 1 scorer. The format strategies (`express`, `elemental` and `atom`) also validate when the solver compiles the completion with `parse_and_validate`. The solver stores the result in `state.metadata["compiled_messages"]`, and the Stage 1 scorer reuses it instead of parsing again.
+All format strategies (`direct`, `express`, `elemental`, and `atom`), `skill_mode`, and the `subagent_tool` specialist call `parse_and_validate` with `validate=True` during solver execution. The solver stores the validated messages in `state.metadata["compiled_messages"]`, and the Stage 1 scorer reuses them instead of parsing again.
 
 ### **Bridge Options: One Contract for Three Runners**
 
@@ -129,13 +129,13 @@ A primary goal of the A2UI framework is to facilitate objective comparisons acro
 
 Inspect AI provides built-in providers for the most common lab APIs and for local servers. `main.py` passes the `--model` name straight to Inspect, so the provider prefix selects the client.
 
-| Provider Family | Model prefix                                  | Notes                                                                 |
-| :-------------- | :-------------------------------------------- | :-------------------------------------------------------------------- |
-| Google Gemini   | `google/`                                     | Default for inference and for the judge. The only provider run in CI. |
-| OpenAI          | `openai/`                                     | Run on demand.                                                        |
-| Anthropic       | `anthropic/`                                  | Run on demand. Client installed with `uv sync --extra frontier`.      |
-| OpenRouter      | `openrouter/`                                 | Run on demand.                                                        |
-| Local servers   | `ollama/`, `vllm/`, `openai-api/<provider>/`  | Ollama, vLLM, llama.cpp and LM Studio. `--model-base-url` overrides the endpoint. |
+| Provider Family | Model prefix                                 | Notes                                                                             |
+| :-------------- | :------------------------------------------- | :-------------------------------------------------------------------------------- |
+| Google Gemini   | `google/`                                    | Default for inference and for the judge. The only provider run in CI.             |
+| OpenAI          | `openai/`                                    | Run on demand.                                                                    |
+| Anthropic       | `anthropic/`                                 | Run on demand. Client installed with `uv sync --extra frontier`.                  |
+| OpenRouter      | `openrouter/`                                | Run on demand.                                                                    |
+| Local servers   | `ollama/`, `vllm/`, `openai-api/<provider>/` | Ollama, vLLM, llama.cpp and LM Studio. `--model-base-url` overrides the endpoint. |
 
 Local servers handle far less concurrency than hosted APIs. `main.py` therefore offers `--profile local` and `--profile offline`. Both lower `--max-samples` and `--max-connections` and raise `--working-limit`; `offline` also disables the judge.
 
@@ -167,14 +167,14 @@ The target SDK bridge parses the completion and runs strict validation against t
 
 `evaluate_stage2_assertions` checks the compiled messages against the sample's `assertions` block, parsed into `Stage2Assertions`. The checks are name lookups over the compiled payload and involve no model:
 
-| Assertion              | Passes when                                                              |
-| :--------------------- | :----------------------------------------------------------------------- |
-| `required_components`  | Every listed component type appears at least once.                       |
-| `forbidden_components` | No listed component type appears.                                        |
+| Assertion              | Passes when                                                                 |
+| :--------------------- | :-------------------------------------------------------------------------- |
+| `required_components`  | Every listed component type appears at least once.                          |
+| `forbidden_components` | No listed component type appears.                                           |
 | `required_bindings`    | Every listed data model path (such as `/booking/date`) is bound or written. |
-| `required_actions`     | Every listed action event name is dispatched by some component.          |
-| `message_types`        | The payload contains only the listed message types.                      |
-| `catalog_ids`          | Every listed catalog id is named by some surface or component.           |
+| `required_actions`     | Every listed action event name is dispatched by some component.             |
+| `message_types`        | The payload contains only the listed message types.                         |
+| `catalog_ids`          | Every listed catalog id is named by some surface or component.              |
 
 An empty or missing `assertions` block asserts nothing, so Stage 2 passes. `a2ui_scorer` records the combined Stage 1 and 2 verdict in `state.metadata["a2ui_stage12_passed"]` and lists every failed assertion in its explanation.
 

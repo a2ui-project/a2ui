@@ -137,14 +137,14 @@ assertions:
   catalog_ids: [https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json]
 ```
 
-| Key                    | Meaning                                                            |
-| :--------------------- | :----------------------------------------------------------------- |
-| `required_components`  | Component types that must appear at least once.                    |
-| `forbidden_components` | Component types that must not appear.                              |
-| `required_actions`     | Action event names that some component must dispatch.              |
-| `required_bindings`    | Data model paths that must be bound or written.                    |
-| `message_types`        | The only message types the payload may contain.                    |
-| `catalog_ids`          | Catalog ids that some surface or component must name.              |
+| Key                    | Meaning                                               |
+| :--------------------- | :---------------------------------------------------- |
+| `required_components`  | Component types that must appear at least once.       |
+| `forbidden_components` | Component types that must not appear.                 |
+| `required_actions`     | Action event names that some component must dispatch. |
+| `required_bindings`    | Data model paths that must be bound or written.       |
+| `message_types`        | The only message types the payload may contain.       |
+| `catalog_ids`          | Catalog ids that some surface or component must name. |
 
 Every key is optional, and an empty list asserts nothing. Keep the lists short. An assertion that lists ten components turns a semantic test into a brittle snapshot. Component names must match the catalog exactly, including case.
 

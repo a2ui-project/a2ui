@@ -39,7 +39,15 @@ def prompt_sha256(prompt: str) -> str:
 
 @dataclass(frozen=True)
 class RecordedCompletion:
-    """One recorded model completion."""
+    """One recorded model completion.
+
+    Attributes:
+        sample_name: Identifier of the evaluated sample.
+        strategy: Name of the evaluation strategy (e.g. 'direct', 'express').
+        version: Normalized A2UI protocol version (e.g. '0.9.1', '1.0').
+        completion: The raw string completion returned by the model.
+        prompt_sha256: Hex SHA-256 of the system prompt that produced it.
+    """
 
     sample_name: str
     strategy: str
@@ -49,6 +57,7 @@ class RecordedCompletion:
 
     @property
     def key(self) -> ReplayKey:
+        """Returns the `(sample_name, strategy, version)` lookup key."""
         return (self.sample_name, self.strategy, self.version)
 
 
@@ -104,11 +113,26 @@ class CompletionReplayStore:
         self, sample_name: str, strategy: str, version: str
     ) -> RecordedCompletion | None:
         """Returns the recorded completion for the key, or None."""
-        return self._records.get((sample_name, strategy, version))
+        with self._lock:
+            return self._records.get((sample_name, strategy, version))
 
     @classmethod
-    def load(cls, path: Path) -> CompletionReplayStore:
-        """Loads a JSONL replay file; further `record` calls append to it."""
+    def load(cls, path: Path, *, must_exist: bool = False) -> CompletionReplayStore:
+        """Loads a JSONL replay file; further `record` calls append to it.
+
+        Args:
+            path: Path to the JSONL replay file.
+            must_exist: Whether to raise `FileNotFoundError` when `path` does
+                not exist on disk.
+
+        Returns:
+            A populated `CompletionReplayStore` bound to `path`.
+
+        Raises:
+            FileNotFoundError: If `must_exist` is True and `path` is missing.
+        """
+        if must_exist and not path.is_file():
+            raise FileNotFoundError(f"Replay store file not found: {path}")
         store = cls(path)
         if not path.exists():
             return store

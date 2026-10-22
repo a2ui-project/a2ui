@@ -57,7 +57,7 @@ _INFERENCE_METADATA_KEYS = (
 
 
 def _first_system_prompt(messages: list[Any]) -> str:
-    """Text of the first system message in the conversation, if any."""
+    """Returns the text of the first system message in the conversation, if any."""
     for message in messages:
         if message.role == "system":
             return str(message.text)
@@ -154,7 +154,9 @@ def generate_or_replay(
     of the system prompt that produced it.
     """
     replay_store = (
-        CompletionReplayStore.load(Path(replay_path)) if replay_path else None
+        CompletionReplayStore.load(Path(replay_path), must_exist=True)
+        if replay_path
+        else None
     )
     record_store = CompletionReplayStore(Path(record_path)) if record_path else None
     measured = measured_generate()
@@ -300,6 +302,15 @@ def compile_format_payload(
     sends the validation error back to the model and retries, unless the
     completion was replayed. `pass_at_1`, `pass_at_k` and
     `validation_retries_used` are recorded in the metadata.
+
+    Args:
+        format_name: The name of the format to compile from.
+        version: The target A2UI protocol version.
+        sdk: The target SDK.
+        max_validation_retries: Maximum number of validation retries.
+
+    Returns:
+        A Solver step that compiles and validates the format payload.
     """
     validate_sdk_format(sdk, format_name)
     measured = measured_generate()

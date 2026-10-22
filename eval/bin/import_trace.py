@@ -58,6 +58,10 @@ import jsonschema
 import yaml
 
 EVAL_ROOT = Path(__file__).resolve().parent.parent
+if str(EVAL_ROOT) not in sys.path:
+    sys.path.insert(0, str(EVAL_ROOT))
+from a2ui_eval.scorers import collect_payload_facts  # noqa: E402
+
 REPO_ROOT = EVAL_ROOT.parent
 DATASETS_DIR = EVAL_ROOT / "datasets"
 SCHEMA_PATH = DATASETS_DIR / "dataset_schema.json"
@@ -414,63 +418,16 @@ def _parse_json_lines(block: str) -> list[dict[str, Any]] | None:
     return items or None
 
 
-def _collect_facts(value: Any, facts: dict[str, set[str]]) -> None:
-    """Walks a payload tree collecting component types, bindings and actions."""
-    if isinstance(value, list):
-        for item in value:
-            _collect_facts(item, facts)
-    elif isinstance(value, dict):
-        _collect_node_facts(value, facts)
-
-
-def _collect_node_facts(node: dict[str, Any], facts: dict[str, set[str]]) -> None:
-    """Records one object's facts, then recurses into its children.
-
-    `updateDataModel.value` holds user data, not A2UI structure, so it is
-    skipped.
-    """
-    component = node.get("component")
-    if isinstance(component, str):
-        facts["components"].add(component)
-    elif isinstance(component, dict):
-        facts["components"].update(str(key) for key in component)
-    for key in ("path", "@path"):
-        if isinstance(node.get(key), str):
-            facts["bindings"].add(node[key])
-    _collect_actions(node, facts)
-    for key, child in node.items():
-        if key == "updateDataModel" and isinstance(child, dict):
-            child = {k: v for k, v in child.items() if k != "value"}
-        _collect_facts(child, facts)
-
-
-def _collect_actions(node: dict[str, Any], facts: dict[str, set[str]]) -> None:
-    """Records action names in their `event`, `functionCall` and `@call` forms."""
-    event = node.get("event")
-    if isinstance(event, dict) and isinstance(event.get("name"), str):
-        facts["actions"].add(event["name"])
-    call = node.get("functionCall")
-    if isinstance(call, dict) and isinstance(call.get("call"), str):
-        facts["actions"].add(call["call"])
-    if isinstance(node.get("@call"), str):
-        facts["actions"].add(node["@call"])
-
-
 def derive_assertions(payload: list[dict[str, Any]]) -> dict[str, list[str]]:
     """Builds Stage 2 assertions from a golden Direct JSON payload."""
-    facts: dict[str, set[str]] = {
-        "components": set(),
-        "bindings": set(),
-        "actions": set(),
-    }
-    _collect_facts(payload, facts)
+    facts = collect_payload_facts(payload)
     assertions: dict[str, list[str]] = {}
-    if facts["components"]:
-        assertions["required_components"] = sorted(facts["components"])
-    if facts["bindings"]:
-        assertions["required_bindings"] = sorted(facts["bindings"])
-    if facts["actions"]:
-        assertions["required_actions"] = sorted(facts["actions"])
+    if facts.component_types:
+        assertions["required_components"] = sorted(facts.component_types)
+    if facts.bound_paths:
+        assertions["required_bindings"] = sorted(facts.bound_paths)
+    if facts.action_names:
+        assertions["required_actions"] = sorted(facts.action_names)
     return assertions
 
 

@@ -108,17 +108,17 @@ class _CatalogSetup {
   final List<String>? allowedMessages;
 }
 
-/// The `options` object of [payload], or null when none was sent.
+/// Extracts the `options` object of [payload], or returns null when none was sent.
 Map<String, Object?>? _options(Map<String, Object?> payload) {
   final Object? options = payload['options'];
   return options is Map ? options.cast<String, Object?>() : null;
 }
 
-/// [value] as a list of strings, or null when it is not a list.
+/// Casts [value] to a list of strings, or returns null when it is not a list.
 List<String>? _stringList(Object? value) =>
     value is List ? [for (final Object? item in value) item.toString()] : null;
 
-/// The catalog specs of [payload]: its `options.catalogs`, or a single
+/// Extracts the catalog specs of [payload]: its `options.catalogs`, or a single
 /// unpruned spec for `resolved_catalog_path` when it names none.
 List<Map<String, Object?>> _catalogSpecs(Map<String, Object?> payload) {
   final Object? specs = _options(payload)?['catalogs'];
@@ -136,7 +136,7 @@ List<Map<String, Object?>> _catalogSpecs(Map<String, Object?> payload) {
   ];
 }
 
-/// The pruning transformers a catalog spec asks for, in the order they apply.
+/// Builds the pruning transformers a catalog spec asks for, in the order they apply.
 List<CatalogTransformer> _transformers(Map<String, Object?> spec) {
   final List<String>? components = _stringList(spec['allowed_components']);
   final List<String>? functions = _stringList(spec['allowed_functions']);
@@ -206,6 +206,7 @@ _CatalogSetup _loadCatalogsAndExamples(
   );
 }
 
+/// Instantiates the requested Dart [InferenceFormat] strategy from [setup].
 InferenceFormat _createStrategy(String formatName, _CatalogSetup setup) {
   switch (formatName) {
     case 'direct_json':
@@ -250,8 +251,8 @@ Map<String, Object?> _messageJson(
   };
 }
 
-/// The envelopes of a direct JSON block, if it decodes to a list of
-/// [expectedCount] objects; otherwise null.
+/// Parses the envelopes of a direct JSON block if it decodes to a list of
+/// [expectedCount] objects; otherwise returns null.
 List<Map<String, Object?>?>? _rawEnvelopes(String raw, int expectedCount) {
   final Object? decoded;
   try {
@@ -299,7 +300,8 @@ Map<String, Object?> _alignExpressEnvelope(
   };
 }
 
-/// The `initial_renderer_state` messages of [payload], or null when unset.
+/// Decodes the `initial_renderer_state` messages of [payload], or returns null
+/// when unset.
 List<AgentToRendererMessage>? _initialRendererState(
   Map<String, Object?> payload,
 ) {
@@ -319,7 +321,7 @@ List<AgentToRendererMessage>? _initialRendererState(
   ];
 }
 
-/// The `stream_chunk_size` of [payload], or null when unset.
+/// Extracts the `stream_chunk_size` of [payload], or returns null when unset.
 int? _streamChunkSize(Map<String, Object?> payload) {
   final Object? size = _options(payload)?['stream_chunk_size'];
   if (size == null) return null;
@@ -412,6 +414,8 @@ void _checkStreamedParse(
   return (jsons, aligned);
 }
 
+/// Parses and optionally validates [completion] using [strategy], returning
+/// `compiled_jsons` and serialized response `parts`.
 Map<String, Object?> _parseAndValidate({
   required String formatName,
   required A2uiProtocolVersion version,
@@ -515,6 +519,7 @@ String _describeError(Object err, StackTrace stackTrace) {
   return '$err\n$stackTrace'.trim();
 }
 
+/// Reads a JSON bridge request from stdin and writes the JSON response to stdout.
 Future<void> main() async {
   try {
     final String rawInput = await utf8.decoder.bind(stdin).join();

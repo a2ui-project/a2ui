@@ -172,6 +172,15 @@ def test_store_lookup_miss_and_missing_file(tmp_path: Path) -> None:
     assert store.lookup("x", "direct", "0.9.1") is None
     assert store.lookup("x", "direct", "1.0") is not None
 
+    with pytest.raises(FileNotFoundError, match="never_created.jsonl"):
+        CompletionReplayStore.load(tmp_path / "never_created.jsonl", must_exist=True)
+    with pytest.raises(FileNotFoundError, match="Replay store file not found"):
+        generate_or_replay(
+            replay_path=str(tmp_path / "never_created.jsonl"),
+            strategy_name="express",
+            version="1.0",
+        )
+
 
 def _write_eval_log(path: Path, **spec_overrides: Any) -> None:
     spec = dict(

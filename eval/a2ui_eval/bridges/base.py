@@ -87,7 +87,15 @@ def normalize_sdk_name(sdk: str) -> str:
 
 
 def validate_sdk_strategy(sdk: str, strategy: str) -> None:
-    """Checks that the given strategy is supported by the target SDK."""
+    """Checks that the given strategy is supported by the target SDK.
+
+    Args:
+        sdk: The name of the target SDK.
+        strategy: The name of the evaluation strategy.
+
+    Raises:
+        ValueError: If the strategy is not supported by the SDK.
+    """
     norm_sdk = normalize_sdk_name(sdk)
     supported = SDK_SUPPORTED_STRATEGIES[norm_sdk]
     if strategy not in supported:
@@ -238,6 +246,14 @@ class Stage2Assertions:
 
     Each field lists names that must (or must not) appear in the compiled
     payload. An empty field is not checked.
+
+    Attributes:
+        required_components: Component types that must appear at least once.
+        forbidden_components: Component types that must not appear.
+        required_bindings: Data model paths that must be bound or written.
+        required_actions: Action event or function call names that must appear.
+        message_types: The only message types the payload may contain.
+        catalog_ids: Catalog identifiers that must be referenced.
     """
 
     required_components: tuple[str, ...] = ()
@@ -259,7 +275,7 @@ class Stage2Assertions:
 
     @property
     def is_empty(self) -> bool:
-        """True when no field asserts anything."""
+        """Whether no field asserts anything."""
         return not any(getattr(self, f) for f in self.__dataclass_fields__)
 
 

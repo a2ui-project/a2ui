@@ -39,17 +39,17 @@
             },
             "allowed_components": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {"type": "string"},
               "description": "Component names to keep (ComponentPruningTransformer). Omit to keep every component."
             },
             "allowed_functions": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {"type": "string"},
               "description": "Function names to keep (FunctionPruningTransformer). Omit to keep every function."
             },
             "examples": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {"type": "string"},
               "description": "Paths, relative to the repository root, of JSON files holding few-shot example payloads for this catalog."
             }
           },
@@ -59,7 +59,7 @@
       },
       "examples": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {"type": "string"},
         "description": "Paths, relative to the repository root, of JSON files holding few-shot example payloads for the single 'catalog'."
       },
       "allowed_messages": {
@@ -72,7 +72,7 @@
       },
       "initial_state": {
         "type": "array",
-        "items": { "type": "object" },
+        "items": {"type": "object"},
         "description": "A2UI messages applied to a fresh renderer state before the model's turn is validated, so the turn can update an existing surface."
       },
       "stream_chunk_size": {
@@ -82,7 +82,7 @@
       },
       "tags": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {"type": "string"},
         "description": "Free-form tags used to select subsets of samples, such as 'smoke', 'multi_catalog', 'pruned' or 'stateful'."
       },
       "assertions": {
@@ -91,32 +91,35 @@
         "properties": {
           "required_components": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {"type": "string"},
             "description": "Component types that must appear at least once."
           },
           "forbidden_components": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {"type": "string"},
             "description": "Component types that must not appear."
           },
           "required_bindings": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {"type": "string"},
             "description": "Data model paths that must be bound or written, such as '/booking/date'."
           },
           "required_actions": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {"type": "string"},
             "description": "Action event names that must be dispatched by some component."
           },
           "message_types": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string",
+              "enum": ["createSurface", "updateComponents", "updateDataModel", "deleteSurface"]
+            },
             "description": "The only message types the payload may contain."
           },
           "catalog_ids": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {"type": "string"},
             "description": "Catalog ids that must be named by some surface or component."
           }
         },

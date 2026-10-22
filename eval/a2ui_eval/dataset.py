@@ -207,7 +207,7 @@ def _parse_messages(item: dict[str, Any]) -> list[ChatMessage]:
 
 def load_a2ui_dataset(
     file_path: str | Path | None = None,
-    dataset: str | list[str] | None = None,
+    dataset: str | Sequence[str] | None = None,
     default_catalog_path: str | None = None,
     version: str | None = None,
     format_name: str | None = None,

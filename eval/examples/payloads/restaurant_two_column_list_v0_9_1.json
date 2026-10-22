@@ -14,10 +14,7 @@
         {
           "id": "root",
           "component": "Column",
-          "children": [
-            "title_heading",
-            "restaurant_list"
-          ]
+          "children": ["title_heading", "restaurant_list"]
         },
         {
           "id": "title_heading",
@@ -39,10 +36,7 @@
         {
           "id": "row_template",
           "component": "Row",
-          "children": [
-            "card_template_left",
-            "card_template_right"
-          ]
+          "children": ["card_template_left", "card_template_right"]
         },
         {
           "id": "card_template_left",
@@ -53,10 +47,7 @@
         {
           "id": "card_layout_left",
           "component": "Column",
-          "children": [
-            "template_image_left",
-            "card_details_left"
-          ]
+          "children": ["template_image_left", "card_details_left"]
         },
         {
           "id": "template_image_left",
@@ -133,10 +124,7 @@
         {
           "id": "card_layout_right",
           "component": "Column",
-          "children": [
-            "template_image_right",
-            "card_details_right"
-          ]
+          "children": ["template_image_right", "card_details_right"]
         },
         {
           "id": "template_image_right",

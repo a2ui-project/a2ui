@@ -119,7 +119,7 @@ def _options_payload(options: BridgeOptions | None) -> dict[str, Any] | None:
 
 
 def _options_cache_key(options: BridgeOptions | None) -> str:
-    """The part of a prompt cache key that tells option sets apart."""
+    """Returns the part of a prompt cache key that tells option sets apart."""
     return "" if options is None else options.cache_key()
 
 

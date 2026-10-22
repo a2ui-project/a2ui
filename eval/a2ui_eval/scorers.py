@@ -58,8 +58,10 @@ from .bridges import (
 from .shared.utils import GIT_ROOT
 
 __all__ = [
+    "PayloadFacts",
     "STAGE12_PASSED_KEY",
     "a2ui_scorer",
+    "collect_payload_facts",
     "evaluate_stage2_assertions",
     "measured_model_graded_qa",
 ]
@@ -72,14 +74,25 @@ _JUDGE_SKIPPED_NO_JUDGE = "Skipped LLM judge (--no-judge mode); Stage 1/2 passed
 
 
 @dataclass
-class _PayloadFacts:
-    """Names found in a compiled payload, checked against Stage 2 assertions."""
+class PayloadFacts:
+    """Names found in a compiled payload, checked against Stage 2 assertions.
+
+    Attributes:
+        component_types: Component names rendered in the payload.
+        bound_paths: Data model paths bound or written by the payload.
+        action_names: Action event or function call names in the payload.
+        message_types: Top-level message types present in the payload.
+        catalog_ids: Catalog identifiers referenced by the payload.
+    """
 
     component_types: set[str] = field(default_factory=set)
     bound_paths: set[str] = field(default_factory=set)
     action_names: set[str] = field(default_factory=set)
     message_types: set[str] = field(default_factory=set)
     catalog_ids: set[str] = field(default_factory=set)
+
+
+_PayloadFacts = PayloadFacts
 
 
 def _collect_dict_facts(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
@@ -168,21 +181,30 @@ def _walk_mapping(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
         _walk_payload(child, facts)
 
 
-def _collect_payload_facts(messages: Iterable[Mapping[str, Any]]) -> _PayloadFacts:
+def collect_payload_facts(messages: Iterable[Mapping[str, Any]]) -> PayloadFacts:
     """Collects component types, bindings, actions, message types and catalogs.
 
     The top-level keys of each message other than `version` are its message
     types (`createSurface`, `updateComponents`, `updateDataModel`,
     `deleteSurface`, ...). Everything else is found by walking the message
     tree, so inline children and v0.8/v0.9.1/v1.0 shapes are all covered.
+
+    Args:
+        messages: Compiled A2UI message dictionaries to inspect.
+
+    Returns:
+        A `PayloadFacts` instance containing the extracted sets.
     """
-    facts = _PayloadFacts()
+    facts = PayloadFacts()
     for message in messages:
         if not isinstance(message, Mapping):
             continue
         facts.message_types.update(k for k in message if k != "version")
         _walk_payload(message, facts)
     return facts
+
+
+_collect_payload_facts = collect_payload_facts
 
 
 def _check_assertion_set(

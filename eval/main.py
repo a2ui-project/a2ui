@@ -302,6 +302,7 @@ def resolve_replay_path(replay_completions: str | None, log_dir: str) -> str | N
         return str(source)
     target = Path(log_dir) / f"{source.stem}.replay.jsonl"
     target.parent.mkdir(parents=True, exist_ok=True)
+    target.unlink(missing_ok=True)
     store = CompletionReplayStore(target)
     for rec in CompletionReplayStore.from_eval_log(source).records():
         store.record(
@@ -315,6 +316,7 @@ def resolve_replay_path(replay_completions: str | None, log_dir: str) -> str | N
 
 
 def main() -> None:
+    """Parses CLI arguments and runs the A2UI evaluation suite."""
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
     parser.add_argument(
         "--sanity",

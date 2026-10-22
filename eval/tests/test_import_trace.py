@@ -360,6 +360,49 @@ def test_import_without_golden_payload_has_no_assertions(tmp_path: Path) -> None
     assert entry["messages"] == [{"role": "user", "content": "Build a form."}]
 
 
+def test_derive_assertions_extracts_nested_data_model_paths() -> None:
+    payload = [
+        {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "main",
+                "catalogId": "basic",
+                "dataModel": {"user": {"email": "ada@example.com"}},
+            },
+        },
+        {
+            "version": "v1.0",
+            "updateDataModel": {
+                "surfaceId": "main",
+                "path": "/",
+                "value": {"form": {"name": "Ada"}},
+            },
+        },
+        {
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": {"path": "/user/email"},
+                }],
+            },
+        },
+    ]
+    assertions = import_trace.derive_assertions(payload)
+    assert assertions == {
+        "required_components": ["Text"],
+        "required_bindings": [
+            "/",
+            "/form",
+            "/form/name",
+            "/user",
+            "/user/email",
+        ],
+    }
+
+
 # --------------------------------------------------------------------------- #
 # expand_cases
 # --------------------------------------------------------------------------- #

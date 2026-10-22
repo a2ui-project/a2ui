@@ -102,7 +102,7 @@ async def test_scorer_valid_json_v091(sdk: str) -> None:
 
 @pytest.mark.asyncio
 async def test_scorer_valid_json() -> None:
-    scorer = a2ui_scorer(version="0.9")
+    scorer = a2ui_scorer(version="0.9.1")
     valid_json = """
     <a2ui-json>
     {
@@ -133,7 +133,7 @@ async def test_scorer_valid_json() -> None:
 
 @pytest.mark.asyncio
 async def test_scorer_invalid_json() -> None:
-    scorer = a2ui_scorer(version="0.9")
+    scorer = a2ui_scorer(version="0.9.1")
     state = TaskState(
         model=ModelName("mock/model"),
         sample_id=1,
@@ -152,7 +152,7 @@ async def test_scorer_invalid_json() -> None:
 
 @pytest.mark.asyncio
 async def test_scorer_missing_root() -> None:
-    scorer = a2ui_scorer(version="0.9")
+    scorer = a2ui_scorer(version="0.9.1")
     payload = """
     <a2ui-json>
     [
@@ -193,7 +193,7 @@ async def test_scorer_missing_root() -> None:
 
 @pytest.mark.asyncio
 async def test_scorer_duplicate_ids() -> None:
-    scorer = a2ui_scorer(version="0.9")
+    scorer = a2ui_scorer(version="0.9.1")
     payload = """
     <a2ui-json>
     [
@@ -236,7 +236,7 @@ async def test_scorer_duplicate_ids() -> None:
 
 @pytest.mark.asyncio
 async def test_scorer_broken_relationship() -> None:
-    scorer = a2ui_scorer(version="0.9")
+    scorer = a2ui_scorer(version="0.9.1")
     payload = """
     <a2ui-json>
     [
@@ -278,7 +278,7 @@ async def test_scorer_broken_relationship() -> None:
 
 @pytest.mark.asyncio
 async def test_scorer_circular_reference() -> None:
-    scorer = a2ui_scorer(version="0.9")
+    scorer = a2ui_scorer(version="0.9.1")
     payload = """
     <a2ui-json>
     [
@@ -408,7 +408,7 @@ async def test_scorer_answer_is_compiled_json_on_validation_failure() -> None:
 
 @pytest.mark.asyncio
 async def test_scorer_answer_is_raw_completion_when_parsing_fails() -> None:
-    scorer = a2ui_scorer(version="0.9")
+    scorer = a2ui_scorer(version="0.9.1")
     score = await scorer(_state_with_completion("invalid json"), Target(""))
     assert score.value == 0.0
     assert score.answer == "invalid json"

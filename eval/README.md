@@ -98,11 +98,11 @@ uv run main.py --sanity
 
 `--profile` sets a group of concurrency and judge defaults in one flag. Any flag you pass explicitly overrides the profile.
 
-| Profile   | Settings                                                                                  | Use it for                                  |
-| :-------- | :---------------------------------------------------------------------------------------- | :------------------------------------------ |
-| `cloud`   | `--max-samples 10`, `--working-limit 350`, judge on                                       | Hosted APIs such as Gemini                  |
-| `local`   | `--max-samples 1`, `--max-connections 2`, `--working-limit 900`                           | A model served on your own machine          |
-| `offline` | Same as `local` plus `--no-judge`                                                         | A local model with no Gemini key for judging |
+| Profile   | Settings                                                        | Use it for                                   |
+| :-------- | :-------------------------------------------------------------- | :------------------------------------------- |
+| `cloud`   | `--max-samples 10`, `--working-limit 350`, judge on             | Hosted APIs such as Gemini                   |
+| `local`   | `--max-samples 1`, `--max-connections 2`, `--working-limit 900` | A model served on your own machine           |
+| `offline` | Same as `local` plus `--no-judge`                               | A local model with no Gemini key for judging |
 
 The individual flags are `--max-samples N` (concurrent samples), `--max-connections N` (concurrent model connections), `--working-limit SECONDS` (time budget per sample), `--no-judge` and `--model-base-url URL`.
 
@@ -228,15 +228,15 @@ The eval report (`bin/report_evals.py`) shows the SDK, protocol version and stra
 
 `--model` takes any Inspect AI model name. The prefix selects the provider:
 
-| Prefix                            | Provider                                              | Credentials                     |
-| :-------------------------------- | :---------------------------------------------------- | :------------------------------ |
-| `google/`                         | Gemini API (default)                                  | `GEMINI_API_KEY`                |
-| `openai/`                         | OpenAI                                                | `OPENAI_API_KEY`                |
-| `anthropic/`                      | Anthropic                                             | `ANTHROPIC_API_KEY`             |
-| `openrouter/`                     | OpenRouter                                            | `OPENROUTER_API_KEY`            |
-| `ollama/`                         | Local Ollama server                                   | none                            |
-| `vllm/`                           | Local vLLM server                                     | none                            |
-| `openai-api/<provider>/<model>`   | Any OpenAI-compatible server (llama.cpp, LM Studio)   | depends on the server           |
+| Prefix                          | Provider                                            | Credentials           |
+| :------------------------------ | :-------------------------------------------------- | :-------------------- |
+| `google/`                       | Gemini API (default)                                | `GEMINI_API_KEY`      |
+| `openai/`                       | OpenAI                                              | `OPENAI_API_KEY`      |
+| `anthropic/`                    | Anthropic                                           | `ANTHROPIC_API_KEY`   |
+| `openrouter/`                   | OpenRouter                                          | `OPENROUTER_API_KEY`  |
+| `ollama/`                       | Local Ollama server                                 | none                  |
+| `vllm/`                         | Local vLLM server                                   | none                  |
+| `openai-api/<provider>/<model>` | Any OpenAI-compatible server (llama.cpp, LM Studio) | depends on the server |
 
 The Anthropic and Mistral client libraries are optional. Install them with:
 
@@ -285,13 +285,13 @@ uv run main.py --model openai-api/llamacpp/gemma-4-e4b-it --strategies express -
 
 `main.py` accepts short aliases for the Gemma models used in the mobile and edge experiments:
 
-| Alias                           | Resolves to                  | Notes                                               |
-| :------------------------------ | :--------------------------- | :-------------------------------------------------- |
-| `gemma`, `gemma-4-26b`          | `google/gemma-4-26b-a4b-it`  | Cloud. 26B total, 4B active parameters.             |
-| `gemma-large`, `gemma-4-31b`    | `google/gemma-4-31b-it`      | Cloud. 31B dense.                                   |
-| `gemma-e2b`, `gemma4:e2b`       | `ollama/gemma4:e2b`          | Local. Sized for standard smartphones (about 6 GB). |
-| `gemma-e4b`, `gemma4:e4b`       | `ollama/gemma4:e4b`          | Local. Sized for flagship smartphones (about 8 GB). |
-| `gemma-2b`, `gemma2:2b`         | `ollama/gemma2:2b`           | Local. 2B parameters.                               |
+| Alias                        | Resolves to                 | Notes                                               |
+| :--------------------------- | :-------------------------- | :-------------------------------------------------- |
+| `gemma`, `gemma-4-26b`       | `google/gemma-4-26b-a4b-it` | Cloud. 26B total, 4B active parameters.             |
+| `gemma-large`, `gemma-4-31b` | `google/gemma-4-31b-it`     | Cloud. 31B dense.                                   |
+| `gemma-e2b`, `gemma4:e2b`    | `ollama/gemma4:e2b`         | Local. Sized for standard smartphones (about 6 GB). |
+| `gemma-e4b`, `gemma4:e4b`    | `ollama/gemma4:e4b`         | Local. Sized for flagship smartphones (about 8 GB). |
+| `gemma-2b`, `gemma2:2b`      | `ollama/gemma2:2b`          | Local. 2B parameters.                               |
 
 ```bash
 uv run main.py --model gemma --strategies express
@@ -315,16 +315,16 @@ Scoring is a gated funnel. A sample must pass each stage to reach the next:
 
 Each sample in `datasets/*.yaml` is a YAML object. Beyond `name`, `description`, `messages`, `system_prompt` and `target` (see [CONTRIBUTING_USE_CASES.md](CONTRIBUTING_USE_CASES.md) for the full list), these fields control the inference layer:
 
-| Field               | Purpose                                                                                                                                          |
-| :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `catalog`           | Path to one catalog JSON file, relative to the repository root. Supports `{version}`. Either `catalog` or `catalogs` is required.                 |
+| Field               | Purpose                                                                                                                                                      |
+| :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `catalog`           | Path to one catalog JSON file, relative to the repository root. Supports `{version}`. Either `catalog` or `catalogs` is required.                            |
 | `catalogs`          | A list of catalogs, in order; the first is the default. Each entry has `path`, optional `catalog_id`, `allowed_components`, `allowed_functions`, `examples`. |
-| `examples`          | Paths of JSON files holding few-shot example payloads for the single `catalog`. Inside `catalogs[]`, `examples` applies to that catalog.          |
-| `allowed_messages`  | Message types the model may write: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`. Omit to allow all.                   |
-| `initial_state`     | A2UI messages applied to a fresh renderer state before the model's turn is validated, so the turn can update an existing surface.                 |
-| `stream_chunk_size` | When set, the bridge also feeds the completion through the format's streaming parser in slices of this many characters and fails on a mismatch.  |
-| `tags`              | Free-form tags for `--tags` and `--tier`, such as `smoke`, `multi_catalog`, `pruned` or `stateful`.                                               |
-| `assertions`        | Stage 2 checks: `required_components`, `forbidden_components`, `required_bindings`, `required_actions`, `message_types`, `catalog_ids`.          |
+| `examples`          | Paths of JSON files holding few-shot example payloads for the single `catalog`. Inside `catalogs[]`, `examples` applies to that catalog.                     |
+| `allowed_messages`  | Message types the model may write: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`. Omit to allow all.                               |
+| `initial_state`     | A2UI messages applied to a fresh renderer state before the model's turn is validated, so the turn can update an existing surface.                            |
+| `stream_chunk_size` | When set, the bridge also feeds the completion through the format's streaming parser in slices of this many characters and fails on a mismatch.              |
+| `tags`              | Free-form tags for `--tags` and `--tier`, such as `smoke`, `multi_catalog`, `pruned` or `stateful`.                                                          |
+| `assertions`        | Stage 2 checks: `required_components`, `forbidden_components`, `required_bindings`, `required_actions`, `message_types`, `catalog_ids`.                      |
 
 `allowed_components` and `allowed_functions` prune the catalog before the prompt is built, so the model sees only the listed names. Example payload files must be complete wire messages with `version`, `surfaceId` and `catalogId`. The Python runner fills in missing fields. The TypeScript and Dart runners do not, so an incomplete file passes on one SDK and fails on the others.
 

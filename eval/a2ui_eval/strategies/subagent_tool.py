@@ -73,16 +73,27 @@ SPECIALIST_RESULT_KEYS = (
 
 
 def _specialist_system_prompt(sample_meta: Mapping[str, Any], snippet: str) -> str:
-    """Prefixes the bridge's prompt snippet with the sample's role and workflow."""
+    """Prefixes the bridge's prompt snippet with the sample's role, workflow, and domain instructions."""
     prompt_parts = []
-    role_description = sample_meta.get("role_description")
+    role_description = sample_meta.get("protocol_role") or sample_meta.get(
+        "role_description", ""
+    )
     if role_description:
         prompt_parts.append(role_description)
-    workflow_description = sample_meta.get("workflow_description")
+    workflow_description = sample_meta.get("generation_rules") or sample_meta.get(
+        "workflow_description", ""
+    )
     if workflow_description:
         prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
     prompt_parts.append(snippet)
-    return "\n\n".join(prompt_parts)
+    a2ui_prompt = "\n\n".join(prompt_parts)
+    domain_prompt = str(sample_meta.get("system_prompt", "")).strip()
+    if domain_prompt:
+        return (
+            f"## Domain Instructions\n{domain_prompt}\n\n## UI Protocol"
+            f" Instructions\n{a2ui_prompt}"
+        )
+    return a2ui_prompt
 
 
 def _retry_message(error: Exception, subagent_format: str) -> str:
@@ -211,9 +222,16 @@ def a2ui_specialist(
             compiled, retries_used = await _ask_specialist(
                 get_model(), bridge, messages, parse_args, max_validation_retries
             )
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except ValueError as e:
             sample_meta["subagent_pass_at_1"] = False
             sample_meta["subagent_validation_retries_used"] = max_validation_retries
+            return (
+                f"Error: Failed to generate a valid A2UI response: {str(e)}."
+                " Please make sure your request describes the UI clearly."
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            sample_meta["subagent_pass_at_1"] = False
+            sample_meta["subagent_validation_retries_used"] = 0
             return (
                 f"Error: Failed to generate a valid A2UI response: {str(e)}."
                 " Please make sure your request describes the UI clearly."
@@ -286,6 +304,9 @@ def subagent_tool_strategy(
             `direct_json` or `express`.
         max_validation_retries: How many times a rejected specialist answer is
             sent back with the validation error before the tool gives up.
+
+    Returns:
+        The list of solvers for the `subagent_tool` strategy.
     """
     norm_sdk = normalize_sdk_name(sdk)
     validate_sdk_format(norm_sdk, subagent_format)
@@ -307,7 +328,3 @@ def subagent_tool_strategy(
         measured_generate(),
         extract_subagent_payload(),
     ]
-
-
-# `strategies/__init__.py` still imports this name; Wave 4 switches it to
-# `subagent_tool_strategy`.

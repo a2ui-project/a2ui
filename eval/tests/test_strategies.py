@@ -57,7 +57,7 @@ from a2ui_eval.strategies.skill_mode import (
 )
 from a2ui_eval.strategies.subagent_tool import (
     SAMPLE_META_STORE_KEY,
-    subagent_tool_strategy,
+    _specialist_system_prompt,
 )
 
 V1_CATALOG = GIT_ROOT / "catalogs/basic/v1/catalog.json"
@@ -336,6 +336,58 @@ async def test_a2ui_specialist_gives_up_when_retries_run_out() -> None:
     assert "compiled_messages" not in meta
     assert meta["subagent_pass_at_1"] is False
     assert meta["subagent_validation_retries_used"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a2ui_specialist_non_validation_error_records_zero_retries() -> None:
+    bridge = _FakeBridge()
+    meta = _specialist_meta()
+
+    class _TimeoutBridge(_FakeBridge):
+
+        def parse_and_validate(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+            raise TimeoutError("Bridge timed out")
+
+    with patch(
+        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge",
+        return_value=_TimeoutBridge(),
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.get_model",
+        return_value=_FakeModel(["<a2ui-json>[]</a2ui-json>"]),
+    ):
+        result = await a2ui_specialist(max_validation_retries=2)(input="Build a card")
+
+    assert result.startswith("Error")
+    assert "Bridge timed out" in result
+    assert meta["subagent_pass_at_1"] is False
+    assert meta["subagent_validation_retries_used"] == 0
+    assert len(bridge.parse_calls) == 0
+
+
+def test_specialist_system_prompt_supports_v2_and_legacy_keys() -> None:
+    v2_prompt = _specialist_system_prompt(
+        {
+            "protocol_role": "V2 protocol role.",
+            "generation_rules": "V2 generation rules.",
+            "system_prompt": "V2 domain prompt.",
+        },
+        "SCHEMA_PROMPT",
+    )
+    assert "V2 protocol role." in v2_prompt
+    assert "V2 generation rules." in v2_prompt
+    assert "## Domain Instructions\nV2 domain prompt." in v2_prompt
+    assert v2_prompt.endswith("SCHEMA_PROMPT")
+
+    legacy_prompt = _specialist_system_prompt(
+        {
+            "role_description": "Legacy role.",
+            "workflow_description": "Legacy workflow.",
+        },
+        "SCHEMA_PROMPT",
+    )
+    assert "Legacy role." in legacy_prompt
+    assert "Legacy workflow." in legacy_prompt
+    assert "## Domain Instructions" not in legacy_prompt
 
 
 @pytest.mark.asyncio
