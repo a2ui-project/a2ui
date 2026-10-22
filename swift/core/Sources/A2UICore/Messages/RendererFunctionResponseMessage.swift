@@ -18,9 +18,26 @@ import OrderedJSON
 /// Response returned by the renderer for a function invocation requested by the agent.
 public struct RendererFunctionResponseMessage: Codable, Sendable, Equatable, ProtocolVersioned {
   public let functionCallID: String
-  public let value: JSONValue?
-  public let error: FunctionErrorPayload?
+  /// Stored as a sum type so a value with both or neither of `value` and `error` cannot be
+  /// represented.
+  private let outcome: Outcome
   public var version: A2UIProtocolVersion
+
+  public var value: JSONValue? {
+    if case .value(let value) = outcome { return value }
+    return nil
+  }
+
+  public var error: FunctionErrorPayload? {
+    if case .error(let error) = outcome { return error }
+    return nil
+  }
+
+  /// The result of the function call: exactly one value or one error.
+  private enum Outcome: Equatable, Sendable {
+    case value(JSONValue)
+    case error(FunctionErrorPayload)
+  }
 
   private enum CodingKeys: String, CodingKey {
     case functionCallID = "functionCallId"
@@ -34,8 +51,7 @@ public struct RendererFunctionResponseMessage: Codable, Sendable, Equatable, Pro
     version: A2UIProtocolVersion
   ) {
     self.functionCallID = functionCallID
-    self.value = value
-    self.error = nil
+    self.outcome = .value(value)
     self.version = version
   }
 
@@ -45,8 +61,7 @@ public struct RendererFunctionResponseMessage: Codable, Sendable, Equatable, Pro
     version: A2UIProtocolVersion
   ) {
     self.functionCallID = functionCallID
-    self.value = nil
-    self.error = error
+    self.outcome = .error(error)
     self.version = version
   }
 
@@ -63,11 +78,9 @@ public struct RendererFunctionResponseMessage: Codable, Sendable, Equatable, Pro
       throw DecodingError.dataCorrupted(context)
     }
     if hasError {
-      error = try container.decode(FunctionErrorPayload.self, forKey: .error)
-      value = nil
+      outcome = .error(try container.decode(FunctionErrorPayload.self, forKey: .error))
     } else if hasValue {
-      value = try container.decode(JSONValue.self, forKey: .value)
-      error = nil
+      outcome = .value(try container.decode(JSONValue.self, forKey: .value))
     } else {
       let context = DecodingError.Context(
         codingPath: container.codingPath,
@@ -81,9 +94,10 @@ public struct RendererFunctionResponseMessage: Codable, Sendable, Equatable, Pro
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(functionCallID, forKey: .functionCallID)
-    if let error {
+    switch outcome {
+    case .error(let error):
       try container.encode(error, forKey: .error)
-    } else if let value {
+    case .value(let value):
       try container.encode(value, forKey: .value)
     }
   }

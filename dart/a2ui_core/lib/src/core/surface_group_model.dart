@@ -55,12 +55,31 @@ class SurfaceGroupModel<T extends ComponentApi> {
 
   /// Removes a surface from the group by its ID.
   void deleteSurface(String id) {
-    final SurfaceModel<T>? surface = _surfaces.remove(id);
+    final SurfaceModel<T>? surface = _remove(id);
     if (surface != null) {
-      _actionSubscriptions.remove(id)?.unsubscribe();
       surface.dispose();
       _onSurfaceDeleted.emit(id);
     }
+  }
+
+  /// Removes a surface from the group by its ID without disposing of it, and
+  /// returns it, or null when the group holds no surface with [id].
+  ///
+  /// To the group's listeners this is the same as [deleteSurface]:
+  /// [onSurfaceDeleted] fires, and the surface's actions no longer reach
+  /// [onAction]. The caller then owns the surface. It can put the same object
+  /// back with [addSurface], which fires [onSurfaceCreated], as when a
+  /// deletion is undone, or must dispose of it.
+  SurfaceModel<T>? detachSurface(String id) {
+    final SurfaceModel<T>? surface = _remove(id);
+    if (surface != null) _onSurfaceDeleted.emit(id);
+    return surface;
+  }
+
+  SurfaceModel<T>? _remove(String id) {
+    final SurfaceModel<T>? surface = _surfaces.remove(id);
+    if (surface != null) _actionSubscriptions.remove(id)?.unsubscribe();
+    return surface;
   }
 
   /// Retrieves a surface by its ID.

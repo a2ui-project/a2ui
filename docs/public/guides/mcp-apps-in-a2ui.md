@@ -22,7 +22,7 @@ To prevent this, A2UI strictly excludes `allow-same-origin` for the inner iframe
 
 ### The Architecture
 
-1.  **[Sandbox Proxy (`sandbox.html`)](../../../samples/client/shared/mcp_apps_inner_iframe/sandbox.html)**: An intermediate `iframe` served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.
+1.  **[Sandbox Proxy (`sandbox.html`)](../../../samples/community/client/shared/mcp_apps_inner_iframe/sandbox.html)**: An intermediate `iframe` served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.
     - Permissions: **Do not sandbox** in the host template (e.g., [`mcp-app.ts`](../../../samples/community/client/lit/mcp-apps-in-a2ui-sample/mcp-app.ts) or [`mcp-apps-component.ts`](../../../samples/community/client/lit/mcp-apps-in-a2ui-sample/ui/custom-components/mcp-apps-component.ts)).
     - Host origin validation: Validates that messages come from the expected host origin.
 2.  **Embedded App (Inner Iframe)**: The innermost `iframe`. Injected dynamically via `srcdoc` with restricted permissions.
@@ -205,7 +205,7 @@ To run the samples, ensure you have the following installed:
 
 ## Samples
 
-There are two primary samples demonstrating MCP Apps integration. Each sample requires running **multiple terminals** — one for each backend service and one for the client.
+There are two primary samples demonstrating MCP Apps integration. Both live under `samples/community/` and predate protocol v1.0: Sample 1 uses A2UI v0.8 and Sample 2 uses A2UI v0.9. Each defines its own MCP App component rather than using the `McpApp` component from the [v1.0 MCP catalog](../../../catalogs/mcp/README.md#v1-catalog-protocol-v10). Each sample requires running **multiple terminals** — one for each backend service and one for the client.
 
 ---
 
@@ -218,7 +218,8 @@ This sample verifies the sandbox with a Lit-based client and an ADK-based A2A ag
 In a separate terminal, navigate to the agent directory and start the agent:
 
 ```bash
-cd samples/agent/adk/mcp-apps-in-a2ui-sample
+# Run from the repository root
+cd samples/community/agent/adk/mcp-apps-in-a2ui-sample
 uv run agent.py
 ```
 
@@ -229,7 +230,8 @@ The agent will run on `http://localhost:8000`.
 In a new terminal, navigate to the client directory and start the dev server (requires building the Lit renderer first):
 
 ```bash
-cd samples/client/lit/mcp-apps-in-a2ui-sample
+# Run from the repository root
+cd samples/community/client/lit/mcp-apps-in-a2ui-sample
 yarn install
 yarn dev
 ```

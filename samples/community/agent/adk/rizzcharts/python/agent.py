@@ -21,6 +21,7 @@ from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
@@ -222,6 +223,7 @@ class RizzchartsAgent:
         }
         return A2uiGenerator(
             configs,
+            inference_format_factory=DirectJsonFormatFactory(),
             accepts_inline_catalogs=self._accepts_inline_catalogs,
         )
 

@@ -174,9 +174,8 @@ describe('a streamed Direct JSON reply that fails validation', () => {
     const [, retryStart] = backend.turnStarts;
     // The cut-off attempt streamed part of the UI before it failed validation.
     expect(uiKeys(events.slice(0, retryStart)).size).toBeGreaterThan(0);
-    // Everything the retry streamed, plus the final status, carries the whole UI. Streaming
-    // also sends `loading_*` placeholders, so the retry's keys are a superset.
+    // Everything the retry streamed, plus the final status, carries the whole UI.
     const retried = uiKeys(events.slice(retryStart));
-    expect([...expected].filter(key => !retried.has(key))).toEqual([]);
+    expect([...retried].sort()).toEqual([...expected].sort());
   });
 });

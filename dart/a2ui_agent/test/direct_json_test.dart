@@ -822,8 +822,11 @@ void main() {
   });
 
   group('A2uiRequestProcessor', () {
-    test('uses direct JSON by default', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+    test('parses direct JSON when configured with DirectJsonFormatFactory', () {
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       expect(processor.promptSnippet, contains('<a2ui-json>'));
       final List<ResponsePart> parts = processor.parseResponse(
         'Here:<a2ui-json>[${create('s')}, ${update('s', [
@@ -835,7 +838,10 @@ void main() {
     });
 
     test('rejects a response the renderer would reject', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       expect(
         () => processor.parseResponse(
           '<a2ui-json>[${create('s')}, ${update('s', [
