@@ -544,11 +544,9 @@ void main() {
       add('root', 'Text', {
         'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
-      await pumpEventQueue();
       expect(textOf(resolver.rootNode.value!), isNull);
       await pumpEventQueue();
       expect(errors.single.code, 'EXPRESSION_ERROR');
-      await pumpEventQueue();
       expect(
         errors.single.message,
         '@index function can only be evaluated inside a collection template '
