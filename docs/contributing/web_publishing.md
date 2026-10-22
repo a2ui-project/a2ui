@@ -123,6 +123,8 @@ The `increment_version.mjs`, `publish_npm.mjs` and `upload_manifest.mjs` scripts
 work with all publishable web packages in the `typescript` directory of the monorepo:
 
 - `web_core`
+- `agent`
+- `catalog-mcp`
 - `markdown-it`
 - `angular`
 - `lit`

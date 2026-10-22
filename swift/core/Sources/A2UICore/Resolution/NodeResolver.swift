@@ -235,7 +235,13 @@ public final class NodeResolver: Sendable {
     visited.insert(instanceID)
 
     let schemaJSON = targetCatalog?.components[type]?.schema.jsonValue ?? .object([:])
-    let propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
+    if propertiesSchema["accessibility"] == nil {
+      propertiesSchema["accessibility"] = .object([
+        "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
+      ])
+    }
 
     var componentChecks: [ResolvedCheck] = []
     var preResolvedChecksByKey: [String: [ResolvedCheck]] = [:]

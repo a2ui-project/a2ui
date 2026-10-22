@@ -75,6 +75,7 @@ export const FunctionCallSchema = z
       .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
       .optional(),
   })
+  .strict()
   .refine(data => data['@call'] !== undefined || data.call !== undefined, {
     message: "Either '@call' or 'call' must be provided.",
   })

@@ -18,6 +18,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
 import '../core/common.dart';
+import '../core/component_graph_bound.dart';
 import '../core/component_model.dart';
 import '../core/messages.dart';
 import '../core/renderer_capabilities.dart';
@@ -854,10 +855,11 @@ class MessageProcessor<T extends ComponentApi> {
       catalogIds,
     );
     final ValidationConfig? config = validationConfig;
+    ComponentGraphBound? bound;
     if (config == null) {
       checkDuplicateComponentIds(resolved);
     } else {
-      model.checkComponentsUpdate(
+      bound = model.checkComponentsUpdate(
         resolved,
         config,
         refFields,
@@ -869,12 +871,42 @@ class MessageProcessor<T extends ComponentApi> {
     // arrived yet is skipped, so this holds without a config too. None of the
     // catalogs the surface draws on may declare any, which is the common case
     // and leaves nothing to check.
-    if (!{
-      if (surface.defaultCatalog case final catalog?) catalog.id,
+    final Catalog<T, FunctionImplementation>? defaultCatalog =
+        surface.defaultCatalog;
+    final Set<String> ruled = {
+      if (defaultCatalog != null) defaultCatalog.id,
       for (final String? id in catalogIds)
         if (id != null) id,
-    }.any((String id) => _rulesOf(surface.resolveCatalog(id)).isNotEmpty)) {
-      return (resolved: resolved, refFields: refFields);
+    }
+        .where((String id) => _rulesOf(surface.resolveCatalog(id)).isNotEmpty)
+        .toSet();
+    if (ruled.isEmpty) return (resolved: resolved, refFields: refFields);
+    // When the graph check started from what the check before found, the
+    // surface passed the check of the batch before, so only the edges this
+    // batch changes are checked. That needs constraints the surface passed:
+    // while only the default catalog declares any, they are its own, and
+    // every check before took its constraints first. A batch that fails is
+    // checked again below, for the error the whole surface raises.
+    if (bound != null &&
+        defaultCatalog != null &&
+        ruled.length == 1 &&
+        ruled.single == defaultCatalog.id) {
+      final types = <String, String>{
+        for (final Map<String, Object?> c in resolved)
+          if ((c['id'], c['component'])
+              case (final String id, final String type))
+            id: type,
+      };
+      if (compositionHoldsAfter(
+        resolved,
+        refFields,
+        _rulesOf(defaultCatalog),
+        typeOf: (String id) => types[id] ?? model.get(id)?.type,
+        parentsOf: bound.parentsOf,
+        rootId: surface.rootId,
+      )) {
+        return (resolved: resolved, refFields: refFields);
+      }
     }
     final List<Map<String, Object?>> existing = [
       for (final ComponentModel c in model.all)

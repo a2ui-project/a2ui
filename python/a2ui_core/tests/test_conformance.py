@@ -68,7 +68,13 @@ SUPPORTED_PROTOCOL_VERSIONS = {
     "1.0",
 }
 
-SKIP_TEST_NAMES: set[str] = set()
+SKIP_TEST_NAMES: set[str] = {
+    # A known difference of the Python core: its topology checks read a v0.8
+    # string property as a child reference when it names a component the
+    # surface holds, which the TypeScript and Kotlin cores do not.
+    "test_v08_topology_plain_string_property_not_treated_as_child_ref",
+    "test_v08_topology_plain_string_property_does_not_close_cycle",
+}
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()
@@ -84,6 +90,11 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
     "core/node_resolution.yaml": "The Python core has no node resolution layer.",
+    "core/message_processor_scaling.yaml": (
+        "The cases time processing and depend on the machine, so they need a"
+        " harness that runs them apart from the other tests, which the Python"
+        " core does not have."
+    ),
 }
 
 # Root core conformance directory resolution
@@ -618,6 +629,10 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_evaluate_function_case(case)
     elif action == "dispatch_action":
         validate_dispatch_action_case(case)
+    elif (
+        action == "measure_growth" and rel_path == "core/message_processor_scaling.yaml"
+    ):
+        pytest.skip(UNRUNNABLE_SUITES[rel_path])
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."

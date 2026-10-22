@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
+  `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
+  (`DirectJsonFormat`).
 - Add the decision inference format, `a2ui.inference_formats.decision`, in
   which the model emits an intent and data and a local decision model picks
   and binds the components.
