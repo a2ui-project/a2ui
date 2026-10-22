@@ -27,6 +27,8 @@ private final class MockFunctionHandler: FunctionHandler {
     }
     return nil
   }
+
+  func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {}
 }
 
 private struct UpperFunction: FunctionImplementation, Sendable {
@@ -45,6 +47,7 @@ struct FormatStringFunctionTests {
   let function = FormatStringFunction()
   let dataModel: DataModel
   let context: DataContext
+  let v10Context: DataContext
   private let handler: MockFunctionHandler
 
   init() {
@@ -58,6 +61,8 @@ struct FormatStringFunctionTests {
     self.handler = h
     self.context = DataContext(
       dataModel: dm, path: "", functionHandler: h)
+    self.v10Context = DataContext(
+      dataModel: dm, path: "", functionHandler: h, protocolVersion: .v10)
   }
 
   // MARK: - Initialization
@@ -142,5 +147,58 @@ struct FormatStringFunctionTests {
     #expect(throws: FunctionError.self) {
       try function.evaluate(arguments: [:], context: context)
     }
+  }
+
+  // MARK: - v1.0 surfaces
+
+  @Test func formatsDataPathsOnV10Surface() throws {
+    let result = try function.evaluate(
+      arguments: ["value": .string("Hello ${/user/name}, you have ${/count} items.")],
+      context: v10Context
+    )
+    #expect(result == .string("Hello Alice, you have 5 items."))
+  }
+
+  @Test func formatsRelativePathOnV10Surface() throws {
+    let userContext = DataContext(
+      dataModel: dataModel, path: "/user", functionHandler: handler, protocolVersion: .v10)
+    let result = try function.evaluate(
+      arguments: ["value": .string("Hi ${name}")],
+      context: userContext
+    )
+    #expect(result == .string("Hi Alice"))
+  }
+
+  @Test func formatsFunctionCallWithPathArgumentOnV10Surface() throws {
+    let result = try function.evaluate(
+      arguments: ["value": .string("Hello ${upper(text: /user/name)}")],
+      context: v10Context
+    )
+    #expect(result == .string("Hello ALICE"))
+  }
+
+  @Test func formatsNestedFunctionCallsOnV10Surface() throws {
+    let result = try function.evaluate(
+      arguments: ["value": .string("${upper(text: ${upper(text: 'bob')})}")],
+      context: v10Context
+    )
+    #expect(result == .string("BOB"))
+  }
+
+  @Test func skipsMissingPathOnV10Surface() throws {
+    let result = try function.evaluate(
+      arguments: ["value": .string("Hello ${/missing/path}")],
+      context: v10Context
+    )
+    #expect(result == .string("Hello "))
+  }
+
+  @Test func serializesDataModelObjectWithLegacyDirectiveKeysOnV10Surface() throws {
+    dataModel.set("/literalObj", value: .object(["path": .string("/user/name")]))
+    let result = try function.evaluate(
+      arguments: ["value": .string("${/literalObj}")],
+      context: v10Context
+    )
+    #expect(result == .string("{\"path\":\"/user/name\"}"))
   }
 }

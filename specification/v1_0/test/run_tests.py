@@ -268,6 +268,10 @@ def validate_catalogs_structure():
             "catalogs/mcp/v1/catalog.json",
             os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
         ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
+        ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
 
@@ -315,6 +319,10 @@ def validate_catalogs_identifiers():
         (
             "catalogs/mcp/v1/catalog.json",
             os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
         ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]
@@ -423,6 +431,10 @@ def validate_catalogs_ref_targets():
         (
             "catalogs/mcp/v1/catalog.json",
             os.path.join(REPO_ROOT, "catalogs/mcp/v1/catalog.json"),
+        ),
+        (
+            "catalogs/vegachart/v1/catalog.json",
+            os.path.join(REPO_ROOT, "catalogs/vegachart/v1/catalog.json"),
         ),
         ("test/testing_catalog.json", os.path.join(TEST_DIR, "testing_catalog.json")),
     ]

@@ -60,6 +60,42 @@ void main() {
     });
 
     test(
+        'detachSurface removes a surface without disposing of it, and '
+        'addSurface puts the same object back', () {
+      final group = SurfaceGroupModel<ComponentApi>();
+      final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog)
+        ..componentsModel.addComponent(ComponentModel('root', 'Text', {}))
+        ..dataModel.set('/k', 1);
+      group.addSurface(surface);
+      final events = <String>[];
+      group.onSurfaceCreated.subscribe((s) => events.add('created ${s.id}'));
+      group.onSurfaceDeleted.subscribe((id) => events.add('deleted $id'));
+      var actionCount = 0;
+      group.onAction.subscribe((_) => actionCount++);
+
+      expect(group.detachSurface('s1'), same(surface));
+      expect(group.getSurface('s1'), isNull);
+      expect(group.detachSurface('s1'), isNull);
+      surface.dispatchAction({
+        'event': {'name': 'detached'},
+      }, 'c1');
+      expect(actionCount, 0);
+      // Not disposed: the surface keeps its components and data.
+      expect(surface.componentsModel.keys, ['root']);
+      expect(surface.dataModel.get('/k'), 1);
+
+      group.addSurface(surface);
+      expect(group.getSurface('s1'), same(surface));
+      surface.dispatchAction({
+        'event': {'name': 'back'},
+      }, 'c1');
+      expect(actionCount, 1);
+      expect(events, ['deleted s1', 'created s1']);
+
+      group.dispose();
+    });
+
+    test(
       'reports functionCall and call actions to onError',
       () async {
         final surface = SurfaceModel<ComponentApi>(

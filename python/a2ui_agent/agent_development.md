@@ -16,7 +16,7 @@ The `agent_sdk` revolves around four main classes:
   optional few-shot example turns, and format factory, and negotiates an
   `A2uiRequestProcessor` for a client's renderer capabilities.
 - **`A2uiRequestProcessor`**: Request-scoped facade that binds the active
-  negotiated catalogs to an `InferenceFormat` (defaulting to `DirectJsonFormat`)
+  negotiated catalogs to an `InferenceFormat` (defaulting to `ExpressFormat`)
   and exposes `prompt_snippet`, `create_parser()`, and `parse_response()`.
 
 ## Prerequisites
@@ -35,6 +35,7 @@ The first step in any A2UI-enabled agent is loading your catalogs into an
 ```python
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 
 # Define your catalogs (basic or bring your own)
@@ -44,7 +45,12 @@ catalog_configs = [
 ]
 
 # Initialize the agent-level generator with your catalogs
-generator = A2uiGenerator(catalog_configs)
+# (ExpressFormatFactory is used by default; pass DirectJsonFormatFactory for
+# multi-catalog v0.9 or incremental streaming)
+generator = A2uiGenerator(
+    catalog_configs,
+    inference_format_factory=DirectJsonFormatFactory(),
+)
 
 # Negotiate a request processor for the client's renderer capabilities
 processor = generator.create_processor({
@@ -57,7 +63,8 @@ processor = generator.create_processor({
 
 # Or create a processor directly when using a static catalog list
 static_processor = A2uiRequestProcessor(
-    [config.transformed_catalog for config in catalog_configs]
+    [config.transformed_catalog for config in catalog_configs],
+    format_factory=DirectJsonFormatFactory(),
 )
 ```
 
@@ -231,7 +238,7 @@ yield {
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
-Use this approach for sub-second UI updates. The `DirectJsonParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Create it with `processor.create_parser()`, so that it validates against `processor.active_catalogs` and heals the format's progressive keys. From v1.0 on, the parser holds all of the processor's active catalogs and checks each component against the catalog that the component or its surface's `createSurface` names.
+Use this approach for sub-second UI updates. The `DirectJsonParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Configure your generator or processor with `DirectJsonFormatFactory()` and create the parser with `processor.create_parser()`, so that it validates against `processor.active_catalogs` and heals the format's progressive keys. From v1.0 on, the parser holds all of the processor's active catalogs and checks each component against the catalog that the component or its surface's `createSurface` names.
 
 > [!IMPORTANT]
 > **Prerequisite**: To use incremental streaming, your agent executor must support streaming mode. In ADK, enable this using `RunConfig`:
@@ -244,8 +251,13 @@ Use this approach for sub-second UI updates. The `DirectJsonParser` **automatica
 
 ```python
 from a2ui.a2a import create_a2ui_part
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart, TextPart
 
+processor = generator.create_processor(
+    capabilities,
+    inference_format_factory=DirectJsonFormatFactory(),
+)
 parser = processor.create_parser()
 
 # Inside your LLM stream loop:
@@ -383,10 +395,18 @@ When the LLM calls the UI tool, the toolset uses the dynamic catalogs to:
 To support multiple protocol versions (e.g., v0.8 and v0.9), pre-configure `A2uiGenerator`, `A2uiRequestProcessor`, and `LlmAgent` instances for each version during your agent's initialization. At runtime, use `try_activate_a2ui_extension` to negotiate the version and select the pre-configured processor or runner.
 
 ```python
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+
 # During Initialization (Setup mapping for each supported version)
 generators = {
-    ProtocolVersion.V0_8: A2uiGenerator([CatalogConfig(BasicCatalog(ProtocolVersion.V0_8))]),
-    ProtocolVersion.V0_9: A2uiGenerator([CatalogConfig(BasicCatalog(ProtocolVersion.V0_9))]),
+    ProtocolVersion.V0_8: A2uiGenerator(
+        [CatalogConfig(BasicCatalog(ProtocolVersion.V0_8))],
+        inference_format_factory=DirectJsonFormatFactory(),
+    ),
+    ProtocolVersion.V0_9: A2uiGenerator(
+        [CatalogConfig(BasicCatalog(ProtocolVersion.V0_9))],
+        inference_format_factory=DirectJsonFormatFactory(),
+    ),
 }
 processors = {
     version: gen.create_processor({

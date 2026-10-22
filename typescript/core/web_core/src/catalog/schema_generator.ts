@@ -19,6 +19,7 @@ import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {CommonSchemas} from '../types/common-types.js';
+import {exclusiveUnionOverride} from './exclusive_union.js';
 import {
   catalogDocumentModel,
   deepCopyJson,
@@ -106,14 +107,18 @@ function transformRefDescriptionNode(obj: Record<string, unknown>): boolean {
 }
 
 /**
- * Normalizes property schema structures like anyOf and additionalProperties.
+ * Normalizes property schema structures like allOf and additionalProperties.
+ *
+ * A `z.union` comes out as `anyOf`, and stays `anyOf`: a value may match more
+ * than one branch. Only a union that requires exactly one match comes out as
+ * `oneOf` (see `exclusiveUnionOverride`).
  */
 function cleanSchemaProperties(
   obj: Record<string, unknown>,
   options: {stripAdditionalProperties?: boolean} = {},
 ): void {
-  // A piped Zod schema, such as the loader's exclusive `oneOf`, comes out as
-  // `allOf: [{}, <schema>]`. The empty member constrains nothing.
+  // A Zod schema piped from `z.any()` comes out as `allOf: [{}, <schema>]`.
+  // The empty member constrains nothing.
   if (Array.isArray(obj.allOf)) {
     const members = obj.allOf.filter(
       m => !(typeof m === 'object' && m !== null && Object.keys(m).length === 0),
@@ -132,11 +137,6 @@ function cleanSchemaProperties(
     } else {
       obj.allOf = members;
     }
-  }
-
-  if (Array.isArray(obj.anyOf)) {
-    obj.oneOf = obj.anyOf;
-    delete obj.anyOf;
   }
 
   if (options.stripAdditionalProperties) {
@@ -537,6 +537,7 @@ function processTheme(
   const themeRaw = zodToJsonSchema(catalog.themeSchema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
+    override: exclusiveUnionOverride,
   }) as JsonObject;
   cleanSchemaNode(themeRaw);
   mergeGeneratedDefs(themeRaw, defs, generated);
@@ -599,6 +600,7 @@ function extractZodComponentSchema(
   const rawZod = zodToJsonSchema(comp.schema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
+    override: exclusiveUnionOverride,
   }) as JsonObject;
   cleanSchemaNode(rawZod);
   mergeGeneratedDefs(rawZod, defs, generated);
@@ -775,6 +777,7 @@ function buildFunctionArgsSchema(
     const rawZod = zodToJsonSchema(fn.schema, {
       target: 'jsonSchema2019-09',
       $refStrategy: 'none',
+      override: exclusiveUnionOverride,
     }) as JsonObject;
     cleanSchemaNode(rawZod);
     mergeGeneratedDefs(rawZod, defs, generated);
