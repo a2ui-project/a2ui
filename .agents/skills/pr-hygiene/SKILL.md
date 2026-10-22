@@ -1,16 +1,12 @@
-# Subskill: PR Hygiene, Atomicity, Scope Control & Software Design
-
-## Activation Criteria
-
-Activate this subskill for:
-
-- All pull requests during code authoring, review, or PR preparation.
-- PRs that touch multiple functional domains, bundle features with refactoring, or include non-essential changes.
-- Large diffs that could be split or stacked to improve logical isolation and review velocity.
-- PRs introducing incidental edits to tooling, package scripts, formatting, or license headers.
-- Architectural changes introducing new modules, interfaces, or comments.
-
 ---
+name: pr-hygiene
+description: >-
+  Enforces pull request scope, atomicity, and software design standards distilled from human
+  reviewer feedback across A2UI pull requests. Use when authoring, preparing, splitting, or
+  reviewing a pull request, or when a change introduces new modules, abstractions, or comments.
+---
+
+# PR Hygiene, Atomicity, Scope Control & Software Design
 
 ## Principles
 
@@ -59,7 +55,7 @@ Activate this subskill for:
 - **Actionable Guidance**:
   - Write a clear, self-contained PR description that details the specific problem, solution, and verification steps for this PR alone.
   - Avoid relying on ephemeral stack metadata (e.g., avoid "Part 2 of 5" or "stacked on top of #123").
-  - When a PR modifies the public API or consumer-facing behavior of a published package, update its `CHANGELOG.md` following [`update-changelog.md`](update-changelog.md).
+  - When a PR modifies the public API or consumer-facing behavior of a published package, update its `CHANGELOG.md` following [`update-changelog.md`](../coding-principles/subskills/update-changelog.md).
   - Ensure the PR compiles cleanly and passes all format checks, lints, and unit tests independently before requesting review.
 - **Reviewer / Agent Checklist**:
   - [ ] The PR description clearly explains the motivation, changes, and verification steps independently.

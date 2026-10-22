@@ -42,13 +42,8 @@ Evaluate the cross-language subskills below against the diff and read any activa
 
 #### 1. PR Hygiene, Atomicity, Scope Control & Software Design
 
-- **Document**: [`subskills/pr-hygiene.md`](subskills/pr-hygiene.md)
-- **Activate if**:
-  - Always applicable when authoring, preparing, or reviewing a pull request.
-  - The PR bundles new features with refactorings or non-essential cleanup.
-  - The diff touches multiple unrelated areas that could be split or stacked.
-  - Incidental edits to tooling, licenses, package manager scripts, or formatting are present.
-  - New modules, abstractions, or comments are introduced (enforces deep modules, complexity reduction, and high-signal comments).
+- **Skill**: [`pr-hygiene`](../pr-hygiene/SKILL.md)
+- **Activate if**: Always applicable when authoring, preparing, or reviewing a pull request.
 
 #### 2. Public API Boundaries, Cross-Framework Design & Changelogs
 

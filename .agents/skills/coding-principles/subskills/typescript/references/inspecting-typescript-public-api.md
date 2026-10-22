@@ -46,12 +46,21 @@ Check the package configuration files to find all exposed entry points:
 ### Step 2: Extract Exported Declarations Using `ts-morph`
 
 `ts-morph` resolves all export declarations and re-export chains across the
-project via `sourceFile.getExportedDeclarations()`.
+project via `sourceFile.getExportedDeclarations()`. It is not a workspace
+dependency, so install it outside the repository to keep `package.json` and
+`yarn.lock` unchanged. Save the script below as `/tmp/public-api.cjs` and run it
+from the repository root:
 
-```typescript
-import {Project, Node} from 'ts-morph';
+```bash
+npm --prefix /tmp/ts-api-diff install ts-morph
+NODE_PATH=/tmp/ts-api-diff/node_modules node /tmp/public-api.cjs <entry.ts> <tsconfig.json>
+```
 
-function getPublicApiSymbols(tsConfigPath: string, entryFilePath: string) {
+```javascript
+const {Project, Node} = require('ts-morph');
+const path = require('path');
+
+function getPublicApiSymbols(entryFilePath, tsConfigPath) {
   const project = new Project({
     tsConfigFilePath: tsConfigPath,
     skipAddingFilesFromTsConfig: true,
@@ -60,31 +69,33 @@ function getPublicApiSymbols(tsConfigPath: string, entryFilePath: string) {
   const sourceFile = project.addSourceFileAtPath(entryFilePath);
   project.resolveSourceFileDependencies();
 
-  const exportedDeclarations = sourceFile.getExportedDeclarations();
-  const symbols = new Map<string, {kind: string; isTypeOnly: boolean; filePath: string}>();
-
-  for (const [name, declarations] of exportedDeclarations) {
-    const primaryDecl = declarations[0];
-    const kindName = primaryDecl ? primaryDecl.getKindName() : 'Unknown';
-    const isTypeOnly = primaryDecl
-      ? Node.isInterfaceDeclaration(primaryDecl) || Node.isTypeAliasDeclaration(primaryDecl)
-      : false;
-    const filePath = primaryDecl ? primaryDecl.getSourceFile().getFilePath() : '';
-
-    symbols.set(name, {kind: kindName, isTypeOnly, filePath});
+  const symbols = {};
+  for (const [name, decls] of sourceFile.getExportedDeclarations()) {
+    const decl = decls[0];
+    symbols[name] = {
+      kind: decl ? decl.getKindName() : 'Unknown',
+      // An interface can merge with a const of the same name, so check every declaration.
+      isTypeOnly: decl
+        ? decls.every(d => Node.isInterfaceDeclaration(d) || Node.isTypeAliasDeclaration(d))
+        : false,
+      sourceFile: decl ? path.relative(process.cwd(), decl.getSourceFile().getFilePath()) : '',
+    };
   }
 
   return symbols;
 }
+
+const [entryFilePath, tsConfigPath] = process.argv.slice(2);
+console.log(JSON.stringify(getPublicApiSymbols(entryFilePath, tsConfigPath), null, 2));
 ```
 
 ### Step 3: Compare Base Commit vs. PR Head
 
 To compute the public API diff between the PR branch and its base:
 
-1.  **Extract Base Symbols**: Extract symbols at the base commit (e.g. `main` or
-    the parent branch in a stack).
-2.  **Extract Head Symbols**: Extract symbols at the PR branch head.
+1.  **Extract Base Symbols**: Run the Step 2 script at the base commit (e.g.
+    `main` or the parent branch in a stack) and save its output.
+2.  **Extract Head Symbols**: Run it again at the PR branch head.
 3.  **Compute Set Differences**:
     - **Added Symbols**: Symbols present in Head but not in Base.
       - Verify each added symbol is intentional.
@@ -93,43 +104,6 @@ To compute the public API diff between the PR branch and its base:
       - Flag any removed symbol as a potential breaking change.
     - **Modified Signatures**: Symbols present in both whose parameter lists,
       return types, or property definitions changed.
-
-#### Standalone Comparison Script
-
-You can run this Node script in a temporary scratch file or directory to inspect
-a package:
-
-```javascript
-const {Project, Node} = require('ts-morph');
-const path = require('path');
-
-function analyzeEntry(entryPath, tsConfigPath) {
-  const project = new Project({
-    tsConfigFilePath: tsConfigPath,
-    skipAddingFilesFromTsConfig: true,
-  });
-
-  const sourceFile = project.addSourceFileAtPath(entryPath);
-  project.resolveSourceFileDependencies();
-
-  const exportsMap = sourceFile.getExportedDeclarations();
-  const result = {};
-
-  for (const [name, decls] of exportsMap) {
-    const decl = decls[0];
-    const isType = decl
-      ? Node.isInterfaceDeclaration(decl) || Node.isTypeAliasDeclaration(decl)
-      : false;
-    result[name] = {
-      kind: decl ? decl.getKindName() : 'Unknown',
-      isTypeOnly: isType,
-      sourceFile: decl ? path.relative(process.cwd(), decl.getSourceFile().getFilePath()) : '',
-    };
-  }
-
-  return result;
-}
-```
 
 ---
 
