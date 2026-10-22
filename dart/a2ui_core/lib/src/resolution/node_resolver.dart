@@ -253,6 +253,12 @@ class NodeResolver<T extends ComponentApi> {
     _scheduleFlush();
   }
 
+  void _reportBindError(A2uiRendererError error) {
+    if (_disposed) return;
+    _pendingErrors.add(_QueuedError(error));
+    _scheduleFlush();
+  }
+
   // Bindings resolve while binders build, so the warning waits for the
   // update's diagnostic boundary like an expression error.
   void _reportMissingData(String path) {
@@ -558,7 +564,11 @@ class NodeResolver<T extends ComponentApi> {
     );
     final GenericBinder binder;
     try {
-      binder = GenericBinder(context, schema);
+      binder = createReportingGenericBinder(
+        context,
+        schema,
+        _reportBindError,
+      );
     } catch (_) {
       _disposeNode(record.node);
       rethrow;
