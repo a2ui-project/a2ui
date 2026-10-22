@@ -24,6 +24,22 @@ from ..core import (
     IdAllocator,
     flatten_component_tree,
 )
+from .models import (
+    AccessibilityAttributes,
+    Action,
+    ActionEvent,
+    CheckRule,
+    ChildList,
+    ComponentBuilderNode,
+    DataBinding,
+    DynamicBoolean,
+    DynamicChildList,
+    DynamicNumber,
+    DynamicString,
+    DynamicStringList,
+    DynamicValue,
+    FunctionCall,
+)
 from . import catalogs as catalogs
 from .catalogs import basic as basic
 from .catalogs.basic import (
@@ -75,22 +91,6 @@ from .catalogs.basic import (
     TextFieldVariant,
     TextVariant,
     Video,
-)
-from .models import (
-    AccessibilityAttributes,
-    Action,
-    ActionEvent,
-    CheckRule,
-    ChildList,
-    ComponentBuilderNode,
-    DataBinding,
-    DynamicBoolean,
-    DynamicChildList,
-    DynamicNumber,
-    DynamicString,
-    DynamicStringList,
-    DynamicValue,
-    FunctionCall,
 )
 
 __all__ = [

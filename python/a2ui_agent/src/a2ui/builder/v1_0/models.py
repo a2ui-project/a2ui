@@ -42,6 +42,7 @@ from a2ui.core.schema.v1_0 import (
     ActionEvent as ActionEvent,
     CheckRule as CheckRule,
     DataBinding as CoreDataBinding,
+    Extensions as Extensions,
     FunctionCall as CoreFunctionCall,
     LiteralObject as LiteralObject,
 )
@@ -55,7 +56,7 @@ class ComponentBuilderNode(CoreComponentBuilderNode):
 
     catalog_id: str | None = Field(default=None, alias="catalogId")
     accessibility: AccessibilityAttributes | None = None
-    extensions: dict[str, Any] | None = Field(
+    extensions: Extensions | None = Field(
         default=None,
         serialization_alias="metadata",
     )

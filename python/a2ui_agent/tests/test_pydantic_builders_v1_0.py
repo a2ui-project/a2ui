@@ -220,6 +220,9 @@ def test_v1_0_component_catalog_id_and_extensions() -> None:
     meta = ComponentCommonMetadata.model_validate(flat[0]["metadata"])
     assert meta.extensions == {"custom_ext": {"key": "value"}}
 
+    with pytest.raises(ValidationError, match="Unicode identifiers"):
+        Text(text="Bad ext", extensions={"invalid-key!": 1})
+
 
 def test_v1_0_components_specific_to_v1_0() -> None:
     """Verifies component additions introduced in Protocol v1.0."""
