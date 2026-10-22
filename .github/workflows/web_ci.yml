@@ -29,7 +29,7 @@ permissions:
 env:
   RENDERERS_INC: "--include 'typescript/**'"
   TOOLS_INC: "--include 'tools/**'"
-  SAMPLES_INC: "--include 'samples/client/**' --include 'samples/agent/node/**'"
+  SAMPLES_INC: "--include 'samples/client/**' --include 'samples/agent/node/**' --include 'samples/vegachart/**'"
 
 jobs:
   changes:
@@ -67,6 +67,7 @@ jobs:
             samples:
               - 'samples/client/**'
               - 'samples/agent/node/**'
+              - 'samples/vegachart/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'
