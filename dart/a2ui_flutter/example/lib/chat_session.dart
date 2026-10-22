@@ -196,7 +196,15 @@ class ChatSession extends ChangeNotifier {
     }
     _reading = null;
     if (_disposed) return;
-    if (complete) _read(stream, (s) => s.close());
+    if (complete) {
+      _read(stream, (s) => s.close());
+    } else {
+      // What closing the cut-off reply throws adds nothing to the failure
+      // already shown.
+      try {
+        stream?.close();
+      } on Object catch (_) {}
+    }
     if (reply.isEmpty) {
       _turns.removeLast();
       if (complete) {
