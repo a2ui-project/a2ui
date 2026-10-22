@@ -351,6 +351,25 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
   });
 
+  describe('Map literals', () => {
+    const literalMapCatalog = loadConformanceCatalog('literal_map_catalog_v1_0.json');
+
+    it('keeps a __proto__ key as data without changing the prototype', () => {
+      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('root = Probe({"__proto__": {polluted: true}, count: 6})'),
+      ) as Array<{payload: Record<string, unknown>}>;
+
+      expect(Object.getPrototypeOf(root.payload)).toBe(Object.prototype);
+      expect(Object.keys(root.payload)).toEqual(['__proto__', 'count']);
+      expect(Object.getOwnPropertyDescriptor(root.payload, '__proto__')?.value).toEqual({
+        polluted: true,
+      });
+      expect((root.payload as {polluted?: unknown}).polluted).toBeUndefined();
+      expect(({} as {polluted?: unknown}).polluted).toBeUndefined();
+    });
+  });
+
   describe('_template argument errors', () => {
     it('shows a non-path first argument as JSON', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');

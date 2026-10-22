@@ -1204,19 +1204,29 @@ class ExpressCompiler:
 
         Returns:
             The compiled condition (a function call) and the message.
+
+        Raises:
+            ExpressValidationError: If a `{catalogId: ...}` argument has other
+                keys, or two of them name different catalogs.
         """
         check_name = rc.name
-        explicit_args = list(rc.args)
+        explicit_args: list[Any] = []
         chk_cat_id = None
-        for arg_idx, arg_item in enumerate(explicit_args):
-            if (
-                isinstance(arg_item, dict)
-                and set(arg_item.keys()) == {"catalogId"}
-                and isinstance(arg_item["catalogId"], str)
-            ):
+        for arg_item in rc.args:
+            if isinstance(arg_item, dict) and "catalogId" in arg_item:
+                other_keys = [k for k in arg_item if k != "catalogId"]
+                if other_keys:
+                    raise ExpressValidationError(
+                        f"Unsupported key(s) in check options for '?{check_name}':"
+                        f" {', '.join(other_keys)}. Only 'catalogId' is allowed."
+                    )
+                if chk_cat_id is not None and chk_cat_id != arg_item["catalogId"]:
+                    raise ExpressValidationError(
+                        f"Check '?{check_name}' specifies conflicting catalogId values."
+                    )
                 chk_cat_id = arg_item["catalogId"]
-                explicit_args.pop(arg_idx)
-                break
+                continue
+            explicit_args.append(arg_item)
 
         chk_helper, write_cat_id = self._resolve(
             "function",

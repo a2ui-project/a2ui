@@ -438,6 +438,16 @@ describe('Express AST visitor and parser', () => {
       });
     });
   });
+  describe('map keys', () => {
+    it('stores a __proto__ key as an own entry', () => {
+      const {statements} = parseExpress('m = {"__proto__": 1, a: 2}');
+      const node = statements[0][2] as ExpressMapNode;
+      expect(Object.keys(node.entries)).toEqual(['__proto__', 'a']);
+      expect(Object.getPrototypeOf(node.entries)).toBe(Object.prototype);
+      expect(Object.getOwnPropertyDescriptor(node.entries, '__proto__')?.value).toBe(1);
+    });
+  });
+
   describe('string unescaping', () => {
     it('resolves standard escape sequences', () => {
       expect(unescapeString('hello\\nworld')).toBe('hello\nworld');

@@ -145,6 +145,17 @@ export function isExpressNode<K extends ExpressNode['kind']>(
 }
 
 /**
+ * Sets `key` on `target` as an own, enumerable property.
+ *
+ * Unlike `target[key] = value`, this stores a key such as `__proto__` as data
+ * rather than changing the object's prototype, so a map literal keeps every
+ * key it is written with.
+ */
+export function setOwnEntry<T>(target: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(target, key, {value, enumerable: true, writable: true, configurable: true});
+}
+
+/**
  * Variable or data path assignment statement (e.g. `root = Column(...)` or `$/a/b = "c"`).
  */
 export type ExpressAssignStatement = ['ASSIGN', string, ExpressValue];
@@ -309,7 +320,7 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
     const entries: Record<string, ExpressValue> = {};
     for (const entry of ctx.map_entry()) {
       const [k, v] = this.visit(entry) as [string, ExpressValue];
-      entries[k] = v;
+      setOwnEntry(entries, k, v);
     }
     return {kind: 'map', entries};
   };

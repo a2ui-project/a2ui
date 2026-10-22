@@ -400,6 +400,32 @@ def test_v0_9_rejects_per_component_and_per_function_catalog_ids(dsl: str) -> No
         compiler.compile(dsl)
 
 
+@pytest.mark.parametrize(
+    ("dsl", "match"),
+    [
+        (
+            (
+                'root = Input("x", ?sharedFn("a", "b", {catalogId: "test/primary",'
+                " extra: 1}))"
+            ),
+            "Unsupported key",
+        ),
+        (
+            (
+                'root = Input("x", ?sharedFn("a", "b", {catalogId: "test/primary"},'
+                ' {catalogId: "test/secondary"}))'
+            ),
+            "conflicting catalogId",
+        ),
+        ('root = Input("x", ?sharedFn("a", "b", {catalogId: 1}))', "catalogId"),
+    ],
+)
+def test_check_catalog_options_are_validated(dsl: str, match: str) -> None:
+    compiler = ExpressCompiler([_primary(), _secondary()])
+    with pytest.raises(ExpressValidationError, match=match):
+        compiler.compile(dsl)
+
+
 def test_v0_9_allows_a_surface_catalog() -> None:
     compiler = ExpressCompiler([_primary("v0.9")], version="v0.9")
     msgs = to_message_dicts(

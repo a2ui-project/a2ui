@@ -61,6 +61,7 @@ import {
 import {
   isExpressNode,
   parseExpress,
+  setOwnEntry,
   type ExpressCallNode,
   type ExpressCheckNode,
   type ExpressStatement,
@@ -1099,7 +1100,7 @@ export class ExpressCompiler {
     let checkCatalogId: unknown = undefined;
 
     for (const arg of rawArgs) {
-      if (isExpressNode(arg, 'map') && 'catalogId' in arg.entries) {
+      if (isExpressNode(arg, 'map') && Object.hasOwn(arg.entries, 'catalogId')) {
         const otherKeys = Object.keys(arg.entries).filter(k => k !== 'catalogId');
         if (otherKeys.length > 0) {
           throw new ExpressValidationError(
@@ -1327,7 +1328,11 @@ export class ExpressCompiler {
       // A map literal is always data, whatever its keys are.
       const dictRes: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(val.entries)) {
-        dictRes[k] = this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+        setOwnEntry(
+          dictRes,
+          k,
+          this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction),
+        );
       }
       return dictRes;
     }
