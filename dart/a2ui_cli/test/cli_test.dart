@@ -83,30 +83,36 @@ void main() {
     });
 
     test(
-      'succeeds with exit code 0 on supported v1.0 catalog version',
+      'succeeds with exit code 0 on supported v1.0+ catalog versions',
       () async {
         final Directory tmpDir = Directory.systemTemp.createTempSync(
           'cli-test-v1-',
         );
         try {
-          final v1File = File(p.join(tmpDir.path, 'v1_catalog.json'))
-            ..writeAsStringSync(
-              jsonEncode(<String, Object?>{
-                'catalogId': 'test_v1',
-                'protocolVersion': '1.0',
-                'components': <String, Object?>{},
-              }),
+          for (final version in ['1.0', 'v1.0.0', '1.1', 'v2.0']) {
+            final v1File = File(p.join(tmpDir.path, 'v1_catalog.json'))
+              ..writeAsStringSync(
+                jsonEncode(<String, Object?>{
+                  'catalogId': 'test_v1',
+                  'protocolVersion': version,
+                  'components': <String, Object?>{},
+                }),
+              );
+            final ({int exitCode, String stdout, String stderr}) result =
+                await _captureCli([
+                  'codegen',
+                  '-c',
+                  v1File.path,
+                  '-o',
+                  tmpDir.path,
+                ]);
+            expect(result.exitCode, equals(0), reason: 'version=$version');
+            expect(result.stdout, contains('Successfully generated'));
+            expect(
+              File(p.join(tmpDir.path, 'test_v1.py')).readAsStringSync(),
+              contains('from a2ui.builder.v1_0 import ('),
             );
-          final ({int exitCode, String stdout, String stderr}) result =
-              await _captureCli([
-                'codegen',
-                '-c',
-                v1File.path,
-                '-o',
-                tmpDir.path,
-              ]);
-          expect(result.exitCode, equals(0));
-          expect(result.stdout, contains('Successfully generated'));
+          }
         } finally {
           tmpDir.deleteSync(recursive: true);
         }

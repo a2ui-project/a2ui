@@ -95,16 +95,18 @@ String extractCatalogName(String catalogId) {
   return last.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
 }
 
-/// Returns true if [specVersion] targets A2UI Protocol v1.0 (`1.0`, `1.0.*`).
-bool isV10ProtocolVersion(String specVersion) {
+/// Returns true if [specVersion] targets A2UI Protocol v1.0 or newer (`major >= 1`).
+bool isVersionAtLeast10(String specVersion) {
   final String clean = specVersion.startsWith('v')
       ? specVersion.substring(1)
       : specVersion;
-  return clean == '1.0' || clean.startsWith('1.0.');
+  final List<String> parts = clean.split('.');
+  final int? major = parts.isNotEmpty ? int.tryParse(parts[0]) : null;
+  return major != null && major >= 1;
 }
 
 String _resolveDefaultBaseImport(String specVersion) {
-  return isV10ProtocolVersion(specVersion)
+  return isVersionAtLeast10(specVersion)
       ? 'a2ui.builder.v1_0'
       : 'a2ui.builder.v0_9';
 }
