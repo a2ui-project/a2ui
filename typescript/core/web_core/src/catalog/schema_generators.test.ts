@@ -17,6 +17,7 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
 import {ExtensionsSchema} from '../types/common-types.js';
+import {ExtensionsSchema as V10ExtensionsSchema} from '../v1_0/schema/common-types.js';
 const zodCore = await import(
   new URL('../../../scripts/zod-generator-core.mjs', import.meta.url).href
 );
@@ -280,25 +281,28 @@ describe('generate-superset-common-types.mjs', () => {
   });
 
   it('validates ExtensionsSchema enforcing UAX #31 Unicode identifier keys', () => {
-    // Valid Unicode identifier keys
-    const valid = {
-      a2ui_custom: 'test',
-      myExt123: 42,
-      _private_key: true,
-      valid_identifier: {nested: 'value'},
-    };
-    const validResult = ExtensionsSchema.safeParse(valid);
-    assert.strictEqual(validResult.success, true);
+    for (const schema of [ExtensionsSchema, V10ExtensionsSchema]) {
+      // Valid Unicode identifier keys (including non-ASCII XID identifiers)
+      const valid = {
+        a2ui_custom: 'test',
+        myExt123: 42,
+        _private_key: true,
+        café_ext: 'unicode',
+        valid_identifier: {nested: 'value'},
+      };
+      const validResult = schema.safeParse(valid);
+      assert.strictEqual(validResult.success, true);
 
-    // Invalid keys: containing dashes, spaces, punctuation, or leading digits
-    const invalidWithDash = ExtensionsSchema.safeParse({'invalid-key': 123});
-    assert.strictEqual(invalidWithDash.success, false);
+      // Invalid keys: containing dashes, spaces, punctuation, or leading digits
+      const invalidWithDash = schema.safeParse({'invalid-key': 123});
+      assert.strictEqual(invalidWithDash.success, false);
 
-    const invalidWithSpace = ExtensionsSchema.safeParse({'invalid key': 123});
-    assert.strictEqual(invalidWithSpace.success, false);
+      const invalidWithSpace = schema.safeParse({'invalid key': 123});
+      assert.strictEqual(invalidWithSpace.success, false);
 
-    const invalidWithLeadingDigit = ExtensionsSchema.safeParse({'123start': 123});
-    assert.strictEqual(invalidWithLeadingDigit.success, false);
+      const invalidWithLeadingDigit = schema.safeParse({'123start': 123});
+      assert.strictEqual(invalidWithLeadingDigit.success, false);
+    }
   });
 });
 

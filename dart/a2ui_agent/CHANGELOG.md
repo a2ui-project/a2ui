@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
+  `ExpressParser.unwrap` remove the backticks left at the edges of a block when
+  a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
+  `` `<a2ui-json>` ... `</a2ui-json>` ``) and drop text made of nothing but
+  backticks. In one-shot unwrapping (`unwrap` and `parseResponse`), they also
+  recover at most one block closed with a closing tag when the model opened the
+  block with a Markdown code fence or omitted the opening tag;
+  `DirectJsonParser.hasFormatContent` and `ExpressParser.hasFormatContent`
+  delegate to `unwrap` and count recovered blocks as complete format blocks.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
 - Express `IDENTIFIER` and `CHECK` tokens now follow UAX 31
   (`[\p{XID_Start}_] [\p{XID_Continue}]*`) rather than ASCII-only letters,
   digits, and underscores. In `ExpressDecompiler`, non-identifier component ids

@@ -253,8 +253,19 @@ describe('Express Conformance Suite', () => {
         }
       } else if (action === 'unwrap') {
         const parser = await getParser(args);
+        const expected = testCase.expect as Array<Record<string, unknown>>;
         const actual = parser.unwrap(testCase.input as string);
-        assertRawPartsMatch(actual, testCase.expect as Array<Record<string, unknown>>);
+        assertRawPartsMatch(actual, expected);
+        const hasAny = expected.some(p => 'a2ui_raw' in p);
+        const hasComplete = expected.some(p => 'a2ui_raw' in p && (p.is_final ?? true) === true);
+        expect(parser.hasFormatContent(testCase.input as string)).toBe(hasAny);
+        expect(parser.hasFormatContent(testCase.input as string, {complete: true})).toBe(
+          hasComplete,
+        );
+      } else if (action === 'has_format_content') {
+        const parser = await getParser(args);
+        const complete = (args.complete as boolean) ?? false;
+        expect(parser.hasFormatContent(testCase.input as string, {complete})).toBe(testCase.expect);
       } else if (action === 'wrap') {
         const parser = await getParser(args);
         const parts = testCase.parts as Array<Record<string, unknown>>;

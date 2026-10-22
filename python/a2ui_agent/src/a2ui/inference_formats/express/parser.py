@@ -95,7 +95,7 @@ class ExpressParser(Parser):
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
             string_delimiters={"'", '"'},
-            single_line_comments={"#"},
+            single_line_comments={"#", "//", "--"},
         )
         return lexer.tokenize(content)
 

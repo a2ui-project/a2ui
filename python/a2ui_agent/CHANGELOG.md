@@ -5,6 +5,24 @@
   `FunctionCall` with `@call`, `Action`, `AccessibilityAttributes`, `CheckRule`, and
   `DynamicChildList`) and basic catalog components (`Button` with child slot,
   `TextField` with `placeholder`, `Slider` with `steps`, and `Video` with `posterUrl`) (#2897).
+- Package dependency updated to require `a2ui-core>=0.4.1,<0.5.0`.
+- The response parsers for Direct JSON, Express, Elemental and Atom remove the
+  backticks left at the edges of a block when a model writes the tags as inline
+  code (`` `<a2ui>` ... `</a2ui>` `` or `` `<a2ui-json>` ... `</a2ui-json>` ``),
+  drop text made of nothing but backticks, and in one-shot unwrapping (`unwrap`
+  and `parse_response`) recover at most one block closed with a closing tag when
+  the model opened the block with a Markdown code fence (such as ` ```a2ui `) or
+  omitted the opening tag; `has_format_content` counts recovered blocks as
+  complete format blocks.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
 - **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
   `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
   (`DirectJsonFormat`).

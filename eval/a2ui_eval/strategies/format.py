@@ -65,6 +65,19 @@ def format_system_prompt(format_name: str, version: str, sdk: str = "python") ->
             prompt_parts.append(role_description)
         if workflow_description:
             prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        if format_name == "direct_json":
+            prompt_parts.append(
+                "## Environment Notes:\n"
+                "- When specifying `catalogId` (in `createSurface` as the surface"
+                " default, or on individual components and function calls), always"
+                " use the exact `catalogId` value(s) defined in the provided"
+                " Catalog Schema(s); never invent a custom or placeholder"
+                " `catalogId` URL or identifier (such as `example.com`), even if"
+                " the user prompt mentions a custom catalog.\n"
+                "- In `createSurface`, set `catalogId` to the primary catalog ID"
+                " as the surface default. Components or functions belonging to"
+                " secondary catalogs must specify their own `catalogId`."
+            )
         prompt_parts.append(generated_snippet)
         a2ui_prompt = "\n\n".join(prompt_parts)
 

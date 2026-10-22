@@ -60,7 +60,8 @@ void main() {
 /// v1.0 streaming cases that rely on what v0.9 cannot state: a component
 /// naming its own catalog, or a `createSurface` carrying components and a
 /// data model, which only lowering a whole payload can split.
-const Set<String> _v1OnlyStreamingCases = {
+const Set<String> _v1OnlyCases = {
+  'test_compile_json_newline_in_create_surface_data_model_preserved',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
@@ -95,8 +96,8 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
         'updates it.';
   }
   if (version == SuiteVersion.v0_9) {
-    if (_v1OnlyStreamingCases.contains(testCase['name'])) {
-      return 'v0.9 cannot state what the case streams.';
+    if (_v1OnlyCases.contains(testCase['name'])) {
+      return 'v0.9 cannot state what the case carries.';
     }
     if (testCase['action'] == 'generate_prompt_snippet') {
       return 'The snippet embeds the schemas of the catalogs\' version, so '
@@ -168,6 +169,11 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return format.createParser().wrap(
         rawParts(testCase['parts']! as List<Object?>),
       );
+    case 'has_format_content':
+      return format.createParser().hasFormatContent(
+        testCase['input']! as String,
+        complete: args['complete'] as bool? ?? false,
+      );
     case 'unwrap':
       // Unwrapping keeps the payload as written, so it is not lowered.
       return [
@@ -236,20 +242,40 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
     expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
     yielded.addAll(parts);
   }
-  // Every case ends on a complete response, so closing the stream emits
-  // nothing more and throws nothing.
-  expect(stream.close(), isEmpty);
+  yielded.addAll(lift(stream.close()));
   if (testCase['expect_matches_single_shot'] == true) {
     expect(
-      lift(
-        _format(
-          testCase,
-          version,
-        ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
+      _mergeAdjacentText(yielded),
+      _mergeAdjacentText(
+        lift(
+          _format(
+            testCase,
+            version,
+          ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
+        ),
       ),
-      yielded,
     );
   }
+}
+
+List<Object?> _mergeAdjacentText(List<Object?> parts) {
+  final merged = <Object?>[];
+  for (final part in parts) {
+    if (merged.isNotEmpty &&
+        merged.last is Map<String, Object?> &&
+        part is Map<String, Object?> &&
+        (merged.last as Map<String, Object?>).containsKey('text') &&
+        part.containsKey('text')) {
+      final lastMap = Map<String, Object?>.from(
+        merged.last as Map<String, Object?>,
+      );
+      lastMap['text'] = '${lastMap['text']}${part['text']}';
+      merged[merged.length - 1] = lastMap;
+    } else {
+      merged.add(part);
+    }
+  }
+  return merged;
 }
 
 void _checkWrapped(

@@ -203,7 +203,7 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
             return _unescape_string(val[3:-3])
         elif token_type == ExpressParser.STANDARD_STRING:
             # val starts with " and ends with "
-            return _unescape_string(val[1:-1])
+            return _unescape_string(val[1:-1].strip("\r\n"))
 
         return val
 

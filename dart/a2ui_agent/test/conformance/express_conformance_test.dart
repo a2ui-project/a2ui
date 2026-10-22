@@ -140,6 +140,11 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return format.createParser().wrap(
         rawParts(testCase['parts']! as List<Object?>),
       );
+    case 'has_format_content':
+      return format.createParser().hasFormatContent(
+        input!,
+        complete: args['complete'] as bool? ?? false,
+      );
     case 'unwrap':
       return [
         for (final RawResponsePart part in format.createParser().unwrap(input!))
