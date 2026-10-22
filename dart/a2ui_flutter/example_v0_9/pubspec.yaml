@@ -13,7 +13,7 @@
 # limitations under the License.
 
 name: a2ui_flutter_example_v0_9
-description: A chat app that renders the A2UI a Gemini model writes.
+description: A chat app that renders the A2UI a Gemini model writes, on protocol v0.9.
 publish_to: "none"
 
 environment:
