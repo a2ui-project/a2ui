@@ -42,6 +42,7 @@
     "build:tsc": "wireit",
     "test": "wireit",
     "test:conformance": "vitest run tests/conformance",
+    "test:timing": "wireit",
     "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -77,6 +78,12 @@
         "build"
       ]
     },
+    "test:timing": {
+      "command": "node --expose-gc --test --test-concurrency=1 \"tests/timing/**/*_test.mjs\"",
+      "dependencies": [
+        "build"
+      ]
+    },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
     },
@@ -85,6 +92,7 @@
       "files": [
         "src/**/*.ts",
         "tests/**/*.ts",
+        "tests/**/*.mjs",
         "package.json",
         "tsconfig.json",
         "tsconfig.check.json",
@@ -97,6 +105,7 @@
       "files": [
         "src/**/*.ts",
         "tests/**/*.ts",
+        "tests/**/*.mjs",
         "package.json",
         "tsconfig.json",
         "tsconfig.check.json",

@@ -58,8 +58,11 @@ void main() {
     'text': id,
   };
 
-  void check(List<AgentToRendererMessage> example) =>
-      A2uiRequestProcessor(activeCatalogs: [basic], examples: [example]);
+  void check(List<AgentToRendererMessage> example) => A2uiRequestProcessor(
+    activeCatalogs: [basic],
+    examples: [example],
+    formatFactory: const DirectJsonFormatFactory(),
+  );
 
   group('A2uiRequestProcessor example validation', () {
     test('resolves a recursive definition the catalog document declares', () {
@@ -110,6 +113,7 @@ void main() {
               ]),
             ],
           ],
+          formatFactory: const DirectJsonFormatFactory(),
         ),
         returnsNormally,
       );
