@@ -15,7 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
-import '../inference_formats/direct_json/format.dart';
+import '../inference_formats/express/format.dart';
 import '../parser/parser.dart';
 import '../parser/response_part.dart';
 import '../parser/response_stream.dart';
@@ -72,7 +72,7 @@ class A2uiRequestProcessor {
   A2uiRequestProcessor({
     required this.activeCatalogs,
     this.examples = const [],
-    this.formatFactory = const DirectJsonFormatFactory(),
+    this.formatFactory = const ExpressFormatFactory(),
     this.state,
   }) : _format = formatFactory.createFormat(
          activeCatalogs,

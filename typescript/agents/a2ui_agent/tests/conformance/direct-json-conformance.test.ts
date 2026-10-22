@@ -18,27 +18,48 @@ import {describe, test, expect} from 'vitest';
 import * as path from 'path';
 import {loadCases, CONFORMANCE_ROOT} from './loader.js';
 import {createFileCatalogConfig} from './fixtures.js';
+import {compileChecked} from './suite-helpers.js';
 import {AgentToRendererMessage} from '../../src/internal/web-core.js';
-import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
-import {RawResponsePart, ResponsePart} from '../../src/parser/response-part.js';
+import {
+  A2uiCompilationParseError,
+  A2uiCompilationValidationError,
+  A2uiValidationError,
+  DirectJsonParser,
+  ParseError,
+  RawResponsePart,
+  ResponsePart,
+} from '../../src/index.js';
+
+/** The error classes that count as each category the suites name. */
+const ERRORS_BY_CATEGORY: Record<string, Array<new (...args: never[]) => Error>> = {
+  ParseError: [ParseError, A2uiCompilationParseError],
+  ValidationError: [A2uiValidationError, A2uiCompilationValidationError],
+};
 
 function assertThrows(fn: () => void, expectError: Record<string, unknown> | string): void {
+  let thrown: unknown;
   try {
     fn();
-    expect.fail(`Expected error ${JSON.stringify(expectError)} but function succeeded`);
-  } catch (e: any) {
-    if (typeof expectError === 'string') {
-      expect(e.message).toContain(expectError);
-    } else if (expectError.message) {
-      if (expectError.message_is_regex) {
-        expect(e.message).toMatch(new RegExp(expectError.message as string));
-      } else {
-        expect(e.message).toContain(expectError.message as string);
-      }
+  } catch (e) {
+    thrown = e;
+  }
+  expect(thrown, `Expected error ${JSON.stringify(expectError)}`).toBeInstanceOf(Error);
+  const message = (thrown as Error).message;
+  if (typeof expectError === 'string') {
+    expect(message).toContain(expectError);
+    return;
+  }
+  if (expectError.message) {
+    if (expectError.message_is_regex) {
+      expect(message).toMatch(new RegExp(expectError.message as string));
+    } else {
+      expect(message).toContain(expectError.message as string);
     }
-    if (typeof expectError === 'object' && expectError.category) {
-      expect(e.name).toContain(expectError.category as string);
-    }
+  }
+  if (expectError.category) {
+    const classes = ERRORS_BY_CATEGORY[expectError.category as string];
+    expect(classes, `Unknown error category ${String(expectError.category)}`).toBeDefined();
+    expect(classes.some(errorClass => thrown instanceof errorClass)).toBe(true);
   }
 }
 
@@ -136,14 +157,14 @@ describe('Direct JSON Conformance Suite', () => {
         if (testCase.expect_error) {
           assertThrows(
             () => {
-              parser.compile(payload);
+              compileChecked(parser, payload);
             },
             testCase.expect_error as Record<string, unknown>,
           );
           return;
         }
 
-        const compiled = parser.compile(payload);
+        const compiled = compileChecked(parser, payload);
 
         if (testCase.expect_present) {
           for (const pointer of testCase.expect_present as string[]) {
@@ -166,7 +187,7 @@ describe('Direct JSON Conformance Suite', () => {
         }
 
         if (testCase.expect_round_trip) {
-          expect(parser.compile(notation)).toEqual(messages);
+          expect(compileChecked(parser, notation)).toEqual(messages);
         }
       } else if (action === 'unwrap') {
         const actual = parser.unwrap(testCase.input as string);
@@ -204,14 +225,14 @@ describe('Direct JSON Conformance Suite', () => {
         if (testCase.expect_error) {
           assertThrows(
             () => {
-              parser.parseResponse(testCase.input as string, wrapped);
+              parser.parseResponse(testCase.input as string, {wrapped});
             },
             testCase.expect_error as Record<string, unknown>,
           );
           return;
         }
 
-        const parts = parser.parseResponse(testCase.input as string, wrapped);
+        const parts = parser.parseResponse(testCase.input as string, {wrapped});
         assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>);
       } else {
         throw new Error(`Unsupported action in direct_json conformance: ${action}`);
