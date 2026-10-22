@@ -125,8 +125,8 @@ class _NodeRecord<T extends ComponentApi> {
 ///
 /// Diagnostics are queued while the resolver works and delivered in a
 /// microtask, never synchronously from the constructor or a tree update, so
-/// listeners on the surface's error channel do not run inside the caller's
-/// frame. Disposal cancels pending diagnostics.
+/// listeners on the surface's error and warning channels do not run inside
+/// the caller's frame. Disposal drops diagnostics that are not yet delivered.
 class NodeResolver<T extends ComponentApi> {
   final SurfaceModel<T> _surface;
 
@@ -220,7 +220,7 @@ class NodeResolver<T extends ComponentApi> {
   }
 
   // Record the condition when queued, not when delivered: sibling edges can
-  // discover it before the tree update reaches its diagnostic boundary.
+  // discover it again before the microtask flush delivers it.
   void _reportOnce(
     String code,
     String componentId,
@@ -259,8 +259,8 @@ class NodeResolver<T extends ComponentApi> {
     _scheduleFlush();
   }
 
-  // Bindings resolve while binders build, so the warning waits for the
-  // update's diagnostic boundary like an expression error.
+  // Bindings resolve while binders build, so the warning is queued for the
+  // microtask flush like an expression error.
   void _reportMissingData(String path) {
     if (_disposed || !_warnedMissingDataPaths.add(path)) return;
     _pendingSurfaceWarnings.add(missingDataBindingWarning(path));
@@ -343,6 +343,7 @@ class NodeResolver<T extends ComponentApi> {
   /// Tears down the whole tree and stops tracking the surface. Idempotent.
   /// During an update, teardown finishes at that update's outer boundary,
   /// before control returns to the caller that initiated the update.
+  /// Diagnostics queued for the next microtask are dropped, not delivered.
   void dispose() {
     if (_disposed) {
       return;
