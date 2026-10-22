@@ -65,7 +65,7 @@ export {
 
 ```typescript
 // BAD: Re-exporting core types from framework renderer packages
-// renderers/angular/src/v0_9/index.ts
+// typescript/renderers/angular/src/v0_9/index.ts
 export type {MarkdownRendererOptions} from '@a2ui/web_core/v0_9';
 
 // GOOD: Framework packages export only their own adapters; consumers import core directly

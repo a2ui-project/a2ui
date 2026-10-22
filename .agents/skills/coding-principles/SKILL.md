@@ -15,7 +15,7 @@ description: >-
 
 ## Progressive Discoverability: Two-Level Subskill Routing
 
-Because the A2UI repository spans multiple languages (`typescript/`, `renderers/`, `python/`, `dart/`, `swift/`) and shared specifications (`specification/`, `catalogs/`), agents must use a two-level progressive discovery workflow:
+Because the A2UI repository spans multiple languages (`typescript/`, `python/`, `dart/`, `swift/`) and shared specifications (`specification/`, `catalogs/`), agents must use a two-level progressive discovery workflow:
 
 1. **Level 1 (Cross-Language Subskills)**: Activate language-agnostic principles that govern pull request scope, software design, public API boundaries, specification immutability, and changelogs across the entire monorepo.
 2. **Level 2 (Language-Specific Routing)**: Route by the programming languages modified in the diff to load only the subskills and language guides relevant to those languages.
@@ -32,7 +32,7 @@ git diff main --stat
 Identify both:
 
 - **Cross-cutting functional areas** impacted (public exports, specifications, catalogs, changelogs, PR structure).
-- **Programming languages and directories** touched (`typescript/`, `renderers/`, `python/`, `dart/`, `swift/`, `samples/`, `tools/`).
+- **Programming languages and directories** touched (`typescript/`, `python/`, `dart/`, `swift/`, `samples/`, `tools/`).
 
 ---
 
@@ -70,12 +70,12 @@ Evaluate the cross-language subskills below against the diff and read any activa
 
 Inspect the file extensions and directories in `git diff main --stat` and follow the matching language route(s) below. Only load routers and guides for languages present in your diff:
 
-| Language / Ecosystem                                            | Matching Paths & Extensions                                                                            | Progressive Discovery Target                                                                                                                                                                                                   |
-| :-------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **TypeScript & Web** (Lit, Angular, React, Web Core, CSS, HTML) | `*.ts`, `*.tsx`, `*.css`, `typescript/`, `renderers/`, `samples/client/{lit,angular,react}/`, `tools/` | Read the TypeScript & Web router: [`subskills/typescript/INDEX.md`](subskills/typescript/INDEX.md) to activate specific TypeScript, reactive lifecycle, CSS theming, accessibility, DOM testing, and AST public API subskills. |
-| **Python** (Core, Agent SDK, Builders, Evaluators, Scripts)     | `*.py`, `python/`, `eval/`, `samples/agent/`, `tools/`, `scripts/`                                     | Read [`a2ui-python-development`](../a2ui-python-development/SKILL.md) (and [`a2ui-generate-pydantic-models`](../a2ui-generate-pydantic-models/SKILL.md) when modifying schema-generated Pydantic models).                      |
-| **Swift & SwiftUI** (Core, SwiftUI Adapter, iOS Sample)         | `*.swift`, `swift/`, `Package.swift`                                                                   | Read [`a2ui-swift-development`](../a2ui-swift-development/SKILL.md).                                                                                                                                                           |
-| **Dart & Flutter** (Core, Agent SDK, Flutter Adapter)           | `*.dart`, `dart/`, `samples/client/flutter/`, `pubspec.yaml`                                           | Read [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md) when touching changelogs or package versions, and adhere to [`analysis_options.yaml`](../../../analysis_options.yaml).                                         |
+| Language / Ecosystem                                            | Matching Paths & Extensions                                                              | Progressive Discovery Target                                                                                                                                                                                                   |
+| :-------------------------------------------------------------- | :--------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TypeScript & Web** (Lit, Angular, React, Web Core, CSS, HTML) | `*.ts`, `*.tsx`, `*.css`, `typescript/`, `samples/client/{lit,angular,react}/`, `tools/` | Read the TypeScript & Web router: [`subskills/typescript/INDEX.md`](subskills/typescript/INDEX.md) to activate specific TypeScript, reactive lifecycle, CSS theming, accessibility, DOM testing, and AST public API subskills. |
+| **Python** (Core, Agent SDK, Builders, Evaluators, Scripts)     | `*.py`, `python/`, `eval/`, `samples/agent/`, `tools/`, `scripts/`                       | Read [`a2ui-python-development`](../a2ui-python-development/SKILL.md) (and [`a2ui-generate-pydantic-models`](../a2ui-generate-pydantic-models/SKILL.md) when modifying schema-generated Pydantic models).                      |
+| **Swift & SwiftUI** (Core, SwiftUI Adapter, iOS Sample)         | `*.swift`, `swift/`, `Package.swift`                                                     | Read [`a2ui-swift-development`](../a2ui-swift-development/SKILL.md).                                                                                                                                                           |
+| **Dart & Flutter** (Core, Agent SDK, Flutter Adapter)           | `*.dart`, `dart/`, `samples/client/flutter/`, `pubspec.yaml`                             | Read [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md) when touching changelogs or package versions, and adhere to [`analysis_options.yaml`](../../../analysis_options.yaml).                                         |
 
 ---
 

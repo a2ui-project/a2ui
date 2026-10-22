@@ -1,6 +1,6 @@
 # TypeScript & Web Progressive Discovery Router
 
-Use this router whenever a pull request or local change modifies TypeScript, JavaScript, CSS, or HTML files across `typescript/`, `renderers/`, `samples/client/{lit,angular,react}/`, or `tools/`.
+Use this router whenever a pull request or local change modifies TypeScript, JavaScript, CSS, or HTML files across `typescript/`, `samples/client/{lit,angular,react}/`, or `tools/`.
 
 ---
 
