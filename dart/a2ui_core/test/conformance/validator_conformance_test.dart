@@ -24,9 +24,23 @@ import 'conformance_harness.dart';
 /// Conformance cases in `core/validator_v0_9.yaml` that are expected to fail.
 const Map<String, String> _v09ExpectedFailures = {};
 
-/// Runs the shared `conformance/core/validator_v0_9.yaml` suite against
-/// [MessageProcessor.processMessages], the entry point for checking a payload
-/// on its own.
+/// Cases in `core/validator_v1_0.yaml` expected to fail.
+const Map<String, String> _v10ExpectedFailures = {};
+
+/// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
+const Map<String, String> _reservedKeysExpectedFailures = {};
+
+/// Cases in `core/composition_constraints.yaml` expected to fail.
+const Map<String, String> _compositionExpectedFailures = {};
+
+/// Cases in `core/validation_result.yaml` expected to fail.
+const Map<String, String> _validationResultExpectedFailures = {};
+
+/// Runs the shared validator suites against [MessageProcessor.processMessages],
+/// the entry point for checking a payload on its own: the `validate` cases of
+/// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
+/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml` and
+/// `core/validation_result.yaml`.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -35,13 +49,34 @@ void main() {
     'core/validator_v0_9.yaml',
     expectedFailures: _v09ExpectedFailures,
   );
+  _registerValidatorSuite(
+    'core/validator_v1_0.yaml',
+    expectedFailures: _v10ExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/reserved_keys.yaml',
+    expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/composition_constraints.yaml',
+    expectedFailures: _compositionExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/validation_result.yaml',
+    expectedFailures: _validationResultExpectedFailures,
+  );
 }
 
 void _registerValidatorSuite(
   String suite, {
   Map<String, String> expectedFailures = const {},
 }) {
-  final List<ConformanceTestCase> cases = loadConformanceSuite(suite);
+  // Other actions in a shared suite, such as `process_messages`, run in the
+  // message-processor harness.
+  final List<ConformanceTestCase> cases = [
+    for (final ConformanceTestCase testCase in loadConformanceSuite(suite))
+      if ((testCase['action'] ?? 'validate') == 'validate') testCase,
+  ];
 
   group('conformance $suite', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
@@ -58,8 +93,8 @@ void _registerValidatorSuite(
 /// Why a case cannot run yet, or null when it can.
 String? _skipReason(ConformanceTestCase testCase) {
   final String? version = caseVersion(testCase);
-  if (version != null && version != '0.9') {
-    return 'Targets protocol v$version; this harness runs v0.9 cases only.';
+  if (version != null && compareVersions(version, 'v0.9') < 0) {
+    return 'Targets protocol v$version, which this SDK does not implement.';
   }
   return null;
 }
@@ -72,10 +107,13 @@ void _runCase(Map<String, Object?> testCase) {
         for (final Object? item in raw) (item as Map).cast<String, Object?>(),
   ];
 
+  final String version = _versionOf(testCase, allPayloads);
   final processor = MessageProcessor<ComponentApi>(
-    catalogs: _catalogsFor(_documentsFor(testCase), allPayloads),
-    protocolVersion: A2uiProtocolVersion.v0_9,
-    commonTypesSchema: _commonTypesFor(testCase),
+    catalogs: _catalogsFor(
+      _documentsFor(testCase),
+      allPayloads,
+      version,
+    ),
     // The validator cases are about what a renderer rejects, so the graph
     // checks are on, as in the other SDKs' harnesses.
     validationConfig: ValidationConfig.strict,
@@ -95,14 +133,7 @@ void _runCase(Map<String, Object?> testCase) {
         (stepIndex == steps.length - 1
             ? (testCase['expectError'] ?? testCase['expect_error'])
             : null);
-    void run() {
-      processor.processMessages(
-        AgentToRendererMessage.parseAll(
-          payload,
-          protocolVersion: A2uiProtocolVersion.v0_9,
-        ),
-      );
-    }
+    void run() => processor.processMessages(payload);
 
     if (expectError != null) {
       expect(
@@ -120,8 +151,9 @@ void _runCase(Map<String, Object?> testCase) {
 ///
 /// A case either lists its catalogs under `catalogPaths` or states one under
 /// `catalog`, which is the document itself unless it carries a
-/// `catalog_schema` path. A case naming none is checked against the v0.9
-/// basic catalog.
+/// `catalog_schema` path. A `catalog` block holding only a `protocolVersion`
+/// declares no document. A case declaring none is checked against the SDK's
+/// basic catalog for its version (see [_catalogsFor]).
 List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
   final List<Map<String, Object?>> documents = [];
   if (testCase['catalogPaths'] case final List<Object?> paths) {
@@ -129,28 +161,36 @@ List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
       if (path is String) documents.add(_document(path));
     }
   } else if (testCase['catalog'] case final Map<String, Object?> catalog) {
-    documents.add(
-      catalog.containsKey('catalog_schema')
-          ? _document(catalog['catalog_schema'])
-          : catalog,
-    );
-  }
-
-  if (documents.isEmpty) {
-    documents.add(_document('specification/v0_9/catalogs/basic/catalog.json'));
+    if (catalog['catalog_schema'] ?? catalog['catalogSchema']
+        case final Object rawSchema) {
+      final Map<String, Object?> schema = _document(rawSchema);
+      documents.add({
+        if (catalog['protocolVersion'] != null &&
+            !schema.containsKey('protocolVersion'))
+          'protocolVersion': catalog['protocolVersion'],
+        ...schema,
+      });
+    } else if (catalog.containsKey('components') ||
+        catalog.containsKey('catalogId')) {
+      documents.add(catalog);
+    }
   }
   return documents;
 }
 
-/// The shared common-types document a case declares, or null to use the copy
-/// this package publishes for the protocol version.
-Map<String, Object?>? _commonTypesFor(Map<String, Object?> testCase) {
-  if (testCase['catalog'] case final Map<String, Object?> catalog) {
-    if (catalog.containsKey('common_types_schema')) {
-      return _document(catalog['common_types_schema']);
-    }
+/// The protocol version a case's payloads declare, else the one the case
+/// declares, else v0.9.
+///
+/// A catalog document written before v1.0 declares no version, so the
+/// catalogs a case builds take this one.
+String _versionOf(
+  Map<String, Object?> testCase,
+  List<Map<String, Object?>> payloads,
+) {
+  for (final envelope in payloads) {
+    if (envelope['version'] case final String version) return version;
   }
-  return null;
+  return caseVersion(testCase) ?? 'v0.9';
 }
 
 /// The steps a case runs, whether it declares one payload or several.
@@ -189,21 +229,29 @@ Map<String, Object?> _document(Object? value) {
 List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   List<Map<String, Object?>> documents,
   List<Map<String, Object?>> payload,
+  String version,
 ) {
   if (documents.length > 1) {
     return [
       for (final Map<String, Object?> document in documents)
-        rendererCatalog(document),
+        rendererCatalog(document, protocolVersion: version),
     ];
   }
 
-  final Map<String, Object?> document = documents.single;
   final Set<String> ids = _catalogIdsNamedBy(payload);
+  if (documents.isEmpty) {
+    if (ids.isEmpty) return [basicCatalogFor(version)];
+    return [
+      for (final String id in ids) basicCatalogFor(version, asCatalogId: id),
+    ];
+  }
+  final Map<String, Object?> document = documents.single;
   if (ids.isEmpty) {
     ids.add(document['catalogId'] as String? ?? 'standard');
   }
   return [
-    for (final String id in ids) rendererCatalog(document, asCatalogId: id),
+    for (final String id in ids)
+      rendererCatalog(document, asCatalogId: id, protocolVersion: version),
   ];
 }
 
@@ -252,7 +300,10 @@ Matcher _categoryMatches(String? category) => switch (category) {
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
       (e) => e.message,
       'message',
-      matches(RegExp(_align(pattern), caseSensitive: false)),
+      anyOf(
+        contains(pattern),
+        matches(RegExp(_align(pattern), caseSensitive: false)),
+      ),
     );
 
 /// Widens a case's expected message to the wording this SDK uses.

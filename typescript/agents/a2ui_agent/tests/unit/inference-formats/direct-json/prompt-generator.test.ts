@@ -1,0 +1,155 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {describe, expect, it} from 'vitest';
+
+import {DirectJsonPromptGenerator} from '../../../../src/inference-formats/direct-json/prompt-generator.js';
+import {
+  A2uiCatalogError,
+  AgentToRendererMessage,
+  Catalog,
+} from '../../../../src/internal/web-core.js';
+import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+
+const basicCatalogV10 = loadBasicCatalog('v1.0');
+
+describe('DirectJsonPromptGenerator', () => {
+  const catalog = basicCatalogV10;
+  const examples = {
+    [catalog.id]: [
+      {version: '1.0', createSurface: {surfaceId: 'example'}},
+    ] as unknown as AgentToRendererMessage[],
+  };
+  const generator = new DirectJsonPromptGenerator([catalog], examples);
+
+  it('generates base rules', () => {
+    const baseRules = generator.generateBaseRules();
+    expect(baseRules).toContain('The generated response MUST follow these rules:');
+    expect(baseRules).toContain('Top-Down Component Ordering');
+  });
+
+  it('generates catalog instructions with schema block', () => {
+    const instructions = generator.generateCatalogInstructions();
+    expect(instructions).toContain('---BEGIN A2UI JSON SCHEMA---');
+    expect(instructions).toContain('---END A2UI JSON SCHEMA---');
+    expect(instructions).toContain('### Agent to Renderer Schema:');
+    expect(instructions).toContain('### Common Types Schema:');
+    expect(instructions).toContain('### Catalog Schema:');
+    // Ensure the schema json is present inside the block
+    expect(instructions).toContain(JSON.stringify(catalog.toJson()));
+  });
+
+  it('describes protocol schemas once, however many catalogs use it', () => {
+    const customCatalog = new Catalog('https://a2ui.org/catalogs/custom_v10', 'v1.0', [], []);
+    const twoCatalogs = new DirectJsonPromptGenerator([catalog, customCatalog]);
+    const instructions = twoCatalogs.generateCatalogInstructions();
+    expect(instructions.split('### Agent to Renderer Schema:').length).toBe(2);
+    expect(instructions.split('### Common Types Schema:').length).toBe(2);
+    expect(instructions.split('### Catalog Schema:').length).toBe(3);
+    expect(instructions).toContain(JSON.stringify(catalog.toJson()));
+    expect(instructions).toContain(JSON.stringify(customCatalog.toJson()));
+  });
+
+  it('describes multiple v0.9 catalogs and their examples in the prompt', () => {
+    const catalogs = ['a', 'b'].map(catalogId =>
+      Catalog.fromJson({catalogId, components: {}}, '0.9'),
+    );
+    const v09Examples = {
+      a: [
+        {version: 'v0.9', createSurface: {surfaceId: 'surface_a', catalogId: 'a'}},
+      ] as unknown as AgentToRendererMessage[],
+      b: [
+        {version: 'v0.9', createSurface: {surfaceId: 'surface_b', catalogId: 'b'}},
+      ] as unknown as AgentToRendererMessage[],
+    };
+    const v09Generator = new DirectJsonPromptGenerator(catalogs, v09Examples);
+    const prompt = v09Generator.generate();
+
+    expect(prompt.split('### Agent to Renderer Schema:').length).toBe(2);
+    expect(prompt.split('### Catalog Schema:').length).toBe(3);
+    expect(prompt).toContain('"catalogId":"a"');
+    expect(prompt).toContain('"catalogId":"b"');
+    expect(prompt).toContain('"catalogId": "a"');
+    expect(prompt).toContain('"catalogId": "b"');
+  });
+
+  it('rejects duplicate catalog IDs and incompatible protocol versions', () => {
+    expect(() => new DirectJsonPromptGenerator([catalog, catalog])).toThrow(A2uiCatalogError);
+    expect(() => new DirectJsonPromptGenerator([catalog, loadBasicCatalog('v0.9')])).toThrow(
+      A2uiCatalogError,
+    );
+  });
+
+  it('describes only the allowed envelopes', () => {
+    const limited = new DirectJsonPromptGenerator([catalog], undefined, ['createSurface']);
+    const instructions = limited.generateCatalogInstructions();
+    expect(instructions).toContain('"createSurface"');
+    expect(instructions).not.toContain('"deleteSurface"');
+  });
+
+  it('keeps generator markers out of the message schemas', () => {
+    expect(generator.generateCatalogInstructions()).not.toContain('REF:');
+  });
+
+  it('generates formatted examples', () => {
+    const exampleStr = generator.generateExamples();
+    expect(exampleStr).toContain('<a2ui-json>');
+    expect(exampleStr).toContain('"createSurface": {');
+    expect(exampleStr).toContain('</a2ui-json>');
+  });
+
+  it('renders every turn of a turn list, with or without a catalog', () => {
+    const turns = [
+      [
+        {version: '1.0', createSurface: {surfaceId: 'first'}},
+      ] as unknown as AgentToRendererMessage[],
+      [
+        {version: '1.0', deleteSurface: {surfaceId: 'second'}},
+      ] as unknown as AgentToRendererMessage[],
+    ];
+    const turnGenerator = new DirectJsonPromptGenerator([catalog], turns);
+    const all = turnGenerator.generateExamples();
+    expect(all).toContain('"first"');
+    expect(all).toContain('"second"');
+    expect(turnGenerator.generateExamples(catalog)).toBe(all);
+  });
+
+  it('filters examples keyed by catalog id to the given catalog', () => {
+    const keyed = new DirectJsonPromptGenerator([catalog], {
+      ...examples,
+      'https://example.com/other.json': '<a2ui-json>other</a2ui-json>',
+    });
+    const forCatalog = keyed.generateExamples(catalog);
+    expect(forCatalog).toContain('"example"');
+    expect(forCatalog).not.toContain('other');
+  });
+
+  it('generates the snippet with rules, schemas and examples', () => {
+    const prompt = generator.generate();
+    expect(prompt).toContain('## Workflow Description:');
+    expect(prompt).toContain('The generated response MUST follow these rules:');
+    expect(prompt).toContain('---BEGIN A2UI JSON SCHEMA---');
+    expect(prompt).toContain('### Examples:');
+    expect(prompt).toContain('<a2ui-json>');
+    expect(prompt).toContain('"createSurface": {');
+  });
+
+  it('inserts a preformatted string example verbatim', () => {
+    const text = '---BEGIN confirmation---\n[{"version": "v1.0"}]\n---END confirmation---';
+    const stringGenerator = new DirectJsonPromptGenerator([catalog], {[catalog.id]: text});
+    expect(stringGenerator.generateExamples()).toBe(text);
+  });
+});

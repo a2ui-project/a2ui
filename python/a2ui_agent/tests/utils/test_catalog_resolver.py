@@ -20,10 +20,14 @@ v1.0. These tests cover the capabilities shapes and versions it doesn't.
 
 import pytest
 
-from a2ui.catalog_transformers import ComponentPruningTransformer
+from a2ui.catalog_transformers import (
+    ComponentPruningTransformer,
+    FunctionPruningTransformer,
+)
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import v0_8, v0_9, v1_0
-from a2ui.schema import CatalogConfig
+from a2ui.processor import CatalogConfig
 from a2ui.utils import resolve_catalogs
 
 
@@ -38,7 +42,7 @@ def _config(catalog_id: str, protocol_version: str, *components: str) -> Catalog
         },
         protocol_version=protocol_version,
     )
-    return CatalogConfig.from_catalog(catalog_id, catalog)
+    return CatalogConfig(catalog)
 
 
 def _ids(catalogs) -> list[str]:
@@ -62,9 +66,8 @@ def test_repeated_ids_activate_a_catalog_once():
 
 
 def test_absent_capabilities_return_the_registered_catalogs_transformed():
-    config = CatalogConfig.from_catalog(
-        "a",
-        _config("a", "0.9", "Text", "Image").to_catalog(),
+    config = CatalogConfig(
+        _config("a", "0.9", "Text", "Image").transformed_catalog,
         transformers=[ComponentPruningTransformer(["Text"])],
     )
 
@@ -116,6 +119,53 @@ def test_each_version_reads_its_own_capabilities_key(protocol_version, capabilit
     resolved = resolve_catalogs([_config("a", protocol_version, "Text")], capabilities)
 
     assert _ids(resolved) == ["a"]
+
+
+@pytest.mark.parametrize(
+    "capabilities",
+    [
+        {"supportedCatalogIds": ["b", "a"]},
+        v0_8.V08Capabilities.model_validate({"supportedCatalogIds": ["b", "a"]}),
+    ],
+    ids=["mapping", "model"],
+)
+def test_v0_8_reads_the_unkeyed_capabilities_of_its_specification(capabilities):
+    """The v0.8 specification sends the capabilities entry itself."""
+    catalogs = [_config("a", "0.8", "Text"), _config("b", "0.8", "Text")]
+
+    resolved = resolve_catalogs(catalogs, capabilities)
+
+    assert _ids(resolved) == ["b", "a"]
+
+
+def test_v0_8_unkeyed_capabilities_may_declare_inline_catalogs():
+    inline = {"catalogId": "inline", "components": {}, "styles": {}}
+    capabilities = {"supportedCatalogIds": [], "inlineCatalogs": [inline]}
+
+    resolved = resolve_catalogs(
+        [_config("a", "0.8", "Text")], capabilities, accepts_inline_catalogs=True
+    )
+
+    assert _ids(resolved) == ["inline"]
+
+
+def test_unkeyed_capabilities_are_invalid_from_v0_9():
+    with pytest.raises(A2uiValidationError, match="no 'v0.9' entry"):
+        resolve_catalogs([_config("a", "0.9", "Text")], {"supportedCatalogIds": ["a"]})
+
+
+def test_v0_8_unkeyed_capabilities_with_an_unknown_field_are_invalid():
+    """An unknown field doesn't hide the entry; the entry model rejects it."""
+    with pytest.raises(A2uiValidationError, match="Invalid 'v0.8'"):
+        resolve_catalogs(
+            [_config("a", "0.8", "Text")],
+            {"supportedCatalogIds": ["a"], "custom": True},
+        )
+
+
+def test_v0_8_unkeyed_capabilities_need_the_catalog_ids():
+    with pytest.raises(A2uiValidationError, match="Invalid 'v0.8'"):
+        resolve_catalogs([_config("a", "0.8", "Text")], {"inlineCatalogs": []})
 
 
 def test_a_renderer_may_send_capabilities_for_several_versions():
@@ -190,6 +240,29 @@ def test_inline_catalogs_use_the_registered_catalogs_version():
     assert resolved.catalog_id == "inline"
     assert resolved.protocol_version == "v0.9"
     assert set(resolved.components) == {"Marquee"}
+
+
+def test_a_v10_to_json_document_is_accepted_as_an_inline_catalog():
+    full = BasicCatalog(protocol_version="v1.0")
+    # The generated v1.0 `FunctionDefinition` model rejects `openUrl`, which
+    # requires user activation and leaves `allowedCallers` at its default.
+    basic = FunctionPruningTransformer(
+        [name for name in full.functions if name != "openUrl"]
+    ).transform(full)
+    capabilities = {
+        "v1.0": {"supportedCatalogIds": [], "inlineCatalogs": [basic.to_json()]}
+    }
+
+    (resolved,) = resolve_catalogs(
+        [_config("a", "1.0", "Text")], capabilities, accepts_inline_catalogs=True
+    )
+
+    assert resolved.catalog_id == basic.catalog_id
+    assert set(resolved.components) == set(basic.components)
+    # System (`@`-prefixed) functions are built in, so `to_json` leaves them out.
+    assert set(resolved.functions) == {
+        name for name in basic.functions if not name.startswith("@")
+    }
 
 
 def test_an_active_catalog_keeps_its_id_over_an_inline_catalog():

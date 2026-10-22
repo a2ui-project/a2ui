@@ -15,47 +15,57 @@
 import json
 import os
 import unittest
+
 from a2ui.core import Catalog
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
+from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.express import ExpressCompiler
 
 
 class TestVersionCompliance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from a2ui.schema.utils import get_basic_catalog_path
+        from ..repo_paths import find_repo_root
 
-        catalog_path = get_basic_catalog_path("v0_9")
+        catalog_path = os.path.join(
+            find_repo_root() or "",
+            "specification",
+            "v0_9",
+            "catalogs",
+            "basic",
+            "catalog.json",
+        )
         with open(catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
         cls.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
     def test_compile_v1_0_unified(self):
-        compiler = ExpressCompiler(self.catalog, version="v1.0")
+        compiler = ExpressCompiler([self.catalog], version="v1.0")
         dsl = """
         root = Column([txt])
         txt = Text("Hello World")
         $/user/name = "Alice"
         """
-        res = compiler.compile(dsl, surface_id="surf_v1")
-        self.assertIsInstance(res, list)
-        self.assertEqual(len(res), 1)
-        envelope = res[0]
+        raw_res = compiler.compile(dsl, surface_id="surf_v1")
+        self.assertIsInstance(raw_res, list)
+        self.assertEqual(len(raw_res), 1)
+        envelope = to_message_dicts(raw_res)[0]
         self.assertEqual(envelope["version"], "v1.0")
         self.assertIn("createSurface", envelope)
         self.assertIn("components", envelope["createSurface"])
         self.assertIn("dataModel", envelope["createSurface"])
 
     def test_compile_v0_9_multi_message(self):
-        compiler = ExpressCompiler(self.catalog, version="v0.9")
+        compiler = ExpressCompiler([self.catalog], version="v0.9")
         dsl = """
         root = Column([txt])
         txt = Text("Hello World")
         $/user/name = "Alice"
         """
-        res = compiler.compile(dsl, surface_id="surf_v09")
-        self.assertIsInstance(res, list)
-        self.assertEqual(len(res), 3)
+        raw_res = compiler.compile(dsl, surface_id="surf_v09")
+        self.assertIsInstance(raw_res, list)
+        self.assertEqual(len(raw_res), 3)
+        res = to_message_dicts(raw_res)
 
         # Message 1: createSurface
         self.assertEqual(res[0]["version"], "v0.9")
@@ -71,18 +81,19 @@ class TestVersionCompliance(unittest.TestCase):
         self.assertIn("updateDataModel", res[2])
 
     def test_compile_v0_9_1_target(self):
-        compiler = ExpressCompiler(self.catalog, version="v0.9.1")
+        compiler = ExpressCompiler([self.catalog], version="v0.9.1")
         dsl = """
         root = Text("Hi")
         """
-        res = compiler.compile(dsl, surface_id="surf_v091")
-        self.assertIsInstance(res, list)
-        self.assertEqual(len(res), 2)
+        raw_res = compiler.compile(dsl, surface_id="surf_v091")
+        self.assertIsInstance(raw_res, list)
+        self.assertEqual(len(raw_res), 2)
+        res = to_message_dicts(raw_res)
         self.assertEqual(res[0]["version"], "v0.9.1")
         self.assertEqual(res[1]["version"], "v0.9.1")
 
     def test_v0_9_standalone_function_call_error(self):
-        compiler = ExpressCompiler(self.catalog, version="v0.9")
+        compiler = ExpressCompiler([self.catalog], version="v0.9")
         dsl = 'openUrl("https://example.com")'
         with self.assertRaises(ValueError) as cm:
             compiler.compile(dsl)

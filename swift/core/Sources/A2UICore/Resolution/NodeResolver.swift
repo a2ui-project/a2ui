@@ -32,24 +32,45 @@ public final class NodeResolver: Sendable {
   public let componentsModel: SurfaceComponentsModel
   public let dataModel: DataModel
   public weak var actionHandler: (any ActionHandling)?
-  public let protocolVersion: String?
+  public let protocolVersion: A2UIProtocolVersion?
+  private var reportedExpressionErrors: Set<String> = []
+  private var currentPassExpressionErrors: Set<String> = []
+  private var isResolvingTree = false
+  private var currentComponentID: String?
+  private var currentPropertyPath: String?
 
-  public var isV10: Bool {
-    if let version = protocolVersion {
-      let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
-      if let major = Int(core.split(separator: ".").first ?? "") {
-        return major >= 1
-      }
+  /// Whether this resolver follows v1.0 rules.
+  ///
+  /// Uses `protocolVersion` when set. Otherwise it is taken from the default catalog, or, with
+  /// no default, it holds when every catalog is at least v1.0.
+  public var atLeastV10: Bool {
+    if let protocolVersion {
+      return protocolVersion.isAtLeastV10
     }
-    return catalog.isAtLeastV10
+    if let defaultCatalog {
+      return defaultCatalog.isAtLeastV10
+    }
+    return !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
   }
 
-  /// The primary default catalog associated with this resolver.
+  /// The default catalog of this resolver, or an empty catalog when it has none.
+  ///
+  /// A resolver without a default catalog (allowed from v1.0) never falls back to one of its
+  /// other catalogs, because components and function calls must name the catalog they run in.
+  /// To resolve that catalog, use ``getCatalog(id:)``.
   public var catalog: AnyCatalog {
-    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
-      return catalog
-    }
-    return catalogs.values.first ?? Catalog(id: "empty", components: [])
+    defaultCatalog ?? Catalog(id: "empty", components: [])
+  }
+
+  /// The default catalog, if this resolver has one and it is available.
+  private var defaultCatalog: AnyCatalog? {
+    defaultCatalogID.flatMap { catalogs[$0] }
+  }
+
+  /// The protocol version used for evaluation and error envelopes: `protocolVersion` when set,
+  /// else the default catalog's version, else v1.0 when every catalog is at least v1.0.
+  private var effectiveProtocolVersion: A2UIProtocolVersion? {
+    protocolVersion ?? defaultCatalog?.a2uiProtocolVersion ?? (atLeastV10 ? .v10 : nil)
   }
 
   // MARK: - Initialization
@@ -61,11 +82,20 @@ public final class NodeResolver: Sendable {
     componentsModel: SurfaceComponentsModel? = nil,
     dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
-    self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
+    let allCatalogsAtLeastV10 =
+      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
+    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
+    if let defaultCatalogID {
+      self.defaultCatalogID = defaultCatalogID
+    } else if !isAtLeastV10, catalogs.count == 1 {
+      self.defaultCatalogID = catalogs.keys.first
+    } else {
+      self.defaultCatalogID = nil
+    }
     self.componentsModel = componentsModel ?? SurfaceComponentsModel()
     self.dataModel = dataModel ?? DataModel()
     self.actionHandler = actionHandler
@@ -75,7 +105,7 @@ public final class NodeResolver: Sendable {
   public convenience init(
     surface: SurfaceViewModel,
     actionHandler: (any ActionHandling)? = nil,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.init(
       surfaceID: surface.surfaceID,
@@ -95,14 +125,14 @@ public final class NodeResolver: Sendable {
     componentsModel: SurfaceComponentsModel? = nil,
     dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     self.init(
       surfaceID: surfaceID,
       catalogs: dict,
-      defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
+      defaultCatalogID: defaultCatalogID,
       componentsModel: componentsModel,
       dataModel: dataModel,
       actionHandler: actionHandler,
@@ -116,22 +146,9 @@ public final class NodeResolver: Sendable {
   public func getCatalog(id: String? = nil) -> AnyCatalog? {
     let targetCatalogID = id ?? defaultCatalogID
     if let targetCatalogID {
-      if let catalog = catalogs[targetCatalogID] {
-        return catalog
-      }
-      if let catalog = catalogs.values.first(where: {
-        $0.id.hasSuffix("/\(targetCatalogID)/catalog.json")
-          && $0.isAtLeastV10
-      }) {
-        return catalog
-      }
-      if let catalog = catalogs.values.first(where: {
-        $0.id.hasSuffix("/\(targetCatalogID)/catalog.json")
-      }) {
-        return catalog
-      }
+      return catalogs[targetCatalogID]
     }
-    if id == nil {
+    if id == nil, !atLeastV10, catalogs.count == 1 {
       return catalogs.values.first
     }
     return nil
@@ -139,10 +156,32 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Tree Resolution
 
+  /// Clears previously reported expression errors so subsequent evaluations re-emit.
+  public func clearReportedExpressionErrors(forComponentID componentID: String? = nil) {
+    if let componentID {
+      let prefix = "\(componentID):"
+      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+    } else {
+      reportedExpressionErrors.removeAll()
+    }
+  }
+
   /// Resolves the component tree starting from the root component ("root")
   /// using the stored component and data models.
   public func resolveTree() -> Node? {
-    resolveNode(
+    let wasResolvingTree = isResolvingTree
+    if !wasResolvingTree {
+      isResolvingTree = true
+      currentPassExpressionErrors.removeAll()
+    }
+    defer {
+      if !wasResolvingTree {
+        reportedExpressionErrors = currentPassExpressionErrors
+        currentPassExpressionErrors.removeAll()
+        isResolvingTree = false
+      }
+    }
+    return resolveNode(
       definitionID: "root",
       instanceID: "root",
       basePath: nil,
@@ -180,6 +219,14 @@ public final class NodeResolver: Sendable {
       return nil
     }
 
+    let previousComponentID = currentComponentID
+    let previousPropertyPath = currentPropertyPath
+    currentComponentID = instanceID
+    defer {
+      currentComponentID = previousComponentID
+      currentPropertyPath = previousPropertyPath
+    }
+
     let type = component.type
     let effectiveCatalogID = component.catalogID ?? defaultCatalogID
     let targetCatalog = getCatalog(id: effectiveCatalogID)
@@ -188,21 +235,33 @@ public final class NodeResolver: Sendable {
     visited.insert(instanceID)
 
     let schemaJSON = targetCatalog?.components[type]?.schema.jsonValue ?? .object([:])
-    let propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
+    if propertiesSchema["accessibility"] == nil {
+      propertiesSchema["accessibility"] = .object([
+        "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
+      ])
+    }
 
     var componentChecks: [ResolvedCheck] = []
+    var preResolvedChecksByKey: [String: [ResolvedCheck]] = [:]
     for (key, val) in component.properties {
       let propSchema = propertiesSchema[key] ?? .boolean(true)
       let propType = classifySchema(propSchema)
       if propType == .checks {
-        componentChecks.append(
-          contentsOf: resolveChecks(val, basePath: basePath, index: index, data: data)
-        )
+        currentPropertyPath = key
+        let resolved = resolveChecks(val, basePath: basePath, index: index, data: data)
+        preResolvedChecksByKey[key] = resolved
+        componentChecks.append(contentsOf: resolved)
       }
     }
 
     var resolvedProperties: [String: any Resolved] = [:]
     for (key, val) in component.properties {
+      if let preResolved = preResolvedChecksByKey[key] {
+        resolvedProperties[key] = preResolved
+        continue
+      }
       let propSchema = propertiesSchema[key] ?? .boolean(true)
       let propType = classifySchema(propSchema)
 
@@ -370,6 +429,14 @@ public final class NodeResolver: Sendable {
     data: JSONValue,
     checks: [ResolvedCheck] = []
   ) -> (any Resolved)? {
+    let previousComponentID = currentComponentID
+    let previousPropertyPath = currentPropertyPath
+    currentComponentID = componentID
+    currentPropertyPath = propertyKey
+    defer {
+      currentComponentID = previousComponentID
+      currentPropertyPath = previousPropertyPath
+    }
     switch type {
     case .dynamicBoolean:
       return resolveDynamicBoolean(value, basePath: basePath, index: index, data: data)
@@ -429,7 +496,7 @@ public final class NodeResolver: Sendable {
         if itemType == .checks {
           return resolveChecks(value, basePath: basePath, index: index, data: data)
         }
-        let resolvedArray = array.compactMap { item in
+        let resolvedArray = array.enumerated().compactMap { itemIndex, item -> (any Resolved)? in
           if let resolved = resolveProperty(
             value: item,
             schema: itemsSchema,
@@ -438,7 +505,7 @@ public final class NodeResolver: Sendable {
             index: index,
             instanceSuffix: instanceSuffix,
             componentID: componentID,
-            propertyKey: propertyKey,
+            propertyKey: "\(propertyKey)/\(itemIndex)",
             visited: visited,
             components: components,
             data: data,
@@ -459,7 +526,7 @@ public final class NodeResolver: Sendable {
             let nestedPropSchema = objProps[k] ?? .boolean(true)
             let classified = classifySchema(nestedPropSchema)
             let nestedPropType: PropertyType
-            let bindingKey = isV10 ? "@path" : "path"
+            let bindingKey = atLeastV10 ? "@path" : "path"
             if classified == .standard,
               v.objectValue?[bindingKey] != nil
             {
@@ -475,7 +542,7 @@ public final class NodeResolver: Sendable {
               index: index,
               instanceSuffix: instanceSuffix,
               componentID: componentID,
-              propertyKey: k,
+              propertyKey: "\(propertyKey)/\(k)",
               visited: visited,
               components: components,
               data: data,
@@ -510,7 +577,7 @@ public final class NodeResolver: Sendable {
       dataModel: dataModel,
       path: basePath ?? "",
       functionHandler: self,
-      protocolVersion: protocolVersion ?? catalog.protocolVersion,
+      protocolVersion: effectiveProtocolVersion,
       index: index
     )
     return context.resolveDynamicValue(value)
@@ -549,7 +616,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<Bool> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -577,7 +644,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<String> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -606,7 +673,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<Double> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -634,7 +701,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<JSONValue> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -662,7 +729,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<[String]> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -701,7 +768,7 @@ public final class NodeResolver: Sendable {
       let conditionJSON = ruleDict?["condition"] ?? ruleJSON
       let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
 
-      let bindingKey = self.isV10 ? "@path" : "path"
+      let bindingKey = self.atLeastV10 ? "@path" : "path"
       if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
         let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
         let rawVal = data[absPath]
@@ -808,7 +875,7 @@ public final class NodeResolver: Sendable {
       eventObj = nil
     }
 
-    let callKey = isV10 ? "@call" : "call"
+    let callKey = atLeastV10 ? "@call" : "call"
     let funcCallVal: JSONValue?
     if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil {
       funcCallVal = wrapped
@@ -833,13 +900,14 @@ public final class NodeResolver: Sendable {
       return ResolvedAction(
         identity: unresolvedIdentity,
         sourceComponentID: componentID,
+        dataContextPath: basePath,
         trigger: { [weak self] in
           guard let self else { return }
 
           let failedChecks = checks.filter { !$0.isValid }
           if !failedChecks.isEmpty {
             let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
-            let version = self.catalog.a2uiProtocolVersion ?? .v10
+            let version = self.effectiveProtocolVersion ?? .v10
             self.actionHandler?.handle(
               error: .validationFailed(
                 ValidationFailedError(
@@ -887,13 +955,14 @@ public final class NodeResolver: Sendable {
       return ResolvedAction(
         identity: unresolvedIdentity,
         sourceComponentID: componentID,
+        dataContextPath: basePath,
         trigger: { [weak self] in
           guard let self else { return }
 
           let failedChecks = checks.filter { !$0.isValid }
           if !failedChecks.isEmpty {
             let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
-            let version = self.catalog.a2uiProtocolVersion ?? .v10
+            let version = self.effectiveProtocolVersion ?? .v10
             self.actionHandler?.handle(
               error: .validationFailed(
                 ValidationFailedError(
@@ -1004,31 +1073,78 @@ public final class NodeResolver: Sendable {
 extension NodeResolver: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     if name == "@index" {
-      return IndexFunction()
+      return catalogID == nil ? IndexFunction() : nil
     }
     let callCatalogID = catalogID ?? defaultCatalogID
-    var targetFunction = getCatalog(id: callCatalogID)?.functions[name]
-    if targetFunction == nil && catalogID == nil {
-      for catalog in catalogs.values {
-        if let matchingFunction = catalog.functions[name] {
-          targetFunction = matchingFunction
-          break
-        }
-      }
-    }
-    return targetFunction
+    return getCatalog(id: callCatalogID)?.functions[name]
   }
 
+  /// Checks that the catalog a v1.0 function call runs in resolves on this surface: the
+  /// catalog the call names, else the default catalog.
+  ///
+  /// - Throws: `A2UICatalogError` with the detail code `CATALOG_ERROR` if the named catalog is
+  ///   not available, or the call names none and there is no default catalog.
+  public func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
+    let path = CatalogResolutionErrors.callCatalogIDPath(functionName: functionName)
+    let code = CatalogResolutionErrors.runtimeCatalogErrorCode
+    if let catalogID {
+      guard catalogs[catalogID] != nil else {
+        throw CatalogResolutionErrors.catalogNotFound(catalogID, path: path, code: code)
+      }
+      return
+    }
+    guard let defaultCatalogID else {
+      throw CatalogResolutionErrors.noDefaultCatalog(
+        subject: "Function call '\(functionName)'",
+        surfaceID: surfaceID,
+        path: path,
+        code: code
+      )
+    }
+    guard catalogs[defaultCatalogID] != nil else {
+      throw CatalogResolutionErrors.catalogNotFound(defaultCatalogID, path: path, code: code)
+    }
+  }
+
+  /// Reports a failed function call: unresolvable catalogs map through `MessageErrorMapper`
+  /// (`CATALOG_ERROR`), while missing functions and errors thrown by `evaluate` are reported as
+  /// `EXPRESSION_ERROR`, matching the other core SDKs.
   public func handleFunctionError(_ error: any Error, functionName: String) {
-    let version =
-      protocolVersion.flatMap(A2UIProtocolVersion.init(rawValue:))
-      ?? catalog.a2uiProtocolVersion
-      ?? (isV10 ? .v10 : .v09)
-    let rendererError = MessageErrorMapper().map(
-      error,
-      surfaceID: surfaceID,
-      version: version
-    )
+    let version = effectiveProtocolVersion ?? .v09
+    let rendererError: RendererError
+    if let catalogError = error as? A2UICatalogError {
+      rendererError = MessageErrorMapper().map(
+        catalogError,
+        surfaceID: surfaceID,
+        version: version
+      )
+    } else {
+      let message: String
+      if let a2uiError = error as? any A2UIError {
+        message = a2uiError.message
+      } else if let description = (error as? any LocalizedError)?.errorDescription {
+        message = description
+      } else {
+        message = String(describing: error)
+      }
+      rendererError = .generic(
+        GenericError(
+          code: "EXPRESSION_ERROR",
+          surfaceID: surfaceID,
+          message: message,
+          expression: functionName,
+          version: version
+        )
+      )
+    }
+    let dedupeKey =
+      "\(currentComponentID ?? ""):\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    if isResolvingTree {
+      let isFirstInPass = currentPassExpressionErrors.insert(dedupeKey).inserted
+      guard isFirstInPass && !reportedExpressionErrors.contains(dedupeKey) else {
+        return
+      }
+    }
     actionHandler?.handle(error: rendererError, from: surfaceID)
   }
 }

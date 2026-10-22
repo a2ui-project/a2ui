@@ -442,6 +442,39 @@ struct RendererToAgentMessageTests {
     }
   }
 
+  @Test func genericErrorEncodesExactlyOneTargetID() throws {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    let decoder = makeVersionedDecoder(.v10)
+
+    let surfaceError = GenericError(
+      code: "ERR", surfaceID: "surf_1", message: "msg", version: .v10)
+    let surfaceJSON = try #require(
+      String(data: try encoder.encode(surfaceError), encoding: .utf8))
+    #expect(surfaceJSON == #"{"code":"ERR","message":"msg","surfaceId":"surf_1"}"#)
+    #expect(
+      try decoder.decode(GenericError.self, from: encoder.encode(surfaceError)) == surfaceError)
+
+    let functionCallError = GenericError(
+      code: "ERR", functionCallID: "call_1", message: "msg", version: .v10)
+    let functionCallJSON = try #require(
+      String(data: try encoder.encode(functionCallError), encoding: .utf8))
+    #expect(functionCallJSON == #"{"code":"ERR","functionCallId":"call_1","message":"msg"}"#)
+    #expect(
+      try decoder.decode(GenericError.self, from: encoder.encode(functionCallError))
+        == functionCallError)
+
+    #expect(surfaceError.surfaceID == "surf_1")
+    #expect(surfaceError.functionCallID == nil)
+    #expect(functionCallError.surfaceID == nil)
+    #expect(functionCallError.functionCallID == "call_1")
+
+    // The same ID string under different targets must not compare equal.
+    let surfaceWithCallID = GenericError(
+      code: "ERR", surfaceID: "call_1", message: "msg", version: .v10)
+    #expect(surfaceWithCallID != functionCallError)
+  }
+
   @Test func rendererFunctionResponseEnforcesValueXorError() throws {
     let decoder = makeVersionedDecoder(.v10)
     // Both value and error present should fail
@@ -472,6 +505,60 @@ struct RendererToAgentMessageTests {
     #expect(throws: DecodingError.self) {
       try decoder.decode(RendererFunctionResponseMessage.self, from: neitherJSON)
     }
+  }
+
+  @Test func functionResponsesEncodeExactlyOneOfValueOrError() throws {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    let decoder = makeVersionedDecoder(.v10)
+    let payload = FunctionErrorPayload(code: "ERR", message: "fail")
+
+    let rendererValue = RendererFunctionResponseMessage(
+      functionCallID: "c1", value: .number(1), version: .v10)
+    let rendererValueJSON = try #require(
+      String(data: try encoder.encode(rendererValue), encoding: .utf8))
+    #expect(rendererValueJSON == #"{"functionCallId":"c1","value":1}"#)
+    #expect(
+      try decoder.decode(RendererFunctionResponseMessage.self, from: encoder.encode(rendererValue))
+        == rendererValue)
+    #expect(rendererValue.value == .number(1))
+    #expect(rendererValue.error == nil)
+
+    let rendererError = RendererFunctionResponseMessage(
+      functionCallID: "c1", error: payload, version: .v10)
+    let rendererErrorJSON = try #require(
+      String(data: try encoder.encode(rendererError), encoding: .utf8))
+    #expect(
+      rendererErrorJSON == #"{"error":{"code":"ERR","message":"fail"},"functionCallId":"c1"}"#)
+    #expect(
+      try decoder.decode(RendererFunctionResponseMessage.self, from: encoder.encode(rendererError))
+        == rendererError)
+    #expect(rendererError.value == nil)
+    #expect(rendererError.error == payload)
+    #expect(rendererValue != rendererError)
+
+    let agentValue = AgentFunctionResponseMessage(
+      functionCallID: "c1", value: .number(1), version: .v10)
+    let agentValueJSON = try #require(
+      String(data: try encoder.encode(agentValue), encoding: .utf8))
+    #expect(agentValueJSON == #"{"functionCallId":"c1","value":1}"#)
+    #expect(
+      try decoder.decode(AgentFunctionResponseMessage.self, from: encoder.encode(agentValue))
+        == agentValue)
+    #expect(agentValue.value == .number(1))
+    #expect(agentValue.error == nil)
+
+    let agentError = AgentFunctionResponseMessage(
+      functionCallID: "c1", error: payload, version: .v10)
+    let agentErrorJSON = try #require(
+      String(data: try encoder.encode(agentError), encoding: .utf8))
+    #expect(agentErrorJSON == #"{"error":{"code":"ERR","message":"fail"},"functionCallId":"c1"}"#)
+    #expect(
+      try decoder.decode(AgentFunctionResponseMessage.self, from: encoder.encode(agentError))
+        == agentError)
+    #expect(agentError.value == nil)
+    #expect(agentError.error == payload)
+    #expect(agentValue != agentError)
   }
 
   @Test func functionErrorPayloadCodeEnum() {
@@ -544,5 +631,33 @@ struct RendererToAgentMessageTests {
       #expect(decodedError == errorMsg)
       #expect(decodedError.version == targetVersion)
     }
+  }
+
+  @Test func genericErrorExpressionRoundTrips() throws {
+    for targetVersion in A2UIProtocolVersion.allCases {
+      let errorMsg = RendererToAgentMessage.error(
+        .generic(
+          GenericError(
+            code: "EXPRESSION_ERROR",
+            surfaceID: "s1",
+            message: "Function not found: noSuchFunction",
+            expression: "noSuchFunction",
+            version: targetVersion
+          )
+        )
+      )
+      let data = try JSONEncoder().encode(errorMsg)
+      let json = try #require(String(data: data, encoding: .utf8))
+      #expect(json.contains("\"expression\":\"noSuchFunction\""))
+      let decoded = try JSONDecoder().decode(RendererToAgentMessage.self, from: data)
+      #expect(decoded == errorMsg)
+    }
+  }
+
+  @Test func genericErrorOmitsExpressionWhenNil() throws {
+    let error = GenericError(code: "ERR", surfaceID: "s1", message: "msg", version: .v10)
+    let data = try JSONEncoder().encode(RendererToAgentMessage.error(.generic(error)))
+    let json = try #require(String(data: data, encoding: .utf8))
+    #expect(!json.contains("expression"))
   }
 }

@@ -20,8 +20,8 @@ import tempfile
 import unittest
 
 from a2ui.core import Catalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
-from a2ui.schema import VERSION_1_0
 
 
 class TestElementalPromptGenerator(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
     def setUp(self):
         # Rich catalog testing all mapping branches of _map_schema_to_ts_type
         self.catalog = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/rich_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/rich_catalog",
@@ -122,28 +122,22 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.tmp_dir.cleanup()
 
     def test_elemental_prompt_generator_property(self):
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="You are an HTML generator.",
-            workflow_description="Please output Elemental HTML.",
-            include_schema=True,
-        )
-        self.assertIn("You are an HTML generator.", prompt)
-        self.assertIn("Please output Elemental HTML.", prompt)
+        prompt = generator.generate()
         self.assertIn("# A2UI Elemental Output Contract", prompt)
         self.assertIn("interface Text {", prompt)
 
     def test_catalog_description_before_generate(self):
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
         desc = generator.generate_catalog_instructions(include_schema=True)
         self.assertIn("interface Text {", desc)
 
     def test_catalog_description_no_schema(self):
         """Verifies catalog_description returns an empty string when include_schema is False."""
-        fmt = ElementalFormat(catalog=self.catalog)
+        fmt = ElementalFormat([self.catalog])
         generator = fmt.prompt_generator
         desc = generator.generate_catalog_instructions(include_schema=False)
         self.assertEqual(desc, "")
@@ -151,7 +145,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
     def test_catalog_description_initializes_helper_and_decompiles_instructions(self):
         """Verifies helper initialization and JSON instructions decompiling in catalog_description."""
         custom_catalog = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
@@ -177,7 +171,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
             },
         )
 
-        fmt = ElementalFormat(catalog=custom_catalog)
+        fmt = ElementalFormat([custom_catalog])
         generator = fmt.prompt_generator
 
         desc = generator.generate_catalog_instructions(include_schema=True)
@@ -193,7 +187,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
     ):
         """Verifies helper initialization and list JSON instructions decompiling in catalog_description."""
         custom_catalog = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
@@ -221,7 +215,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
             },
         )
 
-        fmt = ElementalFormat(catalog=custom_catalog)
+        fmt = ElementalFormat([custom_catalog])
         generator = fmt.prompt_generator
 
         desc = generator.generate_catalog_instructions(include_schema=True)
@@ -232,13 +226,10 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.assertNotIn("```json", desc)
 
     def test_elemental_ts_type_mapping(self):
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
+        prompt = generator.generate()
 
         # Check checks property maps to FunctionCall[]
         self.assertIn("checks?: FunctionCall[]", prompt)
@@ -268,22 +259,22 @@ class TestElementalPromptGenerator(unittest.TestCase):
         from a2ui.catalog_transformers import ComponentPruningTransformer
 
         pruned_catalog = ComponentPruningTransformer(["Text"]).transform(self.catalog)
-        elemental_format = ElementalFormat(catalog=pruned_catalog)
+        elemental_format = ElementalFormat([pruned_catalog])
         generator = elemental_format.prompt_generator
 
         # Only allow Text component, which should prune RichComponent
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
+        prompt = generator.generate()
         self.assertNotIn("interface RichComponent", prompt)
         self.assertIn("interface Text", prompt)
 
     def test_elemental_include_examples_transformation(self):
+        from a2ui.inference_formats import to_message_models
+
         example_payload = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "welcome",
+                "catalogId": self.catalog.catalog_id,
                 "components": [
                     {"id": "root", "component": "RichComponent", "refString": "hello"}
                 ],
@@ -297,21 +288,23 @@ class TestElementalPromptGenerator(unittest.TestCase):
             f.write(md_content)
 
         elemental_format = ElementalFormat(
-            catalog=self.catalog, examples_path=md_file_path
+            [self.catalog], examples=[to_message_models([example_payload])]
         )
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=False,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
         self.assertIn('<ui-rich-component id="root" ref-string="hello" />', prompt)
+        self.assertIn(
+            '<ui-rich-component id="root" ref-string="hello" />',
+            generator.transform_examples(md_content),
+        )
 
     def test_elemental_examples_validation(self):
+        from a2ui.inference_formats import to_message_models
+        from a2ui.utils import load_examples
+
         example_payload = {
             "version": "v1.0",
             "createSurface": {
@@ -326,25 +319,21 @@ class TestElementalPromptGenerator(unittest.TestCase):
         with open(json_file_path, "w", encoding="utf-8") as f:
             json.dump(example_payload, f)
 
+        loaded_md = load_examples([self.catalog], self.tmp_dir.name, validate=True)
         elemental_format = ElementalFormat(
-            catalog=self.catalog, examples_path=self.tmp_dir.name
+            [self.catalog], examples=[to_message_models([example_payload])]
         )
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=True,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
-        self.assertIn("---BEGIN example_1---", prompt)
+        self.assertIn("---BEGIN example_1---", generator.transform_examples(loaded_md))
 
     def test_catalog_instructions_json_decompilation(self):
         """Test catalog instructions containing JSON blocks are converted to HTML blocks."""
         cat_with_instructions = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/inst_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/inst_catalog",
@@ -358,20 +347,16 @@ class TestElementalPromptGenerator(unittest.TestCase):
                 "components": {"Text": {"properties": {"text": {"type": "string"}}}},
             },
         )
-        elemental_format = ElementalFormat(catalog=cat_with_instructions)
+        elemental_format = ElementalFormat([cat_with_instructions])
         generator = elemental_format.prompt_generator
         generator.parser = None
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=False,
-        )
+        prompt = generator.generate()
         self.assertIn("```html", prompt)
 
     def test_transform_examples_edge_cases(self):
-        """Test transform_examples with JSON arrays, invalid JSON, non-A2UI JSON, and catalog=None."""
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        """Test transform_examples with JSON arrays, invalid JSON, and non-A2UI JSON."""
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
         # 1. JSON array block
@@ -391,13 +376,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
         transformed_invalid = generator.transform_examples(invalid_markdown)
         self.assertEqual(transformed_invalid, invalid_markdown)
 
-        # 4. catalog=None (should return raw markdown as is)
-        generator.catalog = None
-        self.assertEqual(generator.transform_examples("raw text"), "raw text")
-
     def test_map_schema_to_ts_type_uncovered_branches(self):
         """Test _map_schema_to_ts_type for DynamicStringList, boolean, empty array, and union databinding."""
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
         # 1. DynamicStringList ref

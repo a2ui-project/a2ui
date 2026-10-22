@@ -16,15 +16,15 @@
 
 from __future__ import annotations
 
-import copy
 import logging
 from typing import Any, Callable, Optional, Sequence, Union
 
+from a2ui.constants import CATALOG_COMPONENTS_KEY
 from a2ui.core import A2uiCatalogError, A2uiRecursionError, Catalog, CatalogApi
-from a2ui.core.schema import AgentToRendererMessage
-from a2ui.schema.constants import CATALOG_COMPONENTS_KEY
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.transformers.macros.macro import _MacroMetadata
 from a2ui.transformers.macros.processor import _MacroProcessor
+from a2ui.utils import to_version_number
 
 logger = logging.getLogger(__name__)
 
@@ -87,25 +87,35 @@ class MacroExpander:
         Raises:
             A2uiCatalogError: If a macro component collides with an existing component in the base catalog.
         """
-        schema_copy: dict[str, Any] = dict(copy.deepcopy(base_catalog.catalog_schema))
+        schema_copy: dict[str, Any] = base_catalog.to_json()
         comps_map: dict[str, Any] = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
-        defs_map: dict[str, Any] = schema_copy.setdefault("$defs", {})
-        any_comp: dict[str, Any] = defs_map.setdefault("anyComponent", {})
-        any_comp_refs: list[dict[str, Any]] = any_comp.setdefault("oneOf", [])
+        defs_map = schema_copy.get("$defs")
+        any_comp: Any = (
+            defs_map.get("anyComponent") if isinstance(defs_map, dict) else None
+        )
+        # A document whose component union is not a `oneOf` list, or that has
+        # none, admits all its components; writing a union of only the macros
+        # would drop the others.
+        any_comp_refs: list[dict[str, Any]] | None = (
+            any_comp.get("oneOf") if isinstance(any_comp, dict) else None
+        )
+        if not isinstance(any_comp_refs, list):
+            any_comp_refs = None
 
         # Filter base catalog components if passthrough_components is specified
         if self.passthrough_components is not None:
             pruned_base_names = set(comps_map.keys()) - self.passthrough_components
             for name in pruned_base_names:
                 del comps_map[name]
-            any_comp_refs[:] = [
-                ref
-                for ref in any_comp_refs
-                if not any(
-                    ref.get("$ref", "").endswith(f"/{name}")
-                    for name in pruned_base_names
-                )
-            ]
+            if any_comp_refs is not None:
+                any_comp_refs[:] = [
+                    ref
+                    for ref in any_comp_refs
+                    if not any(
+                        ref.get("$ref", "").endswith(f"/{name}")
+                        for name in pruned_base_names
+                    )
+                ]
 
         macro_components = {m.name: m.to_json_schema() for m in self.macros}
 
@@ -117,7 +127,7 @@ class MacroExpander:
                 )
             comps_map[name] = comp_schema
             ref_entry = {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{name}"}
-            if ref_entry not in any_comp_refs:
+            if any_comp_refs is not None and ref_entry not in any_comp_refs:
                 any_comp_refs.append(ref_entry)
 
         schema_copy[CATALOG_COMPONENTS_KEY] = comps_map
@@ -133,9 +143,8 @@ class MacroExpander:
         Returns:
             A Catalog instance ready to be used by inference formats and prompt generators.
         """
-        from a2ui.schema.constants import VERSION_0_9_1
-
-        version = VERSION_0_9_1
+        # catalog_definition.json writes the version without the leading "v".
+        version = to_version_number(ProtocolVersion.V0_9_1)
         catalog_id = "https://a2ui.org/catalogs/macros"
 
         components = {m.name: m.to_json_schema() for m in self.macros}

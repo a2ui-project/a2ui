@@ -16,9 +16,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
+import 'support/test_catalog.dart';
 
 class _RecordingFunction extends FunctionImplementation {
   final List<Map<String, Object?>> calls = [];
@@ -61,12 +63,14 @@ void main() {
       openUrl = _RecordingFunction(parsed.functions['openUrl']!);
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: parsed.id,
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: parsed.components.values.toList(),
         functions: [openUrl],
+        definitions: parsed.definitions,
       );
       processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
@@ -74,11 +78,11 @@ void main() {
               version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
         ),
       );
-      surface = processor.groupModel.getSurface('s')!;
+      surface = processor.model.getSurface('s')!;
       resolver = NodeResolver(surface);
       addTearDown(() {
         resolver.dispose();
-        processor.groupModel.dispose();
+        processor.model.dispose();
       });
     });
 
@@ -151,8 +155,8 @@ void main() {
 
     test('resolves event context when the action is invoked', () async {
       surface.dataModel.set('/name', 'Ada');
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
       process([
         {
           'id': 'root',
@@ -182,8 +186,8 @@ void main() {
     });
 
     test('executes a function action without emitting an event', () async {
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
       process([
         {
           'id': 'root',
@@ -233,9 +237,11 @@ void main() {
     });
     final catalog = Catalog<ComponentApi, FunctionImplementation>(
       id: parsed.id,
+      protocolVersion: A2uiProtocolVersion.v0_9,
       components: parsed.components.values.toList(),
+      definitions: parsed.definitions,
     );
-    final surface = SurfaceModel<ComponentApi>('s', catalog: catalog);
+    final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
     final resolver = NodeResolver<ComponentApi>(surface);
     addTearDown(() {
       resolver.dispose();
@@ -261,4 +267,124 @@ void main() {
       expect((bound! as WritableBinding<Object?>).value, entry.value);
     }
   });
+  group('NodeResolver with several catalogs on one surface', () {
+    late MessageProcessor<ComponentApi> processor;
+    late SurfaceModel<ComponentApi> surface;
+    late NodeResolver<ComponentApi> resolver;
+    final chartApi = ComponentApi(
+      name: 'Chart',
+      schema: Schema.object(properties: {'title': Schema.string()}),
+    );
+
+    setUp(() {
+      final second = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'second',
+        components: [chartApi],
+        functions: [_ConstantFunction('capitalize', 'from second')],
+      );
+      processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog(), second],
+        defaultVersion: A2uiProtocolVersion.v0_9,
+      );
+      processor.processMessages(
+        AgentToRendererMessagePayload.of(
+          CreateSurfaceMessage(
+            version: 'v0.9',
+            surfaceId: 's',
+            catalogId: TestCatalog().id,
+          ),
+        ),
+      );
+      surface = processor.model.getSurface('s')!;
+      resolver = NodeResolver(surface);
+      addTearDown(() {
+        resolver.dispose();
+        processor.model.dispose();
+      });
+    });
+
+    void process(List<Map<String, Object?>> components) {
+      processor.processMessages(
+        AgentToRendererMessage.parseAll([
+          {
+            'version': 'v0.9',
+            'updateComponents': {'surfaceId': 's', 'components': components},
+          },
+        ], protocolVersion: A2uiProtocolVersion.v0_9),
+      );
+    }
+
+    test('renders a component with the catalog it names for itself', () {
+      process([
+        {
+          'id': 'root',
+          'component': 'Chart',
+          'catalogId': 'second',
+          'title': 'Sales',
+        },
+      ]);
+
+      final ComponentNode<ComponentApi> root = resolver.rootNode.peek()!;
+      expect(root.state, NodeState.resolved);
+      expect(root.impl, same(chartApi));
+    });
+
+    test('does not find a component in the default catalog by another', () {
+      process([
+        {'id': 'root', 'component': 'Chart', 'title': 'Sales'},
+      ]);
+
+      expect(resolver.rootNode.peek()!.state, NodeState.unknownType);
+    });
+
+    test('runs a function call in the default catalog before v1.0', () {
+      process([
+        {
+          'id': 'root',
+          'component': 'Text',
+          'text': {
+            'call': 'capitalize',
+            'catalogId': 'second',
+            'args': {'value': 'hello'},
+          },
+        },
+      ]);
+
+      // A call's catalogId is honored only from v1.0.
+      final Object? text = resolver.rootNode.peek()!.props.peek()['text'];
+      expect((text! as ResolvedBinding<Object?>).value, 'Hello');
+    });
+
+    test('runs a function call without a catalogId in the default', () {
+      process([
+        {
+          'id': 'root',
+          'component': 'Text',
+          'text': {
+            'call': 'capitalize',
+            'args': {'value': 'hello'},
+          },
+        },
+      ]);
+
+      final Object? text = resolver.rootNode.peek()!.props.peek()['text'];
+      expect((text! as ResolvedBinding<Object?>).value, 'Hello');
+    });
+  });
+}
+
+/// A function that ignores its arguments and returns [result].
+class _ConstantFunction extends FunctionImplementation {
+  final Object? result;
+
+  _ConstantFunction(String name, this.result)
+      : super(name: name, argumentSchema: Schema.object());
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      result;
 }

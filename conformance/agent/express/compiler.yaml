@@ -101,6 +101,9 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# A compile case checks the block on its own, as `validate_payload` does: a
+# surface that the block updates without creating is assumed to exist.
+
 - name: test_compile_express_minimal_root
   description: A block that assigns root compiles to one createSurface carrying that component.
   action: compile
@@ -117,6 +120,28 @@
           - id: "root"
             component: "Text"
             text: "Hello"
+
+- name: test_compile_express_unicode_identifier
+  description: A variable name that is a UAX 31 Unicode identifier lexes and compiles to a component with that id.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column([größe])
+    größe = Text("x")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["größe"]
+          - id: "größe"
+            component: "Text"
+            text: "x"
 
 - name: test_compile_express_nesting_by_variable_reference
   description: A child named by variable becomes a component id in the parent and a component of its own.
@@ -484,7 +509,7 @@
             text: "Hello"
 
 - name: test_compile_express_surface_targeting_names_a_catalog
-  description: A second argument to surface picks which of the active catalogs the block is written against.
+  description: With multiple active catalogs, a component resolves against the catalog that defines it and carries its catalogId while createSurface omits catalogId.
   action: compile
   args:
     format: express
@@ -492,16 +517,16 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   input: |-
-    surface("dashboard", "conformance/custom")
+    surface("dashboard")
     root = Gauge(0.5)
   expect:
     - version: "v1.0"
       createSurface:
         surfaceId: "dashboard"
-        catalogId: "conformance/custom"
         components:
           - id: "root"
             component: "Gauge"
+            catalogId: "conformance/custom"
             value: 0.5
 
 - name: test_compile_express_delete_surface
@@ -558,21 +583,21 @@
             text: "Two"
 
 - name: test_compile_express_standalone_function_call
-  description: A call written as a statement of its own asks the renderer to run a function, and compiles to callRendererFunction with the surface's catalog on the call. The Express proposal shows this message with functionCallId and callFunction at the top level, which the v1.0 envelope rejects.
+  description: A call written as a statement of its own asks the renderer to run a function, and compiles to callRendererFunction with the surface's catalog on the call. The function must be one the agent may call, which agent_functions_catalog_v1_0.json declares. The Express proposal shows this message with functionCallId and callFunction at the top level, which the v1.0 envelope rejects.
   action: compile
   args:
     format: express
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: 'openUrl("https://example.com")'
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: 'notify("Saved")'
   expect:
     - version: "v1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
-          catalogId: "conformance/simplified"
-          "@call": "openUrl"
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
           args:
-            url: "https://example.com"
+            message: "Saved"
 
 - name: test_compile_express_function_call_action
   description: A function call in an action slot is the local branch of Action, which is how a control does something in the renderer rather than send the agent an event.
@@ -920,12 +945,12 @@
     category: "ValidationError"
 
 - name: test_compile_express_binding_a_static_property_is_a_validation_error
-  description: A path given to a property typed as a plain string is a validation error, because a renderer reading that property will not resolve it. Only a property typed DynamicString admits a binding.
+  description: A path given to a property with a static type, such as a plain number, is a validation error, because a renderer reading that property will not resolve it. Only a dynamic type, such as DynamicString or DynamicNumber, admits a binding.
   action: compile
   args:
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
-  input: "root = Chart([1, 2], $/caption)"
+  input: "root = Gauge($/value)"
   expect_error:
     category: "ValidationError"
 
@@ -968,3 +993,147 @@
   input: "root = Column(_template($/items))"
   expect_error:
     category: "ParseError"
+
+- name: test_compile_express_list_of_numbers
+  description: An array of plain numbers passed to a numeric list property compiles to a JSON array of numbers, whereas every other array case in this suite holds child component references or inline components.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: 'root = Chart([10, 20, 30], "Sales")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [10, 20, 30]
+            caption: "Sales"
+
+- name: test_compile_express_inline_id_collision_is_a_validation_error
+  description: An inline child component takes the synthesized id <parent>_<property>, so a block that also assigns a variable of that name collides on the component id and fails validation rather than silently overwriting one of the two.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root_child = Text("c2")
+    root = Card(Text("c1"))
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_inline_array_id_collision_is_a_validation_error
+  description: An inline child inside an array takes the synthesized id <parent>_<property>_<index> (1-based), so a block that also assigns a variable of that name collides on the component id and fails validation.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root_children_1 = Text("conflict")
+    root = Column([Text("a"), Text("b")])
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_checks_on_uncheckable_component_is_a_validation_error
+  description: Passing a check list ([?...]) to a component whose catalog schema does not declare a checks property is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("hi", [?required])'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_check_with_value_on_uncheckable_component_is_a_validation_error
+  description: A check that names the value it checks, passed to a component whose catalog schema does not declare a checks property, is a validation error. The check is complete, so the missing checks property is the only error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("hi", [?required($/name)])'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_components_without_root_is_update_components
+  description: A block that assigns components without defining root compiles to an updateComponents message for an existing surface rather than createSurface.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'some_var = Text("Hi")'
+  expect:
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "default_surface"
+        components:
+          - id: "some_var"
+            component: "Text"
+            text: "Hi"
+
+- name: test_compile_express_duplicate_property_is_a_validation_error
+  description: Supplying a component property both positionally and by keyword argument in the same call is a validation error rather than letting one overwrite the other.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("hi", text="duplicate")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_undeclared_function_parameter_is_a_validation_error
+  description: A keyword argument on a function call naming a parameter the catalog function does not declare is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Button(Text("hi"), action=openUrl("https://example.com", badArg=1))'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_duplicate_function_parameter_is_a_validation_error
+  description: Supplying a function parameter both positionally and by keyword argument in the same call is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Button(Text("hi"), action=openUrl("https://example.com", url="https://other.com"))'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_component_outside_pinned_surface_catalog_is_a_validation_error
+  description: When surface(...) explicitly pins a catalogId, referencing a component that belongs to a different active catalog is a validation error.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |-
+    surface("s1", catalogId="conformance/simplified")
+    root = Gauge(30)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_surface_targeting_unknown_catalog_is_a_validation_error
+  description: A surface(...) declaration naming a catalogId that is not among the active catalogs is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("main", catalogId="unknown")
+    root = Text("hi")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error
+  description: From v1.0, component IDs must be valid UAX 31 identifiers, so setting id="..." to a non-identifier string is rejected with a validation error at compile time.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Column([t]); t = Text("x", id="main-title")'
+  expect_error:
+    category: "ValidationError"

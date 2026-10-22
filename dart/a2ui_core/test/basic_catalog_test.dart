@@ -16,10 +16,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/basic_catalog/v0_9/catalog.g.dart';
-import 'package:a2ui_core/src/basic_catalog/v1_0/catalog.g.dart';
 import 'package:test/test.dart';
 
+import '../tool/generate_basic_catalogs.dart' as codegen;
 import 'conformance/conformance_harness.dart';
 
 typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
@@ -27,7 +26,7 @@ typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
 /// Builds a data context that evaluates nested calls against [catalog].
 DataContext _contextFor(
   _RendererCatalog catalog, {
-  String? protocolVersion,
+  A2uiProtocolVersion? protocolVersion,
   DataModel? dataModel,
 }) {
   return DataContext(
@@ -80,7 +79,8 @@ void main() {
         'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       );
       expect(v09.functions.keys.toSet(), _functionNames);
-      expect(v09.components, isEmpty);
+      expect(v09.components.keys, contains('Text'));
+      expect(v09.components, hasLength(18));
     });
 
     test('v1.0 matches the published catalog document', () {
@@ -89,7 +89,8 @@ void main() {
         'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       );
       expect(v10.functions.keys.toSet(), _functionNames);
-      expect(v10.components, isEmpty);
+      expect(v10.components.keys, contains('Text'));
+      expect(v10.components, hasLength(18));
     });
 
     test('validators return booleans in v0.9 and results in v1.0', () {
@@ -110,17 +111,27 @@ void main() {
           (c.functions[name]!.argumentSchema.value['properties']!
                   as Map<String, Object?>)
               .cast<String, Object?>();
-      expect(
-          props(v10, 'formatNumber').keys, ['value', 'decimals', 'grouping']);
-      expect(
-        props(v10, 'formatCurrency').keys,
-        ['value', 'currency', 'decimals', 'grouping'],
-      );
+      expect(props(v10, 'formatNumber').keys, [
+        'value',
+        'decimals',
+        'grouping',
+      ]);
+      expect(props(v10, 'formatCurrency').keys, [
+        'value',
+        'currency',
+        'decimals',
+        'grouping',
+      ]);
       expect(props(v10, 'formatDate').keys, ['value', 'format']);
-      expect(
-        props(v10, 'pluralize').keys,
-        ['value', 'zero', 'one', 'two', 'few', 'many', 'other'],
-      );
+      expect(props(v10, 'pluralize').keys, [
+        'value',
+        'zero',
+        'one',
+        'two',
+        'few',
+        'many',
+        'other',
+      ]);
       expect(props(v09, 'length').keys, ['value', 'min', 'max']);
       expect(props(v09, 'regex').keys, ['value', 'pattern']);
       expect(props(v09, 'openUrl').keys, ['url']);
@@ -134,27 +145,19 @@ void main() {
         jsonDecode(File(resolveConformancePath('../$path')).readAsStringSync())
             as Map<String, Object?>;
 
-    for (final (String constant, String embedded, String path) in [
-      (
-        'basicCatalogV0_9Json',
-        basicCatalogV0_9Json,
-        'specification/v0_9/catalogs/basic/catalog.json',
-      ),
-      (
-        'basicCatalogV1_0Json',
-        basicCatalogV1_0Json,
-        'catalogs/basic/v1/catalog.json',
-      ),
-    ]) {
-      test('$constant is identical to $path', () {
-        expect(
-          embedded,
-          File(resolveConformancePath('../$path')).readAsStringSync(),
-          reason: '$constant has drifted from $path. Run '
-              '`dart run tool/generate_basic_catalogs.dart`.',
+    test('the generated definitions are up to date', () async {
+      for (final codegen.BasicCatalogSource entry in codegen.sources) {
+        final String generated = await codegen.format(
+          codegen.render(entry, published(entry.source)),
         );
-      });
-    }
+        expect(
+          File(entry.output).readAsStringSync(),
+          equals(generated),
+          reason: '${entry.output} is out of date with ${entry.source}. '
+              'Run `dart run tool/generate_basic_catalogs.dart`.',
+        );
+      }
+    });
 
     for (final (String label, _RendererCatalog catalog, String path) in [
       ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
@@ -178,11 +181,38 @@ void main() {
           final FunctionApi expected = parsed.functions[name]!;
           final FunctionImplementation actual = catalog.functions[name]!;
           expect(
+            actual.description,
+            expected.description,
+            reason: '$name description',
+          );
+          expect(
+            actual.description,
+            isNotNull,
+            reason: '$name description is non-null',
+          );
+          expect(
             actual.argumentSchema.value,
             expected.argumentSchema.value,
             reason: '$name argument schema',
           );
           expect(actual.returnType, expected.returnType, reason: name);
+        }
+      });
+
+      test('$label writes the published document', () {
+        expect(catalog.toJson(), equals(published(path)));
+      });
+
+      test('$label components are the published ones', () {
+        final CatalogApi parsed = Catalog.fromJson(published(path));
+
+        expect(catalog.components.keys, parsed.components.keys);
+        for (final String name in parsed.components.keys) {
+          expect(
+            catalog.components[name]!.schema.value,
+            parsed.components[name]!.schema.value,
+            reason: '$name schema',
+          );
         }
       });
 
@@ -195,6 +225,74 @@ void main() {
         expect(catalog.description, document['description']);
       });
     }
+
+    test('basic_catalog files do not import runtime engine layers', () {
+      final dir = Directory('lib/src/basic_catalog');
+      final List<File> dartFiles = dir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList();
+      expect(dartFiles, isNotEmpty);
+
+      final importPattern = RegExp(
+        r'''^\s*(?:import|export)\s+['"]([^'"]+)['"]''',
+        multiLine: true,
+      );
+      const forbiddenSegments = <String>[
+        'processing/',
+        'rendering/',
+        'resolution/',
+        'rpc/',
+        'validation/',
+      ];
+
+      for (final file in dartFiles) {
+        final String normalizedPath = file.path.replaceAll(r'\', '/');
+        final String content = file.readAsStringSync();
+        for (final RegExpMatch match in importPattern.allMatches(content)) {
+          final String uri = match.group(1)!;
+          final bool isAllowedException = (normalizedPath.endsWith(
+                    'lib/src/basic_catalog/basic_catalog.dart',
+                  ) ||
+                  normalizedPath.endsWith(
+                    'lib/src/basic_catalog/function_support.dart',
+                  )) &&
+              uri == '../resolution/data_context.dart';
+          if (isAllowedException) continue;
+          for (final segment in forbiddenSegments) {
+            expect(
+              uri,
+              isNot(contains(segment)),
+              reason: '$normalizedPath must not import or export $uri',
+            );
+          }
+        }
+      }
+
+      final List<File> allLibFiles = Directory('lib')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList();
+      const allowedInboundImporters = <String>{
+        'lib/a2ui_core.dart',
+      };
+      for (final file in allLibFiles) {
+        final String normalizedPath = file.path.replaceAll(r'\', '/');
+        if (normalizedPath.contains('lib/src/basic_catalog/')) continue;
+        if (allowedInboundImporters.any(normalizedPath.endsWith)) continue;
+        final String content = file.readAsStringSync();
+        for (final RegExpMatch match in importPattern.allMatches(content)) {
+          final String uri = match.group(1)!;
+          expect(
+            uri,
+            isNot(contains('basic_catalog')),
+            reason: '$normalizedPath must not import or export $uri',
+          );
+        }
+      }
+    });
   });
 
   group('truthiness', () {
@@ -320,10 +418,11 @@ void main() {
 
       test('v0.9 treats a {valid} map as a plain, truthy object', () {
         expect(
-            _call(v09, 'not', {
-              'value': {'valid': false}
-            }),
-            isFalse);
+          _call(v09, 'not', {
+            'value': {'valid': false},
+          }),
+          isFalse,
+        );
         expect(
           _call(v09, 'and', {
             'values': [
@@ -385,19 +484,18 @@ void main() {
       dataModel.set('/count', 2);
       final DataContext context = _contextFor(
         v10,
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
         dataModel: dataModel,
       );
       expect(
         _call(
-          v10,
-          'formatString',
-          {
-            'value': r"${/name}: ${pluralize(value: /count, one: 'one', "
-                r"other: 'many')} ${not(value: false)}",
-          },
-          context: context,
-        ),
+            v10,
+            'formatString',
+            {
+              'value': r"${/name}: ${pluralize(value: /count, one: 'one', "
+                  r"other: 'many')} ${not(value: false)}",
+            },
+            context: context),
         'Ada: many true',
       );
     });
@@ -407,7 +505,7 @@ void main() {
       dataModel.set('/name', 'Ada');
       final DataContext context = _contextFor(
         v10,
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
         dataModel: dataModel,
       );
       final Object? result = FormatStringFunction().execute({
@@ -444,7 +542,9 @@ void main() {
       expect(
         _call(v10, 'required', {'value': ''}),
         const ValidationResult(
-            valid: false, message: 'This field is required.'),
+          valid: false,
+          message: 'This field is required.',
+        ),
       );
       expect(
         _call(v10, 'required', {'value': <String, Object?>{}}),
@@ -473,7 +573,7 @@ void main() {
       expect(_call(v09, 'numeric', {'value': '42.5', 'max': 100}), isTrue);
     });
 
-    test('email matches the TypeScript pattern', () {
+    test('email validates address syntax', () {
       expect(_call(v09, 'email', {'value': 'user@example.com'}), isTrue);
       expect(_call(v09, 'email', {'value': 'test@test.c'}), isFalse);
       expect(_call(v09, 'email', {'value': 'invalid-email'}), isFalse);
@@ -606,22 +706,28 @@ void main() {
       );
       expect(format('2026-09-04T14:05:09Z', 'E MMM yy ss'), 'Fri Sep 26 09');
       expect(
-          format('2026-01-02T00:07:00Z', 'M/d hh:mm HH H'), '1/2 12:07 00 0');
+        format('2026-01-02T00:07:00Z', 'M/d hh:mm HH H'),
+        '1/2 12:07 00 0',
+      );
     });
 
     test('keeps the wall-clock time of an offset timestamp', () {
       expect(format('2026-09-04T23:30:00-05:00', 'yyyy-MM-dd'), '2026-09-04');
       expect(format('2026-09-04T23:30:00-05:00', 'HH:mm'), '23:30');
       expect(format('2026-09-04T23:30:00-0530', 'HH:mm'), '23:30');
-      expect(format('2026-09-04T23:30:00+05', 'yyyy-MM-dd HH:mm'),
-          '2026-09-04 23:30');
+      expect(
+        format('2026-09-04T23:30:00+05', 'yyyy-MM-dd HH:mm'),
+        '2026-09-04 23:30',
+      );
       expect(format('2026-09-04T23:30+05', 'ISO'), '2026-09-04T18:30:00.000Z');
       expect(format('2026-09-04T23:30:00.5z', 'HH:mm'), '23:30');
     });
 
     test('treats a timestamp without an offset as UTC', () {
-      expect(format('2026-09-04T23:30:00', 'yyyy-MM-dd HH:mm'),
-          '2026-09-04 23:30');
+      expect(
+        format('2026-09-04T23:30:00', 'yyyy-MM-dd HH:mm'),
+        '2026-09-04 23:30',
+      );
       expect(format('2026-09-04', 'MMM d'), 'Sep 4');
     });
 
@@ -651,8 +757,10 @@ void main() {
       expect(format('2026-01-01T25:00:00Z', 'HH'), '');
       // Leap days and month ends that exist are unaffected.
       expect(format('2024-02-29', 'yyyy-MM-dd'), '2024-02-29');
-      expect(format('2026-01-31T23:59:59Z', 'yyyy-MM-dd HH:mm:ss'),
-          '2026-01-31 23:59:59');
+      expect(
+        format('2026-01-31T23:59:59Z', 'yyyy-MM-dd HH:mm:ss'),
+        '2026-01-31 23:59:59',
+      );
     });
   });
 
@@ -700,7 +808,9 @@ void main() {
       final opened = <Uri>[];
       final _RendererCatalog catalog = BasicCatalog.v1_0(openUrl: opened.add);
       expect(
-          _call(catalog, 'openUrl', {'url': 'https://example.com/a'}), isNull);
+        _call(catalog, 'openUrl', {'url': 'https://example.com/a'}),
+        isNull,
+      );
       expect(opened, [Uri.parse('https://example.com/a')]);
     });
 

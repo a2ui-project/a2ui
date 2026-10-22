@@ -41,6 +41,8 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
 ) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'references',
+      // `Child` is a v1.0 common type.
+      protocolVersion: A2uiProtocolVersion.v1_0,
       components: [
         ComponentApi(name: 'Parent', schema: Schema.fromMap(schema)),
         ComponentApi(name: 'Leaf', schema: Schema.object()),
@@ -53,6 +55,8 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
 }) {
   final CatalogApi parsed = Catalog.fromJson({
     'catalogId': 'wire-references',
+    // `Child` is a v1.0 common type.
+    'protocolVersion': 'v1.0',
     r'$defs': definitions,
     'components': {
       'Parent': schema,
@@ -63,7 +67,9 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
   // has no functions.
   return Catalog<ComponentApi, FunctionImplementation>(
     id: parsed.id,
+    protocolVersion: parsed.protocolVersion,
     components: parsed.components.values.toList(),
+    definitions: parsed.definitions,
   );
 }
 
@@ -81,7 +87,7 @@ void _add(
     surface.componentsModel.addComponent(ComponentModel(id, type, properties));
 
 _Fixture _fixture(Catalog<ComponentApi, FunctionImplementation> catalog) {
-  final surface = SurfaceModel<ComponentApi>('s', catalog: catalog);
+  final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(() {
     resolver.dispose();
@@ -106,7 +112,7 @@ void _expectFields(
   );
   final RefFields resolution = extractRefFields(
     catalog.components['Parent']!.schema,
-    document: catalog.catalogSchema,
+    document: catalog.validationSchema,
   );
   final ComponentRefFields? validation = extractComponentRefFields(
     catalog,
@@ -548,6 +554,42 @@ void main() {
         );
         expect(schemas.last['required'], ['condition', 'local']);
       });
+
+      test('ComponentRefMap classifies against the injected document', () {
+        // `Slot` exists only in this document; through it the property is a
+        // structural child-list template, without it the pointer dangles.
+        final slotDocument = <String, Object?>{
+          r'$defs': <String, Object?>{
+            'Slot': <String, Object?>{
+              'type': 'object',
+              'properties': <String, Object?>{
+                'componentId': <String, Object?>{'type': 'string'},
+                'path': <String, Object?>{'type': 'string'},
+              },
+            },
+          },
+        };
+        final componentSchemas = <String, Map<String, Object?>>{
+          'Panel': <String, Object?>{
+            'type': 'object',
+            'properties': <String, Object?>{
+              'body': <String, Object?>{
+                r'$ref': r'common_types.json#/$defs/Slot',
+              },
+            },
+          },
+        };
+
+        expect(
+          ComponentRefMap(componentSchemas, commonTypes: slotDocument)
+              .fieldsFor('Panel'),
+          {
+            'body': isA<ListRef>()
+                .having((ref) => ref.inferred, 'inferred', isTrue),
+          },
+        );
+        expect(ComponentRefMap(componentSchemas).fieldsFor('Panel'), isEmpty);
+      });
     });
   });
 
@@ -557,12 +599,12 @@ void main() {
     ) {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v1_0,
         // Strict, so that a dangling reference is rejected: these cases are
         // about the validator and the resolver reading one reference map.
         validationConfig: ValidationConfig.strict,
       );
-      addTearDown(processor.groupModel.dispose);
+      addTearDown(processor.model.dispose);
       return processor;
     }
 
@@ -574,14 +616,14 @@ void main() {
     ) =>
         AgentToRendererMessage.parseAll([
           {
-            'version': 'v0.9',
+            'version': 'v1.0',
             'createSurface': {'surfaceId': 's', 'catalogId': catalogId},
           },
           {
-            'version': 'v0.9',
+            'version': 'v1.0',
             'updateComponents': {'surfaceId': 's', 'components': components},
           },
-        ], protocolVersion: A2uiProtocolVersion.v0_9);
+        ], protocolVersion: A2uiProtocolVersion.v1_0);
 
     Matcher danglingAt(String id, String field) => throwsA(
           isA<A2uiValidationError>().having(
@@ -598,7 +640,7 @@ void main() {
       final MessageProcessor<ComponentApi> processor = processorFor(catalog);
       processor.processMessages(createAndUpdate(catalog.id, components));
       final resolver = NodeResolver<ComponentApi>(
-        processor.groupModel.getSurface('s')!,
+        processor.model.getSurface('s')!,
       );
       addTearDown(resolver.dispose);
       return resolver.rootNode.peek()!.props.peek();
@@ -768,32 +810,32 @@ void main() {
           });
           final processor = MessageProcessor<ComponentApi>(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            defaultVersion: A2uiProtocolVersion.v1_0,
           );
           processor.processMessages(
             AgentToRendererMessagePayload.of(
               CreateSurfaceMessage(
-                  version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
+                  version: 'v1.0', surfaceId: 's', catalogId: catalog.id),
             ),
           );
           final SurfaceModel<ComponentApi> surface =
-              processor.groupModel.getSurface('s')!;
+              processor.model.getSurface('s')!;
           final resolver = NodeResolver<ComponentApi>(surface);
           addTearDown(() {
             resolver.dispose();
-            processor.groupModel.dispose();
+            processor.model.dispose();
           });
           void process(List<Map<String, Object?>> components) {
             processor.processMessages(
               AgentToRendererMessage.parseAll([
                 {
-                  'version': 'v0.9',
+                  'version': 'v1.0',
                   'updateComponents': {
                     'surfaceId': 's',
                     'components': components,
                   },
                 },
-              ], protocolVersion: A2uiProtocolVersion.v0_9),
+              ], protocolVersion: A2uiProtocolVersion.v1_0),
             );
           }
 
@@ -835,30 +877,30 @@ void main() {
       });
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v1_0,
         validationConfig: const ValidationConfig(allowDanglingReferences: true),
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
           CreateSurfaceMessage(
-              version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
+              version: 'v1.0', surfaceId: 's', catalogId: catalog.id),
         ),
       );
       final SurfaceModel<ComponentApi> surface =
-          processor.groupModel.getSurface('s')!;
+          processor.model.getSurface('s')!;
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
-        processor.groupModel.dispose();
+        processor.model.dispose();
       });
       void process(List<Map<String, Object?>> components) {
         processor.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v0.9',
+              'version': 'v1.0',
               'updateComponents': {'surfaceId': 's', 'components': components},
             },
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
+          ], protocolVersion: A2uiProtocolVersion.v1_0),
         );
       }
 

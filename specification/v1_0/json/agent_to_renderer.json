@@ -28,8 +28,8 @@
               "description": "The unique identifier for the UI surface to be rendered. It must be globally unique for the renderer's lifetime."
             },
             "catalogId": {
-              "description": "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function calls that do not explicitly specify a catalogId will use this surface-level default catalogId.",
-              "type": "string"
+              "type": "string",
+              "description": "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function calls that do not explicitly specify a catalogId will use this surface-level default catalogId."
             },
             "sendDataModel": {
               "type": "boolean",
@@ -177,6 +177,10 @@
           "type": "object",
           "description": "Signals the renderer to execute a function locally on behalf of the agent.",
           "properties": {
+            "surfaceId": {
+              "type": "string",
+              "description": "Optional ID of the surface whose data model provides the evaluation context for this call. If omitted, the function executes in a surface-independent root context with an empty data model."
+            },
             "functionCallId": {
               "$ref": "common_types.json#/$defs/CallId",
               "description": "Unique ID for this instance of the function call. The renderer MUST copy this ID into the return response."

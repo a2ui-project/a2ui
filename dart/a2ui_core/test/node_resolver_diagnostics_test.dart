@@ -20,7 +20,7 @@ import 'package:logging/logging.dart';
 import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
-Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
+Catalog<ComponentApi, FunctionImplementation> _catalog() => _MutableCatalog(
       id: 'diagnostic-test',
       components: [
         ComponentApi(name: 'Text', schema: Schema.object()),
@@ -37,6 +37,18 @@ Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
       ],
     );
 
+/// A catalog whose components a test may add and remove while a surface
+/// uses it. [Catalog.components] is unmodifiable, so the tests that change
+/// the catalog under a live resolver work on a copy of it.
+class _MutableCatalog extends Catalog<ComponentApi, FunctionImplementation> {
+  _MutableCatalog({required super.id, required super.components});
+
+  late final Map<String, ComponentApi> _components = {...super.components};
+
+  @override
+  Map<String, ComponentApi> get components => _components;
+}
+
 void _add(
   SurfaceModel<ComponentApi> surface,
   String id,
@@ -48,13 +60,13 @@ void _add(
 void main() {
   late SurfaceModel<ComponentApi> surface;
   late NodeResolver<ComponentApi> resolver;
-  late List<A2uiClientError> errors;
+  late List<A2uiRendererError> errors;
 
   setUp(() {
-    surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+    surface = SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
     resolver = NodeResolver(surface);
     errors = [];
-    surface.onError.addListener(errors.add);
+    surface.onError.subscribe(errors.add);
   });
 
   tearDown(() {
@@ -221,7 +233,7 @@ void main() {
 
         // The existing card remains resolved, while a new reference cannot find
         // an implementation. Both conditions concern card at the root scope.
-        surface.catalog.components.remove('Card');
+        surface.defaultCatalog!.components.remove('Card');
         surface.componentsModel.get('other')!.properties = {'child': 'card'};
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
         expect(reports('CYCLIC_REFERENCE'), 1);
@@ -263,7 +275,7 @@ void main() {
         });
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
 
-        surface.catalog.components['Bogus'] = ComponentApi(
+        surface.defaultCatalog!.components['Bogus'] = ComponentApi(
           name: 'Bogus',
           schema: Schema.object(),
         );
@@ -271,7 +283,7 @@ void main() {
           'children': ['weird'],
         };
         expect(children().single.state, NodeState.resolved);
-        surface.catalog.components.remove('Bogus');
+        surface.defaultCatalog!.components.remove('Bogus');
         // Removing and restoring only the edge forces a fresh catalog lookup.
         surface.componentsModel.get('root')!.properties = {
           'children': <String>[],
@@ -315,7 +327,7 @@ void main() {
         'children': ['leaf', 'root'],
       });
       expect(reports('CYCLIC_REFERENCE'), 1);
-      children().first.onDestroyed.addListener((_) {
+      children().first.onDestroyed.subscribe((_) {
         _add(surface, 'root', 'Column', {
           'children': ['root'],
         });
@@ -336,7 +348,7 @@ void main() {
       () {
         // Register the replacement listener before the resolver.
         resolver.dispose();
-        surface.componentsModel.onDeleted.addListener((id) {
+        surface.componentsModel.onDeleted.subscribe((id) {
           if (id == 'weird') _add(surface, id, 'OtherBogus');
         });
         resolver = NodeResolver(surface);
@@ -358,5 +370,87 @@ void main() {
         expect(resolver.activeNodeCount, 3);
       },
     );
+  });
+
+  group('NodeResolver missing data bindings', () {
+    late SurfaceModel<ComponentApi> boundSurface;
+    late NodeResolver<ComponentApi> boundResolver;
+    late List<A2uiWarning> warnings;
+
+    setUp(() {
+      boundSurface = SurfaceModel<ComponentApi>(
+        'bound',
+        defaultCatalog: Catalog(
+          id: 'bound-catalog',
+          components: [
+            ComponentApi(
+              name: 'Label',
+              schema: Schema.object(
+                properties: {'text': CommonSchemas.dynamicString},
+              ),
+            ),
+            ComponentApi(
+              name: 'Column',
+              schema: Schema.object(
+                properties: {'children': CommonSchemas.childList},
+              ),
+            ),
+          ],
+        ),
+      );
+      warnings = [];
+      boundSurface.onWarning.subscribe(warnings.add);
+      boundResolver = NodeResolver(boundSurface);
+      addTearDown(() {
+        boundResolver.dispose();
+        boundSurface.dispose();
+      });
+    });
+
+    test('warns once per unresolved path after the tree commits', () {
+      final rootsAtWarning = <ComponentNode?>[];
+      boundSurface.onWarning.subscribe(
+        (_) => rootsAtWarning.add(boundResolver.rootNode.peek()),
+      );
+      boundSurface.dataModel.set('/present', 'here');
+      _add(boundSurface, 'a', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      _add(boundSurface, 'b', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      _add(boundSurface, 'c', 'Label', {
+        'text': {'path': '/present'},
+      });
+      _add(boundSurface, 'd', 'Label', {
+        'text': {'path': '/other'},
+      });
+      _add(boundSurface, 'root', 'Column', {
+        'children': ['a', 'b', 'c', 'd'],
+      });
+
+      expect(
+        [for (final warning in warnings) (warning.code, warning.path)],
+        [
+          ('MISSING_DATA_BINDING', '/missing'),
+          ('MISSING_DATA_BINDING', '/other')
+        ],
+      );
+      expect(warnings.first.surfaceId, 'bound');
+      expect(rootsAtWarning, everyElement(isNotNull));
+
+      // Rebuilding a binding to the same missing path does not warn again.
+      boundSurface.componentsModel.get('a')!.properties = {
+        'text': {'path': '/missing'},
+      };
+      expect(warnings, hasLength(2));
+    });
+
+    test('does not warn for a binding outside a mounted node', () {
+      _add(boundSurface, 'orphan', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      expect(warnings, isEmpty);
+    });
   });
 }

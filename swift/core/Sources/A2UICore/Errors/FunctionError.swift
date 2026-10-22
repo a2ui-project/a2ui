@@ -22,8 +22,38 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
   case securityConstraintViolation(String)
   case executionFailed(name: String, message: String)
   case timeout(callID: String)
+  case cancelled(callID: String)
+  case disposed(callID: String)
+  case duplicate(callID: String)
+  case noListener(name: String)
   case callerDisallowed(name: String, caller: String)
   case remoteError(code: String, message: String)
+
+  /// Standardized RPC error code corresponding to this error.
+  public var rpcCode: String {
+    switch self {
+    case .functionNotFound,
+      .missingArgument,
+      .invalidArgumentType,
+      .securityConstraintViolation,
+      .callerDisallowed:
+      return "INVALID_FUNCTION_CALL"
+    case .executionFailed:
+      return "EXECUTION_ERROR"
+    case .timeout:
+      return "TIMEOUT"
+    case .cancelled:
+      return "CANCELLED"
+    case .disposed:
+      return "DISPOSED"
+    case .duplicate:
+      return "DUPLICATE"
+    case .noListener:
+      return "NO_LISTENER"
+    case .remoteError(let code, _):
+      return code
+    }
+  }
 
   public var description: String {
     switch self {
@@ -39,6 +69,14 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
       return "Execution failed for \(name): \(message)"
     case .timeout(let callID):
       return "Function call timed out: \(callID)"
+    case .cancelled(let callID):
+      return "Function call cancelled: \(callID)"
+    case .disposed(let callID):
+      return "Function call disposed: \(callID)"
+    case .duplicate(let callID):
+      return "Duplicate functionCallId: \(callID)"
+    case .noListener(let name):
+      return "No outbound listener registered to invoke function '\(name)'"
     case .callerDisallowed(let name, let caller):
       return "Caller '\(caller)' is not allowed to invoke function '\(name)'"
     case .remoteError(let code, let message):

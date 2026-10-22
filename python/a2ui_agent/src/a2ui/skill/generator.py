@@ -14,11 +14,19 @@
 
 """SkillGenerator for compiling InferenceFormat and Catalog into Skill and SkillSet packages."""
 
-from typing import Any, Optional, Union
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Optional
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.skill.skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
+
+from .skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
+
+__all__ = [
+    "SkillGenerator",
+]
 
 
 class SkillGenerator:
@@ -31,7 +39,7 @@ class SkillGenerator:
         self,
         name: str = "a2ui",
         description: Optional[str] = None,
-        catalogs: Optional[list[Union[str, CatalogApi]]] = None,
+        catalogs: Optional[Sequence[CatalogApi]] = None,
     ) -> Skill:
         """Compiles an InferenceFormat into a single unified (monolithic) Skill.
 
@@ -121,9 +129,10 @@ class SkillGenerator:
         if examples:
             cat_body += f"\n\n### Examples:\n\n{examples}"
 
+        # The catalog document's own `description` describes the catalog, not
+        # when to use the skill, so it is not used here.
         desc = (
             description
-            or getattr(catalog, "description", None)
             or f"UI component catalog signatures for {clean_name}. Use when building {clean_name} user interface components."
         )
 
@@ -156,7 +165,7 @@ class SkillGenerator:
 
     def generate_skillset(
         self,
-        catalogs: Optional[list[Union[str, CatalogApi]]] = None,
+        catalogs: Optional[Sequence[CatalogApi]] = None,
         core_name: str = "a2ui-core",
     ) -> SkillSet:
         """Generates standard modular skills (a2ui-core + 1 skill per catalog) for an inference format.

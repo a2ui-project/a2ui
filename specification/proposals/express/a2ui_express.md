@@ -33,12 +33,34 @@ The syntax rules define how types, structures, data paths, and validation action
 
 Every component definition is assigned to a unique variable identifier, or constructed inline directly within a parent component's argument list. A reserved variable named `root` acts as the primary entry point for the interface tree.
 
-To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)):
+To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)), matching the [Catalog Entity Naming Rules](../../v1_0/docs/a2ui_protocol.md#catalog-entity-naming-rules):
 
-- An identifier must start with a Unicode letter or an underscore `_`.
-- Subsequent characters must be Unicode letters, digits (`0-9`), or underscores `_`.
+- The first character must be in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`).
+- Subsequent characters must be in the Unicode property class `XID_Continue`.
+- In canonical regular-expression syntax: `^[\p{XID_Start}_][\p{XID_Continue}]*$`.
+- Reserved tokens (`true`, `false`, `null`, `_`) cannot be used as variable identifiers, and `root` is reserved for the surface root component.
 
 A2UI Express supports flexible hybrid component nesting: child components can either be defined inline (e.g., `Card(child=Text("Hello"))`) or assigned to top-level variables and referenced by name (e.g., `header = Text("Hello")` and `root = Card(child=header)`).
+
+#### Component IDs
+
+By default, a component's Express variable name becomes its A2UI component `"id"` in the compiled JSON (for example, `root = Column([grid])` compiles to a component with `"id": "root"`).
+
+In protocol versions before v1.0, a component `"id"` can be any string (such as `"content-grid"`, which contains a hyphen `-`), whereas an Express variable name must be a UAX #31 identifier so `-` is not mistaken for subtraction. To produce an A2UI component `"id"` that differs from its Express variable name (such as a pre-v1.0 hyphenated ID, or a reserved word like `"true"`), assign the component to a valid Express variable name (such as `grid`), reference that variable in parent child lists, and pass the target A2UI ID via the reserved `id=` keyword argument:
+
+```
+root = Column([grid])
+grid = Row([left, right], id="content-grid")
+```
+
+Here `root` compiles with `"id": "root"` and `"children": ["content-grid"]`, while `grid` compiles with `"id": "content-grid"`. The `id=` keyword argument works the same way on an inline component, and every catalog accepts it. For protocol versions before v1.0, when the decompiler encounters a component ID like `"content-grid"`, it derives a valid variable name (`content_grid`) and emits `id="content-grid"`. From protocol v1.0 onward, component IDs must themselves be valid UAX #31 identifiers, so the decompiler rejects non-UAX #31 component IDs rather than deriving a variable name (reserved words such as `"true"` are valid UAX #31 identifiers and continue to be derived as `_true` with `id="true"`).
+
+When updating an existing surface and referencing a child component ID that was created in an earlier turn (and is not defined in the current block), write the ID as a bare identifier if it is a valid variable name, or as a quoted string if it contains characters like hyphens:
+
+```
+surface("dashboard-surface-1")
+main_column = Column([earlier_header, "earlier-body"])
+```
 
 ### Argument passing (positional and keyword)
 
@@ -135,15 +157,34 @@ Form validation checks are defined using the `?` prefix. If a component expects 
 
 To execute standalone lifecycle operations or invoke client-side functions directly from the server, A2UI Express supports standalone function call lines without variable assignments:
 
-#### Surface targeting
+#### Creating or updating a surface
 
-To specify or target a user interface surface, output `surface(surfaceId)` or `surface(surfaceId, catalogId)` before component variable definitions:
+To create or target a user interface surface, output `surface(surfaceId)` before component variable definitions:
 
 ```
 surface("dashboard-surface-1")
+root = Card(...)
 ```
 
-The compiler automatically emits `createSurface` or `updateComponents` protocol envelopes depending on whether the surface is being instantiated or updated in the active session. If `surface()` is omitted, the compiler falls back to the default surface identifier (`"default_surface"`).
+The optional `sendDataModel=true` keyword argument (`surface("dashboard-surface-1", sendDataModel=true)`) sets the `sendDataModel` flag of the `createSurface` message. To update components (including `root`) on an existing surface rather than creating a new surface, pass `update=true`: `surface("dashboard-surface-1", update=true)`.
+
+The statements after `surface(...)`, up to the next surface statement, form one scope. By default, a scope that defines `root` compiles to a `createSurface` message (or for v0.9 and v0.9.1 targets, a bare `createSurface` followed by `updateComponents` and `updateDataModel`), while a scope that defines components without `root` compiles to an `updateComponents` message (plus `updateDataModel` if data paths are assigned). Specifying `update=true` compiles the scope to an `updateComponents` message even if `root` is defined, allowing updates to the root container of an existing surface. If `surface()` is omitted, the compiler uses the surface ID passed to it (`"default_surface"` by default). A scope that only assigns data paths compiles to an `updateDataModel` message.
+
+#### Catalogs
+
+With a single catalog, `createSurface` carries that catalog's `catalogId` (and `surface(surfaceId, catalogId)` is optional). With multiple catalogs (supported in v1.0 and newer), `createSurface` omits `catalogId`, naming a catalog on `surface(...)` is an error, and every compiled component and function call carries its own `catalogId`.
+
+A component or function call written without a `catalogId` resolves by name across the active catalogs when exactly one catalog defines it, and requires an explicit `catalogId` override when multiple catalogs define that name. From v1.0, a component or function call can specify its catalog with a `catalogId` keyword argument, and a check takes a `{catalogId: ...}` map argument:
+
+```
+widget = Chart($/sales, catalogId="https://example.com/charts.json")
+action = shareLink($/url, catalogId="https://example.com/sharing.json")
+field = TextField("Zip", $/zip, checks=[?zipCode({catalogId: "https://example.com/checks.json"})])
+```
+
+The decompiler writes a `catalogId` only when the component or function name is defined in more than one active catalog (or differs from the single registered catalog). The v0.9 and v0.9.1 schemas allow `catalogId` only on `createSurface`, so for those targets the compiler rejects multiple catalogs and per-component or per-function `catalogId` overrides.
+
+> **Note:** The multi-catalog behavior described above is implemented in the Python and TypeScript SDKs. The Dart Express compiler does not yet support v1.0 (`dart/a2ui_agent/lib/src/inference_formats/express/compiler.dart`); see `dart/a2ui_agent/test/conformance/multi_catalog_formats_conformance_test.dart` for current conformance status.
 
 #### Deleting a surface
 
@@ -164,7 +205,7 @@ deleteSurface("dashboard-surface-1")
 
 #### Executing client-side functions (RPC)
 
-When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a `callRendererFunction` message with an auto-generated `functionCallId`:
+When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a `callRendererFunction` message with an auto-generated `functionCallId`. The call resolves its catalog from an explicit `catalogId` keyword argument, or else by function name across the active catalogs:
 
 ```
 openUrl("https://example.com")
@@ -176,17 +217,23 @@ openUrl("https://example.com")
   "callRendererFunction": {
     "functionCallId": "call_1",
     "callFunction": {
-      "catalogId": "https://a2ui.org/catalog.json",
-      "call": "openUrl",
+      "@call": "openUrl",
       "args": {
         "url": "https://example.com"
-      }
+      },
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     }
   }
 }
 ```
 
-The `functionCallId` and the `callFunction` both sit inside `callRendererFunction`, and `catalogId` is required on the call. See `CallRendererFunctionMessage` in `specification/v1_0/json/agent_to_renderer.json` for the normative definition.
+The n-th standalone call of a block gets the `functionCallId` `call_<n>`. To set another ID, pass the reserved `functionCallId` keyword argument, which every catalog accepts: `openUrl("https://example.com", functionCallId="open-docs")`. The decompiler writes the argument only when the ID differs from the one the compiler would generate.
+
+The `functionCallId` and the `callFunction` both sit inside `callRendererFunction`, and `catalogId` is required on the call. See `CallRendererFunctionMessage` in `specification/v1_0/json/agent_to_renderer.json` for the normative definition. `callRendererFunction` exists only in v1.0, so the compiler rejects a standalone function call for v0.9 and v0.9.1 targets.
+
+#### v1.0 binding keys
+
+For v1.0 targets, the compiler writes data bindings as `{"@path": ...}` and function calls as `{"@call": ..., "args": ...}`, the reserved keys of the v1.0 common types. For v0.9 and v0.9.1 targets, it writes `path` and `call`.
 
 ## Compilation pipeline
 
@@ -300,14 +347,14 @@ The compiler parses the text stream, resolves the parent-child references, maps 
         "id": "icon",
         "component": "Icon",
         "name": {
-          "path": "/icon"
+          "@path": "/icon"
         }
       },
       {
         "id": "title",
         "component": "Text",
         "text": {
-          "path": "/title"
+          "@path": "/title"
         },
         "variant": "h3"
       },
@@ -315,7 +362,7 @@ The compiler parses the text stream, resolves the parent-child references, maps 
         "id": "description",
         "component": "Text",
         "text": {
-          "path": "/description"
+          "@path": "/description"
         },
         "variant": "body"
       },

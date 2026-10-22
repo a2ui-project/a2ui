@@ -17,7 +17,8 @@ import 'package:logging/logging.dart';
 import '../core/catalog.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
-import '../rendering/binder.dart' show ChildNode;
+import 'component_context.dart' show ComponentContext;
+import 'generic_binder.dart' show ChildNode;
 import 'resolved_binding.dart';
 
 final _log = Logger('a2ui_core.resolution');
@@ -93,6 +94,13 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   /// Why this node is or is not resolved.
   NodeState get state;
 
+  /// The context this node's properties resolve and dispatch actions
+  /// through; null for a placeholder.
+  ///
+  /// Its data context links to the parent node's data context and, for a
+  /// template child, records the item's iteration index.
+  ComponentContext? get context;
+
   /// Resolved, reactive properties. Read without subscribing via `peek()`.
   ///
   /// Published JSON containers, including binding values and the outer props
@@ -106,7 +114,7 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   /// Fires exactly once, when this node is disposed. Listener failures are
   /// logged individually and do not interrupt the remaining teardown.
   /// Listeners added during or after destruction notification are not called.
-  EventListenable<void> get onDestroyed;
+  EventSource<void> get onDestroyed;
 
   bool get disposed;
 
@@ -158,7 +166,10 @@ final class MutableComponentNode<T extends ComponentApi>
   final _onDestroyed = _DestructionListeners();
 
   @override
-  EventListenable<void> get onDestroyed => _onDestroyed;
+  EventSource<void> get onDestroyed => _onDestroyed;
+
+  @override
+  ComponentContext? context;
 
   // Null once the cleanup pass has finished, before destruction notification.
   List<void Function()>? _cleanups = [];
@@ -245,33 +256,50 @@ final class MutableComponentNode<T extends ComponentApi>
   }
 }
 
+class _DestructionSubscription implements Subscription {
+  final _DestructionListeners _notifier;
+  void Function(void)? _listener;
+
+  _DestructionSubscription(this._notifier, this._listener);
+
+  @override
+  void unsubscribe() {
+    if (_listener == null) return;
+    _listener = null;
+    _notifier._subscriptions.remove(this);
+  }
+}
+
 // Destruction must attempt every listener, so a failure is logged instead of
 // propagated.
-class _DestructionListeners implements EventListenable<void> {
-  final List<void Function(void)> _listeners = [];
+class _DestructionListeners implements EventSource<void> {
+  final List<_DestructionSubscription> _subscriptions = [];
 
   @override
-  void addListener(void Function(void) listener) => _listeners.add(listener);
-
-  @override
-  void removeListener(void Function(void) listener) =>
-      _listeners.remove(listener);
+  Subscription subscribe(void Function(void) listener) {
+    final sub = _DestructionSubscription(this, listener);
+    _subscriptions.add(sub);
+    return sub;
+  }
 
   void notify(String instanceId) {
-    final List<void Function(void)> listeners = List.of(_listeners);
-    _listeners.clear();
-    for (final listener in listeners) {
-      try {
-        listener(null);
-      } catch (error, stackTrace) {
-        _log.severe(
-          'ComponentNode destruction listener error ($instanceId)',
-          error,
-          stackTrace,
-        );
+    final subscriptions = List<_DestructionSubscription>.of(_subscriptions);
+    _subscriptions.clear();
+    for (final sub in subscriptions) {
+      final void Function(void)? listener = sub._listener;
+      if (listener != null) {
+        sub._listener = null;
+        try {
+          listener(null);
+        } catch (error, stackTrace) {
+          _log.severe(
+            'ComponentNode destruction listener error ($instanceId)',
+            error,
+            stackTrace,
+          );
+        }
       }
     }
-    _listeners.clear();
   }
 }
 

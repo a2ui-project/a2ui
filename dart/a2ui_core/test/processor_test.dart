@@ -12,19 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/src/core/catalog.dart';
-import 'package:a2ui_core/src/core/common_schemas.dart';
-import 'package:a2ui_core/src/core/component_model.dart';
-import 'package:a2ui_core/src/core/messages.dart';
-import 'package:a2ui_core/src/core/minimal_catalog.dart';
-import 'package:a2ui_core/src/core/surface_model.dart';
-import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/primitives/protocol_version.dart';
-import 'package:a2ui_core/src/processing/processor.dart';
-import 'package:a2ui_core/src/resolution/node_resolver.dart';
-import 'package:a2ui_core/src/validation/validation_config.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
+
+import 'support/test_catalog.dart';
 
 void main() {
   group('MessageProcessor catalog scope', () {
@@ -34,6 +26,7 @@ void main() {
     ) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
+          protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
             ComponentApi(
               name: component,
@@ -55,7 +48,7 @@ void main() {
     setUp(() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [namedCatalog('cat1', 'Alpha'), namedCatalog('cat2', 'Beta')],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
         // Strict, so that a type outside the surface's catalog is rejected.
         validationConfig: ValidationConfig.strict,
       );
@@ -98,7 +91,10 @@ void main() {
     test('builds one validator per catalog and reuses it', () {
       final Catalog<ComponentApi, FunctionImplementation> cat1 =
           processor.catalogs.first;
-      expect(processor.validatorFor(cat1).catalog.id, 'cat1');
+      expect(
+        processor.validatorFor(cat1).catalog.id,
+        'cat1',
+      );
       expect(
         processor.validatorFor(cat1),
         same(processor.validatorFor(cat1)),
@@ -111,15 +107,64 @@ void main() {
     });
   });
 
+  group('MessageProcessor available catalogs', () {
+    Catalog<ComponentApi, FunctionImplementation> catalogNamed(
+      String id, {
+      A2uiProtocolVersion? protocolVersion,
+    }) =>
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: id,
+          components: const [],
+          protocolVersion: protocolVersion,
+        );
+
+    Map<String, Catalog<ComponentApi, FunctionImplementation>> availableFor(
+      A2uiProtocolVersion version, {
+      required String catalogId,
+    }) {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [
+          catalogNamed('modern', protocolVersion: A2uiProtocolVersion.v1_0),
+          catalogNamed('legacy'),
+        ],
+        defaultVersion: version,
+      );
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            version: version.jsonValue,
+            surfaceId: 's1',
+            catalogId: catalogId,
+          ),
+        ]),
+      );
+      return processor.model.getSurface('s1')!.availableCatalogs;
+    }
+
+    test('a v1.0 surface excludes unversioned catalogs', () {
+      expect(
+        availableFor(A2uiProtocolVersion.v1_0, catalogId: 'modern').keys,
+        ['modern'],
+      );
+    });
+
+    test('a v0.9 surface includes unversioned catalogs', () {
+      expect(
+        availableFor(A2uiProtocolVersion.v0_9, catalogId: 'legacy').keys,
+        ['legacy'],
+      );
+    });
+  });
+
   group('MessageProcessor', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
     late MessageProcessor processor;
 
     setUp(() {
-      catalog = MinimalCatalog();
+      catalog = TestCatalog();
       processor = MessageProcessor(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
     });
 
@@ -132,7 +177,7 @@ void main() {
       /// relax the checks that span payloads; see [ValidationConfig].
       MessageProcessor streaming() => MessageProcessor(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            defaultVersion: A2uiProtocolVersion.v0_9,
             validationConfig: ValidationConfig.relaxed,
           );
 
@@ -217,7 +262,7 @@ void main() {
               ),
             ]),
           ),
-          throwsA(isA<A2uiRecursionError>()),
+          throwsA(isA<A2uiIntegrityError>()),
         );
       });
 
@@ -249,7 +294,7 @@ void main() {
           ),
           throwsA(isA<A2uiIntegrityError>()),
         );
-        final SurfaceModel surface = processor.groupModel.getSurface('s1')!;
+        final SurfaceModel surface = processor.model.getSurface('s1')!;
         expect(surface.componentsModel.get('b'), isNull);
         expect(surface.componentsModel.get('a'), isNotNull);
       });
@@ -279,7 +324,7 @@ void main() {
       );
 
       final SurfaceModel<ComponentApi> surface =
-          processor.groupModel.getSurface('s1')!;
+          processor.model.getSurface('s1')!;
       expect(surface.dataModel.get('/greeting'), 'hello');
     });
 
@@ -291,7 +336,7 @@ void main() {
         ),
       );
 
-      expect(processor.groupModel.getSurface('s1'), isNotNull);
+      expect(processor.model.getSurface('s1'), isNotNull);
     });
 
     test('processMessages applies a parsed payload', () {
@@ -306,24 +351,188 @@ void main() {
 
       processor.processMessages(payload);
 
-      expect(processor.groupModel.getSurface('s1'), isNotNull);
+      expect(processor.model.getSurface('s1'), isNotNull);
     });
 
-    test('getClientCapabilities does not corrupt shared schemas', () {
+    test('getRendererCapabilities emits both inline catalog shapes', () {
       final Object? descBefore =
           CommonSchemas.dynamicString.value['description'];
 
-      processor.getClientCapabilities(includeInlineCatalogs: true);
+      final Map<String, Object?> json = processor
+          .getRendererCapabilities(
+            const CapabilitiesOptions(
+              versions: [A2uiProtocolVersion.v0_9, A2uiProtocolVersion.v1_0],
+              includeInlineCatalogs: true,
+            ),
+          )
+          .toJson();
 
-      // _processRefs mutates maps in-place to replace commonTypesRef metadata
-      // with $ref pointers. If toJsonMap uses a shallow copy, the shared
-      // CommonSchemas statics are corrupted.
+      Map<String, Object?> firstInline(String version) =>
+          ((json[version]! as Map)['inlineCatalogs'] as List).first
+              as Map<String, Object?>;
+
+      // Below v1.0: the legacy shape, with components wrapped in the
+      // ComponentCommon envelope and no `$schema`. Button's schema is an
+      // allOf of CommonSchemas.checkable and an object; the body carries the
+      // properties the catalog document serializes for it, minus `id`.
+      final Map<String, Object?> legacy = firstInline('v0.9');
+      expect(legacy.containsKey(r'$schema'), isFalse);
+      final button = (legacy['components']! as Map)['Button'] as Map;
+      final buttonMembers = button['allOf'] as List;
+      expect(buttonMembers.first, {
+        r'$ref': r'common_types.json#/$defs/ComponentCommon',
+      });
+      final buttonBody = buttonMembers[1] as Map;
+      final documentButton =
+          (catalog.validationSchema['components']! as Map)['Button'] as Map;
+      expect(buttonBody.keys, ['properties', 'required']);
+      expect((buttonBody['properties'] as Map).keys, [
+        'component',
+        for (final Object? key in (documentButton['properties'] as Map).keys)
+          if (key != 'id' && key != 'component') key,
+      ]);
+      expect(
+        (buttonBody['properties'] as Map)['component'],
+        {'const': 'Button'},
+      );
+      expect(buttonBody['required'], [
+        'component',
+        for (final Object? key in documentButton['required'] as List)
+          if (key != 'id' && key != 'component') key,
+      ]);
+
+      // At v1.0: the catalog document.
+      final Map<String, Object?> current = firstInline('v1.0');
+      expect(current[r'$schema'], Catalog.jsonSchemaDialect);
+      expect(current['catalogId'], catalog.id);
+      expect(
+        ((current[r'$defs']! as Map)['anyComponent'] as Map)['oneOf'],
+        contains(equals({r'$ref': '#/components/Button'})),
+      );
+
+      // The emitter must work on copies rather than on the shared
+      // CommonSchemas statics or the memoized catalog document.
       expect(
         CommonSchemas.dynamicString.value['description'],
         equals(descBefore),
-        reason: 'CommonSchemas.dynamicString should not be mutated by '
-            'getClientCapabilities',
       );
+    });
+
+    group('getRendererDataModel', () {
+      late MessageProcessor<ComponentApi> dataProcessor;
+      final v09Catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-v09',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        components: [ComponentApi(name: 'Alpha', schema: Schema.object())],
+      );
+      final v10Catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-v10',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [ComponentApi(name: 'Alpha', schema: Schema.object())],
+      );
+
+      void addSurface(String id, String? version, {bool send = true}) {
+        final catalog = version == 'v1.0' ? v10Catalog : v09Catalog;
+        final surface = SurfaceModel<ComponentApi>(
+          id,
+          defaultCatalog: catalog,
+          sendDataModel: send,
+          protocolVersion: version,
+        );
+        surface.dataModel.set('/', {'id': id});
+        dataProcessor.model.addSurface(surface);
+      }
+
+      setUp(() {
+        dataProcessor = MessageProcessor<ComponentApi>(
+          catalogs: [v09Catalog, v10Catalog],
+          defaultVersion: A2uiProtocolVersion.v0_9,
+        );
+      });
+
+      test('returns null when no surface sends its data model', () {
+        addSurface('s1', 'v0.9', send: false);
+        expect(dataProcessor.getRendererDataModel(), isNull);
+      });
+
+      test('derives the version from the surfaces', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v0.9', send: false);
+        expect(dataProcessor.getRendererDataModel(), {
+          'version': 'v0.9',
+          'surfaces': {
+            's1': {'id': 's1'},
+          },
+        });
+      });
+
+      test('defaults to v1.0 when no surface declares a version', () {
+        addSurface('s1', null);
+        expect(dataProcessor.getRendererDataModel(), {
+          'version': 'v1.0',
+          'surfaces': {
+            's1': {'id': 's1'},
+          },
+        });
+      });
+
+      test('raises when surfaces carry different versions', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v1.0');
+        expect(
+          () => dataProcessor.getRendererDataModel(),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('v0.9, v1.0'), contains('getRendererDataModel')),
+            ),
+          ),
+        );
+      });
+
+      test('filters surfaces by the requested version', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v1.0');
+        addSurface('s3', 'v0.9.1');
+        addSurface('s4', null);
+
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v1_0,
+          ),
+          {
+            'version': 'v1.0',
+            'surfaces': {
+              's2': {'id': 's2'},
+              's4': {'id': 's4'},
+            },
+          },
+        );
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v0_9,
+          ),
+          {
+            'version': 'v0.9',
+            'surfaces': {
+              's1': {'id': 's1'},
+              's3': {'id': 's3'},
+              's4': {'id': 's4'},
+            },
+          },
+        );
+      });
+
+      test('returns null when no surface matches the requested version', () {
+        addSurface('s1', 'v0.9');
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v1_0,
+          ),
+          isNull,
+        );
+      });
     });
 
     test('applies a fully valid batch of components', () {
@@ -332,7 +541,7 @@ void main() {
       // reachability check is relaxed rather than the batch reshaped.
       final MessageProcessor processor = MessageProcessor(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
         validationConfig: const ValidationConfig(allowOrphanComponents: true),
       );
       processor.processMessages(
@@ -351,23 +560,23 @@ void main() {
       );
 
       final SurfaceModel<ComponentApi>? surface =
-          processor.groupModel.getSurface('s1');
+          processor.model.getSurface('s1');
       expect(surface?.componentsModel.get('root'), isNotNull);
       expect(surface?.componentsModel.get('second'), isNotNull);
     });
   });
 
   group('MessageProcessor per-update integrity', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
 
-    setUp(() => catalog = MinimalCatalog());
+    setUp(() => catalog = TestCatalog());
 
     MessageProcessor processorWith([
       ValidationConfig config = ValidationConfig.strict,
     ]) =>
         MessageProcessor(
           catalogs: [catalog],
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          defaultVersion: A2uiProtocolVersion.v0_9,
           validationConfig: config,
         );
 
@@ -388,7 +597,7 @@ void main() {
         );
 
     SurfaceComponentsModel componentsOf(MessageProcessor processor) =>
-        processor.groupModel.getSurface('s1')!.componentsModel;
+        processor.model.getSurface('s1')!.componentsModel;
 
     test('checks completeness on each update, not once per payload', () {
       final MessageProcessor processor = processorWith();
@@ -473,7 +682,7 @@ void main() {
       send(processor, [
         DeleteSurfaceMessage(version: 'v0.9', surfaceId: 'nope'),
       ]);
-      expect(processor.groupModel.getSurface('nope'), isNull);
+      expect(processor.model.getSurface('nope'), isNull);
     });
 
     test('checks path syntax before looking up the surface', () {
@@ -521,7 +730,7 @@ void main() {
       // what is settled by the batch alone is still checked.
       MessageProcessor unchecked() => MessageProcessor(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            defaultVersion: A2uiProtocolVersion.v0_9,
           );
 
       test('is the default', () {
@@ -716,7 +925,7 @@ void main() {
             {'id': 'main', 'component': 'Text', 'text': 'hi'},
           ]),
         ]);
-        expect(accepted.groupModel.getSurface('s1')!.rootId, 'main');
+        expect(accepted.model.getSurface('s1')!.rootId, 'main');
 
         final MessageProcessor rejected = processorWith(config);
         send(rejected, [create()]);
@@ -734,7 +943,7 @@ void main() {
     test('NodeResolver roots the tree at the surface rootId', () {
       final surface = SurfaceModel<ComponentApi>(
         's1',
-        catalog: catalog,
+        defaultCatalog: catalog,
         rootId: 'main',
       );
       final resolver = NodeResolver<ComponentApi>(surface);
@@ -759,6 +968,7 @@ void main() {
     Catalog<ComponentApi, FunctionImplementation> alphaCatalog(String id) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
+          protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
             ComponentApi(
               name: 'Alpha',
@@ -775,7 +985,7 @@ void main() {
     setUp(() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [alphaCatalog('cat1'), alphaCatalog('cat2')],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
@@ -799,7 +1009,7 @@ void main() {
         );
 
     SurfaceComponentsModel components() =>
-        processor.groupModel.getSurface('s1')!.componentsModel;
+        processor.model.getSurface('s1')!.componentsModel;
 
     test('keeps catalogId and metadata out of properties', () {
       update({
@@ -826,8 +1036,8 @@ void main() {
     test('recreates a component whose catalogId changes', () {
       update({'id': 'root', 'component': 'Alpha', 'a': 'x'});
       final events = <String>[];
-      components().onDeleted.addListener((id) => events.add('deleted:$id'));
-      components().onCreated.addListener((c) => events.add('created:${c.id}'));
+      components().onDeleted.subscribe((id) => events.add('deleted:$id'));
+      components().onCreated.subscribe((c) => events.add('created:${c.id}'));
 
       update({
         'id': 'root',
@@ -843,6 +1053,359 @@ void main() {
       expect(events, ['deleted:root', 'created:root']);
       expect(components().get('root')!.catalog, 'cat2');
       expect(components().get('root')!.properties, {'a': 'z'});
+    });
+  });
+
+  group('MessageProcessor version routing', () {
+    /// A v1.0 catalog whose components take any properties.
+    Catalog<ComponentApi, FunctionImplementation> v10Catalog([
+      String id = 'v10',
+    ]) =>
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: id,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: [
+            ComponentApi(name: 'Text', schema: Schema.fromMap({})),
+            ComponentApi(
+              name: 'Column',
+              schema: Schema.fromMap({
+                'type': 'object',
+                'properties': {
+                  'children': {
+                    'type': 'array',
+                    'items': {r'$ref': r'common_types.json#/$defs/ComponentId'},
+                  },
+                },
+              }),
+            ),
+          ],
+        );
+
+    final String minimalId = TestCatalog().id;
+
+    test('holds v0.9 and v1.0 surfaces side by side', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog(), v10Catalog()],
+      );
+      processor.processMessages([
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 'old', 'catalogId': minimalId},
+        },
+        {
+          'version': 'v1.0',
+          'createSurface': {'surfaceId': 'new', 'catalogId': 'v10'},
+        },
+      ]);
+
+      final SurfaceModel<ComponentApi> old = processor.model.getSurface(
+        'old',
+      )!;
+      final SurfaceModel<ComponentApi> fresh =
+          processor.model.getSurface('new')!;
+      expect(old.protocolVersion, 'v0.9');
+      expect(fresh.protocolVersion, 'v1.0');
+      bool atLeastV10(SurfaceModel<ComponentApi> s) => DataContext(
+            s.dataModel,
+            (_, __, ___) => null,
+            '/',
+            protocolVersion:
+                A2uiProtocolVersion.tryParseSemVer(s.protocolVersion!),
+          ).atLeastV10;
+      expect(atLeastV10(old), isFalse);
+      expect(atLeastV10(fresh), isTrue);
+    });
+
+    test('accepts a lone raw envelope, a raw list and the wrapper', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog()],
+      );
+      processor.processMessages({
+        'version': 'v0.9',
+        'createSurface': {'surfaceId': 'a', 'catalogId': minimalId},
+      });
+      processor.processMessages([
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 'b', 'catalogId': minimalId},
+        },
+      ]);
+      processor.processMessages({
+        'messages': [
+          {
+            'version': 'v0.9.1',
+            'createSurface': {'surfaceId': 'c', 'catalogId': minimalId},
+          },
+        ],
+      });
+      processor.processMessages([
+        DeleteSurfaceMessage(version: 'v0.9', surfaceId: 'a'),
+        {
+          'version': 'v0.9',
+          'deleteSurface': {'surfaceId': 'b'},
+        },
+      ]);
+      processor.processMessages(null);
+
+      expect(processor.model.allSurfaces.map((s) => s.id), ['c']);
+      expect(processor.model.getSurface('c')!.protocolVersion, 'v0.9.1');
+    });
+
+    test('rejects a malformed payload before applying any of it', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog()],
+      );
+      expect(
+        () => processor.processMessages([
+          {
+            'version': 'v0.9',
+            'createSurface': {'surfaceId': 'a', 'catalogId': minimalId},
+          },
+          {
+            'version': 'v0.9',
+            'callRendererFunction': {'functionCallId': 'f'},
+          },
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(processor.model.getSurface('a'), isNull);
+      expect(
+        () => processor.processMessages('not a payload'),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => processor.processMessages([42]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('processMessagesAsync applies the payload', () async {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog()],
+      );
+      await processor.processMessagesAsync({
+        'version': 'v0.9',
+        'createSurface': {'surfaceId': 'a', 'catalogId': minimalId},
+      });
+      expect(processor.model.getSurface('a'), isNotNull);
+    });
+
+    test(
+        'an inline createSurface carries its metadata and writes the data '
+        'model, then components', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog()],
+        validationConfig: ValidationConfig.strict,
+      );
+      final events = <String>[];
+      final rootValues = <Object?>[];
+      processor.model.onSurfaceCreated.subscribe((surface) {
+        events.add(
+          'created: data=${surface.dataModel.get('/')} '
+          'components=${surface.componentsModel.all.length} '
+          'metadata=${surface.metadata}',
+        );
+        final ReadonlySignal<Object?> root = surface.dataModel.watch<Object?>(
+          '/',
+        );
+        var initial = true;
+        root.subscribe((value) {
+          // The subscription reports the current value once on attach.
+          if (initial) {
+            initial = false;
+            return;
+          }
+          rootValues.add(value);
+          events.add(
+            'data: components=${surface.componentsModel.all.length}',
+          );
+        });
+        surface.componentsModel.onCreated.subscribe(
+          (c) => events.add('component ${c.id}'),
+        );
+      });
+
+      processor.processMessages({
+        'version': 'v1.0',
+        'createSurface': {
+          'surfaceId': 's1',
+          'catalogId': 'v10',
+          'components': [
+            {
+              'id': 'root',
+              'component': 'Column',
+              'children': ['t'],
+            },
+            {'id': 't', 'component': 'Text', 'text': 'Hi'},
+          ],
+          'dataModel': {
+            'user': {'name': 'Ada'},
+            'count': 2,
+          },
+          'metadata': {
+            'extensions': {'trace': true},
+          },
+        },
+      });
+
+      expect(events, [
+        'created: data={} components=0 metadata={extensions: {trace: true}}',
+        'data: components=0',
+        'component root',
+        'component t',
+      ]);
+      expect(rootValues, [
+        {
+          'user': {'name': 'Ada'},
+          'count': 2,
+        },
+      ]);
+      final SurfaceModel<ComponentApi> surface =
+          processor.model.getSurface('s1')!;
+      expect(surface.defaultCatalog!.id, 'v10');
+      expect(surface.metadata, {
+        'extensions': {'trace': true},
+      });
+    });
+
+    test('an inline createSurface whose components fail creates nothing', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog()],
+        validationConfig: ValidationConfig.strict,
+      );
+      expect(
+        () => processor.processMessages({
+          'version': 'v1.0',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': 'v10',
+            'components': [
+              {'id': 'other', 'component': 'Text'},
+            ],
+          },
+        }),
+        throwsA(isA<A2uiIntegrityError>()),
+      );
+      expect(processor.model.getSurface('s1'), isNull);
+    });
+
+    test('a v1.0 createSurface without catalogId has no default catalog', () {
+      // No fallback to the processor's catalogs, even when it supports
+      // exactly one: an item on such a surface must name its catalog.
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog()],
+      );
+      processor.processMessages({
+        'version': 'v1.0',
+        'createSurface': {'surfaceId': 's1'},
+      });
+      final SurfaceModel<ComponentApi> surface =
+          processor.model.getSurface('s1')!;
+      expect(surface.defaultCatalog, isNull);
+      expect(surface.availableCatalogs.keys, ['v10']);
+
+      Map<String, Object?> update(Map<String, Object?> component) => {
+            'version': 'v1.0',
+            'updateComponents': {
+              'surfaceId': 's1',
+              'components': [component],
+            },
+          };
+      expect(
+        () => processor.processMessages(
+          update({'id': 'root', 'component': 'Text'}),
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => processor.processMessages(
+          update({'id': 'root', 'component': 'Text', 'catalogId': 'v10'}),
+        ),
+        returnsNormally,
+      );
+      expect(surface.componentsModel.all.map((c) => c.id), ['root']);
+    });
+
+    test('BasicCatalog.v1_0 backs a v1.0 surface', () {
+      final Catalog<ComponentApi, FunctionImplementation> basic =
+          BasicCatalog.v1_0();
+      expect(basic.protocolVersion, A2uiProtocolVersion.v1_0);
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [basic],
+      );
+      processor.processMessages({
+        'version': 'v1.0',
+        'createSurface': {'surfaceId': 's1', 'catalogId': basic.id},
+      });
+      expect(
+        processor.model.getSurface('s1')!.defaultCatalog,
+        same(basic),
+      );
+    });
+
+    test('an unversioned catalog is pre-v1.0', () {
+      final unversioned = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'plain',
+        components: const [],
+      );
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [unversioned],
+      );
+      // Accepted below v1.0.
+      for (final version in ['v0.9', 'v0.9.1']) {
+        processor.processMessages({
+          'version': version,
+          'createSurface': {'surfaceId': 's_$version', 'catalogId': 'plain'},
+        });
+        expect(
+          processor.model.getSurface('s_$version')!.defaultCatalog,
+          same(unversioned),
+          reason: version,
+        );
+      }
+      // Rejected from v1.0 on.
+      expect(
+        () => processor.processMessages({
+          'version': 'v1.0',
+          'createSurface': {'surfaceId': 's_v1', 'catalogId': 'plain'},
+        }),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('declares no protocolVersion'),
+                contains('incompatible')),
+          ),
+        ),
+      );
+      expect(processor.model.getSurface('s_v1'), isNull);
+    });
+
+    test('rejects a catalog with an incompatible version', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog(), v10Catalog()],
+      );
+      expect(
+        () => processor.processMessages({
+          'version': 'v1.0',
+          'createSurface': {'surfaceId': 's1', 'catalogId': minimalId},
+        }),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.message,
+            'message',
+            contains('incompatible'),
+          ),
+        ),
+      );
+      expect(
+        () => processor.processMessages({
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's2', 'catalogId': 'v10'},
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(processor.model.allSurfaces, isEmpty);
     });
   });
 }

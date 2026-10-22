@@ -159,7 +159,7 @@ public enum ConformanceTestHelper {
       if inlineCatalog["components"] == nil {
         let basicVersion: A2UIProtocolVersion =
           (version.hasPrefix("v1") || version.hasPrefix("1")) ? .v10 : .v091
-        catalogs.append(BasicCatalog.makeCatalog(version: basicVersion))
+        catalogs.append(contentsOf: basicCatalogs(for: basicVersion))
       }
       return catalogs
     }
@@ -170,6 +170,20 @@ public enum ConformanceTestHelper {
         protocolVersion: testCase.protocolVersion
       )
     }
+  }
+
+  /// Returns the basic catalog for the given protocol version with `id: "basic"`
+  /// for conformance test cases that reference `"basic"` or omit `catalogId`.
+  public static func basicCatalogs(for version: A2UIProtocolVersion = .v10) -> [AnyCatalog] {
+    let canonical = BasicCatalog.makeCatalog(version: version)
+    let shorthand = Catalog(
+      id: "basic",
+      protocolVersion: version,
+      components: Array(canonical.components.values),
+      functions: Array(canonical.functions.values),
+      themeSchema: canonical.themeSchema
+    )
+    return [shorthand]
   }
 
   /// Finds the `common_types.json` schema for a given protocol version.
@@ -228,7 +242,8 @@ public enum ConformanceTestHelper {
         allDefinitions[key] = definition
       }
     }
-    for (key, definition) in catalogSchema["$defs"]?.objectValue ?? [:] {
+    for (key, definition) in catalogSchema["$defs"]?.objectValue ?? [:]
+    where key != "anyComponent" && key != "anyFunction" {
       allDefinitions[key] = definition
     }
 
@@ -281,9 +296,9 @@ public enum ConformanceTestHelper {
     }
 
     let resolvedProtocolVersion =
-      protocolVersion
-      ?? catalogSchema["protocolVersion"]?.stringValue
+      catalogSchema["protocolVersion"]?.stringValue
       ?? catalogSchema["protocol_version"]?.stringValue
+      ?? protocolVersion
     var functions: [any FunctionImplementation] = []
     if catalogSchema["$schema"] != nil {
       if resolvedProtocolVersion == "v1.0" || resolvedProtocolVersion == "1.0" {
@@ -293,8 +308,13 @@ public enum ConformanceTestHelper {
       }
     }
     if let funcObj = catalogSchema["functions"]?.objectValue {
-      for (funcName, funcVal) in funcObj {
-        guard let paramObj = funcVal["parameters"]?.objectValue else { continue }
+      for (funcName, funcVal) in funcObj
+      where !functions.contains(where: { $0.api.name == funcName }) {
+        guard
+          let paramObj =
+            funcVal["parameters"]?.objectValue
+            ?? funcVal["properties"]?["args"]?.objectValue
+        else { continue }
         let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
         let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
         if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {

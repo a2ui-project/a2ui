@@ -14,18 +14,276 @@
 
 import 'package:meta/meta.dart';
 
+import '../core/catalog.dart';
 import '../core/messages.dart';
 import '../primitives/errors.dart';
+import '../primitives/protocol_version.dart';
 import 'component_refs.dart';
 import 'validation_config.dart';
 
+/// The id every surface's component tree is rooted at unless a
+/// `ValidationConfig.rootId` or `SurfaceModel.rootId` says otherwise.
+const String _rootComponentId = 'root';
+
 /// The deepest component chain a surface may declare.
-@visibleForTesting
+@internal
 const int maxComponentDepth = 50;
 
 /// The deepest chain of nested function calls a component property may hold.
 @visibleForTesting
 const int maxFunctionCallDepth = 5;
+
+/// The most arguments a single function call may pass.
+///
+/// Checked when a payload is validated and again when a call is evaluated,
+/// matching the other SDKs' `MAX_FUNCTION_CALL_ARGS`.
+const int maxFunctionCallArgs = 1000;
+
+/// The parent type that stands for the surface itself in `allowedParents`.
+const String _surfaceParent = 'Surface';
+
+/// One component type's composition constraints, from its catalog entry.
+///
+/// A null list allows any type.
+typedef CompositionRule = ({
+  List<String>? allowedParents,
+  List<String>? allowedChildren,
+});
+
+/// The composition constraints [catalog] declares, keyed by component type.
+///
+/// Types declaring neither `allowedParents` nor `allowedChildren` are left
+/// out.
+Map<String, CompositionRule> extractCompositionRules(Catalog catalog) => {
+      for (final MapEntry<String, ComponentApi> entry
+          in catalog.components.entries)
+        if (entry.value.allowedParents != null ||
+            entry.value.allowedChildren != null)
+          entry.key: (
+            allowedParents: entry.value.allowedParents,
+            allowedChildren: entry.value.allowedChildren,
+          ),
+    };
+
+/// Converts a [ComponentReference.field], such as `children[2]` or
+/// `groups[0].children[0]`, into a JSON Pointer relative to the component,
+/// such as `/children/2`.
+String referencePointer(String field) => [
+      for (final String segment in field
+          .replaceAllMapped(RegExp(r'\[(\d+)\]'), (m) => '.${m[1]}')
+          .split('.'))
+        if (segment.isNotEmpty)
+          '/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}',
+    ].join();
+
+/// Checks every parent-child edge among [components] and [existing] against
+/// [rules].
+///
+/// [components] are the components the current message carries and
+/// [existing] the ones the surface already holds that the message does not
+/// replace. The component with id [rootId] has the surface as its implicit
+/// parent, which `allowedParents` names `Surface`. An edge whose child is in
+/// neither list is skipped: its type is unknown, and a later payload is
+/// checked when it arrives.
+///
+/// An error for an edge whose parent is in [components] carries a JSON
+/// Pointer into the message, such as `/components/0/children/1` for the
+/// offending reference or `/components/0` for a root the surface may not
+/// hold. When the parent is in [existing], nothing in the message holds the
+/// reference, so the error carries no path.
+///
+/// Throws [A2uiValidationError] with code `UNALLOWED_PARENT` or
+/// `UNALLOWED_CHILD`, carrying [surfaceId].
+void checkCompositionConstraints(
+  List<Map<String, Object?>> components,
+  Map<String, ComponentRefFields> refFields,
+  Map<String, CompositionRule> rules, {
+  Iterable<Map<String, Object?>> existing = const [],
+  String rootId = _rootComponentId,
+  String? surfaceId,
+}) {
+  if (rules.isEmpty) return;
+  final types = <String, String>{
+    for (final component in components.followedBy(existing))
+      if ((component['id'], component['component'])
+          case (final String id, final String type))
+        id: type,
+  };
+
+  // [pointer] locates [component] in the message, or is null when the
+  // component was already stored.
+  void check(Map<String, Object?> component, String? pointer) {
+    if (_componentViolation(
+      component,
+      refFields,
+      rules,
+      (String id) => types[id],
+      rootId: rootId,
+      pointer: pointer,
+      surfaceId: surfaceId,
+    )
+        case final A2uiValidationError error) {
+      throw error;
+    }
+  }
+
+  for (var index = 0; index < components.length; index++) {
+    check(components[index], '/components/$index');
+  }
+  for (final component in existing) {
+    check(component, null);
+  }
+}
+
+/// Whether [checkCompositionConstraints] would pass on the surface
+/// [components] leave behind, checking only the edges they change.
+///
+/// This holds only when [checkCompositionConstraints] passed on the surface
+/// before [components], under the same [rules]. [typeOf] gives the type of
+/// each component the surface holds with [components] applied, and
+/// [parentsOf] the components that reference an id there.
+///
+/// A component of [components] is checked against the surface and all of
+/// its children, as [checkCompositionConstraints] checks it. A component
+/// outside [components] that references one of them, which holds it, keeps
+/// its other children, so its edge to each component of [components] it
+/// holds is checked and the rest are not. Every other edge is unchanged and
+/// passed before. A container holding many children, receiving one per
+/// message, is then checked against one child per message rather than all
+/// of them.
+bool compositionHoldsAfter(
+  List<Map<String, Object?>> components,
+  Map<String, ComponentRefFields> refFields,
+  Map<String, CompositionRule> rules, {
+  required String? Function(String id) typeOf,
+  required Iterable<String> Function(String id) parentsOf,
+  String rootId = _rootComponentId,
+}) {
+  if (rules.isEmpty) return true;
+  final ids = <String>{
+    for (final component in components)
+      if (component['id'] case final String id) id,
+  };
+  for (final component in components) {
+    final A2uiValidationError? error = _componentViolation(
+      component,
+      refFields,
+      rules,
+      typeOf,
+      rootId: rootId,
+    );
+    if (error != null) return false;
+  }
+  for (final id in ids) {
+    final String? type = typeOf(id);
+    if (type == null) continue;
+    for (final String holder in parentsOf(id)) {
+      if (ids.contains(holder)) continue;
+      final String? holderType = typeOf(holder);
+      if (holderType == null) continue;
+      if (_edgeViolation(holder, holderType, id, type, rules) != null) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+String _typeList(List<String> names) =>
+    '[${names.map((name) => "'$name'").join(', ')}]';
+
+/// The first composition error of [component]: the surface as the parent of
+/// the root, then each of its references whose child [typeOf] knows, in
+/// order. Null when there is none.
+///
+/// [pointer] locates [component] in the message, or is null when the
+/// component was already stored.
+A2uiValidationError? _componentViolation(
+  Map<String, Object?> component,
+  Map<String, ComponentRefFields> refFields,
+  Map<String, CompositionRule> rules,
+  String? Function(String id) typeOf, {
+  required String rootId,
+  String? pointer,
+  String? surfaceId,
+}) {
+  final Object? id = component['id'];
+  final Object? type = component['component'];
+  if (id is! String || type is! String) return null;
+
+  final List<String>? rootParents = rules[type]?.allowedParents;
+  if (id == rootId &&
+      rootParents != null &&
+      !rootParents.contains(_surfaceParent)) {
+    return A2uiValidationError(
+      "Component '$id' ($type) cannot be placed under parent "
+      "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
+      '${_typeList(rootParents)}.',
+      code: 'UNALLOWED_PARENT',
+      path: pointer,
+      surfaceId: surfaceId,
+    );
+  }
+
+  for (final ComponentReference reference in _referencesOf(
+    component,
+    refFields,
+  )) {
+    final String? childType = typeOf(reference.id);
+    if (childType == null) continue;
+    if (_edgeViolation(
+      id,
+      type,
+      reference.id,
+      childType,
+      rules,
+      path: pointer == null
+          ? null
+          : '$pointer${referencePointer(reference.field)}',
+      surfaceId: surfaceId,
+    )
+        case final A2uiValidationError error) {
+      return error;
+    }
+  }
+  return null;
+}
+
+/// The composition error of the edge from [parent] to [child], checking the
+/// children [parentType] allows and then the parents [childType] allows.
+/// Null when there is none.
+A2uiValidationError? _edgeViolation(
+  String parent,
+  String parentType,
+  String child,
+  String childType,
+  Map<String, CompositionRule> rules, {
+  String? path,
+  String? surfaceId,
+}) {
+  final List<String>? allowedChildren = rules[parentType]?.allowedChildren;
+  if (allowedChildren != null && !allowedChildren.contains(childType)) {
+    return A2uiValidationError(
+      "Container '$parent' ($parentType) cannot contain child '$child' "
+      '($childType). Allowed children: ${_typeList(allowedChildren)}.',
+      code: 'UNALLOWED_CHILD',
+      path: path,
+      surfaceId: surfaceId,
+    );
+  }
+  final List<String>? allowedParents = rules[childType]?.allowedParents;
+  if (allowedParents != null && !allowedParents.contains(parentType)) {
+    return A2uiValidationError(
+      "Component '$child' ($childType) cannot be placed under "
+      "parent '$parent' ($parentType). Allowed parents: "
+      '${_typeList(allowedParents)}.',
+      code: 'UNALLOWED_PARENT',
+      path: path,
+      surfaceId: surfaceId,
+    );
+  }
+  return null;
+}
 
 /// Matches a JSON Pointer as A2UI writes data-model paths, allowing the
 /// leading slash to be omitted.
@@ -33,15 +291,19 @@ final RegExp _pathPattern = RegExp(
   r'^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$',
 );
 
-/// Rejects a batch of components that names the same id twice.
+/// Rejects a batch of components that names the same id twice, or names one
+/// of [earlier], the ids of the earlier batches of the same message.
 ///
 /// Throws [A2uiIntegrityError] for the first id that repeats.
-void checkDuplicateComponentIds(Iterable<Map<String, Object?>> components) {
+void checkDuplicateComponentIds(
+  Iterable<Map<String, Object?>> components, {
+  Set<String> earlier = const {},
+}) {
   final ids = <String>{};
   for (final component in components) {
     final Object? id = component['id'];
     if (id is! String) continue;
-    if (!ids.add(id)) {
+    if (earlier.contains(id) || !ids.add(id)) {
       throw A2uiIntegrityError(
         'Duplicate component ID: $id',
         componentIds: [id],
@@ -62,8 +324,9 @@ void checkDuplicateComponentIds(Iterable<Map<String, Object?>> components) {
 /// components it does not reach are then walked on their own, so a cycle among
 /// unreachable components is still found.
 ///
-/// Throws [A2uiRecursionError] for a self-reference, a cycle, or a chain
-/// deeper than [maxDepth], which defaults to [maxComponentDepth].
+/// Throws [A2uiIntegrityError] for a self-reference or a cycle, and
+/// [A2uiRecursionError] for a chain deeper than [maxDepth], which defaults to
+/// [maxComponentDepth].
 Set<String> detectComponentCycles(
   Set<String> ids,
   Iterable<ComponentReference> Function(String id) referencesOf, {
@@ -75,10 +338,10 @@ Set<String> detectComponentCycles(
   for (final id in ids) {
     for (final ComponentReference reference in referencesOf(id)) {
       if (reference.id == id) {
-        throw A2uiRecursionError(
+        throw A2uiIntegrityError(
           "Self-reference detected: Component '$id' references itself in "
           "field '${reference.field}'",
-          cycle: [id],
+          componentIds: [id],
         );
       }
     }
@@ -100,9 +363,9 @@ Set<String> detectComponentCycles(
       final String next = reference.id;
       if (!ids.contains(next)) continue;
       if (onStack.contains(next)) {
-        throw A2uiRecursionError(
+        throw A2uiIntegrityError(
           "Circular reference detected involving component '$next'",
-          cycle: [...onStack, next],
+          componentIds: [...onStack, next],
         );
       }
       if (!visited.contains(next)) visit(next, depth + 1);
@@ -135,9 +398,9 @@ Set<String> detectComponentCycles(
 /// [ValidationConfig.allowMissingRoot]. The root is [ValidationConfig.rootId],
 /// or [defaultRootId] when that is null. An empty surface passes.
 ///
-/// Throws [A2uiIntegrityError] for a missing root, a dangling reference or an
-/// unreachable component, and [A2uiRecursionError] for a self-reference, a
-/// cycle or an over-deep chain.
+/// Throws [A2uiIntegrityError] for a missing root, a dangling reference, a
+/// self-reference, a cycle, or an unreachable component, and
+/// [A2uiRecursionError] for an over-deep chain.
 void checkComponentGraph(
   Set<String> ids,
   Iterable<ComponentReference> Function(String id) referencesOf,
@@ -191,24 +454,45 @@ void checkComponentGraph(
 ///
 /// Mirrors `DataContext.isDataBinding`, which needs a context; this check
 /// runs on a raw message before any surface or context exists.
-bool _isDataBinding(Map<Object?, Object?> value, {required bool v1}) => v1
-    ? value['@path'] is String
-    : value['path'] is String && !value.containsKey('componentId');
+bool _isDataBinding(
+  Map<Object?, Object?> value, {
+  required bool usesDirectives,
+}) =>
+    usesDirectives
+        ? value['@path'] is String
+        : value['path'] is String && !value.containsKey('componentId');
 
 /// Whether [value] is a function-call object in the v1.0 (`@call`) or legacy
 /// (`call`) shape. See [_isDataBinding].
-bool _isFunctionCall(Map<Object?, Object?> value, {required bool v1}) =>
-    v1 ? value['@call'] is String : value['call'] is String;
+bool _isFunctionCall(
+  Map<Object?, Object?> value, {
+  required bool usesDirectives,
+}) =>
+    usesDirectives ? value['@call'] is String : value['call'] is String;
 
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
+/// [grownFrom], if given, is an earlier form of [data] that passed this
+/// check, such as a message that a stream has since extended. A list or map
+/// in [data] that is identical to the one at the same place in [grownFrom]
+/// is not checked again, so checking a message that grew costs what it
+/// gained. Neither may have been changed since [grownFrom] was checked.
+///
 /// Throws [A2uiValidationError] for a malformed path and [A2uiRecursionError]
 /// when nesting or chained function calls run past their caps.
-void checkPathsAndRecursion(Object? data, {bool? v1}) {
-  final bool isV1 = v1 ?? _inferV1(data);
+void checkPathsAndRecursion(
+  Object? data, {
+  A2uiProtocolVersion? version,
+  Object? grownFrom,
+}) {
+  final bool usesDirectives = version != null
+      ? version.isAtLeast(A2uiProtocolVersion.v1_0)
+      : _inferUsesDirectives(data);
 
+  // [before] is what [grownFrom] holds at the place of [node], or null.
   void traverse(
     Object? node,
+    Object? before,
     int depth,
     int callDepth, {
     required bool inDataValue,
@@ -220,17 +504,32 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
     }
 
     if (node is List) {
-      for (final Object? item in node) {
-        traverse(item, depth + 1, callDepth, inDataValue: inDataValue);
+      if (identical(node, before)) return;
+      final List<Object?>? items = before is List ? before : null;
+      for (var i = 0; i < node.length; i++) {
+        traverse(
+          node[i],
+          items != null && i < items.length ? items[i] : null,
+          depth + 1,
+          callDepth,
+          inDataValue: inDataValue,
+        );
       }
       return;
     }
 
-    if (node is! Map) return;
+    if (node is! Map || identical(node, before)) return;
+    final Map<Object?, Object?>? entries = before is Map ? before : null;
 
     if (inDataValue) {
-      for (final Object? value in node.values) {
-        traverse(value, depth + 1, callDepth, inDataValue: true);
+      for (final MapEntry<Object?, Object?> entry in node.entries) {
+        traverse(
+          entry.value,
+          entries?[entry.key],
+          depth + 1,
+          callDepth,
+          inDataValue: true,
+        );
       }
       return;
     }
@@ -243,12 +542,13 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       if (udmPath is String && !_pathPattern.hasMatch(udmPath)) {
         throw A2uiValidationError(
           "Invalid path syntax: '$udmPath'",
-          details: udm,
         );
       }
+      final Object? udmBefore = entries?['updateDataModel'];
       for (final MapEntry<Object?, Object?> entry in udm.entries) {
         traverse(
           entry.value,
+          udmBefore is Map ? udmBefore[entry.key] : null,
           depth + 2,
           callDepth,
           inDataValue: entry.key == 'value',
@@ -257,19 +557,18 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       return;
     }
 
-    final Object? path = _isDataBinding(object, v1: isV1)
-        ? object[isV1 ? '@path' : 'path']
+    final Object? path = _isDataBinding(object, usesDirectives: usesDirectives)
+        ? object[usesDirectives ? '@path' : 'path']
         : (object['path'] is String && object['componentId'] is String
             ? object['path']
             : null);
     if (path is String && !_pathPattern.hasMatch(path)) {
       throw A2uiValidationError(
         "Invalid path syntax: '$path'",
-        details: object,
       );
     }
 
-    if (_isFunctionCall(object, v1: isV1)) {
+    if (_isFunctionCall(object, usesDirectives: usesDirectives)) {
       if (callDepth >= maxFunctionCallDepth) {
         throw A2uiRecursionError(
           'Recursion limit exceeded: functionCall depth > '
@@ -279,6 +578,11 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       for (final MapEntry<Object?, Object?> entry in object.entries) {
         traverse(
           entry.value,
+          entries != null &&
+                  (entry.key != 'args' ||
+                      _isFunctionCall(entries, usesDirectives: usesDirectives))
+              ? entries[entry.key]
+              : null,
           depth + 1,
           entry.key == 'args' ? callDepth + 1 : callDepth,
           inDataValue: false,
@@ -287,8 +591,14 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       return;
     }
 
-    for (final Object? value in object.values) {
-      traverse(value, depth + 1, callDepth, inDataValue: false);
+    for (final MapEntry<Object?, Object?> entry in object.entries) {
+      traverse(
+        entry.value,
+        entries?[entry.key],
+        depth + 1,
+        callDepth,
+        inDataValue: false,
+      );
     }
   }
 
@@ -297,29 +607,49 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
     if (udmPath != null && !_pathPattern.hasMatch(udmPath)) {
       throw A2uiValidationError(
         "Invalid path syntax: '$udmPath'",
-        details: data.toJson()['updateDataModel'],
       );
     }
-    traverse(data.value, 2, 0, inDataValue: true);
+    traverse(
+      data.value,
+      grownFrom is UpdateDataModelMessage ? grownFrom.value : null,
+      2,
+      0,
+      inDataValue: true,
+    );
     return;
   }
 
   if (data is AgentToRendererMessage) {
-    traverse(data.toJson(), 0, 0, inDataValue: false);
+    traverse(
+      data.toJson(),
+      grownFrom is AgentToRendererMessage ? grownFrom.toJson() : grownFrom,
+      0,
+      0,
+      inDataValue: false,
+    );
     return;
   }
 
-  traverse(data, 0, 0, inDataValue: false);
+  traverse(data, grownFrom, 0, 0, inDataValue: false);
 }
 
-bool _inferV1(Object? data) {
+bool _inferUsesDirectives(Object? data) {
   final Object? rawVersion = switch (data) {
     AgentToRendererMessage(:final version) => version,
     Map() => data['version'],
     _ => null,
   };
   if (rawVersion is! String) return false;
-  final String core =
-      rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
-  return (int.tryParse(core.split('.').first) ?? 0) >= 1;
+  return A2uiProtocolVersion.tryParseSemVer(rawVersion)
+          ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+      false;
+}
+
+Iterable<ComponentReference> _referencesOf(
+  Map<String, Object?> component,
+  Map<String, ComponentRefFields> refFields,
+) {
+  final Object? type = component['component'];
+  if (type is! String) return const <ComponentReference>[];
+  return componentReferences(component, refFields[type]);
 }

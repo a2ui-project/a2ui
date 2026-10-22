@@ -229,7 +229,8 @@ public struct A2UIAudioPlayer: View {
     .onAppear {
       model.load(urlString: urlString)
     }
-    .onChange(of: urlString) { newURL in
+    .a2uiAccessibilityElement(for: node, children: .contain)
+    .onChange(of: urlString) { _, newURL in
       model.load(urlString: newURL)
     }
     .onDisappear {

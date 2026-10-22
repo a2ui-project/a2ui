@@ -208,45 +208,58 @@ extension Node {
     return nil
   }
 
-  /// Returns the resolved accessibility attributes, falling back to implicit label inference.
-  public var accessibilityAttributes: AccessibilityAttributes? {
-    let accessibilityDictionary =
-      (properties["accessibility"] as? ResolvedDictionary)
-      ?? dictionary(for: "accessibility").map { ResolvedDictionary($0) }
+  /// Returns only the accessibility attributes the agent set in the component's `accessibility`
+  /// property, without inferring a label from visible text.
+  ///
+  /// Renderers apply these on top of the label their platform already infers from visible
+  /// content, so that an explicit value overrides the inferred one.
+  public var explicitAccessibilityAttributes: AccessibilityAttributes? {
+    let accessibilityDictionary = properties["accessibility"] as? ResolvedDictionary
     let accessibilityJSON = properties["accessibility"] as? JSONValue
 
-    let explicitLabel =
+    let label =
       accessibilityDictionary?.string(for: "label")
       ?? accessibilityJSON?["label"]?.stringValue
-    let explicitDescription =
+    let description =
       accessibilityDictionary?.string(for: "description")
       ?? accessibilityJSON?["description"]?.stringValue
-    let explicitLive =
+    let live =
       accessibilityDictionary?.string(for: "live")
       ?? accessibilityJSON?["live"]?.stringValue
-    let explicitHidden =
+    let hidden =
       accessibilityDictionary?.bool(for: "hidden")
       ?? accessibilityJSON?["hidden"]?.boolValue
 
+    if label == nil && description == nil && live == nil && hidden == nil {
+      return nil
+    }
+    return AccessibilityAttributes(
+      label: label,
+      description: description,
+      live: live,
+      hidden: hidden
+    )
+  }
+
+  /// Returns the resolved accessibility attributes, falling back to implicit label inference.
+  public var accessibilityAttributes: AccessibilityAttributes? {
+    let explicit = explicitAccessibilityAttributes
+
     let inferredLabel =
-      explicitLabel
+      explicit?.label
       ?? string(for: "title")
       ?? string(for: "text")
       ?? string(for: "label")
 
-    if inferredLabel != nil
-      || explicitDescription != nil
-      || explicitLive != nil
-      || explicitHidden != nil
-    {
-      return AccessibilityAttributes(
-        label: inferredLabel,
-        description: explicitDescription,
-        live: explicitLive,
-        hidden: explicitHidden
-      )
+    if inferredLabel == nil && explicit == nil {
+      return nil
     }
-    return nil
+    return AccessibilityAttributes(
+      label: inferredLabel,
+      description: explicit?.description,
+      live: explicit?.live,
+      hidden: explicit?.hidden
+    )
   }
 }
 

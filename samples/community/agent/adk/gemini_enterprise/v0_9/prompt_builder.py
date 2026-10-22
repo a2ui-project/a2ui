@@ -14,8 +14,10 @@
 
 import os
 
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_9
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.processor import A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import to_version_number
 
 COMPOSITE_CATALOG_PATH = os.path.join(
     os.path.dirname(__file__), "gemini_enterprise_composite_catalog.json"
@@ -130,21 +132,30 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
-    # Example of how to use the Direct JSON format to generate a system prompt.
-    version = VERSION_0_9
+    from a2ui.utils import load_examples
+
+    # Example of how to use A2uiRequestProcessor to generate a system prompt.
+    version = ProtocolVersion.V0_9
     catalog = CatalogConfig.from_path(
-        name="composite",
         catalog_path=COMPOSITE_CATALOG_PATH,
-    ).to_catalog(protocol_version=version)
-    demo_prompt = DirectJsonFormat(
-        [catalog], examples_path=f"examples/{version}"
-    ).generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
-        validate_examples=True,
+        protocol_version=version,
+    ).transformed_catalog
+    processor = A2uiRequestProcessor(
+        [catalog], format_factory=DirectJsonFormatFactory()
     )
+    examples = load_examples(
+        processor.active_catalogs,
+        f"examples/{to_version_number(version)}",
+        validate=True,
+    )
+    prompt_parts = [
+        ROLE_DESCRIPTION,
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        processor.prompt_snippet,
+    ]
+    if examples:
+        prompt_parts.append(f"### Examples:\n{examples}")
+    demo_prompt = "\n\n".join(prompt_parts)
 
     print(demo_prompt)
 

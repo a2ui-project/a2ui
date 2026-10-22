@@ -289,8 +289,7 @@ class IndexSystemFunction(SpecBaseModel):
 
     model_config = ConfigDict(
         json_schema_extra=SchemaKeywords(
-            {"unevaluatedProperties": False, "returnType": "number"},
-            drop=("additionalProperties",),
+            {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
         populate_by_name=True,
     )
@@ -299,13 +298,14 @@ class IndexSystemFunction(SpecBaseModel):
 
 
 class CheckRule(SpecBaseModel):
-    """A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."""
+    """A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object)."""
 
     model_config = ConfigDict(populate_by_name=True)
     condition: DataBinding | FunctionCall = Field(
         ...,
         description=(
-            "Path or function call evaluating to a structured validation result object."
+            "Path or function call evaluating to a structured validation result object"
+            " or a boolean."
         ),
     )
     message: str | None = Field(
@@ -323,10 +323,7 @@ class Checkable(SpecBaseModel):
     )
     checks: list[CheckRule] | None = Field(
         default=None,
-        description=(
-            "A list of checks to perform. These are function calls that must return a"
-            " boolean indicating validity."
-        ),
+        description="A list of validation check rules to perform on the component.",
     )
 
 
@@ -342,7 +339,8 @@ class ActionEvent(SpecBaseModel):
         alias="userMessage",
         description=(
             "An optional human-readable message describing the action performed by the"
-            " user, to present in conversation history or user feedback."
+            " user, resolved by the renderer and included in the outbound action"
+            " message."
         ),
     )
     context: dict[str, DynamicValue] | None = Field(
@@ -478,7 +476,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         Field(
             description=(
                 "A boolean value that can be a literal, a path, or a function call"
-                " returning a boolean."
+                " returning a boolean or a validation result object (coerced to its"
+                " 'valid' boolean)."
             )
         ),
     ],

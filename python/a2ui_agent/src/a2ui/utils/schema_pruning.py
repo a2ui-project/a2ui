@@ -19,6 +19,8 @@ agent-to-renderer and common types schemas belong to the protocol rather than to
 a catalog, so they are pruned with the functions here.
 """
 
+from __future__ import annotations
+
 from collections import deque
 from collections.abc import Iterable, Mapping, Sequence
 import copy
@@ -26,6 +28,11 @@ from typing import Any
 
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
+
+__all__ = [
+    "prune_common_types_schema",
+    "prune_messages_schema",
+]
 
 _DEFS_REF_PREFIX = "#/$defs/"
 _PROPERTIES_REF_PREFIX = "#/properties/"
@@ -75,7 +82,7 @@ def _reachable_defs(
 
 def prune_messages_schema(
     a2r_schema: Mapping[str, Any],
-    protocol_version: str,
+    protocol_version: ProtocolVersion | str,
     allowed_messages: Sequence[str],
 ) -> dict[str, Any]:
     """Returns a copy of an agent-to-renderer schema that admits only some messages.
@@ -86,8 +93,8 @@ def prune_messages_schema(
 
     Args:
         a2r_schema: The agent-to-renderer schema. It is not modified.
-        protocol_version: The protocol version of the schema, for example
-            `"0.9"` or `"v1.0"`.
+        protocol_version: The protocol version of the schema: a
+            `ProtocolVersion`, or a version string such as `"0.9"` or `"v1.0"`.
         allowed_messages: The messages to keep. For v0.8 these are keys of the
             schema's `properties`, for example `beginRendering`. For later
             versions they are names in its `$defs`, for example
@@ -114,6 +121,15 @@ def prune_messages_schema(
             )
         return pruned
 
+    defs = pruned.get("$defs")
+    allowed_defs = set(allowed)
+    if isinstance(defs, dict):
+        for def_name, def_val in defs.items():
+            if isinstance(def_val, dict):
+                props = def_val.get("properties")
+                if isinstance(props, dict) and any(k in allowed_defs for k in props):
+                    allowed_defs.add(def_name)
+
     one_of = pruned.get("oneOf")
     if isinstance(one_of, list):
         pruned["oneOf"] = [
@@ -122,11 +138,10 @@ def prune_messages_schema(
             if isinstance(item, dict)
             and isinstance(item.get("$ref"), str)
             and item["$ref"].startswith(_DEFS_REF_PREFIX)
-            and item["$ref"].removeprefix(_DEFS_REF_PREFIX) in allowed
+            and item["$ref"].removeprefix(_DEFS_REF_PREFIX) in allowed_defs
         ]
-    defs = pruned.get("$defs")
     if isinstance(defs, dict):
-        pruned["$defs"] = _reachable_defs(defs, allowed)
+        pruned["$defs"] = _reachable_defs(defs, allowed_defs)
     return pruned
 
 

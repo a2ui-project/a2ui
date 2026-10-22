@@ -43,7 +43,7 @@ from a2ui.builder.v0_9.catalogs.basic import (
 from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.core.schema.v0_9 import UpdateComponentsMessage, UpdateComponents
+from a2ui.core.schema.v0_9 import UpdateComponents, UpdateComponentsMessage
 from a2ui.transformers.macros import (
     MacroExpander,
     macro,
@@ -212,7 +212,7 @@ def test_macro_expander_pipeline():
     expander = MacroExpander([quick_alert])
     base = make_test_catalog({})
     inf_cat = expander.transform_to_inference_catalog(base)
-    assert "QuickAlert" in inf_cat.catalog_schema["components"]
+    assert "QuickAlert" in inf_cat.validation_schema["components"]
 
     # Test lowering of macro components to transport primitives
     raw_message = UpdateComponentsMessage(
@@ -356,7 +356,7 @@ def test_processor_argument_coercion():
 def test_macro_parser_parse_response():
     """Verifies that MacroParser.parse_response returns ResponsePart objects with fully expanded macros."""
     from a2ui.core.basic_catalog import BasicCatalog
-    from a2ui.inference_formats.experimental.express import ExpressFormat
+    from a2ui.inference_formats.express import ExpressFormat
 
     @macro
     def UserInfoCard(name: str, role: str = "Engineer") -> Card:
@@ -374,7 +374,9 @@ def test_macro_parser_parse_response():
     expander = MacroExpander([UserInfoCard])
     inference_cat = expander.transform_to_inference_catalog(cat)
 
-    fmt = ExpressFormat(catalog=inference_cat, surface_id="test_surf", version="v0.9.1")
+    fmt = ExpressFormat(
+        catalogs=[inference_cat], surface_id="test_surf", version="v0.9.1"
+    )
 
     llm_output = (
         "Here is the requested user profile card:\n"
@@ -384,17 +386,14 @@ def test_macro_parser_parse_response():
         "Let me know if you need any adjustments."
     )
 
-    parts = fmt.parser.parse_response(llm_output)
-    assert len(parts) == 2
+    parts = fmt.create_parser().parse_response(llm_output)
+    assert len(parts) == 3
     assert "Here is the requested user profile card:" in parts[0].text
-    assert parts[0].a2ui_raw is not None
-    assert parts[0].a2ui_json is not None
+    assert parts[1].a2ui is not None
+    assert "Let me know if you need any adjustments." in parts[2].text
 
     # Verify that the macro was expanded into primitive components via transform_to_transport
-    _adapter = TypeAdapter(AgentToRendererMessage)
-    typed_raw_messages = [
-        _adapter.validate_python(raw_msg) for raw_msg in parts[0].a2ui_json
-    ]
+    typed_raw_messages = parts[1].a2ui
     lowered_messages = expander.transform_to_transport(typed_raw_messages)
     components = []
     for msg in lowered_messages:
@@ -410,9 +409,6 @@ def test_macro_parser_parse_response():
     text_contents = [c.get("text") for c in components if c["component"] == "Text"]
     assert "Alice Smith" in text_contents
     assert "Tech Lead" in text_contents
-
-    assert "Let me know if you need any adjustments." in parts[1].text
-    assert parts[1].a2ui_json is None
 
 
 def test_macro_catalog_pruning():
@@ -432,7 +428,7 @@ def test_macro_catalog_pruning():
     pruned_cat = ComponentPruningTransformer(["MiniBadge", "Text"]).transform(
         inference_cat
     )
-    schema = pruned_cat.catalog_schema
+    schema = pruned_cat.validation_schema
     assert set(schema["components"]) == {"MiniBadge", "Text"}
     assert {ref["$ref"] for ref in schema["$defs"]["anyComponent"]["oneOf"]} == {
         "#/components/MiniBadge",
@@ -495,7 +491,8 @@ def test_macro_component_subclass_parameter_coercion():
 
 def test_macro_expansion_failure_logs_error(caplog):
     import logging
-    from a2ui.parser.parser import Parser
+
+    from a2ui.parser import Parser
 
     @macro
     def FailingMacro(bad_arg: str) -> Card:
@@ -610,26 +607,26 @@ def test_macro_expander_passthrough_components():
     # 1. Default (None) passes through all base components
     exp_default = MacroExpander([AlertBadge])
     inf_default = exp_default.transform_to_inference_catalog(base_cat)
-    assert "Button" in inf_default.catalog_schema["components"]
-    assert "Card" in inf_default.catalog_schema["components"]
-    assert "Text" in inf_default.catalog_schema["components"]
-    assert "AlertBadge" in inf_default.catalog_schema["components"]
+    assert "Button" in inf_default.validation_schema["components"]
+    assert "Card" in inf_default.validation_schema["components"]
+    assert "Text" in inf_default.validation_schema["components"]
+    assert "AlertBadge" in inf_default.validation_schema["components"]
 
     # 2. Selective passthrough retains only allowed base components
     exp_selective = MacroExpander([AlertBadge], passthrough_components=["Text"])
     inf_selective = exp_selective.transform_to_inference_catalog(base_cat)
-    assert "Text" in inf_selective.catalog_schema["components"]
-    assert "AlertBadge" in inf_selective.catalog_schema["components"]
-    assert "Button" not in inf_selective.catalog_schema["components"]
-    assert "Card" not in inf_selective.catalog_schema["components"]
+    assert "Text" in inf_selective.validation_schema["components"]
+    assert "AlertBadge" in inf_selective.validation_schema["components"]
+    assert "Button" not in inf_selective.validation_schema["components"]
+    assert "Card" not in inf_selective.validation_schema["components"]
 
     # 3. Empty list retains exclusively the macros
     exp_only_macros = MacroExpander([AlertBadge], passthrough_components=[])
     inf_only_macros = exp_only_macros.transform_to_inference_catalog(base_cat)
-    assert "AlertBadge" in inf_only_macros.catalog_schema["components"]
-    assert "Button" not in inf_only_macros.catalog_schema["components"]
-    assert "Card" not in inf_only_macros.catalog_schema["components"]
-    assert "Text" not in inf_only_macros.catalog_schema["components"]
+    assert "AlertBadge" in inf_only_macros.validation_schema["components"]
+    assert "Button" not in inf_only_macros.validation_schema["components"]
+    assert "Card" not in inf_only_macros.validation_schema["components"]
+    assert "Text" not in inf_only_macros.validation_schema["components"]
 
 
 def test_macro_inference_catalog_localizes_common_type_refs():
@@ -645,20 +642,20 @@ def test_macro_inference_catalog_localizes_common_type_refs():
             "properties": {"text": {"$ref": f"{v09_prefix}DynamicString"}},
         }
     })
-    base_schema = copy.deepcopy(cat_v09.catalog_schema)
+    base_schema = copy.deepcopy(cat_v09.validation_schema)
     exp = MacroExpander([DynCard])
     inf = exp.transform_to_inference_catalog(cat_v09)
     # Catalog.from_json normalizes external common_types refs to local #/$defs/ pointers
     assert (
-        inf.catalog_schema["components"]["DynCard"]["properties"]["label"]["$ref"]
+        inf.validation_schema["components"]["DynCard"]["properties"]["label"]["$ref"]
         == "#/$defs/DynamicString"
     )
     assert (
-        inf.catalog_schema["components"]["Text"]["properties"]["text"]["$ref"]
+        inf.validation_schema["components"]["Text"]["properties"]["text"]["$ref"]
         == "#/$defs/DynamicString"
     )
     # The base catalog remains untouched
-    assert cat_v09.catalog_schema == base_schema
+    assert cat_v09.validation_schema == base_schema
 
 
 def test_macro_expander_to_catalog():
@@ -672,19 +669,21 @@ def test_macro_expander_to_catalog():
 
     assert macro_cat.catalog_id == "https://a2ui.org/catalogs/macros"
     assert macro_cat.protocol_version == "0.9.1"
-    assert "MetricBadge" in macro_cat.catalog_schema["components"]
-    assert macro_cat.catalog_schema["catalogId"] == "https://a2ui.org/catalogs/macros"
+    assert "MetricBadge" in macro_cat.validation_schema["components"]
     assert (
-        macro_cat.catalog_schema["components"]["MetricBadge"]["properties"]["title"][
+        macro_cat.validation_schema["catalogId"] == "https://a2ui.org/catalogs/macros"
+    )
+    assert (
+        macro_cat.validation_schema["components"]["MetricBadge"]["properties"]["title"][
             "type"
         ]
         == "string"
     )
     assert (
-        macro_cat.catalog_schema["components"]["MetricBadge"]["properties"]["count"][
+        macro_cat.validation_schema["components"]["MetricBadge"]["properties"]["count"][
             "type"
         ]
         == "integer"
     )
-    any_comp = macro_cat.catalog_schema["$defs"]["anyComponent"]["oneOf"]
+    any_comp = macro_cat.validation_schema["$defs"]["anyComponent"]["oneOf"]
     assert {"$ref": "#/components/MetricBadge"} in any_comp

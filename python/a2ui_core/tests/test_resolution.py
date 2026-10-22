@@ -539,6 +539,59 @@ def test_data_context_validates_arguments_as_written():
     assert "bogus" in errors[0]["message"]
 
 
+def test_data_context_index_function_on_surface_without_default_catalog():
+    """@index belongs to no catalog, so it runs without a default catalog."""
+    surface = SurfaceModel("s1", None, protocol_version="v1.0")
+    ctx = DataContext(surface, path="/items/2")
+
+    value = ctx.resolve_dynamic_value({"@call": "@index", "args": {"offset": 1}})
+
+    assert value == 3
+
+
+@pytest.mark.parametrize("catalog_id", ["any-id", "", None, 5])
+def test_data_context_system_function_naming_catalog_is_expression_error(
+    catalog_id: Any,
+):
+    """A v1.0 system call that names a catalog, with any value, is not run."""
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel("s1", BasicCatalog("1.0"))
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/items/2")
+
+    value = ctx.resolve_dynamic_value({"@call": "@index", "catalogId": catalog_id})
+
+    assert value is None
+    assert len(errors) == 1
+    assert errors[0]["code"] == "EXPRESSION_ERROR"
+    assert errors[0]["expression"] == "@index"
+    assert "must not name a catalogId" in errors[0]["message"]
+
+
+def test_data_context_system_function_without_catalog_id_still_runs():
+    """Only a present catalogId key makes a system call malformed."""
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel("s1", BasicCatalog("1.0"))
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/items/2")
+
+    assert ctx.resolve_dynamic_value({"@call": "@index"}) == 2
+    assert errors == []
+
+
+def test_surface_model_protocol_version():
+    """The protocol version defaults to the default catalog's, else is explicit."""
+    from a2ui.core.basic_catalog import v1_0
+
+    assert SurfaceModel("s1", v1_0.BasicCatalog()).protocol_version == (
+        v1_0.BasicCatalog().protocol_version
+    )
+    no_default = SurfaceModel("s2", None, protocol_version="v1.0")
+    assert no_default.default_catalog is None
+    assert no_default.protocol_version == "v1.0"
+    assert no_default.available_catalogs == {}
+
+
 def test_data_context_catalog_and_missing_function_error_dispatch():
     errors: list[dict[str, Any]] = []
     cat = BasicCatalog("0.9")
@@ -554,15 +607,17 @@ def test_data_context_catalog_and_missing_function_error_dispatch():
     assert errors[0]["expression"] == "nonExistentFunction"
     assert "Unrecognized function" in errors[0]["message"]
 
-    # 2. Non-existent catalog ID
-    res2 = ctx.resolve_dynamic_value({
-        "call": "formatString",
+    # 2. Non-existent catalog ID (a call names its own catalog from v1.0)
+    v10_surface = SurfaceModel("s3", BasicCatalog("1.0"))
+    v10_surface.on_error.subscribe(lambda err: errors.append(err))
+    res2 = DataContext(v10_surface, path="/").resolve_dynamic_value({
+        "@call": "formatString",
         "catalogId": "unknown_catalog_id",
         "args": {"value": "test"},
     })
     assert res2 is None
     assert len(errors) == 2
-    assert errors[1]["code"] == "EXPRESSION_ERROR"
+    assert errors[1]["code"] == "CATALOG_ERROR"
     assert "Catalog not found" in errors[1]["message"]
 
     # 3. Function missing in catalog implementation

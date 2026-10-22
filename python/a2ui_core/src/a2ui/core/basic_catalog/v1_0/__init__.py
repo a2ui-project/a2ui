@@ -98,6 +98,11 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             protocol_version=PROTOCOL_VERSION,
             components=BASIC_COMPONENTS,
             functions=create_basic_catalog_functions(locale=locale),
+            schema_dialect="https://json-schema.org/draft/2020-12/schema",
+            schema_id="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            title="A2UI Basic Catalog",
+            description="Unified catalog of basic A2UI components and functions.",
+            declared_protocol_version="1.0",
             instructions=(
                 "For layout, use the Row and Column components to organize other"
                 " components.\n\n## Catalog Guidelines\n\n1. String Concatenation &"
@@ -127,11 +132,14 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
                 ' "id": "valueField",\n          "component": "TextField",\n         '
                 ' "label": "Deal Value",\n          "value": {"@path":'
                 ' "/form/value"},\n          "placeholder": "0.00",\n         '
-                ' "variant": "number",\n          "checks": [\n            {"@call":'
-                ' "required"}\n          ]\n        }\n      ],\n      "dataModel": {\n'
-                '        "form": {\n          "rep": "John Doe",\n          "value":'
-                " 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic"
-                ' list with templates\n```json\n[\n  {\n    "version": "v1.0",\n   '
+                ' "variant": "number",\n          "checks": [\n            {\n         '
+                '     "condition": {\n                "@call": "required",\n           '
+                '     "args": {"value": {"@path": "/form/value"}}\n              },\n  '
+                '            "message": "Deal value is required."\n            }\n     '
+                '     ]\n        }\n      ],\n      "dataModel": {\n        "form": {\n'
+                '          "rep": "John Doe",\n          "value": 1500.00\n        }\n '
+                "     }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with"
+                ' templates\n```json\n[\n  {\n    "version": "v1.0",\n   '
                 ' "createSurface": {\n      "surfaceId": "main",\n      "catalogId":'
                 ' "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n '
                 '     "components": [\n        {\n          "id": "root",\n         '
@@ -147,6 +155,7 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
                 '    "url": "https://example.com/lab.jpg"\n          }\n        ]\n    '
                 "  }\n    }\n  }\n]\n```"
             ),
+            union_defs={"anyComponent": None, "anyFunction": None},
         )
 
 

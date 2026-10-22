@@ -58,17 +58,20 @@ class ValidationConfig {
   /// not checked either.
   final bool allowMissingRoot;
 
-  /// Whether a component may name a type its catalog does not declare.
+  /// Whether a component or function the catalog does not declare passes
+  /// validation instead of being rejected.
   ///
   /// Such a component is accepted without a schema check, and contributes no
-  /// child references to the graph checks.
+  /// child references to the graph checks. For functions this applies to
+  /// catalogs below v1.0; from v1.0 an unknown function always passes,
+  /// because a renderer forwards it to the agent as a `callAgentFunction`.
   final bool allowUnknownElements;
 
-  /// The protocol version the processor must be built for, or null to accept
-  /// whichever version it is built for.
+  /// The protocol version the processor must default to, or null to accept
+  /// whichever version it defaults to.
   ///
   /// `MessageProcessor` throws `A2uiValidationError` on construction when this
-  /// is set and differs from its `protocolVersion`.
+  /// and its `defaultVersion` are both set and differ.
   final A2uiProtocolVersion? targetVersion;
 
   /// The message names a payload may contain, such as `createSurface` or

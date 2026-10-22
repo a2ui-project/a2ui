@@ -87,11 +87,23 @@ public struct MessageErrorMapper: Sendable {
     }
 
     if let catalogError = error as? A2UICatalogError {
+      let detail = catalogError.details.first
       return .generic(
         GenericError(
-          code: "CATALOG_NOT_FOUND",
+          code: detail?.code ?? "CATALOG_NOT_FOUND",
           surfaceID: surfaceID,
-          message: catalogError.message,
+          message: detail?.message ?? catalogError.message,
+          version: version
+        )
+      )
+    }
+
+    if let functionError = error as? FunctionError {
+      return .generic(
+        GenericError(
+          code: "EXPRESSION_ERROR",
+          surfaceID: surfaceID,
+          message: functionError.description,
           version: version
         )
       )
@@ -131,21 +143,30 @@ public struct MessageErrorMapper: Sendable {
     )
   }
 
+  private static let envelopeActions: Set<Substring> = [
+    "createSurface",
+    "updateComponents",
+    "updateDataModel",
+    "deleteSurface",
+    "callRendererFunction",
+    "agentFunctionResponse",
+    "beginRendering",
+    "surfaceUpdate",
+    "dataModelUpdate",
+  ]
+
   private func formatErrorPath(_ rawPath: String) -> String {
     if rawPath.isEmpty { return "/" }
     if rawPath.hasPrefix("/") { return rawPath }
-    // Convert dot syntax (e.g. messages.0.updateComponents.components.0.id)
-    // to JSON Pointer if needed
-    if rawPath.contains(".") {
-      let components = rawPath.split(separator: ".")
-      if let lastIndex = components.lastIndex(where: {
-        $0 == "theme" || $0 == "components" || $0 == "id" || $0 == "component"
-      }) {
-        let relevant = components[lastIndex...].joined(separator: "/")
-        return "/\(relevant)"
-      }
+    var segments = rawPath.split(separator: ".")
+    if segments.count >= 2, segments[0] == "messages", Int(segments[1]) != nil {
+      segments.removeFirst(2)
     }
-    return "/\(rawPath)"
+    if let first = segments.first, Self.envelopeActions.contains(first), segments.count > 1 {
+      segments.removeFirst()
+    }
+    guard !segments.isEmpty else { return "/" }
+    return "/" + segments.joined(separator: "/")
   }
 
   // MARK: - DecodingError Mapping

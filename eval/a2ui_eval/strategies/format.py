@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Format-based solver strategies for A2UI evaluation."""
+
+from __future__ import annotations
+
 import asyncio
 import json
 import re
-from typing import Any
 
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -25,67 +28,30 @@ from inspect_ai.model import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
-from a2ui.core import (
-    MessageProcessor,
-    MessageProcessorOptions,
-    STRICT_VALIDATION,
+from ..bridges import (
+    DEFAULT_PARSE_TIMEOUT_SEC,
+    get_sdk_bridge,
+    validate_sdk_format,
 )
-from a2ui.inference_format import InferenceFormat
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
 
-def _get_strategy(
-    format_name: str,
-    version: str,
-    catalog_config: CatalogConfig,
-    surface_id: str = "main",
-) -> InferenceFormat:
-    """Resolves and instantiates the InferenceFormat strategy for the given format.
-
-    Args:
-        format_name: The name of the format strategy (direct_json, express, elemental, or atom).
-        version: The specification version (e.g. 0.9.1 or 1.0).
-        catalog_config: The catalog configuration details.
-        surface_id: The surface identifier target.
-
-    Returns:
-        The instantiated InferenceFormat strategy object.
-    """
-    catalog = catalog_config.to_catalog(protocol_version=version)
-    if format_name == "direct_json":
-        return DirectJsonFormat([catalog])
-
-    formatted_version = f"v{version}" if not version.startswith("v") else version
-    if format_name == "express":
-        from a2ui.inference_formats.experimental.express import ExpressFormat
-
-        return ExpressFormat(
-            catalog=catalog, surface_id=surface_id, version=formatted_version
-        )
-    elif format_name == "elemental":
-        from a2ui.inference_formats.experimental.elemental import ElementalFormat
-
-        return ElementalFormat(catalog=catalog, surface_id=surface_id)
-    elif format_name == "atom":
-        from a2ui.inference_formats.experimental.atom import AtomFormat
-
-        return AtomFormat(catalog=catalog, surface_id=surface_id)
-    else:
-        raise ValueError(f"Unknown format strategy: {format_name}")
-
-
 @solver
-def format_system_prompt(format_name: str, version: str) -> Solver:
-    """Injects system prompt instructions using the selected format strategy."""
+def format_system_prompt(format_name: str, version: str, sdk: str = "python") -> Solver:
+    """Injects system prompt instructions using the selected format strategy and SDK."""
+    validate_sdk_format(sdk, format_name)
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        strategy = _get_strategy(format_name, version, catalog_config)
+        bridge = get_sdk_bridge(sdk)
+        generated_snippet = await asyncio.to_thread(
+            bridge.generate_prompt,
+            format_name,
+            version,
+            resolved_catalog_path,
+        )
 
         role_description = state.metadata.get("protocol_role") or state.metadata.get(
             "role_description", ""
@@ -94,11 +60,13 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
             "generation_rules"
         ) or state.metadata.get("workflow_description", "")
 
-        a2ui_prompt = strategy.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            include_schema=True,
-        )
+        prompt_parts = []
+        if role_description:
+            prompt_parts.append(role_description)
+        if workflow_description:
+            prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        prompt_parts.append(generated_snippet)
+        a2ui_prompt = "\n\n".join(prompt_parts)
 
         domain_prompt = state.metadata.get("system_prompt", "").strip()
         if domain_prompt:
@@ -115,117 +83,14 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
     return solve
 
 
-import multiprocessing
-
-
-def _parse_and_validate_in_process(
-    format_name: str,
-    version: str,
-    resolved_catalog_path: str,
-    surface_id: str,
-    completion: str,
-) -> dict[str, Any]:
-    catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-    strategy = _get_strategy(
-        format_name,
-        version,
-        catalog_config,
-        surface_id=surface_id,
-    )
-    catalog = (
-        strategy.catalogs[0]
-        if isinstance(strategy, DirectJsonFormat)
-        else getattr(strategy, "catalog")
-    )
-
-    parts = strategy.parser.parse_response(completion)
-    compiled_jsons = []
-    serialized_parts = []
-    for p in parts:
-        part_dict = {"text": p.text, "a2ui_json": getattr(p, "a2ui_json", None)}
-        serialized_parts.append(part_dict)
-        a2ui_json = getattr(p, "a2ui_json", None)
-        if a2ui_json:
-            if isinstance(a2ui_json, list):
-                compiled_jsons.extend(a2ui_json)
-            else:
-                compiled_jsons.append(a2ui_json)
-
-    if not compiled_jsons:
-        raise ValueError(
-            f"No compiled A2UI {format_name} user interface found in parsed parts."
-        )
-
-    MessageProcessor(
-        [catalog],
-        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-    ).process_messages(compiled_jsons)
-    return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
-
-
-import traceback
-
-
-def _process_target_wrapper(
-    format_name: str,
-    version: str,
-    resolved_catalog_path: str,
-    surface_id: str,
-    completion: str,
-    return_dict: dict,
-):
-    try:
-        res = _parse_and_validate_in_process(
-            format_name, version, resolved_catalog_path, surface_id, completion
-        )
-        return_dict["result"] = res
-    except Exception as e:
-        return_dict["error"] = f"{e}\n{traceback.format_exc()}"
-
-
-def parse_with_hard_kill_timeout(
-    format_name: str,
-    version: str,
-    resolved_catalog_path: str,
-    surface_id: str,
-    completion: str,
-    timeout_sec: float = 5.0,
-) -> dict[str, Any]:
-    with multiprocessing.Manager() as manager:
-        return_dict = manager.dict()
-        p = multiprocessing.Process(
-            target=_process_target_wrapper,
-            args=(
-                format_name,
-                version,
-                resolved_catalog_path,
-                surface_id,
-                completion,
-                return_dict,
-            ),
-        )
-        p.start()
-        p.join(timeout=timeout_sec)
-        if p.is_alive():
-            p.kill()
-            p.join()
-            raise TimeoutError(
-                f"Format compilation timed out after {timeout_sec}s and process was"
-                " killed."
-            )
-
-        if "error" in return_dict:
-            raise ValueError(return_dict["error"])
-        if "result" not in return_dict:
-            raise ValueError("Compilation produced no output.")
-        return return_dict["result"]
-
-
 @solver
-def compile_format_payload(format_name: str, version: str) -> Solver:
+def compile_format_payload(
+    format_name: str, version: str, sdk: str = "python"
+) -> Solver:
     """Solver to compile format-specific output back to standard A2UI JSON."""
+    validate_sdk_format(sdk, format_name)
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         if not state.output or not state.output.completion:
             return state
 
@@ -248,15 +113,16 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
             if found_id in allowed_surface_ids:
                 surface_id = found_id
 
+        bridge = get_sdk_bridge(sdk)
         try:
             res_dict = await asyncio.to_thread(
-                parse_with_hard_kill_timeout,
+                bridge.parse_and_validate,
                 format_name,
                 version,
                 resolved_catalog_path,
                 surface_id,
                 completion,
-                timeout_sec=5.0,
+                DEFAULT_PARSE_TIMEOUT_SEC,
             )
 
             compiled_jsons = res_dict.get("compiled_jsons", [])
@@ -288,7 +154,7 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
                 ],
             )
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             state.output = ModelOutput(
                 model=state.output.model,
                 choices=[
@@ -308,12 +174,13 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
     return solve
 
 
-def format_solver(format_name: str, version: str) -> list[Solver]:
+def format_solver(format_name: str, version: str, sdk: str = "python") -> list[Solver]:
     """Assembles the solver chain for the specified evaluation strategy."""
+    validate_sdk_format(sdk, format_name)
     chain = [
-        format_system_prompt(format_name, version),
+        format_system_prompt(format_name, version, sdk=sdk),
         measured_generate(),
     ]
     if format_name != "direct_json":
-        chain.append(compile_format_payload(format_name, version))
+        chain.append(compile_format_payload(format_name, version, sdk=sdk))
     return chain

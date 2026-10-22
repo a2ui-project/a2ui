@@ -38,32 +38,24 @@ from ...catalog.components import ModelComponentApi
 
 
 class TextItem(StrictBaseModel):
-    """The value of the text field. This can be a literal string or a reference to a value in the data model ('path', e.g. '/user/name')."""
-
     model_config = ConfigDict(populate_by_name=True)
     literal_string: str | None = Field(default=None, alias="literalString")
     path: str | None = Field(default=None)
 
 
 class UrlItem(StrictBaseModel):
-    """The URL of the audio to be played. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/song/url')."""
-
     model_config = ConfigDict(populate_by_name=True)
     literal_string: str | None = Field(default=None, alias="literalString")
     path: str | None = Field(default=None)
 
 
 class AltTextItem(StrictBaseModel):
-    """The alt text for the image. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/thumbnail/altText')."""
-
     model_config = ConfigDict(populate_by_name=True)
     literal_string: str | None = Field(default=None, alias="literalString")
     path: str | None = Field(default=None)
 
 
 class NameItem(StrictBaseModel):
-    """The name of the icon to display. This can be a literal string or a reference to a value in the data model ('path', e.g. '/form/submit')."""
-
     model_config = ConfigDict(populate_by_name=True)
     literal_string: (
         Literal[
@@ -122,16 +114,12 @@ class NameItem(StrictBaseModel):
 
 
 class DescriptionItem(StrictBaseModel):
-    """A description of the audio, such as a title or summary. This can be a literal string or a reference to a value in the data model ('path', e.g. '/song/title')."""
-
     model_config = ConfigDict(populate_by_name=True)
     literal_string: str | None = Field(default=None, alias="literalString")
     path: str | None = Field(default=None)
 
 
 class ChildrenItem(StrictBaseModel):
-    """Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list."""
-
     model_config = ConfigDict(populate_by_name=True)
     explicit_list: list[str] | None = Field(default=None, alias="explicitList")
     template: TemplateItem | None = Field(
@@ -158,32 +146,30 @@ class TabItemItem(StrictBaseModel):
 
 
 class ActionItem(StrictBaseModel):
-    """The client-side action to be dispatched when the button is clicked. It includes the action's name and an optional context payload."""
-
     model_config = ConfigDict(populate_by_name=True)
     name: str = Field(...)
     context: list[ContextItem] | None = Field(default=None)
 
 
 class LabelItem(StrictBaseModel):
-    """The label for the slider. This can be a literal string or a reference to a value in the data model ('path')."""
-
     model_config = ConfigDict(populate_by_name=True)
     literal_string: str | None = Field(default=None, alias="literalString")
     path: str | None = Field(default=None)
 
 
 class ValueItem(StrictBaseModel):
-    """The current value of the slider. This can be a literal number ('literalNumber') or a reference to a value in the data model ('path', e.g. '/restaurant/cost')."""
-
     model_config = ConfigDict(populate_by_name=True)
-    literal_number: float | None = Field(default=None, alias="literalNumber")
+    literal_boolean: bool | None = Field(default=None, alias="literalBoolean")
+    path: str | None = Field(default=None)
+
+
+class DateTimeInputValueItem(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    literal_string: str | None = Field(default=None, alias="literalString")
     path: str | None = Field(default=None)
 
 
 class SelectionItem(StrictBaseModel):
-    """The currently selected values for the component. This can be a literal array of strings or a path to an array in the data model('path', e.g. '/hotel/options')."""
-
     model_config = ConfigDict(populate_by_name=True)
     literal_array: list[str] | None = Field(default=None, alias="literalArray")
     path: str | None = Field(default=None)
@@ -203,17 +189,19 @@ class OptionItem(StrictBaseModel):
     )
 
 
-class TemplateItem(StrictBaseModel):
-    """A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children."""
+class SliderValueItem(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    literal_number: float | None = Field(default=None, alias="literalNumber")
+    path: str | None = Field(default=None)
 
+
+class TemplateItem(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     component_id: str = Field(..., alias="componentId")
     data_binding: str = Field(..., alias="dataBinding")
 
 
 class TitleItem(StrictBaseModel):
-    """The tab title. Defines the value as either a literal value or a path to data model value (e.g. '/options/title')."""
-
     model_config = ConfigDict(populate_by_name=True)
     literal_string: str | None = Field(default=None, alias="literalString")
     path: str | None = Field(default=None)
@@ -222,13 +210,21 @@ class TitleItem(StrictBaseModel):
 class ContextItem(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     key: str = Field(...)
-    value: ValueItem = Field(
+    value: ContextValueItem = Field(
         ...,
         description=(
             "Defines the value to be included in the context as either a literal value"
             " or a path to a data model value (e.g. '/user/name')."
         ),
     )
+
+
+class ContextValueItem(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    path: str | None = Field(default=None)
+    literal_string: str | None = Field(default=None, alias="literalString")
+    literal_number: float | None = Field(default=None, alias="literalNumber")
+    literal_boolean: bool | None = Field(default=None, alias="literalBoolean")
 
 
 class TextComponent(ComponentCommon):
@@ -247,10 +243,10 @@ class TextComponent(ComponentCommon):
         default=None,
         alias="usageHint",
         description=(
-            "A hint for the base text style. One of: - `h1`: Largest heading. - `h2`:"
-            " Second largest heading. - `h3`: Third largest heading. - `h4`: Fourth"
-            " largest heading. - `h5`: Fifth largest heading. - `caption`: Small text"
-            " for captions. - `body`: Standard body text."
+            "A hint for the base text style. One of:\n- `h1`: Largest heading.\n- `h2`:"
+            " Second largest heading.\n- `h3`: Third largest heading.\n- `h4`: Fourth"
+            " largest heading.\n- `h5`: Fifth largest heading.\n- `caption`: Small text"
+            " for captions.\n- `body`: Standard body text."
         ),
     )
 
@@ -290,10 +286,11 @@ class ImageComponent(ComponentCommon):
         default=None,
         alias="usageHint",
         description=(
-            "A hint for the image size and style. One of: - `icon`: Small square icon."
-            " - `avatar`: Circular avatar image. - `smallFeature`: Small feature image."
-            " - `mediumFeature`: Medium feature image. - `largeFeature`: Large feature"
-            " image. - `header`: Full-width, full bleed, header image."
+            "A hint for the image size and style. One of:\n- `icon`: Small square"
+            " icon.\n- `avatar`: Circular avatar image.\n- `smallFeature`: Small"
+            " feature image.\n- `mediumFeature`: Medium feature image.\n-"
+            " `largeFeature`: Large feature image.\n- `header`: Full-width, full bleed,"
+            " header image."
         ),
     )
 
@@ -532,7 +529,7 @@ class TextFieldComponent(ComponentCommon):
 
 class DateTimeInputComponent(ComponentCommon):
     component: Literal["DateTimeInput"] = "DateTimeInput"
-    value: ValueItem = Field(
+    value: DateTimeInputValueItem = Field(
         ...,
         description=(
             "The selected date and/or time value in ISO 8601 format. This can be a"
@@ -588,7 +585,7 @@ class SliderComponent(ComponentCommon):
             " value in the data model ('path')."
         ),
     )
-    value: ValueItem = Field(
+    value: SliderValueItem = Field(
         ...,
         description=(
             "The current value of the slider. This can be a literal number"

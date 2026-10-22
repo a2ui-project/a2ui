@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import copy
+from collections.abc import Container
 from typing import Any, Final, Iterator
 from ..common.events import EventSource
-from ..catalog import Catalog, CatalogApi
+from ..catalog import CatalogApi
 from ..catalog.reference_map import (
     ComponentRefSpec,
     analyze_child_ref_schema,
@@ -50,7 +51,7 @@ V0_8_LIST_REF_FIELDS: Final[set[str]] = {
 def is_v0_8_heuristic_child_prop_key(
     key: str,
     val: Any = None,
-    known_ids: set[str] | None = None,
+    known_ids: Container[str] | None = None,
 ) -> bool:
     """Heuristically checks if a property key represents a child component.
 
@@ -129,17 +130,22 @@ class ComponentModel:
         self,
         component_id: str,
         component_type: str,
-        catalog: CatalogApi | dict[str, Any] | None = None,
+        catalog: CatalogApi,
         properties: dict[str, Any] | None = None,
     ):
+        """Initializes the component.
+
+        Args:
+            component_id: The component's ID.
+            component_type: The component's type name.
+            catalog: The catalog the component resolved to: the catalog it
+                names, or else the surface default catalog.
+            properties: The component's properties.
+        """
         self.id = component_id
         self.type = component_type
-        if isinstance(catalog, dict) and properties is None:
-            self.catalog = None
-            self._properties = copy.deepcopy(catalog)
-        else:
-            self.catalog = catalog
-            self._properties = copy.deepcopy(properties or {})
+        self.catalog: CatalogApi = catalog
+        self._properties = copy.deepcopy(properties or {})
         self.on_updated = EventSource()
 
     @property
@@ -159,20 +165,27 @@ class ComponentModel:
     def validate(self, config: Any | None = None) -> None:
         """Validates this component instance against its bound catalog using PayloadValidator.
 
+        On its own, a component can't tell whether its catalog is the surface
+        default, so it is validated as if it were: function calls that name no
+        `catalogId` are checked against its catalog.
+        `SurfaceComponentsModel.validate_components_update` knows the surface
+        default and handles components in other catalogs.
+
+        Args:
+            config: Optional validation settings.
+
         Raises:
             A2uiValidationError: If component schema or identifier validation fails.
         """
         from ..validation.payload_validator import PayloadValidator
 
-        comp_dict = self.component_tree
-        if not isinstance(self.catalog, Catalog):
-            return
-        validator = PayloadValidator(self.catalog, config=config)
-        validator.validate_component(comp_dict)
+        PayloadValidator(self.catalog, config=config).validate_component(
+            self.component_tree
+        )
 
     def get_child_references(
         self,
-        known_component_ids: set[str] | None = None,
+        known_component_ids: Container[str] | None = None,
         catalog: CatalogApi | None = None,
     ) -> Iterator[tuple[str, str]]:
         """Recursively extracts referenced child ComponentIds and their property paths from properties.

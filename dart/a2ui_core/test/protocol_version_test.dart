@@ -133,18 +133,55 @@ void main() {
       }
     });
 
-    test('carries the offending payload as error details', () {
-      final payload = {'version': 'v2.0'};
-      expect(
-        () => A2uiProtocolVersion.fromJson('v2.0', details: payload),
-        throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.details,
-            'details',
-            same(payload),
-          ),
-        ),
-      );
+    test('exposes the bare semantic version catalogs declare', () {
+      expect(A2uiProtocolVersion.v0_9.semverValue, '0.9');
+      expect(A2uiProtocolVersion.v0_9_1.semverValue, '0.9.1');
+      expect(A2uiProtocolVersion.v1_0.semverValue, '1.0');
+    });
+
+    group('tryParseSemVer', () {
+      test('accepts the catalog, wire and full spellings of a version', () {
+        for (final spelling in ['1.0', 'v1.0', '1.0.0', 'v1.0.0', ' 1.0 ']) {
+          expect(
+            A2uiProtocolVersion.tryParseSemVer(spelling),
+            A2uiProtocolVersion.v1_0,
+            reason: spelling,
+          );
+        }
+        expect(
+          A2uiProtocolVersion.tryParseSemVer('0.9'),
+          A2uiProtocolVersion.v0_9,
+        );
+        expect(
+          A2uiProtocolVersion.tryParseSemVer('0.9.0'),
+          A2uiProtocolVersion.v0_9,
+        );
+        expect(
+          A2uiProtocolVersion.tryParseSemVer('v0.9.1'),
+          A2uiProtocolVersion.v0_9_1,
+        );
+      });
+
+      test('ignores pre-release and build suffixes', () {
+        expect(
+          A2uiProtocolVersion.tryParseSemVer('1.0.0-rc.1'),
+          A2uiProtocolVersion.v1_0,
+        );
+        expect(
+          A2uiProtocolVersion.tryParseSemVer('1.0.0+build.7'),
+          A2uiProtocolVersion.v1_0,
+        );
+      });
+
+      test('returns null for unknown and malformed versions', () {
+        for (final spelling in ['0.8', '1.1', '2.0', '1.0.1', 'one', '', 'v']) {
+          expect(
+            A2uiProtocolVersion.tryParseSemVer(spelling),
+            isNull,
+            reason: spelling,
+          );
+        }
+      });
     });
   });
 }
