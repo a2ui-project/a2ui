@@ -106,7 +106,7 @@ function runSkillSetCase(testCase: LoadedCase, {generator}: SkillCaseContext): v
   const expectedKeys = (testCase.expected_skills as string[]) || [];
   const dict = skillSet.toDict();
   for (const k of expectedKeys) {
-    expect(dict).toHaveProperty(k);
+    expect(Object.hasOwn(dict, k)).toBe(true);
   }
 }
 
@@ -127,7 +127,9 @@ describe('Conformance: skill.yaml', () => {
     const testName = `${action} · ${name}`;
 
     const testFn = async () => {
-      const handler = SKILL_ACTION_HANDLERS[action];
+      const handler = Object.hasOwn(SKILL_ACTION_HANDLERS, action)
+        ? SKILL_ACTION_HANDLERS[action]
+        : undefined;
       if (!handler) {
         throw new Error(`Unhandled conformance action: ${action}`);
       }

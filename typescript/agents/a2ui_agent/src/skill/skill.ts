@@ -244,7 +244,7 @@ export class SkillSet implements Iterable<string> {
 
   constructor(skills?: Record<string, Skill> | Iterable<[string, Skill]>) {
     if (skills) {
-      if (Symbol.iterator in Object(skills)) {
+      if (typeof (skills as Iterable<[string, Skill]>)[Symbol.iterator] === 'function') {
         for (const [k, v] of skills as Iterable<[string, Skill]>) {
           this.skills.set(k, v);
         }
