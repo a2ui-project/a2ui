@@ -17,11 +17,16 @@ catalogs/
 │       ├── catalog.json
 │       ├── examples/
 │       └── basic_catalog_implementation_guide.md
-└── mcp/                    # MCP catalog
-    ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
-    └── v1/                 # MCP catalog, major version 1 (protocol v1.0)
-        ├── catalog.json
-        └── mcp_app_specification.md
+├── mcp/                    # MCP catalog
+│   ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
+│   └── v1/                 # MCP catalog, major version 1 (protocol v1.0)
+│       ├── catalog.json
+│       └── mcp_app_specification.md
+└── vegachart/              # VegaChart catalog
+    ├── v0_9/               # VegaChart catalog, protocol v0.9
+    │   └── catalog.json
+    └── v1/                 # VegaChart catalog, major version 1 (protocol v1.0)
+        └── catalog.json
 ```
 
 - Catalogs are identified by the `$id` declared inside `catalog.json`, not by
@@ -33,7 +38,8 @@ catalogs/
   of the protocol version. Newer catalogs start unversioned
   (`catalogs/<catalog>/catalog.json`) and add a version directory only when
   they need a breaking change. The MCP catalog for protocol v0.9 stays at
-  `catalogs/mcp/catalog.json`; its v1.0 successor lives in `mcp/v1/`.
+  `catalogs/mcp/catalog.json`; its v1.0 successor lives in `mcp/v1/`. The
+  VegaChart catalog keeps one directory per protocol version (`v0_9/`, `v1/`).
 - Basic catalogs for protocol versions before v1.0 remain under
   `specification/<version>/catalogs/`.
 

@@ -284,13 +284,16 @@ const V08_DEFS = {
  * Generates the standard_defs.ts source file content.
  */
 function generateDefsFile(versionPrefix, versionLabel, childRefOptions, defsObj) {
+  const childPropLine = childRefOptions.childPropertyNames
+    ? `\n  childPropertyNames: new Set(${JSON.stringify(Array.from(childRefOptions.childPropertyNames))}),`
+    : '';
   const code = `${HEADER}
 /**
  * Child reference analysis configuration for A2UI ${versionLabel} schemas.
  */
 export const ${versionPrefix}_CHILD_REF_OPTIONS: ChildRefAnalysisOptions = {
   childRefNames: new Set(${JSON.stringify(Array.from(childRefOptions.childRefNames))}),
-  childListRefNames: new Set(${JSON.stringify(Array.from(childRefOptions.childListRefNames))}),
+  childListRefNames: new Set(${JSON.stringify(Array.from(childRefOptions.childListRefNames))}),${childPropLine}
 };
 
 /**
@@ -310,6 +313,7 @@ const v08Code = generateDefsFile(
   {
     childRefNames: new Set(['ComponentId', 'Child', 'ChildComponentId']),
     childListRefNames: new Set(['ChildList', 'TemplateChildList']),
+    childPropertyNames: new Set(['child', 'entryPointChild', 'contentChild']),
   },
   V08_DEFS,
 );

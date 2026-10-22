@@ -14,248 +14,58 @@
  * limitations under the License.
  */
 
-import {
-  A2uiCatalogError,
-  A2uiError,
-  A2uiValidationError,
-  CatalogApi,
-  linkCatalogs,
-  MessageProcessor,
-  STRICT_VALIDATION,
-} from '../internal/web-core.js';
-import {validateEnvelope} from './envelope-validation.js';
-import {toWireProtocolVersion} from './protocol-version.js';
+/**
+ * Stateless validation of the payloads that an agent sends.
+ */
+
+import {CatalogApi} from '../internal/web-core.js';
+import {RendererState} from './renderer-state.js';
 
 /**
- * Checks that catalogs target the same release line and returns it.
+ * The state of a renderer that `validatePayload` knows nothing about.
  *
- * @throws {A2uiCatalogError} If no catalogs are provided or they target different protocol versions.
+ * A surface the payload updates without creating is assumed to exist, holding components
+ * the check never saw. The state creates an empty placeholder for it, on the first catalog
+ * that defines the update's components and accepts it. Each component is still checked
+ * against that catalog, but the surface's tree is not: references to components outside
+ * the payload, a missing root and unreachable components are accepted there.
  */
-export function checkParserCatalogs(catalogs: CatalogApi[]): string {
-  if (!catalogs || catalogs.length === 0) {
-    throw new A2uiCatalogError('Parser requires at least one catalog.');
+class PayloadState extends RendererState {
+  protected override get assumesUnknownSurfaces(): boolean {
+    return true;
   }
-
-  const seenCatalogIds = new Set<string>();
-  const releaseLines = new Set<string>();
-  for (const catalog of catalogs) {
-    if (seenCatalogIds.has(catalog.id)) {
-      throw new A2uiCatalogError(`Duplicate catalog ID '${catalog.id}' provided.`);
-    }
-    seenCatalogIds.add(catalog.id);
-    const wireVersion = toWireProtocolVersion(catalog.protocolVersion || 'v1.0');
-    let releaseLine = wireVersion;
-    if (wireVersion === 'v0.9.1' || wireVersion === 'v0.9') {
-      releaseLine = 'v0.9';
-    }
-    releaseLines.add(releaseLine);
-  }
-
-  if (releaseLines.size > 1) {
-    throw new A2uiCatalogError(
-      `The catalogs target incompatible protocol versions: ${Array.from(releaseLines).sort().join(', ')}.`,
-    );
-  }
-
-  return toWireProtocolVersion(catalogs[0].protocolVersion || 'v1.0');
 }
 
 /**
- * Validates a parsed payload against the active catalogs.
+ * Checks a payload the way a renderer holding the catalogs would.
+ *
+ * The check is stateless: it sees one payload, with no record of what earlier payloads
+ * sent. A surface that the payload creates with `createSurface` is checked in full, so its
+ * components must be valid and reachable from the root, and their references must resolve
+ * once every message in the payload is applied: a component may name a child that a later
+ * message adds. A surface that the payload only updates may already hold components, so
+ * references to components outside the payload and a missing root are accepted there. Each
+ * of its components is still checked against a catalog that defines all of them, and the
+ * surface passes if one such catalog accepts it.
+ *
+ * To check a payload against what earlier payloads sent, keep a `RendererState` and call
+ * its `apply` and `checkTopology` inside `state.transaction(...)`, so that a rejected
+ * response is rolled back whole.
+ *
+ * Each message must match the protocol's message schema and state a `version` that the
+ * catalogs' protocol version accepts, spelled as the specification spells it: `v0.9` or
+ * `v0.9.1` for v0.9 and v0.9.1, and `v1.0` for v1.0.
+ *
+ * @param catalogs The active catalogs, which must target compatible protocol versions. Each
+ *     surface is checked against the catalog its `catalogId` names.
+ * @param payload One message, or an iterable of messages, as parsed JSON objects.
+ * @throws {A2uiValidationError} If a renderer holding the catalogs would reject the payload.
+ *     The error, or a subclass such as `A2uiIntegrityError`, describes the first problem
+ *     found.
+ * @throws {A2uiCatalogError} If no catalogs are given, or if their messages state different
+ *     versions, for example v0.9 and v1.0 catalogs.
  */
-export function validatePayload(catalogs: CatalogApi[], payload: unknown[]): void {
-  const wireProtocolVersion = checkParserCatalogs(catalogs);
-  // Linked once here, so that the processors below share the linked copies.
-  const linkedCatalogs = linkCatalogs(catalogs);
-  if (!Array.isArray(payload)) {
-    throw new A2uiValidationError('Payload is not a JSON array.');
-  }
-  if (payload.length === 0) {
-    return;
-  }
-
-  const releaseLine =
-    wireProtocolVersion === 'v0.9.1' || wireProtocolVersion === 'v0.9'
-      ? 'v0.9'
-      : wireProtocolVersion;
-
-  const validVersions = new Set<string>();
-  if (releaseLine === 'v0.9') {
-    validVersions.add('v0.9');
-    validVersions.add('v0.9.1');
-  } else if (releaseLine === 'v1.0') {
-    validVersions.add('v1.0');
-  } else {
-    validVersions.add(wireProtocolVersion);
-  }
-
-  const createSurfaceTargets = new Set<string>();
-  const messagesBySurfaceId = new Map<string, unknown[]>();
-
-  for (let i = 0; i < payload.length; i++) {
-    const item = payload[i];
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      throw new A2uiValidationError(`Message ${i} is not a JSON object.`);
-    }
-
-    validateEnvelope(item as any, releaseLine);
-    const version = (item as any).version;
-    if (typeof version !== 'string' || !validVersions.has(version)) {
-      if (version === undefined || version === null) {
-        throw new A2uiValidationError(
-          `Message ${i} states no version, which ${releaseLine} messages require.`,
-        );
-      }
-      const accepted = Array.from(validVersions)
-        .sort()
-        .map(v => `'${v}'`)
-        .join(' or ');
-      throw new A2uiValidationError(
-        `Message ${i} states version '${version}', but the catalogs target ${releaseLine}, whose messages state ${accepted}.`,
-      );
-    }
-
-    const actions = [
-      'createSurface',
-      'updateComponents',
-      'updateDataModel',
-      'deleteSurface',
-    ].filter(a => a in item);
-    if (actions.length === 1) {
-      const action = actions[0];
-      const surfaceId = (item as any)[action]?.surfaceId;
-      if (typeof surfaceId === 'string') {
-        if (action === 'createSurface') {
-          createSurfaceTargets.add(surfaceId);
-        }
-        let surfaceMsgs = messagesBySurfaceId.get(surfaceId);
-        if (!surfaceMsgs) {
-          surfaceMsgs = [];
-          messagesBySurfaceId.set(surfaceId, surfaceMsgs);
-        }
-        surfaceMsgs.push(item);
-      }
-    }
-  }
-
-  // To validate messages for created surfaces, we need them in order.
-  // Actually, we can just process the whole payload directly if it creates all surfaces,
-  // but we need to remove the update-only surface messages because those will fail.
-  const fullValidationMessages: unknown[] = [];
-  for (const item of payload) {
-    const actions = [
-      'createSurface',
-      'updateComponents',
-      'updateDataModel',
-      'deleteSurface',
-    ].filter(a => a in (item as any));
-    let isUpdateOnlyForSurface = false;
-    if (actions.length === 1) {
-      const surfaceId = (item as any)[actions[0]]?.surfaceId;
-      if (typeof surfaceId === 'string' && !createSurfaceTargets.has(surfaceId)) {
-        isUpdateOnlyForSurface = true;
-      }
-    }
-    if (!isUpdateOnlyForSurface) {
-      fullValidationMessages.push(item);
-    }
-  }
-
-  if (fullValidationMessages.length > 0) {
-    try {
-      const processor = new MessageProcessor(linkedCatalogs as any, undefined, {
-        validationConfig: STRICT_VALIDATION,
-      });
-      processor.processMessages(fullValidationMessages as any);
-    } catch (e: any) {
-      if (e instanceof A2uiValidationError) {
-        throw e;
-      } else if (e instanceof A2uiError) {
-        throw new A2uiValidationError(e.message, (e as any).details);
-      }
-      throw e;
-    }
-  }
-
-  for (const [surfaceId, messages] of messagesBySurfaceId.entries()) {
-    if (!createSurfaceTargets.has(surfaceId)) {
-      validateUpdateOnlySurface(linkedCatalogs, releaseLine, surfaceId, messages as any);
-    }
-  }
-}
-
-function validateUpdateOnlySurface(
-  catalogs: CatalogApi[],
-  protocolVersion: string,
-  surfaceId: string,
-  messages: any[],
-): void {
-  const componentTypes = new Set<string>();
-  for (const msg of messages) {
-    for (const action of ['updateComponents', 'surfaceUpdate']) {
-      const components = msg[action]?.components;
-      if (Array.isArray(components)) {
-        for (const comp of components) {
-          if (comp && typeof comp === 'object' && !comp.catalogId) {
-            const compType = comp.component;
-            if (typeof compType === 'string') {
-              componentTypes.add(compType);
-            } else if (compType && typeof compType === 'object') {
-              for (const key of Object.keys(compType)) {
-                componentTypes.add(key);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  let candidates = catalogs.filter(catalog => {
-    for (const compType of componentTypes) {
-      if (!catalog.components.has(compType)) {
-        return false;
-      }
-    }
-    return true;
-  });
-  if (candidates.length === 0) candidates = [catalogs[0]];
-
-  const errors: A2uiValidationError[] = [];
-  for (const catalog of candidates) {
-    const synthVersion = messages[0].version || protocolVersion;
-    const synthMsg = {
-      version: synthVersion,
-      createSurface: {
-        surfaceId: surfaceId,
-        catalogId: catalog.id,
-      },
-    };
-
-    const toValidate = [synthMsg, ...messages];
-
-    try {
-      const processor = new MessageProcessor(catalogs as any, undefined, {
-        validationConfig: {
-          allowDanglingReferences: true,
-          allowMissingRoot: true,
-          allowOrphanComponents: true,
-        },
-      });
-      processor.processMessages(toValidate as any);
-      return;
-    } catch (e: any) {
-      if (e instanceof A2uiValidationError) {
-        errors.push(e);
-      } else if (e instanceof A2uiError) {
-        errors.push(new A2uiValidationError(e.message, (e as any).details));
-      } else {
-        throw e;
-      }
-    }
-  }
-
-  if (errors.length > 0) {
-    throw errors[0];
-  }
+export function validatePayload(catalogs: CatalogApi[], payload: unknown): void {
+  const state = new PayloadState(catalogs);
+  state.checkTopology(state.apply(payload));
 }

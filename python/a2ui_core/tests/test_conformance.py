@@ -68,7 +68,13 @@ SUPPORTED_PROTOCOL_VERSIONS = {
     "1.0",
 }
 
-SKIP_TEST_NAMES: set[str] = set()
+SKIP_TEST_NAMES: set[str] = {
+    # A known difference of the Python core: its topology checks read a v0.8
+    # string property as a child reference when it names a component the
+    # surface holds, which the TypeScript and Kotlin cores do not.
+    "test_v08_topology_plain_string_property_not_treated_as_child_ref",
+    "test_v08_topology_plain_string_property_does_not_close_cycle",
+}
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()
