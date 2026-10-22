@@ -297,6 +297,62 @@ describe('A2uiVegaChartElement', () => {
     assert.strictEqual(rendered.length, 0);
   });
 
+  it('removes the chart and finalizes the view when spec is cleared', async () => {
+    let finalized = 0;
+    const {el, container} = await mount({mark: 'bar'}, async target => {
+      target.appendChild(document.createElement('svg'));
+      return {finalize: () => finalized++};
+    });
+    mockRect(container, 500, 290);
+    latestResizeObserver()?.trigger(500, 290);
+    await settle();
+    assert.ok(container.querySelector('svg'), 'chart is rendered');
+
+    el.spec = undefined;
+    await el.updateComplete;
+    await settle();
+
+    assert.strictEqual(container.querySelector('svg'), null, 'stale chart is removed');
+    assert.strictEqual(finalized, 1);
+  });
+
+  it('keeps a late-resolving stale embed out of the container', async () => {
+    let resolveFirst!: () => void;
+    let calls = 0;
+    const {el, container} = await mount({mark: 'bar'}, target => {
+      calls++;
+      if (calls === 1) {
+        return new Promise(res => {
+          resolveFirst = () => {
+            target.appendChild(document.createElement('svg'));
+            res({});
+          };
+        });
+      }
+      target.appendChild(document.createElement('svg'));
+      return Promise.resolve({});
+    });
+    mockRect(container, 500, 290);
+    latestResizeObserver()?.trigger(500, 290);
+
+    el.spec = {mark: 'line'};
+    await el.updateComplete;
+    await settle();
+    resolveFirst();
+    await settle();
+
+    assert.strictEqual(container.querySelectorAll('svg').length, 1, 'only the active chart');
+  });
+
+  it('preserves a consumer-set inline host width', async () => {
+    const {el, container} = await mount({mark: 'bar'});
+    el.style.width = '50%';
+    mockRect(container, 500, 290);
+    latestResizeObserver()?.trigger(500, 290);
+    await settle();
+    assert.strictEqual(el.style.width, '50%');
+  });
+
   it('grows the container to fit a faceted chart instead of scrolling it', async () => {
     const values = ['A', 'B', 'C', 'D'].flatMap(team =>
       ['P0', 'P1', 'P2'].map(priority => ({team, priority, n: 1})),

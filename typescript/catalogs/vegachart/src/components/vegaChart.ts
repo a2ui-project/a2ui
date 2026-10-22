@@ -464,6 +464,7 @@ export class A2uiVegaChartElement extends A2uiLitElement<
   private containerWidth = 0;
   private hasValidDimensions = false;
   private useFallbackWidth = false;
+  private hostWidthApplied = false;
   private embedResult?: VegaEmbedResult;
   private renderAbortController?: AbortController;
 
@@ -490,12 +491,13 @@ export class A2uiVegaChartElement extends A2uiLitElement<
 
   /**
    * `A2uiLitElement.update` skips rendering without a controller. Standalone
-   * use has no controller, so render whenever a `spec` property is set.
+   * use has no controller, so render once a `spec` property is set, and keep
+   * rendering afterwards so clearing `spec` removes the chart.
    */
   protected override update(changedProperties: PropertyValues) {
     if (this.controller) {
       super.update(changedProperties);
-    } else if (this.spec !== undefined) {
+    } else if (this.spec !== undefined || this.hasUpdated) {
       (LitElement.prototype as unknown as {update(p: PropertyValues): void}).update.call(
         this,
         changedProperties,
@@ -595,6 +597,11 @@ export class A2uiVegaChartElement extends A2uiLitElement<
     return this.offsetParent !== null || this.getClientRects().length > 0;
   }
 
+  /**
+   * Aborts any in-flight embed, finalizes the current view, and empties the
+   * container. A late-resolving embed writes into its own detached wrapper
+   * (see `renderChart`), so it cannot reappear here.
+   */
   private destroyChart() {
     this.renderAbortController?.abort();
     this.renderAbortController = undefined;
@@ -604,12 +611,23 @@ export class A2uiVegaChartElement extends A2uiLitElement<
     this.chartContainer?.replaceChildren();
   }
 
+  /** Sets or clears the host width without touching a consumer's inline width. */
+  private applyHostWidth(widthPx: number | null) {
+    if (widthPx !== null) {
+      this.style.width = `${widthPx}px`;
+      this.hostWidthApplied = true;
+    } else if (this.hostWidthApplied) {
+      this.style.removeProperty('width');
+      this.hostWidthApplied = false;
+    }
+  }
+
   private async renderChart() {
+    this.destroyChart();
     const vegaSpec = this.resolvedSpec;
     const container = this.chartContainer;
     if (!vegaSpec || !container) return;
 
-    this.destroyChart();
     const abortController = new AbortController();
     this.renderAbortController = abortController;
 
@@ -626,17 +644,26 @@ export class A2uiVegaChartElement extends A2uiLitElement<
         : this.resolvedHeight;
       const transformedSpec = transformSpec(vegaSpec, containerHeight, effectiveWidth, facetSize);
 
-      this.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '';
+      this.applyHostWidth(this.useFallbackWidth ? effectiveWidth : null);
       container.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '100%';
-      // Faceted charts grow to fit every subplot; standard charts fill the
-      // requested height exactly.
+      // Faceted charts grow to fit every subplot and start-align so a wide
+      // grid can scroll into view; standard charts fill the requested height.
       container.style.height = facetSize ? 'auto' : `${containerHeight}px`;
       container.style.minHeight = `${containerHeight}px`;
       container.style.overflowX = facetSize ? 'auto' : 'hidden';
       container.style.overflowY = 'hidden';
+      container.style.justifyContent = facetSize ? 'flex-start' : '';
+      container.style.alignItems = facetSize ? 'flex-start' : '';
+
+      // Embed into a per-render wrapper. If this render is superseded,
+      // `destroyChart` detaches the wrapper and the embed finishes offscreen.
+      const wrapper = document.createElement('div');
+      wrapper.style.width = '100%';
+      wrapper.style.height = '100%';
+      container.appendChild(wrapper);
 
       const embed = this.embedFn ?? A2uiVegaChartElement.defaultEmbedFn;
-      const result = await embed(container, transformedSpec, {actions: false, renderer: 'svg'});
+      const result = await embed(wrapper, transformedSpec, {actions: false, renderer: 'svg'});
 
       if (abortController.signal.aborted) {
         result?.finalize?.();
@@ -646,7 +673,7 @@ export class A2uiVegaChartElement extends A2uiLitElement<
       this.embedResult = result;
 
       // Sandboxed embedders render into an iframe; size and label it.
-      const iframe = container.querySelector('iframe');
+      const iframe = wrapper.querySelector('iframe');
       if (iframe) {
         iframe.style.height = `${containerHeight}px`;
         iframe.style.width = this.useFallbackWidth ? `${effectiveWidth}px` : '100%';

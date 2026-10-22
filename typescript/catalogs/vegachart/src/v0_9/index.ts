@@ -26,10 +26,9 @@ import {
   Catalog,
   type ComponentApi,
   DynamicNumberSchema,
-  type DynamicValue,
   DynamicValueSchema,
-  spec,
-} from '@a2ui/web_core/v1_0';
+} from '@a2ui/web_core/v0_9';
+import {spec} from '@a2ui/web_core/v1_0';
 
 import {A2uiVegaChartElement} from '../components/vegaChart.js';
 
@@ -41,12 +40,15 @@ const V09_COMMON_TYPES = 'https://a2ui.org/specification/v0_9/common_types.json'
 
 /**
  * `spec` accepts either a v0.9 `DynamicValue` (a literal or a `{path}`
- * binding) or a plain object. The explicit `anyOf` keeps the serialized schema
- * identical to the published `catalog.json`.
+ * binding) or a plain object, because v0.9's `DynamicValue` has no object
+ * branch. The explicit `anyOf` keeps the serialized schema identical to the
+ * published `catalog.json`.
  */
-const SpecSchema: z.ZodType<DynamicValue> = spec(
+const SpecValueSchema = z.union([DynamicValueSchema, z.record(z.string(), z.unknown())]);
+
+const SpecSchema = spec(
   z.unknown().superRefine((val, ctx) => {
-    const parsed = DynamicValueSchema.safeParse(val);
+    const parsed = SpecValueSchema.safeParse(val);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         ctx.addIssue(issue);

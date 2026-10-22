@@ -40,6 +40,8 @@ describe('VegaChart v0.9 catalog', () => {
     assert.strictEqual(parse({spec: {mark: 'bar', data: {values: [{x: 'A', y: 10}]}}}), true);
     assert.strictEqual(parse({spec: {path: '/chart/spec'}, height: 360}), true);
     assert.strictEqual(parse({spec: {path: '/chart/spec'}, height: {path: '/h'}}), true);
+    // v1.0-style bindings are not v0.9 DynamicNumbers and must not validate.
+    assert.strictEqual(parse({spec: {mark: 'bar'}, height: {'@path': '/h'}}), false);
     assert.strictEqual(parse({}), false);
     assert.strictEqual(parse({spec: {mark: 'bar'}, unknownProp: true}), false);
   });
