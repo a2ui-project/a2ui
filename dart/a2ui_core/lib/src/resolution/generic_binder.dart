@@ -89,6 +89,9 @@ class GenericBinder {
   bool _isConnected = false;
   bool _disposed = false;
 
+  // Receives errors found while the bindings resolve.
+  final void Function(A2uiRendererError) _reportBindError;
+
   // Actions resolve to closures, which cannot be compared by value; reusing
   // the closure while the raw payload is unchanged keeps unchanged action
   // props identical across rebuilds.
@@ -105,7 +108,10 @@ class GenericBinder {
   /// [WritableBinding] whose value is null.
   ReadonlySignal<Map<String, dynamic>> get resolvedProps => _resolvedProps;
 
-  GenericBinder(this.context, this.schema) {
+  GenericBinder(ComponentContext context, Schema schema)
+      : this._(context, schema, context.surface.dispatchError);
+
+  GenericBinder._(this.context, this.schema, this._reportBindError) {
     final Catalog<ComponentApi, FunctionImplementation> catalog =
         context.surface.resolveCatalog(context.componentModel.catalog);
     _schemaReader = ReferenceSchemaReader(
@@ -354,7 +360,7 @@ class GenericBinder {
           if (_disposed) return null;
           final Object? rawRule = rules[i];
           if (rawRule is! Map || rawRule.keys.any((k) => k is! String)) {
-            context.surface.dispatchError(
+            _reportBindError(
               A2uiRendererError(
                 code: 'VALIDATION_FAILED',
                 surfaceId: context.surface.id,
@@ -726,3 +732,12 @@ Object? _snapshotBindingValue(Object? value) {
   }
   return value;
 }
+
+/// Creates a [GenericBinder] that sends the errors it finds while resolving
+/// bindings to [reportError] rather than to the surface.
+GenericBinder createReportingGenericBinder(
+  ComponentContext context,
+  Schema schema,
+  void Function(A2uiRendererError) reportError,
+) =>
+    GenericBinder._(context, schema, reportError);
