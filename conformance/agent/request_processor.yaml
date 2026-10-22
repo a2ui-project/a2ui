@@ -560,3 +560,87 @@
                   component: "CustomText"
                   badge: "NEW"
                   text: "Quarterly Revenue"
+
+- name: test_direct_json_create_format_accepts_several_v0_9_catalogs
+  description: Under v0.9 each createSurface names its catalog, so a Direct JSON format can bind several v0.9 catalogs and describes every one of them.
+  action: create_format
+  args:
+    format: direct_json
+    catalogs:
+      - catalogId: "conformance/v09_a"
+        protocolVersion: "v0.9"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {type: string}
+            required: ["component", "label"]
+      - catalogId: "conformance/v09_b"
+        protocolVersion: "v0.9"
+        components:
+          Chip:
+            type: object
+            properties:
+              component: {const: "Chip"}
+              text: {type: string}
+            required: ["component", "text"]
+  expect:
+    prompt_snippet_contains: ["conformance/v09_a", "conformance/v09_b", "Badge", "Chip"]
+
+- name: test_express_create_format_rejects_several_v0_9_catalogs
+  description: Express stamps catalogId on components when several catalogs are active, which v0.9 does not allow, so binding two v0.9 catalogs fails.
+  action: create_format
+  args:
+    format: express
+    catalogs:
+      - catalogId: "conformance/v09_a"
+        protocolVersion: "v0.9"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {type: string}
+            required: ["component", "label"]
+      - catalogId: "conformance/v09_b"
+        protocolVersion: "v0.9"
+        components:
+          Chip:
+            type: object
+            properties:
+              component: {const: "Chip"}
+              text: {type: string}
+            required: ["component", "text"]
+  expect_error:
+    category: CatalogError
+
+- name: test_generator_defaults_to_express_format
+  description: When no inference format factory is passed to A2uiGenerator, the created processor defaults to the Express inference format, rendering Express syntax in its prompt snippet and parsing <a2ui> blocks.
+  action: create_processor
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    prompt_snippet_contains: ["<a2ui>", "Text("]
+    prompt_snippet_absent: ["<a2ui-json>"]
+  then_parse:
+    input: |
+      <a2ui>
+      surface("s1")
+      root = Text("Default Express")
+      </a2ui>
+    expect:
+      - a2ui:
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s1"
+              catalogId: "conformance/simplified"
+              components:
+                - id: "root"
+                  component: "Text"
+                  text: "Default Express"

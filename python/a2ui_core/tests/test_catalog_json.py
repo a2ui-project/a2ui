@@ -31,6 +31,8 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 PUBLISHED_CATALOGS = [
     "catalogs/basic/v1/catalog.json",
     "catalogs/mcp/catalog.json",
+    "catalogs/vegachart/v0_9/catalog.json",
+    "catalogs/vegachart/v1/catalog.json",
     "specification/v0_9/catalogs/basic/catalog.json",
     "specification/v0_9/catalogs/minimal/catalog.json",
     "specification/v0_9_1/catalogs/basic/catalog.json",

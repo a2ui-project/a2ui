@@ -624,6 +624,13 @@ class _SurfaceCompiler {
       }
       assigned.add((kwarg.key, kwarg.value));
     }
+    if (checks.isNotEmpty && !helper.isCheckable(name)) {
+      throw A2uiValidationError(
+        "$name does not take checks, but component '$id' is given "
+        '${checks.map((c) => '?${c.name}').join(', ')}. Remove the checks, '
+        'or use a component whose schema declares checks.',
+      );
+    }
 
     final component = <String, Object?>{
       'id': id,

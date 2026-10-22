@@ -1024,6 +1024,16 @@
   expect_error:
     category: "ValidationError"
 
+- name: test_compile_express_check_with_value_on_uncheckable_component_is_a_validation_error
+  description: A check that names the value it checks, passed to a component whose catalog schema does not declare a checks property, is a validation error. The check is complete, so the missing checks property is the only error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("hi", [?required($/name)])'
+  expect_error:
+    category: "ValidationError"
+
 - name: test_compile_express_components_without_root_is_update_components
   description: A block that assigns components without defining root compiles to an updateComponents message for an existing surface rather than createSurface.
   action: compile

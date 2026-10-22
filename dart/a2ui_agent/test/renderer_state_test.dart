@@ -110,6 +110,27 @@ CatalogApi _catalog(
   },
 });
 
+/// A v1.0 catalog with [id] that declares [components] by their properties.
+CatalogApi _refCatalog(
+  String id,
+  Map<String, Map<String, Object?>> components,
+) => Catalog.fromJson({
+  'catalogId': id,
+  'protocolVersion': '1.0',
+  'components': {
+    for (final MapEntry<String, Map<String, Object?>> entry
+        in components.entries)
+      entry.key: {'type': 'object', 'properties': entry.value},
+  },
+});
+
+/// The ids of the components of surface `s`, in their order.
+List<String> _componentOrder(RendererState state) =>
+    state.getSurface('s')!.componentsModel.keys.toList();
+
+/// A value nested [depth] maps deep.
+Object? _nested(int depth) => depth == 0 ? 'leaf' : {'k': _nested(depth - 1)};
+
 void main() {
   group('RendererState', () {
     test('a later turn may reference components of an earlier turn', () {
@@ -740,6 +761,650 @@ void main() {
       expect(catalogOf('root'), isNull);
       expect(catalogOf('b'), 'urn:extra');
       expect(state.getSurface('s')!.defaultCatalog!.id, 'urn:primary');
+    });
+
+    test('a rollback restores a deleted surface whose data model is deeper '
+        'than one message may be', () {
+      final state = RendererState([_basic])
+        ..apply([
+          _create(),
+          CreateSurfaceMessage(
+            version: 'v0.9',
+            surfaceId: 't',
+            catalogId: BasicCatalog.v0_9Id,
+          ),
+          // A path 30 deep holding a value 30 deep: each message is within
+          // the depth limit of 50, the data model as a whole is not.
+          _data('/${List.generate(30, (i) => 'p$i').join('/')}', _nested(30)),
+        ]);
+      final Object? before = _deepCopy(
+        state.getSurface('s')!.dataModel.get('/'),
+      );
+
+      expect(
+        () => state.apply([
+          UpdateDataModelMessage(
+            version: 'v0.9',
+            surfaceId: 't',
+            path: '/x',
+            value: 1,
+          ),
+          _delete(),
+          _update([_text('root')]),
+        ]),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('Surface not found'),
+          ),
+        ),
+      );
+      expect(state.getSurface('s')!.dataModel.get('/'), before);
+      expect(state.getSurface('t')!.dataModel.get('/x'), isNull);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([_delete()]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(state.getSurface('s')!.dataModel.get('/'), before);
+    });
+
+    test('a surface whose data model holds a map with non-string keys may be '
+        'deleted, and a rollback restores it', () {
+      final RendererState state = _canvas()
+        ..apply([
+          _data('/m', {1: 'one'}),
+        ]);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([_delete()]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(state.getSurface('s')!.dataModel.get('/m'), {1: 'one'});
+
+      state.apply([_delete()]);
+      expect(state.getSurface('s'), isNull);
+    });
+
+    for (final Object root in [<Object?>[], 0, false, '']) {
+      test('a rollback restores a deleted surface whose data model is '
+          '${root is String ? "''" : root}', () {
+        final RendererState state = _canvas()..apply([_data('/', root)]);
+
+        expect(
+          () => state.transaction(() {
+            state.apply([_delete()]);
+            throw StateError('a later message failed');
+          }),
+          throwsStateError,
+        );
+
+        expect(state.getSurface('s')!.dataModel.get('/'), root);
+      });
+    }
+
+    test(
+      'a rollback puts back a component whose type changed where it was',
+      () {
+        final RendererState state = _canvas()
+          ..apply([
+            _update([
+              _column(['a', 'm', 'b', 'n']),
+              _text('m'),
+              _text('b'),
+              _text('n'),
+            ]),
+          ]);
+        final List<String> order = _componentOrder(state);
+        final Map<String, Object?> before = _snapshot(state);
+
+        expect(
+          () => state.transaction(() {
+            state.apply([
+              _update([
+                {'id': 'a', 'component': 'Divider'},
+                _text('m', 'Changed'),
+                {'id': 'b', 'component': 'Divider'},
+                _text('new'),
+              ]),
+            ]);
+            throw StateError('a later message failed');
+          }),
+          throwsStateError,
+        );
+
+        expect(_componentOrder(state), order);
+        expect(_snapshot(state), before);
+      },
+    );
+
+    test('a rollback keeps the component order of a surface deleted after an '
+        'update', () {
+      final RendererState state = _canvas()
+        ..apply([
+          _update([
+            _column(['a', 'b', 'c']),
+            _text('b'),
+            _text('c'),
+          ]),
+        ]);
+      final List<String> order = _componentOrder(state);
+      final Map<String, Object?> before = _snapshot(state);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([
+            _update([
+              {'id': 'a', 'component': 'Divider'},
+              _text('b', 'Changed'),
+            ]),
+          ]);
+          state.apply([_delete()]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+
+      expect(_componentOrder(state), order);
+      expect(_snapshot(state), before);
+    });
+
+    test('a rollback of a catalog change keeps the catalogs references are '
+        'read through', () {
+      final ref = {r'$ref': r'common_types.json#/$defs/ComponentId'};
+      RendererState make() =>
+          RendererState([
+            _refCatalog('urn:primary', {
+              'Panel': {
+                'text': {'type': 'string'},
+              },
+            }),
+            _refCatalog('urn:c', {
+              'Box': {'link': ref},
+            }),
+            _refCatalog('urn:d', {
+              'Box': {
+                'link': {'type': 'string'},
+                'other': ref,
+              },
+            }),
+          ])..apply([
+            CreateSurfaceMessage(
+              version: 'v1.0',
+              surfaceId: 's',
+              catalogId: 'urn:primary',
+            ),
+            UpdateComponentsMessage(
+              version: 'v1.0',
+              surfaceId: 's',
+              components: [
+                {'id': 'root', 'component': 'Panel', 'text': 'hi'},
+                {
+                  'id': 'x',
+                  'component': 'Box',
+                  'catalogId': 'urn:c',
+                  'link': 'y',
+                },
+                {
+                  'id': 'd',
+                  'component': 'Box',
+                  'catalogId': 'urn:d',
+                  'link': 'q',
+                },
+              ],
+            ),
+          ]);
+      final RendererState state = make();
+
+      expect(
+        () => state.transaction(() {
+          state.apply([
+            UpdateComponentsMessage(
+              version: 'v1.0',
+              surfaceId: 's',
+              components: [
+                {
+                  'id': 'x',
+                  'component': 'Box',
+                  'catalogId': 'urn:d',
+                  'link': 'y',
+                },
+              ],
+            ),
+          ]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+
+      expect(_componentOrder(state), ['root', 'x', 'd']);
+      // Under urn:c, Box.link is a reference, so y -> x closes x -> y -> x,
+      // as it does on a state that was never rolled back.
+      final cycle = UpdateComponentsMessage(
+        version: 'v1.0',
+        surfaceId: 's',
+        components: [
+          {'id': 'y', 'component': 'Box', 'catalogId': 'urn:c', 'link': 'x'},
+        ],
+      );
+      expect(() => make().apply([cycle]), throwsA(isA<A2uiIntegrityError>()));
+      expect(() => state.apply([cycle]), throwsA(isA<A2uiIntegrityError>()));
+    });
+
+    test('an undo that fails does not stop the rest of the rollback', () {
+      final RendererState state = _canvas()
+        ..apply([
+          CreateSurfaceMessage(
+            version: 'v0.9',
+            surfaceId: 't',
+            catalogId: BasicCatalog.v0_9Id,
+          ),
+        ]);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([
+            UpdateDataModelMessage(
+              version: 'v0.9',
+              surfaceId: 't',
+              path: '/x',
+              value: 1,
+            ),
+          ]);
+          state.apply([
+            _update([
+              {'id': 'a', 'component': 'Divider'},
+            ]),
+          ]);
+          // Against the contract of getSurface, so that putting 'a' back at
+          // its place fails.
+          state.getSurface('s')!.componentsModel.removeComponent('root');
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+
+      expect(state.getSurface('t')!.dataModel.get('/x'), isNull);
+    });
+
+    test('a rollback restores a deleted surface that one updateComponents '
+        'could not rebuild', () {
+      final ref = {r'$ref': r'common_types.json#/$defs/ComponentId'};
+      UpdateComponentsMessage update(List<Map<String, Object?>> components) =>
+          UpdateComponentsMessage(
+            version: 'v1.0',
+            surfaceId: 's',
+            components: components,
+          );
+      final state =
+          RendererState([
+              _refCatalog('urn:p', {
+                'Panel': {
+                  'text': {'type': 'string'},
+                },
+              }),
+              _refCatalog('urn:c', {
+                'Box': {'link': ref},
+              }),
+              _refCatalog('urn:d', {
+                'Box': {
+                  'link': {'type': 'string'},
+                  'other': ref,
+                },
+              }),
+            ])
+            ..apply([
+              CreateSurfaceMessage(
+                version: 'v1.0',
+                surfaceId: 's',
+                catalogId: 'urn:p',
+              ),
+              update([
+                {'id': 'root', 'component': 'Panel', 'text': 'hi'},
+                {
+                  'id': 'a',
+                  'component': 'Box',
+                  'catalogId': 'urn:d',
+                  'link': 'q',
+                },
+              ]),
+            ])
+            // urn:d's Box comes first, so Box.link is a string.
+            ..apply([
+              update([
+                {
+                  'id': 'x',
+                  'component': 'Box',
+                  'catalogId': 'urn:c',
+                  'link': 'x',
+                },
+              ]),
+            ])
+            // Now urn:c's Box comes first, so x's link is a reference to x.
+            ..apply([
+              update([
+                {'id': 'a', 'component': 'Panel', 'text': 'p'},
+              ]),
+              UpdateDataModelMessage(
+                version: 'v1.0',
+                surfaceId: 's',
+                path: '/k',
+                value: 1,
+              ),
+            ]);
+      final Map<String, Object?> before = _snapshot(state);
+      final List<String> order = _componentOrder(state);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's')]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(_snapshot(state), before);
+      expect(_componentOrder(state), order);
+    });
+
+    test('a rollback puts the deleted surface object back, and a committed '
+        'delete disposes of it', () {
+      final RendererState state = _canvas();
+      final SurfaceModel<ComponentApi> surface = state.getSurface('s')!;
+      final ComponentModel component = surface.componentsModel.get('a')!;
+
+      expect(
+        () => state.transaction(() {
+          state.apply([_delete()]);
+          expect(state.getSurface('s'), isNull);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(state.getSurface('s'), same(surface));
+      expect(surface.componentsModel.get('a'), same(component));
+
+      state.transaction(() {
+        state.apply([_delete()]);
+        // Still held, to put back if the transaction fails.
+        expect(surface.componentsModel.keys, ['root', 'a']);
+      });
+      expect(state.getSurface('s'), isNull);
+      // Disposed of once the transaction ended.
+      expect(surface.componentsModel.keys, isEmpty);
+    });
+
+    test('a rollback puts back a component that an update moved to the '
+        "surface's catalog", () {
+      final box = {
+        'Box': {
+          'text': {'type': 'string'},
+        },
+      };
+      final state =
+          RendererState([_refCatalog('urn:p', box), _refCatalog('urn:c', box)])
+            ..apply([
+              CreateSurfaceMessage(
+                version: 'v1.0',
+                surfaceId: 's',
+                catalogId: 'urn:p',
+              ),
+              _update(version: 'v1.0', [
+                {'id': 'root', 'component': 'Box', 'text': 'r'},
+                {
+                  'id': 'x',
+                  'component': 'Box',
+                  'catalogId': 'urn:c',
+                  'text': 'x',
+                },
+                {'id': 'y', 'component': 'Box', 'text': 'y'},
+              ]),
+            ]);
+
+      expect(
+        () => state.transaction(() {
+          // Naming the type without catalogId moves x to urn:p, which
+          // recreates it at the end.
+          state.apply([
+            _update(version: 'v1.0', [
+              {'id': 'x', 'component': 'Box', 'text': 'x2'},
+            ]),
+          ]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(_componentOrder(state), ['root', 'x', 'y']);
+    });
+
+    test('a v1.0 surface whose metadata holds a map with non-string keys '
+        'may be deleted, and a rollback restores it', () {
+      final state = RendererState([BasicCatalog.v1_0()])
+        ..apply([
+          CreateSurfaceMessage(
+            version: 'v1.0',
+            surfaceId: 's',
+            catalogId: BasicCatalog.v1_0Id,
+            metadata: {
+              'm': {1: 'one'},
+            },
+          ),
+        ]);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's')]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      expect(state.getSurface('s')!.metadata, {
+        'm': {1: 'one'},
+      });
+    });
+
+    test('a rollback restores a component whose properties hold a map with '
+        'non-string keys', () {
+      UpdateComponentsMessage update(String text) => UpdateComponentsMessage(
+        version: 'v1.0',
+        surfaceId: 's',
+        components: [
+          {
+            'id': 'root',
+            'component': 'Box',
+            'text': text,
+            'data': {1: 'one'},
+          },
+        ],
+      );
+      final state =
+          RendererState([
+            _refCatalog('urn:p', {
+              'Box': {
+                'text': {'type': 'string'},
+                'data': {'type': 'object'},
+              },
+            }),
+          ])..apply([
+            CreateSurfaceMessage(
+              version: 'v1.0',
+              surfaceId: 's',
+              catalogId: 'urn:p',
+            ),
+            update('Hi'),
+          ]);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([update('Changed')]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+      final ComponentModel component = state
+          .getSurface('s')!
+          .componentsModel
+          .get('root')!;
+      expect(component.properties, {
+        'text': 'Hi',
+        'data': {1: 'one'},
+      });
+    });
+
+    test('a rollback puts a deleted data model key back at its place', () {
+      final RendererState state = _canvas()
+        ..apply([
+          _data('/', {
+            'a': 1,
+            'b': 2,
+            'nested': {'x': 1, 'y': 2, 'z': 3},
+          }),
+        ]);
+
+      expect(
+        () => state.transaction(() {
+          state.apply([_data('/a', null)]);
+          state.apply([_data('/nested/y', null)]);
+          throw StateError('a later message failed');
+        }),
+        throwsStateError,
+      );
+
+      final DataModel dataModel = state.getSurface('s')!.dataModel;
+      expect((dataModel.get('/')! as Map).keys, ['a', 'b', 'nested']);
+      expect((dataModel.get('/nested')! as Map).keys, ['x', 'y', 'z']);
+      expect(dataModel.get('/'), {
+        'a': 1,
+        'b': 2,
+        'nested': {'x': 1, 'y': 2, 'z': 3},
+      });
+    });
+
+    group('a rollback restores the fields that references are read from', () {
+      final ref = {r'$ref': r'common_types.json#/$defs/ComponentId'};
+      RendererState make() =>
+          RendererState([
+              _refCatalog('urn:p', {
+                'Panel': {
+                  'text': {'type': 'string'},
+                  'child': ref,
+                },
+              }),
+              _refCatalog('urn:c', {
+                'Box': {'link': ref},
+              }),
+              _refCatalog('urn:d', {
+                'Box': {
+                  'link': {'type': 'string'},
+                },
+              }),
+            ])
+            ..apply([
+              CreateSurfaceMessage(
+                version: 'v1.0',
+                surfaceId: 's',
+                catalogId: 'urn:p',
+              ),
+              // urn:d's Box comes first, so a's link is a string.
+              _update(version: 'v1.0', [
+                {'id': 'root', 'component': 'Panel', 'child': 'a'},
+                {
+                  'id': 'a',
+                  'component': 'Box',
+                  'catalogId': 'urn:d',
+                  'link': 'q',
+                },
+              ]),
+            ])
+            ..checkTopology(['s']);
+      // With a moved off urn:d, urn:c's Box comes first, and Box.link
+      // becomes a reference.
+      void change(RendererState state) => state.apply([
+        _update(version: 'v1.0', [
+          {'id': 'a', 'component': 'Panel', 'text': 'p'},
+        ]),
+        _update(version: 'v1.0', [
+          {'id': 'x', 'component': 'Box', 'catalogId': 'urn:c', 'link': 'a'},
+        ]),
+      ]);
+      // a is back on urn:d, so its link is a string again.
+      void expectStringLink(RendererState state) => state.checkTopology(
+        state.apply([
+          UpdateDataModelMessage(
+            version: 'v1.0',
+            surfaceId: 's',
+            path: '/k',
+            value: 1,
+          ),
+        ]),
+      );
+
+      test('after a failed transaction', () {
+        final RendererState state = make();
+
+        expect(
+          () => state.transaction(() {
+            change(state);
+            throw StateError('a later message failed');
+          }),
+          throwsStateError,
+        );
+
+        expectStringLink(state);
+      });
+
+      test('after an inner transaction that committed inside a failed one', () {
+        final RendererState state = make();
+
+        expect(
+          () => state.transaction(() {
+            state.transaction(() => change(state));
+            throw StateError('a later message failed');
+          }),
+          throwsStateError,
+        );
+
+        expectStringLink(state);
+      });
+
+      test('after an inner transaction that failed inside a committed one', () {
+        final RendererState state = make();
+
+        state.transaction(() {
+          expect(
+            () => state.transaction(() {
+              change(state);
+              throw StateError('a later message failed');
+            }),
+            throwsStateError,
+          );
+        });
+
+        expectStringLink(state);
+      });
+
+      test('after a deleted surface is put back', () {
+        final RendererState state = make();
+
+        expect(
+          () => state.transaction(() {
+            change(state);
+            state.apply([
+              DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's'),
+            ]);
+            throw StateError('a later message failed');
+          }),
+          throwsStateError,
+        );
+
+        expectStringLink(state);
+      });
     });
 
     test('an updated surface is checked against the catalog it was created '

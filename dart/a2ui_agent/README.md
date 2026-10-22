@@ -7,9 +7,9 @@ LLM's response into A2UI messages.
 The package follows the
 [agent SDK blueprint](../../blueprints/modules/a2ui_agent.blueprint.md). It
 implements the whole API of the blueprint for A2UI protocols v0.9 and v1.0,
-with two inference formats: direct JSON, the default, which can be read as it
-streams, and [Express](../../specification/proposals/express/README.md), a
-compact notation read once the response is complete.
+with two inference formats: [Express](../../specification/proposals/express/README.md),
+the default, a compact notation read once the response is complete, and direct
+JSON, which can be read as it streams.
 
 The protocol version is the one the catalogs target. A v1.0 catalog document
 declares it as `protocolVersion`; a v0.9 document declares none, so a catalog
@@ -86,10 +86,7 @@ See [example/a2ui_agent_example.dart](example/a2ui_agent_example.dart) for one
 agent turn:
 
 ```dart
-final generator = A2uiGenerator(
-  catalogs: [CatalogConfig(catalog)],
-  inferenceFormatFactory: const ExpressFormatFactory(),
-);
+final generator = A2uiGenerator(catalogs: [CatalogConfig(catalog)]);
 final A2uiRequestProcessor processor = generator.createProcessor(
   rendererCapabilities,
 );
@@ -97,13 +94,18 @@ final String llmOutput = await callLlm(processor.promptSnippet, userMessage);
 final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
-To show the UI while the model is still writing it, read a direct JSON
-response as it streams, through a stream opened for that response. Each part
-carries the text, or the messages, that are new or changed since the previous
-chunk. Call `close` after the last chunk: it returns the text held back as a
-possible tag, and throws if a block is still open:
+To show the UI while the model is still writing it, configure a processor with
+`DirectJsonFormatFactory` and read the direct JSON response as it streams,
+through a stream opened for that response. Each part carries the text, or the
+messages, that are new or changed since the previous chunk. Call `close` after
+the last chunk: it returns the text held back as a possible tag, and throws if a
+block is still open:
 
 ```dart
+final A2uiRequestProcessor processor = generator.createProcessor(
+  rendererCapabilities,
+  inferenceFormatFactory: const DirectJsonFormatFactory(),
+);
 final ResponseStream stream = processor.openStream();
 await for (final String chunk in llmStream) {
   stream.feed(chunk).forEach(deliver);

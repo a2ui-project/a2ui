@@ -146,6 +146,38 @@ export class SurfaceComponentsModel {
   }
 
   /**
+   * Adds a component to the model at a position in its order.
+   *
+   * The model holds its components in the order they were added, and iteration, topology
+   * checks and their error messages follow it. This puts the component where `index` says
+   * instead of last, as when an undo restores a component that an update replaced: the
+   * replacement went last, the restored component goes back where it was. Inserting before
+   * the last position rebuilds the order, so it takes time in proportion to the components
+   * the model holds. Like `addComponent`, it fires `onCreated`.
+   *
+   * @param index How many components come before it. An index at or past the end adds it
+   *     last.
+   * @param component The component to add.
+   * @throws {A2uiStateError} If a component with the same ID already exists.
+   */
+  insertComponent(index: number, component: ComponentModel): void {
+    if (this.components.has(component.id)) {
+      throw new A2uiStateError(`Component with id '${component.id}' already exists.`);
+    }
+    if (index < this.components.size) {
+      // Re-adds the components after the position, so the map the model exposes through
+      // `componentsMap` stays the same object.
+      const after = [...this.components].slice(Math.max(0, index));
+      for (const [id] of after) this.components.delete(id);
+      this.components.set(component.id, component);
+      for (const [id, existing] of after) this.components.set(id, existing);
+    } else {
+      this.components.set(component.id, component);
+    }
+    this._onCreated.emit(component);
+  }
+
+  /**
    * Removes a component from the model by its ID.
    * Disposes of the component upon removal.
    *
