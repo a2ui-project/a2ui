@@ -1,4 +1,4 @@
-# A2UI Flutter example
+# A2UI Flutter example (v0.9)
 
 A chat app in which a Gemini model answers with text and A2UI surfaces, on
 protocol v0.9. It runs on macOS and the web.

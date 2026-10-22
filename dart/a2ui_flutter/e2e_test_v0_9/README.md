@@ -1,4 +1,4 @@
-# e2e test
+# e2e test (v0.9)
 
 Tests that the following entities work well together, on A2UI protocol v0.9:
 
