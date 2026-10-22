@@ -18,7 +18,6 @@
     // packages (see "paths" below) into the program would skew tsc's inferred
     // root dir.
     "noEmit": true,
-    "baseUrl": ".",
     // Mirrors the monorepo aliases in vite.config.ts. See the TODO there.
     //
     // `@a2ui/catalog-mcp` resolves to its monorepo build, which imports
