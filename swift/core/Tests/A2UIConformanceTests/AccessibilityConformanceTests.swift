@@ -257,18 +257,19 @@ struct AccessibilityConformanceTests {
   /// component reference and never reaches the child.
   private func resolveDetached(componentID: String, on surface: SurfaceViewModel) -> Node? {
     guard let component = surface.componentsModel.get(componentID) else { return nil }
+    // Keep the surface's other components, so children of the detached component resolve too.
+    var components = surface.componentsModel.components
+    components["root"] = ComponentModel(
+      id: "root",
+      type: component.type,
+      catalogID: component.catalogID,
+      properties: component.properties
+    )
     let resolver = NodeResolver(
       surfaceID: surface.surfaceID,
       catalogs: surface.catalogs,
       defaultCatalogID: surface.defaultCatalogID,
-      componentsModel: SurfaceComponentsModel(components: [
-        "root": ComponentModel(
-          id: "root",
-          type: component.type,
-          catalogID: component.catalogID,
-          properties: component.properties
-        )
-      ]),
+      componentsModel: SurfaceComponentsModel(components: components),
       dataModel: surface.dataModel,
       protocolVersion: surface.protocolVersion
     )
