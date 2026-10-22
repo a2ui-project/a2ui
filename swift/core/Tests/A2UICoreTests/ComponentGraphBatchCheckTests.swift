@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import A2UIJSON
 import Foundation
 import JSONSchema
 import OrderedCollections
@@ -146,6 +147,48 @@ struct ComponentGraphBatchCheckTests {
     #expect(outcomes.last == false)
   }
 
+  @Test func cycleClosedThroughArrayOfComponentIdIsRejected() throws {
+    // `slots` is declared as an array of ComponentId, which the whole-surface check reads as
+    // child references, and so must the check of a batch.
+    let outcomes = try expectSameOutcomes(
+      [
+        [stack("a", slots: ["b"])],
+        [stack("b", slots: ["c"])],
+        [stack("c", slots: ["a"])],
+        [stack("c", slots: [])],
+      ],
+      catalog: try plainCatalog()
+    )
+    #expect(outcomes == [true, true, false, true])
+  }
+
+  @Test(arguments: [false, true])
+  func sameCountChangeOutsideProcessorIsChecked(throughApplyBatch: Bool) throws {
+    let processor = try makeProcessor(catalog: try plainCatalog())
+    try send([column("a", children: ["b"])], to: processor)
+    try send([column("b", children: [])], to: processor)
+
+    // The host closes a cycle by replacing `b`, which leaves the number of components as it was.
+    let surface = try #require(processor.surfaceGroupModel.surfacesMap["s"])
+    let replacement = ComponentModel(
+      id: "b",
+      type: "Column",
+      catalogID: Self.catalogID,
+      properties: ["children": .array([.string("a")])]
+    )
+    if throughApplyBatch {
+      surface.componentsModel.applyBatch(adding: [replacement])
+    } else {
+      surface.componentsModel.addComponent(replacement)
+    }
+    #expect(surface.componentsModel.components.count == 2)
+
+    // The next batch is checked against the surface as it is, which holds the cycle.
+    #expect(throws: A2UIRecursionError.self) {
+      try send([text("t")], to: processor)
+    }
+  }
+
   @Test func randomSequencesUnderCompositionConstraints() throws {
     try runRandomSequences(catalog: try compositionCatalog(), seed: 1)
   }
@@ -190,17 +233,7 @@ struct ComponentGraphBatchCheckTests {
     _ batches: [[[String: JSONValue]]],
     catalog: AnyCatalog
   ) throws -> [Bool] {
-    let processor = MessageProcessor(catalogs: [catalog], validationConfig: .relaxed)
-    try processor.processMessages(
-      .array([
-        .object([
-          "version": "v1.0",
-          "createSurface": .object([
-            "surfaceId": "s", "catalogId": .string(Self.catalogID),
-          ]),
-        ])
-      ])
-    )
+    let processor = try makeProcessor(catalog: catalog)
     var held: [String: [String: JSONValue]] = [:]
     var outcomes: [Bool] = []
     for batch in batches {
@@ -222,17 +255,7 @@ struct ComponentGraphBatchCheckTests {
       }
       var actualError: Error?
       do {
-        try processor.processMessages(
-          .array([
-            .object([
-              "version": "v1.0",
-              "updateComponents": .object([
-                "surfaceId": "s",
-                "components": .array(batch.map(object)),
-              ]),
-            ])
-          ])
-        )
+        try send(batch, to: processor)
       } catch {
         actualError = error
       }
@@ -248,6 +271,37 @@ struct ComponentGraphBatchCheckTests {
       #expect(Set(surface.componentsModel.components.keys) == Set(held.keys))
     }
     return outcomes
+  }
+
+  /// A processor under the relaxed config holding surface `s` in the catalog `catalog`.
+  private func makeProcessor(catalog: AnyCatalog) throws -> MessageProcessor {
+    let processor = MessageProcessor(catalogs: [catalog], validationConfig: .relaxed)
+    try processor.processMessages(
+      .array([
+        .object([
+          "version": "v1.0",
+          "createSurface": .object([
+            "surfaceId": "s", "catalogId": .string(Self.catalogID),
+          ]),
+        ])
+      ])
+    )
+    return processor
+  }
+
+  /// Sends `batch` to surface `s` of `processor` in an `updateComponents` message.
+  private func send(_ batch: [[String: JSONValue]], to processor: MessageProcessor) throws {
+    try processor.processMessages(
+      .array([
+        .object([
+          "version": "v1.0",
+          "updateComponents": .object([
+            "surfaceId": "s",
+            "components": .array(batch.map(object)),
+          ]),
+        ])
+      ])
+    )
   }
 
   private func object(_ component: [String: JSONValue]) -> JSONValue {
@@ -266,6 +320,10 @@ struct ComponentGraphBatchCheckTests {
     var component: [String: JSONValue] = ["id": .string(id), "component": "Card"]
     if let child { component["child"] = .string(child) }
     return component
+  }
+
+  private func stack(_ id: String, slots: [String]) -> [String: JSONValue] {
+    ["id": .string(id), "component": "Stack", "slots": .array(slots.map { .string($0) })]
   }
 
   private func text(_ id: String) -> [String: JSONValue] {
@@ -306,9 +364,17 @@ struct ComponentGraphBatchCheckTests {
           "description": "REF:common_types.json#/$defs/ComponentId"}}}
         """
     )
+    let slotsSchema = try Schema(
+      instance: """
+        {"type": "object", "properties": {"slots": {"type": "array", "items": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId"}}}}
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
     let textSchema = try Schema(instance: #"{"type": "object"}"#)
     let schemas = [
-      "Column": listSchema, "Row": listSchema, "Card": childSchema, "Text": textSchema,
+      "Column": listSchema, "Row": listSchema, "Card": childSchema, "Stack": slotsSchema,
+      "Text": textSchema,
     ]
     return Catalog(
       id: Self.catalogID,

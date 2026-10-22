@@ -912,8 +912,10 @@ public final class MessageProcessor: ObservableObject {
   /// self-references, cycles, chains deeper than the depth limit and composition violations. The
   /// surface passed it before the batch, so the batch is checked against what it changes, through
   /// the surface's ``ComponentGraphBound``, and the cost of a batch grows with the batch rather
-  /// than the surface. When the bound cannot show the batch passes, or under any other config,
-  /// the whole surface is checked, so an error is that of the whole-surface check.
+  /// than the surface. The bound is used only while the surface components are at the
+  /// ``SurfaceComponentsModel/revision`` it recorded, so a change made to them outside the
+  /// processor is checked again. When the bound cannot show the batch passes, or under any other
+  /// config, the whole surface is checked, so an error is that of the whole-surface check.
   private func validateComponentGraph(
     _ components: [[String: JSONValue]],
     on surface: SurfaceViewModel,
@@ -930,7 +932,7 @@ public final class MessageProcessor: ObservableObject {
     }
 
     if checksBatch, let bound = graphBounds[surface.surfaceID], bound.surface === surface,
-      bound.count == held.count,
+      bound.revision == surface.componentsModel.revision,
       bound.admits(
         batch: batch.mapValues { componentReferences($0, on: surface) },
         limit: GraphTopologyValidator.maxGlobalDepth,
@@ -950,6 +952,7 @@ public final class MessageProcessor: ObservableObject {
         }
       )
     {
+      bound.revision = nil
       return
     }
     graphBounds[surface.surfaceID] = nil
@@ -1200,6 +1203,12 @@ public final class MessageProcessor: ObservableObject {
     if !removedIDs.isEmpty || !addedComponents.isEmpty {
       surface.componentsModel.applyBatch(removing: removedIDs, adding: addedComponents)
     }
+    // The graph check left the bound describing the surface with this batch applied.
+    if let bound = graphBounds[surface.surfaceID], bound.surface === surface,
+      bound.revision == nil
+    {
+      bound.revision = surface.componentsModel.revision
+    }
   }
 
   private func findCatalog(
@@ -1228,6 +1237,7 @@ public final class MessageProcessor: ObservableObject {
     }
     activeRPCTasks.removeAll()
     rpcHandler.disposeAllPendingCalls()
+    graphBounds.removeAll()
     for surfaceID in Array(surfaceGroupModel.surfacesMap.keys) {
       surfaceGroupModel.removeSurface(id: surfaceID)
     }

@@ -42,8 +42,9 @@ final class ComponentGraphBound {
   /// At least the largest of `heights`.
   private var maxHeight = 0
 
-  /// The number of components the graph holds.
-  var count: Int { children.count }
+  /// The ``SurfaceComponentsModel/revision`` of the surface components the bound describes, or
+  /// nil while it describes a graph the surface has not stored yet.
+  var revision: Int?
 
   /// Creates the bound of a graph that ``GraphTopologyValidator`` passed.
   ///
