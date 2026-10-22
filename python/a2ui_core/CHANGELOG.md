@@ -1,5 +1,19 @@
 ## Unreleased
 
+- Under a `ValidationConfig` that allows dangling references, and orphans or a
+  missing root, as an agent mirroring a renderer's surfaces uses,
+  `MessageProcessor` checks each `updateComponents` against the components it
+  changes rather than copying the surface and walking its whole graph. A
+  surface that arrives in many small messages now takes time in proportion to
+  its size rather than its square. The checks and the errors they raise are
+  unchanged: composition constraints, the root when it is required, and
+  self-references, cycles and depth. Other configs check the whole surface as
+  before.
+- `SurfaceComponentsModel.components_update_applied` reports that a batch
+  `validate_components_update` passed has been applied, so that the next check
+  can start from what that check found. `MessageProcessor` calls it.
+- `ComponentModel.get_child_references` and `is_v0_8_heuristic_child_prop_key`
+  accept any container of known component ids, not only a set.
 - A component property declared directly as an array of component ids
   (`{"type": "array", "items": {"$ref": ".../ComponentId"}}`) rather than as a
   `ChildList` is now read as a list of child references under every
