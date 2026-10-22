@@ -499,6 +499,22 @@
   expect:
     selfContained: true
 
+- name: test_v09_published_vegachart_catalog_is_self_contained
+  description: Tests that the published v0.9 VegaChart catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
+  action: from_json
+  protocolVersion: "v0.9"
+  catalogPath: "catalogs/vegachart/v0_9/catalog.json"
+  expect:
+    selfContained: true
+
+- name: test_v10_published_vegachart_catalog_is_self_contained
+  description: Tests that the published v1.0 VegaChart catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/vegachart/v1/catalog.json"
+  expect:
+    selfContained: true
+
 - name: test_v10_published_basic_catalog_validates_nested_calls
   description: >-
     Tests that validating a component against the published v1.0 basic catalog alone checks every nested function call that names no catalogId, or names this catalog, against this catalog. That includes a call nested in another call's args, in @index's args, and in the args of a call that names another catalog. A call that names another catalog runs there, so this catalog cannot judge its function or args and accepts it; the message processor checks it against the catalog it resolves to.
