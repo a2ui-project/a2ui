@@ -67,7 +67,7 @@ public struct Surface: View {
   /// The number of active reactive subscriptions held by this mounted surface.
   public var activeSubscriptionCount: Int {
     guard lifecycleState.isMounted else { return 0 }
-    let count = viewModel.componentsModel.allComponents.count
+    let count = viewModel.componentsModel.components.count
     return viewModel.rootNode != nil ? max(1, count) : count
   }
 
@@ -123,12 +123,8 @@ extension Surface {
 
   /// Returns whether any registered UI catalog has a builder for the component type.
   public func hasBuilder(forComponentType type: String, catalogID: String? = nil) -> Bool {
-    if let catalogID, let catalog = catalogs[catalogID] {
+    if let targetID = catalogID ?? defaultCatalogID, let catalog = catalogs[targetID] {
       return catalog.components[type] != nil
-    }
-    let targetID = catalogID ?? defaultCatalogID
-    if let targetID, let catalog = catalogs[targetID], catalog.components[type] != nil {
-      return true
     }
     return catalogs.values.contains { $0.components[type] != nil }
   }
@@ -145,8 +141,8 @@ extension Surface {
         == true
     {
       let error = FunctionError.executionFailed(
-        function: fnName,
-        reason: "Function '\(fnName)' requires user activation."
+        name: fnName,
+        message: "Function '\(fnName)' requires user activation."
       )
       viewModel.handleFunctionError(error, functionName: fnName)
       return
@@ -155,12 +151,19 @@ extension Surface {
   }
 
   private func extractFunctionCallName(on node: Node, property: String) -> String? {
-    guard let actionDict = node.properties[property] as? [String: Any],
-      let fnCallDict = actionDict["functionCall"] as? [String: Any]
+    if let resolvedAction = node.action(for: property),
+      case .function(let call, _) = resolvedAction.identity
+    {
+      return call
+    }
+    let baseID = String(node.id.split(separator: ":").first ?? Substring(node.id))
+    guard
+      let rawAction = viewModel.componentsModel.get(baseID)?.properties[property],
+      let fnCall = rawAction["functionCall"]
     else {
       return nil
     }
-    return (fnCallDict["@call"] as? String) ?? (fnCallDict["call"] as? String)
+    return fnCall["@call"]?.stringValue ?? fnCall["call"]?.stringValue
   }
 
   /// Resolves the surface view hierarchy, emitting fallback placeholders for pending,
@@ -195,7 +198,7 @@ extension Surface {
     guard let rawComponent = viewModel.componentsModel.get(componentID) else {
       return ViewNode(id: componentID, instanceID: componentID, state: "pending")
     }
-    let explicitCatalogID = rawComponent.properties["catalogId"]?.stringValue
+    let explicitCatalogID = rawComponent.catalogID ?? rawComponent.properties["catalogId"]?.stringValue
     if !catalogs.isEmpty,
       !hasBuilder(forComponentType: rawComponent.type, catalogID: explicitCatalogID)
     {
@@ -217,7 +220,7 @@ extension Surface {
     )
     return ViewNode(
       id: componentID,
-      instanceID: resolvedNode?.instanceID ?? componentID,
+      instanceID: resolvedNode?.id ?? componentID,
       type: rawComponent.type,
       state: "resolved",
       node: resolvedNode,
@@ -255,10 +258,11 @@ extension Surface {
         )
       }
     }
-    return (resolvedNode?.children ?? []).map { childNode in
-      ViewNode(
-        id: childNode.baseComponentID,
-        instanceID: childNode.instanceID,
+    return (resolvedNode?.children(for: "children") ?? []).map { childNode in
+      let baseID = String(childNode.id.split(separator: ":").first ?? Substring(childNode.id))
+      return ViewNode(
+        id: baseID,
+        instanceID: childNode.id,
         type: childNode.type,
         state: "resolved",
         node: childNode
@@ -267,10 +271,10 @@ extension Surface {
   }
 
   private func findResolvedChild(id: String, in parentNode: Node?) -> Node? {
-    if let direct = parentNode?.properties["child"] as? Node, direct.baseComponentID == id {
+    if let direct = parentNode?.child(for: "child"), direct.id == id {
       return direct
     }
-    return parentNode?.children.first { $0.baseComponentID == id }
+    return parentNode?.children(for: "children").first { $0.id == id }
   }
 
   private func reportDiagnostic(
@@ -284,11 +288,11 @@ extension Surface {
         code: code,
         surfaceID: surfaceID,
         message: message,
-        path: componentID,
+        expression: componentID,
         version: viewModel.protocolVersion
       )
     )
-    handler?.handleError(error)
+    handler?.handle(error: error, from: surfaceID)
   }
 }
 

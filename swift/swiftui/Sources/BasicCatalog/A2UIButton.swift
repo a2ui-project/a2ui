@@ -39,9 +39,9 @@ public struct A2UIButton: View {
     self.node = node
   }
 
-  /// Whether the button is disabled due to a blocking validation error (`!node.isValid`).
+  /// Whether the button is disabled due to a blocking validation error (`!node.isValid`) or explicit `disabled` property.
   public var isDisabled: Bool {
-    !node.isValid
+    !node.isValid || node.bool(for: "disabled") == true
   }
 
   private var childNode: Node? {
