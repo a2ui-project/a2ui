@@ -216,8 +216,9 @@ void main() {
 
     expect(viewElement(tester, 'p1'), same(p1Before));
     expect(log.probeStates, ['p1', 'p2']);
-    // The resolver keys child nodes by slot, so moved children are new nodes.
-    expect(viewNode('p1'), isNot(same(p1Node)));
+    // Static child list edges are keyed by occurrence of (id, dataPath), so
+    // reordered children retain their ComponentNode identity.
+    expect(viewNode('p1'), same(p1Node));
     expect(log.builds, unorderedEquals(['root', 'p1', 'p2']));
     expect(
       tester.getTopLeft(find.text('Two')).dy,

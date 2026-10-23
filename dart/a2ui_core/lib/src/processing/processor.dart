@@ -1337,7 +1337,10 @@ class MessageProcessor<T extends ComponentApi> {
     final String relPath = _componentRelativePath(error);
     final rebasedPath = '/components/$index$relPath';
     final List<A2uiErrorDetail> details = error.errors.isNotEmpty
-        ? [for (final d in error.errors) d.withSurfaceId(surfaceId)]
+        ? [
+            for (final A2uiErrorDetail d in error.errors)
+              d.withSurfaceId(surfaceId),
+          ]
         : [
             A2uiErrorDetail(
               path: relPath.isEmpty ? '/components/$index' : relPath,
