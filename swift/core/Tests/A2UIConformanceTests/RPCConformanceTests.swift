@@ -21,189 +21,547 @@ import OrderedCollections
 import OrderedJSON
 import Testing
 
+private final class RPCErrorCaptureHandler: ActionHandling, @unchecked Sendable {
+  var capturedErrors: [RendererError] = []
+
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: RendererError, from surfaceID: String) {
+    capturedErrors.append(error)
+  }
+}
+
+private final class OutboundMessageBox: @unchecked Sendable {
+  var lastMessage: RendererToAgentMessage?
+}
+
 /// Runs the shared `conformance/core/rpc_functions.yaml` suite.
 @MainActor
 struct RPCConformanceTests {
   @Test func rpcFunctionsConformance() async throws {
     let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/rpc_functions.yaml")
     let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
-
     #expect(!testCases.isEmpty, "Should load test cases from rpc_functions.yaml")
 
     let rpcHandler = RPCHandler()
 
-    for testCase in testCases {
-      guard testCase.action == "handle_rpc" else { continue }
+    for testCase in testCases where testCase.action == "handle_rpc" {
+      let catalogs = buildRPCCatalogs(for: testCase)
 
-      // Build mock catalogs from functionMetadata
-      var functions: [any FunctionImplementation] = []
-      if let metadata = testCase.args?["functionMetadata"]?.objectValue {
-        for (fnName, metaVal) in metadata {
-          let callersStr = metaVal["allowedCallers"]?.stringValue ?? "rendererOrAgent"
-          let callers: AllowedCallers
-          switch callersStr {
-          case "rendererOnly": callers = .rendererOnly
-          case "agentOnly": callers = .agentOnly
-          default: callers = .rendererOrAgent
-          }
-          let reqUserActivation = metaVal["requiresUserActivation"]?.boolValue ?? false
-          let paramSchema: Schema? = metaVal["parameters"].flatMap {
-            try? Schema(rawSchema: $0, context: Context(dialect: .draft2020_12))
-          }
-
-          let mockFn: any FunctionImplementation
-          if fnName == "failingFunction" {
-            mockFn = ConformanceMockRPCFunction(
-              name: fnName,
-              schema: paramSchema,
-              allowedCallers: callers,
-              requiresUserActivation: reqUserActivation
-            ) { _, _ in
-              throw A2UIValidationError("Runtime error")
-            }
-          } else if fnName == "playMedia" {
-            mockFn = ConformanceMockRPCFunction(
-              name: fnName,
-              schema: paramSchema,
-              allowedCallers: callers,
-              requiresUserActivation: reqUserActivation
-            ) { _, _ in
-              .object(["playing": .boolean(true), "timestamp": .integer(0)])
-            }
-          } else if fnName == "openExternalUrl" {
-            mockFn = ConformanceMockRPCFunction(
-              name: fnName,
-              schema: paramSchema,
-              allowedCallers: callers,
-              requiresUserActivation: reqUserActivation
-            ) { _, _ in
-              .object(["opened": .boolean(true)])
-            }
-          } else {
-            mockFn = ConformanceMockRPCFunction(
-              name: fnName,
-              schema: paramSchema,
-              allowedCallers: callers,
-              requiresUserActivation: reqUserActivation
-            ) { _, _ in
-              .null
-            }
-          }
-          functions.append(mockFn)
-        }
-      }
-
-      let catalog = Catalog(
-        id: "basic",
-        protocolVersion: "v1.0",
-        components: [AnyComponentAPI](),
-        functions: functions
-      ).eraseToAnyCatalog()
-
-      let mediaCatalog = Catalog(
-        id: "media_catalog",
-        protocolVersion: "v1.0",
-        components: [AnyComponentAPI](),
-        functions: functions
-      ).eraseToAnyCatalog()
-
-      let systemCatalog = Catalog(
-        id: "system_catalog",
-        protocolVersion: "v1.0",
-        components: [AnyComponentAPI](),
-        functions: functions
-      ).eraseToAnyCatalog()
-
-      var catalogs = [
-        "basic": catalog,
-        "media_catalog": mediaCatalog,
-        "system_catalog": systemCatalog,
-      ]
-      if let extraCatID = testCase.args?["catalogId"]?.stringValue {
-        let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "v1.0"
-        catalogs[extraCatID] = Catalog(
-          id: extraCatID,
-          protocolVersion: extraCatVersion,
-          components: [AnyComponentAPI](),
-          functions: functions
-        ).eraseToAnyCatalog()
-      }
-
-      let userActivation = testCase.args?["userActivationPresent"]?.boolValue ?? false
-
-      // Inbound call
       if let messageJSON = testCase.args?["message"] {
-        let data = try JSONEncoder().encode(messageJSON)
-        do {
-          let message = try JSONDecoder().decode(AgentToRendererMessage.self, from: data)
-          if case .callRendererFunction(let callMsg) = message {
-            let response = await rpcHandler.handleIncomingCall(
-              callMsg,
-              catalogs: catalogs,
-              userActivationPresent: userActivation
-            )
-
-            if let expectedResp = testCase.expect?["response"]?["rendererFunctionResponse"] {
-              let expectedCallID = expectedResp["functionCallId"]?.stringValue
-              #expect(response.functionCallID == expectedCallID)
-
-              if let expectedValue = expectedResp["value"] {
-                #expect(response.value == expectedValue)
-              }
-
-              if let expectedErr = expectedResp["error"] {
-                let expectedCode = expectedErr["code"]?.stringValue
-                let expectedMsg = expectedErr["message"]?.stringValue
-                #expect(response.error?.code == expectedCode)
-                if let expectedMsg {
-                  #expect(response.error?.message.contains(expectedMsg) == true)
-                }
-              }
-            }
-          }
-        } catch {
-          // If schema validation rejected invalid payload (e.g. missing callFunction)
-          if let expectedErr = testCase.expect?["error"]?.objectValue {
-            let msgSub = expectedErr["message"]?.stringValue ?? ""
-            #expect("\(error)".contains(msgSub))
-          }
-        }
+        try await runInboundMessageCase(
+          testCase: testCase,
+          messageJSON: messageJSON,
+          catalogs: catalogs,
+          rpcHandler: rpcHandler
+        )
       }
 
-      // Outbound call
-      if let outboundCall = testCase.args?["outboundCall"],
-        let inboundResponse = testCase.args?["inboundResponse"]
-      {
-        let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
-        let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
-        let call = outboundCall["callFunction"]?["call"]?.stringValue ?? ""
-        let catID = outboundCall["callFunction"]?["catalogId"]?.stringValue
-
-        let callTask = Task {
-          try await rpcHandler.callAgentFunction(
-            surfaceID: surfaceID,
-            functionName: call,
-            catalogID: catID,
-            functionCallID: fnCallID,
-            version: .v10,
-            timeoutSeconds: 5.0,
-            sendOutbound: { _ in }
-          )
-        }
-
-        try await Task.sleep(nanoseconds: 10_000_000)
-
-        // Parse inbound response and route
-        let respData = try JSONEncoder().encode(inboundResponse)
-        let respMsg = try JSONDecoder().decode(AgentToRendererMessage.self, from: respData)
-        if case .agentFunctionResponse(let agentResp) = respMsg {
-          rpcHandler.handleAgentResponse(agentResp)
-        }
-
-        let result = try await callTask.value
-        let expectedResult = testCase.expect?["result"]
-        #expect(result == expectedResult)
+      if let outboundCall = testCase.args?["outboundCall"] {
+        try await runOutboundCallCase(
+          testCase: testCase,
+          outboundCall: outboundCall,
+          rpcHandler: rpcHandler
+        )
       }
+
+      if let uiBinding = testCase.args?["uiBindingScenario"] {
+        try await runUIBindingScenario(
+          testCase: testCase,
+          scenario: uiBinding,
+          rpcHandler: rpcHandler
+        )
+      }
+
+      if let uiActionFallback = testCase.args?["uiActionFallbackScenario"] {
+        try await runUIActionFallbackScenario(
+          testCase: testCase,
+          scenario: uiActionFallback,
+          rpcHandler: rpcHandler
+        )
+      }
+    }
+  }
+
+  private func buildRPCCatalogs(for testCase: ConformanceTestCase) -> [String: AnyCatalog] {
+    var functions: [any FunctionImplementation] = BasicFunctions.allFunctions
+    if let metadata = testCase.args?["functionMetadata"]?.objectValue {
+      for (fnName, metaVal) in metadata {
+        functions.append(makeMockRPCFunction(name: fnName, metadata: metaVal))
+      }
+    }
+
+    var catalogs: [String: AnyCatalog] = [:]
+    for id in ["basic", "media_catalog", "system_catalog", "store_catalog"] {
+      catalogs[id] = Catalog(
+        id: id,
+        protocolVersion: "v1.0",
+        components: [],
+        functions: functions
+      ).eraseToAnyCatalog()
+    }
+    if let extraCatID = testCase.args?["catalogId"]?.stringValue {
+      let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "v1.0"
+      catalogs[extraCatID] = Catalog(
+        id: extraCatID,
+        protocolVersion: extraCatVersion,
+        components: [],
+        functions: functions
+      ).eraseToAnyCatalog()
+    }
+    return catalogs
+  }
+
+  private func makeMockRPCFunction(
+    name fnName: String,
+    metadata metaVal: JSONValue
+  ) -> any FunctionImplementation {
+    let callersStr = metaVal["allowedCallers"]?.stringValue ?? "rendererOrAgent"
+    let callers: AllowedCallers =
+      callersStr == "rendererOnly"
+      ? .rendererOnly : (callersStr == "agentOnly" ? .agentOnly : .rendererOrAgent)
+    let reqUserActivation = metaVal["requiresUserActivation"]?.boolValue ?? false
+    let paramSchema: Schema? = metaVal["parameters"].flatMap {
+      try? Schema(rawSchema: $0, context: Context(dialect: .draft2020_12))
+    }
+
+    switch fnName {
+    case "failingFunction":
+      return ConformanceMockRPCFunction(
+        name: fnName,
+        schema: paramSchema,
+        allowedCallers: callers,
+        requiresUserActivation: reqUserActivation
+      ) { _, _ in
+        throw A2UIValidationError("Runtime error")
+      }
+    case "playMedia":
+      return ConformanceMockRPCFunction(
+        name: fnName,
+        schema: paramSchema,
+        allowedCallers: callers,
+        requiresUserActivation: reqUserActivation
+      ) { _, _ in
+        .object(["playing": .boolean(true), "timestamp": .integer(0)])
+      }
+    case "openExternalUrl":
+      return ConformanceMockRPCFunction(
+        name: fnName,
+        schema: paramSchema,
+        allowedCallers: callers,
+        requiresUserActivation: reqUserActivation
+      ) { _, _ in
+        .object(["opened": .boolean(true)])
+      }
+    case "echoArgs":
+      return ConformanceMockRPCFunction(
+        name: fnName,
+        schema: paramSchema,
+        allowedCallers: callers,
+        requiresUserActivation: reqUserActivation
+      ) { args, _ in
+        var ordered: OrderedDictionary<String, JSONValue> = [:]
+        for key in args.keys.sorted() {
+          ordered[key] = args[key]
+        }
+        return .object(ordered)
+      }
+    default:
+      return ConformanceMockRPCFunction(
+        name: fnName,
+        schema: paramSchema,
+        allowedCallers: callers,
+        requiresUserActivation: reqUserActivation
+      ) { _, _ in
+        .null
+      }
+    }
+  }
+
+  private func runInboundMessageCase(
+    testCase: ConformanceTestCase,
+    messageJSON: JSONValue,
+    catalogs: [String: AnyCatalog],
+    rpcHandler: RPCHandler
+  ) async throws {
+    let userActivation = testCase.args?["userActivationPresent"]?.boolValue ?? false
+    let data = try JSONEncoder().encode(messageJSON)
+
+    do {
+      let message = try JSONDecoder().decode(AgentToRendererMessage.self, from: data)
+      if case .callRendererFunction(let callMsg) = message {
+        let contextAndCatalog = buildSurfaceContext(
+          for: callMsg.surfaceID,
+          testCase: testCase,
+          catalogs: catalogs
+        )
+        let response = await rpcHandler.handleIncomingCall(
+          callMsg,
+          catalogs: catalogs,
+          defaultCatalogID: contextAndCatalog.defaultCatalogID,
+          dataContext: contextAndCatalog.context,
+          userActivationPresent: userActivation
+        )
+        assertRPCResponseMatches(response: response, testCase: testCase)
+      }
+    } catch {
+      assertEnvelopeFaultMatches(
+        messageJSON: messageJSON,
+        catalogs: catalogs,
+        testCase: testCase
+      )
+    }
+  }
+
+  private func buildSurfaceContext(
+    for targetSurfaceID: String?,
+    testCase: ConformanceTestCase,
+    catalogs: [String: AnyCatalog]
+  ) -> (context: DataContext?, defaultCatalogID: String?) {
+    guard let targetSurfaceID,
+      let configuredSurfaceID = testCase.args?["surfaceId"]?.stringValue,
+      targetSurfaceID == configuredSurfaceID
+    else {
+      return (nil, nil)
+    }
+    let surface = SurfaceViewModel(
+      surfaceID: configuredSurfaceID,
+      catalogs: catalogs,
+      defaultCatalogID: "basic",
+      protocolVersion: .v10
+    )
+    if let dataModelObj = testCase.args?["dataModel"]?.objectValue {
+      for (key, val) in dataModelObj {
+        surface.dataModel.set("/\(key)", value: val)
+      }
+    }
+    let context = DataContext(
+      dataModel: surface.dataModel,
+      path: "/",
+      functionHandler: surface,
+      protocolVersion: .v10
+    )
+    return (context, surface.defaultCatalogID)
+  }
+
+  private func assertRPCResponseMatches(
+    response: RendererFunctionResponseMessage,
+    testCase: ConformanceTestCase
+  ) {
+    guard let expectedResp = testCase.expect?["response"]?["rendererFunctionResponse"] else {
+      return
+    }
+    let expectedCallID = expectedResp["functionCallId"]?.stringValue
+    #expect(response.functionCallID == expectedCallID, "[\(testCase.name)] functionCallId mismatch")
+
+    if let expectedValue = expectedResp["value"] {
+      #expect(response.value == expectedValue, "[\(testCase.name)] value mismatch")
+    }
+    if let expectedErr = expectedResp["error"] {
+      let expectedCode = expectedErr["code"]?.stringValue
+      let expectedMsg = expectedErr["message"]?.stringValue
+      #expect(response.error?.code.rawValue == expectedCode, "[\(testCase.name)] error.code mismatch")
+      if let expectedMsg {
+        #expect(
+          ConformanceTestHelper.messageMatches(response.error?.message ?? "", expected: expectedMsg),
+          "[\(testCase.name)] error.message mismatch: \(String(describing: response.error?.message))"
+        )
+      }
+    }
+  }
+
+  private func assertEnvelopeFaultMatches(
+    messageJSON: JSONValue,
+    catalogs: [String: AnyCatalog],
+    testCase: ConformanceTestCase
+  ) {
+    let errorHandler = RPCErrorCaptureHandler()
+    let processor = MessageProcessor(
+      catalogs: Array(catalogs.values),
+      actionHandler: errorHandler,
+      validationConfig: .strict
+    )
+    var caughtError: Error?
+    do {
+      try processor.processMessages(messageJSON)
+    } catch {
+      caughtError = error
+    }
+    #expect(caughtError != nil, "[\(testCase.name)] Expected processor to throw on invalid RPC message")
+
+    if let expectedRendererError = testCase.expectError?.rendererError {
+      ConformanceTestHelper.assertRendererErrorMatches(
+        errorHandler.capturedErrors.last,
+        expected: expectedRendererError,
+        context: testCase.name
+      )
+    } else if let expectedErr = testCase.expect?["error"]?.objectValue,
+      let msgSub = expectedErr["message"]?.stringValue
+    {
+      let desc = caughtError.map { ($0 as? (any A2UIError))?.message ?? $0.localizedDescription } ?? ""
+      #expect(
+        ConformanceTestHelper.messageMatches(desc, expected: msgSub),
+        "[\(testCase.name)] Expected error message containing '\(msgSub)', got '\(desc)'"
+      )
+    }
+  }
+
+  private func runOutboundCallCase(
+    testCase: ConformanceTestCase,
+    outboundCall: JSONValue,
+    rpcHandler: RPCHandler
+  ) async throws {
+    if let inboundResponse = testCase.args?["inboundResponse"] {
+      try await runCorrelatedOutboundCall(
+        testCase: testCase,
+        outboundCall: outboundCall,
+        inboundResponse: inboundResponse,
+        rpcHandler: rpcHandler
+      )
+    } else if let secondCall = testCase.args?["secondOutboundCall"] {
+      await runDuplicateOutboundCall(
+        testCase: testCase,
+        firstCall: outboundCall,
+        secondCall: secondCall,
+        rpcHandler: rpcHandler
+      )
+    } else {
+      await runTimeoutOutboundCall(
+        testCase: testCase,
+        outboundCall: outboundCall,
+        rpcHandler: rpcHandler
+      )
+    }
+  }
+
+  private func runCorrelatedOutboundCall(
+    testCase: ConformanceTestCase,
+    outboundCall: JSONValue,
+    inboundResponse: JSONValue,
+    rpcHandler: RPCHandler
+  ) async throws {
+    let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
+    let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
+    let call =
+      outboundCall["callFunction"]?["@call"]?.stringValue
+      ?? outboundCall["callFunction"]?["call"]?.stringValue ?? ""
+    let catID = outboundCall["callFunction"]?["catalogId"]?.stringValue
+
+    let callTask = Task {
+      try await rpcHandler.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: call,
+        catalogID: catID,
+        functionCallID: fnCallID,
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { _ in }
+      )
+    }
+
+    try await Task.sleep(nanoseconds: 10_000_000)
+
+    let respData = try JSONEncoder().encode(inboundResponse)
+    let respMsg = try JSONDecoder().decode(AgentToRendererMessage.self, from: respData)
+    if case .agentFunctionResponse(let agentResp) = respMsg {
+      rpcHandler.handleAgentResponse(agentResp)
+    }
+
+    let result = try await callTask.value
+    let expectedResult = testCase.expect?["result"]
+    #expect(result == expectedResult, "[\(testCase.name)] Outbound call result mismatch")
+  }
+
+  private func runTimeoutOutboundCall(
+    testCase: ConformanceTestCase,
+    outboundCall: JSONValue,
+    rpcHandler: RPCHandler
+  ) async {
+    let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
+    let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
+    let call =
+      outboundCall["callFunction"]?["@call"]?.stringValue
+      ?? outboundCall["callFunction"]?["call"]?.stringValue ?? ""
+    let timeoutMs = outboundCall["timeoutMs"]?.numberValue ?? 10.0
+
+    do {
+      _ = try await rpcHandler.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: call,
+        functionCallID: fnCallID,
+        version: .v10,
+        timeoutSeconds: timeoutMs / 1000.0,
+        sendOutbound: { _ in }
+      )
+      Issue.record("[\(testCase.name)] Expected timeout error")
+    } catch let error as FunctionError {
+      if case .timeout = error {
+        #expect(testCase.expectError?.code == "TIMEOUT")
+      } else {
+        Issue.record("[\(testCase.name)] Expected FunctionError.timeout, got \(error)")
+      }
+    } catch {
+      Issue.record("[\(testCase.name)] Unexpected error: \(error)")
+    }
+  }
+
+  private func runDuplicateOutboundCall(
+    testCase: ConformanceTestCase,
+    firstCall: JSONValue,
+    secondCall: JSONValue,
+    rpcHandler: RPCHandler
+  ) async {
+    let surfaceID = firstCall["surfaceId"]?.stringValue ?? "s"
+    let fnCallID = firstCall["functionCallId"]?.stringValue ?? "c"
+    let call =
+      firstCall["callFunction"]?["@call"]?.stringValue
+      ?? firstCall["callFunction"]?["call"]?.stringValue ?? ""
+
+    let firstTask = Task {
+      try? await rpcHandler.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: call,
+        functionCallID: fnCallID,
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { _ in }
+      )
+    }
+    try? await Task.sleep(nanoseconds: 10_000_000)
+
+    let secondID = secondCall["functionCallId"]?.stringValue ?? fnCallID
+    do {
+      _ = try await rpcHandler.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: call,
+        functionCallID: secondID,
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { _ in }
+      )
+      Issue.record("[\(testCase.name)] Expected duplicate call ID error")
+    } catch let error as FunctionError {
+      if case .duplicate = error {
+        #expect(testCase.expectError?.code == "DUPLICATE")
+      } else {
+        Issue.record("[\(testCase.name)] Expected FunctionError.duplicate, got \(error)")
+      }
+    } catch {
+      Issue.record("[\(testCase.name)] Unexpected error: \(error)")
+    }
+
+    firstTask.cancel()
+    rpcHandler.cancelAllPendingCalls()
+  }
+
+  private func runUIBindingScenario(
+    testCase: ConformanceTestCase,
+    scenario: JSONValue,
+    rpcHandler: RPCHandler
+  ) async throws {
+    let surfaceID = scenario["surfaceId"]?.stringValue ?? "main_surface"
+    let catalogID = scenario["catalogId"]?.stringValue ?? "store_catalog"
+    let textExpr = scenario["component"]?["text"]
+    let fnName = textExpr?["@call"]?.stringValue ?? ""
+    let rawArgs = textExpr?["args"]?.objectValue ?? [:]
+    let argsDict = Dictionary(uniqueKeysWithValues: rawArgs.map { ($0.key, $0.value) })
+    let inboundVal = scenario["inboundResponseValue"] ?? .null
+
+    let box = OutboundMessageBox()
+    let callTask = Task {
+      try await rpcHandler.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: fnName,
+        catalogID: catalogID,
+        functionCallID: "ui-bind-1",
+        args: argsDict,
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { msg in box.lastMessage = msg }
+      )
+    }
+    try await Task.sleep(nanoseconds: 10_000_000)
+
+    assertOutboundCallAgentMatches(
+      captured: box.lastMessage,
+      expectedOutbound: testCase.expect?["outboundCall"],
+      testName: testCase.name
+    )
+
+    rpcHandler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: "ui-bind-1",
+        value: inboundVal,
+        version: .v10
+      )
+    )
+    let resolved = try await callTask.value
+    #expect(resolved == testCase.expect?["resolvedValue"], "[\(testCase.name)] resolvedValue mismatch")
+  }
+
+  private func runUIActionFallbackScenario(
+    testCase: ConformanceTestCase,
+    scenario: JSONValue,
+    rpcHandler: RPCHandler
+  ) async throws {
+    let surfaceID = scenario["surfaceId"]?.stringValue ?? "main_surface"
+    let fnCall = scenario["actionPayload"]?["functionCall"]
+    let fnName = fnCall?["@call"]?.stringValue ?? ""
+    let catalogID = fnCall?["catalogId"]?.stringValue
+    let rawArgs = fnCall?["args"]?.objectValue ?? [:]
+    let argsDict = Dictionary(uniqueKeysWithValues: rawArgs.map { ($0.key, $0.value) })
+    let inboundVal = scenario["inboundResponseValue"] ?? .null
+
+    let box = OutboundMessageBox()
+    let callTask = Task {
+      try await rpcHandler.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: fnName,
+        catalogID: catalogID,
+        functionCallID: "ui-action-1",
+        args: argsDict,
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { msg in box.lastMessage = msg }
+      )
+    }
+    try await Task.sleep(nanoseconds: 10_000_000)
+
+    assertOutboundCallAgentMatches(
+      captured: box.lastMessage,
+      expectedOutbound: testCase.expect?["outboundCall"],
+      testName: testCase.name
+    )
+
+    rpcHandler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: "ui-action-1",
+        value: inboundVal,
+        version: .v10
+      )
+    )
+    let result = try await callTask.value
+    #expect(result == testCase.expect?["result"], "[\(testCase.name)] result mismatch")
+  }
+
+  private func assertOutboundCallAgentMatches(
+    captured: RendererToAgentMessage?,
+    expectedOutbound: JSONValue?,
+    testName: String
+  ) {
+    guard let expectedCall = expectedOutbound?["callAgentFunction"] else { return }
+    guard case .callAgentFunction(let actualCall) = captured else {
+      Issue.record("[\(testName)] Expected outbound callAgentFunction, got \(String(describing: captured))")
+      return
+    }
+    if let expSurfaceID = expectedCall["surfaceId"]?.stringValue {
+      #expect(actualCall.surfaceID == expSurfaceID, "[\(testName)] surfaceId mismatch")
+    }
+    if let expFn = expectedCall["callFunction"]?["@call"]?.stringValue {
+      #expect(actualCall.callFunction.call == expFn, "[\(testName)] callFunction.@call mismatch")
+    }
+    if let expCat = expectedCall["callFunction"]?["catalogId"]?.stringValue {
+      #expect(actualCall.callFunction.catalogID == expCat, "[\(testName)] catalogId mismatch")
     }
   }
 }

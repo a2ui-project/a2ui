@@ -52,58 +52,69 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
     case .null:
       return []
     case .array(let items):
-      if items.isEmpty { return [] }
-      for (index, item) in items.enumerated() {
-        guard let dict = item.objectValue else {
-          throw A2UIValidationError(
-            "Message at index \(index) must be an object",
-            details: [
-              A2UIErrorDetail(
-                path: "messages.\(index)",
-                code: "type_mismatch",
-                message: "Message must be an object"
-              )
-            ]
-          )
-        }
-        do {
-          _ = try extractSingleAction(from: dict)
-        } catch let error as A2UIValidationError {
-          throw rewriteMessageIndex(in: error, to: index)
-        }
-      }
-      return try items.enumerated().flatMap { index, item -> [InternalOperation] in
-        do {
-          return try extractOperations(from: item)
-        } catch let error as A2UIValidationError {
-          throw rewriteMessageIndex(in: error, to: index)
-        }
-      }
+      return try extractOperationsFromArray(items)
     case .object(let dict):
       if let messages = dict["messages"]?.arrayValue {
-        return try extractOperations(from: .array(messages))
+        return try extractOperationsFromArray(messages)
       }
+      return try extractOperationsFromSingleMessageObject(dict)
+    default:
+      return []
+    }
+  }
 
-      let action = try extractSingleAction(from: dict)
-      guard let actionObj = dict[action]?.objectValue else {
+  private func extractOperationsFromArray(
+    _ items: [JSONValue]
+  ) throws -> [InternalOperation] {
+    guard !items.isEmpty else { return [] }
+    for (index, item) in items.enumerated() {
+      guard let dict = item.objectValue else {
         throw A2UIValidationError(
-          "Payload for action '\(action)' must be an object",
+          "Message at index \(index) must be an object",
           details: [
             A2UIErrorDetail(
-              path: "messages.0.\(action)",
+              path: "messages.\(index)",
               code: "type_mismatch",
-              message: "Action payload must be an object"
+              message: "Message must be an object"
             )
           ]
         )
       }
-
-      try validateVersionHeader(in: dict)
-      try validatePathsAndRecursion(.object(dict))
-      return try extractOperationsFromObject(dict, action: action, actionObject: actionObj)
-    default:
-      return []
+      do {
+        _ = try extractSingleAction(from: dict)
+      } catch let error as A2UIValidationError {
+        throw rewriteMessageIndex(in: error, to: index)
+      }
     }
+    return try items.enumerated().flatMap { index, item -> [InternalOperation] in
+      do {
+        return try extractOperations(from: item)
+      } catch let error as A2UIValidationError {
+        throw rewriteMessageIndex(in: error, to: index)
+      }
+    }
+  }
+
+  private func extractOperationsFromSingleMessageObject(
+    _ dict: OrderedDictionary<String, JSONValue>
+  ) throws -> [InternalOperation] {
+    let action = try extractSingleAction(from: dict)
+    guard let actionObj = dict[action]?.objectValue else {
+      throw A2UIValidationError(
+        "Payload for action '\(action)' must be an object",
+        details: [
+          A2UIErrorDetail(
+            path: "messages.0.\(action)",
+            code: "type_mismatch",
+            message: "Action payload must be an object"
+          )
+        ]
+      )
+    }
+
+    try validateVersionHeader(in: dict)
+    try validatePathsAndRecursion(.object(dict))
+    return try extractOperationsFromObject(dict, action: action, actionObject: actionObj)
   }
 
   open func adaptMessage(_ message: AgentToRendererMessage) throws -> [InternalOperation] {
@@ -372,99 +383,156 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
     }
   }
 
+  private struct PathRecursionState {
+    let value: JSONValue
+    let globalDepth: Int
+    let functionDepth: Int
+    let validateExpressions: Bool
+    let currentPath: String
+  }
+
   internal func validatePathsAndRecursion(
     _ value: JSONValue,
     globalDepth: Int = 0,
     functionDepth: Int = 0,
-    validateExpressions: Bool = true
+    validateExpressions: Bool = true,
+    currentPath: String = "messages.0"
   ) throws {
-    if globalDepth > Self.maxGlobalDepth {
+    var stack: [PathRecursionState] = [
+      PathRecursionState(
+        value: value,
+        globalDepth: globalDepth,
+        functionDepth: functionDepth,
+        validateExpressions: validateExpressions,
+        currentPath: currentPath
+      )
+    ]
+
+    while let current = stack.popLast() {
+      try checkRecursionDepths(current)
+      switch current.value {
+      case .object(let dictionary):
+        let nextFunctionDepth = try validateObjectExpressions(dictionary, state: current)
+        appendObjectChildren(dictionary, state: current, nextFunctionDepth: nextFunctionDepth, to: &stack)
+      case .array(let array):
+        appendArrayChildren(array, state: current, to: &stack)
+      default:
+        break
+      }
+    }
+  }
+
+  private func checkRecursionDepths(_ state: PathRecursionState) throws {
+    if state.globalDepth > Self.maxGlobalDepth {
       throw A2UIRecursionError(
         "Global recursion limit exceeded: Depth > \(Self.maxGlobalDepth)"
       )
     }
-    if validateExpressions && functionDepth > Self.maxFunctionDepth {
+    if state.validateExpressions && state.functionDepth > Self.maxFunctionDepth {
       throw A2UIRecursionError(
         "Recursion limit exceeded: functionCall depth > \(Self.maxFunctionDepth)"
       )
     }
+  }
 
-    switch value {
-    case .object(let dictionary):
-      var nextDepth = functionDepth
-      if validateExpressions {
-        let pathKey = version.isAtLeastV10 ? "@path" : "path"
-        if let path = dictionary[pathKey]?.stringValue ?? dictionary["path"]?.stringValue {
-          let range = NSRange(path.startIndex..<path.endIndex, in: path)
-          if Self.validPathRegex.firstMatch(in: path, range: range) == nil {
-            throw A2UIValidationError(
-              "Invalid path syntax: '\(path)'",
-              details: [
-                A2UIErrorDetail(
-                  path: path,
-                  code: "invalid_path_syntax",
-                  message: "Invalid path syntax"
-                )
-              ]
-            )
-          }
-        }
+  private func validateObjectExpressions(
+    _ dictionary: OrderedDictionary<String, JSONValue>,
+    state: PathRecursionState
+  ) throws -> Int {
+    guard state.validateExpressions else { return state.functionDepth }
+    let pathKey = version.isAtLeastV10 ? "@path" : "path"
+    if let path = dictionary[pathKey]?.stringValue ?? dictionary["path"]?.stringValue {
+      try validateDynamicPathSyntax(path, at: state.currentPath)
+    }
 
-        let callKey = version.isAtLeastV10 ? "@call" : "call"
-        if let callName = dictionary[callKey]?.stringValue ?? dictionary["call"]?.stringValue,
-          !UnicodeIdentifierValidator.isValidFunctionIdentifier(callName)
-        {
-          let msg: String
-          if !version.isAtLeastV10 {
-            msg = "Invalid function identifier: '\(callName)'"
-          } else if callName.hasPrefix("@") {
-            msg = "Unrecognized system function '\(callName)'"
-          } else {
-            msg = "Function name '\(callName)' must be a valid UAX #31 identifier"
-          }
-          throw A2UIValidationError(
-            msg,
-            details: [
-              A2UIErrorDetail(
-                path: callName,
-                code: "invalid_identifier",
-                message: msg
-              )
-            ]
-          )
-        }
+    let callKey = version.isAtLeastV10 ? "@call" : "call"
+    if let callName = dictionary[callKey]?.stringValue ?? dictionary["call"]?.stringValue,
+      !UnicodeIdentifierValidator.isValidFunctionIdentifier(callName)
+    {
+      try throwInvalidFunctionIdentifier(callName, at: state.currentPath)
+    }
 
-        let isFunctionCall =
-          dictionary[callKey] != nil || dictionary["call"] != nil || dictionary["function"] != nil
-        if isFunctionCall {
-          nextDepth += 1
-        }
-      }
+    let isFunctionCall =
+      dictionary[callKey] != nil || dictionary["call"] != nil || dictionary["function"] != nil
+    return isFunctionCall ? state.functionDepth + 1 : state.functionDepth
+  }
 
-      for (key, propertyValue) in dictionary {
-        let isRawDataPayload =
-          globalDepth == 1
-          && (key == "dataModel" || key == "value" || key == "metadata")
-        try validatePathsAndRecursion(
-          propertyValue,
-          globalDepth: globalDepth + 1,
-          functionDepth: nextDepth,
-          validateExpressions: validateExpressions && !isRawDataPayload
+  private func validateDynamicPathSyntax(_ path: String, at currentPath: String) throws {
+    let range = NSRange(path.startIndex..<path.endIndex, in: path)
+    guard Self.validPathRegex.firstMatch(in: path, range: range) == nil else { return }
+    let msg = "Invalid path syntax: '\(path)'"
+    throw A2UIValidationError(
+      msg,
+      details: [
+        A2UIErrorDetail(
+          path: currentPath.isEmpty ? path : currentPath,
+          code: "invalid_path_syntax",
+          message: msg
         )
-      }
+      ]
+    )
+  }
 
-    case .array(let array):
-      for item in array {
-        try validatePathsAndRecursion(
-          item,
-          globalDepth: globalDepth + 1,
-          functionDepth: functionDepth,
-          validateExpressions: validateExpressions
+  private func throwInvalidFunctionIdentifier(_ callName: String, at currentPath: String) throws {
+    let msg: String
+    if !version.isAtLeastV10 {
+      msg = "Invalid function identifier: '\(callName)'"
+    } else if callName.hasPrefix("@") {
+      msg = "Unrecognized system function '\(callName)'"
+    } else {
+      msg = "Function name '\(callName)' must be a valid UAX #31 identifier"
+    }
+    throw A2UIValidationError(
+      msg,
+      details: [
+        A2UIErrorDetail(
+          path: currentPath.isEmpty ? callName : currentPath,
+          code: "invalid_identifier",
+          message: msg
         )
-      }
+      ]
+    )
+  }
 
-    default:
-      break
+  private func appendObjectChildren(
+    _ dictionary: OrderedDictionary<String, JSONValue>,
+    state: PathRecursionState,
+    nextFunctionDepth: Int,
+    to stack: inout [PathRecursionState]
+  ) {
+    for (key, propertyValue) in dictionary.reversed() {
+      let isRawDataPayload =
+        state.globalDepth == 1
+        && (key == "dataModel" || key == "value" || key == "metadata")
+      let childPath = state.currentPath.isEmpty ? key : "\(state.currentPath).\(key)"
+      stack.append(
+        PathRecursionState(
+          value: propertyValue,
+          globalDepth: state.globalDepth + 1,
+          functionDepth: nextFunctionDepth,
+          validateExpressions: state.validateExpressions && !isRawDataPayload,
+          currentPath: childPath
+        )
+      )
+    }
+  }
+
+  private func appendArrayChildren(
+    _ array: [JSONValue],
+    state: PathRecursionState,
+    to stack: inout [PathRecursionState]
+  ) {
+    for (index, item) in array.enumerated().reversed() {
+      let childPath = state.currentPath.isEmpty ? "\(index)" : "\(state.currentPath).\(index)"
+      stack.append(
+        PathRecursionState(
+          value: item,
+          globalDepth: state.globalDepth + 1,
+          functionDepth: state.functionDepth,
+          validateExpressions: state.validateExpressions,
+          currentPath: childPath
+        )
+      )
     }
   }
 }
