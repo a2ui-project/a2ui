@@ -135,7 +135,7 @@ Do not use inline-header lists (such as `* **Header:** Description...`). Instead
 
 Avoid excessive bolding of keywords, "key takeaways," or names in the body text, except for the first mention in the lead.
 
-Use numbered lists (`1.`, `2.`) instead of bullets, so readers can refer to an item by its number, as in "see point 3". Do not use emojis (🚀, 🧠) as list markers.
+Use numbered lists (`1.`, `2.`) instead of bullets, so readers can refer to an item by its number, as in "see point 3" (except in changelogs; see rule 7.5). Do not use emojis (🚀, 🧠) as list markers.
 
 Avoid creating tables for simple information that easily fits in a sentence.
 
@@ -191,3 +191,7 @@ Read the whole `## Unreleased` section before editing it. Rewrite or merge earli
 ### 7.4. Keep entries brief
 
 Keep each entry to one or two sentences stating what changed and how callers should update their code. Do not narrate why the previous implementation worked the way it did.
+
+### 7.5. Use bulleted lists
+
+Use bulleted lists (`-`) for changelog entries so entries can be reordered and merged without renumbering. This is an exception to rule 4.2.
