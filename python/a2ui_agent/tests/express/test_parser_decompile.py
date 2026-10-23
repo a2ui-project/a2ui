@@ -31,7 +31,12 @@ import unittest
 
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.express import ExpressCompiler, ExpressParser
+from a2ui.inference_formats.express import (
+    ExpressCompiler,
+    ExpressParser,
+    ExpressValidationError,
+)
+from a2ui.inference_formats.express.decompiler import _decompile_number
 
 from ..repo_paths import find_repo_root
 
@@ -207,6 +212,41 @@ class TestExpressParser(unittest.TestCase):
         self.assertEqual(parts[0].part.text, "Intro")
         self.assertIn("root = Text('Hi')", parts[1].part.a2ui_raw)
         self.assertEqual(parts[2].part.text, "Outro")
+
+    def test_number_spelling_matches_ecmascript(self):
+        """Verifies numbers are written as ECMAScript `Number.prototype.toString` spells them."""
+        cases = [
+            (1e-7, "1e-7"),
+            (1.5e-5, "0.000015"),
+            (1e16, "10000000000000000.0"),
+            (1e21, "1e+21"),
+            (1.5e300, "1.5e+300"),
+            (123456.789, "123456.789"),
+            (3.0, "3.0"),
+            (-0.0, "-0.0"),
+            (7, "7"),
+        ]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(_decompile_number(value), expected)
+
+    def test_non_finite_numbers_have_no_notation(self):
+        """Verifies infinite and NaN values raise ExpressValidationError."""
+        for value in [float("inf"), float("-inf"), float("nan")]:
+            with self.subTest(value=value):
+                with self.assertRaises(ExpressValidationError):
+                    _decompile_number(value)
+
+    def test_decompiled_numbers_round_trip(self):
+        """Verifies a decompiled exponent-form double compiles back to the same value."""
+        compiler = ExpressCompiler([self.catalog])
+        decompiler = ExpressParser([self.catalog])
+        dsl = 'root = Column([t], weight=1e-7)\nt = Text("Hi")'
+        decompiled = decompiler.decompile(compiler.compile(dsl))
+        self.assertIn("1e-7)", decompiled)
+        messages = to_message_dicts(compiler.compile(decompiled))
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(comps["root"]["weight"], 1e-7)
 
 
 if __name__ == "__main__":

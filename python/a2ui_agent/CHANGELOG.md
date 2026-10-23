@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
+  `a2ui.constants`, the message metadata key under which the v1.0 A2A
+  extension sends the renderer capabilities. v0.8 and v0.9 use
+  `A2UI_CLIENT_CAPABILITIES_KEY`.
 - Package dependency updated to require `a2ui-core>=0.4.1,<0.5.0`.
 - The response parsers for Direct JSON, Express, Elemental and Atom remove the
   backticks left at the edges of a block when a model writes the tags as inline
@@ -27,6 +31,16 @@
   not valid UAX 31 identifiers with `A2uiValidationError` (`invalid_identifier`);
   for pre-v1.0 catalogs (and for reserved-word IDs in any version), it derives
   a valid variable name and emits `id="..."`.
+- Express number literals follow the JSON number grammar plus an optional
+  leading `+` (`.5`, `1.`, `+3`, `1e2`, `2.5E-7`), the same grammar the core
+  `${...}` expression parsers use
+  ([#3019](https://github.com/a2ui-project/a2ui/issues/3019)). Integer text
+  compiles to an exact `int`; a literal outside the double range (`1e999`)
+  raises `ExpressParseError`. `ExpressDecompiler` writes doubles the way
+  ECMAScript `Number.prototype.toString` does (`1e-7`, `0.000015`, `1e+21`,
+  with `.0` kept on integral doubles) so the same text comes out of every SDK,
+  and raises `ExpressValidationError` for infinite or NaN values instead of
+  writing `inf`/`nan`.
 - Add `RendererState` to `a2ui.utils`, the agent's mirror of the surfaces a
   renderer holds (#3268). It wraps a `MessageProcessor` and checks each
   outbound message against the state applied before it: `apply` and nested
