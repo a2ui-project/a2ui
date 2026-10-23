@@ -44,9 +44,20 @@ describe('regexReplace', () => {
     assert.strictEqual(call({value: 'a1', pattern: '\\d', replacement: '$&$$'}), 'a$&$$');
   });
 
-  it('removes matches when the replacement is empty or missing', () => {
+  it('removes matches when the replacement is empty', () => {
     assert.strictEqual(call({value: '[DIR] src', pattern: '^\\[\\w+\\] ', replacement: ''}), 'src');
-    assert.strictEqual(call({value: 'a-b', pattern: '-'}), 'ab');
+  });
+
+  it('rejects a missing replacement at validation', () => {
+    assert.throws(
+      () => call({value: 'a-b', pattern: '-'}),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'regexReplace');
+        assert.ok(error.message.startsWith("Validation failed for function 'regexReplace'"));
+        return true;
+      },
+    );
   });
 
   it('rewrites each element of an array', () => {

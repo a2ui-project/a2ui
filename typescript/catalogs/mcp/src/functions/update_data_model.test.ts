@@ -59,11 +59,20 @@ describe('updateDataModel', () => {
     });
   });
 
-  it('writes nothing when updates is null or undefined', () => {
+  it('rejects null or undefined updates at validation, writing nothing', () => {
     const model = new DataModel({kept: 'original'});
 
-    assert.strictEqual(call({updates: null}, model), undefined);
-    assert.strictEqual(call({updates: undefined}, model), undefined);
+    for (const updates of [null, undefined]) {
+      assert.throws(
+        () => call({updates}, model),
+        (error: unknown) => {
+          assert.ok(error instanceof A2uiExpressionError);
+          assert.strictEqual(error.expression, 'updateDataModel');
+          assert.ok(error.message.startsWith("Validation failed for function 'updateDataModel'"));
+          return true;
+        },
+      );
+    }
 
     assert.deepStrictEqual(model.get('/'), {kept: 'original'});
   });
@@ -98,7 +107,7 @@ describe('updateDataModel', () => {
     ['/__proto__/polluted', '__proto__'],
     ['/constructor/prototype/polluted', 'constructor'],
     ['/safe/prototype', 'prototype'],
-    ['__proto__', '__proto__'],
+    ['__proto__/polluted', '__proto__'],
   ];
 
   for (const [key, segment] of forbiddenKeys) {

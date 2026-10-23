@@ -14,29 +14,26 @@
  * limitations under the License.
  */
 
-import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/web_core/v1_0';
+import {
+  DynamicStringSchema,
+  DynamicValueSchema,
+  createFunctionImplementation,
+  type FunctionImplementation,
+} from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
 
 import {compileSafeRegex, mapTextValue} from './regex_support.js';
-import {withSettledArgs} from './settle_args.js';
 
-/**
- * Function API definition for `regexCapture`.
- *
- * Both arguments are `z.unknown()` because either may arrive as the pending Promise of a nested
- * asynchronous call.
- */
+/** Function API definition for `regexCapture`. */
 export const RegexCaptureApi = {
   name: 'regexCapture' as const,
   returnType: 'any' as const,
   schema: z.object({
     // Quoted to prevent Google Closure Compiler property renaming.
-    'value': z.unknown().describe('The string or array of strings to match against.'),
-    'pattern': z
-      .unknown()
-      .describe(
-        'A JavaScript regular expression. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings.',
-      ),
+    'value': DynamicValueSchema.describe('The string or array of strings to match against.'),
+    'pattern': DynamicStringSchema.describe(
+      'A JavaScript regular expression. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings.',
+    ),
   }),
   description: 'Extracts capture groups from the first regular expression match.',
 };
@@ -49,12 +46,11 @@ export const RegexCaptureApi = {
  */
 export const RegexCaptureImplementation: FunctionImplementation = createFunctionImplementation(
   RegexCaptureApi,
-  args =>
-    withSettledArgs(args, settled => {
-      const compiled = compileSafeRegex(String(settled['pattern'] ?? ''), 'regexCapture');
-      return mapTextValue(settled['value'], item => {
-        const match = compiled.exec(item);
-        return match ? match.slice(1).map(group => group ?? '') : null;
-      });
-    }),
+  args => {
+    const compiled = compileSafeRegex(String(args['pattern']), 'regexCapture');
+    return mapTextValue(args['value'], item => {
+      const match = compiled.exec(item);
+      return match ? match.slice(1).map(group => group ?? '') : null;
+    });
+  },
 );

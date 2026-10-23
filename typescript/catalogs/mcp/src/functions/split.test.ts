@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {Catalog, DataContext, DataModel} from '@a2ui/web_core/v1_0';
+import {A2uiExpressionError, Catalog, DataContext, DataModel} from '@a2ui/web_core/v1_0';
 import {SplitApi, SplitImplementation} from './split.js';
 
 const catalog = new Catalog<never>('https://a2ui.org/test/split', '1.0', [], [SplitImplementation]);
@@ -41,9 +41,20 @@ describe('split', () => {
     ]);
   });
 
-  it('splits into characters when the separator is empty or missing', () => {
+  it('splits into characters when the separator is empty', () => {
     assert.deepStrictEqual(call({value: 'abc', separator: ''}), ['a', 'b', 'c']);
-    assert.deepStrictEqual(call({value: 'ab', separator: null}), ['a', 'b']);
+  });
+
+  it('rejects a null separator at validation', () => {
+    assert.throws(
+      () => call({value: 'ab', separator: null}),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'split');
+        assert.ok(error.message.startsWith("Validation failed for function 'split'"));
+        return true;
+      },
+    );
   });
 
   it('keeps surrogate pairs whole when splitting into characters', () => {
@@ -62,8 +73,16 @@ describe('split', () => {
     ]);
   });
 
-  it('reads a null value as the empty string', () => {
-    assert.deepStrictEqual(call({value: null, separator: ','}), ['']);
+  it('rejects a null value at validation', () => {
+    assert.throws(
+      () => call({value: null, separator: ','}),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'split');
+        assert.ok(error.message.startsWith("Validation failed for function 'split'"));
+        return true;
+      },
+    );
   });
 
   it('stays synchronous when no argument is pending', () => {

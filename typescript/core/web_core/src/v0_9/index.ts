@@ -24,6 +24,7 @@
 export * from '../catalog/function_invoker.js';
 export * from '../catalog/types.js';
 export * from '../common/events.js';
+export {isThenable, settleDeep} from '../common/settle_deep.js';
 export * from '../processing/message-processor.js';
 export * from '../resolution/index.js';
 export * from './schema/index.js';
