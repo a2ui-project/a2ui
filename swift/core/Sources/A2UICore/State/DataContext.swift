@@ -145,8 +145,9 @@ public final class DataContext {
         )
         return .null
       }
+      // Before v1.0 a call can't select a catalog: it always runs in the surface catalog.
       function =
-        functionHandler?.function(named: callName, catalogID: catalogID)
+        functionHandler?.function(named: callName, catalogID: nil)
         ?? (callName == "@index" ? IndexFunction() : nil)
     }
     guard let function else {

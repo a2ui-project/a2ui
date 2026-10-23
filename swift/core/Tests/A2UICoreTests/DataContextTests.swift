@@ -174,6 +174,28 @@ struct DataContextTests {
       try DataContext.validateReservedDirectives(["@invalidKey"])
     }
   }
+
+  @Test(arguments: [A2UIProtocolVersion.v09, .v091])
+  func preV10CallIgnoresCatalogID(version: A2UIProtocolVersion) {
+    let mockHandler = MockFunctionHandler()
+    mockHandler.functionToReturn = ConcatFunction()
+    let context = DataContext(
+      dataModel: DataModel(),
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: version
+    )
+
+    let call: JSONValue = [
+      "call": "concat",
+      "catalogId": "missing-catalog",
+      "args": ["a": "Hello,", "b": " World!"],
+    ]
+
+    #expect(context.resolveDynamicValue(call) == "Hello, World!")
+    #expect(mockHandler.lastRequestedName == "concat")
+    #expect(mockHandler.lastRequestedCatalogID == nil)
+  }
 }
 
 @MainActor
