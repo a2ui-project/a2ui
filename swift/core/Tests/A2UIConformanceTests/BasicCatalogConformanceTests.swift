@@ -20,9 +20,15 @@ import Testing
 
 @MainActor
 private final class ConformanceMockFunctionHandler: FunctionHandler {
-  private let functionsMap: [String: any FunctionImplementation] = Dictionary(
-    uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
-  )
+  private let functionsMap: [String: any FunctionImplementation]
+
+  init(
+    functionsMap: [String: any FunctionImplementation] = Dictionary(
+      uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
+    )
+  ) {
+    self.functionsMap = functionsMap
+  }
 
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
     functionsMap[named]
@@ -32,6 +38,17 @@ private final class ConformanceMockFunctionHandler: FunctionHandler {
 @MainActor
 struct BasicCatalogConformanceTests {
   private let functionHandler = ConformanceMockFunctionHandler()
+  /// Handlers holding each protocol version's Basic Catalog functions. Stored here because
+  /// `DataContext` keeps its function handler weakly.
+  private let versionedFunctionHandlers = Dictionary(
+    uniqueKeysWithValues: A2UIProtocolVersion.allCases.map {
+      (
+        $0,
+        ConformanceMockFunctionHandler(
+          functionsMap: BasicCatalog.makeCatalog(version: $0).functions)
+      )
+    }
+  )
 
   @Test func formatStringAndExpressionParser() throws {
     let dataModel = DataModel(
@@ -64,32 +81,37 @@ struct BasicCatalogConformanceTests {
     let cases = (rawYAML as? [[String: Any]]) ?? []
     #expect(!cases.isEmpty, "core/functions.yaml should hold test cases")
 
-    let functionsMap: [String: any FunctionImplementation] = Dictionary(
-      uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
-    )
-
     for testCase in cases {
       guard let action = testCase["action"] as? String, action == "evaluate_function" else {
         continue
       }
 
-      // The Swift basic catalog implements v0.9, whose validators return
-      // booleans. Cases pinned to a later protocol version exercise v1.0
-      // behaviour (ValidationResult operands) that this catalog does not have.
-      let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
-      let protocolVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion
-      if let protocolVersion, !protocolVersion.hasPrefix("v0.9") {
+      // A case with a `surface` block evaluates the function as a call on a surface, so it
+      // checks catalog resolution. This harness invokes implementations directly and cannot
+      // describe it.
+      if testCase["surface"] != nil {
         continue
       }
 
+      // Validators return booleans in v0.9 and ValidationResult objects in v1.0, so
+      // each case runs against the functions of the protocol version it is pinned to.
+      // Unpinned cases run against v0.9.
       guard let name = testCase["name"] as? String,
         let funcName = testCase["function"] as? String
       else {
         continue
       }
 
+      let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
+      let rawVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion ?? "v0.9"
+      guard let protocolVersion = A2UIProtocolVersion(lenientRawValue: rawVersion) else {
+        Issue.record("\(name): unsupported protocol version \(rawVersion)")
+        continue
+      }
+      let functionsMap = BasicCatalog.makeCatalog(version: protocolVersion).functions
+
       guard let fn = functionsMap[funcName] else {
-        Issue.record("\(name): function '\(funcName)' not found in BasicFunctions")
+        Issue.record("\(name): function '\(funcName)' not found for \(protocolVersion.rawValue)")
         continue
       }
 
@@ -98,7 +120,15 @@ struct BasicCatalogConformanceTests {
           ConformanceTestHelper.toJSONValue($0)
         } ?? .object([:])
       let model = DataModel(initial: dataModelDict)
-      let context = DataContext(dataModel: model, path: "/", functionHandler: functionHandler)
+      // Functions that evaluate through the context (such as formatString) resolve
+      // against the same catalog version as the function under test.
+      let versionedHandler = try #require(versionedFunctionHandlers[protocolVersion])
+      let context = DataContext(
+        dataModel: model,
+        path: "/",
+        functionHandler: versionedHandler,
+        protocolVersion: protocolVersion
+      )
 
       let rawArgs = (testCase["args"] as? [String: Any]) ?? [:]
       var swiftArgs: [String: JSONValue] = [:]

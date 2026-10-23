@@ -75,9 +75,9 @@ Endpoints provided by the server:
 
 1. Pick the A2UI version and catalogs from the renderer capabilities in the message metadata (`src/pick-a2ui.ts`). The versions the agent serves are listed in `src/versions.ts`, and nothing else in the sample depends on a version string.
 2. Read the message's text, UI action and streaming preference (`src/a2a.ts`), and turn the action or the text into a query for the model (`src/user-query.ts`).
-3. Stream the model's text for the turn from the backend (`src/model.ts`): `GeminiBackend` keeps one chat per conversation and answers `get_restaurants` tool calls (`src/tools.ts`); `StubBackend` returns the canned response. In Direct JSON, the text goes through the `@a2ui/agent` stream processor as it arrives.
+3. Stream the model's text for the turn from the backend (`src/model.ts`): `GeminiBackend` keeps one chat per conversation and answers `get_restaurants` tool calls (`src/tools.ts`); `StubBackend` returns the canned response. When the client streams a Direct JSON reply, the text goes through a `ResponseStream` that the `@a2ui/agent` processor opens, which checks each A2UI message before it is published.
 4. Publish the A2UI messages as `working` status updates. The A2A details live in `src/a2a.ts`: reading the inbound message, one `application/a2ui+json` data part per A2UI message, and the task's status events.
-5. Validate the full text with the `@a2ui/agent` processor for the picked version and catalogs. A reply that holds no A2UI fails too. If it fails, ask the model once more with the error, as the Python sample does.
+5. Validate the reply with the `@a2ui/agent` processor for the picked version and catalogs. Each reply shows new UI, so it is checked on its own, against a new renderer state: a streamed reply by its `ResponseStream`, as it arrives and when the stream closes, and any other reply by `parseResponse`. A reply that holds no A2UI fails too. If it fails, ask the model once more with the error, as the Python sample does.
 6. End the turn with a final `input-required` status, or `completed` after a booking is submitted.
 
 The system prompt (`src/prompt.ts`) is the agent's role and UI rules followed by the `@a2ui/agent` prompt snippet, which holds the format's rules, the catalog schemas and the examples (`examples/<version>/`, loaded by `src/examples.ts`). It is the same for both backends.

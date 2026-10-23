@@ -63,22 +63,23 @@ describe('BlockLexer', () => {
     const parts = lexer.tokenize(content);
 
     expect(parts).toHaveLength(2);
-    expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: false});
+    expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: true});
     expect(parts[1]).toEqual({type: 'a2ui', a2uiRaw: 'text = "Hello', isFinal: false});
   });
 
-  it('embedded tag in comment', () => {
-    const content = 'Preamble\n<a2ui>\n# Some </a2ui> comment\ntext = 123\n</a2ui>';
+  it('quote in comment and close tag on comment line', () => {
+    const content = "Preamble\n<a2ui>\n# User's comment\ntext = 123 # done </a2ui>\nPostamble";
     const lexer = new BlockLexer();
     const parts = lexer.tokenize(content);
 
-    expect(parts).toHaveLength(2);
+    expect(parts).toHaveLength(3);
     expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: true});
     expect(parts[1]).toEqual({
       type: 'a2ui',
-      a2uiRaw: '# Some </a2ui> comment\ntext = 123',
+      a2uiRaw: "# User's comment\ntext = 123 # done",
       isFinal: true,
     });
+    expect(parts[2]).toEqual({type: 'text', text: 'Postamble', isFinal: true});
   });
 
   it('open tag with attributes', () => {
@@ -112,6 +113,22 @@ describe('BlockLexer', () => {
     expect(parts[0]).toEqual({type: 'text', text: 'Preamble', isFinal: true});
     expect(parts[1]).toEqual({type: 'a2ui', a2uiRaw: 'code_here', isFinal: true});
     expect(parts[2]).toEqual({type: 'text', text: 'Postamble', isFinal: true});
+  });
+
+  it('recovers block closed with </a2ui> when opened with ```a2ui or missing <a2ui>', () => {
+    const lexer = new BlockLexer();
+    const fenced = 'Preamble\n```a2ui\nsurface("main")\nroot = Text("Hi")\n</a2ui>\n```\nPostamble';
+    expect(lexer.tokenize(fenced)).toEqual([
+      {type: 'text', text: 'Preamble', isFinal: true},
+      {type: 'a2ui', a2uiRaw: 'surface("main")\nroot = Text("Hi")', isFinal: true},
+      {type: 'text', text: 'Postamble', isFinal: true},
+    ]);
+
+    const unfenced = 'Here is the UI.\nsurface("main")\nroot = Text("Hi")\n</a2ui>';
+    expect(lexer.tokenize(unfenced)).toEqual([
+      {type: 'text', text: 'Here is the UI.', isFinal: true},
+      {type: 'a2ui', a2uiRaw: 'surface("main")\nroot = Text("Hi")', isFinal: true},
+    ]);
   });
 });
 

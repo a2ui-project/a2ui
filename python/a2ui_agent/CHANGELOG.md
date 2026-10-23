@@ -1,33 +1,48 @@
 ## Unreleased
 
-- Add `RendererState` to `a2ui.utils`. A `RendererState` is the agent's mirror
-  of the surfaces a renderer holds: it wraps one `MessageProcessor` and checks
-  each outbound message against everything sent before it, so a canvas agent
-  that keeps one state for the conversation catches a reference to a component
-  no turn sent, a cycle with components from an earlier turn, or a new
-  component that nothing reaches. A component that an update leaves
-  unreachable by rewriting its parent's children is accepted, since the
-  protocol has no message that removes one component. `apply` is atomic,
-  `transaction` extends that to several calls, and `check_topology` checks the
-  trees of the surfaces a response touched. Rolling back costs what the undone
-  messages changed, not the size of the surfaces they touched: the state keeps
-  an undo log and never copies a surface when a message is applied or a
-  transaction opens, so applying n messages to one surface takes time in
-  proportion to n. Transactions nest, and a failed inner transaction undoes
-  only what was applied inside it. `check_topology` rejects a v0.8 surface
-  whose updates are still buffered, waiting for its `beginRendering`. An
-  update to a surface the state never saw created is rejected, as the renderer
-  would reject it. The state holds the surfaces as they now stand, not the
-  messages that built them. A rollback puts each component back in its place
-  in the surface's order, which `allowedParents` reads, restores a deleted
-  surface without checking it again (including a data model root such as
-  `[]` or `0`), and finishes even if one undo step fails, so that the
-  caller's error propagates.
+- Package dependency updated to require `a2ui-core>=0.4.1,<0.5.0`.
+- The response parsers for Direct JSON, Express, Elemental and Atom remove the
+  backticks left at the edges of a block when a model writes the tags as inline
+  code (`` `<a2ui>` ... `</a2ui>` `` or `` `<a2ui-json>` ... `</a2ui-json>` ``),
+  drop text made of nothing but backticks, and in one-shot unwrapping (`unwrap`
+  and `parse_response`) recover at most one block closed with a closing tag when
+  the model opened the block with a Markdown code fence (such as ` ```a2ui `) or
+  omitted the opening tag; `has_format_content` counts recovered blocks as
+  complete format blocks.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
+- **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
+  `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
+  (`DirectJsonFormat`).
+- Express variable and check identifiers now follow Unicode UAX 31 in the
+  grammar and decompiler ([#3390](https://github.com/a2ui-project/a2ui/issues/3390)).
+  From protocol v1.0 onward, `ExpressDecompiler` rejects component IDs that are
+  not valid UAX 31 identifiers with `A2uiValidationError` (`invalid_identifier`);
+  for pre-v1.0 catalogs (and for reserved-word IDs in any version), it derives
+  a valid variable name and emits `id="..."`.
+- Add `RendererState` to `a2ui.utils`, the agent's mirror of the surfaces a
+  renderer holds (#3268). It wraps a `MessageProcessor` and checks each
+  outbound message against the state applied before it: `apply` and nested
+  `transaction` blocks roll back through an undo log on failure, and
+  `check_topology` checks the trees of the touched surfaces. It needs
+  `SurfaceComponentsModel.insert_component` from the next `a2ui-core`
+  release, so that release must also raise the `a2ui-core` floor in
+  `pyproject.toml` to its version.
 - `validate_payload` runs the payload through a short-lived `RendererState`
   instead of building a new `MessageProcessor` for each surface and
   candidate catalog. Its results are unchanged, except that a v0.8 update
   that follows a `deleteSurface` of its surface is now buffered, as a v0.8
-  renderer does, instead of rejected.
+  renderer does, instead of rejected. A payload may now be any iterable of
+  messages, such as a generator.
+- The `a2ui.utils.validation` module is removed. `validate_payload` moved to
+  `a2ui.utils.renderer_state` and is still exported from `a2ui.utils`.
 - `Parser.parse_response` and `Parser.open_stream` take an optional
   `RendererState`. Without one, a call checks the response against an empty
   state, as a chat turn that shows new UI: **BREAKING**, an update to a

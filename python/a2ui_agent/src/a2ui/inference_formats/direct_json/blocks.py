@@ -26,7 +26,7 @@ CLOSE_TAG = "</a2ui-json>"
 OPEN_TAG_RE = re.compile(r"<a2ui-json(?:\s[^>]*)?>", re.IGNORECASE)
 CLOSE_TAG_RE = re.compile(r"</a2ui-json\s*>", re.IGNORECASE)
 # The start of a tag that runs to the end of the text, matched at a position.
-_OPEN_TAG_START_RE = re.compile(r"<a2ui-json\s[^>]*$", re.IGNORECASE)
+OPEN_TAG_START_RE = re.compile(r"<a2ui-json\s[^>]*$", re.IGNORECASE)
 _CLOSE_TAG_START_RE = re.compile(r"</a2ui-json\s*$", re.IGNORECASE)
 _LEADING_FENCE_RE = re.compile(r"^```[a-zA-Z-]*\s*")
 _TRAILING_FENCE_RE = re.compile(r"\s*```[a-zA-Z-]*$")
@@ -36,7 +36,7 @@ def possible_tag_start(text: str) -> int:
     """Returns where a tail of `text` could start an open tag, else its length."""
     idx = text.find("<")
     while idx >= 0:
-        if _is_tag_prefix(text, idx, OPEN_TAG) or _OPEN_TAG_START_RE.match(text, idx):
+        if _is_tag_prefix(text, idx, OPEN_TAG) or OPEN_TAG_START_RE.match(text, idx):
             return idx
         idx = text.find("<", idx + 1)
     return len(text)
@@ -137,6 +137,9 @@ def payload_start(block: str, end: int) -> int | None:
     if block.startswith("```", start):
         newline = block.find("\n", start, end)
         return None if newline < 0 else newline + 1
+    if start < end and block[start] == "`":
+        while start < end and (block[start] == "`" or block[start].isspace()):
+            start += 1
     return start
 
 
@@ -178,4 +181,5 @@ def clean(text: str) -> str:
     cleaned = text.strip()
     cleaned = _LEADING_FENCE_RE.sub("", cleaned, count=1)
     cleaned = _TRAILING_FENCE_RE.sub("", cleaned, count=1)
-    return cleaned.strip()
+    cleaned = cleaned.strip()
+    return "" if not cleaned.strip("`") else cleaned

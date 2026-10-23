@@ -31,6 +31,7 @@ from a2ui.core.basic_catalog import v0_8
 from a2ui.core.catalog import Catalog
 from a2ui.core.exceptions import A2uiError, A2uiRecursionError
 from a2ui.core.processing import MessageProcessorOptions
+from a2ui.core.state import surface_components_model
 from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
 
 CATALOG = Catalog.from_json(
@@ -216,6 +217,37 @@ def test_depth_limit_holds_across_batches() -> None:
             [_message([{"id": "c", "component": "Card", "child": "d"}])]
             + [_message([{"id": "d", "component": "Box"}])]
         )
+
+
+def test_checks_only_the_batch_once_the_one_before_is_applied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    processor = _processor(CONFIGS["missing_root_allowed"])
+    processor.process_messages([
+        _message([{"id": "root", "component": "Box", "children": ["a", "b"]}]),
+        _message([{"id": "a", "component": "Item"}]),
+    ])
+
+    def whole_surface_check(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("checked the whole surface")
+
+    for name in ("analyze_topology", "validate_composition_constraints"):
+        monkeypatch.setattr(surface_components_model, name, whole_surface_check)
+    processor.process_messages([_message([{"id": "b", "component": "Item"}])])
+
+
+def test_checks_the_whole_surface_after_a_change_outside_a_check() -> None:
+    processor = _processor(CONFIGS["missing_root_allowed"])
+    processor.process_messages([
+        _message([
+            {"id": "root", "component": "Box", "children": ["a"]},
+            {"id": "a", "component": "Box"},
+        ])
+    ])
+    model = processor.model.get_surface("s1").components_model
+    model.get("a").properties = {"children": ["root"]}
+    with pytest.raises(A2uiError, match="Circular reference"):
+        processor.process_messages([_message([{"id": "b", "component": "Item"}])])
 
 
 class _Pair:

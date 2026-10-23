@@ -39,9 +39,11 @@ void _turns(A2uiProtocolVersion version) {
 
   setUp(() {
     catalog = loadBasicCatalog(version);
-    // Direct JSON is the default format, so the generator names none.
-    processor = A2uiGenerator(catalogs: [CatalogConfig(catalog)])
-        .createProcessor(
+    processor =
+        A2uiGenerator(
+          catalogs: [CatalogConfig(catalog)],
+          inferenceFormatFactory: const DirectJsonFormatFactory(),
+        ).createProcessor(
           A2uiRendererCapabilities.forCatalogIds([
             catalog.id,
           ], version: version),

@@ -18,7 +18,7 @@ import '../../utils/catalogs.dart';
 import 'compiler.dart';
 import 'schema_helper.dart';
 
-final RegExp _identifier = RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$');
+final RegExp _xidContinueChar = RegExp(r'^\p{XID_Continue}$', unicode: true);
 final RegExp _pathText = RegExp(r'^[a-zA-Z0-9_/]*$');
 final RegExp _pathSegment = RegExp(r'^[a-zA-Z0-9_]+$');
 
@@ -96,9 +96,9 @@ class ExpressDecompiler {
   /// - an `updateComponents` without a `createSurface` that assigns `root`,
   ///   which would create the surface when compiled;
   /// - an `updateDataModel` below the root of the data model, or removing it;
-  /// - a component whose id is not an Express identifier, such as
-  ///   `main-column`, or which sets a property its catalog does not declare
-  ///   for it, such as `metadata`;
+  /// - from v1.0, a component whose id is not a UAX 31 identifier, such as
+  ///   `main-column`, or a component that sets a property its catalog does not
+  ///   declare for it, such as `metadata`;
   /// - a check that is not a call to a catalog function, or has no message;
   /// - a `callRendererFunction` naming a surface, or a function call that
   ///   cannot be written as a call;
@@ -419,20 +419,45 @@ class ExpressDecompiler {
     List<Map<String, Object?>> components,
     _SurfaceCatalog surface,
   ) {
-    final Set<String> defined = {
-      for (final Map<String, Object?> component in components)
-        if (component['id'] case final String id) id,
-    };
+    final ids = <String>[];
+    for (final component in components) {
+      final Object? id = component['id'];
+      if (id is! String || id.isEmpty) {
+        throw A2uiValidationError(
+          "Component id '$id' has no Express notation.",
+        );
+      }
+      ids.add(id);
+    }
+    if (_v1) {
+      final List<A2uiErrorDetail> details = [
+        for (final String id in ids)
+          if (!isValidUax31Identifier(id))
+            A2uiErrorDetail(
+              path: 'components.$id.id',
+              code: 'invalid_identifier',
+              message: "Component id '$id' must be a valid UAX #31 identifier",
+            ),
+      ];
+      if (details.isNotEmpty) {
+        throw A2uiValidationError(
+          details.first.message,
+          path: details.first.path,
+          errors: details,
+        );
+      }
+    }
+    final Map<String, String> variables = _assignVariableNames(ids);
     return [
       for (final Map<String, Object?> component in components)
-        _Component(this, surface, defined, component).write(),
+        _Component(this, surface, variables, component).write(),
     ];
   }
 }
 
-/// Writes one component as `id = Type(arguments)`, and the values in it.
+/// Writes one component as `varName = Type(arguments)`, and the values in it.
 class _Component {
-  _Component(this.decompiler, this.surface, this.defined, this.json);
+  _Component(this.decompiler, this.surface, this.variables, this.json);
 
   final ExpressDecompiler decompiler;
 
@@ -440,9 +465,9 @@ class _Component {
   /// belong to.
   final _SurfaceCatalog surface;
 
-  /// The ids of the components the block defines, which a reference names
-  /// as a variable. Any other id is written as a string.
-  final Set<String> defined;
+  /// The variable name each component of the block is written under, keyed by
+  /// its component id.
+  final Map<String, String> variables;
 
   final Map<String, Object?> json;
 
@@ -457,14 +482,8 @@ class _Component {
   String get _id => '${json['id']}';
 
   String write() {
-    final Object? id = json['id'];
-    if (id is! String || !_isIdentifier(id)) {
-      throw A2uiValidationError(
-        "Component id '$id' has no Express notation. In Express the id is the "
-        'name of the variable holding the component, so it has to be made of '
-        'letters, digits and underscores, and not start with a digit.',
-      );
-    }
+    final id = json['id']! as String;
+    final String varName = variables[id]!;
     final Object? type = json['component'];
     if (type is! String) {
       throw A2uiValidationError("Component '$id' names no component type.");
@@ -510,7 +529,8 @@ class _Component {
     }
     if (json['checks'] case final Object checks) arguments.add(_checks(checks));
     if (catalogId != null) arguments.add('catalogId=${_string(catalogId)}');
-    return '$id = $type(${arguments.join(', ')})';
+    if (varName != id) arguments.add('id=${_string(id)}');
+    return '$varName = $type(${arguments.join(', ')})';
   }
 
   String _property(Object value, Map<String, Object?>? schema) {
@@ -528,9 +548,9 @@ class _Component {
       if (value case {
         'componentId': final String componentId,
         'path': final String path,
-      } when value.length == 2 && _refersToVariable(componentId)) {
+      } when value.length == 2 && variables.containsKey(componentId)) {
         if (_path(path) case final String written) {
-          return '_template($written, $componentId)';
+          return '_template($written, ${variables[componentId]!})';
         }
       }
     }
@@ -544,13 +564,10 @@ class _Component {
     };
   }
 
-  /// A reference to another component: a variable for one this block
+  /// A reference to another component: its variable name for one this block
   /// defines, and a string for one it does not, which the compiler passes on
   /// as written.
-  String _reference(String id) => _refersToVariable(id) ? id : _string(id);
-
-  bool _refersToVariable(String id) =>
-      defined.contains(id) && _isIdentifier(id);
+  String _reference(String id) => variables[id] ?? _string(id);
 
   /// `Event(name, context)` for an event, the call itself for a local
   /// function, and the map literal otherwise.
@@ -803,7 +820,39 @@ String _entry(String key, String value) => '${_key(key)}: $value';
 String _key(String key) => _isIdentifier(key) ? key : _string(key);
 
 bool _isIdentifier(String name) =>
-    _identifier.hasMatch(name) && !_keywords.contains(name);
+    isValidUax31Identifier(name) && !_keywords.contains(name);
+
+String _deriveVariableName(String id) {
+  String base = id.runes
+      .map(String.fromCharCode)
+      .map((String ch) => _xidContinueChar.hasMatch(ch) ? ch : '_')
+      .join();
+  while (!_isIdentifier(base)) {
+    base = '_$base';
+  }
+  return base;
+}
+
+Map<String, String> _assignVariableNames(Iterable<String> componentIds) {
+  final names = <String, String>{
+    for (final String id in componentIds)
+      if (_isIdentifier(id)) id: id,
+  };
+  final Set<String> taken = names.values.toSet();
+  for (final id in componentIds) {
+    if (names.containsKey(id)) continue;
+    final String base = _deriveVariableName(id);
+    var name = base;
+    var suffix = 2;
+    while (taken.contains(name)) {
+      name = '${base}_$suffix';
+      suffix++;
+    }
+    names[id] = name;
+    taken.add(name);
+  }
+  return names;
+}
 
 Map<Object?, Object?> _asMap(Object? value) => value is Map ? value : const {};
 
