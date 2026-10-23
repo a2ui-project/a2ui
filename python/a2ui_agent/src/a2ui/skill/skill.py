@@ -83,6 +83,31 @@ def _validate_skill_filename(filename: str) -> str:
     return filename
 
 
+def _assert_resolves_inside(target: str, output_root: str, filename: str) -> None:
+    """Checks that `target` resolves, through any symlinks, to `output_root` or inside it.
+
+    The nearest existing ancestor of `target` (or `target` itself) is resolved with
+    `os.path.realpath`. The lexical check in `_validate_skill_filename` cannot see a
+    symlinked directory under the output directory, and removing or writing through one
+    would reach outside it. `output_root` must already be resolved.
+
+    Raises:
+        ValueError: If the resolved path is outside `output_root`.
+    """
+    existing = target
+    while not os.path.lexists(existing):
+        parent = os.path.dirname(existing)
+        if parent == existing:
+            break
+        existing = parent
+    real = os.path.realpath(existing)
+    if real != output_root and not real.startswith(output_root + os.sep):
+        raise ValueError(
+            f"Skill filename {filename!r} resolves through a symlink to {real!r},"
+            " outside the output directory."
+        )
+
+
 class Skill:
     """Represents a single A2UI Skill package with YAML frontmatter metadata and markdown content.
 
@@ -191,7 +216,8 @@ class SkillSet:
             The directory that directly holds each skill file (for example,
             `{output_dir}/a2ui-core` for `a2ui-core/SKILL.md`) is completely wiped
             before writing. This ensures no stale or orphaned files from prior exports
-            (such as old scripts, obsolete notes, or deleted sub-files) persist.
+            (such as old scripts, obsolete notes, or deleted sub-files) persist. A
+            symlink or regular file at that path is removed as such, not followed.
 
         What is NOT wiped:
             - Ancestors of a skill's directory (for example `{output_dir}/src` for
@@ -201,22 +227,39 @@ class SkillSet:
               strictly preserved and never touched.
             - The `output_dir` root directory itself is never wiped.
 
-        Every filename was checked when it entered the set, so nothing here can reach
-        outside `output_dir`.
+        Every filename was checked when it entered the set, and each skill directory's
+        parent is resolved through symlinks before anything is removed, so nothing here
+        can reach outside `output_dir`.
+
+        Raises:
+            ValueError: If a skill directory's parent is a symlink that resolves outside
+                `output_dir`. Nothing is removed or written in that case.
 
         Returns:
             A dictionary mapping skill filenames to generated markdown content.
         """
         os.makedirs(output_dir, exist_ok=True)
+        output_root = os.path.realpath(output_dir)
 
-        skill_dirs_to_clean: set[str] = set()
+        # Check every skill directory before touching any, so a bad one aborts the
+        # export whole.
+        skill_dirs_to_clean: dict[str, str] = {}
         for filename in self._skills:
             dir_name = os.path.dirname(filename)
-            if dir_name:
-                skill_dirs_to_clean.add(os.path.join(output_dir, dir_name))
+            if not dir_name:
+                continue
+            skill_folder = os.path.join(output_dir, dir_name)
+            _assert_resolves_inside(
+                os.path.dirname(skill_folder), output_root, filename
+            )
+            skill_dirs_to_clean[skill_folder] = filename
 
         for skill_folder in skill_dirs_to_clean:
-            shutil.rmtree(skill_folder, ignore_errors=True)
+            # A symlink is removed as a link, never followed; `rmtree` would refuse it.
+            if os.path.islink(skill_folder) or os.path.isfile(skill_folder):
+                os.unlink(skill_folder)
+            elif os.path.isdir(skill_folder):
+                shutil.rmtree(skill_folder)
 
         results = {}
         for filename, skill in self._skills.items():
