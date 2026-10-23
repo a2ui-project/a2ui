@@ -200,6 +200,7 @@
     "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.17.1",
+    "jmespath": "^0.16.0",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
@@ -209,6 +210,7 @@
   "devDependencies": {
     "@a2ui/web_core": "workspace:*",
     "@types/jasmine": "^6.0.0",
+    "@types/jmespath": "^0.15.2",
     "@types/node": "^25.9.3",
     "esbuild": "^0.28.1",
     "eslint": "^10.4.1",

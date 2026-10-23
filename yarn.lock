@@ -169,12 +169,14 @@ __metadata:
     "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@types/jasmine": "npm:^6.0.0"
+    "@types/jmespath": "npm:^0.15.2"
     "@types/node": "npm:^25.9.3"
     ajv: "npm:^8.17.1"
     esbuild: "npm:^0.28.1"
     eslint: "npm:^10.4.1"
     gts: "npm:^7.0.0"
     jasmine-core: "npm:^6.3.0"
+    jmespath: "npm:^0.16.0"
     karma: "npm:^6.4.4"
     karma-chrome-launcher: "npm:^3.2.0"
     karma-esbuild: "npm:^2.3.0"
@@ -9326,6 +9328,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/jmespath@npm:^0.15.2":
+  version: 0.15.2
+  resolution: "@types/jmespath@npm:0.15.2"
+  checksum: 10c0/61e45c2785f845f758df3cdb093ad30d32d3ca9c6e20c5ddf6eeb74125d7b6c0426ac175ca994fec47517b7fb0a4b89a91d47155709fec15ab03969ac3bcadc5
+  languageName: node
+  linkType: hard
+
 "@types/js-yaml@npm:^4.0.9":
   version: 4.0.9
   resolution: "@types/js-yaml@npm:4.0.9"
@@ -16307,6 +16316,13 @@ __metadata:
   bin:
     jiti: lib/jiti-cli.mjs
   checksum: 10c0/79b2e96a8e623f66c1b703b98ec1b8be4500e1d217e09b09e343471bbb9c105381b83edbb979d01cef18318cc45ce6e153571b6c83122170eefa531c64b6789b
+  languageName: node
+  linkType: hard
+
+"jmespath@npm:^0.16.0":
+  version: 0.16.0
+  resolution: "jmespath@npm:0.16.0"
+  checksum: 10c0/84cdca62c4a3d339701f01cc53decf16581c76ce49e6455119be1c5f6ab09a19e6788372536bd261d348d21cd817981605f8debae67affadba966219a2bac1c5
   languageName: node
   linkType: hard
 

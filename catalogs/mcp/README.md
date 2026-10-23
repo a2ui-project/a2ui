@@ -35,7 +35,60 @@ For `updateDataModel`, keys starting with `/` are absolute paths, while relative
 
 ## v1 catalog (protocol v1.0)
 
-The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares `callMcpTool`, with argument and return types taken from the v1.0 `common_types.json`, and the `McpApp` component.
+The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares `callMcpTool` and the data functions below, with argument and return types taken from the v1.0 `common_types.json`, and the `McpApp` component.
+
+### Data functions
+
+Most MCP tools return plain `content` blocks rather than A2UI resources, so a surface needs to read the text of a `CallToolResult`, decode it, pick the fields it wants and write them to the data model. The v1 catalog declares these functions for that:
+
+| Function          | Arguments            | Returns                                                                                          |
+| :---------------- | :------------------- | :----------------------------------------------------------------------------------------------- |
+| `parseJson`       | `value`              | The value encoded by the JSON string `value`.                                                    |
+| `jmespath`        | `expression`, `data` | The result of evaluating the JMESPath `expression` against `data`, or `null` for missing fields. |
+| `updateDataModel` | `updates`            | Nothing. Writes each key-value pair in `updates` to the surface data model.                      |
+
+Every argument is required. `value` and `expression` are `DynamicString`; `data` and `updates` are `DynamicValue`, so each can be a literal, a `@path` binding or a nested `@call`. For `updateDataModel`, keys starting with `/` are absolute paths, while relative keys resolve against the calling data context (such as the current row scope inside a template list).
+
+A surface is usually created on the basic catalog, so each call selects the MCP catalog with its own `catalogId`. The button of [mcp-json-tool-result.json](v1/examples/mcp-json-tool-result.json) chains the functions this way:
+
+```json
+{
+  "@call": "updateDataModel",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+  "args": {
+    "updates": {
+      "@call": "jmespath",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+      "args": {
+        "expression": "{\"/issues\": [?state == 'open'].{number: to_string(number), title: title}}",
+        "data": {
+          "@call": "parseJson",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+          "args": {
+            "value": {
+              "@call": "jmespath",
+              "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+              "args": {
+                "expression": "content[0].text",
+                "data": {
+                  "@call": "callMcpTool",
+                  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                  "args": {
+                    "name": "list_issues",
+                    "arguments": {"repository": {"@path": "/repository"}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+The inner `jmespath` reads the text block out of the `CallToolResult`, `parseJson` decodes it, the outer `jmespath` builds the `{path: value}` object, and `updateDataModel` writes it. The functions do not evaluate `@path` or `@call` objects found inside tool output: a tool result is data, not an expression.
 
 ### McpApp component
 
@@ -56,6 +109,7 @@ Tool calls and function calls that are not listed are rejected with a JSON-RPC e
 The [v1/examples](v1/examples/) directory holds A2UI message sequences that validate against the v1 catalog combined with the v1 basic catalog:
 
 - [mcp-app-3d-geometry.json](v1/examples/mcp-app-3d-geometry.json) renders a 3D Holographic Geometry Studio `McpApp`: a 60fps canvas renderer that A2UI components alone cannot express. It showcases two-way `data.paths` binding (the sibling `TextField` preset and the app's camera telemetry), `ui/update-model-context` publishing the camera pose and preset to `/scene3d/modelContext`, `tools/call` (`capture_3d_snapshot`), and `ui/notifications/host-context-changed` (`containerDimensions`) driving a responsive canvas; `tests/examples/mcp_app_3d_geometry.test.ts` of the TypeScript package runs it end to end.
+- [mcp-json-tool-result.json](v1/examples/mcp-json-tool-result.json) loads the open issues of a repository from a headless `list_issues` tool: a button chains `callMcpTool`, `jmespath`, `parseJson` and `updateDataModel` to fill a template list from the JSON in the tool's text block; `src/catalog.test.ts` of the TypeScript package runs the button action against a mock client.
 
 ## Implementations
 
