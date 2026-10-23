@@ -23,6 +23,7 @@ library;
 
 import 'dart:io';
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:path/path.dart' as p;
 
 import '../../analyzer/catalog_analyzer.dart' show capitalize;
@@ -95,18 +96,9 @@ String extractCatalogName(String catalogId) {
   return last.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
 }
 
-/// Returns true if [specVersion] targets A2UI Protocol v1.0 or newer (`major >= 1`).
-bool isVersionAtLeast10(String specVersion) {
-  final String clean = specVersion.startsWith('v')
-      ? specVersion.substring(1)
-      : specVersion;
-  final List<String> parts = clean.split('.');
-  final int? major = parts.isNotEmpty ? int.tryParse(parts[0]) : null;
-  return major != null && major >= 1;
-}
-
 String _resolveDefaultBaseImport(String specVersion) {
-  return isVersionAtLeast10(specVersion)
+  return A2uiProtocolVersion.tryParseSemVer(specVersion) ==
+          A2uiProtocolVersion.v1_0
       ? 'a2ui.builder.v1_0'
       : 'a2ui.builder.v0_9';
 }

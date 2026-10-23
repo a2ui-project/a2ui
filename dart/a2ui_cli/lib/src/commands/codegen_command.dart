@@ -103,12 +103,7 @@ class CodegenCommand extends Command<int> {
     final String specVersion = declaredVersion is String
         ? declaredVersion
         : 'v0.9.1';
-    final String cleanVersion = specVersion.startsWith('v')
-        ? specVersion.substring(1)
-        : specVersion;
-    final bool isV09 = cleanVersion == '0.9' || cleanVersion == '0.9.1';
-    final bool isV10OrNewer = isVersionAtLeast10(specVersion);
-    if (!isV09 && !isV10OrNewer) {
+    if (A2uiProtocolVersion.tryParseSemVer(specVersion) == null) {
       errSink.writeln(
         "Unsupported catalog protocol version '$specVersion'. Code generation is "
         'currently supported for protocol versions 0.9, 0.9.1, and 1.0 catalogs.',
