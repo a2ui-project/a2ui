@@ -14,13 +14,36 @@
  * limitations under the License.
  */
 
+import {z} from 'zod';
 import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 import {
   InternalComponentPayload,
   InternalOperation,
   INTERNAL_OPERATION_TYPES,
 } from '../operations.js';
-import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
+import {
+  AgentToRendererMessageSchema,
+  CallRendererFunctionMessageSchema,
+} from '../../v1_0/schema/agent-to-renderer.js';
+import {FunctionCallSchema} from '../../v1_0/schema/common-types.js';
+
+/**
+ * `CallRendererFunctionMessageSchema` without its `callFunction.catalogId` requirement.
+ *
+ * The specification answers a call that omits `catalogId` with an `INVALID_FUNCTION_CALL`
+ * `rendererFunctionResponse`, which `RpcHandler` sends, so such a call must pass validation.
+ */
+const CallRendererFunctionOmittingCatalogIdSchema = CallRendererFunctionMessageSchema.extend({
+  callRendererFunction: CallRendererFunctionMessageSchema.shape.callRendererFunction.extend({
+    callFunction: FunctionCallSchema,
+  }),
+});
+
+function omitsCatalogId(payload: Record<string, unknown>): boolean {
+  const crf = payload.callRendererFunction as Record<string, unknown> | undefined;
+  const cf = crf?.callFunction;
+  return !!cf && typeof cf === 'object' && !Array.isArray(cf) && !('catalogId' in cf);
+}
 
 /**
  * Protocol version adapter for specification v1.0.
@@ -31,6 +54,15 @@ export class V1Point0Adapter extends BaseVersionAdapter {
 
   protected getNativeActionKeys(): string[] {
     return [...INTERNAL_OPERATION_TYPES];
+  }
+
+  protected override validatePayload(
+    payload: Record<string, unknown>,
+  ): z.SafeParseReturnType<unknown, unknown> {
+    const result = super.validatePayload(payload);
+    if (result.success || !omitsCatalogId(payload)) return result;
+    const relaxed = CallRendererFunctionOmittingCatalogIdSchema.safeParse(payload);
+    return relaxed.success ? relaxed : result;
   }
 
   protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {

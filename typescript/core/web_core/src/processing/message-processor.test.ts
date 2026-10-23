@@ -830,20 +830,116 @@ describe('MessageProcessor', () => {
         RpcErrorCode.EXECUTION_ERROR,
       );
 
-      // 5. Wire message missing callFunction.catalogId -> throws A2uiValidationError
-      await assert.rejects(
-        proc.processMessagesAsync({
+      // 5. Wire message missing callFunction.catalogId -> INVALID_FUNCTION_CALL, even though
+      // s1 has a default catalog: callRendererFunction does not fall back to it.
+      const resNoCatalog = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          surfaceId: 's1',
+          functionCallId: 'rpc-surf-5',
+          callFunction: {
+            call: 'readUserName',
+            args: {},
+          },
+        },
+      } as any);
+      assert.strictEqual(resNoCatalog.length, 1);
+      assert.strictEqual(resNoCatalog[0].rendererFunctionResponse.functionCallId, 'rpc-surf-5');
+      assert.strictEqual(
+        resNoCatalog[0].rendererFunctionResponse.error?.code,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+      );
+    });
+
+    describe('callRendererFunction without a resolvable catalogId (#3529)', () => {
+      const basicCatalog = new Catalog(
+        'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        '1.0',
+        [],
+        BASIC_FUNCTIONS,
+      );
+
+      function createProcessor() {
+        const outbound: any[] = [];
+        const proc = new MessageProcessor([basicCatalog], undefined, {
+          version: 'v1.0',
+          outboundListener: msg => {
+            outbound.push(msg);
+          },
+        });
+        return {proc, outbound};
+      }
+
+      function callMessage(functionCallId: string, catalogId?: unknown): any {
+        return {
           version: 'v1.0',
           callRendererFunction: {
-            functionCallId: 'rpc-surf-5',
+            functionCallId,
             callFunction: {
-              call: 'readUserName',
-              args: {},
+              '@call': 'formatString',
+              ...(catalogId === undefined ? {} : {catalogId}),
+              args: {value: 'x'},
             },
           },
-        } as any),
-        A2uiValidationError,
-      );
+        };
+      }
+
+      function assertSingleRejection(responses: any[], functionCallId: string) {
+        assert.strictEqual(responses.length, 1);
+        assert.strictEqual(responses[0].version, 'v1.0');
+        assert.strictEqual(responses[0].rendererFunctionResponse.functionCallId, functionCallId);
+        assert.strictEqual(responses[0].rendererFunctionResponse.value, undefined);
+        assert.strictEqual(
+          responses[0].rendererFunctionResponse.error?.code,
+          RpcErrorCode.INVALID_FUNCTION_CALL,
+        );
+      }
+
+      it('answers an omitted catalogId with INVALID_FUNCTION_CALL from processMessagesAsync', async () => {
+        const {proc, outbound} = createProcessor();
+        const responses = await proc.processMessagesAsync(callMessage('f1'));
+        assertSingleRejection(responses, 'f1');
+        assertSingleRejection(outbound, 'f1');
+      });
+
+      it('answers an omitted catalogId with INVALID_FUNCTION_CALL from processMessages', async () => {
+        const {proc, outbound} = createProcessor();
+        assert.doesNotThrow(() => proc.processMessages(callMessage('f2')));
+        await new Promise(resolve => setImmediate(resolve));
+        assertSingleRejection(outbound, 'f2');
+      });
+
+      it('answers an unregistered catalogId with INVALID_FUNCTION_CALL', async () => {
+        const {proc, outbound} = createProcessor();
+        const responses = await proc.processMessagesAsync(callMessage('f3', 'unknown_catalog'));
+        assertSingleRejection(responses, 'f3');
+        assertSingleRejection(outbound, 'f3');
+        assert.match(
+          responses[0].rendererFunctionResponse.error?.message ?? '',
+          /Catalog not found: unknown_catalog/,
+        );
+      });
+
+      it('keeps processing the rest of a batch after the rejected call', async () => {
+        const {proc, outbound} = createProcessor();
+        const responses = await proc.processMessagesAsync([
+          callMessage('f4'),
+          {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: basicCatalog.id}},
+        ]);
+        assertSingleRejection(responses, 'f4');
+        assertSingleRejection(outbound, 'f4');
+        assert.ok(proc.model.getSurface('s1'));
+      });
+
+      it('still rejects a callRendererFunction that is malformed otherwise', async () => {
+        const {proc, outbound} = createProcessor();
+        await assert.rejects(proc.processMessagesAsync(callMessage('f5', 42)), A2uiValidationError);
+        const noCall = callMessage('f6');
+        delete noCall.callRendererFunction.callFunction['@call'];
+        noCall.callRendererFunction.extra = true;
+        await assert.rejects(proc.processMessagesAsync(noCall), A2uiValidationError);
+        assert.strictEqual(outbound.length, 0);
+      });
     });
 
     it('enforces requiresUserActivation in processMessagesAsync via context options', async () => {
