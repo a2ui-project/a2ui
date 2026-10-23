@@ -264,6 +264,47 @@ root = Text($/user/name)
         {'id': 'a', 'component': 'Text', 'text': 'hi'},
       ]);
     });
+
+    group('number literals', () {
+      /// The `value` of a `Gauge` written with [literal].
+      Object? gauge(String literal) {
+        final List<ResponsePart>
+        parts = processor([basic, custom]).parseResponse(
+          '<a2ui>surface("g", "${custom.id}"); root = Gauge($literal)</a2ui>',
+        );
+        final AgentToRendererMessage last =
+            (parts.single as A2uiPart).a2ui.last;
+        return (last as UpdateComponentsMessage).components.single['value'];
+      }
+
+      // Integer text (no '.', 'e' or 'E') is an exact int while it fits in
+      // one; everything else is a double, read the way `double.parse` does.
+      final cases = <String, (Object, Matcher)>{
+        '.5': (0.5, isA<double>()),
+        '-.25': (-0.25, isA<double>()),
+        '1.': (1.0, isA<double>()),
+        '+3': (3, isA<int>()),
+        '1e2': (100.0, isA<double>()),
+        '1E-2': (0.01, isA<double>()),
+        '2.5e-7': (2.5e-7, isA<double>()),
+        '9007199254740991': (9007199254740991, isA<int>()),
+        '9007199254740993': (9007199254740993, isA<int>()),
+        '18446744073709551616': (18446744073709552000.0, isA<double>()),
+        '-0': (0, isA<int>()),
+      };
+      for (final MapEntry<String, (Object, Matcher)> entry in cases.entries) {
+        test(entry.key, () {
+          final Object? value = gauge(entry.key);
+          expect(value, entry.value.$2);
+          expect(value, entry.value.$1);
+        });
+      }
+
+      test('out of the double range is a parse error', () {
+        expect(() => gauge('1e999'), throwsError<A2uiParseError>());
+        expect(() => gauge('-1e999'), throwsError<A2uiParseError>());
+      });
+    });
   });
 
   group('parses a response', () {
