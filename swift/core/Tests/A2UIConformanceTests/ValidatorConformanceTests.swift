@@ -41,6 +41,10 @@ struct ValidatorConformanceTests {
     try runValidatorSuite(filename: "core/validator_v1_0.yaml", versionPrefix: "v1.0")
   }
 
+  @Test func errorResponsesConformance() throws {
+    try runValidatorSuite(filename: "core/error_responses.yaml", versionPrefix: nil)
+  }
+
   private func runValidatorSuite(filename: String, versionPrefix: String?) throws {
     let rawYAML = try ConformanceTestHelper.loadYAML(filename: filename)
     let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)

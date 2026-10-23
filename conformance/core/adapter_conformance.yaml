@@ -1,0 +1,665 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# A2UI Framework Adapter Conformance Test Suite (v1.0)
+# ==============================================================================
+
+- name: tree_hierarchy_declared_order
+  description: Verifies that nested Column, Row, Card, Text, and Button components render in declared hierarchy and order.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "adapter_surface"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["header_card", "action_row"]
+              - id: "header_card"
+                component: "Card"
+                child: "title_text"
+              - id: "title_text"
+                component: "Text"
+                text: "Welcome to A2UI"
+              - id: "action_row"
+                component: "Row"
+                children: ["primary_btn", "secondary_text"]
+              - id: "primary_btn"
+                component: "Button"
+                child: "primary_btn_label"
+                action:
+                  event:
+                    name: "get_started"
+              - id: "primary_btn_label"
+                component: "Text"
+                text: "Get Started"
+              - id: "secondary_text"
+                component: "Text"
+                text: "Learn More"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "header_card"
+            type: "Card"
+            children:
+              - id: "title_text"
+                type: "Text"
+                text: "Welcome to A2UI"
+          - id: "action_row"
+            type: "Row"
+            children:
+              - id: "primary_btn"
+                type: "Button"
+                children:
+                  - id: "primary_btn_label"
+                    type: "Text"
+                    text: "Get Started"
+              - id: "secondary_text"
+                type: "Text"
+                text: "Learn More"
+
+- name: single_message_v10_surface_render
+  description: Verifies that a single v1.0 createSurface message with inline components and dataModel renders immediately without follow-up messages.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              greeting: "Hello Inline v1.0"
+            components:
+              - id: "root"
+                component: "Card"
+                child: "greeting_text"
+              - id: "greeting_text"
+                component: "Text"
+                text:
+                  "@path": "/greeting"
+      expectViewTree:
+        id: "root"
+        type: "Card"
+        children:
+          - id: "greeting_text"
+            type: "Text"
+            text: "Hello Inline v1.0"
+      expectDataModel:
+        greeting: "Hello Inline v1.0"
+
+- name: progressive_arrival_placeholder_upgrade_in_place
+  description: Verifies that a pending child renders a non-crashing placeholder and upgrades in place when its definition arrives without remounting the parent container.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Card"
+                child: "deferred_text"
+      expectViewTree:
+        id: "root"
+        type: "Card"
+        children:
+          - id: "deferred_text"
+            state: "pending"
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "adapter_surface"
+            components:
+              - id: "deferred_text"
+                component: "Text"
+                text: "Arrived Safely"
+      expectViewTree:
+        id: "root"
+        type: "Card"
+        children:
+          - id: "deferred_text"
+            type: "Text"
+            state: "resolved"
+            text: "Arrived Safely"
+      expectSameViewIdentity:
+        - "root"
+
+- name: dynamic_repeater_list_insert_delete_reorder_and_index
+  description: Verifies List repeater rendering, @index evaluation, and item insertion, reordering, and deletion while preserving surviving view identity.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              items:
+                - name: "Alpha"
+                - name: "Beta"
+            components:
+              - id: "root"
+                component: "List"
+                children:
+                  componentId: "item_row"
+                  path: "/items"
+              - id: "item_row"
+                component: "Text"
+                text:
+                  "@call": "formatString"
+                  args:
+                    value: "${@index}: ${name}"
+      expectViewTree:
+        id: "root"
+        type: "List"
+        children:
+          - id: "item_row"
+            type: "Text"
+            text: "0: Alpha"
+          - id: "item_row"
+            type: "Text"
+            text: "1: Beta"
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "adapter_surface"
+            path: "/items"
+            value:
+              - name: "Alpha"
+              - name: "Gamma"
+              - name: "Beta"
+      expectViewTree:
+        id: "root"
+        type: "List"
+        children:
+          - id: "item_row"
+            type: "Text"
+            text: "0: Alpha"
+          - id: "item_row"
+            type: "Text"
+            text: "1: Gamma"
+          - id: "item_row"
+            type: "Text"
+            text: "2: Beta"
+      expectSameViewIdentity:
+        - "root"
+        - "root/children/0"
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "adapter_surface"
+            path: "/items"
+            value:
+              - name: "Beta"
+      expectViewTree:
+        id: "root"
+        type: "List"
+        children:
+          - id: "item_row"
+            type: "Text"
+            text: "0: Beta"
+      expectSameViewIdentity:
+        - "root"
+        - "root/children/0"
+
+- name: two_way_binding_control_write_updates_dependents
+  description: Verifies that user input on a TextField with a writable @path binding mutates the DataModel and reactively updates dependent Text components.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              username: "Ada"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["name_input", "preview_text"]
+              - id: "name_input"
+                component: "TextField"
+                label: "Username"
+                value:
+                  "@path": "/username"
+              - id: "preview_text"
+                component: "Text"
+                text:
+                  "@path": "/username"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "name_input"
+            type: "TextField"
+            value: "Ada"
+          - id: "preview_text"
+            type: "Text"
+            text: "Ada"
+    - op: user_input
+      targetNode: "name_input"
+      inputValue: "Grace"
+      expectDataModel:
+        username: "Grace"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "name_input"
+            type: "TextField"
+            value: "Grace"
+          - id: "preview_text"
+            type: "Text"
+            text: "Grace"
+
+- name: action_execution_event_vs_local_function_call
+  description: Verifies that an event action dispatches an outbound action event with resolved context, whereas a local functionCall action executes locally without emitting an outbound action event.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              itemId: "sku-42"
+              counter: 10
+            components:
+              - id: "root"
+                component: "Row"
+                children: ["event_btn", "func_btn"]
+              - id: "event_btn"
+                component: "Button"
+                child: "event_btn_label"
+                action:
+                  event:
+                    name: "buy_item"
+                    context:
+                      sku:
+                        "@path": "/itemId"
+              - id: "event_btn_label"
+                component: "Text"
+                text: "Buy"
+              - id: "func_btn"
+                component: "Button"
+                child: "func_btn_label"
+                action:
+                  functionCall:
+                    "@call": "incrementCounter"
+                    args:
+                      path: "/counter"
+                      step: 5
+              - id: "func_btn_label"
+                component: "Text"
+                text: "Increment"
+    - op: user_gesture
+      targetNode: "event_btn"
+      userActivation: true
+      expectActions:
+        - name: "buy_item"
+          surfaceId: "adapter_surface"
+          sourceComponentId: "event_btn"
+          context:
+            sku: "sku-42"
+    - op: user_gesture
+      targetNode: "func_btn"
+      userActivation: true
+      expectActions: []
+      expectDataModel:
+        itemId: "sku-42"
+        counter: 15
+
+- name: user_activation_gated_function_gesture_vs_programmatic
+  description: Verifies that a function with requiresUserActivation=true succeeds when triggered by a user gesture (userActivation=true) and is blocked when invoked programmatically (userActivation=false).
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Button"
+                child: "link_label"
+                action:
+                  functionCall:
+                    "@call": "openUrl"
+                    args:
+                      url: "https://example.com"
+              - id: "link_label"
+                component: "Text"
+                text: "Open External Site"
+    - op: user_gesture
+      targetNode: "root"
+      userActivation: true
+      expectActions: []
+      expectErrors: []
+    - op: programmatic_invoke
+      targetNode: "root"
+      userActivation: false
+      expectActions: []
+      expectErrors:
+        - surfaceId: "adapter_surface"
+          message: "openUrl"
+
+- name: multi_catalog_mixed_surface_rendering
+  description: Verifies that a single v1.0 surface renders components from both the default basic catalog and a secondary custom catalog via component-level catalogId overrides.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "https://example.com/catalogs/badges/v1/catalog.json"
+      protocolVersion: "v1.0"
+      components:
+        StatusBadge:
+          type: "object"
+          properties:
+            component:
+              const: "StatusBadge"
+            badgeText:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "badgeText"]
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["heading_text", "custom_badge"]
+              - id: "heading_text"
+                component: "Text"
+                text: "System Status"
+              - id: "custom_badge"
+                component: "StatusBadge"
+                catalogId: "https://example.com/catalogs/badges/v1/catalog.json"
+                badgeText: "Operational"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "heading_text"
+            type: "Text"
+            text: "System Status"
+          - id: "custom_badge"
+            type: "StatusBadge"
+            badgeText: "Operational"
+
+- name: validation_results_error_disables_warning_allows
+  description: Verifies that a failing check with severity=error marks the control invalid (isValid=false), whereas severity=warning surfaces diagnostic feedback while keeping the control valid/enabled (isValid=true).
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              email: "not-an-email"
+              nickname: "al"
+              nicknameWarning:
+                valid: false
+                code: "SHORT_NICKNAME"
+                message: "Nickname is short but allowed."
+                severity: "warning"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["email_input", "nickname_input"]
+              - id: "email_input"
+                component: "TextField"
+                label: "Email"
+                value:
+                  "@path": "/email"
+                checks:
+                  - condition:
+                      "@call": "email"
+                      args:
+                        value:
+                          "@path": "/email"
+              - id: "nickname_input"
+                component: "TextField"
+                label: "Nickname"
+                value:
+                  "@path": "/nickname"
+                checks:
+                  - condition:
+                      "@path": "/nicknameWarning"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "email_input"
+            type: "TextField"
+            isValid: false
+            validationErrors:
+              - "Please enter a valid email address (e.g. user@example.com)."
+          - id: "nickname_input"
+            type: "TextField"
+            isValid: true
+            validationErrors: []
+            validationResults:
+              - valid: false
+                code: "SHORT_NICKNAME"
+                message: "Nickname is short but allowed."
+                severity: "warning"
+
+- name: accessibility_attributes_and_implicit_label_override
+  description: Verifies that explicit AccessibilityAttributes (label, description, live, hidden) and implicit child text label inference are applied and override correctly.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["implicit_btn", "explicit_btn", "live_banner", "hidden_note"]
+              - id: "implicit_btn"
+                component: "Button"
+                child: "implicit_btn_text"
+                action:
+                  event:
+                    name: "save"
+              - id: "implicit_btn_text"
+                component: "Text"
+                text: "Save Changes"
+              - id: "explicit_btn"
+                component: "Button"
+                child: "explicit_btn_text"
+                action:
+                  event:
+                    name: "close"
+                accessibility:
+                  label: "Close Dialog"
+                  description: "Discards unsaved edits"
+              - id: "explicit_btn_text"
+                component: "Text"
+                text: "X"
+              - id: "live_banner"
+                component: "Text"
+                text: "Sync complete"
+                accessibility:
+                  live: "polite"
+              - id: "hidden_note"
+                component: "Text"
+                text: "Internal debug ID"
+                accessibility:
+                  hidden: true
+      expectAccessibilityTree:
+        implicit_btn:
+          label: "Save Changes"
+          role: "button"
+        explicit_btn:
+          label: "Close Dialog"
+          description: "Discards unsaved edits"
+          role: "button"
+        live_banner:
+          live: "polite"
+        hidden_note:
+          hidden: true
+
+- name: v10_theme_ignored_parity
+  description: Verifies that a v1.0 surface renders identically with default host styling without requiring or applying a wire theme property.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Card"
+                child: "body_text"
+              - id: "body_text"
+                component: "Text"
+                text: "Theme Independent v1.0"
+      expectViewTree:
+        id: "root"
+        type: "Card"
+        children:
+          - id: "body_text"
+            type: "Text"
+            text: "Theme Independent v1.0"
+
+- name: fallback_states_unknown_type_and_cyclic_diagnostics
+  description: Verifies that unknown component types and same-scope cyclic references render safe fallback placeholders and emit UNKNOWN_COMPONENT_TYPE and CYCLIC_REFERENCE diagnostics on surface.onError.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["unknown_widget", "cycle_card"]
+              - id: "unknown_widget"
+                component: "UnregisteredFutureWidget"
+              - id: "cycle_card"
+                component: "Card"
+                child: "root"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "unknown_widget"
+            state: "unknown-type"
+          - id: "cycle_card"
+            type: "Card"
+            children:
+              - id: "root"
+                state: "cyclic"
+      expectErrors:
+        - code: "UNKNOWN_COMPONENT_TYPE"
+          surfaceId: "adapter_surface"
+        - code: "CYCLIC_REFERENCE"
+          surfaceId: "adapter_surface"
+
+- name: teardown_unmount_releases_subscriptions
+  description: Verifies that unmounting the surface view disposes its NodeResolver and releases all active reactive subscriptions on the SurfaceModel and DataModel.
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              status: "Mounted"
+            components:
+              - id: "root"
+                component: "Card"
+                child: "status_text"
+              - id: "status_text"
+                component: "Text"
+                text:
+                  "@path": "/status"
+      expectViewTree:
+        id: "root"
+        type: "Card"
+        children:
+          - id: "status_text"
+            type: "Text"
+            text: "Mounted"
+    - op: unmount_surface
+      expectActiveSubscriptions: 0

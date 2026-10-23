@@ -36,11 +36,14 @@ const Map<String, String> _compositionExpectedFailures = {};
 /// Cases in `core/validation_result.yaml` expected to fail.
 const Map<String, String> _validationResultExpectedFailures = {};
 
+/// Cases in `core/error_responses.yaml` expected to fail.
+const Map<String, String> _errorResponsesExpectedFailures = {};
+
 /// Runs the shared validator suites against [MessageProcessor.processMessages],
 /// the entry point for checking a payload on its own: the `validate` cases of
 /// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
-/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml` and
-/// `core/validation_result.yaml`.
+/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml`,
+/// `core/validation_result.yaml` and `core/error_responses.yaml`.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -64,6 +67,10 @@ void main() {
   _registerValidatorSuite(
     'core/validation_result.yaml',
     expectedFailures: _validationResultExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/error_responses.yaml',
+    expectedFailures: _errorResponsesExpectedFailures,
   );
 }
 
@@ -106,13 +113,10 @@ void _runCase(Map<String, Object?> testCase) {
   final bool strict = (testCase['strictMode'] as bool?) ?? true;
   final emittedErrors = <ErrorMessage>[];
   final processor = MessageProcessor<ComponentApi>(
-    catalogs: _catalogsFor(
-      _documentsFor(testCase),
-      allPayloads,
-      version,
-    ),
-    validationConfig:
-        strict ? ValidationConfig.strict : ValidationConfig.relaxed,
+    catalogs: _catalogsFor(_documentsFor(testCase), allPayloads, version),
+    validationConfig: strict
+        ? ValidationConfig.strict
+        : ValidationConfig.relaxed,
     outboundListener: (RendererToAgentMessage msg) {
       if (msg is ErrorMessage) emittedErrors.add(msg);
     },
@@ -131,9 +135,7 @@ void _runCase(Map<String, Object?> testCase) {
   }
 }
 
-List<Map<String, Object?>> _collectPayloads(
-  List<Map<String, Object?>> steps,
-) =>
+List<Map<String, Object?>> _collectPayloads(List<Map<String, Object?>> steps) =>
     [
       for (final Map<String, Object?> step in steps)
         if (step['messages'] ?? step['payload'] case final List<Object?> raw)
@@ -150,9 +152,11 @@ void _runValidatorStep(
   required List<ErrorMessage> emittedErrors,
 }) {
   if (!step.containsKey('messages') && !step.containsKey('payload')) return;
-  final Object? normalizedPayload =
-      _normalizeStepPayload(step['messages'] ?? step['payload']);
-  final Object? expectError = step['expectError'] ??
+  final Object? normalizedPayload = _normalizeStepPayload(
+    step['messages'] ?? step['payload'],
+  );
+  final Object? expectError =
+      step['expectError'] ??
       step['expect_error'] ??
       (isLastStep
           ? (testCase['expectError'] ?? testCase['expect_error'])
@@ -189,13 +193,13 @@ void _runValidatorStep(
 }
 
 Object? _normalizeStepPayload(Object? rawPayload) => switch (rawPayload) {
-      final List<Object?> list => [
-          for (final Object? item in list)
-            item is Map ? item.cast<String, Object?>() : item,
-        ],
-      final Map<Object?, Object?> map => map.cast<String, Object?>(),
-      _ => rawPayload,
-    };
+  final List<Object?> list => [
+    for (final Object? item in list)
+      item is Map ? item.cast<String, Object?>() : item,
+  ],
+  final Map<Object?, Object?> map => map.cast<String, Object?>(),
+  _ => rawPayload,
+};
 
 void _assertExpectedSurfaces(
   MessageProcessor<ComponentApi> processor,
@@ -204,14 +208,16 @@ void _assertExpectedSurfaces(
   final Object? surfaces = expectBlock['surfaces'];
   if (surfaces is! Map<String, Object?>) return;
   for (final MapEntry<String, Object?> entry in surfaces.entries) {
-    final SurfaceModel<ComponentApi>? surface =
-        processor.model.getSurface(entry.key);
+    final SurfaceModel<ComponentApi>? surface = processor.model.getSurface(
+      entry.key,
+    );
     expect(surface, isNotNull, reason: 'Surface ${entry.key} should exist');
     final resolver = NodeResolver<ComponentApi>(surface!);
     addTearDown(resolver.dispose);
 
-    final Map<String, ComponentNode<ComponentApi>> nodes =
-        _collectSurfaceNodes(resolver.rootNode.peek());
+    final Map<String, ComponentNode<ComponentApi>> nodes = _collectSurfaceNodes(
+      resolver.rootNode.peek(),
+    );
     final expectedSurface = entry.value as Map<String, Object?>?;
     final Object? expectedComponents = expectedSurface?['components'];
     if (expectedComponents is Map<String, Object?>) {
@@ -267,15 +273,15 @@ void _assertSurfaceComponentProps(
 }
 
 Object? _unwrapResolved(Object? value) => switch (value) {
-      final ResolvedBinding<Object?> b => _unwrapResolved(b.value),
-      final ValidationResult vr => vr.toJson(),
-      final List<Object?> list => list.map(_unwrapResolved).toList(),
-      final Map<Object?, Object?> map => <String, Object?>{
-          for (final MapEntry<Object?, Object?> e in map.entries)
-            '${e.key}': _unwrapResolved(e.value),
-        },
-      _ => value,
-    };
+  final ResolvedBinding<Object?> b => _unwrapResolved(b.value),
+  final ValidationResult vr => vr.toJson(),
+  final List<Object?> list => list.map(_unwrapResolved).toList(),
+  final Map<Object?, Object?> map => <String, Object?>{
+    for (final MapEntry<Object?, Object?> e in map.entries)
+      '${e.key}': _unwrapResolved(e.value),
+  },
+  _ => value,
+};
 
 /// The catalog documents a case declares, inline or by path.
 ///
@@ -439,10 +445,10 @@ List<Catalog<ComponentApi, FunctionImplementation>> _singleDocumentCatalogs(
 
 /// The catalog ids the `createSurface` messages in [payload] name.
 Set<String> _catalogIdsNamedBy(List<Map<String, Object?>> payload) => <String>{
-      for (final Map<String, Object?> envelope in payload)
-        if (envelope['createSurface'] case final Map<String, Object?> body)
-          if (body['catalogId'] case final String id) id,
-    };
+  for (final Map<String, Object?> envelope in payload)
+    if (envelope['createSurface'] case final Map<String, Object?> body)
+      if (body['catalogId'] case final String id) id,
+};
 
 /// Matches the error a case expects, by category, message, code, and path.
 Matcher _matchesError(
@@ -454,8 +460,8 @@ Matcher _matchesError(
   if (expectError is String) {
     return _messageMatches(expectError);
   }
-  final Map<String, Object?> expected =
-      (expectError! as Map).cast<String, Object?>();
+  final Map<String, Object?> expected = (expectError! as Map)
+      .cast<String, Object?>();
   final matchers = <Matcher>[
     _categoryMatches(expected['category'] as String?),
     if (expected['message'] case final String message) _messageMatches(message),
@@ -463,40 +469,41 @@ Matcher _matchesError(
       expected,
       rawMessage: rawMessage,
       defaultVersion: defaultVersion,
-      capturedErrorMessage:
-          emittedErrors.isNotEmpty ? emittedErrors.last : null,
+      capturedErrorMessage: emittedErrors.isNotEmpty
+          ? emittedErrors.last
+          : null,
     ),
   ];
   return allOf(matchers);
 }
 
 Matcher _categoryMatches(String? category) => switch (category) {
-      'ParseError' => isA<A2uiParseError>(),
-      'ValidationError' => anyOf(
-          isA<A2uiValidationError>(),
-          isA<A2uiIntegrityError>(),
-          isA<A2uiRecursionError>(),
-          isA<A2uiCatalogError>(),
-        ),
-      'CatalogError' => isA<A2uiCatalogError>(),
-      'IntegrityError' => isA<A2uiIntegrityError>(),
-      'RecursionError' => anyOf(
-          isA<A2uiRecursionError>(),
-          isA<A2uiIntegrityError>(),
-        ),
-      'DataError' => isA<A2uiDataError>(),
-      'StateError' => isA<A2uiStateError>(),
-      _ => isA<A2uiError>(),
-    };
+  'ParseError' => isA<A2uiParseError>(),
+  'ValidationError' => anyOf(
+    isA<A2uiValidationError>(),
+    isA<A2uiIntegrityError>(),
+    isA<A2uiRecursionError>(),
+    isA<A2uiCatalogError>(),
+  ),
+  'CatalogError' => isA<A2uiCatalogError>(),
+  'IntegrityError' => isA<A2uiIntegrityError>(),
+  'RecursionError' => anyOf(
+    isA<A2uiRecursionError>(),
+    isA<A2uiIntegrityError>(),
+  ),
+  'DataError' => isA<A2uiDataError>(),
+  'StateError' => isA<A2uiStateError>(),
+  _ => isA<A2uiError>(),
+};
 
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
-      (e) => e.message,
-      'message',
-      anyOf(
-        contains(pattern),
-        matches(RegExp(_align(pattern), caseSensitive: false)),
-      ),
-    );
+  (e) => e.message,
+  'message',
+  anyOf(
+    contains(pattern),
+    matches(RegExp(_align(pattern), caseSensitive: false)),
+  ),
+);
 
 /// Widens a case's expected message to the wording this SDK uses.
 ///
