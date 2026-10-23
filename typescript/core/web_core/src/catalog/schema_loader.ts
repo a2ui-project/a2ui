@@ -15,26 +15,12 @@
  */
 
 import {z} from 'zod';
-import {
-  DynamicStringSchema,
-  DynamicNumberSchema,
-  DynamicBooleanSchema,
-  DynamicStringListSchema,
-  DynamicValueSchema,
-  ComponentIdSchema,
-  ChildListSchema,
-  ActionSchema,
-  CheckRuleSchema,
-  CheckableSchema,
-  AccessibilityAttributesSchema,
-  ComponentCommonSchema,
-  DataBindingSchema,
-  FunctionCallSchema,
-  ChildSchema,
-} from '../types/common-types.js';
-import type {CatalogDocumentOptions, CatalogInterface, ComponentApi, FunctionApi} from './types.js';
+
 import {isAtLeastVersion} from '../common/semver.js';
+import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
+import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
+import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
   buildComponentUnion,
@@ -42,6 +28,7 @@ import {
   deepCopyJson,
   deepFreeze,
 } from './schema_serializer.js';
+import type {CatalogDocumentOptions, CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 
 /**
  * The fields of a parsed catalog document: its ID, version and entries, and
@@ -63,25 +50,6 @@ export interface ParsedCatalogSchema extends CatalogDocumentOptions {
  * that omits it predates that field.
  */
 export const DEFAULT_PROTOCOL_VERSION = '0.9';
-
-import {assertUax31Identifier} from '../common/uax31.js';
-
-const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
-  DynamicString: DynamicStringSchema,
-  DynamicNumber: DynamicNumberSchema,
-  DynamicBoolean: DynamicBooleanSchema,
-  DynamicStringList: DynamicStringListSchema,
-  DynamicValue: DynamicValueSchema,
-  ComponentId: ComponentIdSchema,
-  Child: ChildSchema,
-  ChildList: ChildListSchema,
-  Action: ActionSchema,
-  CheckRule: CheckRuleSchema,
-  Checkable: CheckableSchema,
-  AccessibilityAttributes: AccessibilityAttributesSchema,
-  DataBinding: DataBindingSchema,
-  FunctionCall: FunctionCallSchema,
-};
 
 /**
  * A peer catalog that a cross-catalog `$ref` can resolve against: a catalog,
@@ -469,8 +437,7 @@ function inlineRefs(
     if (target && !target.isPeer) {
       const defName = target.pointer.split('/').pop() ?? '';
       const isPreservedCommonType =
-        target.pointer.startsWith('#/$defs/') &&
-        (defName in COMMON_TYPE_SCHEMAS || defName === 'ComponentCommon');
+        target.pointer.startsWith('#/$defs/') && Object.hasOwn(CommonSchemas, defName);
       if (isPreservedCommonType || (!inlineLocalDefs && target.pointer.startsWith('#/$defs/'))) {
         target = undefined;
       }
@@ -572,7 +539,9 @@ function resolveJsonPointer(
  */
 function resolveProtocolRef(ref: string): z.ZodTypeAny | undefined {
   const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
-  return defName ? COMMON_TYPE_SCHEMAS[defName] : undefined;
+  return defName && Object.hasOwn(CommonSchemas, defName)
+    ? (CommonSchemas as Record<string, z.ZodTypeAny>)[defName]
+    : undefined;
 }
 
 /**
@@ -782,24 +751,8 @@ function convertUnionToZod(
   if (zodBranches.length === 1) {
     unionZod = zodBranches[0];
   } else {
-    const baseUnion = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
-    unionZod = isOneOf
-      ? z
-          .any()
-          .superRefine((val, ctx) => {
-            let matches = 0;
-            for (const b of zodBranches) {
-              if (b.safeParse(val).success && ++matches > 1) {
-                ctx.addIssue({
-                  code: z.ZodIssueCode.custom,
-                  message: 'Value matched more than one schema in oneOf',
-                });
-                return;
-              }
-            }
-          })
-          .pipe(baseUnion)
-      : baseUnion;
+    const tuple = [zodBranches[0], zodBranches[1], ...zodBranches.slice(2)] as const;
+    unionZod = isOneOf ? exclusiveUnion(tuple) : z.union(tuple);
   }
 
   if (propSchema.default !== undefined) {
@@ -1226,7 +1179,7 @@ function convertComponentJsonSchemaToZod(
  * of parameter names to subschemas), rather than a full JSON Schema object or
  * reference combinator.
  */
-function isShorthandParameterMap(schema: unknown): boolean {
+export function isShorthandParameterMap(schema: unknown): boolean {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return false;
   }

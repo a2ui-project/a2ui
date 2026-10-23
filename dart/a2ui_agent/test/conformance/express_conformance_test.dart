@@ -53,22 +53,34 @@ void main() {
   }
 }
 
-/// Cases that state what v0.9 cannot, so they run as written in v1.0 only.
-const Set<String> _v1OnlyCases = {
-  // Several catalogs on one surface: v1.0 names the catalog per component.
-  'test_compile_express_surface_targeting_names_a_catalog',
-  'test_decompile_express_two_surfaces_in_two_catalogs',
-  // A map in an event's context: a v0.9 DynamicValue holds no map.
-  'test_decompile_express_event_action_with_nested_context',
+const String _oneCatalogPerSurface =
+    'v0.9 names one catalog per surface, so the case runs as written in v1.0 '
+    'only.';
+
+/// Cases that state what v0.9 cannot, or that are already written against a
+/// v0.9 catalog, so they run in [SuiteVersion.v1_0] (as written) only, with
+/// the reason for each.
+const Map<String, String> _v1OnlyCases = {
+  'test_compile_express_surface_targeting_names_a_catalog':
+      _oneCatalogPerSurface,
+  'test_decompile_express_two_surfaces_in_two_catalogs': _oneCatalogPerSurface,
+  'test_decompile_express_event_action_with_nested_context':
+      'A v0.9 DynamicValue holds no map, so a map in an event\'s context runs '
+      'as written in v1.0 only.',
+  'test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable':
+      'Already written against a v0.9 catalog to test pre-v1.0 component id '
+      'derivation, so it runs as written without lowering.',
+  'test_decompile_express_non_identifier_id_from_v1_0_is_a_validation_error':
+      'Before v1.0, component ids that are not UAX 31 identifiers are derived '
+      'into variables rather than rejected.',
+  'test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error':
+      'Before v1.0, component ids need not be UAX 31 identifiers.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.
 String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
   if (version == SuiteVersion.v1_0) return null;
-  if (_v1OnlyCases.contains(testCase['name'])) {
-    return 'v0.9 names one catalog per surface, so the case runs as written '
-        'in v1.0 only.';
-  }
+  if (_v1OnlyCases[testCase['name']] case final String reason) return reason;
   if (jsonEncode(testCase).contains('"callRendererFunction"')) {
     return 'Protocol v0.9 has no callRendererFunction message.';
   }
@@ -127,6 +139,11 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
     case 'wrap':
       return format.createParser().wrap(
         rawParts(testCase['parts']! as List<Object?>),
+      );
+    case 'has_format_content':
+      return format.createParser().hasFormatContent(
+        input!,
+        complete: args['complete'] as bool? ?? false,
       );
     case 'unwrap':
       return [

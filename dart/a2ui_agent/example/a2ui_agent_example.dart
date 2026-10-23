@@ -27,10 +27,7 @@ Future<List<AgentToRendererMessage>> respond({
   callLlm,
 }) async {
   // 1. At agent startup: register the catalogs the agent supports.
-  final generator = A2uiGenerator(
-    catalogs: [CatalogConfig(catalog)],
-    inferenceFormatFactory: const ExpressFormatFactory(),
-  );
+  final generator = A2uiGenerator(catalogs: [CatalogConfig(catalog)]);
 
   // 2. Per request: negotiate with the renderer's capabilities.
   final A2uiRequestProcessor processor = generator.createProcessor(

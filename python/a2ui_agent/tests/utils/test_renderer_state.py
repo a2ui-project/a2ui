@@ -636,6 +636,53 @@ def test_a_rollback_keeps_the_position_of_a_component_replaced_by_another_type()
     state.apply(_parents_update({"id": "x", "component": "Leaf"}))
 
 
+_BASIC_V10 = BasicCatalog("1.0")
+_OTHER_TEXT = Catalog.from_json(
+    {
+        "catalogId": "other",
+        "components": {
+            "Text": {"type": "object", "properties": {"text": {"type": "string"}}}
+        },
+    },
+    catalog_id="other",
+    protocol_version="v1.0",
+)
+
+
+@pytest.mark.parametrize(
+    "first, second",
+    [
+        ({}, {"catalogId": "other"}),  # names another catalog
+        ({"catalogId": "other"}, {}),  # names none, so takes the default
+    ],
+    ids=["to_named_catalog", "back_to_default_catalog"],
+)
+def test_a_rollback_keeps_the_position_of_a_component_moved_to_another_catalog(
+    first, second
+):
+    state = RendererState([_BASIC_V10, _OTHER_TEXT])
+
+    def update(*components):
+        return {
+            "version": "v1.0",
+            "updateComponents": {"surfaceId": "s", "components": list(components)},
+        }
+
+    state.apply({
+        "version": "v1.0",
+        "createSurface": {"surfaceId": "s", "catalogId": _BASIC_V10.catalog_id},
+    })
+    state.apply(update({"id": "a", "component": "Text", "text": "1", **first}))
+    state.apply(update({"id": "b", "component": "Text", "text": "2"}))
+
+    with pytest.raises(RuntimeError):
+        with state.transaction():
+            state.apply(update({"id": "a", "component": "Text", "text": "3", **second}))
+            raise RuntimeError("the response is rejected")
+
+    assert _order(state) == ["a", "b"]
+
+
 def test_a_rollback_keeps_the_order_of_several_components_replaced_at_once():
     state = RendererState([_BASIC])
     _turn(

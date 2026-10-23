@@ -103,9 +103,10 @@ class DirectJsonParser extends Parser {
   /// is true.
   @override
   bool hasFormatContent(String content, {bool complete = false}) {
-    final Match? open = openTag.firstMatch(content);
-    if (open == null) return false;
-    return !complete || scanBlock(content, open.end).closeStart != null;
+    if (!complete && openTag.hasMatch(content)) return true;
+    return unwrap(
+      content,
+    ).any((RawResponsePart p) => p is RawA2uiPart && (!complete || p.isFinal));
   }
 
   /// Writes each part on its own line, with the `<a2ui-json>` and
@@ -124,26 +125,50 @@ class DirectJsonParser extends Parser {
   /// model wrote them.
   ///
   /// A close tag inside a JSON string does not end a block. Text is trimmed
-  /// and dropped when empty, and markdown fences a model wraps around a
-  /// block are removed. Tags of another format are text. See
+  /// and dropped when empty, and markdown fences or inline-code backticks a
+  /// model wraps around a block are removed. At most one block whose
+  /// `<a2ui-json>` open tag was omitted before `</a2ui-json>` is recovered in
+  /// one-shot parsing. Tags of another format are text. See
   /// `conformance/agent/direct_json/response_parser.yaml`.
   @override
   List<RawResponsePart> unwrap(String content) {
     final parts = <RawResponsePart>[];
     var i = 0;
-    while (true) {
+    var recoveredUnmatched = false;
+    while (i < content.length) {
       final Match? open = openTag.allMatches(content, i).firstOrNull;
+      final int searchEnd = open?.start ?? content.length;
+      if (!recoveredUnmatched && searchEnd > i) {
+        final int? nextI = tryRecoverUnmatchedClose(
+          parts,
+          content,
+          i,
+          searchEnd,
+        );
+        if (nextI != null) {
+          recoveredUnmatched = true;
+          i = nextI;
+          continue;
+        }
+      }
       if (open == null) break;
-      addText(parts, content.substring(i, open.start));
+      String textBefore = content.substring(i, open.start);
+      if (textBefore.endsWith('`')) {
+        textBefore = textBefore.replaceAll(RegExp(r'`+$'), '');
+      }
+      addText(parts, textBefore);
       final int? end = scanBlock(content, open.end).closeStart;
       if (end == null) {
         parts.add(
-          RawA2uiPart(clean(content.substring(open.end)), isFinal: false),
+          RawA2uiPart(cleanRaw(content.substring(open.end)), isFinal: false),
         );
         return parts;
       }
-      parts.add(RawA2uiPart(clean(content.substring(open.end, end))));
+      parts.add(RawA2uiPart(cleanRaw(content.substring(open.end, end))));
       i = closeTag.matchAsPrefix(content, end)!.end;
+      while (i < content.length && content[i] == '`') {
+        i++;
+      }
     }
     addText(parts, content.substring(i));
     return parts;
@@ -166,7 +191,7 @@ class DirectJsonParser extends Parser {
   /// field the message does not define.
   @override
   List<AgentToRendererMessage> compile(String formatContent) {
-    final String content = clean(formatContent);
+    final String content = cleanRaw(formatContent);
     if (content.isEmpty) {
       throw A2uiParseError(
         'The direct JSON block is empty.',

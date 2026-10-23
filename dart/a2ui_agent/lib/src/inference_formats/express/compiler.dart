@@ -266,6 +266,29 @@ String? _stringArgument(CallNode call, int index, String name) {
   );
 }
 
+/// The component id of [call]: its `id` keyword argument, or [defaultId] when
+/// it has none.
+String _componentId(
+  String defaultId,
+  CallNode call, {
+  required bool atLeastV10,
+}) {
+  if (!call.kwargs.containsKey('id')) return defaultId;
+  final String? explicitId = _stringArgument(call, -1, 'id');
+  if (explicitId == null || explicitId.isEmpty) {
+    throw A2uiValidationError(
+      "Argument 'id' of ${call.name}(...) must be a non-empty string literal.",
+    );
+  }
+  if (atLeastV10 && !isValidUax31Identifier(explicitId)) {
+    throw A2uiValidationError(
+      "Component id '$explicitId' in ${call.name}(...) is not a valid UAX 31 "
+      'identifier.',
+    );
+  }
+  return explicitId;
+}
+
 /// The statements of one surface.
 class _Surface {
   _Surface(this.surfaceId, this.helper);
@@ -325,7 +348,10 @@ class _SurfaceCompiler {
     for (final MapEntry<String, ExpressNode> symbol
         in surface.symbols.entries) {
       if (symbol.value case final CallNode call when _isComponent(call)) {
-        _usedIds.add(symbol.key);
+        final String id = _componentId(symbol.key, call, atLeastV10: _v1);
+        if (!_usedIds.add(id)) {
+          throw A2uiValidationError("Duplicate component id '$id'.");
+        }
       }
     }
   }
@@ -579,7 +605,8 @@ class _SurfaceCompiler {
 
   /// Compiles one component, followed by the components written inline in
   /// it.
-  List<Map<String, Object?>> _component(String id, CallNode call) {
+  List<Map<String, Object?>> _component(String defaultId, CallNode call) {
+    final String id = _componentId(defaultId, call, atLeastV10: _v1);
     final String name = call.name;
     final (CatalogSchemaHelper helper, String? catalogId) = _resolve(
       name,
@@ -591,21 +618,69 @@ class _SurfaceCompiler {
     final checks = <CheckNode>[];
     final assigned = <(String, ExpressNode)>[];
     var position = 0;
+    final posArgs = <ExpressNode>[];
     for (final ExpressNode arg in call.args) {
       if (_checksOf(arg) case final List<CheckNode> found) {
         checks.addAll(found);
         continue;
       }
+      posArgs.add(arg);
+    }
+    final List<String> required = helper.requiredProperties(name);
+    for (var argIdx = 0; argIdx < posArgs.length; argIdx++) {
+      final ExpressNode arg = posArgs[argIdx];
       if (position >= properties.length) {
         throw A2uiValidationError(
           '$name takes at most ${properties.length} positional arguments '
           "(${properties.join(', ')}), but component '$id' passes "
-          '${call.args.length}.',
+          '${posArgs.length}.',
         );
+      }
+      if (arg is LiteralNode &&
+          arg.value is num &&
+          !helper.acceptsNumber(
+            helper.propertySchema(name, properties[position]),
+          )) {
+        var moved = false;
+        if (argIdx == posArgs.length - 1) {
+          final numericLater = <int>[
+            for (int later = position + 1; later < properties.length; later++)
+              if (!call.kwargs.containsKey(properties[later]) &&
+                  helper.acceptsNumber(
+                    helper.propertySchema(name, properties[later]),
+                  ))
+                later,
+          ];
+          if (numericLater.length == 1) {
+            final int target = numericLater.single;
+            bool canSkip(int idx) {
+              final String prop = properties[idx];
+              if (required.contains(prop)) return false;
+              return enumOf(helper.propertySchema(name, prop)) != null;
+            }
+
+            if ([
+              for (int idx = position; idx < target; idx++) idx,
+            ].every(canSkip)) {
+              position = target;
+              moved = true;
+            }
+          }
+        }
+        if (!moved &&
+            !required.contains(properties[position]) &&
+            helper.commonTypesLoaded) {
+          throw A2uiValidationError(
+            "Positional argument ${argIdx + 1} for component '$name' is a "
+            'number, which is not valid for optional property '
+            "'${properties[position]}'.",
+          );
+        }
       }
       assigned.add((properties[position++], arg));
     }
     for (final MapEntry<String, ExpressNode> kwarg in call.kwargs.entries) {
+      if (kwarg.key == 'id') continue;
       if (_v1 && kwarg.key == 'catalogId') continue;
       if (_checksOf(kwarg.value) case final List<CheckNode> found) {
         checks.addAll(found);
@@ -623,6 +698,13 @@ class _SurfaceCompiler {
         );
       }
       assigned.add((kwarg.key, kwarg.value));
+    }
+    if (checks.isNotEmpty && !helper.isCheckable(name)) {
+      throw A2uiValidationError(
+        "$name does not take checks, but component '$id' is given "
+        '${checks.map((c) => '?${c.name}').join(', ')}. Remove the checks, '
+        'or use a component whose schema declares checks.',
+      );
     }
 
     final component = <String, Object?>{
@@ -813,7 +895,9 @@ class _SurfaceCompiler {
           "Variable '$name' is not assigned in surface "
           "'${surface.surfaceId}'.",
         ));
-    if (node is CallNode && _isComponent(node)) return name;
+    if (node is CallNode && _isComponent(node)) {
+      return _componentId(name, node, atLeastV10: _v1);
+    }
     if (!_resolving.add(name)) {
       throw A2uiValidationError("Variable '$name' refers to itself.");
     }
@@ -832,7 +916,15 @@ class _SurfaceCompiler {
           'A data path cannot be assigned a component.',
         );
       }
-      final String id = _newId(context.idPrefix);
+      final String id;
+      if (call.kwargs.containsKey('id')) {
+        id = _componentId(context.idPrefix, call, atLeastV10: _v1);
+        if (!_usedIds.add(id)) {
+          throw A2uiValidationError("Duplicate component id '$id'.");
+        }
+      } else {
+        id = _newId(context.idPrefix);
+      }
       context.hoisted.addAll(_component(id, call));
       return id;
     }

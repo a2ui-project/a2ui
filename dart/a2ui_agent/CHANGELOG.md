@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+- `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
+  `ExpressParser.unwrap` remove the backticks left at the edges of a block when
+  a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
+  `` `<a2ui-json>` ... `</a2ui-json>` ``) and drop text made of nothing but
+  backticks. In one-shot unwrapping (`unwrap` and `parseResponse`), they also
+  recover at most one block closed with a closing tag when the model opened the
+  block with a Markdown code fence or omitted the opening tag;
+  `DirectJsonParser.hasFormatContent` and `ExpressParser.hasFormatContent`
+  delegate to `unwrap` and count recovered blocks as complete format blocks.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
+- Express `IDENTIFIER` and `CHECK` tokens now follow UAX 31
+  (`[\p{XID_Start}_] [\p{XID_Continue}]*`) rather than ASCII-only letters,
+  digits, and underscores. In `ExpressDecompiler`, non-identifier component ids
+  before protocol v1.0 (such as `title-heading`) and reserved-word component
+  ids in any version (`true`, `false`, `null`, `_`) are written with a derived
+  variable name and `id="..."` so they round-trip through `ExpressCompiler`;
+  from v1.0 onward, component ids that are not valid UAX 31 identifiers throw
+  `A2uiValidationError`.
+- Requires the next release of `a2ui_core`, which adds
+  `SurfaceComponentsModel.insertComponent`, `insertComponents`,
+  `saveReferenceFields` and `restoreReferenceFields` and
+  `SurfaceGroupModel.detachSurface`, and exports
+  `checkPathsAndRecursion` and `checkDuplicateComponentIds`. The release that
+  publishes this version raises the `a2ui_core` constraint to `^0.3.1` along
+  with that `a2ui_core` release; until then the workspace resolves
+  `a2ui_core` from this repository.
+- Breaking: `A2uiGenerator.inferenceFormatFactory` and
+  `A2uiRequestProcessor.formatFactory` default to `ExpressFormatFactory`
+  instead of `DirectJsonFormatFactory`.
+- The Express compiler throws `A2uiValidationError` for a check on a
+  component whose schema declares no `checks`, such as
+  `Text("hi", ?required($/name))`, rather than writing `checks` onto it.
 - Add `RendererState`, the agent's mirror of the surfaces a renderer holds.
   It wraps one `MessageProcessor` for its whole life and checks each message
   against everything applied before it, so an agent that keeps one state for
@@ -17,7 +57,12 @@
   - Being atomic costs what the messages change, not the size of the
     surfaces they touch: the state keeps an undo log of what each message
     replaced instead of copying a surface, so the time to apply n messages
-    to one surface grows with n.
+    to one surface grows with n. A deleted surface is kept aside until the
+    outermost call ends, so a rollback puts the same surface back. A rollback
+    keeps the order of a surface's components and of the keys of its data
+    model, restores the fields its references are read through, and undoes
+    the whole log even if one step of it fails, rethrowing the error that
+    caused the rollback.
   - `checkTopology` checks the trees of the given surfaces: the root exists,
     every reference resolves, and every component added or replaced since
     the last check is reachable from the root. A component that an update

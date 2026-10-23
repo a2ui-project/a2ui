@@ -55,6 +55,16 @@ describe('Public Barrel Exports', () => {
     expect(a2uiAgent.resolveCatalogs).toBeDefined();
   });
 
+  it('exports the renderer state and payload validation', () => {
+    expect(a2uiAgent.RendererState).toBeDefined();
+    expect(a2uiAgent.validatePayload).toBeDefined();
+  });
+
+  it('exports the Direct JSON response stream and no stream processor', () => {
+    expect(a2uiAgent.DirectJsonResponseStream).toBeDefined();
+    expect('DirectJsonStreamProcessorImpl' in a2uiAgent).toBe(false);
+  });
+
   it('exports the Express format and its error classes', () => {
     expect(a2uiAgent.ExpressFormat).toBeDefined();
     expect(a2uiAgent.ExpressFormatFactory).toBeDefined();
@@ -81,7 +91,6 @@ describe('Public Barrel Exports', () => {
       a2uiAgent.ExpressDuplicateParamError,
       a2uiAgent.ExpressForbiddenDatabindingError,
       a2uiAgent.ExpressIdCollisionError,
-      a2uiAgent.ExpressInvalidIdentifierError,
       a2uiAgent.ExpressUnknownCatalogError,
     ];
     for (const errorClass of subclasses) {

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from collections.abc import Sequence
+import re
 
 from a2ui.core import A2uiParseError
 from a2ui.core import CatalogApi
@@ -38,6 +39,16 @@ from .blocks import scan_block
 from .decompiler import DirectJsonDecompiler
 from .json_reader import read_json
 from .response_stream import DirectJsonResponseStream
+
+_OPEN_FENCE_RE = re.compile(r"^[ \t]*```[a-zA-Z0-9_-]*[ \t]*\r?\n?", re.MULTILINE)
+_CLOSING_FENCE_END_RE = re.compile(r"\r?\n?[ \t]*```[ \t]*\r?\n?$")
+_JSON_START_RE = re.compile(
+    r'^[ \t]*(?:\[\s*(?:\{|\]|$)|\{\s*(?:"|\}|$))', re.MULTILINE
+)
+
+
+def _clean_raw(text: str) -> str:
+    return clean(text).strip("`").strip()
 
 
 class DirectJsonParser(Parser):
@@ -67,13 +78,11 @@ class DirectJsonParser(Parser):
         return True
 
     def has_format_content(self, content: str, complete: bool = False) -> bool:
-        open_match = OPEN_TAG_RE.search(content)
-        if not open_match:
-            return False
-        if not complete:
-            return True
-        close_start, _ = scan_block(content, open_match.end())
-        return close_start is not None
+        parts = self.unwrap(content)
+        return any(
+            isinstance(p.part, RawA2uiPart) and (not complete or p.is_final)
+            for p in parts
+        )
 
     def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
         pieces: list[str] = []
@@ -88,16 +97,32 @@ class DirectJsonParser(Parser):
     def unwrap(self, content: str) -> list[RawResponsePart]:
         parts: list[RawResponsePart] = []
         i = 0
-        while True:
+        n = len(content)
+        recovered_unmatched = False
+        while i < n:
             open_match = OPEN_TAG_RE.search(content, i)
+            search_end = open_match.start() if open_match else n
+            if not recovered_unmatched and search_end > i:
+                next_i = self._try_recover_unmatched_close(
+                    parts, content, i, search_end
+                )
+                if next_i is not None:
+                    recovered_unmatched = True
+                    i = next_i
+                    continue
             if not open_match:
                 break
-            add_text(parts, content[i : open_match.start()])
+            text_before = content[i : open_match.start()]
+            if text_before.endswith("`"):
+                text_before = text_before.rstrip("`")
+            add_text(parts, text_before)
             close_start, _ = scan_block(content, open_match.end())
             if close_start is None:
                 parts.append(
                     RawResponsePart(
-                        part=RawA2uiPart(a2ui_raw=clean(content[open_match.end() :])),
+                        part=RawA2uiPart(
+                            a2ui_raw=_clean_raw(content[open_match.end() :])
+                        ),
                         is_final=False,
                     )
                 )
@@ -105,7 +130,7 @@ class DirectJsonParser(Parser):
             parts.append(
                 RawResponsePart(
                     part=RawA2uiPart(
-                        a2ui_raw=clean(content[open_match.end() : close_start])
+                        a2ui_raw=_clean_raw(content[open_match.end() : close_start])
                     ),
                     is_final=True,
                 )
@@ -113,8 +138,72 @@ class DirectJsonParser(Parser):
             close_match = CLOSE_TAG_RE.match(content, close_start)
             assert close_match is not None
             i = close_match.end()
+            if i < n and content[i] == "`":
+                i += len(content[i:]) - len(content[i:].lstrip("`"))
+        if not recovered_unmatched and i < n:
+            next_i = self._try_recover_unmatched_close(parts, content, i, n)
+            if next_i is not None:
+                i = next_i
         add_text(parts, content[i:])
         return parts
+
+    def _try_recover_unmatched_close(
+        self,
+        parts: list[RawResponsePart],
+        content: str,
+        start: int,
+        search_end: int,
+    ) -> int | None:
+        segment = content[start:search_end]
+        if CLOSE_TAG_RE.search(segment) is None:
+            return None
+
+        fences = list(_OPEN_FENCE_RE.finditer(segment))
+        for idx in range(0, len(fences), 2):
+            fence = fences[idx]
+            close_start, _ = scan_block(segment, fence.end())
+            if close_start is None:
+                continue
+            close_match = CLOSE_TAG_RE.match(segment, close_start)
+            assert close_match is not None
+            body = segment[fence.end() : close_start]
+            body_stripped = _CLOSING_FENCE_END_RE.sub("", body)
+            if _OPEN_FENCE_RE.search(body_stripped) is not None:
+                continue
+            raw_content = _clean_raw(body_stripped)
+            if not raw_content:
+                continue
+            add_text(parts, segment[: fence.start()])
+            parts.append(
+                RawResponsePart(part=RawA2uiPart(a2ui_raw=raw_content), is_final=True)
+            )
+            return start + close_match.end()
+
+        search_from = 0
+        pair_idx = 0
+        while pair_idx + 1 < len(fences):
+            close_start, _ = scan_block(segment, fences[pair_idx + 1].end())
+            if close_start is None:
+                break
+            search_from = fences[pair_idx + 1].end()
+            pair_idx += 2
+
+        json_match = _JSON_START_RE.search(segment, search_from)
+        if json_match is None:
+            return None
+        close_start, _ = scan_block(segment, json_match.start())
+        if close_start is None:
+            return None
+        close_match = CLOSE_TAG_RE.match(segment, close_start)
+        assert close_match is not None
+        raw_content = _clean_raw(segment[json_match.start() : close_start])
+        if not raw_content:
+            return None
+        add_text(parts, segment[: json_match.start()])
+        parts.append(
+            RawResponsePart(part=RawA2uiPart(a2ui_raw=raw_content), is_final=True)
+        )
+        return start + close_match.end()
 
     def compile(
         self, format_content: str, *, is_final: bool = True
@@ -130,7 +219,7 @@ class DirectJsonParser(Parser):
             raise A2uiParseError(
                 f"The response ended inside an unclosed {OPEN_TAG} block."
             )
-        cleaned = clean(format_content)
+        cleaned = _clean_raw(format_content)
         if not cleaned:
             raise A2uiParseError("The direct JSON block is empty.")
         try:

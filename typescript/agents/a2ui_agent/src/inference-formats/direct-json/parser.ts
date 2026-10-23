@@ -14,100 +14,90 @@
  * limitations under the License.
  */
 
-import {Parser} from '../../parser/parser.js';
-import {RawResponsePart, ResponsePart} from '../../parser/response-part.js';
-import {BlockLexer} from '../../parser/lexer.js';
 import {ParseError} from '../../errors.js';
-import {parseAndFix} from '../../parser/payload-fixer.js';
-import {A2UI_OPEN_TAG, A2UI_CLOSE_TAG} from '../../parser/constants.js';
-import {DirectJsonStreamProcessor} from './streaming-types.js';
 import {AgentToRendererMessage, CatalogApi, linkCatalogs} from '../../internal/web-core.js';
+import {BlockLexer, JSON_PAYLOAD_START_RE} from '../../parser/lexer.js';
+import {ParseOptions, Parser} from '../../parser/parser.js';
+import {RawResponsePart} from '../../parser/response-part.js';
+import {checkParserCatalogs} from '../../utils/catalog-checks.js';
+import {CLOSE_TAG, OPEN_TAG, cleanRaw} from './blocks.js';
 import {DirectJsonDecompiler} from './decompiler.js';
-import {checkParserCatalogs, validatePayload} from '../../utils/validation.js';
+import {readJson} from './json-reader.js';
+import {DirectJsonResponseStream} from './response-stream.js';
 
+/** Options for a Direct JSON parser. */
+export interface DirectJsonParserOptions {
+  /**
+   * Keys whose string values a stream closes where they stand while they arrive, so a long
+   * text is emitted as it grows. Values that start like a URL are never closed early. None
+   * by default.
+   */
+  progressiveKeys?: Iterable<string>;
+}
+
+/** Parser for the Direct JSON format, for complete and streamed responses. */
 export class DirectJsonParser extends Parser {
-  /**
-   * The active catalogs, which the blueprint's parser validates against. This parser
-   * doesn't validate yet; the catalogs are kept for when it does.
-   */
+  /** The active catalogs, linked to each other so cross-catalog `$ref`s resolve. */
   readonly catalogs: CatalogApi[];
-  private readonly streamProcessor?: DirectJsonStreamProcessor;
-  private readonly lexer: BlockLexer;
-  private readonly decompiler: DirectJsonDecompiler;
+  /** The keys whose string values a stream heals while they arrive. */
+  readonly progressiveKeys: ReadonlySet<string>;
+  private readonly decompiler = new DirectJsonDecompiler();
+  private readonly lexer = new BlockLexer(
+    OPEN_TAG,
+    CLOSE_TAG,
+    new Set(["'", '"']),
+    new Set(),
+    JSON_PAYLOAD_START_RE,
+    true,
+  );
 
   /**
-   * @param catalogs The active catalogs.
-   * @param streamProcessor Reads streamed chunks. Without one, `parseChunk` throws.
+   * @param catalogs The active catalogs, which must target compatible protocol versions.
+   * @param options How a stream reads values that are still arriving.
+   * @throws {A2uiCatalogError} If no catalogs are given or their versions are incompatible.
    */
-  constructor(catalogs: CatalogApi[], streamProcessor?: DirectJsonStreamProcessor) {
+  constructor(catalogs: CatalogApi[], options: DirectJsonParserOptions = {}) {
     super();
     checkParserCatalogs(catalogs);
     this.catalogs = linkCatalogs(catalogs);
-    this.streamProcessor = streamProcessor;
-    this.lexer = new BlockLexer(A2UI_OPEN_TAG, A2UI_CLOSE_TAG, new Set(["'", '"']), new Set());
-    this.decompiler = new DirectJsonDecompiler();
+    this.progressiveKeys = new Set(options.progressiveKeys ?? []);
+  }
+
+  override get supportsStreaming(): boolean {
+    return true;
   }
 
   hasFormatContent(content: string, {complete = false}: {complete?: boolean} = {}): boolean {
     const parts = this.lexer.tokenize(content);
-    // The lexer reports an unterminated block as a part that is not final.
     return parts.some(p => p.type === 'a2ui' && (!complete || p.isFinal));
   }
 
   unwrap(content: string): RawResponsePart[] {
-    const parts = this.lexer.tokenize(content);
-    let hasBlocks = false;
-    const validParts: RawResponsePart[] = [];
-
-    for (const part of parts) {
-      if (part.type === 'a2ui') {
-        if (!part.isFinal) {
-          throw new ParseError(`A2UI close tag '${A2UI_CLOSE_TAG}' not found in response.`);
-        }
-        if (!part.a2uiRaw) {
-          throw new ParseError('A2UI JSON part is empty.');
-        }
-        validParts.push(part);
-        hasBlocks = true;
-      } else {
-        if (part.text) {
-          validParts.push(part);
-        }
-      }
-    }
-
-    if (!hasBlocks) {
-      throw new ParseError(
-        `A2UI tags '${A2UI_OPEN_TAG}' and '${A2UI_CLOSE_TAG}' not found in response.`,
-      );
-    }
-
-    return validParts;
+    return this.lexer.tokenize(content);
   }
 
+  /**
+   * Reads a block as a JSON message or a JSON array of messages.
+   *
+   * @throws {ParseError} If the block is empty or is not JSON.
+   */
   compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
-    const jsonData = parseAndFix(formatContent);
-
-    if (isFinal) {
-      validatePayload(this.catalogs, jsonData);
-    }
-
-    return jsonData as AgentToRendererMessage[];
-  }
-
-  // Streaming needs an injected stream processor.
-  override get supportsStreaming(): boolean {
-    return this.streamProcessor !== undefined;
-  }
-
-  override parseChunk(chunk: string, _wrapped = true): ResponsePart[] {
-    if (!this.streamProcessor) {
-      throw new Error(
-        'DirectJsonParser was constructed without a stream processor, so streaming is unavailable.',
+    if (!isFinal) {
+      throw new ParseError(
+        `The response ended inside an ${OPEN_TAG} block, before its ${CLOSE_TAG} tag.`,
       );
     }
-
-    return this.streamProcessor.processChunk(chunk);
+    const cleaned = cleanRaw(formatContent);
+    if (!cleaned) {
+      throw new ParseError('The direct JSON block is empty.');
+    }
+    let decoded: unknown;
+    try {
+      decoded = readJson(cleaned);
+    } catch (e) {
+      throw new ParseError(`The direct JSON block is not JSON: ${(e as Error).message}`);
+    }
+    return (Array.isArray(decoded) ? decoded : [decoded]) as AgentToRendererMessage[];
   }
 
   decompile(a2uiPayload: AgentToRendererMessage[]): string {
@@ -116,5 +106,9 @@ export class DirectJsonParser extends Parser {
 
   wrap(blocks: RawResponsePart[]): string {
     return this.decompiler.wrap(blocks);
+  }
+
+  override openStream({wrapped = true, state}: ParseOptions = {}): DirectJsonResponseStream {
+    return new DirectJsonResponseStream(this, wrapped, state ?? this.emptyState());
   }
 }
