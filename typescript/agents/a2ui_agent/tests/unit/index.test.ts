@@ -91,7 +91,6 @@ describe('Public Barrel Exports', () => {
       a2uiAgent.ExpressDuplicateParamError,
       a2uiAgent.ExpressForbiddenDatabindingError,
       a2uiAgent.ExpressIdCollisionError,
-      a2uiAgent.ExpressInvalidIdentifierError,
       a2uiAgent.ExpressUnknownCatalogError,
     ];
     for (const errorClass of subclasses) {
