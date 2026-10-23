@@ -29,7 +29,7 @@ function assertObjectArgs(
   functionCallId: string,
 ): void {
   if (
-    'args' in cf &&
+    Object.hasOwn(cf, 'args') &&
     cf.args !== undefined &&
     (typeof cf.args !== 'object' || cf.args === null || Array.isArray(cf.args))
   ) {
