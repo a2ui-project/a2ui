@@ -47,6 +47,9 @@ import {
 import mcpCatalogJson from '../catalog.json' with {type: 'json'};
 import {JmespathImplementation} from './jmespath.js';
 import {ParseJsonImplementation} from './parse_json.js';
+import {RegexCaptureImplementation} from './regex_capture.js';
+import {RegexReplaceImplementation} from './regex_replace.js';
+import {SplitImplementation} from './split.js';
 import {UpdateDataModelImplementation} from './update_data_model.js';
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
@@ -61,6 +64,9 @@ const mcpCatalog = new Catalog<any>(
     ParseJsonImplementation,
     JmespathImplementation,
     UpdateDataModelImplementation,
+    SplitImplementation,
+    RegexCaptureImplementation,
+    RegexReplaceImplementation,
   ],
 );
 

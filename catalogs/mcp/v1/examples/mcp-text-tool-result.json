@@ -1,0 +1,150 @@
+{
+  "name": "MCP text tool result",
+  "description": "Reads the plain text a headless MCP tool returns and turns its lines into data model rows. The button chains the catalog's text functions, each selecting the MCP catalog with its own catalogId: callMcpTool lists a directory, jmespath picks content[0].text out of the CallToolResult, split cuts it into lines, regexCapture turns each `[DIR] name` or `[FILE] name` line into a kind and name pair, a second jmespath drops the lines that did not match and shapes the rows, and updateDataModel writes them to /entries. The heading binds regexReplace to the directory path to shorten the home prefix.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-mcp-text-tool-result",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-mcp-text-tool-result",
+        "value": {
+          "directory": "/home/ada/projects",
+          "entries": []
+        }
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-mcp-text-tool-result",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["heading", "directory_field", "list_button", "entry_list"],
+            "align": "stretch"
+          },
+          {
+            "id": "heading",
+            "component": "Text",
+            "text": {
+              "@call": "regexReplace",
+              "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+              "args": {
+                "value": {
+                  "@path": "/directory"
+                },
+                "pattern": "^/home/[^/]+",
+                "replacement": "~"
+              }
+            }
+          },
+          {
+            "id": "directory_field",
+            "component": "TextField",
+            "label": "Directory",
+            "value": {
+              "@path": "/directory"
+            }
+          },
+          {
+            "id": "list_button",
+            "component": "Button",
+            "child": "list_button_label",
+            "variant": "primary",
+            "action": {
+              "functionCall": {
+                "@call": "updateDataModel",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                "args": {
+                  "updates": {
+                    "@call": "jmespath",
+                    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                    "args": {
+                      "expression": "{\"/entries\": [?@ != null].{kind: [0], name: [1]}}",
+                      "data": {
+                        "@call": "regexCapture",
+                        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                        "args": {
+                          "value": {
+                            "@call": "split",
+                            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                            "args": {
+                              "value": {
+                                "@call": "jmespath",
+                                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                                "args": {
+                                  "expression": "content[0].text",
+                                  "data": {
+                                    "@call": "callMcpTool",
+                                    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                                    "args": {
+                                      "name": "list_directory",
+                                      "arguments": {
+                                        "path": {
+                                          "@path": "/directory"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "separator": "\n"
+                            }
+                          },
+                          "pattern": "^\\[(DIR|FILE)\\] (.+)$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "id": "list_button_label",
+            "component": "Text",
+            "text": "List directory"
+          },
+          {
+            "id": "entry_list",
+            "component": "Column",
+            "children": {
+              "componentId": "entry_row",
+              "path": "/entries"
+            }
+          },
+          {
+            "id": "entry_row",
+            "component": "Row",
+            "children": ["entry_kind", "entry_name"],
+            "align": "center"
+          },
+          {
+            "id": "entry_kind",
+            "component": "Text",
+            "text": {
+              "@path": "kind"
+            },
+            "variant": "caption",
+            "weight": 1
+          },
+          {
+            "id": "entry_name",
+            "component": "Text",
+            "text": {
+              "@path": "name"
+            },
+            "weight": 5
+          }
+        ]
+      }
+    }
+  ]
+}

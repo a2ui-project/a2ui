@@ -216,6 +216,88 @@
         }
       },
       "required": ["@call", "args"]
+    },
+    "split": {
+      "type": "object",
+      "description": "Splits a string into an array of substrings using a literal separator.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "split"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to split."
+            },
+            "separator": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The delimiter string to split on. An empty string splits into individual characters (Unicode code points)."
+            }
+          },
+          "required": ["value", "separator"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
+    "regexCapture": {
+      "type": "object",
+      "description": "Extracts capture groups from the first regular expression match.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "regexCapture"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to match against."
+            },
+            "pattern": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "A JavaScript regular expression. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings."
+            }
+          },
+          "required": ["value", "pattern"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
+    "regexReplace": {
+      "type": "object",
+      "description": "Replaces all regular expression matches with literal replacement text.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "regexReplace"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to perform replacements on."
+            },
+            "pattern": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "A JavaScript regular expression matching substrings to replace."
+            },
+            "replacement": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Literal replacement string. Capture group references like $1 are treated as literal text."
+            }
+          },
+          "required": ["value", "pattern", "replacement"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"]
     }
   },
   "$defs": {
@@ -242,6 +324,15 @@
         },
         {
           "$ref": "#/functions/updateDataModel"
+        },
+        {
+          "$ref": "#/functions/split"
+        },
+        {
+          "$ref": "#/functions/regexCapture"
+        },
+        {
+          "$ref": "#/functions/regexReplace"
         }
       ]
     }

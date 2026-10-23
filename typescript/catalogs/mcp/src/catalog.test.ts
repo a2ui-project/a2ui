@@ -15,6 +15,7 @@
  */
 
 import jsonToolResultExample from '../../../../catalogs/mcp/v1/examples/mcp-json-tool-result.json' with {type: 'json'};
+import textToolResultExample from '../../../../catalogs/mcp/v1/examples/mcp-text-tool-result.json' with {type: 'json'};
 import scene3dExample from '../../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json' with {type: 'json'};
 import {
   DataContext,
@@ -29,6 +30,9 @@ import {A2uiMcpApp} from './components/mcp_app.js';
 import {CallMcpToolImplementation, type McpToolClient} from './functions/callMcpTool.js';
 import {JmespathImplementation} from './functions/jmespath.js';
 import {ParseJsonImplementation} from './functions/parse_json.js';
+import {RegexCaptureImplementation} from './functions/regex_capture.js';
+import {RegexReplaceImplementation} from './functions/regex_replace.js';
+import {SplitImplementation} from './functions/split.js';
 import {UpdateDataModelImplementation} from './functions/update_data_model.js';
 import {configureMcpCatalog, resetMcpCatalogConfig} from './mcp_catalog_config.js';
 import {EXAMPLE_CATALOGS, parseExampleMessages} from './testing/frame_test_support.js';
@@ -171,6 +175,9 @@ describe('mcpCatalog', () => {
     expect(mcpCatalog.functions.get('parseJson')).toBe(ParseJsonImplementation);
     expect(mcpCatalog.functions.get('jmespath')).toBe(JmespathImplementation);
     expect(mcpCatalog.functions.get('updateDataModel')).toBe(UpdateDataModelImplementation);
+    expect(mcpCatalog.functions.get('split')).toBe(SplitImplementation);
+    expect(mcpCatalog.functions.get('regexCapture')).toBe(RegexCaptureImplementation);
+    expect(mcpCatalog.functions.get('regexReplace')).toBe(RegexReplaceImplementation);
   });
 
   it('registers universal components with a2ui- prefixed tag names', () => {
@@ -263,6 +270,76 @@ describe('mcpCatalog', () => {
       expect(surface.dataModel.get('/issues')).toEqual([
         {number: '12', title: 'Button ignores variant'},
         {number: '15', title: 'Document catalogId on calls'},
+      ]);
+      expect(errors).toEqual([]);
+    });
+  });
+
+  describe('the text tool result example', () => {
+    const listing = [
+      'Contents of /home/ada/projects:',
+      '[DIR] a2ui',
+      '[FILE] notes.md',
+      '',
+      '[DIR] scratch',
+    ].join('\n');
+    let processor: MessageProcessor<WebComponentImplementation>;
+    let client: ReturnType<typeof createTextToolClient>;
+    let errors: unknown[];
+
+    beforeEach(() => {
+      processor = new MessageProcessor<WebComponentImplementation>([...EXAMPLE_CATALOGS]);
+      client = createTextToolClient(listing);
+      configureMcpCatalog({getMcpClientForTool: () => client, processor});
+      errors = [];
+      processor.processMessages(parseExampleMessages(textToolResultExample));
+      processor.model.getSurface('gallery-mcp-text-tool-result')!.onError.subscribe(error => {
+        errors.push(error);
+      });
+    });
+
+    afterEach(() => {
+      processor.model.getSurface('gallery-mcp-text-tool-result')?.dispose();
+      resetMcpCatalogConfig();
+    });
+
+    it('processes next to the basic catalog, with the list bound to /entries', () => {
+      const surface = processor.model.getSurface('gallery-mcp-text-tool-result')!;
+      expect(surface.componentsModel.get('list_button')?.type).toBe('Button');
+      expect(surface.componentsModel.get('entry_list')?.type).toBe('Column');
+      expect(surface.dataModel.get('/entries')).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+
+    it('binds the heading to regexReplace synchronously, so it follows the directory', () => {
+      const surface = processor.model.getSurface('gallery-mcp-text-tool-result')!;
+      const context = new DataContext(surface, '/');
+      const heading = surface.componentsModel.get('heading')!.properties as Record<string, unknown>;
+
+      const subscription = context.subscribeDynamicValue<string>(heading['text'], () => {});
+      expect(subscription.value).toBe('~/projects');
+
+      surface.dataModel.set('/directory', '/home/ada/projects/a2ui');
+      expect(subscription.value).toBe('~/projects/a2ui');
+      subscription.unsubscribe();
+      expect(errors).toEqual([]);
+    });
+
+    it('runs the button action: the listing is split, captured, shaped and written to /entries', async () => {
+      const surface = processor.model.getSurface('gallery-mcp-text-tool-result')!;
+      const context = new DataContext(surface, '/');
+
+      await context.resolveAction(
+        actionOf(textToolResultExample, 'list_button') as Record<string, unknown>,
+      );
+
+      expect(client.calls).toEqual([
+        {name: 'list_directory', arguments: {path: '/home/ada/projects'}},
+      ]);
+      expect(surface.dataModel.get('/entries')).toEqual([
+        {kind: 'DIR', name: 'a2ui'},
+        {kind: 'FILE', name: 'notes.md'},
+        {kind: 'DIR', name: 'scratch'},
       ]);
       expect(errors).toEqual([]);
     });

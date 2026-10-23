@@ -33,4 +33,7 @@ export {
 } from './functions/callMcpTool.js';
 export {JmespathApi, JmespathImplementation} from './functions/jmespath.js';
 export {ParseJsonApi, ParseJsonImplementation} from './functions/parse_json.js';
+export {RegexCaptureApi, RegexCaptureImplementation} from './functions/regex_capture.js';
+export {RegexReplaceApi, RegexReplaceImplementation} from './functions/regex_replace.js';
+export {SplitApi, SplitImplementation} from './functions/split.js';
 export {UpdateDataModelApi, UpdateDataModelImplementation} from './functions/update_data_model.js';
