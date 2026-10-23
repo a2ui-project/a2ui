@@ -1,5 +1,11 @@
 ## Unreleased
 
+- (v1_0) `MessageProcessor` checks each component's `metadata` in
+  `createSurface` and `updateComponents` against the spec's `ComponentCommon`,
+  with or without a `ValidationConfig`, as it already did for
+  `createSurface.metadata`. A component whose `metadata.extensions` has a key
+  that is not a UAX 31 identifier, or whose `metadata` has a key other than
+  `extensions`, now raises `A2uiValidationError` instead of being accepted.
 - `to_protocol_version` is exported from the `a2ui.core` public facade.
 - Under a `ValidationConfig` that allows dangling references, and orphans or a
   missing root, as an agent mirroring a renderer's surfaces uses,
