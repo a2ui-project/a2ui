@@ -3,6 +3,8 @@
 - `new AngularCatalog(id, components?, functions?, themeSchema?, instructions?)` without a `protocolVersion` constructs a `'0.9'` catalog (deprecated overload), so catalogs written against 0.9.x keep constructing. `new AngularCatalog(id, protocolVersion, ...)` is unchanged ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
 - (v0_9) Re-export `DefaultMarkdownRenderer` from `@a2ui/angular/v0_9` ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
 - Hosted components bind from the resolved `ComponentNode` instead of re-resolving each property through the `DataContext`: child references (`Child`) now carry their `node`, `ComponentBinder.bindNode` and `ComponentBinder.unbind` are new public methods, `ComponentBinder.bind(context)` is deprecated, and `CheckProps.validationResults` (`CheckValidationResult`) is available on components with `checks`. `provideA2Ui` now initializes Angular reactivity before any surface or resolver signal is created. [#3706](https://github.com/a2ui-project/a2ui/pull/3706)
+- Integrate `NodeResolver` into `ComponentHostComponent` to emit `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` surface diagnostics, upgrade progressive child placeholders in place, and dispose universal element controllers on unmount.
+- Update `ComponentBinder` to support v1.0 `@path` data bindings, expose structured `validationResults` with severity levels (`error`, `warning`, `info`), and release child-list and check subscriptions on destroy.
 
 ## 0.13.0
 

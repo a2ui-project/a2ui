@@ -72,7 +72,24 @@ function contextOf(node: ComponentNode): ComponentContext {
 
 /** Stands in for a component that has not arrived, or has just been removed. */
 export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
-  <div style={{color: 'gray', padding: '4px'}}>[Loading {componentId}...]</div>
+  <div
+    data-a2ui-component-id={componentId}
+    data-a2ui-state="pending"
+    style={{color: 'gray', padding: '4px'}}
+  >
+    [Loading {componentId}...]
+  </div>
+);
+
+/** Stands in for a component reference that forms a cycle in the ancestor chain. */
+export const CyclicPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
+  <div
+    data-a2ui-component-id={componentId}
+    data-a2ui-state="cyclic"
+    style={{color: 'orange', padding: '4px'}}
+  >
+    [Cyclic reference: {componentId}]
+  </div>
 );
 
 /** Unresolved-reference reports already dispatched, per surface. */
@@ -287,7 +304,18 @@ const RenderFallback: React.FC<{
 export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
   const owner = useMemo(() => new HostOwner(), []);
   if (node.state === 'unknown-type') {
-    return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
+    return (
+      <div
+        data-a2ui-component-id={node.componentId}
+        data-a2ui-state="unknown-type"
+        style={{color: 'red'}}
+      >
+        Unknown component type: {node.type}
+      </div>
+    );
+  }
+  if (node.state === 'cyclic') {
+    return <CyclicPlaceholder componentId={node.componentId} />;
   }
   if (node.isPlaceholder || !node.impl || !node.context) {
     return <LoadingPlaceholder componentId={node.componentId} />;

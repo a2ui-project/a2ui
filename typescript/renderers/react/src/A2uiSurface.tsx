@@ -76,6 +76,9 @@ export const A2uiSurface: React.FC<{
   const subscribe = useCallback(
     (onChange: () => void) => {
       prepareCatalogs(surface);
+      const onCreatedSub = surface.componentsModel.onCreated.subscribe(() => {
+        prepareCatalogs(surface);
+      });
       const resolver = new NodeResolver(surface, surface.defaultCatalog);
       box.resolver = resolver;
       const stopEffect = effect(() => {
@@ -84,6 +87,7 @@ export const A2uiSurface: React.FC<{
       });
       return () => {
         stopEffect();
+        onCreatedSub.unsubscribe();
         resolver.dispose();
         if (box.resolver === resolver) {
           box.resolver = undefined;

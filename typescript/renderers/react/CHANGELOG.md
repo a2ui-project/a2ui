@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Add `MarkdownComponentContext` and `MarkdownComponentProps`. `A2uiSurface` renders the Markdown of the basic catalog's `Text` through the React component the context holds, inside the app's React tree, so the component reads the app's context. It takes precedence over `MarkdownContext`. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
+- Ensure `A2uiSurface` and `ChildElement` render distinct fallback placeholders for `pending`, `unknown-type`, and `cyclic` component states and release custom element controller subscriptions on unmount.
 
 ## 0.14.0
 
