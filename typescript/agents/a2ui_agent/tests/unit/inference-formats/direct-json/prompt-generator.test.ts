@@ -35,19 +35,24 @@ describe('DirectJsonPromptGenerator', () => {
   };
   const generator = new DirectJsonPromptGenerator([catalog], examples);
 
-  it('generates base rules', () => {
+  it('generates base rules with the protocol schemas', () => {
     const baseRules = generator.generateBaseRules();
     expect(baseRules).toContain('The generated response MUST follow these rules:');
     expect(baseRules).toContain('Top-Down Component Ordering');
+    expect(baseRules).toContain('---BEGIN A2UI JSON SCHEMA---');
+    expect(baseRules).toContain('---END A2UI JSON SCHEMA---');
+    expect(baseRules).toContain('### Agent to Renderer Schema:');
+    expect(baseRules).toContain('### Common Types Schema:');
+    expect(baseRules).not.toContain('### Catalog Schema:');
   });
 
-  it('generates catalog instructions with schema block', () => {
+  it('generates catalog instructions with only the catalog schema block', () => {
     const instructions = generator.generateCatalogInstructions();
     expect(instructions).toContain('---BEGIN A2UI JSON SCHEMA---');
     expect(instructions).toContain('---END A2UI JSON SCHEMA---');
-    expect(instructions).toContain('### Agent to Renderer Schema:');
-    expect(instructions).toContain('### Common Types Schema:');
     expect(instructions).toContain('### Catalog Schema:');
+    expect(instructions).not.toContain('### Agent to Renderer Schema:');
+    expect(instructions).not.toContain('### Common Types Schema:');
     // Ensure the schema json is present inside the block
     expect(instructions).toContain(JSON.stringify(catalog.toJson()));
   });
@@ -55,12 +60,19 @@ describe('DirectJsonPromptGenerator', () => {
   it('describes protocol schemas once, however many catalogs use it', () => {
     const customCatalog = new Catalog('https://a2ui.org/catalogs/custom_v10', 'v1.0', [], []);
     const twoCatalogs = new DirectJsonPromptGenerator([catalog, customCatalog]);
+    const baseRules = twoCatalogs.generateBaseRules();
     const instructions = twoCatalogs.generateCatalogInstructions();
-    expect(instructions.split('### Agent to Renderer Schema:').length).toBe(2);
-    expect(instructions.split('### Common Types Schema:').length).toBe(2);
+    expect(baseRules.split('### Agent to Renderer Schema:').length).toBe(2);
+    expect(baseRules.split('### Common Types Schema:').length).toBe(2);
+    expect(instructions.split('### Agent to Renderer Schema:').length).toBe(1);
     expect(instructions.split('### Catalog Schema:').length).toBe(3);
+    // One schema block per catalog, so all catalogs' instructions are the catalogs' own joined.
+    expect(instructions).toBe(
+      [catalog, customCatalog].map(c => twoCatalogs.generateCatalogInstructions(c)).join('\n\n'),
+    );
     expect(instructions).toContain(JSON.stringify(catalog.toJson()));
     expect(instructions).toContain(JSON.stringify(customCatalog.toJson()));
+    expect(twoCatalogs.generate().split('### Agent to Renderer Schema:').length).toBe(2);
   });
 
   it('describes multiple v0.9 catalogs and their examples in the prompt', () => {
@@ -95,12 +107,13 @@ describe('DirectJsonPromptGenerator', () => {
 
   it('describes only the allowed envelopes', () => {
     const limited = new DirectJsonPromptGenerator([catalog], undefined, ['createSurface']);
-    const instructions = limited.generateCatalogInstructions();
-    expect(instructions).toContain('"createSurface"');
-    expect(instructions).not.toContain('"deleteSurface"');
+    const baseRules = limited.generateBaseRules();
+    expect(baseRules).toContain('"createSurface"');
+    expect(baseRules).not.toContain('"deleteSurface"');
   });
 
   it('keeps generator markers out of the message schemas', () => {
+    expect(generator.generateBaseRules()).not.toContain('REF:');
     expect(generator.generateCatalogInstructions()).not.toContain('REF:');
   });
 
@@ -139,8 +152,8 @@ describe('DirectJsonPromptGenerator', () => {
 
   it('generates the snippet with rules, schemas and examples', () => {
     const prompt = generator.generate();
-    expect(prompt).toContain('## Workflow Description:');
-    expect(prompt).toContain('The generated response MUST follow these rules:');
+    expect(prompt).not.toContain('## Workflow Description:');
+    expect(prompt.startsWith('\nThe generated response MUST follow these rules:')).toBe(true);
     expect(prompt).toContain('---BEGIN A2UI JSON SCHEMA---');
     expect(prompt).toContain('### Examples:');
     expect(prompt).toContain('<a2ui-json>');
