@@ -31,6 +31,7 @@
  * separately in src/v<version>/ directories, e.g. src/v1_0/.
  */
 import {z} from 'zod';
+import {isValidUax31Identifier} from '../common/uax31.js';
 import {markChildRef} from './child-ref-helpers.js';
 
 export const ComponentIdSchema = markChildRef(
@@ -124,7 +125,7 @@ export const ExtensionsSchema = z
   .record(z.string(), z.unknown())
   .superRefine((value, ctx) => {
     for (const key in value) {
-      if (!key.match(/^[\p{XID_Start}_][\p{XID_Continue}]*$/u)) {
+      if (!isValidUax31Identifier(key)) {
         ctx.addIssue({
           path: [key],
           code: z.ZodIssueCode.custom,

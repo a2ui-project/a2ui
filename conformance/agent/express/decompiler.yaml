@@ -33,6 +33,10 @@
 # - A data model of nested maps writes out as one assignment per leaf path,
 #   because that is the only form the compiler reassembles into the same
 #   structure.
+# - A number is written the way ECMAScript `Number.prototype.toString` writes
+#   it: plain decimal for 1e-6 <= |v| < 1e21, otherwise `<digits>e-7` or
+#   `<digits>e+21` with no zero padding in the exponent. An integral double may
+#   be written `3` or `3.0`; the compiler reads both as the same value.
 #
 # A case asserts fragments through `expect_contains` rather than the whole
 # output, since the exact spelling is the implementation's as long as it
@@ -47,8 +51,10 @@
 # own notation.
 #
 # The catalogs under test live in `args`, and every case here is written against
-# v1.0. A case states no version of its own: the version it runs under is the
-# one its catalog document declares.
+# v1.0 except `test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable`,
+# which uses a v0.9 catalog because the behavior it verifies applies only before v1.0.
+# A case states no version of its own: the version it runs under is the one its
+# catalog document declares.
 
 # A round trip checks the recompiled block on its own, as `validate_payload`
 # does: a surface that the block updates without creating is assumed to exist.
@@ -76,6 +82,78 @@
     - "root = Card(body)"
     - 'body = Text("Hello")'
   expect_round_trip: true
+
+- name: test_decompile_express_unicode_identifier_round_trips
+  description: Component ids that are UAX 31 Unicode identifiers are written as bare variable names and round-trip.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["größe", "名前"]
+          - id: "größe"
+            component: "Text"
+            text: "Size"
+          - id: "名前"
+            component: "Text"
+            text: "Name"
+  expect_contains:
+    - "größe = Text("
+    - "名前 = Text("
+    - "root = Column([größe, 名前])"
+  expect_round_trip: true
+
+- name: test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable
+  description: Before v1.0, a component id that is not a UAX 31 identifier gets a derived variable name and an explicit id= argument.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+  messages:
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "header"
+            component: "Card"
+            child: "title-heading"
+          - id: "title-heading"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - 'surface("s1")'
+    - "header = Card(title_heading)"
+    - 'title_heading = Text("Hello", id="title-heading")'
+  expect_round_trip: true
+
+- name: test_decompile_express_non_identifier_id_from_v1_0_is_a_validation_error
+  description: From v1.0, a component id that is not a UAX 31 identifier is rejected as a validation error rather than derived.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "title-heading"
+          - id: "title-heading"
+            component: "Text"
+            text: "Hello"
+  expect_error:
+    category: "ValidationError"
+    message: "UAX #31"
 
 - name: test_decompile_express_data_model
   description: An initial data model writes back out as the data path assignments that would produce it.
@@ -300,6 +378,65 @@
             caption: "Rainfall"
   expect_contains:
     - 'root = Chart([1, 2, 3], "Rainfall")'
+  expect_round_trip: true
+
+- name: test_decompile_express_doubles_use_ecmascript_notation
+  description: Doubles write out as ECMAScript's Number.prototype.toString spells them, so a prompt example reads the same whichever SDK produced it. The two exponent values sit outside the plain-decimal range and carry a signed exponent with no zero padding; the other two sit inside it and are written in full. A decompiler that used its language's default formatting would write `1e-07` or `1.5e21` for one of them.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [2.5e-7, 1.5e+21, 0.000001, 123456.789]
+            caption: "Scale"
+  expect_contains:
+    - "[2.5e-7, 1.5e+21, 0.000001, 123456.789]"
+  expect_round_trip: true
+
+- name: test_decompile_express_integers_exact_to_2_pow_53
+  description: Integers up to ±(2^53−1) write out as their digits, with no exponent and no fraction, and recompile to the same integers. Beyond that magnitude a double cannot hold them and the spelling is not pinned.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [9007199254740991, -9007199254740991]
+            caption: "Limits"
+  expect_contains:
+    - "[9007199254740991, -9007199254740991]"
+  expect_round_trip: true
+
+- name: test_decompile_express_integral_double_round_trips
+  description: An integral double such as 3.0 may be written `3` or `3.0`; both recompile to the same value, so the case pins only the prefix the two spellings share. A decompiler that wrote `3e0` or threw for the value would fail the round trip.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Gauge"
+            value: 3.0
+  expect_contains:
+    - "root = Gauge(3"
   expect_round_trip: true
 
 - name: test_decompile_express_two_surfaces_in_two_catalogs

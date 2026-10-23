@@ -37,10 +37,9 @@ from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressDuplicateParamError,
     ExpressDuplicatePropertyError,
-    ExpressForbiddenDatabindingError,
     ExpressInvalidParamError,
+    ExpressParseError,
     ExpressParser,
-    ExpressPromptGenerator,
     ExpressUndefinedRootError,
     ExpressUnknownPropertyError,
 )
@@ -240,6 +239,86 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         with self.assertRaises(ExpressUndefinedRootError) as ctx:
             compiler.compile('some_var = Text("Hello")')
         self.assertEqual(ctx.exception.root_target, "root")
+
+    def test_line_wrapped_identifiers_and_strings(self):
+        """Verifies stray newlines inside identifiers, paths, and single-line strings are repaired."""
+        compiler = ExpressCompiler([self.catalog])
+        dsl = (
+            'surface("main")\n'
+            '$/\nform/phone = "555-0100"\n'
+            "root = Column([\n"
+            "  card2\nRating\n"
+            '], justify="start\n")\n'
+            "card2\nRating = Card(lights\nCheckbox)\n"
+            "lightsCheckbox = Text($/\nform/phone)\n"
+        )
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(comps["root"]["justify"], "start")
+        self.assertEqual(comps["root"]["children"], ["card2Rating"])
+        self.assertEqual(comps["card2Rating"]["child"], "lightsCheckbox")
+        self.assertEqual(comps["lightsCheckbox"]["text"], {"@path": "/form/phone"})
+
+    def test_sql_comments_and_positional_numeric_skip(self):
+        """Verifies `--` comments and positional numeric argument skipping non-numeric properties."""
+        compiler = ExpressCompiler([self.catalog])
+        dsl = '-- SQL comment\nroot = Column([t], 2)\nt = Text("Hello")'
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(comps["root"]["children"], ["t"])
+        self.assertEqual(comps["root"]["weight"], 2)
+
+    def test_enum_property_with_function_call_not_rejected_by_enum_check(self):
+        """Verifies that an enum property passed a function call is not rejected as an invalid enum choice."""
+        compiler = ExpressCompiler([self.catalog])
+        dsl = 'root = Column([t], justify=formatString("start"))\nt = Text("Hello")'
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(
+            comps["root"]["justify"],
+            {"@call": "formatString", "args": {"value": "start"}},
+        )
+
+    def test_number_literal_forms(self):
+        """Verifies the number literal grammar reads like JSON, with exact Python ints."""
+        compiler = ExpressCompiler([self.catalog])
+        cases = [
+            (".5", 0.5),
+            ("-.25", -0.25),
+            ("1.", 1.0),
+            ("+3", 3),
+            ("1e2", 100.0),
+            ("1E-2", 0.01),
+            ("2.5e-7", 2.5e-7),
+            ("9007199254740991", 9007199254740991),
+            ("18446744073709551616", 18446744073709551616),
+            ("-0", 0),
+        ]
+        for literal, expected in cases:
+            with self.subTest(literal=literal):
+                dsl = f'root = Column([t], weight={literal})\nt = Text("Hi")'
+                messages = to_message_dicts(compiler.compile(dsl))
+                comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+                weight = comps["root"]["weight"]
+                self.assertEqual(weight, expected)
+                self.assertIs(type(weight), type(expected))
+
+    def test_number_literal_parse_errors(self):
+        """Verifies out-of-range and malformed number literals are parse errors."""
+        compiler = ExpressCompiler([self.catalog])
+        for literal in ["1e999", "-1e999", "1e"]:
+            with self.subTest(literal=literal):
+                dsl = f'root = Column([t], weight={literal})\nt = Text("Hi")'
+                with self.assertRaises(ExpressParseError):
+                    compiler.compile(dsl)
+        # A bare `.` matches no token at all, which the compiler reports the
+        # way it reports every lexer error (ExpressParser maps both to
+        # A2uiParseError).
+        with self.assertRaises(SyntaxError):
+            compiler.compile('root = Column([t], weight=.)\nt = Text("Hi")')
 
 
 if __name__ == "__main__":

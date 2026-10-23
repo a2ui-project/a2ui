@@ -99,9 +99,28 @@ class SurfaceComponentsModel:
 
     def add_component(self, component: ComponentModel) -> None:
         """Adds a new component model to the surface, emitting on_created."""
+        self.insert_component(len(self._components), component)
+
+    def insert_component(self, index: int, component: ComponentModel) -> None:
+        """Adds a new component model at a position, emitting on_created.
+
+        Like `add_component`, but the component takes `index` in the model's
+        order (see `keys`), and the components from that position on move one
+        place later. An index at or past the end appends. The order matters to
+        checks that read it, such as `allowedParents`, which takes a
+        component's last parent in that order. Inserting before the end costs
+        time in proportion to the number of components.
+        """
         if component.id in self._components:
             raise A2uiStateError(f"Component with id '{component.id}' already exists.")
-        self._components[component.id] = component
+        if index >= len(self._components):
+            self._components[component.id] = component
+        else:
+            # Rebuilt in place, so that views of the model stay valid.
+            entries = list(self._components.items())
+            entries.insert(max(index, 0), (component.id, component))
+            self._components.clear()
+            self._components.update(entries)
         self._changes += 1
         component.on_updated.subscribe(self._note_change)
         self.on_created.emit(component)
