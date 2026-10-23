@@ -72,7 +72,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
    * use. The protocol schemas live here rather than in the catalog instructions, so output
    * that combines several catalogs' instructions holds them once.
    */
-  generateBaseRules(): string {
+  override generateBaseRules(): string {
     const targets = this.catalogs;
     if (targets.length === 0) {
       throw new A2uiCatalogError('The schema prompt needs at least one catalog.');
@@ -120,7 +120,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
   }
 
   /** A schema block holding one catalog's serialized JSON document (`catalog.toJson()`). */
-  protected renderCatalogInstructions(catalog: CatalogApi): string {
+  protected override renderCatalogInstructions(catalog: CatalogApi): string {
     return schemaBlock([`### Catalog Schema:\n${JSON.stringify(catalog.toJson())}`]);
   }
 
