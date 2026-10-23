@@ -65,7 +65,7 @@ import {
   validateEmail,
 } from '../../../common/basic_functions.js';
 
-export {isSafeRegex, type SafeRegexOptions} from './safe_regex.js';
+export {isSafeRegex, type SafeRegexOptions} from '../../../common/safe_regex.js';
 export * from './legacy_functions_api.js';
 
 // Legacy arithmetic, comparison, and string functions. See

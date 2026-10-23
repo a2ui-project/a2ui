@@ -27,9 +27,9 @@ import {createFunctionImplementation, FunctionImplementation} from '../catalog/t
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {isAtLeastVersion} from './semver.js';
-import {isSafeRegex} from '../v0_9/basic_catalog/functions/safe_regex.js';
+import {isSafeRegex} from './safe_regex.js';
 
-export {isSafeRegex, type SafeRegexOptions} from '../v0_9/basic_catalog/functions/safe_regex.js';
+export {isSafeRegex, type SafeRegexOptions} from './safe_regex.js';
 
 /**
  * Default BCP 47 locale used when a catalog is built without an explicit one.
