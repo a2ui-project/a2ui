@@ -198,7 +198,7 @@ class CatalogAnalyzer {
           isRequired: isRequired,
         );
       }
-      if (defName == 'ComponentId') {
+      if (defName == 'ComponentId' || defName == 'Child') {
         return PropertyDescriptor(
           name: propName,
           type: const ComponentRefType(),
@@ -429,7 +429,7 @@ class CatalogAnalyzer {
           '';
       final String itemDef = itemRef.isNotEmpty ? itemRef.split('/').last : '';
 
-      if (itemDef == 'ComponentId') {
+      if (itemDef == 'ComponentId' || itemDef == 'Child') {
         return PropertyDescriptor(
           name: propName,
           type: const ComponentListType(),

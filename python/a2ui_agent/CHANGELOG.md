@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Introduce typesafe fluent builder package for A2UI Protocol v1.0 (`a2ui.builder.v1_0`),
+  providing builder models for v1.0 common types (`DataBinding` with `@path`,
+  `FunctionCall` with `@call`, `Action`, `AccessibilityAttributes`, `CheckRule`, and
+  `DynamicChildList`) and basic catalog components (`Button` with child slot,
+  `TextField` with `placeholder`, `Slider` with `steps`, and `Video` with `posterUrl`) (#2897).
 - Package dependency updated to require `a2ui-core>=0.4.1,<0.5.0`.
 - The response parsers for Direct JSON, Express, Elemental and Atom remove the
   backticks left at the edges of a block when a model writes the tags as inline
