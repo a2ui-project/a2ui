@@ -28,6 +28,7 @@ from a2ui.inference_formats.decision import (
     CatalogDecisionGraph,
     LayoutPlanner,
     PatternExpander,
+    MergedPatternLibrary,
     PatternLibrary,
     SlotBinding,
     SynthesisConfig,
@@ -115,7 +116,7 @@ def _run_eligibility_case(case: Mapping[str, Any]) -> None:
         if args["catalog"] == "basic_v1"
         else _two_component_catalog()
     )
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
     pointers = inspect_payload_pointers(
         case["input"], mutable_paths=args.get("mutable_paths", ())
     )
@@ -131,7 +132,7 @@ def _run_plan_case(case: Mapping[str, Any]) -> None:
     args = case["args"]
     expect = case["expect"]
     grammar = ArchetypeGrammar.default()
-    lib = PatternLibrary.for_catalogs([BasicCatalog("v1.0")])
+    lib = MergedPatternLibrary.for_catalogs([BasicCatalog("v1.0")])
     planner = LayoutPlanner(grammar, SynthesisConfig(), capabilities=lib)
     pointers = inspect_payload_pointers(
         case["input"], mutable_paths=args.get("mutable_paths", ())
@@ -164,7 +165,7 @@ def _run_expand_block_case(case: Mapping[str, Any]) -> None:
     args = case["args"]
     cat = BasicCatalog("v1.0")
     expander = PatternExpander(
-        PatternLibrary.for_catalogs([cat]), CatalogDecisionGraph([cat])
+        MergedPatternLibrary.for_catalogs([cat]), CatalogDecisionGraph([cat])
     )
     slots = {
         slot_name: _slot_from_spec(slot_spec)

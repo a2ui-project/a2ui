@@ -56,6 +56,7 @@ from a2ui.inference_formats.decision.models import (
     PatternCapabilities,
     PlannedBlock,
     PlanOutcome,
+    PlanReason,
     SlotBinding,
 )
 import pytest
@@ -570,7 +571,12 @@ def test_individual_rule_functions_transform_plans() -> None:
     assert p6.page.mark == SlotBinding(pointer="/logoUrl")
 
     p7 = apply_leading_all_or_none(p6, state)
-    p8 = apply_actions_gate(p7, state, SynthesisConfig())
+    p8 = apply_actions_gate(
+        p7,
+        state,
+        grammar.threshold("actionGateFloor"),
+        grammar.threshold("actionGateCap"),
+    )
     p9 = apply_one_primary_action(p8, state)
     p10 = apply_urgency_terse(p9, state, caps)
     assert all(b.block_id != "prose" for b in p10.blocks)
@@ -819,3 +825,43 @@ def test_leading_all_or_none_degrades_sparse_collection_pictures() -> None:
     assert len(steps_slot.items) == 2
     assert steps_slot.items[0]["title"].pointer == "/steps/0/title"
     assert steps_slot.items[1]["title"].pointer == "/steps/1/title"
+
+
+def test_threshold_overrides_take_precedence_over_grammar_thresholds() -> None:
+    """`SynthesisConfig.threshold_overrides` wins per key; other keys stay on the grammar."""
+    grammar = ArchetypeGrammar.default()
+    planner = LayoutPlanner(
+        grammar, SynthesisConfig(threshold_overrides={"optional": 0.9})
+    )
+    assert planner.threshold("optional") == pytest.approx(0.9)
+    assert planner.threshold("expected") == pytest.approx(grammar.threshold("expected"))
+    assert planner.threshold("actionGateCap") == pytest.approx(
+        grammar.threshold("actionGateCap")
+    )
+    with pytest.raises(KeyError):
+        planner.threshold("not_a_threshold")
+
+    # Raising `optional` to 0.9 drops the 0.85 collection gate that passed at 0.75.
+    scripted: dict[str, ScriptedValue] = {
+        "family": ("inspect", 0.80),
+        "stakes": 0.2,
+        "urgency": 0.1,
+        "archetype:inspect": ("detail", 0.85),
+        "gate:headline": 0.80,
+        "gate:prose": 0.90,
+        "gate:collection": 0.85,
+        "salience:/rating": 2.4,
+        "salience:/priceFrom": 2.6,
+    }
+    _, _, _, default_outcome, _ = _run_fixture(RESORT, scripted)
+    assert default_outcome.plan is not None
+    assert "collection" in default_outcome.plan.block_ids()
+    _, _, _, strict_outcome, _ = _run_fixture(
+        RESORT,
+        scripted,
+        config=SynthesisConfig(threshold_overrides={"optional": 0.9}),
+    )
+    assert strict_outcome.plan is not None
+    assert "collection" not in strict_outcome.plan.block_ids()
+    assert strict_outcome.reason is PlanReason.PLANNED
+    assert strict_outcome.reason == "planned"

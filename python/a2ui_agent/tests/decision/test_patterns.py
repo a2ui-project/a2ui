@@ -35,6 +35,7 @@ from a2ui.inference_formats.decision.models import (
 )
 from a2ui.inference_formats.decision.patterns import (
     MergedPatternLibrary,
+    ResolvedPattern,
     PatternError,
     PatternExpander,
     PatternLibrary,
@@ -140,22 +141,22 @@ def test_pattern_library_rejects_non_mapping_json() -> None:
 
 
 def test_for_catalogs_matches_v1_0_and_v0_9_basic_catalogs() -> None:
-    lib_v10 = PatternLibrary.for_catalogs([BasicCatalog("v1.0")])
-    lib_v09 = PatternLibrary.for_catalogs([BasicCatalog("v0.9")])
+    lib_v10 = MergedPatternLibrary.for_catalogs([BasicCatalog("v1.0")])
+    lib_v09 = MergedPatternLibrary.for_catalogs([BasicCatalog("v0.9")])
 
     for lib in (lib_v10, lib_v09):
-        assert lib.has("page")
-        assert lib.has("headline")
-        assert lib.has("collection", "rows")
-        assert lib.has("collection", "cards")
-        assert lib.has("collection", "reel")
-        assert lib.has_pattern("collection.cards")
+        assert lib.has_pattern("page")
+        assert lib.has_pattern("headline")
+        assert lib.has_pattern("collection", "rows")
+        assert lib.has_pattern("collection", "cards")
+        assert lib.has_pattern("collection", "reel")
+        assert lib.has_pattern("collection:cards")
         assert lib.has_pattern("collection:reel")
-        assert not lib.has("collection", "grid")
-        assert not lib.has_pattern("collection.grid")
-        assert not lib.has("chart")
-        assert not lib.has("timeline")
-        assert not lib.has("map")
+        assert not lib.has_pattern("collection", "grid")
+        assert not lib.has_pattern("collection:grid")
+        assert not lib.has_pattern("chart")
+        assert not lib.has_pattern("timeline")
+        assert not lib.has_pattern("map")
 
 
 # --- 4. Multi-Catalog Merge & Primary Catalog Precedence ---
@@ -192,8 +193,8 @@ def test_multi_catalog_merge_and_primary_precedence() -> None:
     domain_lib = PatternLibrary.from_json(domain_raw)
 
     merged_domain_first = MergedPatternLibrary([domain_lib, basic_lib])
-    assert merged_domain_first.has("chart")
-    assert merged_domain_first.has("facts")
+    assert merged_domain_first.has_pattern("chart")
+    assert merged_domain_first.has_pattern("facts")
     assert (
         merged_domain_first.owner_catalog_id("headline")
         == "https://example.com/catalogs/domain/v1/catalog.json"
@@ -203,7 +204,7 @@ def test_multi_catalog_merge_and_primary_precedence() -> None:
     assert headline_pat.variants[0].root == "domain_headline"
 
     merged_basic_first = MergedPatternLibrary([basic_lib, domain_lib])
-    assert merged_basic_first.has("chart")
+    assert merged_basic_first.has_pattern("chart")
     assert merged_basic_first.owner_catalog_id("headline") == basic_lib.catalog_id
     basic_headline = merged_basic_first.get("headline")
     assert basic_headline is not None
@@ -215,7 +216,7 @@ def test_multi_catalog_merge_and_primary_precedence() -> None:
 
 def test_eligibility_on_four_layout_fixtures_against_basic_v1() -> None:
     grammar = ArchetypeGrammar.default()
-    lib = PatternLibrary.for_catalogs([BasicCatalog("v1.0")])
+    lib = MergedPatternLibrary.for_catalogs([BasicCatalog("v1.0")])
 
     resort_ptrs = inspect_payload_pointers(
         RESORT.payload, mutable_paths=RESORT.mutable_paths
@@ -247,7 +248,7 @@ def test_eligibility_on_four_layout_fixtures_against_basic_v1() -> None:
 def test_eligibility_two_component_domain_catalog_has_zero_archetypes() -> None:
     grammar = ArchetypeGrammar.default()
     domain_cat = _two_component_domain_catalog()
-    lib = PatternLibrary.for_catalogs([domain_cat])
+    lib = MergedPatternLibrary.for_catalogs([domain_cat])
 
     for fixture in (RESORT, HOST, TRANSFER, SETTINGS):
         ptrs = inspect_payload_pointers(
@@ -262,7 +263,7 @@ def test_eligibility_two_component_domain_catalog_has_zero_archetypes() -> None:
 @pytest.mark.parametrize("version", ["1.0", "0.9"])
 def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
     catalog = BasicCatalog(f"v{version}")
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
     graph = CatalogDecisionGraph([catalog])
     expander = PatternExpander(lib, graph)
 
@@ -386,7 +387,7 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
                 )
             }
         ),
-        instances={"prominent:0": "true"},
+        instances={"0": {"prominent": "true"}},
     )
     validate_payload([catalog], _wrap_surface(facts_comps, version=version))
 
@@ -447,7 +448,7 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
                 )
             }
         ),
-        instances={"recommended:1": "true"},
+        instances={"1": {"recommended": "true"}},
     )
     validate_payload([catalog], _wrap_surface(comp_comps, version=version))
 
@@ -566,7 +567,7 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
             }
         ),
         knobs={"order": "primaryLast"},
-        instances={"primary:0": "true"},
+        instances={"0": {"primary": "true"}},
     )
     validate_payload([catalog], _wrap_surface(actions_comps, version=version))
 
@@ -649,7 +650,7 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
 
 def test_unbound_optional_slots_omitted_from_components_and_children() -> None:
     catalog = BasicCatalog("v1.0")
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
     graph = CatalogDecisionGraph([catalog])
     expander = PatternExpander(lib, graph)
 
@@ -697,9 +698,9 @@ def test_unbound_optional_slots_omitted_from_components_and_children() -> None:
 
 def test_actions_button_ordering_primary_last_and_primary_first() -> None:
     catalog = BasicCatalog("v1.0")
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
     graph = CatalogDecisionGraph([catalog])
-    expander = PatternExpander(lib, graph, is_v10=True)
+    expander = PatternExpander(lib, graph, protocol_version="1.0")
 
     bindings = BlockBindings(
         slots={
@@ -713,7 +714,6 @@ def test_actions_button_ordering_primary_last_and_primary_first() -> None:
     )
 
     for instances_arg in (
-        {"primary": "Send"},
         {"Send": {"primary": "true"}},
         {"0": {"primary": "true"}},
     ):
@@ -754,7 +754,7 @@ def test_actions_button_ordering_primary_last_and_primary_first() -> None:
 
 def test_v09_repeat_template_child_list_and_bindings() -> None:
     catalog = BasicCatalog("v0.9")
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
     graph = CatalogDecisionGraph([catalog])
     expander = PatternExpander(lib, graph)
 
@@ -795,7 +795,7 @@ def test_v09_repeat_template_child_list_and_bindings() -> None:
 
 def test_markdown_heading_escapes_hash_and_newlines_and_emits_format_string() -> None:
     catalog = BasicCatalog("v1.0")
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
     graph = CatalogDecisionGraph([catalog])
     expander = PatternExpander(lib, graph)
 
@@ -827,13 +827,13 @@ def test_markdown_heading_escapes_hash_and_newlines_and_emits_format_string() ->
 def test_fallback_chain_walking_for_timeline_and_map() -> None:
     grammar = ArchetypeGrammar.default()
     catalog = BasicCatalog("v1.0")
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
     graph = CatalogDecisionGraph([catalog])
     expander = PatternExpander(lib, graph)
 
     timeline_block = grammar.block("timeline")
     assert timeline_block is not None
-    assert resolve_fallback_pattern(timeline_block, lib) == ("steps", {})
+    assert resolve_fallback_pattern(timeline_block, lib) == ResolvedPattern("steps")
 
     timeline_comps = expander.expand_block(
         "timeline",
@@ -855,7 +855,7 @@ def test_fallback_chain_walking_for_timeline_and_map() -> None:
 
     map_block = grammar.block("map")
     assert map_block is not None
-    assert resolve_fallback_pattern(map_block, lib) == ("facts", {})
+    assert resolve_fallback_pattern(map_block, lib) == ResolvedPattern("facts")
 
     map_comps = expander.expand_block(
         "map",
@@ -871,7 +871,7 @@ def test_fallback_chain_walking_for_timeline_and_map() -> None:
 
     chart_block = grammar.block("chart")
     assert chart_block is not None
-    assert resolve_fallback_pattern(chart_block, lib) == ("headline", {})
+    assert resolve_fallback_pattern(chart_block, lib) == ResolvedPattern("headline")
 
     chart_comps = expander.expand_block(
         "chart",
@@ -897,9 +897,8 @@ def test_fallback_chain_walking_for_timeline_and_map() -> None:
     lib_without_cmp = PatternLibrary.from_json(raw_without_cmp)
     cmp_block = grammar.block("comparison")
     assert cmp_block is not None
-    assert resolve_fallback_pattern(cmp_block, lib_without_cmp) == (
-        "collection",
-        {"layout": "cards"},
+    assert resolve_fallback_pattern(cmp_block, lib_without_cmp) == ResolvedPattern(
+        "collection", {"layout": "cards"}
     )
     exp_without_cmp = PatternExpander(lib_without_cmp, graph)
     fb_cmp_comps = exp_without_cmp.expand_block(
@@ -927,11 +926,11 @@ def test_fallback_chain_walking_for_timeline_and_map() -> None:
 def test_by_type_honors_slot_binding_semantic_type_and_fallback_remaps() -> None:
     """Tests `SlotBinding.semantic_type` dispatch (H2), root pruning (M4), and fallback slot adaptation (M5)."""
     catalog = BasicCatalog("v1.0")
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
     graph = CatalogDecisionGraph([catalog])
     expander = PatternExpander(lib, graph)
 
-    # H2: /stream/resource has no audio/video substring in the path, but carries semantic_type="audio"
+    # H2: /stream/resource has no audio/video substring in the path, but carries semantic_type="audio_url"
     media_comps = expander.expand_block(
         "player",
         "media",
@@ -939,7 +938,7 @@ def test_by_type_honors_slot_binding_semantic_type_and_fallback_remaps() -> None
             slots={
                 "source": SlotBinding(
                     pointer="/stream/resource",
-                    semantic_type="audio",
+                    semantic_type="audio_url",
                 ),
                 "caption": SlotBinding(literal="Episode 42"),
             }
@@ -1018,3 +1017,42 @@ def test_by_type_honors_slot_binding_semantic_type_and_fallback_remaps() -> None
     for comp in pruned_comps:
         if isinstance(comp.get("children"), list):
             assert all(cid in defined_ids for cid in comp["children"])
+
+
+def test_pattern_ref_parses_one_separator_and_libraries_reject_dotted_variants() -> (
+    None
+):
+    from a2ui.inference_formats.decision.patterns import PatternRef
+
+    assert PatternRef.parse("collection") == PatternRef("collection")
+    assert PatternRef.parse("collection:grid") == PatternRef("collection", "grid")
+    assert str(PatternRef("collection", "cards")) == "collection:cards"
+    lib = MergedPatternLibrary.for_catalogs([BasicCatalog("v1.0")])
+    assert lib.has_pattern("collection:cards")
+    assert lib.has_pattern("collection", "cards")
+    # The dotted spelling is no longer a variant query; it names an unknown pattern.
+    assert not lib.has_pattern("collection.cards")
+    assert not hasattr(lib, "has")
+
+
+def test_eligible_archetypes_is_pure_and_synthesizer_cache_is_per_instance() -> None:
+    import a2ui.inference_formats.decision.patterns as patterns_module
+    from a2ui.inference_formats.decision import DecisionSynthesizer, DeterministicMockBackend
+    from a2ui.inference_formats.decision.patterns import shape_signature
+
+    assert not hasattr(patterns_module, "_ELIGIBILITY_CACHE")
+    grammar = ArchetypeGrammar.default()
+    catalog = BasicCatalog("v1.0")
+    lib = MergedPatternLibrary.for_catalogs([catalog])
+    ptrs = inspect_payload_pointers(RESORT.payload)
+    first = eligible_archetypes(grammar, lib, ptrs)
+    assert first == eligible_archetypes(grammar, lib, ptrs)
+    assert shape_signature(ptrs) == shape_signature(
+        inspect_payload_pointers(RESORT.payload)
+    )
+
+    synth_a = DecisionSynthesizer([catalog], DeterministicMockBackend())
+    synth_b = DecisionSynthesizer([catalog], DeterministicMockBackend())
+    assert synth_a._eligible_archetypes(ptrs) == first
+    assert synth_a._eligibility_cache is not synth_b._eligibility_cache
+    assert len(synth_b._eligibility_cache) == 0

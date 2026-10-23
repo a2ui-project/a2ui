@@ -27,9 +27,11 @@ from .backends import (
     DeterministicMockBackend,
     JevHttpBackend,
     LocalCrossEncoderBackend,
+    PredictOnlyBackend,
     StepZeroLogprobBackend,
     answer_from_distribution,
     create_decision_backend,
+    ensure_batch_backend,
 )
 from .batching import BatchingDecisionBackend
 from .calibration import (
@@ -41,9 +43,11 @@ from .calibration import (
 from .catalog_graph import CatalogDecisionGraph
 from .decision_block import DecisionBlock, decision_block_from_messages
 from .format import DecisionFormat, DecisionFormatFactory
-from .layout_lint import LintFinding, lint_components
-from .layout_planner import LayoutPlanner
+from .layout_lint import LintCode, LintFinding, LintSeverity, lint_components
+from .layout_planner import LayoutPlanner, PlannerState
 from .models import (
+    BRIEF_ITEM_PATTERN,
+    MAX_BRIEF_SECTIONS,
     BlockBindings,
     BriefSection,
     CalibrationPoint,
@@ -66,7 +70,9 @@ from .models import (
     PatternCapabilities,
     PlannedBlock,
     PlanOutcome,
+    PlanReason,
     QuestionKind,
+    Requirement,
     SemanticType,
     SlotBinding,
     SlotKind,
@@ -81,21 +87,38 @@ from .patterns import (
     PatternError,
     PatternExpander,
     PatternLibrary,
+    PatternRef,
+    ResolvedPattern,
     eligible_archetypes,
+    resolve_fallback_pattern,
+    shape_signature,
 )
 from .payload_inspector import (
     PointerSummary,
     PointerValueType,
     inspect_payload_pointers,
 )
-from .prompt_generator import DECISION_RULES, DecisionPromptGenerator
-from .semantic_types import classify_scalar
+from .prompt_generator import DecisionPromptGenerator, decision_rules
+from .semantic_types import classify_array_field, classify_scalar, humanize_key
 from .synthesizer import DecisionSynthesizer, FallbackCallback
 from .template_registry import SurfaceTemplate, TemplateRegistry
 from .tool import DecisionRenderTool
 
+
+def __getattr__(name: str) -> object:
+    # `DECISION_RULES` renders the bundled grammar's roles into the prompt
+    # contract; resolve it lazily so importing the package stays cheap.
+    if name == "DECISION_RULES":
+        from . import prompt_generator
+
+        return prompt_generator.DECISION_RULES
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
+    "BRIEF_ITEM_PATTERN",
     "DECISION_RULES",
+    "MAX_BRIEF_SECTIONS",
     "ArchetypeGrammar",
     "BatchingDecisionBackend",
     "BlockBindings",
@@ -133,7 +156,9 @@ __all__ = [
     "LayoutBrief",
     "LayoutPlan",
     "LayoutPlanner",
+    "LintCode",
     "LintFinding",
+    "LintSeverity",
     "LocalCrossEncoderBackend",
     "MergedPatternLibrary",
     "PageBindings",
@@ -141,11 +166,17 @@ __all__ = [
     "PatternError",
     "PatternExpander",
     "PatternLibrary",
+    "PatternRef",
     "PlanOutcome",
+    "PlanReason",
     "PlannedBlock",
+    "PlannerState",
     "PointerSummary",
     "PointerValueType",
+    "PredictOnlyBackend",
     "QuestionKind",
+    "Requirement",
+    "ResolvedPattern",
     "SemanticType",
     "SlotBinding",
     "SlotKind",
@@ -158,12 +189,18 @@ __all__ = [
     "TemplateRegistry",
     "answer_from_distribution",
     "calibrate_thresholds",
+    "classify_array_field",
     "classify_scalar",
     "coerce_decision_payload",
     "compute_bayes_optimal_threshold",
     "create_decision_backend",
     "decision_block_from_messages",
+    "decision_rules",
     "eligible_archetypes",
+    "ensure_batch_backend",
+    "humanize_key",
     "inspect_payload_pointers",
     "lint_components",
+    "resolve_fallback_pattern",
+    "shape_signature",
 ]

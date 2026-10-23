@@ -1044,7 +1044,7 @@
           ]
         }
       ],
-      "note": "No grid variant: basic v1 has no intrinsic grid, so grid is never offered for this catalog (requires pattern:collection.grid)."
+      "note": "No grid variant: basic v1 has no intrinsic grid, so grid is never offered for this catalog (requires pattern:collection:grid)."
     },
     "comparison": {
       "slots": [

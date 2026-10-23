@@ -29,11 +29,13 @@ from a2ui.core.schema import AgentToRendererMessage
 
 
 class _WireEnum(str, Enum):
-    """String enum whose `str()` and `format()` yield the wire value.
+    """String enum whose `str()`, `format()`, and `hash()` follow the wire value.
 
     Since Python 3.11, `format()` on a plain `(str, Enum)` member returns
     `ClassName.MEMBER`, which would break f-string keys such as
-    ``f"{query.task}:{query.prompt}"`` that existing backends build.
+    ``f"{query.task}:{query.prompt}"`` that existing backends build. Hashing
+    by the string value lets members stand in for their wire strings in sets
+    and dict keys (``SemanticType.IMAGE_URL in {"image_url"}``).
     """
 
     def __str__(self) -> str:
@@ -41,6 +43,9 @@ class _WireEnum(str, Enum):
 
     def __format__(self, format_spec: str) -> str:
         return str.__format__(str(self), format_spec)
+
+    def __hash__(self) -> int:
+        return str.__hash__(self)
 
 
 class DecisionTask(_WireEnum):
@@ -80,8 +85,8 @@ class SemanticType(_WireEnum):
 
     The archetype grammar's slots name these types in their `from` lists.
     Detection lives in the payload inspector; this enum is the shared
-    vocabulary. Types not yet detected are listed in
-    `DEFERRED_SEMANTIC_TYPES`.
+    vocabulary. Members in `DEFERRED_SEMANTIC_TYPES` are part of the
+    vocabulary but no detector produces them yet.
     """
 
     # Text
@@ -126,26 +131,65 @@ class SemanticType(_WireEnum):
     ARRAY = "array"
     OBJECT = "object"
     EMPTY = "empty"
+    # Place (deferred: no detector yet)
+    ADDRESS = "address"
+    LOCATION = "location"
+    PLACE_NAME = "place_name"
+    COUNTRY = "country"
+    REGION = "region"
+    TIMEZONE = "timezone"
+    LANGUAGE = "language"
+    LOCALE = "locale"
+    DISTANCE = "distance"
+    # Composite objects (deferred: no detector yet)
+    MEDIA_OBJECT = "media_object"
+    MONEY_OBJECT = "money_object"
 
 
-DEFERRED_SEMANTIC_TYPES: tuple[str, ...] = (
-    "address",
-    "location",
-    "place_name",
-    "country",
-    "region",
-    "timezone",
-    "language",
-    "locale",
-    "distance",
-    "media_object",
-    "money_object",
-)
-"""Semantic type names the grammar may reference that no detector produces yet.
+DEFERRED_SEMANTIC_TYPES: frozenset[SemanticType] = frozenset({
+    SemanticType.ADDRESS,
+    SemanticType.LOCATION,
+    SemanticType.PLACE_NAME,
+    SemanticType.COUNTRY,
+    SemanticType.REGION,
+    SemanticType.TIMEZONE,
+    SemanticType.LANGUAGE,
+    SemanticType.LOCALE,
+    SemanticType.DISTANCE,
+    SemanticType.MEDIA_OBJECT,
+    SemanticType.MONEY_OBJECT,
+})
+"""Semantic types the grammar may reference that no detector produces yet.
 
 The Place family and the composite object types are deferred; slots that
 accept only these types never bind until a detector lands.
 """
+
+
+class Requirement(_WireEnum):
+    """How strongly an archetype wants a block, encoded by its mark.
+
+    ``name!`` is `REQUIRED`, ``name`` is `EXPECTED`, ``name?`` is `OPTIONAL`.
+    """
+
+    REQUIRED = "required"
+    EXPECTED = "expected"
+    OPTIONAL = "optional"
+
+
+class PlanReason(_WireEnum):
+    """Why `LayoutPlanner.read` did or did not produce a plan.
+
+    `ACTION_GATE` means the archetype would have rendered but its actions were
+    refused by the confidence gate: the synthesizer must abstain rather than
+    fall through to the flat path.
+    """
+
+    PLANNED = "planned"
+    NO_FAMILY = "no_family"
+    NO_ARCHETYPE = "no_archetype"
+    REQUIRED_BLOCK_MISSING = "required_block_missing"
+    ACTION_GATE = "action_gate"
 
 
 class DecisionWireFormat(_WireEnum):
@@ -464,11 +508,14 @@ class SlotBinding:
     literal: Any = None
     fields: Mapping[str, SlotBinding] = field(default_factory=dict, hash=False)
     items: tuple[Mapping[str, SlotBinding], ...] = ()
-    semantic_type: str | None = field(default=None, compare=False)
+    semantic_type: SemanticType | None = field(default=None, compare=False)
+    """The bound pointer's semantic type, when known; informs `$byType` dispatch."""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "fields", dict(self.fields))
         object.__setattr__(self, "items", tuple(dict(item) for item in self.items))
+        if self.semantic_type is not None:
+            object.__setattr__(self, "semantic_type", SemanticType(self.semantic_type))
 
     @property
     def bound(self) -> bool:
@@ -568,17 +615,6 @@ class LayoutPlan:
         return tuple(block.block_id for block in self.blocks)
 
 
-PlanReason = Literal[
-    "planned", "no_family", "no_archetype", "required_block_missing", "action_gate"
-]
-"""Why `LayoutPlanner.read` did or did not produce a plan.
-
-``"action_gate"`` means the archetype would have rendered but its actions were
-refused by the confidence gate: the synthesizer must abstain rather than fall
-through to the flat path.
-"""
-
-
 @dataclass(frozen=True)
 class PlanOutcome:
     """Result of reading a batch of answers into a `LayoutPlan`."""
@@ -587,7 +623,8 @@ class PlanOutcome:
     reason: PlanReason
 
     def __post_init__(self) -> None:
-        if (self.reason == "planned") != (self.plan is not None):
+        object.__setattr__(self, "reason", PlanReason(self.reason))
+        if (self.reason is PlanReason.PLANNED) != (self.plan is not None):
             raise ValueError(
                 "PlanOutcome.plan must be set exactly when reason is 'planned'."
             )
@@ -604,6 +641,13 @@ class PatternCapabilities(Protocol):
 
 MAX_BRIEF_SECTIONS = 6
 """Most sections a `LayoutBrief` may carry."""
+
+BRIEF_ITEM_PATTERN = r"^[a-z_]+:[A-Za-z0-9_/,.~-]+$"
+"""Regular expression one ``role:key,key`` brief item must match.
+
+Shared with the tool JSON Schema so the model-facing contract and the parser
+agree.
+"""
 
 _BRIEF_ITEM_RE = re.compile(r"^([a-z_]+):([A-Za-z0-9_/,.~-]+)$")
 
@@ -717,11 +761,14 @@ class SynthesisConfig:
     Past it the planner stops adding optional question groups and falls back
     to heuristics for them.
     """
-    action_gate_floor: float = 0.70
-    action_gate_cap: float = 0.95
-    expected_block_threshold: float = 0.50
-    optional_block_threshold: float = 0.75
-    reask_below: float = 0.75
+    threshold_overrides: Mapping[str, float] = field(default_factory=dict, hash=False)
+    """Per-key overrides of `ArchetypeGrammar.thresholds`.
+
+    Keys are the grammar's own names (``family``, ``archetype``, ``expected``,
+    ``optional``, ``instance``, ``reask_below``, ``actionGateFloor``,
+    ``actionGateCap``). The grammar is the single source of truth for the
+    defaults; set a key here to tune one without editing the grammar file.
+    """
     use_archetypes: bool = True
     """When False, synthesis skips the archetype planner and uses the flat path."""
 
@@ -753,24 +800,29 @@ class SynthesisConfig:
         self._validate_archetype_fields()
 
     def _validate_archetype_fields(self) -> None:
-        """Validates the archetype planner thresholds and budget."""
+        """Validates the archetype planner budget and threshold overrides."""
         if self.max_pairs < 1:
             raise ValueError("max_pairs must be >= 1.")
-        _validate_unit_interval("action_gate_floor", self.action_gate_floor)
-        _validate_unit_interval("action_gate_cap", self.action_gate_cap)
-        _validate_unit_interval(
-            "expected_block_threshold", self.expected_block_threshold
-        )
-        _validate_unit_interval(
-            "optional_block_threshold", self.optional_block_threshold
-        )
-        _validate_unit_interval("reask_below", self.reask_below)
-        if self.action_gate_floor > self.action_gate_cap:
-            raise ValueError("action_gate_floor must be <= action_gate_cap.")
-        if self.expected_block_threshold > self.optional_block_threshold:
-            raise ValueError(
-                "expected_block_threshold must be <= optional_block_threshold."
-            )
+        overrides = {str(k): float(v) for k, v in self.threshold_overrides.items()}
+        object.__setattr__(self, "threshold_overrides", overrides)
+        for name, value in overrides.items():
+            _validate_unit_interval(f"threshold_overrides[{name!r}]", value)
+        validate_threshold_relations(overrides, "threshold_overrides")
+
+
+def validate_threshold_relations(thresholds: Mapping[str, float], owner: str) -> None:
+    """Checks ordering constraints between grammar threshold keys that are present.
+
+    Raises:
+        ValueError: If ``actionGateFloor > actionGateCap`` or
+            ``expected > optional`` when both keys of a pair are present.
+    """
+    floor, cap = thresholds.get("actionGateFloor"), thresholds.get("actionGateCap")
+    if floor is not None and cap is not None and floor > cap:
+        raise ValueError(f"{owner}: actionGateFloor must be <= actionGateCap.")
+    expected, optional = thresholds.get("expected"), thresholds.get("optional")
+    if expected is not None and optional is not None and expected > optional:
+        raise ValueError(f"{owner}: expected must be <= optional.")
 
 
 @dataclass(frozen=True)

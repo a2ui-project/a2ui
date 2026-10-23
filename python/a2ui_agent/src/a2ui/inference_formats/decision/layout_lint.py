@@ -19,11 +19,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import re
-from typing import Any, Literal
+from typing import Any
 
 from a2ui.core import A2uiValidationError
 
-from .models import LayoutPlan
+from .models import LayoutPlan, _WireEnum
 
 _HEADING_PREFIX_RE = re.compile(r"^(#{1,6})\s")
 _HEADING_VARIANT_LEVELS: dict[str, int] = {
@@ -42,14 +42,36 @@ _LABEL_PROPERTIES: frozenset[str] = frozenset(
 )
 
 
+class LintCode(_WireEnum):
+    """Structural rule a `LintFinding` reports against."""
+
+    EMPTY_CONTAINER = "empty_container"
+    MISSING_COMPONENT = "missing_component"
+    MULTIPLE_PRIMARY_BUTTONS = "multiple_primary_buttons"
+    DUPLICATE_POINTER_BINDING = "duplicate_pointer_binding"
+    HEADING_AFTER_BODY = "heading_after_body"
+    MULTIPLE_REELS = "multiple_reels"
+
+
+class LintSeverity(_WireEnum):
+    """Whether a `LintFinding` blocks output (`ERROR`) or only advises (`WARNING`)."""
+
+    ERROR = "error"
+    WARNING = "warning"
+
+
 @dataclass(frozen=True)
 class LintFinding:
     """One violation or warning detected by `lint_components`."""
 
-    code: str
+    code: LintCode
     message: str
     component_id: str | None = None
-    severity: Literal["error", "warning"] = "error"
+    severity: LintSeverity = LintSeverity.ERROR
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "code", LintCode(self.code))
+        object.__setattr__(self, "severity", LintSeverity(self.severity))
 
 
 def _unpack_component(
@@ -140,7 +162,7 @@ def _check_containers_and_references(
         if comp_type in _CONTAINER_TYPES and not non_empty:
             findings.append(
                 LintFinding(
-                    code="empty_container",
+                    code=LintCode.EMPTY_CONTAINER,
                     message=f"Container {comp_id!r} ({comp_type}) has zero children.",
                     component_id=comp_id or None,
                 )
@@ -149,7 +171,7 @@ def _check_containers_and_references(
             if ref not in known_ids:
                 findings.append(
                     LintFinding(
-                        code="missing_component",
+                        code=LintCode.MISSING_COMPONENT,
                         message=(
                             f"Component {comp_id!r} references unknown child {ref!r}."
                         ),
@@ -172,7 +194,7 @@ def _check_primary_buttons(
         return []
     return [
         LintFinding(
-            code="multiple_primary_buttons",
+            code=LintCode.MULTIPLE_PRIMARY_BUTTONS,
             message=(
                 f"Button {comp_id!r} is an extra primary button; at most one"
                 f" primary button is allowed (found {primaries})."
@@ -236,7 +258,7 @@ def _check_duplicate_pointers(
             if first_id is not None and first_id != comp_id:
                 findings.append(
                     LintFinding(
-                        code="duplicate_pointer_binding",
+                        code=LintCode.DUPLICATE_POINTER_BINDING,
                         message=(
                             f"Pointer {pointer!r} is bound in both {first_id!r}"
                             f" and {comp_id!r}."
@@ -319,7 +341,7 @@ def _check_heading_order(
         ):
             findings.append(
                 LintFinding(
-                    code="heading_after_body",
+                    code=LintCode.HEADING_AFTER_BODY,
                     message=(
                         f"Heading {comp_id!r} (h{level}) appears after body copy"
                         f" or a deeper heading in block {group!r}."
@@ -351,7 +373,7 @@ def _check_single_reel(
         return []
     return [
         LintFinding(
-            code="multiple_reels",
+            code=LintCode.MULTIPLE_REELS,
             message=(
                 f"Surface has multiple horizontal reels ({reel_ids}); at most"
                 " one reel is allowed."
@@ -373,15 +395,15 @@ def lint_components(
     Args:
         components: Expanded A2UI component dicts (v0.9 or v1.0 wire shape).
         plan: Optional `LayoutPlan` providing block grouping and knob context.
-        raise_on_error: When True, raises `A2uiValidationError` if any error
-            finding is present.
+        raise_on_error: When True, raises `A2uiValidationError` if any finding
+            has `LintSeverity.ERROR`.
 
     Returns:
         A tuple of `LintFinding` objects (empty when clean).
 
     Raises:
         A2uiValidationError: If `raise_on_error` is True and any finding has
-            ``severity == "error"``.
+            `LintSeverity.ERROR`.
     """
     findings: list[LintFinding] = []
     findings.extend(_check_containers_and_references(components))
@@ -390,7 +412,7 @@ def lint_components(
     findings.extend(_check_heading_order(components, plan))
     findings.extend(_check_single_reel(components, plan))
     if raise_on_error:
-        errors = [f for f in findings if f.severity == "error"]
+        errors = [f for f in findings if f.severity is LintSeverity.ERROR]
         if errors:
             summary = "; ".join(f"{f.code}: {f.message}" for f in errors)
             raise A2uiValidationError(f"Layout component lint failed: {summary}")

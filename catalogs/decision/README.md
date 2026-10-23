@@ -67,9 +67,9 @@ pre-filter, a boolean `gate` question, an optional per-pointer `salience` score,
 `anatomy` questions (how the block is drawn), `instance` questions (asked per
 element with the payload value filled into the question text), computed
 `measures`, the `slots` the block binds, and a `fallback` chain of patterns to
-try when the catalog lacks the first. A fallback entry is a pattern name, a
-`pattern:knob` form such as `collection:cards`, or one of the terminals
-`repeat-in-parent`, `first-item`, `prose`, and `facts`.
+try when the catalog lacks the first. A fallback entry is a pattern name or a
+`pattern:variant` form such as `collection:cards`; the same `name:variant`
+spelling is used by `requires` entries such as `pattern:collection:grid`.
 
 `rules` and `lint` are prose. The rules describe behavior the planner applies
 (one primary action, the action gate, pointer-once-per-region, and so on). The

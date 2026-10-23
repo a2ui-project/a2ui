@@ -368,33 +368,32 @@ def test_layout_fixtures_are_the_worked_examples() -> None:
 def test_synthesis_config_defaults_for_archetypes() -> None:
     config = SynthesisConfig()
     assert config.max_pairs == 400
-    assert config.action_gate_floor == pytest.approx(0.70)
-    assert config.action_gate_cap == pytest.approx(0.95)
-    assert config.expected_block_threshold == pytest.approx(0.50)
-    assert config.optional_block_threshold == pytest.approx(0.75)
-    assert config.reask_below == pytest.approx(0.75)
+    assert config.threshold_overrides == {}
     assert config.use_archetypes is True
-    SynthesisConfig(action_gate_floor=0.8, action_gate_cap=0.8)
-    SynthesisConfig(expected_block_threshold=0.6, optional_block_threshold=0.6)
+    tuned = SynthesisConfig(
+        threshold_overrides={"actionGateFloor": 0.8, "actionGateCap": 0.8}
+    )
+    assert tuned.threshold_overrides["actionGateFloor"] == pytest.approx(0.8)
+    SynthesisConfig(threshold_overrides={"expected": 0.6, "optional": 0.6})
 
 
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
         ({"max_pairs": 0}, "max_pairs"),
-        ({"action_gate_floor": -0.1}, "action_gate_floor"),
-        ({"action_gate_cap": 1.1}, "action_gate_cap"),
+        ({"threshold_overrides": {"actionGateFloor": -0.1}}, "actionGateFloor"),
+        ({"threshold_overrides": {"actionGateCap": 1.1}}, "actionGateCap"),
         (
-            {"action_gate_floor": 0.9, "action_gate_cap": 0.8},
-            "action_gate_floor must be <=",
+            {"threshold_overrides": {"actionGateFloor": 0.9, "actionGateCap": 0.8}},
+            "actionGateFloor must be <=",
         ),
-        ({"expected_block_threshold": 1.5}, "expected_block_threshold"),
-        ({"optional_block_threshold": -1.0}, "optional_block_threshold"),
+        ({"threshold_overrides": {"expected": 1.5}}, "expected"),
+        ({"threshold_overrides": {"optional": -1.0}}, "optional"),
         (
-            {"expected_block_threshold": 0.8, "optional_block_threshold": 0.7},
-            "expected_block_threshold must be <=",
+            {"threshold_overrides": {"expected": 0.8, "optional": 0.7}},
+            "expected must be <=",
         ),
-        ({"reask_below": 2.0}, "reask_below"),
+        ({"threshold_overrides": {"reask_below": 2.0}}, "reask_below"),
     ],
 )
 def test_synthesis_config_rejects_bad_archetype_fields(

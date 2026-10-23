@@ -429,7 +429,7 @@ async def test_single_answer_call_per_surface_and_two_with_forced_reask() -> Non
     synth_reask = DecisionSynthesizer(
         [catalog],
         reask_backend,
-        config=SynthesisConfig(reask_below=0.55),
+        config=SynthesisConfig(threshold_overrides={"reask_below": 0.55}),
     )
     out_reask = await synth_reask.synthesize(HOST.intent, HOST.payload)
     assert out_reask.stage == SynthesisStage.ARCHETYPE
@@ -441,7 +441,7 @@ async def test_edge_cases_empty_identifiers_60_pointers_and_bad_answers() -> Non
     """Covers empty/identifier-only payloads, 60-pointer cap, and malformed backend answers."""
     catalog = BasicCatalog("v1.0")
     grammar = ArchetypeGrammar.default()
-    lib = PatternLibrary.for_catalogs([catalog])
+    lib = MergedPatternLibrary.for_catalogs([catalog])
 
     # 1. Empty payload: no eligible archetypes, abstains cleanly.
     sa = ScriptedAnswers(answers=HOST_SCRIPTED)
@@ -565,7 +565,7 @@ async def test_required_block_wins_multi_catalog_markdown_escape_and_brief_warni
 
     # 2. Markdown heading in `$text` when slot value contains `#` or newlines: escaped.
     expander = PatternExpander(
-        PatternLibrary.for_catalogs([catalog]),
+        MergedPatternLibrary.for_catalogs([catalog]),
         CatalogDecisionGraph([catalog]),
     )
     prose_comps = expander.expand_block(
@@ -600,7 +600,7 @@ async def test_required_block_wins_multi_catalog_markdown_escape_and_brief_warni
             },
         },
     })
-    basic_lib = PatternLibrary.for_catalogs([catalog]).libraries[0]
+    basic_lib = MergedPatternLibrary.for_catalogs([catalog]).libraries[0]
     sec_lib = PatternLibrary.from_json({
         "version": "1",
         "catalogIds": [secondary_cat.catalog_id],

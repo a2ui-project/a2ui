@@ -30,21 +30,18 @@ from importlib import resources
 import json
 import re
 import sys
-from typing import Any, Literal
+from typing import Any
 
 from jsonschema import Draft202012Validator
 
 from a2ui.core import A2uiValidationError
 
-from .models import QuestionKind
+from .models import QuestionKind, Requirement, validate_threshold_relations
 
 if sys.version_info >= (3, 11):
     from importlib.resources.abc import Traversable
 else:  # pragma: no cover - Python 3.10 only
     from importlib.abc import Traversable
-
-Requirement = Literal["required", "expected", "optional"]
-"""How strongly an archetype wants a block: ``!``, bare, or ``?`` in its list."""
 
 Range = tuple[int | None, int | None]
 """An inclusive ``(min, max)`` pair where None leaves that end open."""
@@ -73,13 +70,8 @@ ABSTRACT_PATTERNS: tuple[str, ...] = (
 )
 """Abstract pattern names a catalog pattern file may implement."""
 
-FALLBACK_TERMINALS: tuple[str, ...] = (
-    "repeat-in-parent",
-    "first-item",
-    "prose",
-    "facts",
-)
-"""Fallback entries that need no catalog pattern of their own."""
+FALLBACK_TERMINALS: tuple[str, ...] = ("prose", "facts")
+"""Fallback entries every catalog is expected to draw, so a chain may end on them."""
 
 CAPABILITY_FLAGS: tuple[str, ...] = ("actions_allowed",)
 """Planner flags a question's `requires` entry may name."""
@@ -87,7 +79,7 @@ CAPABILITY_FLAGS: tuple[str, ...] = ("actions_allowed",)
 _ASSETS_PACKAGE = "a2ui.inference_formats.decision"
 _PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _PATTERN_KNOB_RE = re.compile(r"^([a-z_]+):([a-z_]+)$")
-_PATTERN_VARIANT_RE = re.compile(r"^pattern:([a-z_]+)\.([a-z_]+)$")
+_PATTERN_VARIANT_RE = re.compile(r"^pattern:([a-z_]+):([a-z_]+)$")
 
 
 class GrammarError(A2uiValidationError):
@@ -175,15 +167,19 @@ class BlockRef:
     def parse(cls, mark: str) -> BlockRef:
         """Parses ``name!`` (required), ``name?`` (optional), or ``name`` (expected)."""
         if mark.endswith("!"):
-            return cls(id=mark[:-1], requirement="required")
+            return cls(id=mark[:-1], requirement=Requirement.REQUIRED)
         if mark.endswith("?"):
-            return cls(id=mark[:-1], requirement="optional")
-        return cls(id=mark, requirement="expected")
+            return cls(id=mark[:-1], requirement=Requirement.OPTIONAL)
+        return cls(id=mark, requirement=Requirement.EXPECTED)
 
     @property
     def mark(self) -> str:
         """The ``name!`` / ``name?`` / ``name`` form."""
-        suffix = {"required": "!", "optional": "?", "expected": ""}[self.requirement]
+        suffix = {
+            Requirement.REQUIRED: "!",
+            Requirement.OPTIONAL: "?",
+            Requirement.EXPECTED: "",
+        }[self.requirement]
         return f"{self.id}{suffix}"
 
 
@@ -212,7 +208,9 @@ class LayoutArchetype:
 
     def required_block_ids(self) -> tuple[str, ...]:
         """Ids of the blocks marked ``!``."""
-        return tuple(ref.id for ref in self.blocks if ref.requirement == "required")
+        return tuple(
+            ref.id for ref in self.blocks if ref.requirement is Requirement.REQUIRED
+        )
 
     @classmethod
     def from_json(cls, raw: Mapping[str, Any]) -> LayoutArchetype:
@@ -480,23 +478,23 @@ def _lint_block_ids_exist(
 
 
 def _is_valid_fallback(entry: str) -> bool:
-    """Whether `entry` is a pattern name, a ``pattern:knob`` form, or a terminal."""
-    if entry in FALLBACK_TERMINALS or entry in ABSTRACT_PATTERNS:
+    """Whether `entry` is a pattern name or a ``pattern:variant`` form."""
+    if entry in ABSTRACT_PATTERNS:
         return True
     match = _PATTERN_KNOB_RE.match(entry)
     return match is not None and match.group(1) in ABSTRACT_PATTERNS
 
 
 def _lint_fallbacks(blocks: Mapping[str, BlockSpec]) -> list[str]:
-    """Every fallback entry is a pattern name, a ``pattern:knob`` form, or a terminal."""
+    """Every fallback entry is a pattern name or a ``pattern:variant`` form."""
     findings = [
         f"Block {block.id!r} pattern {block.pattern!r} is not an abstract pattern."
         for block in blocks.values()
         if block.pattern not in ABSTRACT_PATTERNS
     ]
     findings.extend(
-        f"Block {block.id!r} fallback entry {entry!r} is not a pattern name,"
-        " pattern:knob form, or terminal."
+        f"Block {block.id!r} fallback entry {entry!r} is not a pattern name or"
+        " pattern:variant form."
         for block in blocks.values()
         for entry in block.fallback
         if not _is_valid_fallback(entry)
@@ -625,16 +623,21 @@ class ArchetypeGrammar:
         job = _parse_questions(data["job"])
         archetypes = tuple(LayoutArchetype.from_json(a) for a in data["archetypes"])
         blocks = tuple(BlockSpec.from_json(b) for b in data["blocks"])
+        thresholds = {k: float(v) for k, v in data["thresholds"].items()}
         findings = lint_grammar(
             archetypes, blocks, families=tuple(job["family"].options)
         )
+        try:
+            validate_threshold_relations(thresholds, "thresholds")
+        except ValueError as exc:
+            findings.append(str(exc))
         if findings:
             raise GrammarError(
                 "Archetype grammar failed lint:\n  " + "\n  ".join(findings)
             )
         return cls(
             version=str(data["version"]),
-            thresholds={k: float(v) for k, v in data["thresholds"].items()},
+            thresholds=thresholds,
             job=job,
             archetypes=archetypes,
             blocks={b.id: b for b in blocks},

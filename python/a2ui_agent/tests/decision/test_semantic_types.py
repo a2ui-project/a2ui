@@ -21,7 +21,10 @@ from typing import Any
 
 import pytest
 
-from a2ui.inference_formats.decision.models import SemanticType
+from a2ui.inference_formats.decision.models import (
+    DEFERRED_SEMANTIC_TYPES,
+    SemanticType,
+)
 from a2ui.inference_formats.decision.payload_inspector import (
     inspect_payload_pointers,
 )
@@ -211,7 +214,7 @@ NEGATIVE_CASES: tuple[tuple[SemanticType, Any, str, Mapping[str, Any] | None], .
 
 
 class TestSemanticTypesCoverage:
-    """Verifies coverage across all 36 `SemanticType` values."""
+    """Verifies coverage across every detected `SemanticType` value."""
 
     def test_every_semantic_type_has_at_least_two_positive_and_one_negative_case(
         self,
@@ -221,8 +224,9 @@ class TestSemanticTypesCoverage:
             pos_counts[sem_type] = pos_counts.get(sem_type, 0) + 1
 
         neg_types = {sem_type for sem_type, _, _, _ in NEGATIVE_CASES}
-        assert set(pos_counts) == set(SemanticType)
-        for member in SemanticType:
+        detected = set(SemanticType) - DEFERRED_SEMANTIC_TYPES
+        assert set(pos_counts) == detected
+        for member in detected:
             assert pos_counts[member] >= 2, f"fewer than 2 positive cases for {member}"
             assert member in neg_types, f"missing negative case for {member}"
 

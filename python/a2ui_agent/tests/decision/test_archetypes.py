@@ -226,14 +226,14 @@ def test_block_questions_slots_and_fallbacks_are_parsed() -> None:
     layout = collection.anatomy["layout"]
     assert layout.kind is QuestionKind.CHOICE
     assert tuple(layout.options) == ("rows", "cards", "grid", "reel")
-    assert layout.requires["grid"] == ("picture", "pattern:collection.grid")
+    assert layout.requires["grid"] == ("picture", "pattern:collection:grid")
     assert collection.instance["badge_tone"].applies_when == {"badge": "bound"}
     assert collection.instance["badge_tone"].placeholders() == ("badge",)
     items = collection.slots["items"]
     assert items.repeat and items.required
     assert items.fields["headline"].prefer == ("name", "title", "label")
     assert items.fields["meta"].max == 2
-    assert collection.fallback == ("collection", "repeat-in-parent", "first-item")
+    assert collection.fallback == ("collection",)
     assert dict(collection.questions())["anatomy.layout"] is layout
 
     headline = grammar.block("headline")
@@ -384,7 +384,7 @@ def test_lint_requires_entries(entry: str) -> None:
         "value",
         "rows",
         "actions_allowed",
-        "pattern:collection.grid",
+        "pattern:collection:grid",
         "loose",
         "density:loose",
     ],
@@ -449,4 +449,32 @@ def test_lint_rejects_unknown_archetype_family() -> None:
     with pytest.raises(
         GrammarError, match="Archetype 'detail' references unknown family 'orient'"
     ):
+        ArchetypeGrammar.from_json(raw)
+
+
+def test_grammar_threshold_relations_are_linted() -> None:
+    raw = _minimal_grammar()
+    raw["thresholds"]["actionGateFloor"] = 0.96
+    with pytest.raises(GrammarError, match="actionGateFloor must be <= actionGateCap"):
+        ArchetypeGrammar.from_json(raw)
+    raw = _minimal_grammar()
+    raw["thresholds"]["expected"] = 0.8
+    with pytest.raises(GrammarError, match="expected must be <= optional"):
+        ArchetypeGrammar.from_json(raw)
+
+
+def test_requirement_and_block_marks_are_enums_that_compare_to_wire_strings() -> None:
+    from a2ui.inference_formats.decision.models import Requirement
+
+    ref = BlockRef.parse("prose!")
+    assert ref.requirement is Requirement.REQUIRED
+    assert ref.requirement == "required"
+    assert ref.mark == "prose!"
+    assert {ref.requirement} == {"required"}
+
+
+def test_lint_rejects_retired_fallback_keywords() -> None:
+    raw = _minimal_grammar()
+    raw["blocks"][1]["fallback"] = ["facts", "repeat-in-parent"]
+    with pytest.raises(GrammarError, match="fallback entry 'repeat-in-parent'"):
         ArchetypeGrammar.from_json(raw)

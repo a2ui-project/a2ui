@@ -48,14 +48,16 @@ from .models import (
     PatternCapabilities,
     PlannedBlock,
     PlanOutcome,
+    PlanReason,
     QuestionKind,
+    SemanticType,
     SlotBinding,
     SynthesisConfig,
 )
 from .payload_inspector import PointerSummary, split_pointer
 
 _CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
-_PATTERN_VARIANT_REQ_RE = re.compile(r"^pattern:([a-z_]+)\.([a-z_]+)$")
+_PATTERN_VARIANT_REQ_RE = re.compile(r"^pattern:([a-z_]+):([a-z_]+)$")
 
 _NUMERIC_SEMANTIC_TYPES: frozenset[str] = frozenset({
     "number",
@@ -212,26 +214,28 @@ def _infer_image_key_hint(low_key: str) -> str | None:
 
 def _infer_fallback_semantics(
     ptr: PointerSummary,
-) -> tuple[str, dict[str, Any]]:
+) -> tuple[SemanticType, dict[str, Any]]:
     """Infers semantic type and hints for a Wave-1 `PointerSummary` with default fields."""
     hints = dict(ptr.hints)
-    if ptr.semantic_type != "string" or ptr.label:
+    if ptr.semantic_type is not SemanticType.STRING or ptr.label:
         return ptr.semantic_type, hints
     if ptr.value_type in {"array", "object", "boolean"}:
-        return ptr.value_type, hints
+        return SemanticType(ptr.value_type), hints
     low = ptr.key.lower()
     img_hint = _infer_image_key_hint(low)
     if img_hint is not None:
         hints.setdefault("keyHint", img_hint)
-        return "image_url", hints
+        return SemanticType.IMAGE_URL, hints
     mapped = _FALLBACK_KEY_TYPES.get(low)
     if mapped is not None:
         hints.setdefault("keyHint", low)
         if mapped == "long_text":
             hints.setdefault("wordCount", 36)
             hints.setdefault("length", "blurb")
-        return mapped, hints
-    return ("number" if ptr.value_type == "number" else "string"), hints
+        return SemanticType(mapped), hints
+    if ptr.value_type == "number":
+        return SemanticType.NUMBER, hints
+    return SemanticType.STRING, hints
 
 
 class _NormalizedPointers(tuple[PointerSummary, ...]):
@@ -242,7 +246,7 @@ def _normalize_single_pointer(ptr: PointerSummary) -> PointerSummary:
     """Populates missing label, semantic type, and array sample fields on `ptr`."""
     if (
         ptr.label
-        and ptr.semantic_type != "string"
+        and ptr.semantic_type is not SemanticType.STRING
         and (
             ptr.value_type != "array"
             or not ptr.element_keys
@@ -252,12 +256,12 @@ def _normalize_single_pointer(ptr: PointerSummary) -> PointerSummary:
         return ptr
     sem_type, hints = _infer_fallback_semantics(ptr)
     label = ptr.label or _humanize_key(ptr.key)
-    elem_sem = dict(ptr.element_semantic_types)
+    elem_sem: dict[str, SemanticType] = dict(ptr.element_semantic_types)
     samples = list(ptr.sample_pointers)
     if ptr.value_type == "array" and ptr.element_keys and not elem_sem:
         for ek in ptr.element_keys:
             is_img = ek.lower() in {"url", "image", "photo", "thumbnail", "avatar"}
-            elem_sem[ek] = "image_url" if is_img else "string"
+            elem_sem[ek] = SemanticType.IMAGE_URL if is_img else SemanticType.STRING
             if is_img and f"{ptr.path}/0/{ek}" not in samples:
                 samples.append(f"{ptr.path}/0/{ek}")
     return replace(
@@ -281,7 +285,7 @@ def _build_parent_object_summary(
         value_type="object",
         cardinality=len(children),
         mutable_hint=any(c.mutable_hint for c in children),
-        semantic_type="object",
+        semantic_type=SemanticType.OBJECT,
         key=parent_key,
         label=_humanize_key(parent_key),
     )
@@ -294,7 +298,7 @@ def _build_sample_pointer_summary(sample: str) -> PointerSummary:
         path=sample,
         value_type="string",
         cardinality=1,
-        semantic_type="image_url",
+        semantic_type=SemanticType.IMAGE_URL,
         key=s_key,
         label=_humanize_key(s_key),
         parent=s_parent,
@@ -676,7 +680,7 @@ def _pick_best_element_key(
     for ek in arr_ptr.element_keys:
         if ek in used_keys:
             continue
-        ek_sem = arr_ptr.element_semantic_types.get(ek, "string")
+        ek_sem = arr_ptr.element_semantic_types.get(ek, SemanticType.STRING)
         fake_ptr = PointerSummary(
             path=ek,
             value_type="string",
@@ -708,7 +712,9 @@ def _bind_array_element_fields(
             used_keys.add(best_key)
             bound_fields[field_name] = SlotBinding(
                 pointer=best_key,
-                semantic_type=arr_ptr.element_semantic_types.get(best_key, "string"),
+                semantic_type=arr_ptr.element_semantic_types.get(
+                    best_key, SemanticType.STRING
+                ),
             )
         elif not arr_ptr.element_keys and field_spec.required:
             bound_fields[field_name] = SlotBinding(pointer="")
@@ -1445,13 +1451,15 @@ def _gate_single_block(
 def apply_actions_gate(
     plan: LayoutPlan,
     state: PlannerState,
-    config: SynthesisConfig | None = None,
+    floor: float,
+    cap: float,
 ) -> LayoutPlan:
-    """Rule `actions-gate`: computes `actions_allowed` and gates interactive blocks."""
-    cfg = config or SynthesisConfig()
-    gate = cfg.action_gate_floor + (cfg.action_gate_cap - cfg.action_gate_floor) * (
-        plan.stakes / 3.0
-    )
+    """Rule `actions-gate`: computes `actions_allowed` and gates interactive blocks.
+
+    The gate is ``floor + (cap - floor) * stakes / 3``; `floor` and `cap` are
+    the grammar's ``actionGateFloor`` and ``actionGateCap`` thresholds.
+    """
+    gate = floor + (cap - floor) * (plan.stakes / 3.0)
     allowed = plan.confidence >= gate
     plan = replace(plan, actions_allowed=allowed)
     if allowed:
@@ -1635,8 +1643,17 @@ class LayoutPlanner:
 
     @property
     def config(self) -> SynthesisConfig:
-        """The `SynthesisConfig` governing thresholds and pair budgets."""
+        """The `SynthesisConfig` governing pair budgets and threshold overrides."""
         return self._config
+
+    def threshold(self, name: str) -> float:
+        """The effective threshold `name`: a `config.threshold_overrides` entry, else the grammar's.
+
+        Raises:
+            KeyError: If neither the overrides nor the grammar define `name`.
+        """
+        override = self._config.threshold_overrides.get(name)
+        return override if override is not None else self._grammar.threshold(name)
 
     def bind_slots(
         self,
@@ -1795,11 +1812,22 @@ class LayoutPlanner:
         self,
         intent: str,
         pointers: Sequence[PointerSummary],
+        *,
         eligible: Sequence[LayoutArchetype] | None = None,
         brief: LayoutBrief | None = None,
         payload: Mapping[str, Any] | None = None,
     ) -> tuple[DecisionBatch, PlannerState]:
-        """Builds a speculative `DecisionBatch` and `PlannerState` for one surface."""
+        """Builds a speculative `DecisionBatch` and `PlannerState` for one surface.
+
+        Args:
+            intent: The author's natural-language intent.
+            pointers: Payload pointer summaries from `inspect_payload_pointers`.
+            eligible: Archetypes to consider; defaults to those whose shape and
+                required blocks the payload satisfies.
+            brief: Optional `LayoutBrief` pinning roles to pointers.
+            payload: The payload itself, used to read action labels and
+                option values; questions degrade to key-derived text without it.
+        """
         norm_pointers = _normalize_pointers(pointers)
         elig = (
             tuple(eligible)
@@ -2335,11 +2363,11 @@ class LayoutPlanner:
         self._validate_and_index_answers(state, answers)
         family = self._read_family(state)
         if family is None:
-            return PlanOutcome(plan=None, reason="no_family")
+            return PlanOutcome(plan=None, reason=PlanReason.NO_FAMILY)
         stakes, urgency = self._read_stakes_and_urgency(state)
         archetype, confidence = self._read_archetype(state, family)
         if archetype is None:
-            return PlanOutcome(plan=None, reason="no_archetype")
+            return PlanOutcome(plan=None, reason=PlanReason.NO_ARCHETYPE)
         state.selected_archetype = archetype
         self._warn_unused_brief_blocks(state, archetype)
         self._read_salience_scores(state)
@@ -2388,7 +2416,7 @@ class LayoutPlanner:
         if fam_q is None or fam_ans is None:
             return state.eligible[0].family if state.eligible else None
         chosen, prob = fam_ans.top()
-        thresh = self._grammar.threshold("family")
+        thresh = self.threshold("family")
         eligible_fams = {a.family for a in state.eligible}
         if chosen == "none" or prob < thresh or chosen not in eligible_fams:
             state.trace.append(
@@ -2434,7 +2462,7 @@ class LayoutPlanner:
             fam_archs = [a for a in state.eligible if a.family == family]
             return (fam_archs[0], 1.0) if fam_archs else (None, 0.0)
         chosen, prob = arch_ans.top()
-        thresh = self._grammar.threshold("archetype")
+        thresh = self.threshold("archetype")
         if chosen == "none" or prob < thresh:
             state.trace.append(
                 DecisionRecord(
@@ -2524,9 +2552,9 @@ class LayoutPlanner:
         )
         state.gate_probabilities[ref.id] = prob
         thresh = (
-            self._config.optional_block_threshold
+            self.threshold("optional")
             if ref.requirement == "optional"
-            else self._config.expected_block_threshold
+            else self.threshold("expected")
         )
         passed = prob >= thresh
         outcome = (
@@ -2589,15 +2617,20 @@ class LayoutPlanner:
         plan = apply_pointer_once_per_region(plan, state, self)
         plan = apply_pictures_need_a_look(plan, state)
         plan = apply_leading_all_or_none(plan, state)
-        plan = apply_actions_gate(plan, state, self._config)
+        plan = apply_actions_gate(
+            plan,
+            state,
+            self.threshold("actionGateFloor"),
+            self.threshold("actionGateCap"),
+        )
         plan = apply_one_primary_action(plan, state)
         plan = apply_urgency_terse(plan, state, self._capabilities)
         plan = apply_no_empty_container(plan, state, self._grammar)
         if state.action_gate_blocked:
-            return PlanOutcome(plan=None, reason="action_gate")
+            return PlanOutcome(plan=None, reason=PlanReason.ACTION_GATE)
         if state.required_block_missing or not plan.blocks:
-            return PlanOutcome(plan=None, reason="required_block_missing")
-        return PlanOutcome(plan=plan, reason="planned")
+            return PlanOutcome(plan=None, reason=PlanReason.REQUIRED_BLOCK_MISSING)
+        return PlanOutcome(plan=plan, reason=PlanReason.PLANNED)
 
     def _resolve_block_questions(
         self,
@@ -2748,7 +2781,7 @@ class LayoutPlanner:
         if spec.id == "actions":
             return self._resolve_actions_instances(bindings, state)
         q_map = {q.id: q for q in state.batch.questions}
-        thresh = self._grammar.threshold("instance")
+        thresh = self.threshold("instance")
         instances: dict[str, dict[str, str]] = {}
         prefix = f"instance:{spec.id}."
         bound_ptrs = set(bindings.pointers())
@@ -2821,7 +2854,7 @@ class LayoutPlanner:
         if buttons is None or not buttons.items:
             return {}
         q_map = {q.id: q for q in state.batch.questions}
-        thresh = self._grammar.threshold("instance")
+        thresh = self.threshold("instance")
         chosen_prim = self._read_primary_action_choice(
             buttons.pointer or "/actions", q_map, state
         )
@@ -2860,7 +2893,7 @@ class LayoutPlanner:
                 if question.kind is QuestionKind.BOOLEAN
                 else ans.top()[1]
             )
-            if win_prob < self._config.reask_below:
+            if win_prob < self.threshold("reask_below"):
                 reask.append(question)
         return tuple(reask)
 

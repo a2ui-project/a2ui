@@ -41,8 +41,8 @@ class PointerSummary:
     element_keys: tuple[str, ...] = ()
     sample_type_by_key: dict[str, str] = field(default_factory=dict, hash=False)
     mutable_hint: bool = False
-    semantic_type: str = "string"
-    """A `SemanticType` value; the payload inspector populates it."""
+    semantic_type: SemanticType = SemanticType.STRING
+    """The payload inspector populates it; plain strings are coerced."""
     hints: Mapping[str, Any] = field(default_factory=dict, hash=False)
     """Detector hints such as `wordCount`, `unit`, `currency`, `min`, `max`."""
     key: str = ""
@@ -51,8 +51,10 @@ class PointerSummary:
     """Humanized key for display."""
     parent: str | None = None
     """The parent pointer (``""`` for top-level keys); derived when None."""
-    element_semantic_types: Mapping[str, str] = field(default_factory=dict, hash=False)
-    """For arrays: element key to its `SemanticType` value."""
+    element_semantic_types: Mapping[str, SemanticType] = field(
+        default_factory=dict, hash=False
+    )
+    """For arrays: element key to its `SemanticType`."""
     sample_pointers: tuple[str, ...] = ()
     """Element-level pointers offered to single-value slots, e.g. ``/photos/0/url``."""
 
@@ -60,8 +62,11 @@ class PointerSummary:
         object.__setattr__(self, "element_keys", tuple(self.element_keys))
         object.__setattr__(self, "sample_type_by_key", dict(self.sample_type_by_key))
         object.__setattr__(self, "hints", dict(self.hints))
+        object.__setattr__(self, "semantic_type", SemanticType(self.semantic_type))
         object.__setattr__(
-            self, "element_semantic_types", dict(self.element_semantic_types)
+            self,
+            "element_semantic_types",
+            {k: SemanticType(v) for k, v in self.element_semantic_types.items()},
         )
         object.__setattr__(self, "sample_pointers", tuple(self.sample_pointers))
         if not self.key or self.parent is None:
@@ -149,9 +154,9 @@ def _compute_element_semantics(
     element_keys: Sequence[str],
     values_by_key: Mapping[str, Sequence[Any]],
     siblings_by_key: Mapping[str, Sequence[Mapping[str, Any]]],
-) -> tuple[dict[str, str], tuple[str, ...]]:
+) -> tuple[dict[str, SemanticType], tuple[str, ...]]:
     """Computes `element_semantic_types` and `sample_pointers` for an array node."""
-    element_semantic_types: dict[str, str] = {}
+    element_semantic_types: dict[str, SemanticType] = {}
     sample_pointers: list[str] = []
     for key in element_keys:
         raw_field = _unescape_pointer_segment(key)
@@ -160,7 +165,7 @@ def _compute_element_semantics(
             raw_field,
             siblings_per_item=siblings_by_key.get(key),
         )
-        element_semantic_types[key] = sem.value
+        element_semantic_types[key] = sem
         if sem == SemanticType.IMAGE_URL:
             sample_pointers.append(f"{path}/0/{key}")
 
@@ -199,7 +204,7 @@ def _summarize_array(
         values_by_key,
         siblings_by_key,
     )
-    sem_type = SemanticType.ARRAY.value if items else SemanticType.EMPTY.value
+    sem_type = SemanticType.ARRAY if items else SemanticType.EMPTY
     return PointerSummary(
         path=path,
         value_type="array",
@@ -222,7 +227,7 @@ def _summarize_mapping_node(
     is_mutable: bool,
 ) -> PointerSummary:
     """Builds a `PointerSummary` for a nested mapping (empty or non-empty)."""
-    sem_type = SemanticType.OBJECT.value if value else SemanticType.EMPTY.value
+    sem_type = SemanticType.OBJECT if value else SemanticType.EMPTY
     return PointerSummary(
         path=path,
         value_type="object",
@@ -265,7 +270,7 @@ def _traverse_mapping(
                     value_type=scalar_type,
                     cardinality=1,
                     mutable_hint=is_mutable,
-                    semantic_type=sem_type.value,
+                    semantic_type=sem_type,
                     hints=hints,
                     key=raw_key_str,
                     label=humanize_key(raw_key_str),

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import collections
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 import concurrent.futures
 from dataclasses import replace
@@ -35,6 +36,7 @@ from .backends import (
     DecisionBackend,
     DeterministicMockBackend,
     create_decision_backend,
+    ensure_batch_backend,
 )
 from .bindings import is_v10 as _is_v10
 from .bindings import make_data_binding as _make_data_binding
@@ -67,6 +69,7 @@ from .patterns import (
     PatternExpander,
     PatternLibrary,
     eligible_archetypes,
+    shape_signature,
 )
 from .payload_inspector import (
     PointerSummary,
@@ -80,6 +83,8 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 # Key under which a top-level JSON array payload is stored in the data model.
 _ARRAY_PAYLOAD_KEY = "items"
+_ELIGIBILITY_CACHE_SIZE = 256
+"""Distinct payload shapes whose archetype eligibility one synthesizer remembers."""
 
 FallbackMessages: TypeAlias = Sequence[AgentToRendererMessage | Mapping[str, Any]]
 """Messages a fallback callback may return: models or wire-format dicts."""
@@ -577,7 +582,7 @@ class DecisionSynthesizer:
             archetypes: Layout archetype grammar. Defaults to
                 `ArchetypeGrammar.default()`.
             patterns: Catalog pattern library. Defaults to
-                `PatternLibrary.for_catalogs(graph.catalogs)`.
+                `MergedPatternLibrary.for_catalogs(graph.catalogs)`.
             fallback_card: When True and the model abstains with no other
                 fallback available, render a deterministic root container
                 bound to the payload instead of returning no messages.
@@ -590,7 +595,9 @@ class DecisionSynthesizer:
             if isinstance(catalogs, CatalogDecisionGraph)
             else CatalogDecisionGraph(catalogs)
         )
-        self.backend = backend if backend is not None else create_decision_backend()
+        self.backend: DecisionBackend = ensure_batch_backend(
+            backend if backend is not None else create_decision_backend()
+        )
         self.registry = registry if registry is not None else TemplateRegistry()
         self.config = config if config is not None else SynthesisConfig()
         self.archetypes = (
@@ -599,7 +606,7 @@ class DecisionSynthesizer:
         self.patterns: PatternLibrary | MergedPatternLibrary = (
             patterns
             if patterns is not None
-            else PatternLibrary.for_catalogs(self.graph.catalogs)
+            else MergedPatternLibrary.for_catalogs(self.graph.catalogs)
         )
         self.planner = LayoutPlanner(
             self.archetypes, self.config, capabilities=self.patterns
@@ -609,6 +616,9 @@ class DecisionSynthesizer:
         )
         self._fallback_card = fallback_card
         self._fallback_fn = fallback_fn
+        self._eligibility_cache: collections.OrderedDict[
+            tuple[Any, ...], tuple[LayoutArchetype, ...]
+        ] = collections.OrderedDict()
 
     @classmethod
     def from_env(
@@ -769,11 +779,7 @@ class DecisionSynthesizer:
             try:
                 return await self.synthesize(intent, payload, **kwargs)
             finally:
-                close_fn = getattr(
-                    self.backend, "aclose_current_loop", None
-                ) or getattr(self.backend, "aclose", None)
-                if callable(close_fn):
-                    await close_fn()
+                await self.backend.aclose_current_loop()
 
         def run_in_new_loop() -> SynthesisOutput:
             return asyncio.run(_run())
@@ -1149,6 +1155,21 @@ class DecisionSynthesizer:
             trace=tuple(trace),
         )
 
+    def _eligible_archetypes(
+        self, pointers: Sequence[PointerSummary]
+    ) -> tuple[LayoutArchetype, ...]:
+        """Memoizes `eligible_archetypes` per payload shape on this synthesizer."""
+        key = shape_signature(pointers)
+        cached = self._eligibility_cache.get(key)
+        if cached is not None:
+            self._eligibility_cache.move_to_end(key)
+            return cached
+        result = eligible_archetypes(self.archetypes, self.patterns, pointers)
+        self._eligibility_cache[key] = result
+        while len(self._eligibility_cache) > _ELIGIBILITY_CACHE_SIZE:
+            self._eligibility_cache.popitem(last=False)
+        return result
+
     async def _synthesize_with_archetypes(
         self,
         intent: str,
@@ -1160,7 +1181,7 @@ class DecisionSynthesizer:
         config: SynthesisConfig,
     ) -> tuple[SynthesisOutput | None, tuple[DecisionRecord, ...]]:
         """Attempts archetype-planned synthesis, returning `(output, trace)`."""
-        eligible = eligible_archetypes(self.archetypes, self.patterns, pointers)
+        eligible = self._eligible_archetypes(pointers)
         if not eligible:
             trace: list[DecisionRecord] = []
             _record_trace_reason(
@@ -1195,7 +1216,7 @@ class DecisionSynthesizer:
                 )
             if outcome.reason != "planned" or outcome.plan is None:
                 _record_trace_reason(
-                    trace, outcome.reason, "Archetype planning outcome"
+                    trace, str(outcome.reason), "Archetype planning outcome"
                 )
                 return None, tuple(trace)
             components = self._expand_plan(outcome.plan)

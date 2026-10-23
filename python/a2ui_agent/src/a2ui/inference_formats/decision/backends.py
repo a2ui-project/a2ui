@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 import math
 import re
 import time
@@ -295,7 +295,13 @@ def _score_candidate(
 
 @runtime_checkable
 class DecisionBackend(Protocol):
-    """Protocol for local decision-model inference backends."""
+    """Protocol for local decision-model inference backends.
+
+    Implementations that only score one query at a time should subclass
+    `PredictOnlyBackend`, which supplies `answer`, `aclose`,
+    `aclose_current_loop`, and the context-manager methods; objects that
+    predate `answer` can be adapted with `ensure_batch_backend`.
+    """
 
     async def predict(self, query: DecisionQuery) -> DecisionDistribution:
         """Predicts a probability distribution over query candidates."""
@@ -307,6 +313,15 @@ class DecisionBackend(Protocol):
 
     async def aclose(self) -> None:
         """Releases resources owned by this backend."""
+        ...
+
+    async def aclose_current_loop(self) -> None:
+        """Releases resources bound to the running event loop only.
+
+        `DecisionSynthesizer.synthesize_sync` calls this before its temporary
+        loop closes; backends with no loop-scoped state implement it as a
+        no-op.
+        """
         ...
 
     async def __aenter__(self) -> DecisionBackend:
@@ -408,28 +423,6 @@ def answer_from_distribution(
     return DecisionAnswer(question_id=question.id, distribution=dist)
 
 
-class _AnswerViaPredict:
-    """Mixin giving `answer()` to any backend that only has `predict()`.
-
-    `CHOICE` questions predict over the options (plus ``"none"`` when
-    `allow_none`), `BOOLEAN` questions over ``("yes", "no")``, and `SCORE`
-    questions over the level labels with ``expected = sum(p_i * i)``.
-    Questions run concurrently through `asyncio.gather`, so backends that
-    coalesce concurrent requests batch them naturally.
-    """
-
-    predict: Callable[[DecisionQuery], Awaitable[DecisionDistribution]]
-
-    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
-        """Answers every question in `batch` through `predict`, in order."""
-        queries = [_question_query(q, batch.shared_context) for q in batch.questions]
-        distributions = await asyncio.gather(*(self.predict(q) for q in queries))
-        return tuple(
-            answer_from_distribution(question, dist)
-            for question, dist in zip(batch.questions, distributions)
-        )
-
-
 class _AsyncClosable:
     """Mixin giving a backend `aclose()` and `async with` support.
 
@@ -448,6 +441,68 @@ class _AsyncClosable:
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         await self.aclose()
+
+
+class PredictOnlyBackend(_AsyncClosable):
+    """Base class for backends that score one `DecisionQuery` at a time.
+
+    Subclasses implement `predict`; this class supplies `answer` by fanning a
+    batch out through `predict` with `asyncio.gather`, so backends that
+    coalesce concurrent requests batch naturally. `CHOICE` questions predict
+    over the options (plus ``"none"`` when `allow_none`), `BOOLEAN` questions
+    over ``("yes", "no")``, and `SCORE` questions over the level labels with
+    ``expected = sum(p_i * i)``.
+    """
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Predicts a probability distribution over `query.candidates`."""
+        raise NotImplementedError
+
+    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Answers every question in `batch` through `predict`, in order."""
+        queries = [_question_query(q, batch.shared_context) for q in batch.questions]
+        distributions = await asyncio.gather(*(self.predict(q) for q in queries))
+        return tuple(
+            answer_from_distribution(question, dist)
+            for question, dist in zip(batch.questions, distributions)
+        )
+
+
+class _PredictOnlyAdapter(PredictOnlyBackend):
+    """Wraps an object that has `predict` but not the rest of `DecisionBackend`."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        return cast(DecisionDistribution, await self.inner.predict(query))
+
+    async def aclose(self) -> None:
+        close = getattr(self.inner, "aclose", None)
+        if callable(close):
+            await close()
+
+
+def ensure_batch_backend(backend: Any) -> DecisionBackend:
+    """Returns `backend` as a full `DecisionBackend`, adapting predict-only objects.
+
+    Objects that already provide `answer` and `aclose_current_loop` are
+    returned unchanged. Anything else with an async `predict` is wrapped in an
+    adapter that supplies the rest of the protocol.
+
+    Raises:
+        TypeError: If `backend` has no callable `predict`.
+    """
+    if not callable(getattr(backend, "predict", None)):
+        raise TypeError(
+            "A decision backend must provide an async predict(query) method;"
+            f" got {type(backend).__name__}."
+        )
+    if callable(getattr(backend, "answer", None)) and callable(
+        getattr(backend, "aclose_current_loop", None)
+    ):
+        return cast(DecisionBackend, backend)
+    return _PredictOnlyAdapter(backend)
 
 
 class _HttpClientOwner(_AsyncClosable):
@@ -692,7 +747,7 @@ def _parse_native_question_answer(
     return answer
 
 
-class JevHttpBackend(_AnswerViaPredict, _HttpClientOwner):
+class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
     """HTTP backend for local Jev /predict or /v1/systemone decision endpoints.
 
     Supports `async with` to close the owned HTTP client on exit. ADC access
@@ -856,7 +911,7 @@ class JevHttpBackend(_AnswerViaPredict, _HttpClientOwner):
         )
 
 
-class StepZeroLogprobBackend(_AnswerViaPredict, _HttpClientOwner):
+class StepZeroLogprobBackend(PredictOnlyBackend, _HttpClientOwner):
     """OpenAI-compatible step-0 top-logprob decision backend.
 
     Supports `async with` to close the owned HTTP client on exit.
@@ -970,7 +1025,7 @@ def _score_expected_probabilities(
     return probs
 
 
-class DeterministicMockBackend(_AnswerViaPredict, _AsyncClosable):
+class DeterministicMockBackend(PredictOnlyBackend):
     """Deterministic offline decision backend for tests and local evaluation."""
 
     def __init__(
@@ -1152,7 +1207,7 @@ class DeterministicMockBackend(_AnswerViaPredict, _AsyncClosable):
         )
 
 
-class LocalCrossEncoderBackend(_AnswerViaPredict, _AsyncClosable):
+class LocalCrossEncoderBackend(PredictOnlyBackend):
     """In-process CPU cross-encoder backend backed by ONNX Runtime."""
 
     def __init__(
@@ -1478,7 +1533,9 @@ __all__ = [
     "DeterministicMockBackend",
     "JevHttpBackend",
     "LocalCrossEncoderBackend",
+    "PredictOnlyBackend",
     "StepZeroLogprobBackend",
     "answer_from_distribution",
     "create_decision_backend",
+    "ensure_batch_backend",
 ]

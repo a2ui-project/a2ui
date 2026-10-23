@@ -36,9 +36,7 @@ from .decision_block import DecisionBlock, decision_block_from_messages
 from .models import MAX_BRIEF_SECTIONS
 from .template_registry import TemplateRegistry
 
-_BRIEF_ROLES = ", ".join(f"`{r}`" for r in ArchetypeGrammar.default().brief_roles())
-
-DECISION_RULES = f"""# A2UI Decision Block Output Contract
+DECISION_RULES_TEMPLATE = f"""# A2UI Decision Block Output Contract
 
 To show the user a rich interface, do not write components. Describe what to
 show and provide the data; a local decision model chooses and binds the
@@ -71,17 +69,36 @@ one JSON object (or a JSON array of such objects, one per surface).
 6. `layout` (optional, array of up to {MAX_BRIEF_SECTIONS} strings): An ordered
    layout brief grouping payload keys by role, each formatted as
    `"<role>:<key>,<key>"` (keys may be bare top-level names or `/`-prefixed
-   JSON pointers; no nested sections). Valid roles are {_BRIEF_ROLES}.
+   JSON pointers; no nested sections). Valid roles are {{brief_roles}}.
    Example: `["picture:name,logoUrl", "collection:/photos", "facts:address,phone"]`.
 
 ## Example
 
 {A2UI_INFERENCE_OPEN_TAG}
-{{"intent": "Show the service health with latency and a refresh button",
- "payload": {{"serviceName": "checkout", "latencyMs": 42, "status": "healthy"}},
+{{{{"intent": "Show the service health with latency and a refresh button",
+ "payload": {{{{"serviceName": "checkout", "latencyMs": 42, "status": "healthy"}}}},
  "layout": ["headline:serviceName,latencyMs,status"],
- "surfaceId": "main"}}
+ "surfaceId": "main"}}}}
 {A2UI_INFERENCE_CLOSE_TAG}"""
+"""The decision block contract with a ``{brief_roles}`` placeholder.
+
+`decision_rules` fills the placeholder from a grammar; `DECISION_RULES` is
+the rendering for the bundled grammar.
+"""
+
+
+def decision_rules(archetypes: ArchetypeGrammar) -> str:
+    """Renders `DECISION_RULES_TEMPLATE` with the brief roles of `archetypes`."""
+    roles = ", ".join(f"`{r}`" for r in archetypes.brief_roles())
+    return DECISION_RULES_TEMPLATE.format(brief_roles=roles)
+
+
+def __getattr__(name: str) -> Any:
+    # `DECISION_RULES` is resolved lazily so importing this module does not load
+    # and validate the bundled grammar.
+    if name == "DECISION_RULES":
+        return decision_rules(ArchetypeGrammar.default())
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class DecisionPromptGenerator(PromptGenerator):
@@ -98,6 +115,7 @@ class DecisionPromptGenerator(PromptGenerator):
         examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
         *,
         registry: TemplateRegistry | None = None,
+        archetypes: ArchetypeGrammar | None = None,
     ) -> None:
         """Creates a prompt generator.
 
@@ -106,10 +124,13 @@ class DecisionPromptGenerator(PromptGenerator):
             examples: Few-shot example turns as A2UI messages; each is
                 decompiled into a decision block for the prompt.
             registry: Templates whose ids are offered for the `template` field.
+            archetypes: Grammar whose brief roles the `layout` field rule
+                lists; defaults to `ArchetypeGrammar.default()`.
         """
         self._catalogs = list(check_mixed_catalogs(catalogs))
         self._examples = [list(t) for t in examples] if examples is not None else None
         self._registry = registry if registry is not None else TemplateRegistry()
+        self._archetypes = archetypes
         self._graph: CatalogDecisionGraph | None = None
 
     @property
@@ -122,6 +143,13 @@ class DecisionPromptGenerator(PromptGenerator):
         """The template registry whose ids the prompt offers."""
         return self._registry
 
+    @property
+    def archetypes(self) -> ArchetypeGrammar:
+        """The grammar whose brief roles the prompt lists."""
+        if self._archetypes is None:
+            self._archetypes = ArchetypeGrammar.default()
+        return self._archetypes
+
     def _get_graph(self) -> CatalogDecisionGraph:
         if self._graph is None:
             self._graph = CatalogDecisionGraph(self._catalogs)
@@ -129,7 +157,7 @@ class DecisionPromptGenerator(PromptGenerator):
 
     def generate_base_rules(self) -> str:
         """Returns the decision block contract and field rules."""
-        return DECISION_RULES
+        return decision_rules(self.archetypes)
 
     def _component_lines(self, catalog: Any | None) -> list[str]:
         """Lists the components the decision model may choose from."""
@@ -226,4 +254,9 @@ class DecisionPromptGenerator(PromptGenerator):
         return "\n\n".join(parts)
 
 
-__all__ = ["DECISION_RULES", "DecisionPromptGenerator"]
+__all__ = [
+    "DECISION_RULES",
+    "DECISION_RULES_TEMPLATE",
+    "DecisionPromptGenerator",
+    "decision_rules",
+]

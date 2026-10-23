@@ -874,7 +874,7 @@
             ],
             "grid": [
               "picture",
-              "pattern:collection.grid"
+              "pattern:collection:grid"
             ],
             "reel": [
               "picture"
@@ -999,9 +999,7 @@
         }
       },
       "fallback": [
-        "collection",
-        "repeat-in-parent",
-        "first-item"
+        "collection"
       ]
     },
     {
@@ -1701,13 +1699,13 @@
     },
     {
       "id": "fallback-must-end",
-      "rule": "Every block's fallback chain entries must be abstract pattern names, pattern:knob forms, or terminals (repeat-in-parent, first-item, prose, or facts); the loader rejects a grammar with unknown fallback entries."
+      "rule": "Every block's fallback chain entries must be abstract pattern names or pattern:variant forms such as collection:cards; the loader rejects a grammar with unknown fallback entries."
     }
   ],
   "lint": [
     "Every archetype has at least one required or expected block.",
     "Every block id used in an archetype exists in blocks.",
-    "Every fallback entry is an abstract pattern name, a pattern:knob form, or a terminal.",
+    "Every fallback entry is an abstract pattern name or a pattern:variant form.",
     "Every {placeholder} in a question names a field or slot of that block.",
     "Every requires entry names a slot, a knob option, or a known capability flag."
   ]

@@ -40,18 +40,25 @@
     `settings`, `guide`, `article`, `timeline`, `location`, `chat`) across 19
     semantic blocks in a single batched `DecisionBackend.answer(batch)` call
     before falling back to the flat leaf/container path (`SynthesisStage.ARCHETYPE`,
-    `SynthesisConfig`: `use_archetypes`, `max_pairs`, `action_gate_floor`,
-    `action_gate_cap`, `expected_block_threshold`, `optional_block_threshold`,
-    `reask_below`).
+    `SynthesisConfig`: `use_archetypes`, `max_pairs`, `threshold_overrides`).
+    The grammar's `thresholds` are the single source of truth for planner
+    thresholds; `SynthesisConfig.threshold_overrides` tunes them by key.
   - `SemanticType` and `classify_scalar` classify payload pointers across 36
-    semantic types; `DecisionQuestion`, `DecisionAnswer`, `DecisionBatch`, and
-    `QuestionKind` (`choice`, `boolean`, `score`) support batched multi-question
-    scoring, and `BatchingDecisionBackend` coalesces concurrent `predict()` and
-    `answer()` calls within a configurable time window.
+    semantic types (`PointerSummary.semantic_type` and
+    `SlotBinding.semantic_type` are typed with the enum); `DecisionQuestion`,
+    `DecisionAnswer`, `DecisionBatch`, and `QuestionKind` (`choice`, `boolean`,
+    `score`) support batched multi-question scoring, `PredictOnlyBackend` and
+    `ensure_batch_backend` adapt single-query backends to `answer()`, and
+    `BatchingDecisionBackend` coalesces concurrent `predict()` and `answer()`
+    calls within a configurable time window.
   - `DecisionBlock`, `DecisionPromptGenerator`, `DecisionFormatFactory`, and
-    `DecisionRenderTool` accept an optional `layout` brief (`LayoutBrief`,
-    `["role:key,key", ...]`) and expose `SynthesisOutput.layout_plan` and
-    `SynthesisOutput.trace` (`include_trace=True`).
+    `DecisionRenderTool` accept an optional `layout` brief
+    (`["role:key,key", ...]`), validated against the synthesizer's
+    `ArchetypeGrammar` (`decision_rules(grammar)` renders the prompt contract
+    for a grammar), and expose `SynthesisOutput.layout_plan` and
+    `SynthesisOutput.trace` (`include_trace=True`). `PlanReason`,
+    `Requirement`, `LintCode`, and `LintSeverity` are string enums;
+    `PatternRef` and `ResolvedPattern` replace `name:variant` string splitting.
 
 ## 0.9.0 (2026-10-17)
 

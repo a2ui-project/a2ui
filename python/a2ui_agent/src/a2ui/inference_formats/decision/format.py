@@ -78,7 +78,7 @@ class DecisionFormat(InferenceFormat):
             archetypes: Layout archetype grammar; defaults to
                 `ArchetypeGrammar.default()`.
             patterns: Catalog pattern library; defaults to
-                `PatternLibrary.for_catalogs(catalogs)`.
+                `MergedPatternLibrary.for_catalogs(catalogs)`.
             surface_id: Surface used when a block names none. A block's own
                 `surfaceId` wins; `SynthesisConfig.default_surface_id` is not
                 consulted on this path.
@@ -124,7 +124,10 @@ class DecisionFormat(InferenceFormat):
         """The prompt generator configured for this format."""
         if self._prompt_generator is None:
             self._prompt_generator = DecisionPromptGenerator(
-                self._catalogs, examples=self._examples, registry=self._registry
+                self._catalogs,
+                examples=self._examples,
+                registry=self._registry,
+                archetypes=self._synthesizer.archetypes,
             )
         return self._prompt_generator
 
@@ -170,26 +173,23 @@ class DecisionFormatFactory(InferenceFormatFactory):
             registry: See `DecisionFormat`.
             archetypes: See `DecisionFormat`.
             patterns: See `DecisionFormat`. When None, built once per catalog
-                set via `PatternLibrary.for_catalogs`.
+                set via `MergedPatternLibrary.for_catalogs`.
             batch_backend: When True (default), wraps the shared backend in
-                `BatchingDecisionBackend`.
+                `BatchingDecisionBackend` with `config.max_pairs` as its
+                per-call budget.
             surface_id: See `DecisionFormat`.
             fallback_card: See `DecisionFormat`.
             fallback_fn: See `DecisionFormat`.
         """
         self._raw_backend = backend
         self._backend: DecisionBackend | None = None
-        if backend is not None:
-            self._backend = (
-                BatchingDecisionBackend(backend)
-                if (batch_backend and not isinstance(backend, BatchingDecisionBackend))
-                else backend
-            )
         self._config = config
+        self._batch_backend = batch_backend
+        if backend is not None:
+            self._backend = self._wrap_backend(backend)
         self._registry = registry
         self._archetypes = archetypes
         self._patterns = patterns
-        self._batch_backend = batch_backend
         self._pattern_cache: dict[
             tuple[str, ...], PatternLibrary | MergedPatternLibrary
         ] = {}
@@ -202,6 +202,13 @@ class DecisionFormatFactory(InferenceFormatFactory):
         """The shared backend, or None until the first format is created."""
         return self._backend
 
+    def _wrap_backend(self, raw: DecisionBackend) -> DecisionBackend:
+        """Wraps `raw` in `BatchingDecisionBackend` when `batch_backend` is on."""
+        if not self._batch_backend or isinstance(raw, BatchingDecisionBackend):
+            return raw
+        budget = (self._config or SynthesisConfig()).max_pairs
+        return BatchingDecisionBackend(raw, max_pairs=budget)
+
     def _shared_backend(self) -> DecisionBackend:
         """Returns the backend every created format shares, building it on first use."""
         if self._backend is None:
@@ -210,13 +217,7 @@ class DecisionFormatFactory(InferenceFormatFactory):
                 if self._raw_backend is not None
                 else create_decision_backend()
             )
-            self._backend = (
-                BatchingDecisionBackend(raw)
-                if (
-                    self._batch_backend and not isinstance(raw, BatchingDecisionBackend)
-                )
-                else raw
-            )
+            self._backend = self._wrap_backend(raw)
         return self._backend
 
     def _patterns_for_catalogs(
@@ -227,7 +228,7 @@ class DecisionFormatFactory(InferenceFormatFactory):
             return self._patterns
         key = tuple(c.catalog_id for c in catalogs)
         if key not in self._pattern_cache:
-            self._pattern_cache[key] = PatternLibrary.for_catalogs(catalogs)
+            self._pattern_cache[key] = MergedPatternLibrary.for_catalogs(catalogs)
         return self._pattern_cache[key]
 
     def create_format(

@@ -27,7 +27,6 @@ from typing import Any
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.parser.messages import to_message_dicts
 
-from .archetypes import ArchetypeGrammar
 from .models import LayoutBrief, coerce_decision_payload
 
 # Wire field names, with the snake_case spellings also accepted on input.
@@ -48,12 +47,16 @@ def _first_present(source: Mapping[str, Any], names: Sequence[str]) -> Any:
     return None
 
 
-def _parse_optional_layout(raw: Any) -> LayoutBrief | None:
-    """Validates and parses an optional ``layout`` brief from a decision block."""
+def _parse_layout_items(raw: Any) -> tuple[str, ...]:
+    """Shape-checks an optional ``layout`` field into its raw brief items.
+
+    Role validation happens later, in the synthesizer, against the grammar it
+    was configured with; the block only carries the strings.
+    """
     if raw is None:
-        return None
+        return ()
     if isinstance(raw, LayoutBrief):
-        return raw
+        return tuple(raw.to_items())
     if (
         not isinstance(raw, Sequence)
         or isinstance(raw, (str, bytes, bytearray))
@@ -62,8 +65,7 @@ def _parse_optional_layout(raw: Any) -> LayoutBrief | None:
         raise TypeError(
             "Decision block field 'layout' must be a list of 'role:key,key' strings."
         )
-    parsed = LayoutBrief.parse(raw, roles=ArchetypeGrammar.default().brief_roles())
-    return parsed if parsed.sections else None
+    return tuple(item for item in raw if item.strip())
 
 
 @dataclass(frozen=True)
@@ -77,7 +79,9 @@ class DecisionBlock:
         surface_id: Target surface, or None for the synthesizer default.
         template_id: A registered template to render directly, if any.
         fallback_dsl: A2UI Express rendered when the model abstains, if any.
-        layout: Optional layout brief pinning roles to payload pointers.
+        layout: Raw ``role:key,key`` brief items pinning roles to payload
+            pointers; empty when the block gave none. The synthesizer parses
+            and validates them against its grammar.
     """
 
     intent: str
@@ -85,7 +89,7 @@ class DecisionBlock:
     surface_id: str | None = None
     template_id: str | None = None
     fallback_dsl: str | None = None
-    layout: LayoutBrief | None = None
+    layout: tuple[str, ...] = ()
 
     @classmethod
     def from_mapping(cls, source: Mapping[str, Any]) -> DecisionBlock:
@@ -95,9 +99,8 @@ class DecisionBlock:
         `fallbackDsl`, `layout`) and their snake_case spellings.
 
         Raises:
-            ValueError: If `intent` is missing or blank, `payload` is a
-                string that is not valid JSON, or `layout` fails brief
-                validation.
+            ValueError: If `intent` is missing or blank, or `payload` is a
+                string that is not valid JSON.
             TypeError: If `payload` is missing or is neither an object nor an
                 array, or an optional field has the wrong type.
         """
@@ -120,9 +123,7 @@ class DecisionBlock:
                 )
             return value or None
 
-        layout = _parse_optional_layout(
-            _first_present(source, _FIELD_ALIASES["layout"])
-        )
+        layout = _parse_layout_items(_first_present(source, _FIELD_ALIASES["layout"]))
         return cls(
             intent=intent.strip(),
             payload=payload,
@@ -141,8 +142,8 @@ class DecisionBlock:
             out["template"] = self.template_id
         if self.fallback_dsl is not None:
             out["fallbackDsl"] = self.fallback_dsl
-        if self.layout is not None:
-            out["layout"] = self.layout.to_items()
+        if self.layout:
+            out["layout"] = list(self.layout)
         return out
 
 

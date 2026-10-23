@@ -505,7 +505,7 @@ def test_decision_block_round_trip_and_aliases() -> None:
     assert block.surface_id == "s1"
     assert block.template_id == "badge_tpl"
     assert block.fallback_dsl is None
-    assert block.layout is None
+    assert block.layout == ()
     assert block.to_json() == {
         "intent": "Show it",
         "payload": PAYLOAD,
@@ -520,56 +520,36 @@ def test_decision_block_round_trip_and_aliases() -> None:
         DecisionBlock.from_mapping({"intent": "x", "payload": {}, "surfaceId": 3})
 
 
-def test_decision_block_layout_brief_parsing_and_rejection() -> None:
-    from a2ui.inference_formats.decision.archetypes import ArchetypeGrammar
-    from a2ui.inference_formats.decision.models import (
-        BriefSection,
-        LayoutBrief,
-        MAX_BRIEF_SECTIONS,
-    )
+def test_decision_block_layout_carries_raw_items_and_synthesizer_validates() -> None:
+    from a2ui.inference_formats.decision.models import LayoutBrief, MAX_BRIEF_SECTIONS
 
     with_layout = DecisionBlock.from_mapping({
         "intent": "Show resort",
         "payload": PAYLOAD,
         "layout": ["picture:name,logoUrl", "collection:/photos", "facts:address"],
     })
-    assert with_layout.layout == LayoutBrief(
-        sections=(
-            BriefSection(role="picture", pointers=("/name", "/logoUrl")),
-            BriefSection(role="collection", pointers=("/photos",)),
-            BriefSection(role="facts", pointers=("/address",)),
-        )
-    )
-    assert with_layout.to_json()["layout"] == [
-        "picture:/name,/logoUrl",
+    # The block carries the items verbatim; it does not know the grammar.
+    assert with_layout.layout == (
+        "picture:name,logoUrl",
         "collection:/photos",
-        "facts:/address",
-    ]
-
-    # Empty layout array normalizes to None
-    assert (
-        DecisionBlock.from_mapping(
-            {"intent": "Show resort", "payload": PAYLOAD, "layout": []}
-        ).layout
-        is None
+        "facts:address",
     )
+    assert with_layout.to_json()["layout"] == list(with_layout.layout)
 
-    # Reject > MAX_BRIEF_SECTIONS (7 sections)
-    roles = list(ArchetypeGrammar.default().brief_roles())
-    too_many = [f"{roles[i]}:k{i}" for i in range(MAX_BRIEF_SECTIONS + 1)]
-    with pytest.raises(ValueError, match=str(MAX_BRIEF_SECTIONS)):
-        DecisionBlock.from_mapping(
-            {"intent": "Show resort", "payload": PAYLOAD, "layout": too_many}
-        )
+    # A pre-parsed brief is accepted and serialized back to items.
+    brief = LayoutBrief.parse(["picture:name"], roles=frozenset({"picture"}))
+    assert DecisionBlock.from_mapping(
+        {"intent": "x", "payload": PAYLOAD, "layout": brief}
+    ).layout == ("picture:/name",)
 
-    # Reject nested sections (`role:a:b`), unknown roles, and bare keys without a role
-    for invalid_item in ("picture:name:sub", "sparkles:name", "name,logoUrl"):
-        with pytest.raises(ValueError):
-            DecisionBlock.from_mapping(
-                {"intent": "Show resort", "payload": PAYLOAD, "layout": [invalid_item]}
-            )
+    # Empty or blank layout arrays normalize to no items and are omitted on output.
+    empty = DecisionBlock.from_mapping(
+        {"intent": "Show resort", "payload": PAYLOAD, "layout": ["", "  "]}
+    )
+    assert empty.layout == ()
+    assert "layout" not in empty.to_json()
 
-    # Reject non-array or non-string layout items
+    # Shape errors are the block's job: non-array or non-string items.
     with pytest.raises(TypeError, match="layout"):
         DecisionBlock.from_mapping(
             {"intent": "Show resort", "payload": PAYLOAD, "layout": "picture:name"}
@@ -578,6 +558,45 @@ def test_decision_block_layout_brief_parsing_and_rejection() -> None:
         DecisionBlock.from_mapping(
             {"intent": "Show resort", "payload": PAYLOAD, "layout": [123]}
         )
+
+    # Role and structure validation happens against the synthesizer's grammar.
+    catalog = _make_catalog()
+    synth = DecisionSynthesizer([catalog], _confident_backend())
+    roles = list(synth.archetypes.brief_roles())
+    too_many = [f"{roles[i]}:k{i}" for i in range(MAX_BRIEF_SECTIONS + 1)]
+    with pytest.raises(ValueError, match=str(MAX_BRIEF_SECTIONS)):
+        synth.synthesize_sync("Show resort", PAYLOAD, layout=too_many)
+    for invalid_item in ("picture:name:sub", "sparkles:name", "name,logoUrl"):
+        with pytest.raises(ValueError):
+            synth.synthesize_sync("Show resort", PAYLOAD, layout=[invalid_item])
+
+
+def test_custom_grammar_roles_flow_through_prompt_parser_and_synthesizer() -> None:
+    """A grammar with an extra block id is honored end to end (no default-grammar leak)."""
+    import copy
+
+    from a2ui.inference_formats.decision.archetypes import ArchetypeGrammar, load_asset
+
+    raw = copy.deepcopy(load_asset("archetypes.json"))
+    gallery = copy.deepcopy(next(b for b in raw["blocks"] if b["id"] == "picture"))
+    gallery["id"] = "gallery"
+    raw["blocks"].append(gallery)
+    custom = ArchetypeGrammar.from_json(raw)
+    assert "gallery" in custom.brief_roles()
+
+    catalog = _make_catalog()
+    fmt = DecisionFormat(
+        [catalog], backend=_confident_backend(), archetypes=custom, surface_id="s"
+    )
+    assert "`gallery`" in fmt.prompt_generator.generate_base_rules()
+    assert "`gallery`" not in DecisionPromptGenerator([catalog]).generate_base_rules()
+
+    block_json = json.dumps(
+        {"intent": "Show", "payload": PAYLOAD, "layout": ["gallery:serviceName"]}
+    )
+    # The parser forwards the raw items; the custom grammar accepts the role.
+    messages = fmt.parser.compile(block_json)
+    assert messages
 
 
 def test_prompt_generator_lists_components_and_templates() -> None:

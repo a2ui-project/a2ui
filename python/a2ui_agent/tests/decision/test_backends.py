@@ -27,13 +27,18 @@ import pytest
 
 from a2ui.inference_formats.decision import (
     DecisionBackend,
+    DecisionBatch,
     DecisionDistribution,
     DecisionQuery,
+    DecisionQuestion,
     DeterministicMockBackend,
     JevHttpBackend,
     LocalCrossEncoderBackend,
+    PredictOnlyBackend,
+    QuestionKind,
     StepZeroLogprobBackend,
     create_decision_backend,
+    ensure_batch_backend,
 )
 
 
@@ -46,6 +51,59 @@ def test_backends_satisfy_runtime_protocol() -> None:
     assert isinstance(step_zero, DecisionBackend)
     assert isinstance(mock, DecisionBackend)
     assert isinstance(local, DecisionBackend)
+
+
+@pytest.mark.asyncio
+async def test_predict_only_backends_are_adapted_to_the_full_protocol() -> None:
+    """A third-party object with only `predict` (and optionally `aclose`) still works."""
+    closed = False
+
+    class LegacyPredictOnly:
+
+        async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+            first = query.candidates[0]
+            return DecisionDistribution(
+                probabilities={c: 0.9 if c == first else 0.1 for c in query.candidates}
+            )
+
+        async def aclose(self) -> None:
+            nonlocal closed
+            closed = True
+
+    legacy = LegacyPredictOnly()
+    assert not isinstance(legacy, DecisionBackend)
+    adapted = ensure_batch_backend(legacy)
+    assert isinstance(adapted, DecisionBackend)
+    assert isinstance(adapted, PredictOnlyBackend)
+    batch = DecisionBatch(
+        shared_context={},
+        questions=(
+            DecisionQuestion(
+                id="gate:prose", kind=QuestionKind.BOOLEAN, prompt="Prose?"
+            ),
+            DecisionQuestion(
+                id="family",
+                kind=QuestionKind.CHOICE,
+                prompt="Family?",
+                options=("browse", "inspect"),
+                allow_none=False,
+            ),
+        ),
+    )
+    answers = await adapted.answer(batch)
+    assert [a.question_id for a in answers] == ["gate:prose", "family"]
+    assert answers[0].yes == pytest.approx(0.9)
+    assert answers[1].top()[0] == "browse"
+    await adapted.aclose_current_loop()
+    async with adapted:
+        pass
+    assert closed
+
+    # Objects that already satisfy the protocol are returned unchanged.
+    mock = DeterministicMockBackend()
+    assert ensure_batch_backend(mock) is mock
+    with pytest.raises(TypeError, match="predict"):
+        ensure_batch_backend(object())
 
 
 @pytest.mark.asyncio

@@ -21,7 +21,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from .backends import DecisionBackend, _AsyncClosable
+from .backends import DecisionBackend, _AsyncClosable, ensure_batch_backend
 from .models import (
     DecisionAnswer,
     DecisionBatch,
@@ -82,22 +82,32 @@ def _set_future_exception(
 
 
 class BatchingDecisionBackend(_AsyncClosable):
-    """Coalesces concurrent `predict` and `answer` calls into `inner.answer`."""
+    """Coalesces concurrent `predict` and `answer` calls into `inner.answer`.
+
+    Args:
+        inner: The backend that scores each coalesced batch. Predict-only
+            objects are adapted with `ensure_batch_backend`.
+        window_ms: How long to wait for more calls before flushing a batch.
+        max_pairs: Largest number of (question, candidate) pairs sent to
+            `inner.answer` in one call; None sends every pending question in
+            a single call. Callers that own a `SynthesisConfig` pass its
+            `max_pairs` so the two budgets agree.
+    """
 
     def __init__(
         self,
         inner: DecisionBackend,
         *,
         window_ms: float = 2.0,
-        max_pairs: int = 400,
+        max_pairs: int | None = None,
     ) -> None:
         if window_ms < 0.0:
             raise ValueError(f"window_ms must be non-negative, got {window_ms}")
-        if max_pairs < 1:
-            raise ValueError(f"max_pairs must be >= 1, got {max_pairs}")
-        self.inner = inner
+        if max_pairs is not None and max_pairs < 1:
+            raise ValueError(f"max_pairs must be >= 1 or None, got {max_pairs}")
+        self.inner: DecisionBackend = ensure_batch_backend(inner)
         self.window_ms = float(window_ms)
-        self.max_pairs = int(max_pairs)
+        self.max_pairs: int | None = None if max_pairs is None else int(max_pairs)
         self._seq = 0
         self._pending: list[_QueueEntry] = []
         self._scheduled_flush: asyncio.Task[None] | None = None
@@ -133,7 +143,11 @@ class BatchingDecisionBackend(_AsyncClosable):
         for entry in entries:
             q_id = entry.question.id
             q_pairs = len(entry.question.candidates())
-            exceeds_pairs = bool(current) and (current_pairs + q_pairs > self.max_pairs)
+            exceeds_pairs = (
+                bool(current)
+                and self.max_pairs is not None
+                and current_pairs + q_pairs > self.max_pairs
+            )
             if q_id in current_ids or exceeds_pairs:
                 chunks.append(current)
                 current = []
@@ -210,9 +224,7 @@ class BatchingDecisionBackend(_AsyncClosable):
                 break
             self._active_flushes.difference_update(loop_tasks)
             await asyncio.gather(*loop_tasks, return_exceptions=True)
-        close_fn = getattr(self.inner, "aclose_current_loop", None)
-        if callable(close_fn):
-            await close_fn()
+        await self.inner.aclose_current_loop()
 
     async def aclose(self) -> None:
         """Drains any pending flushes and closes the inner backend."""

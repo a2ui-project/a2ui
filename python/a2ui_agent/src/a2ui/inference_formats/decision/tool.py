@@ -40,7 +40,7 @@ from .backends import DecisionBackend
 from .catalog_graph import CatalogDecisionGraph
 from .decision_block import DecisionBlock
 from .models import (
-    LayoutBrief,
+    BRIEF_ITEM_PATTERN,
     MAX_BRIEF_SECTIONS,
     SynthesisConfig,
     SynthesisOutput,
@@ -202,10 +202,7 @@ class DecisionRenderTool:
                 "layout": {
                     "type": "array",
                     "maxItems": MAX_BRIEF_SECTIONS,
-                    "items": {
-                        "type": "string",
-                        "pattern": r"^[a-z_]+:[A-Za-z0-9_/,.~-]+$",
-                    },
+                    "items": {"type": "string", "pattern": BRIEF_ITEM_PATTERN},
                     "description": (
                         "Optional ordered layout brief grouping payload keys by"
                         " role ('<role>:<key>,<key>', up to 6 sections; no"
@@ -220,27 +217,13 @@ class DecisionRenderTool:
     def _synthesis_kwargs(
         self, args: Mapping[str, Any]
     ) -> tuple[DecisionBlock, dict[str, Any]]:
-        raw_layout = args.get("layout")
-        block_args: Mapping[str, Any] = args
-        if isinstance(raw_layout, Sequence) and not isinstance(
-            raw_layout, (str, bytes)
-        ):
-            parsed_brief = LayoutBrief.parse(
-                [str(item) for item in raw_layout],
-                roles=self.synthesizer.archetypes.brief_roles(),
-            )
-            block_args = {
-                **args,
-                "layout": parsed_brief if parsed_brief.sections else None,
-            }
-        block = DecisionBlock.from_mapping(block_args)
+        block = DecisionBlock.from_mapping(args)
         kwargs: dict[str, Any] = {
             "template_id": block.template_id,
             "fallback_dsl": block.fallback_dsl,
         }
-        brief = block.layout
-        if brief is not None:
-            kwargs["layout"] = brief
+        if block.layout:
+            kwargs["layout"] = block.layout
         surface_id = block.surface_id or self._surface_id
         if surface_id is not None:
             kwargs["surface_id"] = surface_id

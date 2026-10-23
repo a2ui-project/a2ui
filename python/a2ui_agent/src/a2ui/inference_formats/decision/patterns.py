@@ -165,15 +165,38 @@ def _pattern_validator() -> Draft202012Validator:
     return Draft202012Validator(load_asset("pattern_definition.json"))
 
 
+@dataclass(frozen=True)
+class PatternRef:
+    """A pattern name with an optional variant, written ``name:variant``."""
+
+    name: str
+    variant: str | None = None
+
+    @classmethod
+    def parse(cls, text: str) -> PatternRef:
+        """Parses ``name`` or ``name:variant``; a second colon is part of the variant."""
+        name, sep, variant = text.partition(":")
+        return cls(name=name, variant=variant if sep else None)
+
+    def __str__(self) -> str:
+        return self.name if self.variant is None else f"{self.name}:{self.variant}"
+
+
+@dataclass(frozen=True)
+class ResolvedPattern:
+    """The pattern a block will draw with, after walking its fallback chain."""
+
+    pattern: str
+    knobs: Mapping[str, str] = field(default_factory=dict, hash=False)
+    """Knob values implied by a ``name:variant`` fallback entry."""
+
+
 def _split_pattern_query(name: str, variant: str | None) -> tuple[str, str | None]:
-    """Splits ``pattern.variant`` or ``pattern:variant`` forms if `variant` is None."""
+    """Normalizes ``(name, variant)`` where `name` may itself be ``name:variant``."""
     if variant is not None:
         return name, variant
-    for sep in (":", "."):
-        if sep in name:
-            base, sub = name.split(sep, 1)
-            return base, sub
-    return name, None
+    ref = PatternRef.parse(name)
+    return ref.name, ref.variant
 
 
 class PatternLibrary(PatternCapabilities):
@@ -219,39 +242,15 @@ class PatternLibrary(PatternCapabilities):
             version=str(data.get("version", "1")),
         )
 
-    @classmethod
-    def for_catalogs(cls, catalogs: Sequence[CatalogApi]) -> MergedPatternLibrary:
-        """Loads bundled pattern libraries matching `catalogs` in catalog priority order."""
-        bundled = _bundled_pattern_libraries()
-        matched: list[PatternLibrary] = []
-        for catalog in catalogs:
-            cat_id = catalog.catalog_id
-            lib = bundled.get(cat_id)
-            if lib is not None:
-                matched.append(
-                    cls(
-                        (cat_id, *lib.catalog_ids),
-                        lib.patterns,
-                        version=lib.version,
-                    )
-                )
-            else:
-                matched.append(cls((cat_id,), {}))
-        return MergedPatternLibrary(matched)
-
-    def has(self, pattern: str, variant: str | None = None) -> bool:
-        """Returns whether `pattern` (and optional `variant`) is defined."""
-        base, sub = _split_pattern_query(pattern, variant)
+    def has_pattern(self, name: str, variant: str | None = None) -> bool:
+        """Whether `name` (and `variant`, when given) is defined; implements `PatternCapabilities`."""
+        base, sub = _split_pattern_query(name, variant)
         pat = self.patterns.get(base)
         if pat is None:
             return False
         if sub is None:
             return True
         return pat.supports_variant(sub)
-
-    def has_pattern(self, name: str, variant: str | None = None) -> bool:
-        """Implements `PatternCapabilities.has_pattern`."""
-        return self.has(name, variant)
 
     def get(self, pattern: str) -> CatalogPattern | None:
         """Returns the `CatalogPattern` named `pattern`, or None."""
@@ -294,17 +293,37 @@ class MergedPatternLibrary(PatternCapabilities):
         self.patterns: Mapping[str, CatalogPattern] = merged
         self._owners: Mapping[str, str] = owners
 
-    def has(self, pattern: str, variant: str | None = None) -> bool:
-        """Returns whether any constituent library defines `pattern` (and `variant`)."""
-        base, sub = _split_pattern_query(pattern, variant)
+    @classmethod
+    def for_catalogs(cls, catalogs: Sequence[CatalogApi]) -> MergedPatternLibrary:
+        """Loads the bundled pattern libraries for `catalogs`, in catalog priority order.
+
+        A catalog with no bundled pattern file contributes an empty library, so
+        the merged result always lists every catalog id.
+        """
+        bundled = _bundled_pattern_libraries()
+        matched: list[PatternLibrary] = []
+        for catalog in catalogs:
+            cat_id = catalog.catalog_id
+            lib = bundled.get(cat_id)
+            if lib is not None:
+                matched.append(
+                    PatternLibrary(
+                        (cat_id, *lib.catalog_ids),
+                        lib.patterns,
+                        version=lib.version,
+                    )
+                )
+            else:
+                matched.append(PatternLibrary((cat_id,), {}))
+        return cls(matched)
+
+    def has_pattern(self, name: str, variant: str | None = None) -> bool:
+        """Whether any constituent library defines `name` (and `variant`)."""
+        base, sub = _split_pattern_query(name, variant)
         pat = self.patterns.get(base)
         if pat is None:
             return False
         return True if sub is None else pat.supports_variant(sub)
-
-    def has_pattern(self, name: str, variant: str | None = None) -> bool:
-        """Implements `PatternCapabilities.has_pattern`."""
-        return self.has(name, variant)
 
     def get(self, pattern: str) -> CatalogPattern | None:
         """Returns the highest-priority `CatalogPattern` for `pattern`, or None."""
@@ -344,26 +363,26 @@ def _knob_for_variant(
 
 def resolve_fallback_pattern(
     block: BlockSpec, library: PatternCapabilities
-) -> tuple[str, dict[str, str]] | None:
+) -> ResolvedPattern | None:
     """Walks `block.pattern` and `block.fallback` against `library`.
 
-    Returns ``(resolved_pattern, knob_overrides)`` for the first available entry,
-    or ``None`` if no entry in the fallback chain is supported.
+    Returns the first entry `library` can draw, or ``None`` if no entry in the
+    chain is supported.
     """
     candidates: list[str] = [block.pattern]
     for fb in block.fallback:
         if fb not in candidates:
             candidates.append(fb)
     for entry in candidates:
-        if ":" in entry:
-            pat_name, variant = entry.split(":", 1)
-            if library.has_pattern(pat_name, variant):
-                return pat_name, _knob_for_variant(library, pat_name, variant)
+        ref = PatternRef.parse(entry)
+        if not library.has_pattern(ref.name, ref.variant):
             continue
-        if entry in ("repeat-in-parent", "first-item"):
-            continue
-        if library.has_pattern(entry):
-            return entry, {}
+        if ref.variant is None:
+            return ResolvedPattern(pattern=ref.name)
+        return ResolvedPattern(
+            pattern=ref.name,
+            knobs=_knob_for_variant(library, ref.name, ref.variant),
+        )
     return None
 
 
@@ -633,9 +652,9 @@ def _shape_matches(
 def _criteria_pattern_satisfied(
     archetype: LayoutArchetype, library: PatternCapabilities
 ) -> bool:
-    """Checks any ``pattern:<name>.<variant>`` requirement in `archetype.criteria`."""
+    """Checks any ``pattern:<name>:<variant>`` requirement in `archetype.criteria`."""
     for match in re.finditer(
-        r"pattern:([a-z_]+)(?:[.:]([A-Za-z0-9_]+))?", archetype.criteria
+        r"pattern:([a-z_]+)(?::([A-Za-z0-9_]+))?", archetype.criteria
     ):
         pat_name, variant = match.group(1), match.group(2)
         if not library.has_pattern(pat_name, variant):
@@ -701,53 +720,32 @@ def _shape_signature(pointers: Sequence[PointerSummary]) -> tuple[Any, ...]:
     )
 
 
-def _library_cache_key(library: PatternCapabilities) -> tuple[Any, ...]:
-    """Builds a hashable cache key for `library`."""
-    cat_ids = getattr(library, "catalog_ids", None)
-    patterns = getattr(library, "patterns", None)
-    if isinstance(cat_ids, tuple) and isinstance(patterns, Mapping):
-        return (cat_ids, tuple(sorted(patterns.keys())))
-    return (id(library),)
-
-
-_ELIGIBILITY_CACHE: dict[tuple[Any, ...], tuple[LayoutArchetype, ...]] = {}
-
-
 def eligible_archetypes(
     grammar: ArchetypeGrammar,
     library: PatternCapabilities,
-    pointers: Sequence[PointerSummary] | CatalogDecisionGraph,
-    maybe_pointers: Sequence[PointerSummary] | None = None,
+    pointers: Sequence[PointerSummary],
 ) -> tuple[LayoutArchetype, ...]:
-    """Returns the archetypes in `grammar` eligible for `library` and `pointers`."""
-    actual_pointers: Sequence[PointerSummary] = (
-        maybe_pointers or () if isinstance(pointers, CatalogDecisionGraph) else pointers
-    )
-    if not actual_pointers:
-        return ()
-    cache_key = (
-        id(grammar),
-        grammar.version,
-        _library_cache_key(library),
-        _shape_signature(actual_pointers),
-    )
-    cached = _ELIGIBILITY_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
+    """Returns the archetypes in `grammar` eligible for `library` and `pointers`.
 
+    Pure: callers that evaluate the same payload shape repeatedly should
+    memoize on `shape_signature(pointers)` themselves.
+    """
+    if not pointers:
+        return ()
     prose_block = grammar.blocks.get("prose")
     prose_measure = (
         prose_block.measures.get("length") if prose_block is not None else None
     )
-    result = tuple(
+    return tuple(
         arch
         for arch in grammar.archetypes
-        if _archetype_is_eligible(
-            arch, grammar, library, actual_pointers, prose_measure
-        )
+        if _archetype_is_eligible(arch, grammar, library, pointers, prose_measure)
     )
-    _ELIGIBILITY_CACHE[cache_key] = result
-    return result
+
+
+def shape_signature(pointers: Sequence[PointerSummary]) -> tuple[Any, ...]:
+    """Builds a hashable key capturing everything eligibility depends on."""
+    return _shape_signature(pointers)
 
 
 # --- Pattern Expansion ---
@@ -872,20 +870,17 @@ def _instance_key_candidates(scope: _ExpansionScope, key: str) -> list[str]:
 
 
 def _flatten_instances(
-    instances: Mapping[str, Mapping[str, str] | str] | None,
+    instances: Mapping[str, Mapping[str, str]] | None,
 ) -> dict[str, str]:
-    """Flattens nested `{elem_key: {q_name: val}}` and flat instance mappings."""
+    """Flattens `{elem_key: {q_name: val}}` into ``q_name:elem_key`` lookup keys."""
     if not instances:
         return {}
     flat: dict[str, str] = {}
     for outer_key, outer_val in instances.items():
-        if isinstance(outer_val, str):
-            flat[outer_key] = outer_val
-        elif isinstance(outer_val, Mapping):
-            for inner_key, inner_val in outer_val.items():
-                val_str = str(inner_val)
-                flat[f"{inner_key}:{outer_key}"] = val_str
-                flat.setdefault(f"{outer_key}:{inner_key}", val_str)
+        for inner_key, inner_val in outer_val.items():
+            val_str = str(inner_val)
+            flat[f"{inner_key}:{outer_key}"] = val_str
+            flat.setdefault(f"{outer_key}:{inner_key}", val_str)
     return flat
 
 
@@ -1934,15 +1929,6 @@ def _adapt_fallback_bindings(
     return BlockBindings(slots=slots)
 
 
-def _coerce_slot_binding(val: SlotBinding | str | None) -> SlotBinding:
-    """Coerces a `SlotBinding`, string literal, or `None` into a `SlotBinding`."""
-    if isinstance(val, SlotBinding):
-        return val
-    if isinstance(val, str) and val:
-        return SlotBinding(literal=val)
-    return SlotBinding()
-
-
 def _compute_root_id(prefix: str, root_local_id: str) -> str:
     """Computes the surface or block root component ID for `prefix`."""
     if prefix == "root":
@@ -1952,24 +1938,12 @@ def _compute_root_id(prefix: str, root_local_id: str) -> str:
     return f"{prefix}_{root_local_id}"
 
 
-def _extract_page_slots(
-    title: SlotBinding | PageBindings | str | None,
-    subtitle: SlotBinding | str | None,
-    mark: SlotBinding | str | None,
-    active_knobs: dict[str, str],
-) -> tuple[SlotBinding, SlotBinding, SlotBinding]:
-    """Extracts `(title_slot, subtitle_slot, mark_slot)` and updates `active_knobs`."""
-    if isinstance(title, PageBindings):
-        if title.dialog:
-            active_knobs.setdefault("dialog", "yes")
-        if title.sticky_actions:
-            active_knobs.setdefault("stickyActions", "yes")
-        return title.title, title.subtitle, title.mark
-    return (
-        _coerce_slot_binding(title),
-        _coerce_slot_binding(subtitle),
-        _coerce_slot_binding(mark),
-    )
+def _page_knobs(page: PageBindings, active_knobs: dict[str, str]) -> None:
+    """Adds the frame knobs implied by `page` to `active_knobs`."""
+    if page.dialog:
+        active_knobs.setdefault("dialog", "yes")
+    if page.sticky_actions:
+        active_knobs.setdefault("stickyActions", "yes")
 
 
 class PatternExpander:
@@ -1981,12 +1955,28 @@ class PatternExpander:
         graph: CatalogDecisionGraph,
         *,
         grammar: ArchetypeGrammar | None = None,
-        is_v10: bool | None = None,
+        protocol_version: str | None = None,
     ) -> None:
+        """Creates an expander.
+
+        Args:
+            library: Patterns to expand from.
+            graph: The catalog graph; supplies the protocol version by default.
+            grammar: Grammar consulted for fallback chains; defaults to
+                `ArchetypeGrammar.default()`.
+            protocol_version: A2UI protocol version the emitted components
+                target (``"0.9"``, ``"1.0"``, ...); defaults to
+                `graph.protocol_version`.
+        """
         self.library = library
         self.graph = graph
         self.grammar = grammar if grammar is not None else ArchetypeGrammar.default()
-        self.is_v10 = is_v10 if is_v10 is not None else _is_v10(graph.protocol_version)
+        self.protocol_version: str = (
+            protocol_version
+            if protocol_version is not None
+            else str(graph.protocol_version)
+        )
+        self.is_v10 = _is_v10(self.protocol_version)
 
     def _resolve_block_pattern(
         self,
@@ -2006,11 +1996,12 @@ class PatternExpander:
         if block_spec is not None:
             resolved = resolve_fallback_pattern(block_spec, self.library)
             if resolved is not None:
-                fb_name, fb_knobs = resolved
-                for k, v in fb_knobs.items():
+                for k, v in resolved.knobs.items():
                     active_knobs.setdefault(k, v)
-                adapted = _adapt_fallback_bindings(base_pattern, fb_name, bindings)
-                cat_pattern = self.library.get(fb_name)
+                adapted = _adapt_fallback_bindings(
+                    base_pattern, resolved.pattern, bindings
+                )
+                cat_pattern = self.library.get(resolved.pattern)
                 if cat_pattern is not None:
                     return cat_pattern, adapted
         raise PatternError(
@@ -2023,10 +2014,21 @@ class PatternExpander:
         pattern: str,
         bindings: BlockBindings,
         knobs: Mapping[str, str] | None = None,
-        instances: Mapping[str, Mapping[str, str] | str] | None = None,
+        instances: Mapping[str, Mapping[str, str]] | None = None,
         id_prefix: str = "",
     ) -> list[dict[str, Any]]:
-        """Expands one block pattern into flat A2UI component dicts."""
+        """Expands one block pattern into flat A2UI component dicts.
+
+        Args:
+            block_id: Grammar block id; prefixes every emitted component id.
+            pattern: Pattern name, optionally ``name:variant``.
+            bindings: Slot bindings for the block.
+            knobs: Anatomy knob values selecting the pattern variant.
+            instances: Per-element instance answers in the
+                `PlannedBlock.instances` shape: element key to a mapping of
+                question name to option.
+            id_prefix: Overrides `block_id` as the component id prefix.
+        """
         active_knobs: dict[str, str] = dict(knobs or {})
         active_instances = _flatten_instances(instances)
         base_pattern, inline_variant = _split_pattern_query(pattern, None)
@@ -2063,17 +2065,22 @@ class PatternExpander:
 
     def expand_page(
         self,
-        title: SlotBinding | PageBindings | str | None = None,
-        subtitle: SlotBinding | str | None = None,
-        mark: SlotBinding | str | None = None,
+        page: PageBindings,
         block_roots: Sequence[str] = (),
+        *,
         knobs: Mapping[str, str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Expands the `page` pattern with `root` as the surface root component id."""
+        """Expands the `page` pattern with ``root`` as the surface root component id.
+
+        Args:
+            page: Title, subtitle, mark, and frame flags for the page.
+            block_roots: Root component ids of the expanded blocks, in order.
+            knobs: Extra page knobs; `page.dialog` and `page.sticky_actions`
+                set ``dialog`` and ``stickyActions`` unless given here.
+        """
         active_knobs: dict[str, str] = dict(knobs or {})
-        title_slot, subtitle_slot, mark_slot = _extract_page_slots(
-            title, subtitle, mark, active_knobs
-        )
+        _page_knobs(page, active_knobs)
+        title_slot, subtitle_slot, mark_slot = page.title, page.subtitle, page.mark
         cat_pattern = self.library.get("page")
         if cat_pattern is None:
             raise PatternError("Pattern 'page' is not available in the library.")
@@ -2117,7 +2124,10 @@ __all__ = [
     "PatternError",
     "PatternExpander",
     "PatternLibrary",
+    "PatternRef",
     "PatternVariant",
+    "ResolvedPattern",
     "eligible_archetypes",
     "resolve_fallback_pattern",
+    "shape_signature",
 ]
