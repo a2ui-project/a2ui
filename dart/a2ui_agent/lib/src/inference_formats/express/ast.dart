@@ -387,6 +387,10 @@ CallNode _call(String source, CallContext call) {
 /// The path of a `$` data path, without the `$`.
 String _path(PathContext path) => path.PATH()!.text!.substring(1);
 
+/// Matches `NUMBER` text that names a double rather than an integer: a
+/// fraction (`1.5`, `1.`, `.5`) or an exponent (`1e3`, `2.5E-7`).
+final RegExp _nonIntegerText = RegExp('[.eE]');
+
 Object? _literal(LiteralContext literal) {
   if (literal.string() case final StringContext string) return _string(string);
   if (literal.NUMBER() case final TerminalNode number) {
@@ -400,7 +404,7 @@ Object? _literal(LiteralContext literal) {
     // Integer text (no '.', 'e' or 'E') is an exact `int` while it fits; the
     // grammar takes integers of any size, so a larger one is read as a double
     // rather than rejected.
-    return text.contains(RegExp('[.eE]')) ? value : int.tryParse(text) ?? value;
+    return text.contains(_nonIntegerText) ? value : int.tryParse(text) ?? value;
   }
   if (literal.BOOLEAN() case final TerminalNode boolean) {
     return boolean.text == 'true';
