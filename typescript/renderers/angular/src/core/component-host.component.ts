@@ -28,7 +28,7 @@ import {
   signal,
   NgZone,
 } from '@angular/core';
-import { NgComponentOutlet } from '@angular/common';
+import {NgComponentOutlet} from '@angular/common';
 import {
   ComponentContext,
   ComponentModel,
@@ -43,19 +43,19 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v0_9/universal';
-import { A2uiRendererService } from './a2ui-renderer.service';
-import { ComponentBinder } from './component-binder.service';
-import { BoundProperty } from './types';
+import {A2uiRendererService} from './a2ui-renderer.service';
+import {ComponentBinder} from './component-binder.service';
+import {BoundProperty} from './types';
 
-import type { AngularCatalog, AngularComponentImplementation } from '../catalog/types';
-import { toWebComponent } from '../catalog/to_web_component';
-import { CatalogComponentInstance } from './catalog_component_instance';
+import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
+import {toWebComponent} from '../catalog/to_web_component';
+import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
   context: ComponentContext;
   node?: ComponentNode;
   injector?: Injector;
-  controller?: { dispose?: () => void };
+  controller?: {dispose?: () => void};
 }
 
 function ensureCatalogWebComponents(catalog: AngularCatalog | undefined): void {
@@ -140,7 +140,7 @@ function disposeElementControllers(root: HTMLElement): void {
 })
 export class ComponentHostComponent {
   /** The key of the component to render, either an ID string or an object with ID and basePath. Defaults to 'root'. */
-  componentKey = input<string | { id: string; basePath: string }>('root');
+  componentKey = input<string | {id: string; basePath: string}>('root');
 
   /** The unique identifier of the surface this component belongs to. */
   surfaceId = input.required<string>();
@@ -182,11 +182,11 @@ export class ComponentHostComponent {
     });
   }
 
-  private waitForSurface(key: string | { id: string; basePath: string }, surfaceId: string): void {
+  private waitForSurface(key: string | {id: string; basePath: string}, surfaceId: string): void {
     console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
     this.surfaceSub?.unsubscribe();
     let unsubscribed = false;
-    const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe((s) => {
+    const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe(s => {
       if (s.id !== surfaceId) return;
       unsubscribed = true;
       this.surfaceSub?.unsubscribe();
@@ -203,17 +203,17 @@ export class ComponentHostComponent {
     }
   }
 
-  private parseComponentKey(key: string | { id: string; basePath: string }): {
+  private parseComponentKey(key: string | {id: string; basePath: string}): {
     id: string;
     basePath: string;
   } {
-    if (typeof key === 'object' && key !== null && 'id' in key) {
-      return { id: key.id, basePath: key.basePath || '/' };
+    if (typeof key === 'object' && key !== null && Object.hasOwn(key, 'id')) {
+      return {id: key.id, basePath: key.basePath || '/'};
     }
-    return { id: key, basePath: '/' };
+    return {id: key, basePath: '/'};
   }
 
-  private setupComponent(key: string | { id: string; basePath: string }, surfaceId: string) {
+  private setupComponent(key: string | {id: string; basePath: string}, surfaceId: string) {
     this.resetState();
 
     const surface = this.rendererService.surfaceGroup?.getSurface(surfaceId);
@@ -223,7 +223,7 @@ export class ComponentHostComponent {
       return;
     }
 
-    const { id, basePath } = this.parseComponentKey(key);
+    const {id, basePath} = this.parseComponentKey(key);
     this.resolvedComponentId = id;
 
     const componentModel = surface.componentsModel.get(id);
@@ -231,7 +231,7 @@ export class ComponentHostComponent {
     if (!componentModel) {
       console.warn(`Component ${id} not found in surface ${surfaceId}. Waiting for it...`);
 
-      const sub = surface.componentsModel.onCreated.subscribe((comp) => {
+      const sub = surface.componentsModel.onCreated.subscribe(comp => {
         if (comp.id === id) {
           this.ngZone.run(() => this.initializeComponent(surface, comp, id, basePath, surfaceId));
           sub.unsubscribe();
@@ -257,9 +257,9 @@ export class ComponentHostComponent {
     // `get(id) !== componentModel` stops the new listener registered by `setupComponent` from
     // firing in the same `emit` pass.
     // Subscribe before the catalog lookup so an unknown type can still be replaced later.
-    this.deleteSub = surface.componentsModel.onDeleted.subscribe((deletedId) => {
+    this.deleteSub = surface.componentsModel.onDeleted.subscribe(deletedId => {
       if (deletedId === id && surface.componentsModel.get(id) !== componentModel) {
-        this.ngZone.run(() => this.setupComponent({ id, basePath }, surfaceId));
+        this.ngZone.run(() => this.setupComponent({id, basePath}, surfaceId));
       }
     });
 
