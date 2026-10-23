@@ -137,7 +137,7 @@ async function getParser(args: Record<string, unknown> = {}): Promise<ExpressPar
 
   const catalogs = catalogPaths.map(p => createFileCatalogConfig(p).catalog);
 
-  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID, 'v1.0');
+  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID);
 }
 
 function assertRawPartsMatch(
@@ -222,6 +222,16 @@ describe('Express Conformance Suite', () => {
         const parser = await getParser(args);
         const messages = testCase.messages as AgentToRendererMessage[];
 
+        if (testCase.expect_error) {
+          assertThrows(
+            () => {
+              parser.decompile(messages.length > 1 ? messages : messages[0]);
+            },
+            testCase.expect_error as Record<string, unknown>,
+          );
+          return;
+        }
+
         const notation = parser.decompile(messages.length > 1 ? messages : messages[0]);
 
         if (testCase.expect_contains) {
@@ -243,8 +253,19 @@ describe('Express Conformance Suite', () => {
         }
       } else if (action === 'unwrap') {
         const parser = await getParser(args);
+        const expected = testCase.expect as Array<Record<string, unknown>>;
         const actual = parser.unwrap(testCase.input as string);
-        assertRawPartsMatch(actual, testCase.expect as Array<Record<string, unknown>>);
+        assertRawPartsMatch(actual, expected);
+        const hasAny = expected.some(p => 'a2ui_raw' in p);
+        const hasComplete = expected.some(p => 'a2ui_raw' in p && (p.is_final ?? true) === true);
+        expect(parser.hasFormatContent(testCase.input as string)).toBe(hasAny);
+        expect(parser.hasFormatContent(testCase.input as string, {complete: true})).toBe(
+          hasComplete,
+        );
+      } else if (action === 'has_format_content') {
+        const parser = await getParser(args);
+        const complete = (args.complete as boolean) ?? false;
+        expect(parser.hasFormatContent(testCase.input as string, {complete})).toBe(testCase.expect);
       } else if (action === 'wrap') {
         const parser = await getParser(args);
         const parts = testCase.parts as Array<Record<string, unknown>>;

@@ -109,8 +109,8 @@ def parser() -> ElementalParser:
 
 
 def _compile(parser: ElementalParser, body: str) -> list[dict[str, Any]]:
-    part = parser.parse_response(f"<a2ui>\n{body}\n</a2ui>")[0]
-    return to_message_dicts(part.a2ui)
+    """Compiles a block into messages, without checking them against a renderer state."""
+    return to_message_dicts(parser.compile(body))
 
 
 def _components(messages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

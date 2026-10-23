@@ -26,7 +26,7 @@ from a2ui.core import (
     CatalogApi,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.utils import validate_payload
+from a2ui.utils import RendererState, validate_payload
 
 _BASIC = BasicCatalog("0.9")
 _COLUMN = {"id": "root", "component": "Column", "children": ["t"]}
@@ -304,6 +304,90 @@ def test_updated_surface_that_no_catalog_defines_is_checked_against_the_first():
         validate_payload(catalogs, [_update(*components)])
 
 
+def _sized_text_catalog(catalog_id: str, size_type: str) -> CatalogApi:
+    """Returns a catalog whose Text has a `size` of the given JSON type."""
+    return Catalog.from_json(
+        {
+            "catalogId": catalog_id,
+            "components": {
+                "Text": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Text"},
+                        "text": {"type": "string"},
+                        "size": {"type": size_type},
+                    },
+                    "required": ["component", "text"],
+                }
+            },
+        },
+        protocol_version="0.9",
+    )
+
+
+def test_updated_surface_catalog_must_accept_every_update_to_the_surface():
+    # Both catalogs accept the first update, and only "b" accepts the second,
+    # so the surface is assumed on "b".
+    catalogs = [_sized_text_catalog("a", "string"), _sized_text_catalog("b", "number")]
+
+    validate_payload(
+        catalogs,
+        [
+            _update({"id": "t", "component": "Text", "text": "Hi"}),
+            _update({"id": "t", "component": "Text", "text": "Hi", "size": 12}),
+        ],
+    )
+
+
+def test_updated_surface_reports_the_first_catalog_error_when_none_accepts_all():
+    catalogs = [_sized_text_catalog("a", "string"), _sized_text_catalog("b", "number")]
+
+    with pytest.raises(A2uiValidationError, match="components.t.size"):
+        validate_payload(
+            catalogs,
+            [
+                _update({"id": "t", "component": "Text", "text": "Hi", "size": 12}),
+                _update({"id": "t", "component": "Text", "text": "Hi", "size": "big"}),
+            ],
+        )
+
+
+def test_surface_deleted_earlier_in_the_payload_is_not_assumed_again():
+    with pytest.raises(A2uiValidationError, match="not found"):
+        validate_payload(
+            [_BASIC],
+            [
+                _create(_BASIC.catalog_id),
+                _update(_COLUMN, _TEXT),
+                {"version": "v0.9", "deleteSurface": {"surfaceId": "s"}},
+                _update(_TEXT),
+            ],
+        )
+
+
+def test_update_before_the_payload_creates_its_surface_is_not_found():
+    with pytest.raises(A2uiValidationError, match="Surface not found"):
+        validate_payload(
+            [_BASIC],
+            [
+                _update(_COLUMN, _TEXT),
+                _create(_BASIC.catalog_id),
+            ],
+        )
+
+
+def test_surface_recreated_after_a_delete_in_the_payload_is_accepted():
+    validate_payload(
+        [_BASIC],
+        [
+            _update(_TEXT),
+            {"version": "v0.9", "deleteSurface": {"surfaceId": "s"}},
+            _create(_BASIC.catalog_id),
+            _update(_COLUMN, _TEXT),
+        ],
+    )
+
+
 def test_component_that_names_its_catalog_does_not_choose_the_surface_catalog():
     catalogs = [
         _catalog("a", "Text", protocol_version="1.0"),
@@ -453,6 +537,22 @@ def test_full_v0_8_flow_on_the_basic_catalog_is_accepted():
     validate_payload([BasicCatalog("0.8")], payload)
 
 
+def test_updated_surface_is_checked_against_the_catalog_it_was_created_with():
+    """Checked on its own, an update passes on any catalog that accepts it.
+
+    A `RendererState` that saw the surface created checks it against that
+    catalog only.
+    """
+    catalogs = [_catalog("a", "Text"), _catalog("b", "Text", "Card")]
+    update = _update({"id": "c", "component": "Card", "text": "Hi"})
+
+    validate_payload(catalogs, [update])
+    state = RendererState(catalogs)
+    state.apply(_create("a"))
+    with pytest.raises(A2uiValidationError, match="Unrecognized component type 'Card'"):
+        state.apply(update)
+
+
 def test_updated_surface_with_a_known_catalog_is_checked_against_it_only():
     catalogs = [_catalog("a", "Text"), _catalog("b", "Text", "Card")]
     components = [{"id": "c", "component": "Card", "text": "Hi"}]
@@ -481,6 +581,15 @@ def test_created_surface_ignores_its_known_catalog():
         [_create("b"), _update({"id": "root", "component": "Card", "text": "Hi"})],
         surface_catalog_ids={"s": "a"},
     )
+
+
+def test_a_payload_may_be_any_iterable_of_messages():
+    messages = [
+        _create("a"),
+        _update({"id": "root", "component": "Text", "text": "Hi"}),
+    ]
+
+    validate_payload([_catalog("a", "Text")], (m for m in messages))
 
 
 def test_typed_schema_models_are_accepted():

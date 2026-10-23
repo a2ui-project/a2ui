@@ -17,12 +17,14 @@
 import {CharStream, CommonTokenStream} from 'antlr4ng';
 import {describe, expect, it} from 'vitest';
 
+import {ExpressParseError} from '../../../../src/inference-formats/express/errors.js';
 import {ExpressLexer} from '../../../../src/inference-formats/express/generated/ExpressLexer.js';
 import {ExpressParser} from '../../../../src/inference-formats/express/generated/ExpressParser.js';
 import {
   ExpressAstVisitor,
   type ExpressStatement,
   parseExpress,
+  parseNumberLiteral,
   unescapeString,
 } from '../../../../src/inference-formats/express/visitor.js';
 
@@ -145,6 +147,43 @@ describe('Express AST visitor and parser', () => {
       },
     ] as VisitorCase[])('$name', ({source, statements}) => {
       expect(parseExpress(source)).toEqual({statements, errors: []});
+    });
+  });
+
+  describe('parses number literals', () => {
+    // The NUMBER token is a JSON number with an optional leading `+`; the
+    // compiled value is what JSON.parse would give for the same text.
+    it.each([
+      {text: '.5', value: 0.5},
+      {text: '-.25', value: -0.25},
+      {text: '1.', value: 1},
+      {text: '+3', value: 3},
+      {text: '1e2', value: 100},
+      {text: '1E-2', value: 0.01},
+      {text: '2.5e-7', value: 2.5e-7},
+      {text: '9007199254740991', value: 9007199254740991},
+      {text: '18446744073709551616', value: 18446744073709552000},
+      {text: '-0', value: -0},
+    ])('reads $text as $value', ({text, value}) => {
+      expect(parseNumberLiteral(text)).toBe(value);
+      expect(parseExpress(`root = Gauge(${text})`)).toEqual({
+        statements: [['ASSIGN', 'root', {call: 'Gauge', args: [value]}]],
+        errors: [],
+      });
+    });
+
+    it.each(['1e999', '-1e999', '1e400'])('rejects %s as out of range', text => {
+      expect(() => parseNumberLiteral(text)).toThrow(ExpressParseError);
+      expect(() => parseNumberLiteral(text)).toThrow(`Number literal ${text} is out of range.`);
+    });
+
+    it('drops a statement holding an out-of-range literal like any other failing statement', () => {
+      // visitProgram isolates a throwing statement; the compiler then reports
+      // the missing root as a parse error.
+      expect(parseExpress('root = Gauge(1e999)\nother = 1')).toEqual({
+        statements: [['ASSIGN', 'other', 1]],
+        errors: [],
+      });
     });
   });
 

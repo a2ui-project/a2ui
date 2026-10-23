@@ -235,6 +235,64 @@ export function isSpecFunctionSchema(schema: unknown): boolean {
 }
 
 /**
+ * Returns whether a function's argument JSON Schema requires `args` to be
+ * supplied on a call to the function: that is, whether an omitted (empty)
+ * argument object cannot satisfy the schema.
+ *
+ * A schema requires arguments when it directly declares `required` properties
+ * or a positive `minProperties`, when any member of an `allOf` requires
+ * arguments, when every branch of a non-empty `oneOf` or `anyOf` union
+ * requires arguments, or when a local `#/$defs/...` `$ref` resolves in `defs`
+ * to a schema that requires arguments. A schema that carries a `default`
+ * value does not require arguments.
+ *
+ * @param schema The function's `args` JSON Schema.
+ * @param defs Optional `$defs` map for resolving local `#/$defs/...` references.
+ * @param visited References already on the resolution stack.
+ */
+export function schemaRequiresArgs(
+  schema: unknown,
+  defs?: Readonly<Record<string, unknown>>,
+  visited: ReadonlySet<string> = new Set(),
+): boolean {
+  if (!isObject(schema) || schema['default'] !== undefined) return false;
+  if (Array.isArray(schema['required']) && schema['required'].length > 0) return true;
+  if (typeof schema['minProperties'] === 'number' && schema['minProperties'] > 0) return true;
+  const ref = schema['$ref'];
+  if (typeof ref === 'string' && defs && ref.startsWith('#/$defs/') && !visited.has(ref)) {
+    let target: unknown = defs;
+    for (const raw of ref.slice('#/$defs/'.length).split('/')) {
+      const segment = raw.replace(/~1/g, '/').replace(/~0/g, '~');
+      target = isObject(target) && Object.hasOwn(target, segment) ? target[segment] : undefined;
+    }
+    if (target !== undefined && schemaRequiresArgs(target, defs, new Set(visited).add(ref))) {
+      return true;
+    }
+  }
+  if (
+    Array.isArray(schema['allOf']) &&
+    schema['allOf'].some(sub => schemaRequiresArgs(sub, defs, visited))
+  ) {
+    return true;
+  }
+  if (
+    Array.isArray(schema['oneOf']) &&
+    schema['oneOf'].length > 0 &&
+    schema['oneOf'].every(sub => schemaRequiresArgs(sub, defs, visited))
+  ) {
+    return true;
+  }
+  if (
+    Array.isArray(schema['anyOf']) &&
+    schema['anyOf'].length > 0 &&
+    schema['anyOf'].every(sub => schemaRequiresArgs(sub, defs, visited))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Returns the annotations of a schema and of the wrappers around its core
  * (`optional`, `default`, refinements), the outer ones winning.
  */
@@ -390,9 +448,10 @@ export class SpecShaper {
       readonly allowedCallers?: string;
       readonly requiresUserActivation?: boolean;
     },
+    defs?: Readonly<Record<string, unknown>>,
   ): JsonObject {
     const args = this.toJson(fn.schema);
-    const argsRequired = Array.isArray(args['required']) && args['required'].length > 0;
+    const argsRequired = schemaRequiresArgs(args, defs);
     const result: JsonObject = {type: 'object'};
     if (fn.description) result['description'] = fn.description;
     if (this.isV10) {

@@ -169,7 +169,7 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    guard UnicodeIdentifierValidator.isValidIdentifier(type) else {
+    guard !enforceIdentifiers || UnicodeIdentifierValidator.isValidIdentifier(type) else {
       throw A2UIValidationError(
         "Invalid component identifier: '\(type)'",
         details: [
