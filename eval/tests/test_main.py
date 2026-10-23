@@ -14,6 +14,7 @@
 
 """Unit tests for eval main.py CLI and model resolution logic."""
 
+from pathlib import Path
 import sys
 from unittest.mock import patch
 
@@ -521,7 +522,7 @@ def test_main_forwards_tier_retries_subagent_format_and_recording(
         "--sdk",
         "python",
         "--strategies",
-        "express,subagent_tool",
+        "express,direct",
         "--tier",
         "smoke",
         "--max-validation-retries",
@@ -531,12 +532,46 @@ def test_main_forwards_tier_retries_subagent_format_and_recording(
         "--record-completions",
         str(record),
     ])
+    assert len(_task_kwargs(mock_v1_eval)) == 2
     for task_kwargs in _task_kwargs(mock_v1_eval) + _task_kwargs(mock_v09_eval):
         assert task_kwargs["tags"] == "smoke"
         assert task_kwargs["max_validation_retries"] == 2
         assert task_kwargs["subagent_format"] == "express"
         assert task_kwargs["record_completions"] == str(record)
         assert "replay_completions" not in task_kwargs
+
+
+@pytest.mark.parametrize("flag", ["--record-completions", "--replay-completions"])
+def test_main_recording_skips_default_strategies_that_cannot_replay(
+    flag: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store = tmp_path / "completions.jsonl"
+    store.write_text("")
+    _, _, mock_v1_eval, mock_v09_eval = _run_main(["--sdk", "python", flag, str(store)])
+    strategies = [c[1] for c in _calls(mock_v1_eval) + _calls(mock_v09_eval)]
+    assert strategies == ["direct", "express"]
+    assert "cannot record or replay completions: subagent_tool" in (
+        capsys.readouterr().out
+    )
+
+
+@pytest.mark.parametrize("flag", ["--record-completions", "--replay-completions"])
+def test_main_recording_rejects_explicit_strategy_that_cannot_replay(
+    flag: str, tmp_path: Path
+) -> None:
+    store = tmp_path / "completions.jsonl"
+    store.write_text("")
+    with patch.object(
+        sys,
+        "argv",
+        ["main.py", "--strategies", "express,subagent_tool", flag, str(store)],
+    ), patch("main.eval_set") as mock_eval_set, patch(
+        "main.get_sdk_bridge"
+    ) as mock_get_bridge:
+        with pytest.raises(ValueError, match="strategies: subagent_tool"):
+            main()
+    assert not mock_get_bridge.called
+    assert not mock_eval_set.called
 
 
 def test_main_tags_flag_takes_precedence_over_tier() -> None:

@@ -59,11 +59,13 @@ Example payload files must be complete wire messages, with `version`, `surfaceId
 
 Every SDK builds the same prompt for the same sample. A completion produced for the Python SDK is therefore also a valid input for the TypeScript and Dart bridges. `a2ui_eval/replay.py` uses this to cut inference cost by two thirds when all three SDKs are evaluated.
 
-`CompletionReplayStore` is an append-only JSONL file of `RecordedCompletion` records, keyed by `(sample_name, strategy, version)`. Each record also stores the SHA-256 of the system prompt that produced it. A later record with the same key replaces the earlier one on lookup. `CompletionReplayStore.from_eval_log` builds the same store in memory from an Inspect `.eval` log, taking the strategy and version from the log's task arguments.
+`CompletionReplayStore` is an append-only JSONL file of `RecordedCompletion` records, keyed by `(sample_name, strategy, version)`. Each record also stores the SHA-256 of the system prompt that produced it. A later record with the same key replaces the earlier one on lookup. `CompletionReplayStore.from_eval_log` builds the same store in memory from an Inspect `.eval` log, taking the strategy and version from the log's task arguments. Each sample contributes the first completion the model generated, skipping assistant turns from the sample's input history and ignoring validation retries.
 
 `generate_or_replay` in `strategies/format.py` is the solver that reads and writes the store. With a replay path it installs the recorded completion as the model output and makes no model call; a missing recording raises `ValueError`.
 
 Without a replay path it calls the model through `measured_generate` and, when a record path is given, appends the completion. A replayed sample is marked `replayed=True` in its metadata, with `replay_prompt_matches` showing whether the current prompt still hashes to the recorded one. Validation retries are disabled for replayed samples because the model is not available to answer them.
+
+Only the single-format strategies in `REPLAYABLE_STRATEGIES` run `generate_or_replay`. `get_solver` rejects a replay or record path for `subagent_tool` and `skill_mode`, because one stored completion cannot reproduce their tool-calling loops.
 
 ### **Validation Retries and Pass@K**
 

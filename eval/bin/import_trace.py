@@ -536,18 +536,20 @@ def validate_entries(entries: list[dict[str, Any]]) -> None:
 
 
 def check_output_location(output: Path) -> None:
-    """Refuses YAML outputs inside the repository but outside `eval/datasets/`.
+    """Refuses dataset outputs in the repository that transcrypt won't encrypt.
 
-    Only `eval/datasets/*.yaml` is encrypted by transcrypt; a dataset written
-    anywhere else in the repository would be committed in clear text.
+    Only `eval/datasets/*.yaml` is encrypted by transcrypt (see
+    `eval/datasets/.gitattributes`). A dataset written anywhere else in the
+    repository, or with another extension such as `.yml`, would be committed
+    in clear text.
     """
     resolved = output.resolve()
     inside_repo = REPO_ROOT.resolve() in resolved.parents
     inside_datasets = DATASETS_DIR.resolve() in resolved.parents
-    if inside_repo and not inside_datasets:
+    if inside_repo and (not inside_datasets or resolved.suffix != ".yaml"):
         raise TraceImportError(
-            f"Refusing to write {output}: dataset YAML files inside the repository "
-            f"must live under {DATASETS_DIR} so transcrypt encrypts them."
+            f"Refusing to write {output}: dataset files inside the repository "
+            f"must be .yaml files under {DATASETS_DIR} so transcrypt encrypts them."
         )
 
 

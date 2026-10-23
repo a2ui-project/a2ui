@@ -153,6 +153,8 @@ uv run main.py --sdk dart --strategies direct,express --replay-completions logs/
 
 `--replay-completions` also accepts an Inspect `.eval` log from an earlier run, so you do not need to have planned ahead. Recordings are keyed by sample name, strategy and protocol version. A missing recording is an error, not a silent model call.
 
+Only the single-format strategies (`direct`, `express`, `elemental` and `atom`) can record or replay completions. `subagent_tool` and `skill_mode` run tool-calling loops that one stored completion cannot reproduce. Without `--strategies`, either flag leaves `subagent_tool` out of the defaults and prints a note. Naming `subagent_tool` or `skill_mode` in `--strategies` is an error.
+
 A replayed sample is marked `replayed: true` in its metadata. `replay_prompt_matches` tells you whether the system prompt still matches the one that produced the recording. `run_ci_evals.py` forwards `--record-completions` and `--replay-completions`.
 
 ### Evaluating the TypeScript and Dart Agent SDKs

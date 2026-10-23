@@ -325,6 +325,7 @@ def load_a2ui_dataset(
                         "allowed_surface_ids": (
                             item.get("allowed_surface_ids") or ["main"]
                         ),
+                        "version": version,
                         "catalog_specs": catalog_specs,
                         "allowed_messages": item.get("allowed_messages"),
                         "initial_state": item.get("initial_state"),

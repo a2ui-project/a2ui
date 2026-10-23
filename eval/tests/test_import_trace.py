@@ -556,3 +556,24 @@ def test_expand_cases_rejects_unknown_mutation(tmp_path: Path, capsys: Any) -> N
     args = ["--input", str(source), "--output", str(tmp_path / "x.yaml")]
     assert expand_cases.main(args + ["--mutations", "bogus"]) == 1
     assert "Unknown mutation" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "module, error",
+    [
+        (import_trace, import_trace.TraceImportError),
+        (expand_cases, expand_cases.ExpandError),
+    ],
+)
+def test_check_output_location_requires_yaml_under_datasets(
+    module: Any, error: type[Exception], tmp_path: Path
+) -> None:
+    """In-repository outputs must be files that transcrypt encrypts."""
+    module.check_output_location(module.DATASETS_DIR / "cases.yaml")
+    module.check_output_location(tmp_path / "cases.yml")
+    for rejected in (
+        module.DATASETS_DIR / "cases.yml",
+        module.REPO_ROOT / "eval" / "cases.yaml",
+    ):
+        with pytest.raises(error, match=r"must be \.yaml files"):
+            module.check_output_location(rejected)

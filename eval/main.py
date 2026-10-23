@@ -37,7 +37,7 @@ from a2ui_eval.bridges import (
     validate_sdk_version,
 )
 from a2ui_eval.replay import CompletionReplayStore
-from a2ui_eval.strategies import STRATEGIES
+from a2ui_eval.strategies import REPLAYABLE_STRATEGIES, STRATEGIES
 from tasks import (
     a2ui_v0_9_1_eval,
     a2ui_v1_0_eval,
@@ -273,6 +273,37 @@ def parse_strategies(
         for sdk in sdks:
             validate_sdk_strategy(sdk, strat)
     return selected, True
+
+
+def replayable_strategies(strategies: list[str], *, explicit: bool) -> list[str]:
+    """Returns the strategies that can record or replay completions.
+
+    Used when `--record-completions` or `--replay-completions` is set. Only
+    `REPLAYABLE_STRATEGIES` can do either. Unsupported default strategies are
+    skipped with a note, so the rest of the defaults still run.
+
+    Args:
+        strategies: The strategies returned by `parse_strategies`.
+        explicit: Whether the strategies were named in `--strategies`.
+
+    Raises:
+        ValueError: If `explicit` is True and a strategy cannot record or
+            replay completions.
+    """
+    unsupported = [s for s in strategies if s not in REPLAYABLE_STRATEGIES]
+    if not unsupported:
+        return list(strategies)
+    if explicit:
+        raise ValueError(
+            "Cannot record or replay completions for strategies:"
+            f" {', '.join(unsupported)}. Supported strategies:"
+            f" {', '.join(REPLAYABLE_STRATEGIES)}."
+        )
+    print(
+        "Note: skipping strategies that cannot record or replay completions:"
+        f" {', '.join(unsupported)}."
+    )
+    return [s for s in strategies if s in REPLAYABLE_STRATEGIES]
 
 
 def resolve_runtime_settings(args: argparse.Namespace) -> dict[str, Any]:
@@ -556,9 +587,12 @@ def main() -> None:
     selected_strategies, explicit_strategies = parse_strategies(
         args.strategies, selected_sdks
     )
+    if args.record_completions or args.replay_completions:
+        selected_strategies = replayable_strategies(
+            selected_strategies, explicit=explicit_strategies
+        )
     runtime = resolve_runtime_settings(args)
     tags = args.tags or args.tier
-    replay_path = resolve_replay_path(args.replay_completions, args.log_dir)
 
     # Plan every task and validate SDK/version support before any SDK build
     # or model call, so an unsupported combination fails fast.
@@ -567,7 +601,7 @@ def main() -> None:
         sdk_strategies = (
             selected_strategies
             if explicit_strategies
-            else list(SDK_DEFAULT_STRATEGIES[sdk])
+            else [s for s in SDK_DEFAULT_STRATEGIES[sdk] if s in selected_strategies]
         )
         for strat in sdk_strategies:
             for task_version, task_datasets in plan_protocol_versions(
@@ -579,6 +613,7 @@ def main() -> None:
                 validate_sdk_version(sdk, task_version)
                 task_plan.append((sdk, strat, task_version, task_datasets))
 
+    replay_path = resolve_replay_path(args.replay_completions, args.log_dir)
     for sdk in selected_sdks:
         get_sdk_bridge(sdk).prepare()
 

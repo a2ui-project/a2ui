@@ -31,6 +31,7 @@ from inspect_ai.log import (
     write_eval_log,
 )
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
@@ -182,8 +183,10 @@ def test_store_lookup_miss_and_missing_file(tmp_path: Path) -> None:
         )
 
 
-def _write_eval_log(path: Path, **spec_overrides: Any) -> None:
-    spec = dict(
+def _write_samples_log(
+    path: Path, samples: list[EvalSample], **spec_overrides: Any
+) -> None:
+    spec: dict[str, Any] = dict(
         created="2026-01-01T00:00:00",
         task="a2ui_eval",
         dataset=EvalDataset(),
@@ -191,6 +194,10 @@ def _write_eval_log(path: Path, **spec_overrides: Any) -> None:
         config=EvalConfig(),
     )
     spec.update(spec_overrides)
+    write_eval_log(EvalLog(eval=EvalSpec(**spec), samples=samples), path)
+
+
+def _write_eval_log(path: Path, **spec_overrides: Any) -> None:
     samples = [
         EvalSample(
             id=1,
@@ -222,7 +229,7 @@ def _write_eval_log(path: Path, **spec_overrides: Any) -> None:
             messages=[ChatMessageAssistant(content="from messages")],
         ),
     ]
-    write_eval_log(EvalLog(eval=EvalSpec(**spec), samples=samples), path)
+    _write_samples_log(path, samples, **spec_overrides)
 
 
 def test_store_from_eval_log_uses_task_args(tmp_path: Path) -> None:
@@ -249,6 +256,70 @@ def test_store_from_eval_log_falls_back_to_eval_metadata(tmp_path: Path) -> None
     store = CompletionReplayStore.from_eval_log(log_path)
     assert store.lookup("sample_a", "direct", "0.9.1") is not None
     assert store.lookup("sample_a", "express", "1.0") is None
+
+
+def test_store_from_eval_log_skips_assistant_turns_from_input(
+    tmp_path: Path,
+) -> None:
+    history: list[ChatMessage] = [
+        ChatMessageUser(content="Show my bookings"),
+        ChatMessageAssistant(content="history reply"),
+        ChatMessageUser(content="Cancel the first one"),
+    ]
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input=history,
+        target="",
+        metadata={"name": "multi_turn"},
+        messages=[
+            ChatMessageSystem(content="SYS"),
+            *history,
+            ChatMessageAssistant(content=EXPRESS_OK),
+        ],
+        output=ModelOutput.from_content("mock/model", DIRECT_OK),
+    )
+    log_path = tmp_path / "run.eval"
+    _write_samples_log(
+        log_path, [sample], task_args={"strategy": "express", "version": "1.0"}
+    )
+
+    store = CompletionReplayStore.from_eval_log(log_path)
+
+    rec = store.lookup("multi_turn", "express", "1.0")
+    assert rec is not None
+    assert rec.completion == EXPRESS_OK
+
+
+def test_store_from_eval_log_keeps_first_attempt_of_retried_sample(
+    tmp_path: Path,
+) -> None:
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="hi",
+        target="",
+        metadata={"name": "retried"},
+        messages=[
+            ChatMessageSystem(content="SYS"),
+            ChatMessageUser(content="hi"),
+            ChatMessageAssistant(content="first attempt"),
+            ChatMessageUser(content="Validation failed: missing root."),
+            ChatMessageAssistant(content="second attempt"),
+        ],
+        output=ModelOutput.from_content("mock/model", "second attempt"),
+    )
+    log_path = tmp_path / "run.eval"
+    _write_samples_log(
+        log_path, [sample], task_args={"strategy": "express", "version": "1.0"}
+    )
+
+    store = CompletionReplayStore.from_eval_log(log_path)
+
+    # Live recording stores the completion before any validation retry.
+    rec = store.lookup("retried", "express", "1.0")
+    assert rec is not None
+    assert rec.completion == "first attempt"
 
 
 # --- generate_or_replay ----------------------------------------------------

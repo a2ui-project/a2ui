@@ -175,6 +175,29 @@ def _write_dataset(tmp_path: Path, name: str, text: str) -> Path:
     return p
 
 
+def test_sample_metadata_records_protocol_version(tmp_path: Path) -> None:
+    p = _write_dataset(
+        tmp_path,
+        "versioned.yaml",
+        """
+- name: versioned
+  description: A test prompt.
+  catalog: "catalogs/basic/v1/catalog.json"
+  messages:
+    - role: user
+      content: "Test input"
+""",
+    )
+
+    versioned = load_a2ui_dataset(file_path=str(p), version="1.0")
+    unversioned = load_a2ui_dataset(file_path=str(p))
+
+    assert versioned[0].metadata is not None
+    assert versioned[0].metadata["version"] == "1.0"
+    assert unversioned[0].metadata is not None
+    assert unversioned[0].metadata["version"] is None
+
+
 def test_single_catalog_sample_populates_catalog_specs(tmp_path: Path) -> None:
     p = _write_dataset(
         tmp_path,

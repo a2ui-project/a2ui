@@ -39,11 +39,13 @@ from a2ui_eval.bridges import (
 from a2ui_eval.shared.utils import GIT_ROOT
 from a2ui_eval.strategies import (
     PAYLOAD_STORE_KEY,
+    REPLAYABLE_STRATEGIES,
     STRATEGIES,
     a2ui_specialist,
     compile_format_payload,
     extract_subagent_payload,
     format_system_prompt,
+    get_solver,
     subagent_tool_strategy,
 )
 from a2ui_eval.strategies.skill_mode import (
@@ -507,6 +509,26 @@ def test_express_solver() -> None:
 def test_elemental_solver() -> None:
     solvers = STRATEGIES["elemental"]("1.0")
     assert len(solvers) == 3
+
+
+@pytest.mark.parametrize("option", ["replay_path", "record_path"])
+@pytest.mark.parametrize("strategy", ["subagent_tool", "skill_mode"])
+def test_get_solver_rejects_recording_for_tool_strategies(
+    strategy: str, option: str
+) -> None:
+    with pytest.raises(ValueError, match=f"'{strategy}' cannot record or replay"):
+        get_solver(strategy, "1.0", **{option: "completions.jsonl"})
+
+
+@pytest.mark.parametrize("strategy", REPLAYABLE_STRATEGIES)
+def test_get_solver_accepts_recording_for_format_strategies(
+    strategy: str, tmp_path: Path
+) -> None:
+    replay = tmp_path / "recorded.jsonl"
+    replay.write_text("")
+    assert len(get_solver(strategy, "1.0", replay_path=str(replay))) == 3
+    record = tmp_path / "completions.jsonl"
+    assert len(get_solver(strategy, "1.0", record_path=str(record))) == 3
 
 
 @pytest.mark.asyncio

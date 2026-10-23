@@ -149,9 +149,9 @@ class CompletionReplayStore:
         """Builds an in-memory store from an Inspect AI `.eval` log.
 
         The strategy and version come from the log's `task_args` (falling back
-        to `eval.metadata`). Each sample contributes its final completion keyed
-        by `sample.metadata["name"]`; samples without a name or completion are
-        skipped.
+        to `eval.metadata`). Each sample contributes the first completion the
+        model generated for it, keyed by `sample.metadata["name"]`; samples
+        without a name or completion are skipped.
         """
         from inspect_ai.log import read_eval_log  # pylint: disable=import-outside-toplevel
 
@@ -180,15 +180,28 @@ class CompletionReplayStore:
 
 
 def _sample_completion(sample: Any) -> str:
-    """The sample's raw model completion.
+    """The first completion the model generated for the sample.
 
-    The first assistant message is preferred over `output.completion`: for
-    formats other than Direct JSON the compile step rewrites `output` into an
-    `<a2ui-json>` payload, while the message log keeps what the model wrote.
+    The message log is preferred over `output.completion`, because the compile
+    step rewrites `output` into `<a2ui-json>` payload blocks while the log
+    keeps what the model wrote. Assistant turns that came from the sample's
+    input history are skipped, and only the first generated turn is used.
+    That matches `generate_or_replay`, which records the completion before any
+    validation retry asks the model again.
     """
-    for message in getattr(sample, "messages", None) or []:
-        if message.role == "assistant" and message.text:
-            return str(message.text)
+    history = getattr(sample, "input", None)
+    history_turns = (
+        sum(1 for message in history if message.role == "assistant")
+        if isinstance(history, list)
+        else 0
+    )
+    generated = [
+        message
+        for message in getattr(sample, "messages", None) or []
+        if message.role == "assistant"
+    ][history_turns:]
+    if generated:
+        return str(generated[0].text or "")
     output = getattr(sample, "output", None)
     if output is not None and output.completion:
         return str(output.completion)

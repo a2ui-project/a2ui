@@ -36,7 +36,8 @@ from .subagent_tool import (
 )
 
 # Keyword options every strategy factory accepts. `get_solver` forwards them
-# from the task; a factory ignores the ones it has no use for.
+# from the task; a factory ignores the ones it has no use for. `get_solver`
+# rejects `replay_path` and `record_path` outside `REPLAYABLE_STRATEGIES`.
 STRATEGY_OPTION_KEYS: tuple[str, ...] = (
     "max_validation_retries",
     "subagent_format",
@@ -90,6 +91,12 @@ STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
     "atom": _format_strategy("atom"),
 }
 
+# Strategies that can record or replay completions. Each one is a single
+# inference format whose solver chain runs `generate_or_replay`, so a stored
+# completion can stand in for the model. `subagent_tool` and `skill_mode` run
+# tool-calling loops, which one stored completion cannot reproduce.
+REPLAYABLE_STRATEGIES: tuple[str, ...] = ("direct", "express", "elemental", "atom")
+
 
 def get_solver(
     strategy: str, version: str, sdk: str = "python", **options: Any
@@ -105,13 +112,22 @@ def get_solver(
 
     Raises:
         ValueError: If the strategy is unknown, the SDK does not support it,
-            or an option name is not recognized.
+            an option name is not recognized, or `replay_path` or
+            `record_path` is set for a strategy outside
+            `REPLAYABLE_STRATEGIES`.
     """
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown evaluation strategy: {strategy}")
     unknown = sorted(set(options) - set(STRATEGY_OPTION_KEYS))
     if unknown:
         raise ValueError(f"Unknown strategy option(s): {', '.join(unknown)}")
+    if strategy not in REPLAYABLE_STRATEGIES and (
+        options.get("replay_path") or options.get("record_path")
+    ):
+        raise ValueError(
+            f"Strategy '{strategy}' cannot record or replay completions."
+            f" Supported strategies: {', '.join(REPLAYABLE_STRATEGIES)}."
+        )
 
     norm_sdk = normalize_sdk_name(sdk)
     validate_sdk_strategy(norm_sdk, strategy)
@@ -120,6 +136,7 @@ def get_solver(
 
 __all__ = [
     "PAYLOAD_STORE_KEY",
+    "REPLAYABLE_STRATEGIES",
     "STRATEGIES",
     "STRATEGY_OPTION_KEYS",
     "a2ui_specialist",
