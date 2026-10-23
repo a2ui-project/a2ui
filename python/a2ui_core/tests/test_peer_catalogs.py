@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 from typing import Any
+import urllib.request
 
 import pytest
 
@@ -272,3 +274,89 @@ def test_peer_local_defs_with_the_referencing_catalogs_names_resolve_in_the_peer
     assert "weight" in props
     assert "peerOnly" in props
     assert props["tone"]["enum"] == ["loud", "quiet"]
+
+
+@pytest.fixture
+def no_network(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Records and refuses every outbound connection the test attempts."""
+    attempts: list[str] = []
+
+    def refuse(target: Any, *args: Any, **kwargs: Any) -> Any:
+        attempts.append(repr(getattr(target, "full_url", target)))
+        raise AssertionError(f"unexpected network access: {target!r}")
+
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(socket.socket, "connect", lambda self, address: refuse(address))
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    return attempts
+
+
+_RUNE_ACTION = {"event": {"name": "tap"}}
+
+
+def _rune_catalog(action_ref: str) -> CatalogApi:
+    return _catalog(
+        "https://example.com/catalogs/arcana/v1/catalog.json",
+        {
+            "Rune": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "properties": {
+                            "component": {"const": "Rune"},
+                            "action": {"$ref": action_ref},
+                        },
+                        "required": ["component", "action"],
+                    },
+                ],
+            }
+        },
+    )
+
+
+def test_peer_ref_through_an_array_resolves_without_network(
+    no_network: list[str],
+) -> None:
+    basic = BasicCatalog("v1.0")
+    rune = _rune_catalog(
+        f"{basic.catalog_id}#/components/Button/allOf/1/properties/action"
+    )
+    validator = PayloadValidator(link_catalogs([basic, rune])[1])
+
+    validator.validate_component(
+        {"id": "r", "component": "Rune", "action": _RUNE_ACTION}
+    )
+    with pytest.raises(A2uiValidationError):
+        validator.validate_component({"id": "r", "component": "Rune", "action": 7})
+    assert no_network == []
+
+
+def test_peer_ref_pointer_unescapes_tilde_and_slash() -> None:
+    peer = _catalog(
+        "peer",
+        {"Badge": _badge("tone", {"$ref": "#/$defs/a~1b~0c"})},
+        defs={"a/b~c": {"type": "string", "enum": ["ok"]}},
+    )
+    referencing = _catalog(
+        "referencing",
+        {"Badge": _badge("tag", {"$ref": "peer#/$defs/a~1b~0c"})},
+    ).with_peer_catalogs([peer])
+
+    assert _props(referencing, "Badge")["tag"] == {"type": "string", "enum": ["ok"]}
+
+
+def test_ref_to_an_unheld_catalog_is_an_error_without_network(
+    no_network: list[str],
+) -> None:
+    basic = BasicCatalog("v1.0")
+    rune = _rune_catalog(
+        "https://unheld.example.com/catalog.json#/components/Button/properties/action"
+    )
+    validator = PayloadValidator(link_catalogs([basic, rune])[1])
+
+    with pytest.raises(A2uiValidationError, match="unheld.example.com"):
+        validator.validate_component(
+            {"id": "r", "component": "Rune", "action": _RUNE_ACTION}
+        )
+    assert no_network == []
