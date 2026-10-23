@@ -44,6 +44,8 @@ class _CannedFunction extends FunctionImplementation {
         throw StateError('An error occurred during function execution.');
       case 'calculateTax':
         return ((args['amount'] as num?) ?? 0) * 0.1;
+      case 'echoArgs':
+        return Map<String, Object?>.from(args);
       default:
         return null;
     }
@@ -104,64 +106,56 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
       testCase['protocolVersion'] as String? ??
       'v1.0';
 
+  final A2uiProtocolVersion? parsedCatalogVersion =
+      A2uiProtocolVersion.tryParseSemVer(catalogVersion);
+  final Catalog<ComponentApi, FunctionImplementation> basic =
+      BasicCatalog.v1_0(openUrl: (_) {});
   final catalog = Catalog<ComponentApi, FunctionImplementation>(
     id: catalogId,
     components: const [],
     functions: functions,
-    protocolVersion: A2uiProtocolVersion.tryParseSemVer(catalogVersion),
+    protocolVersion: parsedCatalogVersion,
   );
+  final catalogs = <Catalog<ComponentApi, FunctionImplementation>>[
+    catalog,
+    if (catalogId != 'basic')
+      Catalog<ComponentApi, FunctionImplementation>(
+        id: 'basic',
+        components: basic.components.values.toList(),
+        functions: basic.functions.values.toList(),
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      ),
+  ];
   final sent = <RendererToAgentMessage>[];
   final processor = MessageProcessor<ComponentApi>(
-    catalogs: [catalog],
+    catalogs: catalogs,
     defaultVersion: A2uiProtocolVersion.v1_0,
     outboundListener: sent.add,
   );
   addTearDown(processor.dispose);
 
-  if (message != null) {
-    final errorSpec = expected?['error'] as Map<String, Object?>?;
-    if (errorSpec != null) {
-      final part = errorSpec['message'] as String?;
-      expect(
-        () => processor.processMessages(message),
-        throwsA(isA<Object>().having(
-          (e) => e.toString(),
-          'message',
-          part == null ? anything : contains(part),
-        )),
-      );
-    } else if (expected != null && expected.containsKey('response')) {
-      await processor.processMessagesAsync(
-        message,
-        isUserActivated: userActivation,
-      );
-      final Iterable<RendererFunctionResponseMessage> responses =
-          sent.whereType<RendererFunctionResponseMessage>();
-      final expectedResponse = expected['response'] as Map<String, Object?>?;
-      if (expectedResponse == null) {
-        expect(responses, isEmpty);
-      } else {
-        expect(responses, hasLength(1));
-        final RendererFunctionResponseMessage actual = responses.single;
-        expect(actual.version, expectedResponse['version']);
-        final body = expectedResponse['rendererFunctionResponse']!
-            as Map<String, Object?>;
-        expect(actual.response.functionCallId, body['functionCallId']);
-        if (body.containsKey('value')) {
-          expect(actual.response.error, isNull);
-          expect(actual.response.value, body['value']);
-        }
-        final errorBody = body['error'] as Map<String, Object?>?;
-        if (errorBody != null) {
-          expect(actual.response.error, isNotNull);
-          expect(actual.response.error!.code, errorBody['code']);
-          final part = errorBody['message'] as String?;
-          if (part != null) {
-            expect(actual.response.error!.message, contains(part));
-          }
-        }
-      }
+  if (args['surfaceId'] case final String surfaceId) {
+    final surface = SurfaceModel<ComponentApi>(
+      surfaceId,
+      defaultCatalog: catalog,
+      availableCatalogs: catalogs,
+      protocolVersion: catalogVersion,
+      callAgentFunction: (call) => processor.callAgentFunction(surfaceId, call),
+    );
+    if (args['dataModel'] case final Map<String, Object?> dataModel) {
+      surface.dataModel.set('/', dataModel);
     }
+    processor.model.addSurface(surface);
+  }
+
+  if (message != null) {
+    await _runInboundMessageScenario(
+      message,
+      expected,
+      userActivation,
+      processor,
+      sent,
+    );
   }
 
   if (outboundCall != null && inboundResponse != null) {
@@ -188,49 +182,232 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   } else if (outboundCall != null) {
     final errorSpec =
         (expected?['error'] ?? expectError)! as Map<String, Object?>;
-    final code = errorSpec['code'] as String?;
-    final Matcher matcher = isA<A2uiRpcError>().having(
-      (e) => e.code,
-      'code',
-      code ?? anything,
+    await _runOutboundErrorScenario(
+      outboundCall,
+      args['secondOutboundCall'] as Map<String, Object?>?,
+      errorSpec,
+      processor,
     );
-    final secondCall = args['secondOutboundCall'] as Map<String, Object?>?;
-    if (secondCall != null) {
-      final Future<Object?> first = processor.callAgentFunction(
-        outboundCall['surfaceId']! as String,
-        _functionCall(outboundCall),
-        options: CallOptions(
-          functionCallId: outboundCall['functionCallId'] as String?,
-        ),
-      );
-      // Settled with CANCELLED when the processor is disposed in tearDown.
-      first.ignore();
-      await expectLater(
-        processor.callAgentFunction(
-          secondCall['surfaceId']! as String,
-          _functionCall(secondCall),
-          options: CallOptions(
-            functionCallId: secondCall['functionCallId'] as String?,
-          ),
-        ),
-        throwsA(matcher),
-      );
-    } else {
-      final timeoutMs = outboundCall['timeoutMs'] as int?;
-      await expectLater(
-        processor.callAgentFunction(
-          outboundCall['surfaceId']! as String,
-          _functionCall(outboundCall),
-          options: CallOptions(
-            functionCallId: outboundCall['functionCallId'] as String?,
-            timeout:
-                timeoutMs == null ? null : Duration(milliseconds: timeoutMs),
-          ),
-        ),
-        throwsA(matcher),
-      );
+  }
+
+  if (args['uiBindingScenario'] case final Map<String, Object?> scenario) {
+    await _runUiBindingScenario(scenario, expected!, processor, basic, sent);
+  }
+
+  if (args['uiActionFallbackScenario']
+      case final Map<String, Object?> scenario) {
+    await _runUiActionFallbackScenario(scenario, expected!, processor, sent);
+  }
+}
+
+Future<void> _runInboundMessageScenario(
+  Map<String, Object?> message,
+  Map<String, Object?>? expected,
+  bool userActivation,
+  MessageProcessor<ComponentApi> processor,
+  List<RendererToAgentMessage> sent,
+) async {
+  final errorSpec = expected?['error'] as Map<String, Object?>?;
+  if (errorSpec != null) {
+    final part = errorSpec['message'] as String?;
+    expect(
+      () => processor.processMessages(message),
+      throwsA(isA<Object>().having(
+        (e) => e.toString(),
+        'message',
+        part == null ? anything : contains(part),
+      )),
+    );
+    return;
+  }
+  if (expected == null || !expected.containsKey('response')) return;
+
+  await processor.processMessagesAsync(
+    message,
+    isUserActivated: userActivation,
+  );
+  final Iterable<RendererFunctionResponseMessage> responses =
+      sent.whereType<RendererFunctionResponseMessage>();
+  final expectedResponse = expected['response'] as Map<String, Object?>?;
+  if (expectedResponse == null) {
+    expect(responses, isEmpty);
+    return;
+  }
+  expect(responses, hasLength(1));
+  final RendererFunctionResponseMessage actual = responses.single;
+  expect(actual.version, expectedResponse['version']);
+  final body =
+      expectedResponse['rendererFunctionResponse']! as Map<String, Object?>;
+  expect(actual.response.functionCallId, body['functionCallId']);
+  if (body.containsKey('value')) {
+    expect(actual.response.error, isNull);
+    expect(actual.response.value, body['value']);
+  }
+  final errorBody = body['error'] as Map<String, Object?>?;
+  if (errorBody != null) {
+    expect(actual.response.error, isNotNull);
+    expect(actual.response.error!.code, errorBody['code']);
+    final part = errorBody['message'] as String?;
+    if (part != null) {
+      expect(actual.response.error!.message, contains(part));
     }
   }
+}
+
+Future<void> _runOutboundErrorScenario(
+  Map<String, Object?> outboundCall,
+  Map<String, Object?>? secondCall,
+  Map<String, Object?> errorSpec,
+  MessageProcessor<ComponentApi> processor,
+) async {
+  final code = errorSpec['code'] as String?;
+  final Matcher matcher = isA<A2uiRpcError>().having(
+    (e) => e.code,
+    'code',
+    code ?? anything,
+  );
+  if (secondCall != null) {
+    final Future<Object?> first = processor.callAgentFunction(
+      outboundCall['surfaceId']! as String,
+      _functionCall(outboundCall),
+      options: CallOptions(
+        functionCallId: outboundCall['functionCallId'] as String?,
+      ),
+    );
+    first.ignore();
+    await expectLater(
+      processor.callAgentFunction(
+        secondCall['surfaceId']! as String,
+        _functionCall(secondCall),
+        options: CallOptions(
+          functionCallId: secondCall['functionCallId'] as String?,
+        ),
+      ),
+      throwsA(matcher),
+    );
+    return;
+  }
+  final timeoutMs = outboundCall['timeoutMs'] as int?;
+  await expectLater(
+    processor.callAgentFunction(
+      outboundCall['surfaceId']! as String,
+      _functionCall(outboundCall),
+      options: CallOptions(
+        functionCallId: outboundCall['functionCallId'] as String?,
+        timeout: timeoutMs == null ? null : Duration(milliseconds: timeoutMs),
+      ),
+    ),
+    throwsA(matcher),
+  );
+}
+
+Future<void> _runUiBindingScenario(
+  Map<String, Object?> scenario,
+  Map<String, Object?> expected,
+  MessageProcessor<ComponentApi> processor,
+  Catalog<ComponentApi, FunctionImplementation> basic,
+  List<RendererToAgentMessage> sent,
+) async {
+  final surfaceId = scenario['surfaceId']! as String;
+  final scenarioCatalogId = scenario['catalogId']! as String;
+  final scenarioCatalog = Catalog<ComponentApi, FunctionImplementation>(
+    id: scenarioCatalogId,
+    components: basic.components.values.toList(),
+    functions: const [],
+    protocolVersion: A2uiProtocolVersion.v1_0,
+  );
+  final surface = SurfaceModel<ComponentApi>(
+    surfaceId,
+    defaultCatalog: scenarioCatalog,
+    availableCatalogs: [scenarioCatalog],
+    protocolVersion: 'v1.0',
+    callAgentFunction: (call) => processor.callAgentFunction(surfaceId, call),
+  );
+  processor.model.addSurface(surface);
+  final comp = Map<String, Object?>.from(scenario['component']! as Map);
+  final compId = comp.remove('id')! as String;
+  final compType = comp.remove('component')! as String;
+  surface.componentsModel.addComponent(
+    ComponentModel(compId, compType, comp),
+  );
+  final resolver = NodeResolver<ComponentApi>(surface);
+  addTearDown(resolver.dispose);
+
+  final ComponentNode<ComponentApi> root = resolver.rootNode.value!;
+  final initialBinding = root.props.value['text']! as ResolvedBinding<Object?>;
+  expect(initialBinding.value, expected['initialValue']);
+
+  final CallAgentFunctionMessage outbound =
+      sent.whereType<CallAgentFunctionMessage>().single;
+  final expectedOutbound = expected['outboundCall']! as Map<String, Object?>;
+  expect(outbound.version, expectedOutbound['version']);
+  final expectedCall =
+      expectedOutbound['callAgentFunction']! as Map<String, Object?>;
+  expect(outbound.surfaceId, expectedCall['surfaceId']);
+  expect(outbound.callFunction, expectedCall['callFunction']);
+
+  processor.processMessages({
+    'version': 'v1.0',
+    'agentFunctionResponse': {
+      'functionCallId': outbound.functionCallId,
+      'value': scenario['inboundResponseValue'],
+    },
+  });
+  await Future<void>.delayed(Duration.zero);
+  final resolvedBinding = root.props.value['text']! as ResolvedBinding<Object?>;
+  expect(resolvedBinding.value, expected['resolvedValue']);
+}
+
+Future<void> _runUiActionFallbackScenario(
+  Map<String, Object?> scenario,
+  Map<String, Object?> expected,
+  MessageProcessor<ComponentApi> processor,
+  List<RendererToAgentMessage> sent,
+) async {
+  final surfaceId = scenario['surfaceId']! as String;
+  final scenarioCatalogId = scenario['catalogId']! as String;
+  final scenarioCatalog = Catalog<ComponentApi, FunctionImplementation>(
+    id: scenarioCatalogId,
+    components: const [],
+    functions: const [],
+    protocolVersion: A2uiProtocolVersion.v1_0,
+  );
+  final context = DataContext(
+    DataModel(),
+    scenarioCatalog.invoke,
+    '/',
+    protocolVersion: A2uiProtocolVersion.v1_0,
+    invokerForCatalog: (id) {
+      if (id == scenarioCatalogId) return scenarioCatalog.invoke;
+      throw A2uiCatalogResolutionError(
+        'Catalog not found: $id',
+        catalogId: id,
+      );
+    },
+    callAgentFunction: (call) => processor.callAgentFunction(surfaceId, call),
+  );
+  final actionPayload = scenario['actionPayload']! as Map<String, Object?>;
+  final functionCall = actionPayload['functionCall']! as Map<String, Object?>;
+  final Future<Object?> resultFuture =
+      context.evaluateFunctionCall(functionCall);
+
+  final CallAgentFunctionMessage outbound =
+      sent.whereType<CallAgentFunctionMessage>().single;
+  final expectedOutbound = expected['outboundCall']! as Map<String, Object?>;
+  expect(outbound.version, expectedOutbound['version']);
+  final expectedCall =
+      expectedOutbound['callAgentFunction']! as Map<String, Object?>;
+  expect(outbound.surfaceId, expectedCall['surfaceId']);
+  expect(outbound.callFunction, expectedCall['callFunction']);
+
+  processor.processMessages({
+    'version': 'v1.0',
+    'agentFunctionResponse': {
+      'functionCallId': outbound.functionCallId,
+      'value': scenario['inboundResponseValue'],
+    },
+  });
+  expect(await resultFuture, expected['result']);
 }
 
 FunctionCall _functionCall(Map<String, Object?> outboundCall) {

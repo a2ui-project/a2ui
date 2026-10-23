@@ -12,6 +12,11 @@
   schema check. Catalogs below v1.0, whose validation functions return
   booleans, are unchanged.
 
+- Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
+  `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`
+  exceptions into structured wire-format `ErrorMessage` envelopes, and
+  populated structured `A2uiErrorDetail` entries on `PayloadValidator`
+  component and function validation failures.
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several
