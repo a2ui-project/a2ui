@@ -14,6 +14,7 @@
 
 import A2UIJSON
 import Foundation
+import OrderedCollections
 import OrderedJSON
 
 /// Resolves raw component models, data model state, and catalog schemas
@@ -610,7 +611,7 @@ public final class NodeResolver: Sendable {
     for (k, v) in obj {
       let nestedPropSchema = objProps[k] ?? .boolean(true)
       let classified = classifySchema(nestedPropSchema)
-      let nestedPropType =
+      let nestedPropType: PropertyType =
         (classified == .standard && v.objectValue?[bindingKey] != nil)
         ? .dynamicValue : classified
       if let resVal = resolveProperty(
