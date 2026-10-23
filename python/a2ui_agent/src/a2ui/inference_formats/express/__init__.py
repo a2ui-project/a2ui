@@ -37,7 +37,6 @@ from .format import ExpressFormat
 from .format import ExpressFormatFactory
 from .parser import ExpressParser
 from .prompt_generator import EXPRESS_RULES
-from .prompt_generator import ExpressPromptGenerator
 
 __all__ = [
     "EXPRESS_RULES",
@@ -52,7 +51,6 @@ __all__ = [
     "ExpressInvalidParamError",
     "ExpressParseError",
     "ExpressParser",
-    "ExpressPromptGenerator",
     "ExpressUndefinedChildError",
     "ExpressUndefinedRootError",
     "ExpressUnknownPropertyError",

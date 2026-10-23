@@ -19,7 +19,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from a2ui.constants import EXAMPLES_HEADING
 from a2ui.core import CatalogApi
 from a2ui.core.common import is_at_least_version
 from a2ui.inference_formats._shared import (
@@ -300,21 +299,6 @@ class AtomPromptGenerator(PromptGenerator):
             dsl = decompiler.decompile(turn)
             blocks.append(decompiler.wrap_decompiled_blocks([dsl]))
         return "\n\n".join(blocks)
-
-    def generate(self) -> str:
-        """Generates the prompt snippet for Atom S-expression UI generation."""
-        parts = [self.generate_base_rules()]
-
-        if self.schema_helpers:
-            instructions = self.generate_catalog_instructions(include_schema=True)
-            if instructions:
-                parts.append(instructions)
-
-        formatted_examples = self.generate_examples()
-        if formatted_examples:
-            parts.append(f"{EXAMPLES_HEADING}{formatted_examples}")
-
-        return "\n\n".join(parts)
 
     def _generate_component_signatures(
         self, helper: CatalogSchemaHelper | None = None
