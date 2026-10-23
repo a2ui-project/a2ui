@@ -11,6 +11,7 @@
       {"$ref": "#/$defs/CoreSyntaxTest"},
       {"$ref": "#/$defs/FromCatalogTest"},
       {"$ref": "#/$defs/SkillSetTest"},
+      {"$ref": "#/$defs/FromFormatMatchesSnippetTest"},
       {"$ref": "#/$defs/TransformCatalogTest"},
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
@@ -60,6 +61,7 @@
             "fix_payload",
             "from_catalog",
             "from_format",
+            "from_format_matches_snippet",
             "from_json",
             "generate_prompt",
             "generate_prompt_snippet",
@@ -861,6 +863,29 @@
         }
       },
       "required": ["action", "args", "expected_skills"]
+    },
+    "FromFormatMatchesSnippetTest": {
+      "type": "object",
+      "description": "Builds one format from the listed catalogs and checks that its monolithic skill's body equals its prompt snippet.",
+      "properties": {
+        "action": {
+          "const": "from_format_matches_snippet"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"type": "string"},
+            "catalogs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string"},
+              "description": "Catalog document paths, relative to the repository root."
+            }
+          },
+          "required": ["format", "catalogs"]
+        }
+      },
+      "required": ["action", "args"]
     },
     "AgentCatalogRef": {
       "description": "A catalog document, either a path relative to `conformance/` or the document inlined in the case.",
