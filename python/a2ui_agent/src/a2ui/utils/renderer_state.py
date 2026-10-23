@@ -312,11 +312,24 @@ class RendererState:
                 raise A2uiIntegrityError(
                     f"Component '{unreachable[0]}' is not reachable from '{root_id}'"
                 )
-        for surface_id in surface_ids:
-            # An assumed surface was not checked, so what changed on it stays
-            # recorded for the check after its v0.8 `beginRendering`.
-            if surface_id not in self._assumed:
-                self._forget_changed(surface_id)
+        # An assumed surface was not checked, so what changed on it stays
+        # recorded for the check after its v0.8 `beginRendering`.
+        self.mark_checked(s for s in surface_ids if s not in self._assumed)
+
+    def mark_checked(self, surface_ids: Iterable[str]) -> None:
+        """Stops holding the components each surface changed against later checks.
+
+        `check_topology` calls this for the surfaces it checks. A caller calls
+        it for the surfaces of messages the renderer received that failed a
+        check, such as a stream that failed after it emitted them: no message
+        removes a component, so a component the renderer already holds can't
+        be made reachable later, and the later turns are not held to it.
+        Dangling references and a missing root are still reported, since
+        `check_topology` checks those on the whole surface. Like any other
+        change, it is undone when the transaction it was made in fails.
+        """
+        for surface_id in dict.fromkeys(surface_ids):
+            self._forget_changed(surface_id)
 
     @contextlib.contextmanager
     def transaction(self) -> Iterator[RendererState]:
@@ -754,9 +767,10 @@ class _PayloadState(RendererState):
     holding components the check never saw. The state creates an empty
     placeholder for it, on the first catalog that defines the components of
     the payload's updates to it and accepts all of them. A surface that an
-    earlier message of the payload deleted is not assumed again. Each component is still checked against that
-    catalog, but the surface's tree is not: references to components outside
-    the payload, a missing root and unreachable components are accepted there.
+    earlier message of the payload deleted is not assumed again. Each
+    component is still checked against that catalog, but the surface's tree
+    is not: references to components outside the payload, a missing root and
+    unreachable components are accepted there.
     A surface whose catalog the caller knows is created on that catalog only.
     """
 
