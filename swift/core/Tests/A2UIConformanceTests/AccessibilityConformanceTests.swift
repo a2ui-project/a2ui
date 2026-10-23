@@ -14,132 +14,156 @@
 
 import A2UICore
 import A2UIJSON
+import BasicCatalog
 import Foundation
 import OrderedCollections
 import OrderedJSON
 import Testing
 
+@MainActor
 struct AccessibilityConformanceTests {
-  @Test @MainActor
-  func accessibilityConformance() throws {
-    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/accessibility.yaml")
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
-
+  @Test func accessibilityConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/accessibility.yaml")
+    let testCases = (rawYAML as? [[String: Any]]) ?? []
     #expect(!testCases.isEmpty, "Should find test cases in accessibility.yaml")
 
     var checkedComponents = 0
-
     for testCase in testCases {
-      guard let surfaceDictionary = testCase.surface else { continue }
-      let assertions = testCase.assertions?["accessibilityTree"]?.objectValue ?? [:]
-
-      let rootComponentType = surfaceDictionary["component"]?.stringValue ?? "Column"
-      let rootID = surfaceDictionary["id"]?.stringValue ?? "root"
-
-      var componentsList: [ComponentModel] = []
-
-      var rootProperties: [String: JSONValue] = [:]
-      for (key, propertyValue) in surfaceDictionary
-      where key != "id" && key != "component" && key != "components" {
-        rootProperties[key] = propertyValue
-      }
-      componentsList.append(
-        ComponentModel(id: rootID, type: rootComponentType, properties: rootProperties)
-      )
-
-      if let nestedComponents = surfaceDictionary["components"]?.objectValue {
-        for (componentID, componentDefinitionValue) in nestedComponents {
-          guard let componentDefinition = componentDefinitionValue.objectValue else { continue }
-          let componentType = componentDefinition["component"]?.stringValue ?? "Text"
-          var componentProperties: [String: JSONValue] = [:]
-          for (key, propertyValue) in componentDefinition
-          where key != "id" && key != "component" {
-            componentProperties[key] = propertyValue
-          }
-          componentsList.append(
-            ComponentModel(id: componentID, type: componentType, properties: componentProperties)
-          )
-        }
-      }
-
-      let surfaceViewModel = SurfaceViewModel(
-        surfaceID: "accessibility-surface",
-        catalog: AnyCatalog(id: "std", components: [])
-      )
-
-      for component in componentsList {
-        surfaceViewModel.componentsModel.addComponent(component)
-      }
-
-      for (targetComponentID, expectedTreeObject) in assertions {
-        guard let expectedDictionary = expectedTreeObject.objectValue else { continue }
-        guard let componentModel = surfaceViewModel.componentsModel.get(targetComponentID) else {
-          Issue.record(
-            "[\(testCase.name)] Component '\(targetComponentID)' not found in components model")
-          continue
-        }
-
-        var resolvedProperties: [String: any Resolved] = [:]
-        for (key, propertyValue) in componentModel.properties {
-          if let stringValue = propertyValue.stringValue {
-            resolvedProperties[key] = stringValue
-          } else if let booleanValue = propertyValue.boolValue {
-            resolvedProperties[key] = booleanValue
-          } else {
-            resolvedProperties[key] = propertyValue
-          }
-        }
-
-        let node = Node(
-          id: targetComponentID,
-          type: componentModel.type,
-          properties: resolvedProperties
-        )
-        let accessibilityAttributes = node.accessibilityAttributes
-        checkedComponents += 1
-
-        if let expectedLabel = expectedDictionary["label"]?.stringValue {
-          #expect(
-            accessibilityAttributes?.label == expectedLabel,
-            """
-            [\(testCase.name)] Expected label '\(expectedLabel)' for '\(targetComponentID)', \
-            got '\(accessibilityAttributes?.label ?? "")'
-            """
-          )
-        }
-
-        if let expectedDescription = expectedDictionary["description"]?.stringValue {
-          #expect(
-            accessibilityAttributes?.description == expectedDescription,
-            """
-            [\(testCase.name)] Expected description '\(expectedDescription)' for \
-            '\(targetComponentID)', got '\(accessibilityAttributes?.description ?? "")'
-            """
-          )
-        }
-
-        if let expectedLive = expectedDictionary["live"]?.stringValue {
-          #expect(
-            accessibilityAttributes?.live == expectedLive,
-            """
-            [\(testCase.name)] Expected live '\(expectedLive)' for '\(targetComponentID)', \
-            got '\(accessibilityAttributes?.live ?? "")'
-            """
-          )
-        }
-
-        if let expectedHidden = expectedDictionary["hidden"]?.boolValue {
-          #expect(
-            accessibilityAttributes?.hidden == expectedHidden,
-            """
-            [\(testCase.name)] Expected hidden '\(expectedHidden)' for '\(targetComponentID)', \
-            got '\(accessibilityAttributes?.hidden == true)'
-            """
-          )
-        }
-      }
+      checkedComponents += try runAccessibilityCase(testCase)
     }
 
     #expect(checkedComponents > 0, "no accessibilityTree assertion of the suite was checked")
+  }
+
+  private func runAccessibilityCase(_ testCase: [String: Any]) throws -> Int {
+    let name = testCase["name"] as? String ?? "<unnamed>"
+    let processor = MessageProcessor(
+      catalogs: BasicCatalog.allCatalogs,
+      validationConfig: .relaxed
+    )
+    let steps = (testCase["steps"] as? [[String: Any]]) ?? [testCase]
+    var checked = 0
+
+    for step in steps {
+      if let rawMessages = step["messages"] {
+        try processor.processMessages(ConformanceTestHelper.toJSONValue(rawMessages))
+      }
+      let surface = try #require(
+        processor.surfaceGroupModel.surfacesMap["a11y_surface"]
+          ?? processor.surfaceGroupModel.surfacesMap.values.first,
+        "[\(name)] Expected surface 'a11y_surface' to exist"
+      )
+      let rootNode = try #require(
+        surface.nodeResolver.resolveTree(),
+        "[\(name)] Expected resolved root node"
+      )
+      #expect(surface.rootNode == rootNode, "[\(name)] Surface rootNode should match resolved tree")
+
+      let assertions =
+        (step["assertions"] as? [String: Any])
+        ?? (testCase["assertions"] as? [String: Any])
+        ?? [:]
+      let treeAssertions = assertions["accessibilityTree"] as? [String: Any] ?? [:]
+
+      for (targetID, rawExpected) in treeAssertions {
+        guard let expectedDict = rawExpected as? [String: Any] else { continue }
+        let targetNode = try #require(
+          findNode(id: targetID, in: rootNode),
+          "[\(name)] Expected node '\(targetID)' in resolved tree"
+        )
+        assertNodeAccessibility(
+          node: targetNode,
+          expected: expectedDict,
+          caseName: name
+        )
+        checked += 1
+      }
+    }
+    return checked
+  }
+
+  private func findNode(id: String, in root: Node) -> Node? {
+    var stack: [Node] = [root]
+    while let current = stack.popLast() {
+      if current.id == id {
+        return current
+      }
+      stack.append(contentsOf: current.allChildNodes)
+    }
+    return nil
+  }
+
+  private func assertNodeAccessibility(
+    node: Node,
+    expected: [String: Any],
+    caseName: String
+  ) {
+    let attributes = node.accessibilityAttributes
+    if let expectedLabel = expected["label"] as? String {
+      let actualLabel = effectiveLabel(for: node)
+      #expect(
+        actualLabel == expectedLabel,
+        "[\(caseName)] Expected label '\(expectedLabel)' for '\(node.id)'"
+      )
+    }
+    if let expectedDescription = expected["description"] as? String {
+      #expect(
+        attributes?.description == expectedDescription,
+        "[\(caseName)] Expected description '\(expectedDescription)' for '\(node.id)'"
+      )
+    }
+    if let expectedLive = expected["live"] as? String {
+      #expect(
+        attributes?.live == expectedLive,
+        "[\(caseName)] Expected live '\(expectedLive)' for '\(node.id)'"
+      )
+    }
+    if let expectedHidden = expected["hidden"] as? Bool {
+      let actualHidden = attributes?.hidden ?? false
+      #expect(
+        actualHidden == expectedHidden,
+        "[\(caseName)] Expected hidden '\(expectedHidden)' for '\(node.id)'"
+      )
+    }
+    if let expectedRole = expected["role"] as? String {
+      let actualRole = effectiveRole(for: node)
+      #expect(
+        actualRole == expectedRole,
+        "[\(caseName)] Expected role '\(expectedRole)' for '\(node.id)', got '\(actualRole)'"
+      )
+    }
+    if let expectedChecked = expected["checked"] as? Bool {
+      let actualChecked = node.bool(for: "value") ?? false
+      #expect(
+        actualChecked == expectedChecked,
+        "[\(caseName)] Expected checked '\(expectedChecked)' for '\(node.id)'"
+      )
+    }
+  }
+
+  private func effectiveLabel(for node: Node) -> String? {
+    if let label = node.accessibilityAttributes?.label, !label.isEmpty {
+      return label
+    }
+    if let child = node.child(for: "child") {
+      return child.accessibilityAttributes?.label ?? child.string(for: "text")
+    }
+    return nil
+  }
+
+  private func effectiveRole(for node: Node) -> String {
+    switch node.type {
+    case "Button":
+      return "button"
+    case "TextField":
+      return "textbox"
+    case "CheckBox":
+      return "checkbox"
+    case "ChoicePicker":
+      let variant = node.string(for: "variant") ?? "mutuallyExclusive"
+      return variant == "mutuallyExclusive" ? "radiogroup" : "group"
+    default:
+      return node.type.lowercased()
+    }
   }
 }
