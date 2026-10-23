@@ -182,26 +182,26 @@ struct RPCConformanceTests {
         let args: [String: JSONValue]? = expectedCallFunction["args"]?.objectValue.map {
           Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
         }
-        let sent = ConformanceOutboundBox()
 
-        let callTask = Task {
-          try await rpcHandler.callAgentFunction(
-            surfaceID: surfaceID,
-            functionName: call,
-            catalogID: catID,
-            functionCallID: fnCallID,
-            args: args,
-            version: .v10,
-            timeoutSeconds: 5.0,
-            sendOutbound: { sent.messages.append($0) }
-          )
+        // `callAgentFunction` registers the pending call before it sends the outbound
+        // message, so once the message arrives the response can be routed.
+        var callTask: Task<JSONValue, any Error>!
+        let outbound = await withCheckedContinuation { continuation in
+          callTask = Task {
+            try await rpcHandler.callAgentFunction(
+              surfaceID: surfaceID,
+              functionName: call,
+              catalogID: catID,
+              functionCallID: fnCallID,
+              args: args,
+              version: .v10,
+              timeoutSeconds: 5.0,
+              sendOutbound: { continuation.resume(returning: $0) }
+            )
+          }
         }
 
-        try await Task.sleep(nanoseconds: 10_000_000)
-
         // The outbound message must be the v1.0 callAgentFunction the case describes.
-        #expect(sent.messages.count == 1)
-        let outbound = try #require(sent.messages.first)
         let outboundJSON = try JSONDecoder().decode(
           JSONValue.self, from: JSONEncoder().encode(outbound))
         let sentCall = try #require(outboundJSON["callAgentFunction"])
@@ -228,10 +228,6 @@ struct RPCConformanceTests {
       }
     }
   }
-}
-
-private final class ConformanceOutboundBox: @unchecked Sendable {
-  var messages: [RendererToAgentMessage] = []
 }
 
 private final class ConformanceMockRPCFunction: FunctionImplementation, Sendable {
