@@ -525,7 +525,8 @@ def _assert_renderer_error_message(
     )
     dict_ok = "non-dict" in exp_m and ("primitive" in act_m or "non-dict" in act_m)
     assert exp_m in act_m or type_ok or req_ok or dict_ok, (
-        f"rendererError.message expected '{exp_re['message']}' in '{err_obj.get('message')}'"
+        f"rendererError.message expected '{exp_re['message']}' in"
+        f" '{err_obj.get('message')}'"
     )
 
 
@@ -533,9 +534,9 @@ def _assert_renderer_error(
     exp_re: dict[str, Any],
     captured_renderer_errors: list[dict[str, Any]] | None,
 ) -> None:
-    assert captured_renderer_errors, (
-        f"Expected rendererError {exp_re!r} to be emitted, but none was captured."
-    )
+    assert (
+        captured_renderer_errors
+    ), f"Expected rendererError {exp_re!r} to be emitted, but none was captured."
     msg = captured_renderer_errors[-1]
     ver = str(msg.get("version") or "v0.9")
     schema_cls = RendererToAgentMessage if "1.0" in ver else ClientToServerMessage
@@ -543,9 +544,9 @@ def _assert_renderer_error(
     err_obj = msg.get("error") or {}
     for key in ("code", "surfaceId", "functionCallId", "path"):
         if key in exp_re:
-            assert err_obj.get(key) == exp_re[key], (
-                f"rendererError.{key} expected {exp_re[key]!r}, got {err_obj.get(key)!r}"
-            )
+            assert (
+                err_obj.get(key) == exp_re[key]
+            ), f"rendererError.{key} expected {exp_re[key]!r}, got {err_obj.get(key)!r}"
     _assert_renderer_error_message(exp_re, err_obj)
 
 
@@ -564,10 +565,9 @@ def _detail_path_matches(d: Any, exp_path_val: str | None) -> bool:
     if exp_path_val is None:
         return True
     for actual_path in _candidate_detail_paths(d):
-        if (
-            actual_path == exp_path_val
-            or to_json_pointer(actual_path) == to_json_pointer(exp_path_val)
-        ):
+        if actual_path == exp_path_val or to_json_pointer(
+            actual_path
+        ) == to_json_pointer(exp_path_val):
             return True
         if actual_path.startswith("components."):
             rel = ".".join(actual_path.split(".")[2:])
@@ -599,9 +599,9 @@ def _assert_error_details_list(
 ) -> None:
     for exp_d in expected_details:
         if isinstance(exp_d, dict):
-            assert any(_detail_matches_expected(d, exp_d) for d in err_details), (
-                f"Expected detail {exp_d!r} not found in {err_details!r}"
-            )
+            assert any(
+                _detail_matches_expected(d, exp_d) for d in err_details
+            ), f"Expected detail {exp_d!r} not found in {err_details!r}"
 
 
 def _assert_error_scalar_fields(
@@ -621,7 +621,8 @@ def _assert_error_scalar_fields(
         exc_path = getattr(exc_val, "path", None)
         detail_paths = [d.path for d in err_details]
         assert exc_path == exp_path or exp_path in detail_paths, (
-            f"Expected error path {exp_path!r}, got path={exc_path!r}, details={detail_paths!r}"
+            f"Expected error path {exp_path!r}, got path={exc_path!r},"
+            f" details={detail_paths!r}"
         )
 
 
@@ -636,11 +637,13 @@ def _assert_error_dict_expectations(
         exp_sid = expect_error["surfaceId"]
         exc_sid = getattr(exc_val, "surface_id", None)
         detail_sids = [getattr(d, "surface_id", None) for d in err_details]
-        assert exc_sid == exp_sid or exp_sid in detail_sids, (
-            f"Expected error surfaceId {exp_sid!r}, got surface_id={exc_sid!r}"
-        )
+        assert (
+            exc_sid == exp_sid or exp_sid in detail_sids
+        ), f"Expected error surfaceId {exp_sid!r}, got surface_id={exc_sid!r}"
     if expect_error.get("functionCallId") is not None:
-        assert getattr(exc_val, "function_call_id", None) == expect_error["functionCallId"]
+        assert (
+            getattr(exc_val, "function_call_id", None) == expect_error["functionCallId"]
+        )
     if isinstance(expect_error.get("details"), list):
         _assert_error_details_list(expect_error["details"], err_details)
     if isinstance(expect_error.get("rendererError"), dict):
@@ -822,9 +825,9 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
     elif action == "parse_expression_template":
         validate_parse_expression_template_case(case)
     elif action == "resolve_nodes":
-        assert rel_path == "core/node_resolution.yaml", (
-            "resolve_nodes is only supported in core/node_resolution.yaml"
-        )
+        assert (
+            rel_path == "core/node_resolution.yaml"
+        ), "resolve_nodes is only supported in core/node_resolution.yaml"
         run_node_resolution_case(case, Path(CONFORMANCE_ROOT))
     elif action == "evaluate_function":
         validate_evaluate_function_case(case)
@@ -1004,9 +1007,7 @@ def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
                     base_tpl_path = tpl_path.rstrip("/")
                     for i in range(len(arr)):
                         scoped_path = f"{base_tpl_path}/{i}"
-                        _resolve_one(
-                            tpl_comp_id, scoped_path, f"{tpl_comp_id}_{i}"
-                        )
+                        _resolve_one(tpl_comp_id, scoped_path, f"{tpl_comp_id}_{i}")
                         _resolve_one(
                             tpl_comp_id,
                             scoped_path,
@@ -1868,10 +1869,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             )
         )
 
-    cat_id, cat_version = _resolve_rpc_catalog_info(
-        args, message, outbound_call, case
-    )
-    )
+    cat_id, cat_version = _resolve_rpc_catalog_info(args, message, outbound_call, case)
     catalogs = _build_rpc_catalogs(cat_id, cat_version, funcs)
     captured_renderer_errors: list[dict[str, Any]] = []
     processor = MessageProcessor(

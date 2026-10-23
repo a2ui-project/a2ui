@@ -353,7 +353,10 @@ class NodeResolver:
 
     def _reconcile_root_on_created(self) -> None:
         current = self.surface.components_model.get(self.root_id)
-        if self._root_record is not None and self._root_record.component_model is not current:
+        if (
+            self._root_record is not None
+            and self._root_record.component_model is not current
+        ):
             self._dispose_node(self._root_record.node)
             self._root_record = None
             if current is None:
@@ -741,7 +744,11 @@ class NodeResolver:
         for key in sorted(record.ref_spec.list_refs):
             if key in record.ref_spec.nested_refs:
                 self._resolve_nested_ref_list(
-                    record, next_props, key, record.ref_spec.nested_refs[key], resolve_one
+                    record,
+                    next_props,
+                    key,
+                    record.ref_spec.nested_refs[key],
+                    resolve_one,
                 )
             else:
                 self._resolve_flat_ref_list(record, next_props, key, resolve_one)
@@ -862,9 +869,7 @@ class NodeResolver:
             wrapped[k] = _stabilize(prev.get(k), wrapped[k])
         return wrapped
 
-    def _teardown_record(
-        self, node: MutableComponentNode, record: _NodeRecord
-    ) -> None:
+    def _teardown_record(self, node: MutableComponentNode, record: _NodeRecord) -> None:
         for child in list(record.child_edges.values()):
             self._dispose_node(child)
         record.child_edges.clear()
