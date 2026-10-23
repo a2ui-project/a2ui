@@ -806,62 +806,57 @@ public final class NodeResolver: Sendable {
     case standard
   }
 
+  private static let refPropertyTypes: [String: PropertyType] = [
+    "DynamicBoolean": .dynamicBoolean,
+    "DynamicString": .dynamicString,
+    "DynamicNumber": .dynamicNumber,
+    "DynamicValue": .dynamicValue,
+    "DynamicStringList": .dynamicStringList,
+    "DataBinding": .dynamicString,
+    "CheckRule": .checks,
+    "Checkable": .checks,
+    "Action": .action,
+    "ChildList": .childList,
+    "Child": .componentID,
+    "ComponentId": .componentID,
+  ]
+
   private func classifySchema(_ schemaJSON: JSONValue) -> PropertyType {
-    if let ref = schemaJSON["$ref"]?.stringValue {
-      let typeName = ref.split(separator: "/").last.map(String.init)
-      switch typeName {
-      case "DynamicBoolean": return .dynamicBoolean
-      case "DynamicString": return .dynamicString
-      case "DynamicNumber": return .dynamicNumber
-      case "DynamicValue": return .dynamicValue
-      case "DynamicStringList": return .dynamicStringList
-      case "DataBinding": return .dynamicString
-      case "CheckRule", "Checkable": return .checks
-      case "Action": return .action
-      case "ChildList": return .childList
-      case "Child", "ComponentId": return .componentID
-      default: break
-      }
+    if let ref = schemaJSON["$ref"]?.stringValue,
+      let typeName = ref.split(separator: "/").last.map(String.init),
+      let matched = Self.refPropertyTypes[typeName]
+    {
+      return matched
     }
+    if let composite = classifyCompositeSchema(schemaJSON) {
+      return composite
+    }
+    if let items = schemaJSON["items"], classifySchema(items) == .checks {
+      return .checks
+    }
+    return classifyNumericTypeSchema(schemaJSON)
+  }
 
-    if let oneOf = schemaJSON["oneOf"]?.arrayValue {
-      for sub in oneOf {
+  private func classifyCompositeSchema(_ schemaJSON: JSONValue) -> PropertyType? {
+    for keyword in ["oneOf", "anyOf", "allOf"] {
+      guard let subSchemas = schemaJSON[keyword]?.arrayValue else { continue }
+      for sub in subSchemas {
         let type = classifySchema(sub)
         if type != .standard { return type }
       }
     }
+    return nil
+  }
 
-    if let anyOf = schemaJSON["anyOf"]?.arrayValue {
-      for sub in anyOf {
-        let type = classifySchema(sub)
-        if type != .standard { return type }
-      }
-    }
-
-    if let allOf = schemaJSON["allOf"]?.arrayValue {
-      for sub in allOf {
-        let type = classifySchema(sub)
-        if type != .standard { return type }
-      }
-    }
-
-    if let items = schemaJSON["items"] {
-      let type = classifySchema(items)
-      if type == .checks { return .checks }
-    }
-
+  private func classifyNumericTypeSchema(_ schemaJSON: JSONValue) -> PropertyType {
     if let type = schemaJSON["type"]?.stringValue {
-      switch type {
-      case "number": return .number
-      case "integer": return .integer
-      default: break
-      }
+      if type == "number" { return .number }
+      if type == "integer" { return .integer }
     } else if let types = schemaJSON["type"]?.arrayValue {
       let typeStrings = types.compactMap(\.stringValue)
       if typeStrings.contains("number") { return .number }
       if typeStrings.contains("integer") { return .integer }
     }
-
     return .standard
   }
 
@@ -872,43 +867,23 @@ public final class NodeResolver: Sendable {
         result[k] = v
       }
     }
-    if let ref = schemaJSON["$ref"]?.stringValue {
-      let typeName = ref.split(separator: "/").last.map(String.init) ?? ""
-      let def =
-        A2UICommonSchema.v10Document["$defs"]?.objectValue?[typeName]
-        ?? A2UICommonSchema.document["$defs"]?.objectValue?[typeName]
-      if let def {
-        let defProps = extractPropertiesSchema(from: def)
-        for (k, v) in defProps {
-          result[k] = v
-        }
-      }
+    if let ref = schemaJSON["$ref"]?.stringValue,
+      let def = lookupCommonDef(ref: ref)
+    {
+      result.merge(extractPropertiesSchema(from: def)) { _, new in new }
     }
-    if let allOf = schemaJSON["allOf"]?.arrayValue {
-      for subSchema in allOf {
-        let subProps = extractPropertiesSchema(from: subSchema)
-        for (k, v) in subProps {
-          result[k] = v
-        }
-      }
-    }
-    if let oneOf = schemaJSON["oneOf"]?.arrayValue {
-      for subSchema in oneOf {
-        let subProps = extractPropertiesSchema(from: subSchema)
-        for (k, v) in subProps {
-          result[k] = v
-        }
-      }
-    }
-    if let anyOf = schemaJSON["anyOf"]?.arrayValue {
-      for subSchema in anyOf {
-        let subProps = extractPropertiesSchema(from: subSchema)
-        for (k, v) in subProps {
-          result[k] = v
-        }
+    for keyword in ["allOf", "oneOf", "anyOf"] {
+      for subSchema in schemaJSON[keyword]?.arrayValue ?? [] {
+        result.merge(extractPropertiesSchema(from: subSchema)) { _, new in new }
       }
     }
     return result
+  }
+
+  private func lookupCommonDef(ref: String) -> JSONValue? {
+    let typeName = ref.split(separator: "/").last.map(String.init) ?? ""
+    return A2UICommonSchema.v10Document["$defs"]?.objectValue?[typeName]
+      ?? A2UICommonSchema.document["$defs"]?.objectValue?[typeName]
   }
 
   // MARK: - Property Resolution
@@ -969,15 +944,11 @@ public final class NodeResolver: Sendable {
         recurseIntoChildren: recurseIntoChildren
       )
     case .componentID:
-      guard let childID = value.stringValue else { return nil }
-      let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
-      let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
-      return resolveChildReference(
-        definitionID: childID,
-        instanceID: childInstanceID,
+      return resolveComponentIDProperty(
+        value: value,
         basePath: basePath,
         index: index,
-        instanceSuffix: effectiveSuffix,
+        instanceSuffix: instanceSuffix,
         visited: visited,
         components: components,
         data: data,
@@ -988,81 +959,196 @@ public final class NodeResolver: Sendable {
     case .integer:
       return value.intValue
     case .standard:
-      if let array = value.arrayValue {
-        let itemsSchema = schema["items"] ?? .boolean(true)
-        let itemType = classifySchema(itemsSchema)
-        if itemType == .checks {
-          return resolveChecks(value, basePath: basePath, index: index, data: data)
-        }
-        let resolvedArray = array.enumerated().compactMap { itemIndex, item -> (any Resolved)? in
-          if let resolved = resolveProperty(
-            value: item,
-            schema: itemsSchema,
-            type: itemType,
-            basePath: basePath,
-            index: index,
-            instanceSuffix: instanceSuffix,
-            componentID: componentID,
-            propertyKey: "\(propertyKey)/\(itemIndex)",
-            visited: visited,
-            components: components,
-            data: data,
-            checks: checks,
-            recurseIntoChildren: recurseIntoChildren
-          ) {
-            return resolved
-          }
-          return item == .null ? item : nil
-        }
-        return ResolvedArray(resolvedArray)
-      }
+      return resolveStandardProperty(
+        value: value,
+        schema: schema,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        propertyKey: propertyKey,
+        visited: visited,
+        components: components,
+        data: data,
+        checks: checks,
+        recurseIntoChildren: recurseIntoChildren
+      )
+    }
+  }
 
-      if let obj = value.objectValue {
-        let objProps = extractPropertiesSchema(from: schema)
-        if !objProps.isEmpty {
-          var resolvedObj: [String: any Resolved] = [:]
-          for (k, v) in obj {
-            let nestedPropSchema = objProps[k] ?? .boolean(true)
-            let classified = classifySchema(nestedPropSchema)
-            let nestedPropType: PropertyType
-            let bindingKey = atLeastV10 ? "@path" : "path"
-            if classified == .standard,
-              v.objectValue?[bindingKey] != nil
-            {
-              nestedPropType = .dynamicValue
-            } else {
-              nestedPropType = classified
-            }
-            if let resVal = resolveProperty(
-              value: v,
-              schema: nestedPropSchema,
-              type: nestedPropType,
-              basePath: basePath,
-              index: index,
-              instanceSuffix: instanceSuffix,
-              componentID: componentID,
-              propertyKey: "\(propertyKey)/\(k)",
-              visited: visited,
-              components: components,
-              data: data,
-              checks: checks,
-              recurseIntoChildren: recurseIntoChildren
-            ) {
-              resolvedObj[k] = resVal
-            }
-          }
-          return ResolvedDictionary(resolvedObj)
-        }
-      }
+  private func resolveComponentIDProperty(
+    value: JSONValue,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
+  ) -> (any Resolved)? {
+    guard let childID = value.stringValue else { return nil }
+    let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
+    let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
+    return resolveChildReference(
+      definitionID: childID,
+      instanceID: childInstanceID,
+      basePath: basePath,
+      index: index,
+      instanceSuffix: effectiveSuffix,
+      visited: visited,
+      components: components,
+      data: data,
+      recurseIntoChildren: recurseIntoChildren
+    )
+  }
 
-      switch value {
-      case .string(let str): return str
-      case .boolean(let b): return b
-      case .number(let n): return n
-      case .integer(let i): return i
-      case .null: return nil
-      default: return value
+  private func resolveStandardProperty(
+    value: JSONValue,
+    schema: JSONValue,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    componentID: String,
+    propertyKey: String,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    checks: [ResolvedCheck],
+    recurseIntoChildren: Bool = true
+  ) -> (any Resolved)? {
+    if let array = value.arrayValue {
+      return resolveStandardArrayProperty(
+        array: array,
+        rawValue: value,
+        schema: schema,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        propertyKey: propertyKey,
+        visited: visited,
+        components: components,
+        data: data,
+        checks: checks,
+        recurseIntoChildren: recurseIntoChildren
+      )
+    }
+    if let obj = value.objectValue {
+      let objProps = extractPropertiesSchema(from: schema)
+      if !objProps.isEmpty {
+        return resolveStandardObjectProperty(
+          obj: obj,
+          objProps: objProps,
+          basePath: basePath,
+          index: index,
+          instanceSuffix: instanceSuffix,
+          componentID: componentID,
+          propertyKey: propertyKey,
+          visited: visited,
+          components: components,
+          data: data,
+          checks: checks,
+          recurseIntoChildren: recurseIntoChildren
+        )
       }
+    }
+    return resolvePrimitiveValue(value)
+  }
+
+  private func resolveStandardArrayProperty(
+    array: [JSONValue],
+    rawValue: JSONValue,
+    schema: JSONValue,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    componentID: String,
+    propertyKey: String,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    checks: [ResolvedCheck],
+    recurseIntoChildren: Bool = true
+  ) -> (any Resolved)? {
+    let itemsSchema = schema["items"] ?? .boolean(true)
+    let itemType = classifySchema(itemsSchema)
+    if itemType == .checks {
+      return resolveChecks(rawValue, basePath: basePath, index: index, data: data)
+    }
+    let resolvedArray = array.enumerated().compactMap { itemIndex, item -> (any Resolved)? in
+      if let resolved = resolveProperty(
+        value: item,
+        schema: itemsSchema,
+        type: itemType,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        propertyKey: "\(propertyKey)/\(itemIndex)",
+        visited: visited,
+        components: components,
+        data: data,
+        checks: checks,
+        recurseIntoChildren: recurseIntoChildren
+      ) {
+        return resolved
+      }
+      return item == .null ? item : nil
+    }
+    return ResolvedArray(resolvedArray)
+  }
+
+  private func resolveStandardObjectProperty(
+    obj: OrderedDictionary<String, JSONValue>,
+    objProps: [String: JSONValue],
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    componentID: String,
+    propertyKey: String,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    checks: [ResolvedCheck],
+    recurseIntoChildren: Bool = true
+  ) -> ResolvedDictionary {
+    var resolvedObj: [String: any Resolved] = [:]
+    let bindingKey = atLeastV10 ? "@path" : "path"
+    for (k, v) in obj {
+      let nestedPropSchema = objProps[k] ?? .boolean(true)
+      let classified = classifySchema(nestedPropSchema)
+      let nestedPropType =
+        (classified == .standard && v.objectValue?[bindingKey] != nil)
+        ? .dynamicValue : classified
+      if let resVal = resolveProperty(
+        value: v,
+        schema: nestedPropSchema,
+        type: nestedPropType,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        propertyKey: "\(propertyKey)/\(k)",
+        visited: visited,
+        components: components,
+        data: data,
+        checks: checks,
+        recurseIntoChildren: recurseIntoChildren
+      ) {
+        resolvedObj[k] = resVal
+      }
+    }
+    return ResolvedDictionary(resolvedObj)
+  }
+
+  private func resolvePrimitiveValue(_ value: JSONValue) -> (any Resolved)? {
+    switch value {
+    case .string(let str): return str
+    case .boolean(let b): return b
+    case .number(let n): return n
+    case .integer(let i): return i
+    case .null: return nil
+    default: return value
     }
   }
 
@@ -1274,96 +1360,125 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> [ResolvedCheck] {
-    let parseRule: (JSONValue) -> ResolvedCheck? = { [weak self] ruleJSON in
-      guard let self else { return nil }
-      let ruleDict = ruleJSON.dictionaryValue
-      let conditionJSON = ruleDict?["condition"] ?? ruleJSON
-      let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
-
-      let bindingKey = self.atLeastV10 ? "@path" : "path"
-      if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
-        let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-        let rawVal = self.readData(absPath, from: data)
-        if let rawDict = rawVal?.objectValue, let valid = rawDict["valid"]?.boolValue {
-          let code = rawDict["code"]?.stringValue
-          let msg = rawDict["message"]?.stringValue ?? fallbackMessage
-          let severity = rawDict["severity"]?.stringValue.flatMap {
-            ValidationSeverity(rawValue: $0)
-          }
-          let result = ValidationResult(valid: valid, code: code, message: msg, severity: severity)
-          return ResolvedCheck(
-            condition: DataBinding(identity: .path(absPath), value: valid, set: { _ in }),
-            message: msg,
-            validationResult: result
-          )
-        } else {
-          let valid = rawVal?.boolValue ?? false
-          let result = ValidationResult(
-            valid: valid,
-            code: nil,
-            message: fallbackMessage,
-            severity: .error
-          )
-          return ResolvedCheck(
-            condition: DataBinding(
-              identity: .path(absPath),
-              value: valid,
-              set: { [weak self] newValue in
-                self?.dataModel.set(absPath, value: .boolean(newValue))
-              }
-            ),
-            message: fallbackMessage,
-            validationResult: result
-          )
-        }
-      }
-
-      let evaluated = self.evaluateDynamicValue(conditionJSON, basePath: basePath, index: index)
-      if let evalDict = evaluated.objectValue, let valid = evalDict["valid"]?.boolValue {
-        let code = evalDict["code"]?.stringValue
-        let msg = evalDict["message"]?.stringValue ?? fallbackMessage
-        let severity = evalDict["severity"]?.stringValue.flatMap {
-          ValidationSeverity(rawValue: $0)
-        }
-        let result = ValidationResult(valid: valid, code: code, message: msg, severity: severity)
-        return ResolvedCheck(
-          condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
-          message: msg,
-          validationResult: result
-        )
-      } else if let b = evaluated.boolValue {
-        let result = ValidationResult(
-          valid: b,
-          code: nil,
-          message: fallbackMessage,
-          severity: .error
-        )
-        return ResolvedCheck(
-          condition: DataBinding(identity: .literal(conditionJSON), value: b, set: { _ in }),
-          message: fallbackMessage,
-          validationResult: result
-        )
-      } else {
-        let result = ValidationResult(
-          valid: false,
-          code: nil,
-          message: fallbackMessage,
-          severity: .error
-        )
-        return ResolvedCheck(
-          condition: DataBinding(identity: .literal(conditionJSON), value: false, set: { _ in }),
-          message: fallbackMessage,
-          validationResult: result
-        )
+    if let array = value.arrayValue {
+      return array.compactMap {
+        parseSingleCheckRule($0, basePath: basePath, index: index, data: data)
       }
     }
-
-    if let array = value.arrayValue {
-      return array.compactMap(parseRule)
-    } else if value.dictionaryValue != nil {
-      return [parseRule(value)].compactMap { $0 }
+    if value.dictionaryValue != nil,
+      let check = parseSingleCheckRule(value, basePath: basePath, index: index, data: data)
+    {
+      return [check]
     }
     return []
+  }
+
+  private func parseSingleCheckRule(
+    _ ruleJSON: JSONValue,
+    basePath: String?,
+    index: Int?,
+    data: JSONValue
+  ) -> ResolvedCheck? {
+    let ruleDict = ruleJSON.dictionaryValue
+    let conditionJSON = ruleDict?["condition"] ?? ruleJSON
+    let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
+    let bindingKey = atLeastV10 ? "@path" : "path"
+
+    if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
+      let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      return makePathBoundCheck(
+        absPath: absPath,
+        rawVal: readData(absPath, from: data),
+        fallbackMessage: fallbackMessage
+      )
+    }
+
+    let evaluated = evaluateDynamicValue(conditionJSON, basePath: basePath, index: index)
+    return makeEvaluatedCheck(
+      conditionJSON: conditionJSON,
+      evaluated: evaluated,
+      fallbackMessage: fallbackMessage
+    )
+  }
+
+  private func makePathBoundCheck(
+    absPath: String,
+    rawVal: JSONValue?,
+    fallbackMessage: String
+  ) -> ResolvedCheck {
+    if let rawDict = rawVal?.objectValue, let valid = rawDict["valid"]?.boolValue {
+      let result = parseValidationResultObject(
+        rawDict,
+        valid: valid,
+        fallbackMessage: fallbackMessage
+      )
+      return ResolvedCheck(
+        condition: DataBinding(identity: .path(absPath), value: valid, set: { _ in }),
+        message: result.message ?? fallbackMessage,
+        validationResult: result
+      )
+    }
+    let valid = rawVal?.boolValue ?? false
+    let result = ValidationResult(
+      valid: valid,
+      code: nil,
+      message: fallbackMessage,
+      severity: .error
+    )
+    return ResolvedCheck(
+      condition: DataBinding(
+        identity: .path(absPath),
+        value: valid,
+        set: { [weak self] newValue in
+          self?.dataModel.set(absPath, value: .boolean(newValue))
+        }
+      ),
+      message: fallbackMessage,
+      validationResult: result
+    )
+  }
+
+  private func makeEvaluatedCheck(
+    conditionJSON: JSONValue,
+    evaluated: JSONValue,
+    fallbackMessage: String
+  ) -> ResolvedCheck {
+    if let evalDict = evaluated.objectValue, let valid = evalDict["valid"]?.boolValue {
+      let result = parseValidationResultObject(
+        evalDict,
+        valid: valid,
+        fallbackMessage: fallbackMessage
+      )
+      return ResolvedCheck(
+        condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
+        message: result.message ?? fallbackMessage,
+        validationResult: result
+      )
+    }
+    let valid = evaluated.boolValue ?? false
+    let result = ValidationResult(
+      valid: valid,
+      code: nil,
+      message: fallbackMessage,
+      severity: .error
+    )
+    return ResolvedCheck(
+      condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
+      message: fallbackMessage,
+      validationResult: result
+    )
+  }
+
+  private func parseValidationResultObject(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    valid: Bool,
+    fallbackMessage: String
+  ) -> ValidationResult {
+    let code = dict["code"]?.stringValue
+    let msg = dict["message"]?.stringValue ?? fallbackMessage
+    let severity =
+      dict["severity"]?.stringValue.flatMap { ValidationSeverity(rawValue: $0) } ?? .error
+    return ValidationResult(valid: valid, code: code, message: msg, severity: severity)
   }
 
   // MARK: - Action Resolution
@@ -1377,122 +1492,157 @@ public final class NodeResolver: Sendable {
     data: JSONValue
   ) -> ResolvedAction? {
     guard let dict = value.dictionaryValue else { return nil }
-
-    let eventObj: [String: JSONValue]?
-    if let wrapped = dict["event"]?.dictionaryValue {
-      eventObj = wrapped
-    } else if dict["name"]?.stringValue != nil {
-      eventObj = dict
-    } else {
-      eventObj = nil
-    }
-
-    let callKey = atLeastV10 ? "@call" : "call"
-    let funcCallVal: JSONValue?
-    if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil {
-      funcCallVal = wrapped
-    } else if dict[callKey]?.stringValue != nil {
-      funcCallVal = value
-    } else {
-      funcCallVal = nil
-    }
-
-    if let eventObj, let name = eventObj["name"]?.stringValue {
-      let contextDict = eventObj["context"]?.dictionaryValue
-      let userMessageVal = eventObj["userMessage"]
-      let unresolvedIdentity = ResolvedAction.Identity.event(
+    if let eventObj = extractEventActionObject(dict),
+      let name = eventObj["name"]?.stringValue
+    {
+      return makeEventResolvedAction(
         name: name,
-        context: contextDict,
-        userMessage: userMessageVal?.stringValue
+        eventObj: eventObj,
+        checks: checks,
+        basePath: basePath,
+        index: index,
+        componentID: componentID
       )
-
-      return ResolvedAction(
-        identity: unresolvedIdentity,
-        sourceComponentID: componentID,
-        dataContextPath: basePath,
-        rawUserMessage: userMessageVal,
-        trigger: { [weak self] in
-          guard let self else { return }
-
-          let failedChecks = checks.filter { !$0.isValid }
-          if !failedChecks.isEmpty {
-            let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
-            let version = self.effectiveProtocolVersion ?? .v10
-            self.actionHandler?.handle(
-              error: .validationFailed(
-                ValidationFailedError(
-                  surfaceID: self.surfaceID,
-                  path: componentID,
-                  message: errorMsg,
-                  version: version
-                )
-              ),
-              from: self.surfaceID
-            )
-            return
-          }
-
-          var resolvedContext: [String: JSONValue] = [:]
-          if let contextDict {
-            for (key, val) in contextDict {
-              resolvedContext[key] = self.evaluateDynamicValue(
-                val, basePath: basePath, index: index)
-            }
-          }
-          let resolvedUserMessage = userMessageVal.flatMap {
-            self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
-          }
-
-          let triggerAction = ResolvedAction(
-            identity: .event(
-              name: name, context: resolvedContext, userMessage: resolvedUserMessage),
-            sourceComponentID: componentID,
-            trigger: {}
-          )
-
-          self.actionHandler?.handle(action: triggerAction, from: self.surfaceID)
-        }
-      )
-    } else if let funcCallVal, let funcCallDict = funcCallVal.dictionaryValue,
+    }
+    let callKey = atLeastV10 ? "@call" : "call"
+    if let funcCallVal = extractFunctionCallActionValue(value, dict: dict, callKey: callKey),
+      let funcCallDict = funcCallVal.dictionaryValue,
       let call = funcCallDict[callKey]?.stringValue
     {
-      let argsDict = funcCallDict["args"]?.dictionaryValue
-      let unresolvedIdentity = ResolvedAction.Identity.function(
+      return makeFunctionResolvedAction(
         call: call,
-        args: argsDict
-      )
-
-      return ResolvedAction(
-        identity: unresolvedIdentity,
-        sourceComponentID: componentID,
-        dataContextPath: basePath,
-        trigger: { [weak self] in
-          guard let self else { return }
-
-          let failedChecks = checks.filter { !$0.isValid }
-          if !failedChecks.isEmpty {
-            let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
-            let version = self.effectiveProtocolVersion ?? .v10
-            self.actionHandler?.handle(
-              error: .validationFailed(
-                ValidationFailedError(
-                  surfaceID: self.surfaceID,
-                  path: componentID,
-                  message: errorMsg,
-                  version: version
-                )
-              ),
-              from: self.surfaceID
-            )
-            return
-          }
-
-          _ = self.evaluateDynamicValue(funcCallVal, basePath: basePath, index: index)
-        }
+        funcCallVal: funcCallVal,
+        funcCallDict: funcCallDict,
+        checks: checks,
+        basePath: basePath,
+        index: index,
+        componentID: componentID
       )
     }
-
     return nil
+  }
+
+  private func extractEventActionObject(_ dict: [String: JSONValue]) -> [String: JSONValue]? {
+    if let wrapped = dict["event"]?.dictionaryValue { return wrapped }
+    if dict["name"]?.stringValue != nil { return dict }
+    return nil
+  }
+
+  private func extractFunctionCallActionValue(
+    _ value: JSONValue,
+    dict: [String: JSONValue],
+    callKey: String
+  ) -> JSONValue? {
+    if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil { return wrapped }
+    if dict[callKey]?.stringValue != nil { return value }
+    return nil
+  }
+
+  private func makeEventResolvedAction(
+    name: String,
+    eventObj: [String: JSONValue],
+    checks: [ResolvedCheck],
+    basePath: String?,
+    index: Int?,
+    componentID: String
+  ) -> ResolvedAction {
+    let contextDict = eventObj["context"]?.dictionaryValue
+    let userMessageVal = eventObj["userMessage"]
+    let unresolvedIdentity = ResolvedAction.Identity.event(
+      name: name,
+      context: contextDict,
+      userMessage: userMessageVal?.stringValue
+    )
+    return ResolvedAction(
+      identity: unresolvedIdentity,
+      sourceComponentID: componentID,
+      dataContextPath: basePath,
+      rawUserMessage: userMessageVal,
+      trigger: { [weak self] in
+        guard let self else { return }
+        guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
+          return
+        }
+        let resolvedContext = self.evaluateActionContext(
+          contextDict,
+          basePath: basePath,
+          index: index
+        )
+        let resolvedUserMessage = userMessageVal.flatMap {
+          self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
+        }
+        let triggerAction = ResolvedAction(
+          identity: .event(
+            name: name,
+            context: resolvedContext,
+            userMessage: resolvedUserMessage
+          ),
+          sourceComponentID: componentID,
+          trigger: {}
+        )
+        self.actionHandler?.handle(action: triggerAction, from: self.surfaceID)
+      }
+    )
+  }
+
+  private func makeFunctionResolvedAction(
+    call: String,
+    funcCallVal: JSONValue,
+    funcCallDict: [String: JSONValue],
+    checks: [ResolvedCheck],
+    basePath: String?,
+    index: Int?,
+    componentID: String
+  ) -> ResolvedAction {
+    let argsDict = funcCallDict["args"]?.dictionaryValue
+    let unresolvedIdentity = ResolvedAction.Identity.function(call: call, args: argsDict)
+    return ResolvedAction(
+      identity: unresolvedIdentity,
+      sourceComponentID: componentID,
+      dataContextPath: basePath,
+      trigger: { [weak self] in
+        guard let self else { return }
+        guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
+          return
+        }
+        _ = self.evaluateDynamicValue(funcCallVal, basePath: basePath, index: index)
+      }
+    )
+  }
+
+  private func reportFailedActionChecksIfNeeded(
+    _ checks: [ResolvedCheck],
+    componentID: String
+  ) -> Bool {
+    let failedChecks = checks.filter { !$0.isValid }
+    guard !failedChecks.isEmpty else { return true }
+    let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
+    let version = effectiveProtocolVersion ?? .v10
+    actionHandler?.handle(
+      error: .validationFailed(
+        ValidationFailedError(
+          surfaceID: surfaceID,
+          path: componentID,
+          message: errorMsg,
+          version: version
+        )
+      ),
+      from: surfaceID
+    )
+    return false
+  }
+
+  private func evaluateActionContext(
+    _ contextDict: [String: JSONValue]?,
+    basePath: String?,
+    index: Int?
+  ) -> [String: JSONValue] {
+    guard let contextDict else { return [:] }
+    var resolvedContext: [String: JSONValue] = [:]
+    for (key, val) in contextDict {
+      resolvedContext[key] = evaluateDynamicValue(val, basePath: basePath, index: index)
+    }
+    return resolvedContext
   }
 
   // MARK: - Child List Resolution
@@ -1511,80 +1661,109 @@ public final class NodeResolver: Sendable {
   ) -> [Node]? {
     switch value {
     case .array(let arr):
-      let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
-      var resolvedNodes: [Node] = []
-      for item in arr {
-        guard let childID = item.stringValue else { continue }
-        let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
-        if let childNode = resolveChildReference(
-          definitionID: childID,
-          instanceID: childInstanceID,
-          basePath: basePath,
-          index: index,
-          instanceSuffix: effectiveSuffix,
-          visited: visited,
-          components: components,
-          data: data,
-          recurseIntoChildren: recurseIntoChildren
-        ) {
-          resolvedNodes.append(childNode)
-        }
-      }
-      return resolvedNodes
-
-    case .object(let dict):
-      guard
-        let templateID =
-          (dict["componentId"]?.stringValue
-            ?? dict["template"]?.stringValue),
-        let pathStr = (dict["path"]?.stringValue ?? dict["data"]?.stringValue)
-      else {
-        return nil
-      }
-
-      let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let normalizedTemplatePath = normalizePath(absPath)
-      currentNodeChildIdentities?.updateValue(
-        componentIdentity(for: templateID, in: components),
-        forKey: templateID
+      return resolveStaticChildList(
+        arr,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
       )
-
-      guard let dataListVal = data[normalizedTemplatePath],
-        let dataItems = dataListVal.arrayValue
-      else {
-        currentNodeTemplateCounts?[normalizedTemplatePath] = 0
-        return []
-      }
-
-      currentNodeTemplateCounts?[normalizedTemplatePath] = dataItems.count
-      var expandedNodes: [Node] = []
-
-      for (itemIndex, _) in dataItems.enumerated() {
-        let itemSuffix =
-          instanceSuffix.map { "\($0)_\(itemIndex)" } ?? "\(itemIndex)"
-        let itemID = "\(templateID)_\(itemSuffix)"
-        let itemBasePath = "\(normalizedTemplatePath)/\(itemIndex)"
-
-        if let itemNode = resolveChildReference(
-          definitionID: templateID,
-          instanceID: itemID,
-          basePath: itemBasePath,
-          index: itemIndex,
-          instanceSuffix: itemSuffix,
-          visited: visited,
-          components: components,
-          data: data,
-          recurseIntoChildren: recurseIntoChildren
-        ) {
-          expandedNodes.append(itemNode)
-        }
-      }
-
-      return expandedNodes
-
+    case .object(let dict):
+      return resolveTemplateChildList(
+        dict,
+        basePath: basePath,
+        instanceSuffix: instanceSuffix,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
+      )
     default:
       return nil
     }
+  }
+
+  private func resolveStaticChildList(
+    _ arr: [JSONValue],
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
+  ) -> [Node] {
+    let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
+    var resolvedNodes: [Node] = []
+    for item in arr {
+      guard let childID = item.stringValue else { continue }
+      let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
+      if let childNode = resolveChildReference(
+        definitionID: childID,
+        instanceID: childInstanceID,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: effectiveSuffix,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
+      ) {
+        resolvedNodes.append(childNode)
+      }
+    }
+    return resolvedNodes
+  }
+
+  private func resolveTemplateChildList(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    basePath: String?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
+  ) -> [Node]? {
+    guard
+      let templateID = dict["componentId"]?.stringValue ?? dict["template"]?.stringValue,
+      let pathStr = dict["path"]?.stringValue ?? dict["data"]?.stringValue
+    else {
+      return nil
+    }
+    let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+    let normalizedTemplatePath = normalizePath(absPath)
+    currentNodeChildIdentities?.updateValue(
+      componentIdentity(for: templateID, in: components),
+      forKey: templateID
+    )
+    guard let dataItems = data[normalizedTemplatePath]?.arrayValue else {
+      currentNodeTemplateCounts?[normalizedTemplatePath] = 0
+      return []
+    }
+    currentNodeTemplateCounts?[normalizedTemplatePath] = dataItems.count
+    var expandedNodes: [Node] = []
+    for itemIndex in dataItems.indices {
+      let itemSuffix = instanceSuffix.map { "\($0)_\(itemIndex)" } ?? "\(itemIndex)"
+      let itemID = "\(templateID)_\(itemSuffix)"
+      let itemBasePath = "\(normalizedTemplatePath)/\(itemIndex)"
+      if let itemNode = resolveChildReference(
+        definitionID: templateID,
+        instanceID: itemID,
+        basePath: itemBasePath,
+        index: itemIndex,
+        instanceSuffix: itemSuffix,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
+      ) {
+        expandedNodes.append(itemNode)
+      }
+    }
+    return expandedNodes
   }
 }
 

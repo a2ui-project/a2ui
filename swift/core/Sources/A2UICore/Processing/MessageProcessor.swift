@@ -250,44 +250,9 @@ public final class MessageProcessor: ObservableObject {
     for version: A2UIProtocolVersion,
     options: CapabilitiesOptions
   ) -> JSONValue {
-    var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
     let envelopeRef =
       options.componentEnvelopeRef ?? "common_types.json#/$defs/ComponentCommon"
-
-    for name in catalog.components.keys.sorted() {
-      guard let componentAPI = catalog.components[name] else { continue }
-      let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
-      let processedSchema = processRefs(schemaJSON)
-
-      var properties: OrderedDictionary<String, JSONValue> = [
-        "component": .object(["const": .string(name)])
-      ]
-      var required: [JSONValue] = [.string("component")]
-
-      if let originalProperties = processedSchema["properties"]?.objectValue {
-        for (key, value) in originalProperties {
-          properties[key] = value
-        }
-      }
-      if let originalRequired = processedSchema["required"]?.arrayValue {
-        for requiredProperty in originalRequired {
-          if !required.contains(requiredProperty) {
-            required.append(requiredProperty)
-          }
-        }
-      }
-
-      let componentSchema: JSONValue = .object([
-        "allOf": .array([
-          .object(["$ref": .string(envelopeRef)]),
-          .object([
-            "properties": .object(properties),
-            "required": .array(required),
-          ]),
-        ])
-      ])
-      componentsDictionary[name] = componentSchema
-    }
+    let componentsDictionary = generateInlineComponents(catalog, envelopeRef: envelopeRef)
 
     var catalogDictionary: OrderedDictionary<String, JSONValue> = [:]
     if version.isAtLeastV10 {
@@ -304,79 +269,140 @@ public final class MessageProcessor: ObservableObject {
 
     if !catalog.functions.isEmpty {
       if version.isAtLeastV10 {
-        var functionsDict: OrderedDictionary<String, JSONValue> = [:]
-        for key in catalog.functions.keys.sorted() {
-          guard let functionImplementation = catalog.functions[key] else { continue }
-          let functionAPI = functionImplementation.api
-          let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
-          let processedParameters = processRefs(schemaJSON)
-
-          var argsDict = processedParameters.objectValue ?? ["type": .string("object")]
-          let functionDescription = argsDict.removeValue(forKey: "description")?.stringValue
-          if argsDict["type"] == nil {
-            argsDict["type"] = .string("object")
-          }
-          if argsDict["unevaluatedProperties"] == nil {
-            argsDict["unevaluatedProperties"] = .boolean(false)
-          }
-
-          var functionDefinition: OrderedDictionary<String, JSONValue> = [
-            "type": .string("object")
-          ]
-          if let functionDescription {
-            functionDefinition["description"] = .string(functionDescription)
-          }
-          functionDefinition["returnType"] = .string(functionAPI.returnType.rawValue)
-          functionDefinition["allowedCallers"] = .string(functionAPI.allowedCallers.rawValue)
-          functionDefinition["requiresUserActivation"] = .boolean(
-            functionAPI.requiresUserActivation
-          )
-          functionDefinition["properties"] = .object([
-            "@call": .object(["const": .string(functionAPI.name)]),
-            "args": .object(argsDict),
-          ])
-          let requiredArgs = argsDict["required"]?.arrayValue ?? []
-          var requiredFields: [JSONValue] = [.string("@call")]
-          if !requiredArgs.isEmpty {
-            requiredFields.append(.string("args"))
-          }
-          functionDefinition["required"] = .array(requiredFields)
-          functionsDict[functionAPI.name] = .object(functionDefinition)
-        }
-        catalogDictionary["functions"] = .object(functionsDict)
+        catalogDictionary["functions"] = .object(generateV10InlineFunctions(catalog))
       } else {
-        var functionsArray: [JSONValue] = []
-        for key in catalog.functions.keys.sorted() {
-          guard let functionImplementation = catalog.functions[key] else { continue }
-          let functionAPI = functionImplementation.api
-          let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
-          let processedParameters = processRefs(schemaJSON)
-
-          var functionDictionary: OrderedDictionary<String, JSONValue> = [
-            "name": .string(functionAPI.name),
-            "returnType": .string(functionAPI.returnType.rawValue),
-          ]
-          if let functionDescription = processedParameters["description"]?.stringValue {
-            functionDictionary["description"] = .string(functionDescription)
-          }
-          functionDictionary["parameters"] = processedParameters
-          functionsArray.append(.object(functionDictionary))
-        }
-        catalogDictionary["functions"] = .array(functionsArray)
+        catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
       }
     }
 
     if !version.isAtLeastV10, let themeSchema = catalog.themeSchema {
       let schemaJSON = schemaToJSONValue(themeSchema) ?? .object([:])
       let processedTheme = processRefs(schemaJSON)
-      if let themeProperties = processedTheme["properties"] {
-        catalogDictionary["theme"] = themeProperties
-      } else {
-        catalogDictionary["theme"] = processedTheme
-      }
+      catalogDictionary["theme"] = processedTheme["properties"] ?? processedTheme
     }
 
     return .object(catalogDictionary)
+  }
+
+  private func generateInlineComponents(
+    _ catalog: AnyCatalog,
+    envelopeRef: String
+  ) -> OrderedDictionary<String, JSONValue> {
+    var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
+    for name in catalog.components.keys.sorted() {
+      guard let componentAPI = catalog.components[name] else { continue }
+      componentsDictionary[name] = buildInlineComponentSchema(
+        name: name,
+        componentAPI: componentAPI,
+        envelopeRef: envelopeRef
+      )
+    }
+    return componentsDictionary
+  }
+
+  private func buildInlineComponentSchema(
+    name: String,
+    componentAPI: AnyComponentAPI,
+    envelopeRef: String
+  ) -> JSONValue {
+    let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
+    let processedSchema = processRefs(schemaJSON)
+
+    var properties: OrderedDictionary<String, JSONValue> = [
+      "component": .object(["const": .string(name)])
+    ]
+    var required: [JSONValue] = [.string("component")]
+
+    if let originalProperties = processedSchema["properties"]?.objectValue {
+      for (key, value) in originalProperties {
+        properties[key] = value
+      }
+    }
+    if let originalRequired = processedSchema["required"]?.arrayValue {
+      for requiredProperty in originalRequired where !required.contains(requiredProperty) {
+        required.append(requiredProperty)
+      }
+    }
+
+    return .object([
+      "allOf": .array([
+        .object(["$ref": .string(envelopeRef)]),
+        .object([
+          "properties": .object(properties),
+          "required": .array(required),
+        ]),
+      ])
+    ])
+  }
+
+  private func generateV10InlineFunctions(
+    _ catalog: AnyCatalog
+  ) -> OrderedDictionary<String, JSONValue> {
+    var functionsDict: OrderedDictionary<String, JSONValue> = [:]
+    for key in catalog.functions.keys.sorted() {
+      guard let functionImplementation = catalog.functions[key] else { continue }
+      let functionAPI = functionImplementation.api
+      functionsDict[functionAPI.name] = buildV10InlineFunction(functionAPI)
+    }
+    return functionsDict
+  }
+
+  private func buildV10InlineFunction(_ functionAPI: FunctionAPI) -> JSONValue {
+    let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
+    let processedParameters = processRefs(schemaJSON)
+
+    var argsDict = processedParameters.objectValue ?? ["type": .string("object")]
+    let functionDescription = argsDict.removeValue(forKey: "description")?.stringValue
+    if argsDict["type"] == nil {
+      argsDict["type"] = .string("object")
+    }
+    if argsDict["unevaluatedProperties"] == nil {
+      argsDict["unevaluatedProperties"] = .boolean(false)
+    }
+
+    var functionDefinition: OrderedDictionary<String, JSONValue> = [
+      "type": .string("object")
+    ]
+    if let functionDescription {
+      functionDefinition["description"] = .string(functionDescription)
+    }
+    functionDefinition["returnType"] = .string(functionAPI.returnType.rawValue)
+    functionDefinition["allowedCallers"] = .string(functionAPI.allowedCallers.rawValue)
+    functionDefinition["requiresUserActivation"] = .boolean(
+      functionAPI.requiresUserActivation
+    )
+    functionDefinition["properties"] = .object([
+      "@call": .object(["const": .string(functionAPI.name)]),
+      "args": .object(argsDict),
+    ])
+    let requiredArgs = argsDict["required"]?.arrayValue ?? []
+    var requiredFields: [JSONValue] = [.string("@call")]
+    if !requiredArgs.isEmpty {
+      requiredFields.append(.string("args"))
+    }
+    functionDefinition["required"] = .array(requiredFields)
+    return .object(functionDefinition)
+  }
+
+  private func generateV09InlineFunctions(_ catalog: AnyCatalog) -> [JSONValue] {
+    var functionsArray: [JSONValue] = []
+    for key in catalog.functions.keys.sorted() {
+      guard let functionImplementation = catalog.functions[key] else { continue }
+      let functionAPI = functionImplementation.api
+      let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
+      let processedParameters = processRefs(schemaJSON)
+
+      var functionDictionary: OrderedDictionary<String, JSONValue> = [
+        "name": .string(functionAPI.name),
+        "returnType": .string(functionAPI.returnType.rawValue),
+      ]
+      if let functionDescription = processedParameters["description"]?.stringValue {
+        functionDictionary["description"] = .string(functionDescription)
+      }
+      functionDictionary["parameters"] = processedParameters
+      functionsArray.append(.object(functionDictionary))
+    }
+    return functionsArray
   }
 
   private func schemaToJSONValue(_ schema: Schema) -> JSONValue? {
@@ -469,25 +495,146 @@ public final class MessageProcessor: ObservableObject {
   /// ``InternalOperation`` values, and executes them, forwarding any errors to
   /// `ActionHandling` and `outboundListener`.
   public func process(payload: JSONValue) {
-    do {
-      try processMessages(payload)
-    } catch {
-      let surfaceID = extractSurfaceID(from: error, fallback: "")
-      let version = resolveVersion(for: payload, surfaceID: surfaceID)
-      let clientError = errorMapper.map(error, surfaceID: surfaceID, version: version)
-      forwardError(clientError, from: surfaceID)
-    }
+    try? processMessages(payload)
   }
 
   /// Resolves a version adapter from a raw JSON payload, normalizes it into
-  /// ``InternalOperation`` values, and executes them, throwing any validation,
-  /// integrity, recursion, or catalog errors directly.
+  /// ``InternalOperation`` values, and executes them, forwarding any mapped
+  /// `RendererError` to `ActionHandling` and `outboundListener` before throwing
+  /// the underlying validation, integrity, recursion, or catalog error.
   public func processMessages(_ payload: JSONValue) throws {
-    let adapter = try adapterFactory.resolveFromPayload(payload)
-    let operations = try adapter.extractOperations(from: payload)
-    for operation in operations {
-      try processOperation(operation)
+    let operations: [InternalOperation]
+    do {
+      let adapter = try adapterFactory.resolveFromPayload(payload)
+      operations = try adapter.extractOperations(from: payload)
+    } catch {
+      let rawContext = extractRawEnvelopeContext(from: payload, error: error)
+      let surfaceID = extractSurfaceID(from: error, fallback: rawContext.surfaceID ?? "")
+      let version = resolveVersion(for: payload, surfaceID: surfaceID)
+      let clientError = errorMapper.map(
+        error,
+        surfaceID: surfaceID,
+        functionCallID: rawContext.functionCallID,
+        isCallRendererFunction: rawContext.isCallRendererFunction,
+        version: version
+      )
+      forwardError(clientError, from: surfaceID)
+      throw error
     }
+
+    for operation in operations {
+      do {
+        try processOperation(operation)
+      } catch {
+        let surfaceID = extractSurfaceID(from: error, fallback: operation.surfaceID ?? "")
+        let version = resolveVersion(for: operation, surfaceID: surfaceID)
+        var functionCallID: String?
+        var isCallRendererFunction = false
+        if case .callRendererFunction(let op) = operation {
+          functionCallID = op.functionCallID
+          isCallRendererFunction = true
+        }
+        let clientError = errorMapper.map(
+          error,
+          surfaceID: surfaceID,
+          functionCallID: functionCallID,
+          isCallRendererFunction: isCallRendererFunction,
+          version: version
+        )
+        forwardError(clientError, from: surfaceID)
+        throw error
+      }
+    }
+  }
+
+  private struct RawEnvelopeContext {
+    var surfaceID: String?
+    var functionCallID: String?
+    var isCallRendererFunction: Bool = false
+  }
+
+  private func extractRawEnvelopeContext(
+    from payload: JSONValue,
+    error: any Error
+  ) -> RawEnvelopeContext {
+    let messageObjects = extractRawMessageObjects(from: payload)
+    if let failingIndex = extractFailingMessageIndex(from: error),
+      failingIndex >= 0,
+      failingIndex < messageObjects.count
+    {
+      return extractContextFromMessageObject(messageObjects[failingIndex])
+    }
+    var merged = RawEnvelopeContext()
+    for obj in messageObjects {
+      let ctx = extractContextFromMessageObject(obj)
+      if ctx.isCallRendererFunction {
+        return ctx
+      }
+      if let sid = ctx.surfaceID {
+        merged.surfaceID = sid
+      }
+    }
+    return merged
+  }
+
+  private func extractRawMessageObjects(
+    from payload: JSONValue
+  ) -> [OrderedDictionary<String, JSONValue>] {
+    switch payload {
+    case .array(let items):
+      return items.compactMap(\.objectValue)
+    case .object(let dict):
+      if let messages = dict["messages"]?.arrayValue {
+        return messages.compactMap(\.objectValue)
+      }
+      return [dict]
+    default:
+      return []
+    }
+  }
+
+  private func extractFailingMessageIndex(from error: any Error) -> Int? {
+    guard let a2uiError = error as? (any A2UIError),
+      let path = a2uiError.details.first?.path
+    else {
+      return nil
+    }
+    let segments = path.split(separator: ".")
+    guard segments.count >= 2, segments[0] == "messages", let idx = Int(segments[1]) else {
+      return nil
+    }
+    return idx
+  }
+
+  private static let surfaceEnvelopeKeys: [String] = [
+    "createSurface",
+    "updateComponents",
+    "updateDataModel",
+    "deleteSurface",
+    "beginRendering",
+    "surfaceUpdate",
+    "dataModelUpdate",
+  ]
+
+  private func extractContextFromMessageObject(
+    _ dict: OrderedDictionary<String, JSONValue>
+  ) -> RawEnvelopeContext {
+    if dict["callRendererFunction"] != nil {
+      let crf = dict["callRendererFunction"]?.objectValue
+      return RawEnvelopeContext(
+        surfaceID: crf?["surfaceId"]?.stringValue,
+        functionCallID: crf?["functionCallId"]?.stringValue,
+        isCallRendererFunction: true
+      )
+    }
+    for key in Self.surfaceEnvelopeKeys {
+      if let actionObj = dict[key]?.objectValue,
+        let sid = actionObj["surfaceId"]?.stringValue
+      {
+        return RawEnvelopeContext(surfaceID: sid)
+      }
+    }
+    return RawEnvelopeContext()
   }
 
   private func resolveVersion(
@@ -617,7 +764,7 @@ public final class MessageProcessor: ObservableObject {
     }
 
     if let targetCatalog {
-      try validateSurfaceTheme(op.theme, against: targetCatalog)
+      try validateSurfaceTheme(op.theme, surfaceID: op.surfaceID, against: targetCatalog)
     }
 
     let vm = SurfaceViewModel(
@@ -749,10 +896,23 @@ public final class MessageProcessor: ObservableObject {
 
   private func validateSurfaceTheme(
     _ theme: [String: JSONValue]?,
+    surfaceID: String,
     against catalog: AnyCatalog
   ) throws {
     let validator = payloadValidator(for: catalog, config: validationConfig)
-    try validator.validateTheme(theme)
+    do {
+      try validator.validateTheme(theme)
+    } catch let error as A2UIValidationError {
+      let prefix = "Validation failed for theme on surface '\(surfaceID)': "
+      let wrappedDetails = error.details.map { detail in
+        A2UIErrorDetail(
+          path: detail.path,
+          code: detail.code,
+          message: detail.message.hasPrefix(prefix) ? detail.message : prefix + detail.message
+        )
+      }
+      throw A2UIValidationError(prefix + error.message, details: wrappedDetails)
+    }
   }
 
   private func processUpdateComponentsOp(_ op: InternalUpdateComponentsOp) throws {
@@ -807,67 +967,62 @@ public final class MessageProcessor: ObservableObject {
       effectiveConfig.targetVersion = surface.protocolVersion.rawValue
     }
 
-    for componentDict in components {
-      guard let type = componentDict["component"]?.stringValue, !type.isEmpty else {
-        throw A2UIValidationError(
-          "Missing required key 'component'",
-          details: [
-            A2UIErrorDetail(
-              path: "component",
-              code: componentDict["component"] == nil ? "missing_field" : "type_mismatch",
-              message: "Missing required key 'component'"
-            )
-          ]
-        )
-      }
+    for (index, componentDict) in components.enumerated() {
+      try validateBatchComponent(
+        componentDict,
+        at: index,
+        on: surface,
+        config: effectiveConfig
+      )
+    }
 
-      guard let id = componentDict["id"]?.stringValue else {
-        throw A2UIValidationError(
-          "Missing required key 'id'",
-          details: [
-            A2UIErrorDetail(
-              path: "id",
-              code: componentDict["id"] == nil ? "missing_field" : "type_mismatch",
-              message: "Missing required key 'id'"
-            )
-          ]
-        )
-      }
+    guard !components.isEmpty else { return }
+    let allComponents = try buildCombinedComponentsForTopology(components, on: surface)
+    try GraphTopologyValidator.validate(
+      components: allComponents,
+      rootID: "root",
+      config: effectiveConfig,
+      catalogs: surface.catalogs,
+      defaultCatalogID: surface.defaultCatalogID
+    )
+  }
 
-      let componentCatalogID: String?
+  private func validateBatchComponent(
+    _ componentDict: [String: JSONValue],
+    at index: Int,
+    on surface: SurfaceViewModel,
+    config: ValidationConfig
+  ) throws {
+    guard let type = componentDict["component"]?.stringValue, !type.isEmpty else {
+      throw A2UIValidationError(
+        "Missing required key 'component'",
+        details: [
+          A2UIErrorDetail(
+            path: "/components/\(index)/component",
+            code: componentDict["component"] == nil ? "missing_field" : "type_mismatch",
+            message: "Missing required key 'component'"
+          )
+        ]
+      )
+    }
+
+    guard let id = componentDict["id"]?.stringValue else {
+      throw A2UIValidationError(
+        "Missing required key 'id'",
+        details: [
+          A2UIErrorDetail(
+            path: "/components/\(index)/id",
+            code: componentDict["id"] == nil ? "missing_field" : "type_mismatch",
+            message: "Missing required key 'id'"
+          )
+        ]
+      )
+    }
+
+    let targetCatalog = try resolveComponentCatalog(componentDict, id: id, on: surface)
+    let validator = payloadValidator(for: targetCatalog, config: config)
+    do {
       if surface.protocolVersion.isAtLeastV10 {
-        componentCatalogID = try resolveV10CatalogID(
-          componentDict["catalogId"],
-          subject: "Component '\(id)'",
-          on: surface,
-          path: CatalogResolutionErrors.componentCatalogIDPath
-        )
-      } else {
-        componentCatalogID =
-          componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
-      }
-
-      let resolvedCatalogID = componentCatalogID ?? "default"
-      guard let targetCatalog = surface.getCatalog(id: componentCatalogID) else {
-        throw CatalogResolutionErrors.catalogNotFound(
-          resolvedCatalogID,
-          path: CatalogResolutionErrors.componentCatalogIDPath
-        )
-      }
-
-      guard isCatalogCompatible(targetCatalog, with: surface.protocolVersion) else {
-        throw CatalogResolutionErrors.incompatibleCatalog(
-          resolvedCatalogID,
-          catalog: targetCatalog,
-          surfaceVersion: surface.protocolVersion,
-          path: CatalogResolutionErrors.componentCatalogIDPath
-        )
-      }
-
-      let validator = payloadValidator(for: targetCatalog, config: effectiveConfig)
-      if surface.protocolVersion.isAtLeastV10 {
-        // The validator takes a component that names no catalogId to be in the surface default
-        // catalog, so it names one only when the component's catalog isn't the default.
         let componentInDefault = targetCatalog.id == surface.defaultCatalogID
         try validator.validateComponent(
           componentDict,
@@ -879,47 +1034,111 @@ public final class MessageProcessor: ObservableObject {
           componentCatalog: targetCatalog,
           componentInDefault: componentInDefault,
           on: surface,
-          config: effectiveConfig
+          config: config
         )
       } else {
         try validator.validateComponent(componentDict)
       }
-    }
-
-    if !components.isEmpty {
-      var allComponentsMap: [String: [String: JSONValue]] = [:]
-      for existing in surface.componentsModel.components.values {
-        var dict: [String: JSONValue] = [
-          "id": .string(existing.id),
-          "component": .string(existing.type),
-        ]
-        if let catID = existing.catalogID {
-          dict["catalogId"] = .string(catID)
-        }
-        for (k, v) in existing.properties {
-          dict[k] = v
-        }
-        allComponentsMap[existing.id] = dict
-      }
-      var batchIDs: Set<String> = []
-      for comp in components {
-        guard let id = comp["id"]?.stringValue else { continue }
-        if batchIDs.contains(id) {
-          throw A2UIIntegrityError("Duplicate component ID: \(id)")
-        }
-        batchIDs.insert(id)
-        allComponentsMap[id] = comp
-      }
-      let allComponents = Array(allComponentsMap.values)
-
-      try GraphTopologyValidator.validate(
-        components: allComponents,
-        rootID: "root",
-        config: effectiveConfig,
-        catalogs: surface.catalogs,
-        defaultCatalogID: surface.defaultCatalogID
+    } catch let error as A2UIValidationError {
+      throw prefixComponentValidationPaths(
+        error,
+        index: index,
+        componentType: type,
+        componentID: id
       )
     }
+  }
+
+  private func resolveComponentCatalog(
+    _ componentDict: [String: JSONValue],
+    id: String,
+    on surface: SurfaceViewModel
+  ) throws -> AnyCatalog {
+    let componentCatalogID: String?
+    if surface.protocolVersion.isAtLeastV10 {
+      componentCatalogID = try resolveV10CatalogID(
+        componentDict["catalogId"],
+        subject: "Component '\(id)'",
+        on: surface,
+        path: CatalogResolutionErrors.componentCatalogIDPath
+      )
+    } else {
+      componentCatalogID =
+        componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+    }
+
+    let resolvedCatalogID = componentCatalogID ?? "default"
+    guard let targetCatalog = surface.getCatalog(id: componentCatalogID) else {
+      throw CatalogResolutionErrors.catalogNotFound(
+        resolvedCatalogID,
+        path: CatalogResolutionErrors.componentCatalogIDPath
+      )
+    }
+
+    guard isCatalogCompatible(targetCatalog, with: surface.protocolVersion) else {
+      throw CatalogResolutionErrors.incompatibleCatalog(
+        resolvedCatalogID,
+        catalog: targetCatalog,
+        surfaceVersion: surface.protocolVersion,
+        path: CatalogResolutionErrors.componentCatalogIDPath
+      )
+    }
+    return targetCatalog
+  }
+
+  private func prefixComponentValidationPaths(
+    _ error: A2UIValidationError,
+    index: Int,
+    componentType: String,
+    componentID: String
+  ) -> A2UIValidationError {
+    let prefixedDetails = error.details.map { detail -> A2UIErrorDetail in
+      let raw = detail.path
+      let newPath: String
+      if raw.isEmpty || raw == "/\(componentType)" {
+        newPath = "/components/\(index)"
+      } else if raw == "/\(componentID)/id" {
+        newPath = "/components/\(index)/id"
+      } else if raw.hasPrefix("/components/") {
+        newPath = raw
+      } else {
+        let trimmed = raw.hasPrefix("/") ? String(raw.dropFirst()) : raw
+        let normalized = trimmed.replacingOccurrences(of: ".", with: "/")
+        newPath = "/components/\(index)/\(normalized)"
+      }
+      return A2UIErrorDetail(path: newPath, code: detail.code, message: detail.message)
+    }
+    return A2UIValidationError(error.message, details: prefixedDetails)
+  }
+
+  private func buildCombinedComponentsForTopology(
+    _ components: [[String: JSONValue]],
+    on surface: SurfaceViewModel
+  ) throws -> [[String: JSONValue]] {
+    var allComponentsMap: OrderedDictionary<String, [String: JSONValue]> = [:]
+    var batchIDs: Set<String> = []
+    for comp in components {
+      guard let id = comp["id"]?.stringValue else { continue }
+      if batchIDs.contains(id) {
+        throw A2UIIntegrityError("Duplicate component ID: \(id)")
+      }
+      batchIDs.insert(id)
+      allComponentsMap[id] = comp
+    }
+    for existing in surface.componentsModel.components.values where !batchIDs.contains(existing.id) {
+      var dict: [String: JSONValue] = [
+        "id": .string(existing.id),
+        "component": .string(existing.type),
+      ]
+      if let catID = existing.catalogID {
+        dict["catalogId"] = .string(catID)
+      }
+      for (k, v) in existing.properties {
+        dict[k] = v
+      }
+      allComponentsMap[existing.id] = dict
+    }
+    return Array(allComponentsMap.values)
   }
 
   /// Resolves the catalog of every v1.0 function call nested in a component's properties.
@@ -941,6 +1160,7 @@ public final class MessageProcessor: ObservableObject {
     where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
       try validateNestedFunctionCallsInValue(
         value,
+        propertyPath: key,
         componentID: componentID,
         componentCatalog: componentCatalog,
         componentInDefault: componentInDefault,
@@ -952,56 +1172,64 @@ public final class MessageProcessor: ObservableObject {
 
   private func validateNestedFunctionCallsInValue(
     _ value: JSONValue,
+    propertyPath: String,
     componentID: String,
     componentCatalog: AnyCatalog,
     componentInDefault: Bool,
     on surface: SurfaceViewModel,
     config: ValidationConfig
   ) throws {
-    switch value {
-    case .array(let items):
-      for item in items {
-        try validateNestedFunctionCallsInValue(
-          item,
-          componentID: componentID,
-          componentCatalog: componentCatalog,
-          componentInDefault: componentInDefault,
-          on: surface,
-          config: config
-        )
+    var stack: [(value: JSONValue, path: String)] = [(value, propertyPath)]
+    while let current = stack.popLast() {
+      switch current.value {
+      case .array(let items):
+        appendNestedArrayItems(items, basePath: current.path, to: &stack)
+      case .object(let dict):
+        if let callName = dict["@call"]?.stringValue, !callName.hasPrefix("@") {
+          try validateNestedFunctionCall(
+            named: callName,
+            in: dict,
+            propertyPath: current.path,
+            componentID: componentID,
+            componentCatalog: componentCatalog,
+            componentInDefault: componentInDefault,
+            on: surface,
+            config: config
+          )
+        }
+        appendNestedObjectItems(dict, basePath: current.path, to: &stack)
+      default:
+        break
       }
+    }
+  }
 
-    case .object(let dict):
-      if let callName = dict["@call"]?.stringValue, !callName.hasPrefix("@") {
-        try validateNestedFunctionCall(
-          named: callName,
-          in: dict,
-          componentID: componentID,
-          componentCatalog: componentCatalog,
-          componentInDefault: componentInDefault,
-          on: surface,
-          config: config
-        )
-      }
-      for childValue in dict.values {
-        try validateNestedFunctionCallsInValue(
-          childValue,
-          componentID: componentID,
-          componentCatalog: componentCatalog,
-          componentInDefault: componentInDefault,
-          on: surface,
-          config: config
-        )
-      }
+  private func appendNestedArrayItems(
+    _ items: [JSONValue],
+    basePath: String,
+    to stack: inout [(value: JSONValue, path: String)]
+  ) {
+    for (index, item) in items.enumerated().reversed() {
+      let itemPath = basePath.isEmpty ? "\(index)" : "\(basePath)/\(index)"
+      stack.append((item, itemPath))
+    }
+  }
 
-    default:
-      break
+  private func appendNestedObjectItems(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    basePath: String,
+    to stack: inout [(value: JSONValue, path: String)]
+  ) {
+    for (subKey, childValue) in dict.reversed() {
+      let nextPath = basePath.isEmpty ? subKey : "\(basePath)/\(subKey)"
+      stack.append((childValue, nextPath))
     }
   }
 
   private func validateNestedFunctionCall(
     named callName: String,
     in dict: OrderedDictionary<String, JSONValue>,
+    propertyPath: String,
     componentID: String,
     componentCatalog: AnyCatalog,
     componentInDefault: Bool,
@@ -1015,8 +1243,6 @@ public final class MessageProcessor: ObservableObject {
       on: surface,
       path: catalogIDPath
     )
-    // `resolveV10CatalogID` has rejected a non-string `catalogId`, so this is nil only when the
-    // call names no catalog.
     let namedCatalogID = dict["catalogId"]?.stringValue
 
     guard let callCatalog = surface.catalogs[callCatalogID] else {
@@ -1032,21 +1258,27 @@ public final class MessageProcessor: ObservableObject {
       )
     }
 
-    // The component's validator fully checks a call that names its catalog, or names none
-    // while the component is in the surface default catalog; same predicate as the validator.
     let checkedByComponentValidator =
       namedCatalogID.map { $0 == componentCatalog.id } ?? componentInDefault
     guard !checkedByComponentValidator else { return }
 
-    if let rawArgs = dict["args"], rawArgs != .null, rawArgs.objectValue == nil {
-      throw CatalogResolutionErrors.nonObjectArguments(functionName: callName)
+    do {
+      if let rawArgs = dict["args"], rawArgs != .null, rawArgs.objectValue == nil {
+        throw CatalogResolutionErrors.nonObjectArguments(functionName: callName)
+      }
+      let callValidator = payloadValidator(for: callCatalog, config: config)
+      try callValidator.validateFunctionInternal(
+        name: callName,
+        args: dict["args"]?.dictionaryValue,
+        allowDynamicArgValues: true
+      )
+    } catch let error as A2UIValidationError {
+      throw PayloadValidator.remapNestedFunctionError(
+        error,
+        functionName: callName,
+        propertyPath: propertyPath
+      )
     }
-    let callValidator = payloadValidator(for: callCatalog, config: config)
-    try callValidator.validateFunctionInternal(
-      name: callName,
-      args: dict["args"]?.dictionaryValue,
-      allowDynamicArgValues: true
-    )
   }
 
   /// Resolves the catalog that a v1.0 component or function call runs in: the one its
