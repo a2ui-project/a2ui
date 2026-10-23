@@ -217,7 +217,7 @@ class SurfaceComponentsModel:
         new_components: list[ComponentModel],
         config: ValidationConfig,
         surface_id: str | None,
-    ) -> str | None:
+    ) -> None:
         """Validates each component in the batch and raises if any fail."""
         all_errors: list[A2uiErrorDetail] = []
         comp_summaries: list[str] = []
@@ -249,7 +249,6 @@ class SurfaceComponentsModel:
                 path=first_err_path,
                 surface_id=surface_id,
             )
-        return None
 
     def get_child_ids(self, component_id: str) -> list[str]:
         """Returns list of referenced child component IDs for a given component identifier."""
@@ -319,11 +318,7 @@ class SurfaceComponentsModel:
             return
 
         batch_index_map = self._build_batch_index_map(new_components, surface_id)
-        first_err_path = self._collect_batch_component_errors(
-            new_components, config, surface_id
-        )
-        if first_err_path:
-            return
+        self._collect_batch_component_errors(new_components, config, surface_id)
 
         batch = {comp_model.id: comp_model for comp_model in new_components}
         bound = self._bound if self._bound_at == self._changes else None

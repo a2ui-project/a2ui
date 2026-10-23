@@ -639,9 +639,7 @@ class GenericBinder:
         rule_results: list[dict[str, Any]],
     ) -> tuple[bool, list[str], list[dict[str, Any]], dict[str, Any]]:
         failed_rules = [r for r in rule_results if not r["valid"]]
-        error_rules = [
-            r for r in failed_rules if r.get("severity", "error") == "error"
-        ]
+        error_rules = [r for r in failed_rules if r.get("severity", "error") == "error"]
         is_valid = len(error_rules) == 0
         validation_errors = [r["message"] for r in error_rules if r.get("message")]
         validation_results = [
