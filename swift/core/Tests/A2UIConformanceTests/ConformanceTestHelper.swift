@@ -19,6 +19,7 @@ import Foundation
 import JSONSchema
 import OrderedCollections
 import OrderedJSON
+import Testing
 import Yams
 
 private final class ExtendedStackResultBox<T>: @unchecked Sendable {
@@ -227,6 +228,41 @@ public enum ConformanceTestHelper {
     commonTypes: JSONValue?,
     protocolVersion: String? = nil
   ) -> AnyCatalog {
+    let (remoteSchemas, allDefinitions) = collectSchemaContextInputs(
+      catalogSchema: catalogSchema,
+      commonTypes: commonTypes
+    )
+    let context = Context(dialect: .draft2020_12, remoteSchema: remoteSchemas)
+    let components = buildComponentsFromCatalogSchema(
+      catalogSchema,
+      allDefinitions: allDefinitions,
+      context: context
+    )
+    let resolvedProtocolVersion =
+      catalogSchema["protocolVersion"]?.stringValue
+      ?? catalogSchema["protocol_version"]?.stringValue
+      ?? protocolVersion
+    let functions = buildFunctionsFromCatalogSchema(
+      catalogSchema,
+      resolvedProtocolVersion: resolvedProtocolVersion,
+      context: context
+    )
+    let themeSchema: Schema? = (catalogSchema["theme"] ?? catalogSchema["$defs"]?["theme"])
+      .flatMap { try? Schema(rawSchema: $0, context: context) }
+    let catalogID = catalogSchema["catalogId"]?.stringValue ?? "test_catalog"
+    return Catalog(
+      id: catalogID,
+      protocolVersion: resolvedProtocolVersion,
+      components: components,
+      functions: functions,
+      themeSchema: themeSchema
+    )
+  }
+
+  private static func collectSchemaContextInputs(
+    catalogSchema: JSONValue,
+    commonTypes: JSONValue?
+  ) -> ([String: JSONValue], OrderedDictionary<String, JSONValue>) {
     var allDefinitions: OrderedDictionary<String, JSONValue> = [:]
     var remoteSchemas = A2UICommonSchema.allSchemas
 
@@ -246,108 +282,124 @@ public enum ConformanceTestHelper {
     where key != "anyComponent" && key != "anyFunction" {
       allDefinitions[key] = definition
     }
+    return (remoteSchemas, allDefinitions)
+  }
 
-    let context = Context(dialect: .draft2020_12, remoteSchema: remoteSchemas)
-    var components: [AnyComponentAPI] = []
+  private static func buildComponentsFromCatalogSchema(
+    _ catalogSchema: JSONValue,
+    allDefinitions: OrderedDictionary<String, JSONValue>,
+    context: Context
+  ) -> [AnyComponentAPI] {
     if let compObj = catalogSchema["components"]?.objectValue {
-      for (componentName, componentSchemaValue) in compObj {
-        var fullComponentObject = componentSchemaValue.objectValue ?? [:]
-        if !allDefinitions.isEmpty {
-          var componentDefinitions = fullComponentObject["$defs"]?.objectValue ?? [:]
-          for (key, definition) in allDefinitions where componentDefinitions[key] == nil {
-            componentDefinitions[key] = definition
-          }
-          fullComponentObject["$defs"] = .object(componentDefinitions)
-        }
-
-        let allowedParents = componentSchemaValue["allowedParents"]?.arrayValue?.compactMap {
-          $0.stringValue
-        }
-        let allowedChildren = componentSchemaValue["allowedChildren"]?.arrayValue?.compactMap {
-          $0.stringValue
-        }
-
-        if let schema = try? Schema(rawSchema: .object(fullComponentObject), context: context) {
-          components.append(
-            AnyComponentAPI(
-              name: componentName,
-              schema: schema,
-              allowedParents: allowedParents,
-              allowedChildren: allowedChildren
-            )
-          )
-        }
-      }
-    } else if let compArray = catalogSchema["components"]?.arrayValue {
-      for compVal in compArray {
-        guard let name = compVal["name"]?.stringValue else { continue }
-        var fullComponentObject = compVal["schema"]?.objectValue ?? ["type": .string("object")]
-        if !allDefinitions.isEmpty {
-          var componentDefinitions = fullComponentObject["$defs"]?.objectValue ?? [:]
-          for (key, definition) in allDefinitions where componentDefinitions[key] == nil {
-            componentDefinitions[key] = definition
-          }
-          fullComponentObject["$defs"] = .object(componentDefinitions)
-        }
-        if let schema = try? Schema(rawSchema: .object(fullComponentObject), context: context) {
-          components.append(AnyComponentAPI(name: name, schema: schema))
-        }
+      return compObj.compactMap { componentName, componentSchemaValue in
+        buildComponentAPI(
+          name: componentName,
+          schemaValue: componentSchemaValue,
+          allDefinitions: allDefinitions,
+          context: context,
+          fallbackEmpty: false
+        )
       }
     }
+    if let compArray = catalogSchema["components"]?.arrayValue {
+      return compArray.compactMap { compVal in
+        guard let name = compVal["name"]?.stringValue else { return nil }
+        let rawSchema = compVal["schema"] ?? .object(["type": .string("object")])
+        return buildComponentAPI(
+          name: name,
+          schemaValue: rawSchema,
+          allDefinitions: allDefinitions,
+          context: context,
+          fallbackEmpty: false
+        )
+      }
+    }
+    return []
+  }
 
-    let resolvedProtocolVersion =
-      catalogSchema["protocolVersion"]?.stringValue
-      ?? catalogSchema["protocol_version"]?.stringValue
-      ?? protocolVersion
+  private static func buildComponentAPI(
+    name: String,
+    schemaValue: JSONValue,
+    allDefinitions: OrderedDictionary<String, JSONValue>,
+    context: Context,
+    fallbackEmpty: Bool
+  ) -> AnyComponentAPI? {
+    var fullComponentObject = schemaValue.objectValue ?? [:]
+    if !allDefinitions.isEmpty {
+      var componentDefinitions = fullComponentObject["$defs"]?.objectValue ?? [:]
+      for (key, definition) in allDefinitions where componentDefinitions[key] == nil {
+        componentDefinitions[key] = definition
+      }
+      fullComponentObject["$defs"] = .object(componentDefinitions)
+    }
+    let allowedParents = schemaValue["allowedParents"]?.arrayValue?.compactMap(\.stringValue)
+    let allowedChildren = schemaValue["allowedChildren"]?.arrayValue?.compactMap(\.stringValue)
+    let builtSchema = try? Schema(rawSchema: .object(fullComponentObject), context: context)
+    guard let schema = builtSchema ?? (fallbackEmpty ? (try? Schema(instance: "{}")) : nil) else {
+      return nil
+    }
+    return AnyComponentAPI(
+      name: name,
+      schema: schema,
+      allowedParents: allowedParents,
+      allowedChildren: allowedChildren
+    )
+  }
+
+  private static func buildFunctionsFromCatalogSchema(
+    _ catalogSchema: JSONValue,
+    resolvedProtocolVersion: String?,
+    context: Context
+  ) -> [any FunctionImplementation] {
     var functions: [any FunctionImplementation] = []
     if catalogSchema["$schema"] != nil {
-      if resolvedProtocolVersion == "v1.0" || resolvedProtocolVersion == "1.0" {
-        functions = BasicFunctions.v10Functions
-      } else {
-        functions = BasicFunctions.v09Functions
-      }
+      let isV10 = resolvedProtocolVersion == "v1.0" || resolvedProtocolVersion == "1.0"
+      functions = isV10 ? BasicFunctions.v10Functions : BasicFunctions.v09Functions
     }
     if let funcObj = catalogSchema["functions"]?.objectValue {
-      for (funcName, funcVal) in funcObj
-      where !functions.contains(where: { $0.api.name == funcName }) {
-        guard
-          let paramObj =
-            funcVal["parameters"]?.objectValue
-            ?? funcVal["properties"]?["args"]?.objectValue
-        else { continue }
-        let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
-        let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
-        if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
-          let api = FunctionAPI(name: funcName, returnType: retType, schema: schema)
-          functions.append(ConformanceFunctionImplementation(api: api))
-        }
-      }
+      appendObjectFunctions(funcObj, context: context, into: &functions)
     } else if let funcArray = catalogSchema["functions"]?.arrayValue {
-      for funcVal in funcArray {
-        guard let name = funcVal["name"]?.stringValue else { continue }
-        let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
-        let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
-        let paramObj = funcVal["parameters"]?.objectValue ?? [:]
-        if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
-          let api = FunctionAPI(name: name, returnType: retType, schema: schema)
-          functions.append(ConformanceFunctionImplementation(api: api))
-        }
+      appendArrayFunctions(funcArray, context: context, into: &functions)
+    }
+    return functions
+  }
+
+  private static func appendObjectFunctions(
+    _ funcObj: OrderedDictionary<String, JSONValue>,
+    context: Context,
+    into functions: inout [any FunctionImplementation]
+  ) {
+    for (funcName, funcVal) in funcObj
+    where !functions.contains(where: { $0.api.name == funcName }) {
+      guard
+        let paramObj =
+          funcVal["parameters"]?.objectValue
+          ?? funcVal["properties"]?["args"]?.objectValue
+      else { continue }
+      let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
+      let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
+      if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
+        let api = FunctionAPI(name: funcName, returnType: retType, schema: schema)
+        functions.append(ConformanceFunctionImplementation(api: api))
       }
     }
+  }
 
-    let themeSchema: Schema? = (catalogSchema["theme"] ?? catalogSchema["$defs"]?["theme"])
-      .flatMap {
-        try? Schema(rawSchema: $0, context: context)
+  private static func appendArrayFunctions(
+    _ funcArray: [JSONValue],
+    context: Context,
+    into functions: inout [any FunctionImplementation]
+  ) {
+    for funcVal in funcArray {
+      guard let name = funcVal["name"]?.stringValue else { continue }
+      let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
+      let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
+      let paramObj = funcVal["parameters"]?.objectValue ?? [:]
+      if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
+        let api = FunctionAPI(name: name, returnType: retType, schema: schema)
+        functions.append(ConformanceFunctionImplementation(api: api))
       }
-
-    let catalogID = catalogSchema["catalogId"]?.stringValue ?? "test_catalog"
-    return Catalog(
-      id: catalogID,
-      protocolVersion: resolvedProtocolVersion,
-      components: components,
-      functions: functions,
-      themeSchema: themeSchema
-    )
+    }
   }
 
   /// Builds a `Catalog` from a test case catalog configuration dictionary.
@@ -355,12 +407,10 @@ public enum ConformanceTestHelper {
     from catalogConfiguration: [String: JSONValue]?
   ) -> AnyCatalog? {
     guard let catalogConfiguration else { return nil }
-    var catalogID = "test_catalog"
     let protocolVersion =
       catalogConfiguration["protocolVersion"]?.stringValue
       ?? catalogConfiguration["protocol_version"]?.stringValue
 
-    var components: [AnyComponentAPI] = []
     var allDefinitions: OrderedDictionary<String, JSONValue> = [:]
     var remoteSchemas = A2UICommonSchema.allSchemas
 
@@ -380,54 +430,24 @@ public enum ConformanceTestHelper {
     }
 
     let context = Context(dialect: .draft2020_12, remoteSchema: remoteSchemas)
-
-    if let identifier = catalogSchemaJSON["catalogId"]?.stringValue
+    let catalogID =
+      catalogSchemaJSON["catalogId"]?.stringValue
       ?? catalogConfiguration["catalogId"]?.stringValue
-    {
-      catalogID = identifier
-    }
-    if let componentsObject = catalogSchemaJSON["components"]?.objectValue {
-      for (componentName, componentSchemaValue) in componentsObject {
-        var fullComponentObject = componentSchemaValue.objectValue ?? [:]
-        if !allDefinitions.isEmpty {
-          var componentDefinitions = fullComponentObject["$defs"]?.objectValue ?? [:]
-          for (key, definition) in allDefinitions {
-            if componentDefinitions[key] == nil {
-              componentDefinitions[key] = definition
-            }
-          }
-          fullComponentObject["$defs"] = .object(componentDefinitions)
-        }
+      ?? "test_catalog"
 
-        let allowedParents = componentSchemaValue["allowedParents"]?.arrayValue?.compactMap {
-          $0.stringValue
-        }
-        let allowedChildren = componentSchemaValue["allowedChildren"]?.arrayValue?.compactMap {
-          $0.stringValue
-        }
-
-        let schema =
-          (try? Schema(rawSchema: .object(fullComponentObject), context: context))
-          ?? (try! Schema(instance: "{}"))
-
-        components.append(
-          AnyComponentAPI(
-            name: componentName,
-            schema: schema,
-            allowedParents: allowedParents,
-            allowedChildren: allowedChildren
-          )
+    let components: [AnyComponentAPI] =
+      (catalogSchemaJSON["components"]?.objectValue ?? [:]).compactMap { name, val in
+        buildComponentAPI(
+          name: name,
+          schemaValue: val,
+          allDefinitions: allDefinitions,
+          context: context,
+          fallbackEmpty: true
         )
       }
-    }
 
-    let functions: [any FunctionImplementation]
-    if protocolVersion == "v1.0" || protocolVersion == "1.0" {
-      functions = BasicFunctions.v10Functions
-    } else {
-      functions = BasicFunctions.v09Functions
-    }
-
+    let isV10 = protocolVersion == "v1.0" || protocolVersion == "1.0"
+    let functions = isV10 ? BasicFunctions.v10Functions : BasicFunctions.v09Functions
     let themeSchema: Schema? = catalogSchemaJSON["theme"].flatMap {
       try? Schema(rawSchema: $0, context: context)
     }
@@ -538,114 +558,255 @@ public enum ConformanceTestHelper {
   /// Extracts test cases from a loaded YAML object.
   public static func parseTestCases(from loadedYAML: Any) -> [ConformanceTestCase] {
     guard let array = loadedYAML as? [[String: Any]] else { return [] }
-    return array.compactMap { dictionary in
-      guard let name = dictionary["name"] as? String else { return nil }
-      let description = dictionary["description"] as? String
-      let catalogConfiguration = (dictionary["catalog"] as? [String: Any]).map {
-        toJSONValue($0).dictionaryValue ?? [:]
-      }
-      let action = dictionary["action"] as? String
-      let protocolVersion = dictionary["protocolVersion"] as? String
-      let strictMode = dictionary["strictMode"] as? Bool ?? false
-      var catalogPaths = dictionary["catalogPaths"] as? [String] ?? []
-      if let catalogPath = dictionary["catalogPath"] as? String {
-        catalogPaths.append(catalogPath)
-      }
-      let inlineCatalog = (dictionary["catalog"] as? [String: Any]).map { toJSONValue($0) }
-      let expectError = parseExpectError(dictionary["expect_error"] ?? dictionary["expectError"])
-      let payload = (dictionary["payload"] ?? dictionary["messages"]).map { toJSONValue($0) }
-      let args = (dictionary["args"] as? [String: Any]).map {
-        toJSONValue($0).dictionaryValue ?? [:]
-      }
-      let expect = (dictionary["expect"] as? [String: Any]).map { toJSONValue($0) }
-      let assertions = (dictionary["assertions"] as? [String: Any]).map {
-        toJSONValue($0).dictionaryValue ?? [:]
-      }
-      let surface = (dictionary["surface"] as? [String: Any]).map {
-        toJSONValue($0).dictionaryValue ?? [:]
-      }
+    return array.compactMap(parseSingleTestCase)
+  }
 
-      var steps: [ConformanceStep] = []
-      if let stepsArray = dictionary["steps"] as? [[String: Any]] {
-        for stepDictionary in stepsArray {
-          let stepPayload = (stepDictionary["payload"] ?? stepDictionary["messages"]).map {
-            toJSONValue($0)
-          }
-          let stepError =
-            parseExpectError(stepDictionary["expect_error"] ?? stepDictionary["expectError"])
-            ?? expectError
-          let stepExpect =
-            (stepDictionary["expect"] as? [String: Any]).map { toJSONValue($0) } ?? expect
-          steps.append(
-            ConformanceStep(payload: stepPayload, expectError: stepError, expect: stepExpect))
-        }
-      } else if let validateArray = dictionary["validate"] as? [[String: Any]] {
-        for stepDictionary in validateArray {
-          let stepPayload = (stepDictionary["payload"] ?? stepDictionary["messages"]).map {
-            toJSONValue($0)
-          }
-          let stepError =
-            parseExpectError(stepDictionary["expect_error"] ?? stepDictionary["expectError"])
-            ?? expectError
-          let stepExpect =
-            (stepDictionary["expect"] as? [String: Any]).map { toJSONValue($0) } ?? expect
-          steps.append(
-            ConformanceStep(payload: stepPayload, expectError: stepError, expect: stepExpect))
-        }
-      } else if let payload {
-        steps.append(ConformanceStep(payload: payload, expectError: expectError, expect: expect))
-      }
+  private static func parseSingleTestCase(_ dictionary: [String: Any]) -> ConformanceTestCase? {
+    guard let name = (dictionary["name"] ?? dictionary["description"]) as? String else {
+      return nil
+    }
+    let description = dictionary["description"] as? String
+    let catalogConfiguration = (dictionary["catalog"] as? [String: Any]).map {
+      toJSONValue($0).dictionaryValue ?? [:]
+    }
+    let action = dictionary["action"] as? String
+    let protocolVersion = dictionary["protocolVersion"] as? String
+    let strictMode = dictionary["strictMode"] as? Bool ?? false
+    var catalogPaths = dictionary["catalogPaths"] as? [String] ?? []
+    if let catalogPath = dictionary["catalogPath"] as? String {
+      catalogPaths.append(catalogPath)
+    }
+    let inlineCatalog = (dictionary["catalog"] as? [String: Any]).map { toJSONValue($0) }
+    let expectError = parseExpectError(dictionary["expect_error"] ?? dictionary["expectError"])
+    let payload = (dictionary["payload"] ?? dictionary["messages"]).map { toJSONValue($0) }
+    let args = (dictionary["args"] as? [String: Any]).map {
+      toJSONValue($0).dictionaryValue ?? [:]
+    }
+    let expect = (dictionary["expect"] as? [String: Any]).map { toJSONValue($0) }
+    let assertions = (dictionary["assertions"] as? [String: Any]).map {
+      toJSONValue($0).dictionaryValue ?? [:]
+    }
+    let surface = (dictionary["surface"] as? [String: Any]).map {
+      toJSONValue($0).dictionaryValue ?? [:]
+    }
+    let steps = parseSteps(
+      from: dictionary,
+      defaultPayload: payload,
+      defaultExpectError: expectError,
+      defaultExpect: expect
+    )
 
-      return ConformanceTestCase(
-        name: name,
-        description: description,
-        catalogConfiguration: catalogConfiguration,
-        action: action,
-        protocolVersion: protocolVersion,
-        strictMode: strictMode,
-        catalogPaths: catalogPaths,
-        inlineCatalog: inlineCatalog,
-        payload: payload,
-        args: args,
-        steps: steps,
-        expectError: expectError,
-        expect: expect,
-        assertions: assertions,
-        surface: surface
+    return ConformanceTestCase(
+      name: name,
+      description: description,
+      catalogConfiguration: catalogConfiguration,
+      action: action,
+      protocolVersion: protocolVersion,
+      strictMode: strictMode,
+      catalogPaths: catalogPaths,
+      inlineCatalog: inlineCatalog,
+      payload: payload,
+      args: args,
+      steps: steps,
+      expectError: expectError,
+      expect: expect,
+      assertions: assertions,
+      surface: surface
+    )
+  }
+
+  private static func parseSteps(
+    from dictionary: [String: Any],
+    defaultPayload: JSONValue?,
+    defaultExpectError: ConformanceExpectError?,
+    defaultExpect: JSONValue?
+  ) -> [ConformanceStep] {
+    let stepDicts =
+      (dictionary["steps"] as? [[String: Any]])
+      ?? (dictionary["validate"] as? [[String: Any]])
+    if let stepDicts {
+      return stepDicts.map { stepDictionary in
+        let stepPayload = (stepDictionary["payload"] ?? stepDictionary["messages"]).map {
+          toJSONValue($0)
+        }
+        let stepError =
+          parseExpectError(stepDictionary["expect_error"] ?? stepDictionary["expectError"])
+          ?? defaultExpectError
+        let stepExpect =
+          (stepDictionary["expect"] as? [String: Any]).map { toJSONValue($0) } ?? defaultExpect
+        return ConformanceStep(payload: stepPayload, expectError: stepError, expect: stepExpect)
+      }
+    }
+    if let defaultPayload {
+      return [
+        ConformanceStep(
+          payload: defaultPayload,
+          expectError: defaultExpectError,
+          expect: defaultExpect
+        )
+      ]
+    }
+    return []
+  }
+
+  public static func parseExpectError(_ errorObject: Any?) -> ConformanceExpectError? {
+    guard let errorObject else { return nil }
+    if let message = errorObject as? String {
+      return ConformanceExpectError(message: message)
+    }
+    guard let dictionary = errorObject as? [String: Any] else { return nil }
+    let category =
+      (dictionary["category"] ?? dictionary["type"] ?? dictionary["errorType"]) as? String
+    let code = dictionary["code"] as? String
+    let surfaceID = (dictionary["surfaceId"] ?? dictionary["surface_id"]) as? String
+    let functionCallID =
+      (dictionary["functionCallId"] ?? dictionary["function_call_id"]) as? String
+    let path = dictionary["path"] as? String
+    let message =
+      (dictionary["message"] ?? dictionary["message_contains"] ?? dictionary["messageContains"])
+      as? String
+    let details = parseErrorDetails(dictionary["details"])
+    let rendererError = parseRendererError(
+      dictionary["rendererError"] ?? dictionary["renderer_error"]
+    )
+    return ConformanceExpectError(
+      category: category,
+      code: code,
+      surfaceID: surfaceID,
+      functionCallID: functionCallID,
+      path: path,
+      message: message,
+      details: details,
+      rendererError: rendererError
+    )
+  }
+
+  private static func parseErrorDetails(_ rawDetails: Any?) -> [A2UIErrorDetail]? {
+    guard let detailsArray = rawDetails as? [[String: Any]] else { return nil }
+    return detailsArray.compactMap { detailDictionary in
+      guard let path = detailDictionary["path"] as? String,
+        let code = detailDictionary["code"] as? String
+      else {
+        return nil
+      }
+      return A2UIErrorDetail(
+        path: path,
+        code: code,
+        message: detailDictionary["message"] as? String ?? ""
       )
     }
   }
 
-  private static func parseExpectError(_ errorObject: Any?) -> ConformanceExpectError? {
-    guard let errorObject else { return nil }
-    if let message = errorObject as? String {
-      return ConformanceExpectError(category: nil, code: nil, message: message, details: nil)
+  public static func parseRendererError(_ rawRendererError: Any?) -> ConformanceExpectRendererError? {
+    guard let dict = rawRendererError as? [String: Any] else { return nil }
+    let code = dict["code"] as? String
+    let surfaceID = (dict["surfaceId"] ?? dict["surface_id"]) as? String
+    let surfaceIDIsNil =
+      dict.keys.contains("surfaceId") && (dict["surfaceId"] == nil || dict["surfaceId"] is NSNull)
+    let functionCallID = (dict["functionCallId"] ?? dict["function_call_id"]) as? String
+    let path = dict["path"] as? String
+    let message =
+      (dict["message"] ?? dict["message_contains"] ?? dict["messageContains"]) as? String
+    return ConformanceExpectRendererError(
+      code: code,
+      surfaceID: surfaceID,
+      surfaceIDIsNil: surfaceIDIsNil,
+      functionCallID: functionCallID,
+      path: path,
+      message: message
+    )
+  }
+
+  /// Verifies that a captured `RendererError` matches the expected `rendererError` specification.
+  public static func assertRendererErrorMatches(
+    _ actual: RendererError?,
+    expected: ConformanceExpectRendererError,
+    context: String
+  ) {
+    guard let actual else {
+      Issue.record("[\(context)] Expected RendererError to be reported, got nil")
+      return
     }
-    if let dictionary = errorObject as? [String: Any] {
-      let category = (dictionary["category"] ?? dictionary["type"]) as? String
-      let code = dictionary["code"] as? String
-      let message =
-        (dictionary["message"] ?? dictionary["message_contains"] ?? dictionary["messageContains"])
-        as? String
-      var details: [A2UIErrorDetail]?
-      if let detailsArray = dictionary["details"] as? [[String: Any]] {
-        details = detailsArray.compactMap { detailDictionary in
-          guard let path = detailDictionary["path"] as? String,
-            let code = detailDictionary["code"] as? String
-          else {
-            return nil
-          }
-          return A2UIErrorDetail(
-            path: path,
-            code: code,
-            message: detailDictionary["message"] as? String ?? ""
-          )
-        }
-      }
-      return ConformanceExpectError(
-        category: category, code: code, message: message, details: details)
+    let fields = extractRendererErrorFields(actual)
+    if let expectedCode = expected.code {
+      #expect(
+        fields.code == expectedCode,
+        "[\(context)] Expected rendererError.code '\(expectedCode)', got '\(fields.code)'"
+      )
     }
-    return nil
+    if expected.surfaceIDIsNil {
+      #expect(
+        fields.surfaceID == nil || fields.surfaceID == "",
+        "[\(context)] Expected rendererError.surfaceId nil, got '\(String(describing: fields.surfaceID))'"
+      )
+    } else if let expectedSurfaceID = expected.surfaceID {
+      #expect(
+        fields.surfaceID == expectedSurfaceID,
+        "[\(context)] Expected rendererError.surfaceId '\(expectedSurfaceID)', got '\(String(describing: fields.surfaceID))'"
+      )
+    }
+    if let expectedFunctionCallID = expected.functionCallID {
+      #expect(
+        fields.functionCallID == expectedFunctionCallID,
+        "[\(context)] Expected rendererError.functionCallId '\(expectedFunctionCallID)', got '\(String(describing: fields.functionCallID))'"
+      )
+    }
+    if let expectedPath = expected.path {
+      #expect(
+        fields.path == expectedPath,
+        "[\(context)] Expected rendererError.path '\(expectedPath)', got '\(String(describing: fields.path))'"
+      )
+    }
+    if let expectedMessage = expected.message, !expectedMessage.isEmpty {
+      #expect(
+        messageMatches(fields.message, expected: expectedMessage),
+        "[\(context)] Expected rendererError.message containing '\(expectedMessage)', got '\(fields.message)'"
+      )
+    }
+  }
+
+  private static func extractRendererErrorFields(
+    _ error: RendererError
+  ) -> (
+    code: String,
+    surfaceID: String?,
+    functionCallID: String?,
+    path: String?,
+    message: String
+  ) {
+    switch error {
+    case .validationFailed(let valError):
+      return (
+        valError.code.rawValue,
+        valError.surfaceID,
+        nil,
+        valError.path,
+        valError.message
+      )
+    case .generic(let genError):
+      return (
+        genError.code,
+        genError.surfaceID,
+        genError.functionCallID,
+        nil,
+        genError.message
+      )
+    }
+  }
+
+  public static func messageMatches(_ actual: String, expected: String) -> Bool {
+    if actual.localizedStandardContains(expected)
+      || actual.contains(expected)
+      || actual.range(of: expected, options: .regularExpression) != nil
+    {
+      return true
+    }
+    if expected.contains("is not of type")
+      && (actual.contains("type") || actual.contains("Expected type"))
+    {
+      return true
+    }
+    return false
   }
 }
 
@@ -723,23 +884,61 @@ public struct ConformanceStep: Sendable {
   }
 }
 
+/// Expected renderer-to-agent error structure in conformance YAML suites.
+public struct ConformanceExpectRendererError: Sendable {
+  public let code: String?
+  public let surfaceID: String?
+  public let surfaceIDIsNil: Bool
+  public let functionCallID: String?
+  public let path: String?
+  public let message: String?
+
+  public init(
+    code: String? = nil,
+    surfaceID: String? = nil,
+    surfaceIDIsNil: Bool = false,
+    functionCallID: String? = nil,
+    path: String? = nil,
+    message: String? = nil
+  ) {
+    self.code = code
+    self.surfaceID = surfaceID
+    self.surfaceIDIsNil = surfaceIDIsNil
+    self.functionCallID = functionCallID
+    self.path = path
+    self.message = message
+  }
+}
+
 /// Expected error specifications for conformance assertions.
 public struct ConformanceExpectError: Sendable {
   public let category: String?
   public let code: String?
+  public let surfaceID: String?
+  public let functionCallID: String?
+  public let path: String?
   public let message: String?
   public let details: [A2UIErrorDetail]?
+  public let rendererError: ConformanceExpectRendererError?
 
   public init(
     category: String? = nil,
     code: String? = nil,
+    surfaceID: String? = nil,
+    functionCallID: String? = nil,
+    path: String? = nil,
     message: String? = nil,
-    details: [A2UIErrorDetail]? = nil
+    details: [A2UIErrorDetail]? = nil,
+    rendererError: ConformanceExpectRendererError? = nil
   ) {
     self.category = category
     self.code = code
+    self.surfaceID = surfaceID
+    self.functionCallID = functionCallID
+    self.path = path
     self.message = message
     self.details = details
+    self.rendererError = rendererError
   }
 }
 

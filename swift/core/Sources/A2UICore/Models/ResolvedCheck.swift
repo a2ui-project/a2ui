@@ -43,6 +43,12 @@ public struct ResolvedCheck: Resolved, Equatable, Sendable {
     return condition.value ?? false
   }
 
+  /// Whether the check failed with blocking `.error` severity.
+  public var isBlockingError: Bool {
+    guard !isValid else { return false }
+    return (validationResult?.severity ?? .error) == .error
+  }
+
   public static func == (lhs: ResolvedCheck, rhs: ResolvedCheck) -> Bool {
     lhs.condition == rhs.condition && lhs.message == rhs.message
       && lhs.validationResult == rhs.validationResult
@@ -72,13 +78,34 @@ extension Node {
     return []
   }
 
-  /// List of active validation error messages (checks that currently fail).
+  /// List of active blocking validation error messages (checks that fail with `.error` severity).
   public var validationErrors: [String] {
-    checks.compactMap { $0.isValid ? nil : $0.message }
+    checks.compactMap { $0.isBlockingError ? $0.message : nil }
   }
 
-  /// Whether all validation checks on this node pass.
+  /// Structured validation results for all failing checks (including `.warning` and `.info`).
+  public var validationResults: [ValidationResult] {
+    checks.compactMap { check in
+      guard !check.isValid else { return nil }
+      if let result = check.validationResult {
+        return ValidationResult(
+          valid: result.valid,
+          code: result.code,
+          message: result.message ?? check.message,
+          severity: result.severity ?? .error
+        )
+      }
+      return ValidationResult(
+        valid: false,
+        code: nil,
+        message: check.message,
+        severity: .error
+      )
+    }
+  }
+
+  /// Whether all blocking validation checks on this node pass.
   public var isValid: Bool {
-    checks.allSatisfy { $0.isValid }
+    checks.allSatisfy { !$0.isBlockingError }
   }
 }
