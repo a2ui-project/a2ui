@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 import math
 import re
 import time
@@ -26,11 +26,15 @@ from typing import Any, Protocol, TypeVar, cast, runtime_checkable
 import httpx
 
 from .models import (
+    DecisionAnswer,
     DecisionBackendType,
+    DecisionBatch,
     DecisionDistribution,
     DecisionQuery,
+    DecisionQuestion,
     DecisionTask,
     DecisionWireFormat,
+    QuestionKind,
 )
 
 _CAMEL_BOUNDARY_RE = re.compile(r"([a-z0-9])([A-Z])")
@@ -260,6 +264,10 @@ class DecisionBackend(Protocol):
         """Predicts a probability distribution over query candidates."""
         ...
 
+    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Answers every question in `batch`, in order."""
+        ...
+
     async def aclose(self) -> None:
         """Releases resources owned by this backend."""
         ...
@@ -269,6 +277,120 @@ class DecisionBackend(Protocol):
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         ...
+
+
+def _question_query(
+    question: DecisionQuestion, shared_context: Mapping[str, Any]
+) -> DecisionQuery:
+    """Builds the `DecisionQuery` a predict-only backend scores for `question`.
+
+    The query context carries the batch's shared context, the question's own
+    context, ``question_id`` and ``question_kind``, and candidate descriptions
+    from `option_texts` (or the ``yes`` and ``no`` criteria texts in the
+    question context for boolean questions).
+    """
+    context: dict[str, Any] = {
+        **shared_context,
+        **question.context,
+        "question_id": question.id,
+        "question_kind": str(question.kind),
+    }
+    descriptions: dict[str, str] = {}
+    if question.option_texts:
+        descriptions = dict(zip(question.options, question.option_texts))
+    elif question.kind is QuestionKind.BOOLEAN:
+        descriptions = {
+            label: str(question.context[label])
+            for label in ("yes", "no")
+            if label in question.context
+        }
+    if descriptions:
+        context["candidate_descriptions"] = descriptions
+    return DecisionQuery(
+        task=question.task,
+        prompt=question.prompt,
+        candidates=question.candidates(),
+        context=context,
+    )
+
+
+def _boolean_answer(
+    question: DecisionQuestion, dist: DecisionDistribution
+) -> DecisionAnswer:
+    """Normalizes a yes/no distribution into ``{"yes": p, "no": 1 - p}``."""
+    yes = dist.probabilities.get("yes", 0.0)
+    total = yes + dist.probabilities.get("no", 0.0)
+    p_yes = yes / total if total > 0.0 else 0.0
+    return DecisionAnswer(
+        question_id=question.id,
+        distribution=DecisionDistribution(
+            probabilities={"yes": p_yes, "no": 1.0 - p_yes},
+            calibrated=dist.calibrated,
+            top_logit_margin=dist.top_logit_margin,
+        ),
+    )
+
+
+def _score_answer(
+    question: DecisionQuestion, dist: DecisionDistribution
+) -> DecisionAnswer:
+    """Normalizes a level distribution and computes its expected level index."""
+    weights = [
+        max(dist.probabilities.get(level, 0.0), 0.0) for level in question.options
+    ]
+    total = sum(weights)
+    if total <= 0.0:
+        return DecisionAnswer(question_id=question.id, distribution=dist)
+    probs = {level: w / total for level, w in zip(question.options, weights)}
+    expected = sum(p * idx for idx, p in enumerate(probs.values()))
+    return DecisionAnswer(
+        question_id=question.id,
+        distribution=DecisionDistribution(
+            probabilities=probs,
+            calibrated=dist.calibrated,
+            top_logit_margin=dist.top_logit_margin,
+        ),
+        expected=expected,
+    )
+
+
+def answer_from_distribution(
+    question: DecisionQuestion, dist: DecisionDistribution
+) -> DecisionAnswer:
+    """Converts a candidate distribution into the `DecisionAnswer` for `question`.
+
+    `CHOICE` answers keep the distribution as returned (over the options plus
+    ``"none"`` when `allow_none`); `BOOLEAN` answers are normalized to
+    ``{"yes": p, "no": 1 - p}``; `SCORE` answers are normalized over the
+    levels and carry ``expected = sum(p_i * i)``.
+    """
+    if question.kind is QuestionKind.BOOLEAN:
+        return _boolean_answer(question, dist)
+    if question.kind is QuestionKind.SCORE:
+        return _score_answer(question, dist)
+    return DecisionAnswer(question_id=question.id, distribution=dist)
+
+
+class _AnswerViaPredict:
+    """Mixin giving `answer()` to any backend that only has `predict()`.
+
+    `CHOICE` questions predict over the options (plus ``"none"`` when
+    `allow_none`), `BOOLEAN` questions over ``("yes", "no")``, and `SCORE`
+    questions over the level labels with ``expected = sum(p_i * i)``.
+    Questions run concurrently through `asyncio.gather`, so backends that
+    coalesce concurrent requests batch them naturally.
+    """
+
+    predict: Callable[[DecisionQuery], Awaitable[DecisionDistribution]]
+
+    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Answers every question in `batch` through `predict`, in order."""
+        queries = [_question_query(q, batch.shared_context) for q in batch.questions]
+        distributions = await asyncio.gather(*(self.predict(q) for q in queries))
+        return tuple(
+            answer_from_distribution(question, dist)
+            for question, dist in zip(batch.questions, distributions)
+        )
 
 
 class _AsyncClosable:
@@ -463,7 +585,7 @@ def _parse_systemone_response(
     return probabilities, calibrated, _probability_margin(probabilities)
 
 
-class JevHttpBackend(_HttpClientOwner):
+class JevHttpBackend(_AnswerViaPredict, _HttpClientOwner):
     """HTTP backend for local Jev /predict or /v1/systemone decision endpoints.
 
     Supports `async with` to close the owned HTTP client on exit. ADC access
@@ -594,7 +716,7 @@ class JevHttpBackend(_HttpClientOwner):
         )
 
 
-class StepZeroLogprobBackend(_HttpClientOwner):
+class StepZeroLogprobBackend(_AnswerViaPredict, _HttpClientOwner):
     """OpenAI-compatible step-0 top-logprob decision backend.
 
     Supports `async with` to close the owned HTTP client on exit.
@@ -660,7 +782,7 @@ class StepZeroLogprobBackend(_HttpClientOwner):
         )
 
 
-class DeterministicMockBackend(_AsyncClosable):
+class DeterministicMockBackend(_AnswerViaPredict, _AsyncClosable):
     """Deterministic offline decision backend for tests and local evaluation."""
 
     def __init__(
@@ -741,7 +863,7 @@ class DeterministicMockBackend(_AsyncClosable):
         )
 
 
-class LocalCrossEncoderBackend(_AsyncClosable):
+class LocalCrossEncoderBackend(_AnswerViaPredict, _AsyncClosable):
     """In-process CPU cross-encoder backend backed by ONNX Runtime."""
 
     def __init__(

@@ -25,7 +25,12 @@ PointerValueType = Literal["string", "number", "boolean", "array", "object"]
 
 @dataclass(frozen=True)
 class PointerSummary:
-    """Structural summary of a bindable JSON Pointer path in a data payload."""
+    """Structural summary of a bindable JSON Pointer path in a data payload.
+
+    `value_type` is the coarse JSON type; `semantic_type` and the fields after
+    it are the semantic view the archetype grammar binds slots against. They
+    default so callers that only know the coarse type keep working.
+    """
 
     path: str
     value_type: PointerValueType
@@ -33,15 +38,57 @@ class PointerSummary:
     element_keys: tuple[str, ...] = ()
     sample_type_by_key: dict[str, str] = field(default_factory=dict, hash=False)
     mutable_hint: bool = False
+    semantic_type: str = "string"
+    """A `SemanticType` value; the payload inspector populates it."""
+    hints: Mapping[str, Any] = field(default_factory=dict, hash=False)
+    """Detector hints such as `wordCount`, `unit`, `currency`, `min`, `max`."""
+    key: str = ""
+    """The last pointer segment, unescaped; derived from `path` when empty."""
+    label: str = ""
+    """Humanized key for display."""
+    parent: str | None = None
+    """The parent pointer (``""`` for top-level keys); derived when None."""
+    element_semantic_types: Mapping[str, str] = field(default_factory=dict, hash=False)
+    """For arrays: element key to its `SemanticType` value."""
+    sample_pointers: tuple[str, ...] = ()
+    """Element-level pointers offered to single-value slots, e.g. ``/photos/0/url``."""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "element_keys", tuple(self.element_keys))
         object.__setattr__(self, "sample_type_by_key", dict(self.sample_type_by_key))
+        object.__setattr__(self, "hints", dict(self.hints))
+        object.__setattr__(
+            self, "element_semantic_types", dict(self.element_semantic_types)
+        )
+        object.__setattr__(self, "sample_pointers", tuple(self.sample_pointers))
+        if not self.key or self.parent is None:
+            parent, key = split_pointer(self.path)
+            if not self.key:
+                object.__setattr__(self, "key", key)
+            if self.parent is None:
+                object.__setattr__(self, "parent", parent)
 
 
 def _escape_pointer_segment(key: str) -> str:
     """Escapes a single JSON object key for an RFC 6901 JSON Pointer."""
     return key.replace("~", "~0").replace("/", "~1")
+
+
+def _unescape_pointer_segment(segment: str) -> str:
+    """Reverses `_escape_pointer_segment` for a single pointer segment."""
+    return segment.replace("~1", "/").replace("~0", "~")
+
+
+def split_pointer(path: str) -> tuple[str, str]:
+    """Splits a JSON Pointer into its parent pointer and unescaped last key.
+
+    ``"/a/b~1c"`` becomes ``("/a", "b/c")``; a relative key such as ``"name"``
+    becomes ``("", "name")``; the root pointer ``""`` becomes ``("", "")``.
+    """
+    if "/" not in path:
+        return "", _unescape_pointer_segment(path)
+    parent, _, last = path.rpartition("/")
+    return parent, _unescape_pointer_segment(last)
 
 
 def _classify_value_type(value: Any) -> PointerValueType | None:

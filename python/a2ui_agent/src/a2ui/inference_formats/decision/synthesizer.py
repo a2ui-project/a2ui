@@ -34,6 +34,8 @@ from .backends import (
     DeterministicMockBackend,
     create_decision_backend,
 )
+from .bindings import is_v10 as _is_v10
+from .bindings import make_data_binding as _make_data_binding
 from .catalog_graph import CatalogDecisionGraph
 from .models import (
     ComponentNodeSpec,
@@ -76,20 +78,9 @@ instead, either directly or as an awaitable. Dicts are validated with
 """
 
 
-def _is_v10(protocol_version: str) -> bool:
-    """Returns whether `protocol_version` targets A2UI v1.0 or later."""
-    clean = protocol_version.lstrip("v")
-    return clean == "1" or clean.startswith("1.")
-
-
 def _wire_version(protocol_version: str) -> str:
     """Returns the canonical A2UI wire envelope version string."""
     return "v1.0" if _is_v10(protocol_version) else "v0.9"
-
-
-def _make_data_binding(path: str, *, is_v10: bool) -> dict[str, str]:
-    """Creates a protocol-versioned A2UI DataBinding dictionary."""
-    return {"@path": path} if is_v10 else {"path": path}
 
 
 def _as_data_model(

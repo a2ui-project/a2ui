@@ -1,0 +1,1714 @@
+{
+  "$schema": "https://a2ui.org/specification/v1_0/decision/archetype_definition.json",
+  "version": "1",
+  "thresholds": {
+    "family": 0.4,
+    "archetype": 0.4,
+    "expected": 0.5,
+    "optional": 0.75,
+    "instance": 0.5,
+    "reask_below": 0.75,
+    "actionGateFloor": 0.7,
+    "actionGateCap": 0.95
+  },
+  "job": {
+    "family": {
+      "kind": "choice",
+      "question": "What is the person here to do?",
+      "options": {
+        "browse": "Look through a set of similar things: results, a catalogue, a feed, an inbox, a directory, records.",
+        "monitor": "See numbers and status at a glance: usage, health, progress, balances, today's summary.",
+        "inspect": "Understand one thing in depth: a product, a place, a person, an order, an event, an article.",
+        "act": "Commit to or confirm one action, or review something just before or just after it happens.",
+        "input": "Provide or change information: fill in details, adjust settings, answer questions.",
+        "follow": "Do something step by step: a how-to, a recipe, a checklist, troubleshooting."
+      }
+    },
+    "stakes": {
+      "kind": "score",
+      "question": "If this goes wrong, how bad is it for the person?",
+      "levels": [
+        "Nothing is at stake; the person is only looking.",
+        "A small inconvenience that is easy to undo.",
+        "Money, time, or data is involved; undoing it takes effort.",
+        "Irreversible: a deletion, a payment, a commitment that cannot be taken back."
+      ]
+    },
+    "urgency": {
+      "kind": "score",
+      "question": "How quickly does the person need to act on what they see?",
+      "levels": [
+        "No hurry; they are browsing or reading.",
+        "Soon; something is due or pending.",
+        "Right now; something is failing, expiring, or happening."
+      ]
+    }
+  },
+  "archetypes": [
+    {
+      "id": "feed",
+      "family": "browse",
+      "criteria": "A collection to look through, where the items matter more than any one of them.",
+      "blocks": [
+        "banner?",
+        "filters?",
+        "picture?",
+        "collection!"
+      ]
+    },
+    {
+      "id": "compare",
+      "family": "browse",
+      "criteria": "A few options the person is weighing against each other, with the same attributes for each.",
+      "shape": {
+        "arrayLength": [
+          2,
+          5
+        ]
+      },
+      "blocks": [
+        "banner?",
+        "prose?",
+        "comparison!",
+        "actions?"
+      ]
+    },
+    {
+      "id": "dashboard",
+      "family": "monitor",
+      "criteria": "Numbers and status at a glance, with the most important figure first.",
+      "blocks": [
+        "banner?",
+        "headline!",
+        "chart?",
+        "facts?",
+        "media?",
+        "collection?"
+      ],
+      "atLeast": 2
+    },
+    {
+      "id": "detail",
+      "family": "inspect",
+      "criteria": "One thing in depth: what it is, its key figures, its description, its particulars, what it contains, what can be done with it.",
+      "blocks": [
+        "picture?",
+        "banner?",
+        "headline?",
+        "prose",
+        "facts",
+        "media?",
+        "collection?",
+        "actions?"
+      ],
+      "atLeast": 2
+    },
+    {
+      "id": "result",
+      "family": "act",
+      "criteria": "The outcome of something the person just did: success, failure, a receipt, nothing found.",
+      "blocks": [
+        "outcome!",
+        "facts?",
+        "steps?",
+        "actions"
+      ]
+    },
+    {
+      "id": "confirm",
+      "family": "act",
+      "criteria": "One short decision about one thing, asked before it happens: confirm, delete, approve, allow.",
+      "blocks": [
+        "prose",
+        "facts?",
+        "actions!"
+      ],
+      "frame": {
+        "dialog": true
+      }
+    },
+    {
+      "id": "checkout",
+      "family": "act",
+      "criteria": "Review and commit: a cart, an order or booking summary with totals, a payment.",
+      "blocks": [
+        "banner?",
+        "collection",
+        "facts!",
+        "form?",
+        "actions!"
+      ],
+      "frame": {
+        "stickyActions": true
+      }
+    },
+    {
+      "id": "form",
+      "family": "input",
+      "criteria": "Data entry: creating or editing a record, a booking, a survey, a request with several fields.",
+      "shape": {
+        "mutable": true
+      },
+      "blocks": [
+        "prose?",
+        "form!",
+        "actions"
+      ]
+    },
+    {
+      "id": "settings",
+      "family": "input",
+      "criteria": "Preferences, account options, or configuration, arranged as groups of rows that each hold one setting.",
+      "shape": {
+        "mutable": true
+      },
+      "blocks": [
+        "banner?",
+        "groups!",
+        "actions?"
+      ]
+    },
+    {
+      "id": "guide",
+      "family": "follow",
+      "criteria": "Instructions followed in order: a how-to, a method, troubleshooting, an onboarding checklist.",
+      "blocks": [
+        "picture?",
+        "prose?",
+        "facts?",
+        "steps!",
+        "actions?"
+      ]
+    },
+    {
+      "id": "article",
+      "family": "inspect",
+      "criteria": "Something to read: an explanation, a story, a report, documentation, where the text is the point.",
+      "shape": {
+        "proseLength": [
+          "summary",
+          "article"
+        ]
+      },
+      "blocks": [
+        "picture?",
+        "prose!",
+        "facts?",
+        "collection?",
+        "actions?"
+      ]
+    },
+    {
+      "id": "timeline",
+      "family": "inspect",
+      "criteria": "What happened, in order: shipment events, an audit trail, a build's stages, a patient's history, a project's milestones.",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "elementTypes": [
+          "datetime",
+          "date",
+          "time",
+          "relative_time"
+        ]
+      },
+      "blocks": [
+        "banner?",
+        "headline?",
+        "timeline!",
+        "actions?"
+      ]
+    },
+    {
+      "id": "location",
+      "family": "inspect",
+      "criteria": "A place, or something at a place: where it is, how to get there, what is nearby.",
+      "shape": {
+        "pointers": [
+          "location",
+          "address"
+        ]
+      },
+      "blocks": [
+        "picture?",
+        "map!",
+        "facts",
+        "collection?",
+        "actions?"
+      ]
+    },
+    {
+      "id": "chat",
+      "family": "browse",
+      "criteria": "A conversation: messages between people or with an assistant, in order, each with who said it and when.",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "elementKeys": [
+          "author",
+          "sender",
+          "from",
+          "role",
+          "speaker"
+        ]
+      },
+      "blocks": [
+        "banner?",
+        "conversation!",
+        "compose?"
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "banner",
+      "pattern": "banner",
+      "gate": {
+        "kind": "boolean",
+        "question": "Does something here need the person's attention before anything else?",
+        "yes": "A warning, an outage, a deadline, an error, an offer about to expire, or a success to acknowledge.",
+        "no": "Nothing unusual is going on; this is business as usual."
+      },
+      "slots": {
+        "title": {
+          "from": [
+            "string",
+            "enum"
+          ],
+          "required": true
+        },
+        "text": {
+          "from": [
+            "string",
+            "long_text"
+          ]
+        }
+      },
+      "instance": {
+        "tone": {
+          "kind": "choice",
+          "question": "For the person looking at this, what kind of news is {title}?",
+          "options": {
+            "success": "Good news or a healthy state: done, available, on time, paid, active.",
+            "warning": "Needs attention soon: low, delayed, pending, degraded, expiring.",
+            "danger": "Bad news: failed, overdue, critical, cancelled, offline.",
+            "neutral": "Plain information that is neither good nor bad."
+          }
+        }
+      },
+      "fallback": [
+        "banner",
+        "prose"
+      ]
+    },
+    {
+      "id": "picture",
+      "pattern": "picture",
+      "shape": {
+        "pointers": [
+          "image_url",
+          "media_object"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Should a picture lead this?",
+        "yes": "One visual subject leads: a place, dish, product, property, animal, trip, event, person, or artwork.",
+        "no": "The subject has no look: an order, an account, a transaction, a setting, a set of figures."
+      },
+      "slots": {
+        "picture": {
+          "from": [
+            "image_url",
+            "media_object"
+          ],
+          "required": true,
+          "avoidKeys": [
+            "logo",
+            "icon",
+            "avatar",
+            "thumbnail"
+          ]
+        },
+        "caption": {
+          "from": [
+            "string",
+            "title"
+          ]
+        },
+        "width": {
+          "from": [
+            "integer"
+          ],
+          "sibling": [
+            "width",
+            "w"
+          ]
+        },
+        "height": {
+          "from": [
+            "integer"
+          ],
+          "sibling": [
+            "height",
+            "h"
+          ]
+        },
+        "aspectRatio": {
+          "from": [
+            "ratio",
+            "string"
+          ],
+          "sibling": [
+            "aspectRatio",
+            "aspect"
+          ]
+        },
+        "orientation": {
+          "from": [
+            "enum"
+          ],
+          "sibling": [
+            "orientation"
+          ]
+        }
+      },
+      "anatomy": {
+        "framing": {
+          "kind": "choice",
+          "question": "What kind of picture is this, and how should it be framed?",
+          "options": {
+            "banner": "A wide scene that can be cropped: a place, a landscape, a venue, a dish on a table, a product in use.",
+            "portrait": "A person or a face: shown whole, square or round, never cropped at the head.",
+            "object": "A thing on its own that must not be cropped: a product on a plain background, a logo, a diagram, a chart image.",
+            "poster": "Taller than wide and read whole: a book cover, a poster, a document page, a phone screenshot."
+          },
+          "derivedWhen": {
+            "keyHint": {
+              "logo": "object",
+              "icon": "object",
+              "avatar": "portrait",
+              "portrait": "portrait",
+              "cover": "poster",
+              "poster": "poster"
+            },
+            "aspectRatio": {
+              "under": {
+                "0.8": "poster"
+              },
+              "over": {
+                "1.5": "banner"
+              }
+            }
+          }
+        },
+        "prominence": {
+          "kind": "score",
+          "question": "How much of the screen should this picture take?",
+          "levels": [
+            "A small mark beside the title: a logo or avatar.",
+            "A supporting picture beside the text, about a third of the width.",
+            "A leading picture across the full width above the text.",
+            "The picture is the content; everything else is a caption."
+          ]
+        }
+      },
+      "fallback": [
+        "picture"
+      ]
+    },
+    {
+      "id": "filters",
+      "pattern": "filters",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "arrayLength": [
+          8,
+          null
+        ],
+        "mutable": true
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Will the person need to search or narrow down what is shown?",
+        "yes": "There are many items, more than fit on a screen, in recognisable categories.",
+        "no": "There are only a few items, or nothing to narrow."
+      },
+      "slots": {
+        "query": {
+          "from": [
+            "string"
+          ],
+          "mutable": true
+        },
+        "categories": {
+          "from": [
+            "enum",
+            "status",
+            "array"
+          ],
+          "note": "the distinct values of an enum field across the items, or a sibling list of category names; how they are drawn is the catalog's choice"
+        }
+      },
+      "fallback": [
+        "filters"
+      ]
+    },
+    {
+      "id": "headline",
+      "pattern": "headline",
+      "shape": {
+        "pointers": [
+          "number",
+          "integer",
+          "count",
+          "currency",
+          "percent",
+          "ratio",
+          "quantity",
+          "rating",
+          "bounded",
+          "duration",
+          "status",
+          "enum",
+          "boolean",
+          "time",
+          "datetime",
+          "relative_time"
+        ],
+        "count": [
+          1,
+          null
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Are there a few values the person wants at a glance before anything else?",
+        "yes": "Key figures or states such as totals, counts, rates, balances, scores, durations, a status, a next time, on or off.",
+        "no": "The values are details to look up, not headlines, or there are too many for any to stand out."
+      },
+      "salience": {
+        "kind": "score",
+        "perPointer": true,
+        "question": "How important is {label} to the person at a glance?",
+        "levels": [
+          "A detail they might look up.",
+          "Useful context.",
+          "One of the main things they came to see.",
+          "The single most important value here."
+        ],
+        "select": {
+          "min": 1,
+          "max": 6,
+          "aboveLevel": 1.5
+        }
+      },
+      "slots": {
+        "items": {
+          "repeat": true,
+          "from": [
+            "number",
+            "integer",
+            "count",
+            "currency",
+            "percent",
+            "ratio",
+            "quantity",
+            "rating",
+            "bounded",
+            "duration",
+            "status",
+            "enum",
+            "boolean",
+            "time",
+            "datetime",
+            "relative_time"
+          ],
+          "max": 6,
+          "orderBy": "salience",
+          "fields": {
+            "label": {
+              "from": [
+                "key"
+              ]
+            },
+            "value": {
+              "from": [
+                "any"
+              ],
+              "required": true
+            },
+            "delta": {
+              "from": [
+                "number",
+                "percent"
+              ],
+              "sibling": [
+                "delta",
+                "change",
+                "diff",
+                "previous"
+              ]
+            },
+            "min": {
+              "from": [
+                "number"
+              ],
+              "sibling": [
+                "min"
+              ]
+            },
+            "max": {
+              "from": [
+                "number"
+              ],
+              "sibling": [
+                "max",
+                "total",
+                "limit"
+              ]
+            }
+          }
+        }
+      },
+      "anatomy": {
+        "deltas": {
+          "kind": "boolean",
+          "question": "Do these values change over time in a way the person tracks?",
+          "yes": "Usage, spending, revenue, health, or performance compared with a previous period or a target.",
+          "no": "Fixed figures such as counts or specifications, with nothing to compare against."
+        },
+        "gauge": {
+          "kind": "boolean",
+          "appliesWhen": {
+            "value": "bounded"
+          },
+          "question": "Is {label} read as a level between empty and full?",
+          "yes": "Progress, capacity, battery, utilization, a score out of a maximum.",
+          "no": "A plain number that happens to have bounds."
+        }
+      },
+      "instance": {
+        "news": {
+          "kind": "choice",
+          "appliesWhen": {
+            "delta": "bound"
+          },
+          "question": "For the person looking at this, is the change in {label} good or bad news?",
+          "options": {
+            "good": "The figure moved the way the person wants it to.",
+            "bad": "The figure moved the way the person does not want.",
+            "neutral": "Neither; it is just a change."
+          }
+        },
+        "state_tone": {
+          "kind": "choice",
+          "appliesWhen": {
+            "value": [
+              "status",
+              "enum",
+              "boolean"
+            ]
+          },
+          "question": "Is {label} being {value} good, bad, or neutral for the person?",
+          "options": {
+            "success": "Good: active, healthy, on, done, in stock.",
+            "warning": "Needs attention: pending, low, degraded.",
+            "danger": "Bad: failed, offline, overdue.",
+            "neutral": "Neither."
+          }
+        }
+      },
+      "fallback": [
+        "headline",
+        "facts"
+      ]
+    },
+    {
+      "id": "media",
+      "pattern": "media",
+      "shape": {
+        "pointers": [
+          "video_url",
+          "audio_url"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Is there something to play here?",
+        "yes": "A video, an episode, a recording, a song, a voice note.",
+        "no": "The link is to a file or page, not something played in place."
+      },
+      "slots": {
+        "source": {
+          "from": [
+            "video_url",
+            "audio_url"
+          ],
+          "required": true
+        },
+        "poster": {
+          "from": [
+            "image_url"
+          ],
+          "sibling": [
+            "poster",
+            "thumbnail",
+            "artwork"
+          ]
+        },
+        "title": {
+          "from": [
+            "title",
+            "string"
+          ]
+        },
+        "duration": {
+          "from": [
+            "duration"
+          ]
+        }
+      },
+      "fallback": [
+        "media",
+        "facts"
+      ]
+    },
+    {
+      "id": "chart",
+      "pattern": "chart",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "elementTypes": [
+          "number",
+          "date",
+          "datetime"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Is there a series of values over time or categories that is easier to read as a chart than as numbers?",
+        "yes": "A trend, a history, a breakdown by category, a comparison of several series.",
+        "no": "Single figures, or a list of records that are not a series."
+      },
+      "slots": {
+        "series": {
+          "from": [
+            "array"
+          ],
+          "required": true
+        },
+        "title": {
+          "from": [
+            "key",
+            "string"
+          ]
+        }
+      },
+      "fallback": [
+        "chart",
+        "headline",
+        "collection"
+      ]
+    },
+    {
+      "id": "facts",
+      "pattern": "facts",
+      "shape": {
+        "pointers": [
+          "string",
+          "number",
+          "date",
+          "datetime",
+          "enum",
+          "email",
+          "phone",
+          "url",
+          "boolean"
+        ],
+        "count": [
+          2,
+          null
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Are there particulars the person would look up, such as a reference, a date, an address, a status, a total?",
+        "yes": "Labelled values that are read, not acted on: order number, date, address, status, total, owner.",
+        "no": "There are no such particulars, or they are already shown as headline figures."
+      },
+      "slots": {
+        "rows": {
+          "repeat": true,
+          "from": [
+            "string",
+            "number",
+            "date",
+            "datetime",
+            "enum",
+            "email",
+            "phone",
+            "url",
+            "boolean",
+            "currency"
+          ],
+          "max": 8,
+          "orderBy": "salience",
+          "fields": {
+            "label": {
+              "from": [
+                "key"
+              ],
+              "required": true
+            },
+            "value": {
+              "from": [
+                "any"
+              ],
+              "required": true
+            }
+          }
+        }
+      },
+      "fallback": [
+        "facts",
+        "prose"
+      ]
+    },
+    {
+      "id": "prose",
+      "pattern": "prose",
+      "shape": {
+        "pointers": [
+          "long_text",
+          "string"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Is there something to read, a sentence or more, that explains or describes?",
+        "yes": "A description, a summary, an explanation, a message, terms, a note.",
+        "no": "Only short labels and values; nothing to read in sentences."
+      },
+      "slots": {
+        "heading": {
+          "from": [
+            "title",
+            "string"
+          ]
+        },
+        "body": {
+          "from": [
+            "long_text",
+            "markdown",
+            "string"
+          ],
+          "required": true
+        }
+      },
+      "measures": {
+        "length": {
+          "derivedFrom": "body.hints.wordCount",
+          "levels": {
+            "line": [
+              0,
+              15
+            ],
+            "blurb": [
+              15,
+              60
+            ],
+            "summary": [
+              60,
+              200
+            ],
+            "article": [
+              200,
+              null
+            ]
+          },
+          "note": "Computed, never asked. Patterns may vary by it (an article gets a heading and may be collapsed behind a Read more where the catalog can; a line is set inline). The rules use it too: article-length prose moves to the front of detail and suppresses the picture's prominence to supporting."
+        }
+      },
+      "fallback": [
+        "prose"
+      ]
+    },
+    {
+      "id": "collection",
+      "pattern": "collection",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "elementTypes": [
+          "object",
+          "string"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Are there several similar items the person would scan or pick from?",
+        "yes": "Results, products, people, records, messages, line items, episodes, devices, or any set of comparable things.",
+        "no": "This is about one thing, or the list is only a series of numbers."
+      },
+      "anatomy": {
+        "layout": {
+          "kind": "choice",
+          "question": "How should these items be laid out?",
+          "options": {
+            "rows": "Dense rows to scan quickly: text matters more than pictures, or there are many items.",
+            "cards": "Large picture cards, one per row: the person chooses mostly by look among a few rich items.",
+            "grid": "A grid of small picture tiles: many visual items browsed casually.",
+            "reel": "A sideways-scrolling shelf of picture cards: a short set of suggestions or a gallery."
+          },
+          "requires": {
+            "cards": [
+              "picture"
+            ],
+            "grid": [
+              "picture",
+              "pattern:collection.grid"
+            ],
+            "reel": [
+              "picture"
+            ]
+          },
+          "note": "pattern:<name>.<variant> means the option is offered only when the catalog's pattern has that variant, so a catalog that would draw grid as a reel is not asked about grid."
+        },
+        "leading": {
+          "kind": "choice",
+          "question": "What should lead each item, so the person knows what kind of thing it is?",
+          "options": {
+            "thumbnail": "A small picture of the item.",
+            "avatar": "A picture of a person.",
+            "icon": "A symbol for the item's kind or state.",
+            "number": "Its rank or position.",
+            "none": "Nothing; the title is enough."
+          }
+        },
+        "trailing": {
+          "kind": "choice",
+          "question": "What should end each item?",
+          "options": {
+            "chevron": "A way in: tapping the item opens it.",
+            "button": "One action on each item, such as Book, Add, Play.",
+            "value": "A figure or status read at a glance.",
+            "none": "Nothing."
+          },
+          "requires": {
+            "button": [
+              "actions_allowed"
+            ]
+          }
+        }
+      },
+      "slots": {
+        "items": {
+          "repeat": true,
+          "from": [
+            "array"
+          ],
+          "required": true,
+          "fields": {
+            "headline": {
+              "from": [
+                "title",
+                "name",
+                "string"
+              ],
+              "required": true,
+              "prefer": [
+                "name",
+                "title",
+                "label"
+              ]
+            },
+            "supporting": {
+              "from": [
+                "string",
+                "long_text",
+                "place_name",
+                "address",
+                "email"
+              ]
+            },
+            "picture": {
+              "from": [
+                "image_url",
+                "media_object"
+              ]
+            },
+            "meta": {
+              "from": [
+                "currency",
+                "quantity",
+                "date",
+                "time",
+                "datetime",
+                "relative_time",
+                "duration",
+                "distance",
+                "place_name",
+                "count",
+                "number"
+              ],
+              "max": 2,
+              "orderBy": "salience"
+            },
+            "badge": {
+              "from": [
+                "status",
+                "enum",
+                "boolean"
+              ]
+            },
+            "rating": {
+              "from": [
+                "rating",
+                "number"
+              ],
+              "prefer": [
+                "rating",
+                "score",
+                "stars"
+              ]
+            }
+          }
+        }
+      },
+      "instance": {
+        "badge_tone": {
+          "kind": "choice",
+          "appliesWhen": {
+            "badge": "bound"
+          },
+          "question": "Is {badge} good, bad, or neutral news for the person?",
+          "options": {
+            "success": "Good: active, done, in stock, on time.",
+            "warning": "Needs attention: pending, low, delayed.",
+            "danger": "Bad: failed, cancelled, overdue.",
+            "neutral": "Neither."
+          }
+        }
+      },
+      "fallback": [
+        "collection",
+        "repeat-in-parent",
+        "first-item"
+      ]
+    },
+    {
+      "id": "comparison",
+      "pattern": "comparison",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "arrayLength": [
+          2,
+          5
+        ],
+        "elementTypes": [
+          "object"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Is the person choosing among these few options by comparing the same attributes?",
+        "yes": "Plans, flights, products, candidates, quotes: a handful of options with price, time, or features side by side.",
+        "no": "They are not alternatives to each other, or there are too many to compare side by side."
+      },
+      "slots": {
+        "options": {
+          "repeat": true,
+          "from": [
+            "array"
+          ],
+          "required": true,
+          "fields": {
+            "headline": {
+              "from": [
+                "string"
+              ],
+              "required": true
+            },
+            "picture": {
+              "from": [
+                "image_url"
+              ]
+            },
+            "attributes": {
+              "from": [
+                "any"
+              ],
+              "repeat": true,
+              "max": 5
+            },
+            "highlight": {
+              "from": [
+                "currency",
+                "number",
+                "date"
+              ]
+            }
+          }
+        }
+      },
+      "instance": {
+        "headline_attribute": {
+          "kind": "choice",
+          "question": "Which attribute will the person decide on first?",
+          "optionsFrom": "attributes"
+        }
+      },
+      "fallback": [
+        "comparison",
+        "collection:cards",
+        "collection:rows"
+      ]
+    },
+    {
+      "id": "steps",
+      "pattern": "steps",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "elementTypes": [
+          "string",
+          "object"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Are these things done in order, one after another?",
+        "yes": "Instructions, a method, a checklist, stages of a process, a timeline of what happened.",
+        "no": "They are independent items with no order to follow."
+      },
+      "slots": {
+        "items": {
+          "repeat": true,
+          "from": [
+            "array"
+          ],
+          "required": true,
+          "fields": {
+            "title": {
+              "from": [
+                "string"
+              ],
+              "required": true
+            },
+            "detail": {
+              "from": [
+                "long_text",
+                "string"
+              ]
+            },
+            "done": {
+              "from": [
+                "boolean"
+              ]
+            }
+          }
+        }
+      },
+      "fallback": [
+        "steps",
+        "collection:rows"
+      ]
+    },
+    {
+      "id": "form",
+      "pattern": "form",
+      "shape": {
+        "mutable": true
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Does the person need to type or choose values here?",
+        "yes": "Details to fill in: name, date, amount, notes, a choice among options.",
+        "no": "Everything is read-only, or the only choice is a button."
+      },
+      "slots": {
+        "fields": {
+          "repeat": true,
+          "from": [
+            "mutable"
+          ],
+          "required": true,
+          "fields": {
+            "label": {
+              "from": [
+                "key"
+              ],
+              "required": true
+            },
+            "value": {
+              "from": [
+                "any"
+              ],
+              "required": true
+            },
+            "options": {
+              "from": [
+                "enum",
+                "array"
+              ]
+            },
+            "min": {
+              "from": [
+                "number"
+              ],
+              "sibling": [
+                "min"
+              ]
+            },
+            "max": {
+              "from": [
+                "number"
+              ],
+              "sibling": [
+                "max",
+                "limit"
+              ]
+            }
+          }
+        }
+      },
+      "instance": {
+        "control": {
+          "kind": "choice",
+          "question": "What kind of input is {label}?",
+          "options": {
+            "shortText": "A word or a line: a name, a title, a code.",
+            "longText": "Several lines: notes, a message, a description.",
+            "number": "A quantity or amount typed as digits.",
+            "obscured": "A secret: a password or PIN.",
+            "toggle": "On or off, and it takes effect at once.",
+            "choice": "One of a few named options.",
+            "multiChoice": "Any number of named options.",
+            "range": "A value between a minimum and a maximum, where the exact number matters less than the position.",
+            "date": "A date, a time, or both."
+          },
+          "requires": {
+            "choice": [
+              "options"
+            ],
+            "multiChoice": [
+              "options"
+            ],
+            "range": [
+              "min",
+              "max"
+            ]
+          }
+        },
+        "required": {
+          "kind": "boolean",
+          "question": "Must {label} be filled in before this can be submitted?",
+          "yes": "The task cannot proceed without it.",
+          "no": "It is optional or has a sensible default."
+        }
+      },
+      "fallback": [
+        "form",
+        "facts"
+      ]
+    },
+    {
+      "id": "groups",
+      "pattern": "groups",
+      "shape": {
+        "mutable": true,
+        "pointers": [
+          "object"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Are these settings, each one a row the person can read and change?",
+        "yes": "Preferences and options grouped by topic: notifications, privacy, playback, account.",
+        "no": "This is a single form to fill in and submit, not a set of standing preferences."
+      },
+      "slots": {
+        "groups": {
+          "repeat": true,
+          "from": [
+            "object"
+          ],
+          "required": true,
+          "fields": {
+            "heading": {
+              "from": [
+                "key"
+              ],
+              "required": true
+            },
+            "rows": {
+              "repeat": true,
+              "from": [
+                "mutable"
+              ],
+              "fields": {
+                "label": {
+                  "from": [
+                    "key"
+                  ],
+                  "required": true
+                },
+                "value": {
+                  "from": [
+                    "any"
+                  ],
+                  "required": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "instance": {
+        "row_kind": {
+          "kind": "choice",
+          "question": "What kind of row is {label}?",
+          "options": {
+            "switch": "One setting that is on or off and takes effect at once.",
+            "value": "A setting whose current value is shown and opens a picker of options when tapped.",
+            "navigation": "A way into another page of settings or information.",
+            "danger": "An action that removes or disconnects something: sign out, delete account."
+          }
+        }
+      },
+      "fallback": [
+        "groups",
+        "form"
+      ]
+    },
+    {
+      "id": "actions",
+      "pattern": "actions",
+      "shape": {
+        "actions_allowed": true
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Is there something the person would do next from here, with a button?",
+        "yes": "Buy, book, save, send, confirm, retry, open, share.",
+        "no": "Nothing to do; the person only reads this."
+      },
+      "slots": {
+        "buttons": {
+          "repeat": true,
+          "from": [
+            "action"
+          ],
+          "max": 3,
+          "fields": {
+            "label": {
+              "from": [
+                "string",
+                "key"
+              ],
+              "required": true
+            }
+          }
+        }
+      },
+      "instance": {
+        "primary": {
+          "kind": "choice",
+          "question": "Which of these is the one thing the person most likely came to do?",
+          "optionsFrom": "buttons",
+          "allowNone": true
+        },
+        "destructive": {
+          "kind": "boolean",
+          "question": "Does {label} remove, cancel, or spend something that cannot be easily undone?",
+          "yes": "Delete, cancel, sign out, pay, send.",
+          "no": "It opens, saves, continues, or can be undone."
+        }
+      },
+      "fallback": [
+        "actions"
+      ]
+    },
+    {
+      "id": "timeline",
+      "pattern": "timeline",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "elementTypes": [
+          "datetime",
+          "date",
+          "time",
+          "relative_time"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Are these events that happened at particular times, best read in order?",
+        "yes": "Shipment scans, an audit log, build stages, visits, milestones, messages in a thread.",
+        "no": "The times are incidental; the items are things, not events."
+      },
+      "slots": {
+        "events": {
+          "repeat": true,
+          "from": [
+            "array"
+          ],
+          "required": true,
+          "orderBy": "time",
+          "fields": {
+            "time": {
+              "from": [
+                "datetime",
+                "date",
+                "time",
+                "relative_time"
+              ],
+              "required": true
+            },
+            "title": {
+              "from": [
+                "title",
+                "string",
+                "status"
+              ],
+              "required": true
+            },
+            "detail": {
+              "from": [
+                "long_text",
+                "string",
+                "place_name",
+                "address"
+              ]
+            },
+            "state": {
+              "from": [
+                "status",
+                "enum",
+                "boolean"
+              ]
+            }
+          }
+        }
+      },
+      "anatomy": {
+        "order": {
+          "kind": "choice",
+          "question": "Which end does the person want first?",
+          "options": {
+            "latest": "The most recent event matters most: tracking, a log, a feed of updates.",
+            "earliest": "The sequence is read from the start: a history, a story, a plan."
+          }
+        }
+      },
+      "instance": {
+        "state_tone": {
+          "kind": "choice",
+          "appliesWhen": {
+            "state": "bound"
+          },
+          "question": "Is {title} ({state}) good, bad, or neutral news?",
+          "options": {
+            "success": "Good.",
+            "warning": "Needs attention.",
+            "danger": "Bad.",
+            "neutral": "Neither."
+          }
+        }
+      },
+      "fallback": [
+        "timeline",
+        "steps",
+        "collection:rows"
+      ]
+    },
+    {
+      "id": "map",
+      "pattern": "map",
+      "shape": {
+        "pointers": [
+          "location",
+          "address"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Does the person need to see where this is?",
+        "yes": "A place to go to, something nearby, a route, an area.",
+        "no": "The address is a fact to read, as on a receipt or a profile."
+      },
+      "slots": {
+        "location": {
+          "from": [
+            "location",
+            "address"
+          ],
+          "required": true
+        },
+        "label": {
+          "from": [
+            "place_name",
+            "title",
+            "name",
+            "string"
+          ]
+        },
+        "pins": {
+          "from": [
+            "array"
+          ],
+          "elementTypes": [
+            "location"
+          ]
+        }
+      },
+      "fallback": [
+        "map",
+        "facts"
+      ]
+    },
+    {
+      "id": "conversation",
+      "pattern": "conversation",
+      "shape": {
+        "pointers": [
+          "array"
+        ],
+        "elementKeys": [
+          "author",
+          "sender",
+          "from",
+          "role",
+          "speaker"
+        ]
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Is this a back-and-forth between people, or between a person and an assistant?",
+        "yes": "Messages, replies, a chat log, a support thread, comments in order.",
+        "no": "A list of records that happen to have an author, such as articles or reviews."
+      },
+      "slots": {
+        "messages": {
+          "repeat": true,
+          "from": [
+            "array"
+          ],
+          "required": true,
+          "fields": {
+            "author": {
+              "from": [
+                "name",
+                "string",
+                "enum"
+              ],
+              "required": true,
+              "prefer": [
+                "author",
+                "sender",
+                "from",
+                "role",
+                "speaker"
+              ]
+            },
+            "text": {
+              "from": [
+                "long_text",
+                "markdown",
+                "string"
+              ],
+              "required": true,
+              "prefer": [
+                "text",
+                "message",
+                "content",
+                "body"
+              ]
+            },
+            "time": {
+              "from": [
+                "datetime",
+                "time",
+                "relative_time"
+              ]
+            },
+            "avatar": {
+              "from": [
+                "image_url"
+              ],
+              "prefer": [
+                "avatar",
+                "photo"
+              ]
+            },
+            "attachment": {
+              "from": [
+                "image_url",
+                "document_url",
+                "url"
+              ]
+            }
+          }
+        }
+      },
+      "anatomy": {
+        "self": {
+          "kind": "choice",
+          "question": "Which author is the person reading this?",
+          "optionsFrom": "messages.author.distinct",
+          "allowNone": true,
+          "note": "Decides which side messages sit on; none means a transcript with every message on the left."
+        }
+      },
+      "fallback": [
+        "conversation",
+        "collection:rows"
+      ]
+    },
+    {
+      "id": "compose",
+      "pattern": "compose",
+      "shape": {
+        "mutable": true,
+        "actions_allowed": true
+      },
+      "gate": {
+        "kind": "boolean",
+        "question": "Can the person reply or add to this here?",
+        "yes": "An open conversation, a comment thread they take part in, a form of one field and a send button.",
+        "no": "A closed transcript or a log they only read."
+      },
+      "slots": {
+        "draft": {
+          "from": [
+            "string",
+            "long_text"
+          ],
+          "mutable": true,
+          "prefer": [
+            "draft",
+            "reply",
+            "message",
+            "input"
+          ]
+        },
+        "sendLabel": {
+          "from": [
+            "string"
+          ],
+          "default": "Send"
+        }
+      },
+      "fallback": [
+        "compose"
+      ]
+    },
+    {
+      "id": "outcome",
+      "pattern": "outcome",
+      "gate": {
+        "kind": "boolean",
+        "question": "Is this telling the person how something they did turned out?",
+        "yes": "Order placed, payment failed, message sent, nothing found, account deleted.",
+        "no": "Nothing has just happened; this is information or a task in progress."
+      },
+      "slots": {
+        "headline": {
+          "from": [
+            "string",
+            "enum"
+          ],
+          "required": true
+        },
+        "detail": {
+          "from": [
+            "long_text",
+            "string"
+          ]
+        }
+      },
+      "instance": {
+        "tone": {
+          "kind": "choice",
+          "question": "Did {headline} go well for the person?",
+          "options": {
+            "success": "Yes: done, sent, placed, saved.",
+            "danger": "No: failed, declined, not found.",
+            "neutral": "Partly, or it is still pending."
+          }
+        }
+      },
+      "fallback": [
+        "outcome",
+        "banner",
+        "prose"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "required-block-wins",
+      "rule": "A block marked ! is present whatever its gate says; its gate is still asked so the trace can show disagreement."
+    },
+    {
+      "id": "at-least",
+      "rule": "If fewer than atLeast blocks pass, include the highest-probability expected blocks until the count is met, before considering the archetype ineligible."
+    },
+    {
+      "id": "one-primary-action",
+      "rule": "At most one button in actions is primary. If stakes >= 2 and a button is destructive, the destructive button is never primary and the non-destructive way out is placed first."
+    },
+    {
+      "id": "actions-gate",
+      "rule": "actions, filters, form, groups, compose, and collection.trailing=button require actions_allowed, which is archetype confidence >= gate, where gate runs linearly from 0.70 at stakes 0 to 0.95 at stakes 3: gate = 0.70 + 0.25 * stakes / 3. Low-stakes toggles need 0.70; a payment needs 0.95. The floor and cap are grammar thresholds (actionGateFloor, actionGateCap) so a deployment can tighten them."
+    },
+    {
+      "id": "catalog-eligibility",
+      "rule": "An archetype is offered only if every required block resolves to a pattern on the surface's catalogs after walking its fallback chain. Eligibility is computed once per catalog set and cached; ineligible archetypes cost nothing at query time."
+    },
+    {
+      "id": "pointer-once-per-region",
+      "rule": "A pointer bound to a slot in one block is not offered to later blocks in the same region, except key-derived labels. Blocks claim pointers in archetype order, so a status shown in a banner is not repeated as a headline tile."
+    },
+    {
+      "id": "pictures-need-a-look",
+      "rule": "picture, collection.layout in {cards, grid, reel}, and comparison.picture are only offered when an image_url pointer exists; the anatomy question is still asked so the answer can be traced."
+    },
+    {
+      "id": "leading-all-or-none",
+      "rule": "Every item in a collection has the same leading kind; if the picture slot is bound for fewer than half the items, leading falls back to icon or none."
+    },
+    {
+      "id": "urgency-terse",
+      "rule": "If urgency >= 1.5, prose is dropped unless required, headline tiles are limited to 3, and the primary action is placed in the frame's sticky slot when the catalog's page pattern supports it."
+    },
+    {
+      "id": "no-empty-container",
+      "rule": "A block whose required slots cannot be bound is dropped; an archetype whose required block is dropped is ineligible."
+    },
+    {
+      "id": "fallback-must-end",
+      "rule": "Every block's fallback chain ends in a terminal (repeat-in-parent, first-item, prose, or facts); the loader rejects a grammar where one does not."
+    }
+  ],
+  "lint": [
+    "Every archetype has at least one required or expected block.",
+    "Every block id used in an archetype exists in blocks.",
+    "Every fallback entry is an abstract pattern name, a pattern:knob form, or a terminal.",
+    "Every {placeholder} in a question names a field or slot of that block.",
+    "Every requires entry names a slot, a knob option, or a known capability flag."
+  ]
+}
