@@ -100,17 +100,18 @@ def validate_renderer_error_payload(renderer_error):
         raise ValueError(f"Unsupported rendererError version: {version!r}")
 
 
-def iter_renderer_errors(case):
+def _iter_container_renderer_errors(container):
     for key in ("expectError", "expect_error"):
-        err = case.get(key)
+        err = container.get(key)
         if isinstance(err, dict) and "rendererError" in err:
             yield err["rendererError"]
+
+
+def iter_renderer_errors(case):
+    yield from _iter_container_renderer_errors(case)
     for step in case.get("steps") or []:
         if isinstance(step, dict):
-            for key in ("expectError", "expect_error"):
-                err = step.get(key)
-                if isinstance(err, dict) and "rendererError" in err:
-                    yield err["rendererError"]
+            yield from _iter_container_renderer_errors(step)
 
 
 def get_yaml_files():
