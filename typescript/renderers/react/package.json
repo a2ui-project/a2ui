@@ -164,6 +164,7 @@
       ],
       "files": [
         "src/**/*",
+        "tests/**/*",
         "tsconfig.json"
       ]
     },

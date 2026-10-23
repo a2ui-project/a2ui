@@ -28,23 +28,79 @@ import {
   signal,
   NgZone,
 } from '@angular/core';
-import {NgComponentOutlet} from '@angular/common';
-import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
+import { NgComponentOutlet } from '@angular/common';
+import {
+  ComponentContext,
+  ComponentModel,
+  NodeResolver,
+  peekValue,
+  SurfaceModel,
+  Subscription,
+  type ComponentNode,
+} from '@a2ui/web_core/v0_9';
 import {
   isWebComponentImplementation,
   registerUniversalElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v0_9/universal';
-import {A2uiRendererService} from './a2ui-renderer.service';
-import {ComponentBinder} from './component-binder.service';
-import {BoundProperty} from './types';
+import { A2uiRendererService } from './a2ui-renderer.service';
+import { ComponentBinder } from './component-binder.service';
+import { BoundProperty } from './types';
 
-import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
-import {CatalogComponentInstance} from './catalog_component_instance';
+import type { AngularCatalog, AngularComponentImplementation } from '../catalog/types';
+import { toWebComponent } from '../catalog/to_web_component';
+import { CatalogComponentInstance } from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
   context: ComponentContext;
+  node?: ComponentNode;
   injector?: Injector;
+  controller?: { dispose?: () => void };
+}
+
+function ensureCatalogWebComponents(catalog: AngularCatalog | undefined): void {
+  if (!catalog?.components) return;
+  for (const entry of catalog.components.values()) {
+    if (
+      entry &&
+      typeof entry === 'object' &&
+      typeof entry.component === 'function' &&
+      !isWebComponentImplementation(entry) &&
+      entry.name &&
+      entry.schema
+    ) {
+      Object.assign(entry, toWebComponent(entry));
+    }
+    if (isWebComponentImplementation(entry)) {
+      registerUniversalElement(entry);
+    }
+  }
+}
+
+function prepareSurfaceCatalogsForUniversal(
+  surface: SurfaceModel<AngularComponentImplementation>,
+  componentCatalog?: AngularCatalog,
+): void {
+  ensureCatalogWebComponents(surface.defaultCatalog as AngularCatalog | undefined);
+  ensureCatalogWebComponents(componentCatalog);
+  if (surface.availableCatalogs) {
+    for (const catalog of surface.availableCatalogs.values()) {
+      ensureCatalogWebComponents(catalog as AngularCatalog);
+    }
+  }
+  for (const comp of surface.componentsModel?.values ?? []) {
+    ensureCatalogWebComponents(comp.catalog as AngularCatalog | undefined);
+  }
+}
+
+function disposeElementControllers(root: HTMLElement): void {
+  const elements = [root, ...Array.from(root.querySelectorAll('*'))];
+  for (const el of elements) {
+    const hostEl = el as UniversalComponentHostElement;
+    if (typeof hostEl.controller?.dispose === 'function') {
+      hostEl.controller.dispose();
+    }
+  }
 }
 
 /**
@@ -84,7 +140,7 @@ interface UniversalComponentHostElement extends HTMLElement {
 })
 export class ComponentHostComponent {
   /** The key of the component to render, either an ID string or an object with ID and basePath. Defaults to 'root'. */
-  componentKey = input<string | {id: string; basePath: string}>('root');
+  componentKey = input<string | { id: string; basePath: string }>('root');
 
   /** The unique identifier of the surface this component belongs to. */
   surfaceId = input.required<string>();
@@ -109,6 +165,7 @@ export class ComponentHostComponent {
   private createSub?: Subscription;
   private surfaceSub?: Subscription;
   private deleteSub?: Subscription;
+  private nodeResolver?: NodeResolver<AngularComponentImplementation>;
 
   constructor() {
     effect(() => {
@@ -125,48 +182,48 @@ export class ComponentHostComponent {
     });
   }
 
-  private setupComponent(key: string | {id: string; basePath: string}, surfaceId: string) {
+  private waitForSurface(key: string | { id: string; basePath: string }, surfaceId: string): void {
+    console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
+    this.surfaceSub?.unsubscribe();
+    let unsubscribed = false;
+    const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe((s) => {
+      if (s.id !== surfaceId) return;
+      unsubscribed = true;
+      this.surfaceSub?.unsubscribe();
+      this.surfaceSub = undefined;
+      this.ngZone.run(() => {
+        this.setupComponent(key, surfaceId);
+      });
+    });
+    if (!sub) return;
+    this.surfaceSub = sub;
+    if (unsubscribed) {
+      this.surfaceSub.unsubscribe();
+      this.surfaceSub = undefined;
+    }
+  }
+
+  private parseComponentKey(key: string | { id: string; basePath: string }): {
+    id: string;
+    basePath: string;
+  } {
+    if (typeof key === 'object' && key !== null && 'id' in key) {
+      return { id: key.id, basePath: key.basePath || '/' };
+    }
+    return { id: key, basePath: '/' };
+  }
+
+  private setupComponent(key: string | { id: string; basePath: string }, surfaceId: string) {
     this.resetState();
 
     const surface = this.rendererService.surfaceGroup?.getSurface(surfaceId);
 
     if (!surface) {
-      console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
-      this.surfaceSub?.unsubscribe();
-      let unsubscribed = false;
-      const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe(s => {
-        if (s.id === surfaceId) {
-          unsubscribed = true;
-          if (this.surfaceSub) {
-            this.surfaceSub.unsubscribe();
-            this.surfaceSub = undefined;
-          }
-          this.ngZone.run(() => {
-            this.setupComponent(key, surfaceId);
-          });
-        }
-      });
-      if (sub) {
-        this.surfaceSub = sub;
-        if (unsubscribed) {
-          this.surfaceSub.unsubscribe();
-          this.surfaceSub = undefined;
-        }
-      }
+      this.waitForSurface(key, surfaceId);
       return;
     }
 
-    let id: string;
-    let basePath: string;
-
-    if (typeof key === 'object' && key !== null && 'id' in key) {
-      id = key.id;
-      basePath = key.basePath || '/';
-    } else {
-      id = key;
-      basePath = '/';
-    }
-
+    const { id, basePath } = this.parseComponentKey(key);
     this.resolvedComponentId = id;
 
     const componentModel = surface.componentsModel.get(id);
@@ -174,7 +231,7 @@ export class ComponentHostComponent {
     if (!componentModel) {
       console.warn(`Component ${id} not found in surface ${surfaceId}. Waiting for it...`);
 
-      const sub = surface.componentsModel.onCreated.subscribe(comp => {
+      const sub = surface.componentsModel.onCreated.subscribe((comp) => {
         if (comp.id === id) {
           this.ngZone.run(() => this.initializeComponent(surface, comp, id, basePath, surfaceId));
           sub.unsubscribe();
@@ -200,18 +257,35 @@ export class ComponentHostComponent {
     // `get(id) !== componentModel` stops the new listener registered by `setupComponent` from
     // firing in the same `emit` pass.
     // Subscribe before the catalog lookup so an unknown type can still be replaced later.
-    this.deleteSub = surface.componentsModel.onDeleted.subscribe(deletedId => {
+    this.deleteSub = surface.componentsModel.onDeleted.subscribe((deletedId) => {
       if (deletedId === id && surface.componentsModel.get(id) !== componentModel) {
-        this.ngZone.run(() => this.setupComponent({id, basePath}, surfaceId));
+        this.ngZone.run(() => this.setupComponent({ id, basePath }, surfaceId));
       }
     });
 
     // Resolve component from the component's owning catalog.
     const catalog = componentModel.catalog as AngularCatalog;
+    if (this.rendererService.useUniversalComponents) {
+      prepareSurfaceCatalogsForUniversal(surface, catalog);
+    }
+    if (
+      surface instanceof SurfaceModel &&
+      id === (surface.rootId ?? 'root') &&
+      basePath === '/' &&
+      !this.nodeResolver
+    ) {
+      this.nodeResolver = new NodeResolver(surface, surface.defaultCatalog);
+    }
     const componentImpl = catalog.components.get(componentModel.type);
 
     if (!componentImpl) {
       console.error(`Component type "${componentModel.type}" not found in catalog "${catalog.id}"`);
+      if (!this.nodeResolver) {
+        surface.dispatchError?.({
+          code: 'UNKNOWN_COMPONENT_TYPE',
+          message: `Component '${id}' has type '${componentModel.type}', which is not in catalog '${catalog.id}'.`,
+        });
+      }
       return;
     }
 
@@ -265,18 +339,22 @@ export class ComponentHostComponent {
 
     registerUniversalElement(implementation);
     const tagName = implementation.tagName;
+    const resolvedNode = this.nodeResolver ? peekValue(this.nodeResolver.rootNode) : undefined;
 
     if (this.mountedWcEl && this.mountedWcEl.tagName.toLowerCase() === tagName.toLowerCase()) {
       this.mountedWcEl.injector = this.injector;
-      this.mountedWcEl.context = this.context!;
+      this.mountedWcEl.context = resolvedNode?.context ?? this.context!;
+      this.mountedWcEl.node = resolvedNode;
     } else {
       if (this.mountedWcEl) {
+        disposeElementControllers(this.mountedWcEl);
         this.mountedWcEl.remove();
         this.mountedWcEl = null;
       }
       const el = document.createElement(tagName) as UniversalComponentHostElement;
       el.injector = this.injector;
-      el.context = this.context!;
+      el.context = resolvedNode?.context ?? this.context!;
+      el.node = resolvedNode;
       this.mountedWcEl = el;
       this.elementRef.nativeElement.appendChild(el);
     }
@@ -284,7 +362,10 @@ export class ComponentHostComponent {
     this.propsSub = componentModel.onUpdated.subscribe(() => {
       this.ngZone.run(() => {
         if (this.mountedWcEl) {
-          this.mountedWcEl.context = new ComponentContext(surface, id, basePath);
+          const nextNode = this.nodeResolver ? peekValue(this.nodeResolver.rootNode) : undefined;
+          this.mountedWcEl.context =
+            nextNode?.context ?? new ComponentContext(surface, id, basePath);
+          this.mountedWcEl.node = nextNode;
         }
       });
     });
@@ -304,12 +385,15 @@ export class ComponentHostComponent {
     this.surfaceSub = undefined;
     this.deleteSub?.unsubscribe();
     this.deleteSub = undefined;
+    this.nodeResolver?.dispose();
+    this.nodeResolver = undefined;
 
     this.componentType.set(null);
     this.props.set({});
     this.resolvedDataContextPath = '/';
 
     if (this.mountedWcEl) {
+      disposeElementControllers(this.mountedWcEl);
       this.mountedWcEl.remove();
       this.mountedWcEl = null;
     }
