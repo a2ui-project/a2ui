@@ -780,15 +780,14 @@ String _mapOfLiterals(Map<Object?, Object?> value) {
   return '{${entries.join(', ')}}';
 }
 
+/// [value] as Express writes doubles: the form of ECMAScript
+/// `Number.prototype.toString`, which Dart's `toString` already produces
+/// (`0.000015`, `1e-7`, `1e+21`), with a `.0` suffix on integral doubles.
 String _double(double value) {
-  final text = '$value';
-  if (!RegExp(r'^-?[0-9]+\.[0-9]+$').hasMatch(text)) {
-    throw A2uiValidationError(
-      'The number $value has no Express notation, which writes numbers as '
-      'plain decimals.',
-    );
+  if (!value.isFinite) {
+    throw A2uiValidationError('The number $value has no Express notation.');
   }
-  return text;
+  return '$value';
 }
 
 /// A string literal: raw when that keeps backslashes single, and escaped

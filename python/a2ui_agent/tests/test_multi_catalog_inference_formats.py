@@ -34,10 +34,7 @@ def primary_catalog() -> Catalog:
             "components": {
                 "Column": {
                     "properties": {
-                        "children": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        }
+                        "children": {"$ref": "common_types.json#/$defs/ChildList"}
                     }
                 },
                 "Text": {

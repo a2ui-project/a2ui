@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Sequence
 import logging
 from typing import Any
 
@@ -25,11 +25,11 @@ from a2a.types import TextPart as A2aTextPart
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
 from a2ui.parser import A2uiPart
-from a2ui.parser import BlockLexer
 from a2ui.parser import Parser
-from a2ui.parser import RawA2uiPart
+from a2ui.parser import ResponsePart
+from a2ui.parser import ResponseStream
 from a2ui.parser import TextPart
-from a2ui.parser import parse_and_fix
+from a2ui.utils import RendererState
 from a2ui.utils import to_version_number
 
 logger = logging.getLogger(__name__)
@@ -98,35 +98,63 @@ def get_a2ui_datapart(part: Part) -> DataPart | None:
     return None
 
 
+def to_a2a_parts(
+    response_parts: Sequence[ResponsePart], version: ProtocolVersion | str | None = None
+) -> list[Part]:
+    """Converts parsed response parts into A2A Parts.
+
+    Text becomes a `TextPart`, and each A2UI message becomes its own
+    `DataPart`. Empty text is dropped.
+
+    Args:
+        response_parts: The parts from `A2uiRequestProcessor.parse_response`,
+            `Parser.parse_response` or `ResponseStream.feed`.
+        version: The A2UI protocol version to tag the data parts with.
+
+    Returns:
+        The A2A Parts, in the order of the response.
+    """
+    parts: list[Part] = []
+    for part in response_parts:
+        if isinstance(part, TextPart) and part.text:
+            parts.append(Part(root=A2aTextPart(text=part.text)))
+        elif isinstance(part, A2uiPart):
+            for message in to_message_dicts(part.a2ui):
+                parts.append(create_a2ui_part(message, version=version))
+    return parts
+
+
 def parse_content_to_parts(
     content: str,
     parser: Parser,
     fallback_text: str | None = None,
-    version: str | None = None,
+    version: ProtocolVersion | str | None = None,
+    *,
+    state: RendererState | None = None,
 ) -> list[Part]:
-    """Helper to parse LLM response content into A2A Parts using a Parser instance.
+    """Parses a whole LLM response into A2A Parts, dropping invalid A2UI.
+
+    The response is checked against `state`, or against a new renderer state
+    when there is none. If it fails to parse or validate, the error is logged
+    and no parts are returned, so use `to_a2a_parts` with
+    `A2uiRequestProcessor.parse_response` to handle the error instead.
 
     Args:
         content: The LLM response content, potentially containing A2UI delimiters.
         parser: The Parser instance used to extract and compile format parts.
         fallback_text: Optional text to return if no parts are successfully
           created.
-        version: Optional version string.
+        version: The A2UI version, as for `create_a2ui_part`.
+        state: The renderer state a canvas agent keeps for the conversation.
+          The response is checked against it and, if it passes, applied to it,
+          so a response may update a surface from an earlier turn.
 
     Returns:
         A list of A2A Part objects (TextPart and/or DataPart).
     """
     parts: list[Part] = []
     try:
-        response_parts = parser.parse_response(content)
-
-        for part in response_parts:
-            if isinstance(part, TextPart) and part.text:
-                parts.append(Part(root=A2aTextPart(text=part.text)))
-            elif isinstance(part, A2uiPart):
-                for message in to_message_dicts(part.a2ui):
-                    parts.append(create_a2ui_part(message, version=version))
-
+        parts = to_a2a_parts(parser.parse_response(content, state=state), version)
     except Exception as e:
         logger.warning("Failed to parse A2UI response: %s", e)
 
@@ -136,108 +164,29 @@ def parse_content_to_parts(
     return parts
 
 
-def parse_response_to_parts(
-    content: str,
-    validator: Any | None = None,
-    fallback_text: str | None = None,
-    version: str | None = None,
-) -> list[Part]:
-    """Deprecated compatibility wrapper around parse_response_to_parts.
-
-    Please use parse_content_to_parts instead, providing a Parser instance.
-    """
-    if isinstance(validator, Parser):
-        return parse_content_to_parts(
-            content,
-            parser=validator,
-            fallback_text=fallback_text,
-            version=version,
-        )
-
-    import warnings
-
-    warnings.warn(
-        "parse_response_to_parts is deprecated. Please use"
-        " parse_content_to_parts(...) providing a Parser instance instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    parts: list[Part] = []
-    try:
-        raw_parts = BlockLexer("<a2ui-json>", "</a2ui-json>").tokenize(content)
-        for raw_part in raw_parts:
-            part = raw_part.part
-            if isinstance(part, TextPart) and part.text:
-                parts.append(Part(root=A2aTextPart(text=part.text)))
-            elif isinstance(part, RawA2uiPart):
-                json_data = parse_and_fix(part.a2ui_raw)
-                if validator is not None:
-                    validator(json_data)
-                if isinstance(json_data, list):
-                    for message in json_data:
-                        parts.append(create_a2ui_part(message, version=version))
-                else:
-                    parts.append(create_a2ui_part(json_data, version=version))
-    except Exception as e:
-        logger.warning("Failed to parse legacy A2UI response: %s", e)
-
-    if not parts and fallback_text:
-        parts.append(Part(root=A2aTextPart(text=fallback_text)))
-
-    return parts
-
-
-def parse_stream_chunk_to_parts(
-    token: str,
-    parser: Parser,
-    fallback_text: str | None = None,
-    version: str | None = None,
-) -> list[Part]:
-    """Processes a streamed token chunk into a list of A2A Parts."""
-    parts: list[Part] = []
-    try:
-        response_parts = parser.parse_chunk(token)
-        for part in response_parts:
-            if isinstance(part, TextPart) and part.text:
-                parts.append(Part(root=A2aTextPart(text=part.text)))
-            elif isinstance(part, A2uiPart):
-                for message in to_message_dicts(part.a2ui):
-                    parts.append(create_a2ui_part(message, version=version))
-    except Exception as e:
-        logger.warning("Failed to process A2UI stream chunk: %s", e)
-        if fallback_text:
-            parts.append(Part(root=A2aTextPart(text=fallback_text)))
-
-    return parts
-
-
 async def stream_response_to_parts(
-    parser: Parser,
+    stream: ResponseStream,
     token_stream: AsyncIterable[str],
-    version: str | None = None,
+    version: ProtocolVersion | str | None = None,
 ) -> AsyncIterable[Part]:
-    """Helper to parse a stream of LLM tokens into A2A Parts incrementally.
+    """Reads a stream of LLM tokens into A2A Parts incrementally.
+
+    Each token is fed to the stream, and the stream is closed after the last
+    token, so text still held back is emitted and a block left open raises.
 
     Args:
-        parser: Parser instance to process the stream.
+        stream: The stream that reads the response, from
+            `A2uiRequestProcessor.open_stream` or `Parser.open_stream`. The
+            state it was opened with is the one the response is checked
+            against.
         token_stream: An async iterable of strings (tokens).
-        version: Optional version string.
+        version: The A2UI version, as for `create_a2ui_part`.
 
     Yields:
         A2A Part objects as they are discovered in the stream.
     """
     async for token in token_stream:
-        response_parts = parser.parse_chunk(token)
-        for part in response_parts:
-            if isinstance(part, TextPart) and part.text:
-                yield Part(root=A2aTextPart(text=part.text))
-            elif isinstance(part, A2uiPart):
-                for message in to_message_dicts(part.a2ui):
-                    yield create_a2ui_part(message, version=version)
-    for part in parser.flush():
-        if isinstance(part, TextPart) and part.text:
-            yield Part(root=A2aTextPart(text=part.text))
-        elif isinstance(part, A2uiPart):
-            for message in to_message_dicts(part.a2ui):
-                yield create_a2ui_part(message, version=version)
+        for part in to_a2a_parts(stream.feed(token), version):
+            yield part
+    for part in to_a2a_parts(stream.close(), version):
+        yield part

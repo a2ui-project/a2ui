@@ -32,6 +32,7 @@ import {
   type Token,
 } from 'antlr4ng';
 
+import {ExpressParseError} from './errors.js';
 import {ExpressLexer} from './generated/ExpressLexer.js';
 import {
   type ArgContext,
@@ -163,6 +164,26 @@ function isArgKeyword(val: unknown): val is ExpressArgKeyword {
 
 function isArgPositional(val: unknown): val is ExpressArgPositional {
   return typeof val === 'object' && val !== null && (val as ExpressArgPositional).type === 'pos';
+}
+
+/**
+ * Reads the text of a `NUMBER` token as a number.
+ *
+ * The token grammar is a JSON number with an optional leading `+` (`42`, `-1`,
+ * `.5`, `1.`, `2.5E+3`), which `Number()` reads as is. Integers beyond
+ * ±(2^53 − 1) lose precision, as they do in JSON.
+ *
+ * @param text The matched token text.
+ * @returns The value of the literal.
+ * @throws {ExpressParseError} When the value is outside the double range (such
+ *   as `1e999`), so that every SDK rejects the same literals.
+ */
+export function parseNumberLiteral(text: string): number {
+  const value = Number(text);
+  if (!Number.isFinite(value)) {
+    throw new ExpressParseError(`Number literal ${text} is out of range.`);
+  }
+  return value;
 }
 
 /**
@@ -377,8 +398,7 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
       return this.visit(ctx.string()!) as string;
     }
     if (ctx.NUMBER()) {
-      const val = ctx.NUMBER()!.getText();
-      return Number(val);
+      return parseNumberLiteral(ctx.NUMBER()!.getText());
     }
     if (ctx.BOOLEAN()) {
       return ctx.BOOLEAN()!.getText() === 'true';
