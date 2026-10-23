@@ -19,7 +19,6 @@ from .decompiler import ElementalDecompiler
 from .format import ElementalFormat
 from .format import ElementalFormatFactory
 from .parser import ElementalParser
-from .prompt_generator import ElementalPromptGenerator
 
 __all__ = [
     "ElementalCompiler",
@@ -27,5 +26,4 @@ __all__ = [
     "ElementalFormat",
     "ElementalFormatFactory",
     "ElementalParser",
-    "ElementalPromptGenerator",
 ]
