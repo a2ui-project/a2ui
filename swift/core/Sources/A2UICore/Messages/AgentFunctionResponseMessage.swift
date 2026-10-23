@@ -69,7 +69,7 @@ public struct AgentFunctionResponseMessage: Codable, Sendable, Equatable, Protoc
     let container = try decoder.container(keyedBy: CodingKeys.self)
     functionCallID = try container.decode(String.self, forKey: .functionCallID)
     // An explicit `"error": null` counts as no error, but `"value": null` is a null result.
-    let hasError = (try? container.decodeNil(forKey: .error)) == false
+    let hasError = try container.contains(.error) && !container.decodeNil(forKey: .error)
     let hasValue = container.contains(.value)
     if hasError && hasValue {
       let context = DecodingError.Context(
