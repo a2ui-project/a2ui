@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add `map_error_to_renderer_message`, `extract_envelope_error_context`, and `ErrorEnvelopeContext` to `a2ui.core.processing` and the `a2ui.core` public facade, along with `SurfaceGroupModel.on_error` and `MessageProcessor.process_messages_with_errors` for emitting and collecting structured wire-format renderer error messages.
+- Add `NodeResolver`, `ComponentNode`, and `NodeState` to `a2ui.core.resolution` and the `a2ui.core` public facade for reactive surface node-graph resolution, template expansion, and placeholder/cycle tracking.
 - `to_protocol_version` is exported from the `a2ui.core` public facade.
 - Under a `ValidationConfig` that allows dangling references, and orphans or a
   missing root, as an agent mirroring a renderer's surfaces uses,
