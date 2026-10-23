@@ -1,0 +1,719 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# A2UI Outbound Error Response Conformance Test Suite (v0.9 & v1.0)
+# ==============================================================================
+
+- name: "test_error_response_create_surface_invalid_theme_property"
+  description: "Emits VALIDATION_FAILED with /theme/primaryColor when createSurface theme property has wrong type."
+  action: "validate"
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  payload:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        theme:
+          primaryColor: 12345
+  expectError:
+    category: "ValidationError"
+    surfaceId: "main"
+    path: "/theme/primaryColor"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: "main"
+        path: "/theme/primaryColor"
+        message: "primaryColor"
+
+- name: "test_error_response_create_surface_unknown_catalog_id"
+  description: "Emits CATALOG_NOT_FOUND when createSurface references an unregistered catalogId."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://example.com/unknown_catalog.json"
+  expectError:
+    category: "CatalogError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "main"
+        message: "unknown_catalog"
+
+- name: "test_error_response_create_surface_incompatible_catalog_version"
+  description: "Emits CATALOG_NOT_FOUND when createSurface binds a v0.9 catalog to a v1.0 surface."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  expectError:
+    category: "CatalogError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "main"
+        message: "v0_9"
+
+- name: "test_error_response_create_surface_duplicate_surface_id"
+  description: "Emits INTEGRITY_ERROR when createSurface is sent for an already existing surfaceId."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  expectError:
+    category: "IntegrityError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "main"
+        message: "already exists"
+
+- name: "test_error_response_update_components_unknown_surface"
+  description: "Emits INTEGRITY_ERROR when updateComponents targets a non-existent surfaceId."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "missing_surface"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+  expectError:
+    category: "IntegrityError"
+    surfaceId: "missing_surface"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "missing_surface"
+        message: "missing_surface"
+
+- name: "test_error_response_update_components_duplicate_id_in_batch"
+  description: "Emits INTEGRITY_ERROR when updateComponents contains duplicate component IDs in the same batch."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "First"
+          - id: "root"
+            component: "Text"
+            text: "Duplicate"
+  expectError:
+    category: "IntegrityError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "main"
+        message: "root"
+
+- name: "test_error_response_update_components_unknown_type_strict"
+  description: "Emits VALIDATION_FAILED with /components/0/component when component type is unknown in strict mode."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: true
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "NonExistentWidget"
+  expectError:
+    category: "ValidationError"
+    surfaceId: "main"
+    path: "/components/0/component"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: "main"
+        path: "/components/0/component"
+        message: "NonExistentWidget"
+
+- name: "test_error_response_update_components_invalid_property_type"
+  description: "Emits VALIDATION_FAILED with /components/0/text when a component property has the wrong type."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Text"
+            text: 12345
+  expectError:
+    category: "ValidationError"
+    surfaceId: "main"
+    path: "/components/0/text"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: "main"
+        path: "/components/0/text"
+        message: "text"
+
+- name: "test_error_response_update_components_extra_forbidden_property"
+  description: "Emits VALIDATION_FAILED when a component includes an undeclared extra property in strict mode."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: true
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            unknownExtraProp: true
+  expectError:
+    category: "ValidationError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: "main"
+        path: "/components/0/unknownExtraProp"
+        message: "unknownExtraProp"
+
+- name: "test_error_response_update_components_invalid_uax31_id"
+  description: "Emits VALIDATION_FAILED with /components/0/id when a v1.0 component ID violates UAX #31."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "123-invalid"
+            component: "Text"
+            text: "Hello"
+  expectError:
+    category: "ValidationError"
+    surfaceId: "main"
+    path: "/components/0/id"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: "main"
+        path: "/components/0/id"
+        message: "123-invalid"
+
+- name: "test_error_response_update_components_unallowed_parent"
+  description: "Emits UNALLOWED_PARENT with /components/1 when a child component is placed inside a disallowed parent."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalog:
+    catalogId: "test-comp-catalog"
+    protocolVersion: "v1.0"
+    components:
+      Container:
+        type: "object"
+        properties:
+          component: {const: "Container"}
+          children: {$ref: "common_types.json#/$defs/ChildList"}
+        required: ["component"]
+      RestrictedItem:
+        type: "object"
+        allowedParents: ["SpecialList"]
+        properties:
+          component: {const: "RestrictedItem"}
+        required: ["component"]
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "test-comp-catalog"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Container"
+            children: ["item1"]
+          - id: "item1"
+            component: "RestrictedItem"
+  expectError:
+    category: "ValidationError"
+    code: "UNALLOWED_PARENT"
+    surfaceId: "main"
+    path: "/components/1"
+    details:
+      - path: "/components/1"
+        code: "UNALLOWED_PARENT"
+        surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "UNALLOWED_PARENT"
+        surfaceId: "main"
+        path: "/components/1"
+        message: "allowedParents"
+
+- name: "test_error_response_update_components_unallowed_parent_root"
+  description: "Emits UNALLOWED_PARENT with /components/0 when the root component does not allow Surface as parent."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalog:
+    catalogId: "test-comp-catalog"
+    protocolVersion: "v1.0"
+    components:
+      RestrictedItem:
+        type: "object"
+        allowedParents: ["SpecialList"]
+        properties:
+          component: {const: "RestrictedItem"}
+        required: ["component"]
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "test-comp-catalog"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "RestrictedItem"
+  expectError:
+    category: "ValidationError"
+    code: "UNALLOWED_PARENT"
+    surfaceId: "main"
+    path: "/components/0"
+    details:
+      - path: "/components/0"
+        code: "UNALLOWED_PARENT"
+        surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "UNALLOWED_PARENT"
+        surfaceId: "main"
+        path: "/components/0"
+        message: "allowedParents"
+
+- name: "test_error_response_update_components_unallowed_child"
+  description: "Emits UNALLOWED_CHILD with /components/0/children/0 when a parent references a disallowed child type."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalog:
+    catalogId: "test-comp-catalog"
+    protocolVersion: "v1.0"
+    components:
+      StrictList:
+        type: "object"
+        allowedChildren: ["ListItem"]
+        properties:
+          component: {const: "StrictList"}
+          children: {$ref: "common_types.json#/$defs/ChildList"}
+        required: ["component"]
+      OtherItem:
+        type: "object"
+        properties:
+          component: {const: "OtherItem"}
+        required: ["component"]
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "test-comp-catalog"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "StrictList"
+            children: ["item1"]
+          - id: "item1"
+            component: "OtherItem"
+  expectError:
+    category: "ValidationError"
+    code: "UNALLOWED_CHILD"
+    surfaceId: "main"
+    path: "/components/0/children/0"
+    details:
+      - path: "/components/0/children/0"
+        code: "UNALLOWED_CHILD"
+        surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "UNALLOWED_CHILD"
+        surfaceId: "main"
+        path: "/components/0/children/0"
+        message: "allowedChildren"
+
+- name: "test_error_response_update_components_circular_reference"
+  description: "Emits RECURSION_LIMIT_EXCEEDED when components form a cycle in strict mode."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: true
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["child1"]
+          - id: "child1"
+            component: "Column"
+            children: ["root"]
+  expectError:
+    category: "RecursionError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "RECURSION_LIMIT_EXCEEDED"
+        surfaceId: "main"
+        message: "root"
+
+- name: "test_error_response_update_components_dangling_child_strict"
+  description: "Emits INTEGRITY_ERROR when a component references a non-existent child ID in strict mode."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: true
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["missing_child"]
+  expectError:
+    category: "IntegrityError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "main"
+        message: "missing_child"
+
+- name: "test_error_response_update_components_orphaned_component_strict"
+  description: "Emits INTEGRITY_ERROR when a component is unreachable from root in strict mode."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: true
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "main"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Root"
+          - id: "orphan1"
+            component: "Text"
+            text: "Orphan"
+  expectError:
+    category: "IntegrityError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "main"
+        message: "orphan1"
+
+- name: "test_error_response_update_components_buffered_streaming_non_strict"
+  description: "Accepts dangling child references and orphaned components without error when strictMode is false."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: false
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "main"
+            components:
+              - id: "orphan1"
+                component: "Text"
+                text: "Buffered child"
+              - id: "root"
+                component: "Column"
+                children: ["orphan1", "dangling_child"]
+    - payload:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "main"
+            components:
+              - id: "dangling_child"
+                component: "Text"
+                text: "Arrived later"
+
+- name: "test_error_response_update_data_model_unknown_surface"
+  description: "Emits INTEGRITY_ERROR when updateDataModel targets a non-existent surfaceId."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "missing_surface"
+        path: "/user/name"
+        value: "Alice"
+  expectError:
+    category: "IntegrityError"
+    surfaceId: "missing_surface"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "missing_surface"
+        message: "missing_surface"
+
+- name: "test_error_response_update_data_model_prototype_pollution"
+  description: "Emits DATA_ERROR when updateDataModel targets a forbidden prototype-pollution path segment."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "main"
+        path: "/__proto__/polluted"
+        value: true
+  expectError:
+    category: "DataError"
+    surfaceId: "main"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "DATA_ERROR"
+        surfaceId: "main"
+        message: "__proto__"
+
+- name: "test_error_response_update_data_model_invalid_json_pointer"
+  description: "Emits VALIDATION_FAILED with /path when updateDataModel path is not a valid JSON Pointer."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "main"
+        path: "not_a_pointer"
+        value: "Alice"
+  expectError:
+    category: "ValidationError"
+    surfaceId: "main"
+    path: "/path"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: "main"
+        path: "/path"
+        message: "path"
+
+- name: "test_error_response_delete_surface_missing_surface_id"
+  description: "Emits VALIDATION_FAILED with surfaceId '' and /surfaceId when deleteSurface omits surfaceId."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      deleteSurface: {}
+  expectError:
+    category: "ValidationError"
+    surfaceId: ""
+    path: "/surfaceId"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: ""
+        path: "/surfaceId"
+        message: "surfaceId"
+
+- name: "test_error_response_call_renderer_function_missing_call_function"
+  description: "Emits INVALID_FUNCTION_CALL correlated by functionCallId without surfaceId when callFunction is missing."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-err-1"
+  expectError:
+    category: "ValidationError"
+    functionCallId: "call-err-1"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INVALID_FUNCTION_CALL"
+        functionCallId: "call-err-1"
+        message: "callFunction"
+
+- name: "test_error_response_call_renderer_function_non_object_args"
+  description: "Emits INVALID_FUNCTION_CALL correlated by functionCallId when callFunction.args is not an object."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-err-2"
+        callFunction:
+          "@call": "formatString"
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+          args: "not_an_object"
+  expectError:
+    category: "ValidationError"
+    functionCallId: "call-err-2"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INVALID_FUNCTION_CALL"
+        functionCallId: "call-err-2"
+        message: "args"
+
+- name: "test_error_response_call_renderer_function_missing_catalog_id"
+  description: "Emits INVALID_FUNCTION_CALL correlated by functionCallId when callFunction omits required catalogId."
+  action: "validate"
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  payload:
+    - version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-err-3"
+        callFunction:
+          "@call": "formatString"
+          args:
+            value: "hello"
+  expectError:
+    category: "ValidationError"
+    functionCallId: "call-err-3"
+    rendererError:
+      version: "v1.0"
+      error:
+        code: "INVALID_FUNCTION_CALL"
+        functionCallId: "call-err-3"
+        message: "catalogId"
