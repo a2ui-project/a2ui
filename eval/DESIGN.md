@@ -25,12 +25,12 @@ The interaction flow begins with loading a dataset sample. Each sample names one
 
 To ensure consistency between the evaluation framework and the actual agent implementation, the framework integrates the A2UI Python SDK. This reduces duplication of logic and leverages the SDK's robust parsing and validation capabilities.
 
-| SDK Component      | Role in Evaluation                                                                  | Benefit                                                                                                          |
-| :----------------- | :---------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
-| `InferenceFormat`  | Generates the system prompt for the Solver (for example `DirectJsonFormat`).        | Ensures the model receives the correct schema and catalog definitions without manual hardcoding in eval scripts. |
-| `MessageProcessor` | Used in Stage 1 Scorer with strict validation, alongside the catalog's `validator`. | Centralizes validation logic, ensuring evals match runtime validation.                                           |
-| `parse_response`   | Used to parse the model's completion.                                               | Handles extraction of JSON payloads from markdown and handles common LLM formatting artifacts.                   |
-| `payload_fixer`    | Applied before validation to correct common errors.                                 | Allows focusing evaluation on intent rather than minor formatting issues that are easily fixed in production.    |
+| SDK Component     | Role in Evaluation                                                                           | Benefit                                                                                                          |
+| :---------------- | :------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| `InferenceFormat` | Generates the system prompt for the Solver (for example `DirectJsonFormat`).                 | Ensures the model receives the correct schema and catalog definitions without manual hardcoding in eval scripts. |
+| `CatalogConfig`   | Loads catalog schemas and applies component and function pruning transformers.               | Matches the exact pruned catalog surface an agent exposes at runtime.                                            |
+| `Parser`          | Unwraps and compiles A2UI blocks (`unwrap`, `compile`) and checks streaming (`open_stream`). | Extracts and compiles payloads across Direct JSON, Express, Elemental, and Atom formats.                         |
+| `RendererState`   | Applies seed and compiled messages (`apply`) and validates surface trees (`check_topology`). | Centralizes Stage 1 schema and topology validation, matching runtime state checks across SDKs.                   |
 
 ### **Evaluating Other Agent SDKs**
 
