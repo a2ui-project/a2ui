@@ -962,9 +962,7 @@ class MessageProcessor:
                 visit(comp, value, key)
 
         if errors:
-            first_path = self._resolve_first_nested_call_error_path(
-                errors, components
-            )
+            first_path = self._resolve_first_nested_call_error_path(errors, components)
             raise A2uiValidationError(
                 "\n".join(summaries),
                 details=errors,

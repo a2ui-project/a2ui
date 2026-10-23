@@ -63,9 +63,9 @@ def _mounted_nodes(resolver: NodeResolver) -> dict[str, ComponentNode]:
     seen: set[ComponentNode] = set()
 
     def visit(node: ComponentNode, path: str) -> None:
-        assert node not in seen, (
-            f"{path}: each mounted position must have a distinct node"
-        )
+        assert (
+            node not in seen
+        ), f"{path}: each mounted position must have a distinct node"
         assert not node.disposed, f"{path}: mounted node is disposed"
         seen.add(node)
         nodes[path] = node
@@ -73,9 +73,9 @@ def _mounted_nodes(resolver: NodeResolver) -> dict[str, ComponentNode]:
 
         def children(val: Any, child_path: str) -> None:
             if is_component_node(val):
-                assert val.instance_id not in sibling_ids, (
-                    f"{child_path}: duplicate sibling instance_id"
-                )
+                assert (
+                    val.instance_id not in sibling_ids
+                ), f"{child_path}: duplicate sibling instance_id"
                 sibling_ids.add(val.instance_id)
                 visit(val, child_path)
             elif isinstance(val, list):
@@ -103,9 +103,9 @@ def _check_nodes(
     reason: str,
 ) -> None:
     expected_nodes = expected.get("nodes") or {}
-    assert sorted(nodes.keys()) == sorted(expected_nodes.keys()), (
-        f"{reason}: node paths {sorted(nodes.keys())} != {sorted(expected_nodes.keys())}"
-    )
+    assert sorted(nodes.keys()) == sorted(
+        expected_nodes.keys()
+    ), f"{reason}: node paths {sorted(nodes.keys())} != {sorted(expected_nodes.keys())}"
     for path, fields in expected_nodes.items():
         node = _required_node(nodes, path)
         actual = {
@@ -128,14 +128,15 @@ def _check_nodes(
         ):
             if key in fields:
                 assert actual[key] == fields[key], (
-                    f"{reason}: {path}.{key} expected {fields[key]!r}, got {actual[key]!r}"
+                    f"{reason}: {path}.{key} expected {fields[key]!r}, got"
+                    f" {actual[key]!r}"
                 )
         for key, expected_val in (fields.get("props") or {}).items():
             assert key in node.props, f"{reason}: {path}.{key} is absent"
             norm_actual = _normalize(node.props[key], f"{path}/{key}")
-            assert norm_actual == expected_val, (
-                f"{reason}: {path}.{key} expected {expected_val!r}, got {norm_actual!r}"
-            )
+            assert (
+                norm_actual == expected_val
+            ), f"{reason}: {path}.{key} expected {expected_val!r}, got {norm_actual!r}"
 
 
 def _update_components(
@@ -146,14 +147,12 @@ def _update_components(
     for comp in components:
         comp_id = comp["id"]
         comp_type = comp["component"]
-        properties = {
-            k: v for k, v in comp.items() if k not in ("id", "component")
-        }
+        properties = {k: v for k, v in comp.items() if k not in ("id", "component")}
         existing = surface.components_model.get(comp_id)
         if existing is not None:
-            assert existing.type == comp_type, (
-                f"update_components cannot change {comp_id}'s type"
-            )
+            assert (
+                existing.type == comp_type
+            ), f"update_components cannot change {comp_id}'s type"
             existing.properties = properties
         else:
             surface.components_model.add_component(
@@ -190,9 +189,7 @@ def _build_recording_catalog(
     for fn_name, fn_api in (parsed.functions or {}).items():
 
         def make_impl(name: str) -> Callable[..., Any]:
-            def _impl(
-                args: dict[str, Any], _ctx: Any = None, _sig: Any = None
-            ) -> Any:
+            def _impl(args: dict[str, Any], _ctx: Any = None, _sig: Any = None) -> Any:
                 functions_log.append({"name": name, "args": _normalize(args, "")})
                 return None
 
@@ -245,14 +242,12 @@ def _collect_watch_counts(
     for node, w in watches.items():
         if w.emissions and node in surviving:
             emissions[w.path] = emissions.get(w.path, 0) + w.emissions
-            assert w.last_props == _normalize(node.props, w.path), (
-                f"{reason}: {w.path} last emission"
-            )
+            assert w.last_props == _normalize(
+                node.props, w.path
+            ), f"{reason}: {w.path} last emission"
         if w.destroyed:
             destroyed[w.path] = destroyed.get(w.path, 0) + w.destroyed
-            assert node.disposed, (
-                f"{reason}: {w.path} destruction without disposal"
-            )
+            assert node.disposed, f"{reason}: {w.path} destruction without disposal"
     return emissions, destroyed
 
 
@@ -262,14 +257,14 @@ def _check_errors(
     if "errors" not in expected:
         return
     exp_errors = expected["errors"] or []
-    assert len(errors) == len(exp_errors), (
-        f"{reason}: errors count expected {len(exp_errors)}, got {len(errors)}: {errors}"
-    )
+    assert len(errors) == len(
+        exp_errors
+    ), f"{reason}: errors count expected {len(exp_errors)}, got {len(errors)}: {errors}"
     for actual_err, exp_err in zip(errors, exp_errors):
         for k, v in exp_err.items():
-            assert actual_err.get(k) == v, (
-                f"{reason}: error.{k} expected {v!r}, got {actual_err.get(k)!r}"
-            )
+            assert (
+                actual_err.get(k) == v
+            ), f"{reason}: error.{k} expected {v!r}, got {actual_err.get(k)!r}"
 
 
 def _check_step_state(
@@ -285,32 +280,33 @@ def _check_step_state(
 ) -> None:
     after = _mounted_nodes(resolver)
     _check_nodes(after, expected, reason)
-    emissions, destroyed = _collect_watch_counts(
-        watches, set(after.values()), reason
-    )
+    emissions, destroyed = _collect_watch_counts(watches, set(after.values()), reason)
     assert emissions == (expected.get("emissions") or {}), (
-        f"{reason}: emissions expected {expected.get('emissions') or {}}, got {emissions}"
+        f"{reason}: emissions expected {expected.get('emissions') or {}}, got"
+        f" {emissions}"
     )
     assert destroyed == (expected.get("destroyed") or {}), (
-        f"{reason}: destroyed expected {expected.get('destroyed') or {}}, got {destroyed}"
+        f"{reason}: destroyed expected {expected.get('destroyed') or {}}, got"
+        f" {destroyed}"
     )
     for path in expected.get("same_nodes") or []:
-        assert _required_node(after, path) is _required_node(before, path), (
-            f"{reason}: {path} identity"
-        )
+        assert _required_node(after, path) is _required_node(
+            before, path
+        ), f"{reason}: {path} identity"
     for path in expected.get("replaced_nodes") or []:
-        assert _required_node(after, path) is not _required_node(before, path), (
-            f"{reason}: {path} replacement"
-        )
+        assert _required_node(after, path) is not _required_node(
+            before, path
+        ), f"{reason}: {path} replacement"
     for path, val in (expected.get("data") or {}).items():
-        assert _normalize(surface.data_model.get(path), path) == val, (
-            f"{reason}: data {path}"
-        )
-    assert events == (expected.get("events") or []), (
-        f"{reason}: events expected {expected.get('events') or []}, got {events}"
-    )
+        assert (
+            _normalize(surface.data_model.get(path), path) == val
+        ), f"{reason}: data {path}"
+    assert events == (
+        expected.get("events") or []
+    ), f"{reason}: events expected {expected.get('events') or []}, got {events}"
     assert functions == (expected.get("functions") or []), (
-        f"{reason}: functions expected {expected.get('functions') or []}, got {functions}"
+        f"{reason}: functions expected {expected.get('functions') or []}, got"
+        f" {functions}"
     )
     _check_errors(errors, expected, reason)
 
@@ -353,9 +349,7 @@ def _execute_step_op(
         raise AssertionError(f"Unknown node operation: {op}")
 
 
-def run_node_resolution_case(
-    test_case: dict[str, Any], conformance_root: Path
-) -> None:
+def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) -> None:
     """Executes a single resolve_nodes conformance test case."""
     assert test_case.get("action") == "resolve_nodes"
     fixture_path = conformance_root / test_case["fixture"]
@@ -364,9 +358,7 @@ def run_node_resolution_case(
     events: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
 
-    catalog = _build_recording_catalog(
-        conformance_root / fixture["catalog"], functions
-    )
+    catalog = _build_recording_catalog(conformance_root / fixture["catalog"], functions)
     surface = SurfaceModel(
         surface_id="s",
         default_catalog=catalog,
@@ -433,9 +425,9 @@ def run_node_resolution_case(
                 reason,
             )
             for binding, saved_val in bindings:
-                assert _normalize(binding.value, "") == saved_val, (
-                    f"{reason}: prior binding snapshot changed"
-                )
+                assert (
+                    _normalize(binding.value, "") == saved_val
+                ), f"{reason}: prior binding snapshot changed"
     finally:
         resolver.dispose()
         surface.dispose()

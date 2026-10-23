@@ -328,7 +328,7 @@ def check_allowed_parents(
             json_ptr = (
                 f"/components/{comp_idx}"
                 if comp_idx is not None
-                else f"/components/{comp_id}"
+                else to_json_pointer(f"components.{comp_id}")
             )
             msg = (
                 f"Component '{comp_id}' ({model.type}) cannot be placed"
@@ -387,9 +387,7 @@ def check_allowed_children(
     if not allowed_children:
         return
     refs_iter: list[tuple[str, str]] = (
-        child_refs
-        if child_refs is not None
-        else [(cid, "") for cid in children]
+        child_refs if child_refs is not None else [(cid, "") for cid in children]
     )
     for child_id, field_path in refs_iter:
         child_type = type_of(child_id)
