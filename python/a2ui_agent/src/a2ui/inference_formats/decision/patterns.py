@@ -1124,17 +1124,28 @@ def _knob_cond_passes(if_knob: Mapping[str, Any], knobs: Mapping[str, str]) -> b
     return True
 
 
+def _infer_media_from_target(target: str, options: Mapping[str, str]) -> str:
+    """Infers a media semantic type from a lowercased literal or pointer string."""
+    if any(ext in target for ext in (".mp3", ".wav", ".ogg", "audio", "podcast")):
+        if "audio_url" in options:
+            return "audio_url"
+    if "long_text" in options and len(target.split()) >= 15:
+        return "long_text"
+    return "default" if "default" in options else next(iter(options.keys()), "")
+
+
 def _infer_slot_media_type(
     binding: SlotBinding | None, options: Mapping[str, str]
 ) -> str:
     """Infers the semantic type key (e.g. ``video_url`` or ``audio_url``) for `$byType`."""
     if binding is not None:
-        target = str(binding.literal or binding.pointer or "").lower()
-        if any(ext in target for ext in (".mp3", ".wav", ".ogg", "audio", "podcast")):
-            if "audio_url" in options:
-                return "audio_url"
-        if "long_text" in options and len(target.split()) >= 15:
-            return "long_text"
+        if binding.semantic_type and binding.semantic_type in options:
+            return binding.semantic_type
+        target = (
+            f"{binding.semantic_type or ''}"
+            f" {binding.literal or binding.pointer or ''}".lower()
+        )
+        return _infer_media_from_target(target, options)
     if "default" in options:
         return "default"
     return next(iter(options.keys()), "")
@@ -1836,29 +1847,54 @@ def _prune_empty_containers(
     root_comp = by_id.get(root_id)
     if root_comp is not None and isinstance(root_comp.get("children"), list):
         root_comp["children"] = [
-            x
-            for x in root_comp["children"]
-            if x in by_id or x in preserved or x not in removed_ids
+            x for x in root_comp["children"] if x in by_id or x in preserved
         ]
 
     reachable = _collect_reachable_ids(by_id, root_id)
     return [c for c in components if c.get("id") in reachable]
 
 
+def _remap_field_dict(
+    fields: Mapping[str, SlotBinding], field_map: Mapping[str, str]
+) -> dict[str, SlotBinding]:
+    """Copies `fields` and aliases any `src -> dst` keys in `field_map`."""
+    remapped = dict(fields)
+    for src, dst in field_map.items():
+        if src in remapped and dst not in remapped:
+            remapped[dst] = remapped[src]
+    return remapped
+
+
+def _remap_slot_binding(
+    binding: SlotBinding, field_map: Mapping[str, str]
+) -> SlotBinding:
+    """Returns `binding` with `field_map` applied to both `fields` and `items`."""
+    return SlotBinding(
+        pointer=binding.pointer,
+        literal=binding.literal,
+        fields=_remap_field_dict(binding.fields, field_map),
+        items=tuple(_remap_field_dict(it, field_map) for it in binding.items),
+        semantic_type=binding.semantic_type,
+    )
+
+
 def _adapt_comparison_slots(slots: dict[str, SlotBinding]) -> None:
     """Remaps `comparison` `options` into `collection` `items`."""
-    if "options" not in slots or "items" in slots:
-        return
-    opt = slots["options"]
-    remapped_fields = dict(opt.fields)
-    if "highlight" in remapped_fields and "meta" not in remapped_fields:
-        remapped_fields["meta"] = remapped_fields["highlight"]
-    slots["items"] = SlotBinding(
-        pointer=opt.pointer,
-        literal=opt.literal,
-        fields=remapped_fields,
-        items=opt.items,
-    )
+    if "options" in slots and "items" not in slots:
+        slots["items"] = _remap_slot_binding(
+            slots["options"], {"badge": "meta", "highlight": "meta"}
+        )
+
+
+def _adapt_timeline_slots(slots: dict[str, SlotBinding], target_pattern: str) -> None:
+    """Remaps `timeline` `events` into `steps` or `collection` `items`."""
+    if "events" in slots and "items" not in slots:
+        field_map = (
+            {"title": "headline", "detail": "supporting", "time": "meta"}
+            if target_pattern == "collection"
+            else {}
+        )
+        slots["items"] = _remap_slot_binding(slots["events"], field_map)
 
 
 def _adapt_map_slots(slots: dict[str, SlotBinding]) -> None:
@@ -1870,6 +1906,13 @@ def _adapt_map_slots(slots: dict[str, SlotBinding]) -> None:
     slots["rows"] = SlotBinding(items=({"label": lbl, "value": loc},))
 
 
+_DIRECT_SLOT_REMAPS: dict[tuple[str, str], tuple[str, str]] = {
+    ("chart", "headline"): ("series", "items"),
+    ("chart", "collection"): ("series", "items"),
+    ("headline", "facts"): ("items", "rows"),
+}
+
+
 def _adapt_fallback_bindings(
     source_pattern: str, target_pattern: str, bindings: BlockBindings
 ) -> BlockBindings:
@@ -1877,15 +1920,16 @@ def _adapt_fallback_bindings(
     if source_pattern == target_pattern:
         return bindings
     slots = dict(bindings.slots)
-    if source_pattern == "comparison" and target_pattern == "collection":
+    pair = (source_pattern, target_pattern)
+    if pair == ("comparison", "collection"):
         _adapt_comparison_slots(slots)
     elif source_pattern == "timeline" and target_pattern in ("steps", "collection"):
-        if "events" in slots and "items" not in slots:
-            slots["items"] = slots["events"]
-    elif source_pattern == "chart" and target_pattern in ("headline", "collection"):
-        if "series" in slots and "items" not in slots:
-            slots["items"] = slots["series"]
-    elif source_pattern == "map" and target_pattern == "facts":
+        _adapt_timeline_slots(slots, target_pattern)
+    elif pair in _DIRECT_SLOT_REMAPS:
+        src_slot, dst_slot = _DIRECT_SLOT_REMAPS[pair]
+        if src_slot in slots and dst_slot not in slots:
+            slots[dst_slot] = slots[src_slot]
+    elif pair == ("map", "facts"):
         _adapt_map_slots(slots)
     return BlockBindings(slots=slots)
 

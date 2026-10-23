@@ -476,16 +476,18 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
     )
     validate_payload([catalog], _wrap_surface(steps_comps, version=version))
 
-    # 11. form (all 7 fieldVariants)
+    # 11. form (all 9 fieldVariants)
     form_items = []
     for idx, control in enumerate((
-        "text",
-        "textarea",
+        "shortText",
+        "longText",
         "number",
+        "obscured",
+        "toggle",
         "choice",
-        "checkbox",
+        "multiChoice",
+        "range",
         "date",
-        "slider",
     )):
         form_items.append({
             "label": SlotBinding(literal=f"Field {idx}"),
@@ -499,26 +501,34 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
         BlockBindings(slots={"fields": SlotBinding(items=tuple(form_items))}),
     )
     validate_payload([catalog], _wrap_surface(form_comps, version=version))
+    form_comp_types = {c["component"] for c in form_comps}
+    assert {
+        "TextField",
+        "CheckBox",
+        "ChoicePicker",
+        "Slider",
+        "DateTimeInput",
+    } <= form_comp_types
 
     # 12. groups (all 4 fieldVariants)
     group_rows = [
         {
             "label": SlotBinding(literal="Notifications"),
             "value": SlotBinding(pointer="/notifications/newEpisodes"),
-            "rowKind": SlotBinding(literal="switch"),
+            "row_kind": SlotBinding(literal="switch"),
         },
         {
             "label": SlotBinding(literal="Skip forward"),
             "value": SlotBinding(pointer="/playback/skipForward"),
-            "rowKind": SlotBinding(literal="value"),
+            "row_kind": SlotBinding(literal="value"),
         },
         {
             "label": SlotBinding(literal="Privacy"),
-            "rowKind": SlotBinding(literal="navigation"),
+            "row_kind": SlotBinding(literal="navigation"),
         },
         {
             "label": SlotBinding(literal="Sign out"),
-            "rowKind": SlotBinding(literal="danger"),
+            "row_kind": SlotBinding(literal="danger"),
         },
     ]
     groups_comps = expander.expand_block(
@@ -526,7 +536,7 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
         "groups",
         BlockBindings(
             slots={
-                "sections": SlotBinding(
+                "groups": SlotBinding(
                     items=(
                         {
                             "heading": SlotBinding(literal="General"),
@@ -538,6 +548,8 @@ def test_expand_every_basic_v1_pattern_validates(version: str) -> None:
         ),
     )
     validate_payload([catalog], _wrap_surface(groups_comps, version=version))
+    groups_comp_types = {c["component"] for c in groups_comps}
+    assert {"CheckBox", "Button", "Text"} <= groups_comp_types
 
     # 13. actions
     actions_comps = expander.expand_block(
@@ -910,3 +922,99 @@ def test_fallback_chain_walking_for_timeline_and_map() -> None:
 
     with pytest.raises(PatternError, match="not available"):
         expander.expand_block("unknown_block", "nonexistent_pattern", BlockBindings())
+
+
+def test_by_type_honors_slot_binding_semantic_type_and_fallback_remaps() -> None:
+    """Tests `SlotBinding.semantic_type` dispatch (H2), root pruning (M4), and fallback slot adaptation (M5)."""
+    catalog = BasicCatalog("v1.0")
+    lib = PatternLibrary.for_catalogs([catalog])
+    graph = CatalogDecisionGraph([catalog])
+    expander = PatternExpander(lib, graph)
+
+    # H2: /stream/resource has no audio/video substring in the path, but carries semantic_type="audio"
+    media_comps = expander.expand_block(
+        "player",
+        "media",
+        BlockBindings(
+            slots={
+                "source": SlotBinding(
+                    pointer="/stream/resource",
+                    semantic_type="audio",
+                ),
+                "caption": SlotBinding(literal="Episode 42"),
+            }
+        ),
+    )
+    validate_payload([catalog], _wrap_surface(media_comps))
+    assert any(c["component"] == "AudioPlayer" for c in media_comps)
+
+    # M5: headline -> facts fallback remaps `items` -> `rows`, and timeline -> collection remaps `title` -> `headline`
+    raw_no_hl_tl = copy.deepcopy(load_asset("patterns/basic_v1_0.json"))
+    del raw_no_hl_tl["patterns"]["headline"]
+    del raw_no_hl_tl["patterns"]["steps"]
+    exp_fallback = PatternExpander(PatternLibrary.from_json(raw_no_hl_tl), graph)
+
+    hl_as_facts = exp_fallback.expand_block(
+        "headline",
+        "headline",
+        BlockBindings(
+            slots={
+                "items": SlotBinding(
+                    items=(
+                        {
+                            "label": SlotBinding(literal="CPU"),
+                            "value": SlotBinding(literal="82%"),
+                        },
+                    )
+                )
+            }
+        ),
+    )
+    validate_payload([catalog], _wrap_surface(hl_as_facts))
+    assert any(c.get("text") == "82%" for c in hl_as_facts)
+
+    # M5: timeline -> collection fallback remaps `title` -> `headline`
+    tl_as_col = exp_fallback.expand_block(
+        "timeline",
+        "timeline",
+        BlockBindings(
+            slots={
+                "events": SlotBinding(
+                    items=(
+                        {
+                            "title": SlotBinding(literal="Shipped"),
+                            "time": SlotBinding(literal="10:00"),
+                        },
+                    )
+                )
+            }
+        ),
+    )
+    validate_payload([catalog], _wrap_surface(tl_as_col))
+    assert any("Shipped" in str(c.get("text", "")) for c in tl_as_col)
+
+    # M4: empty container child of pattern root is pruned from root["children"]
+    raw_pat = copy.deepcopy(load_asset("patterns/basic_v1_0.json"))
+    raw_pat["patterns"]["media"]["components"][0]["children"].append(
+        {"id": "empty_sub"}
+    )
+    raw_pat["patterns"]["media"]["components"].append({
+        "id": "empty_sub",
+        "component": "Row",
+        "children": [{"id": "opt_txt", "$if": "nonexistent_slot"}],
+    })
+    raw_pat["patterns"]["media"]["components"].append(
+        {"id": "opt_txt", "component": "Text", "text": "Never"}
+    )
+    custom_lib = PatternLibrary.from_json(raw_pat)
+    custom_exp = PatternExpander(custom_lib, graph)
+    pruned_comps = custom_exp.expand_block(
+        "media",
+        "media",
+        BlockBindings(slots={"source": SlotBinding(literal="https://a/b.mp4")}),
+    )
+    validate_payload([catalog], _wrap_surface(pruned_comps))
+    defined_ids = {c["id"] for c in pruned_comps}
+    for comp in pruned_comps:
+        if isinstance(comp.get("children"), list):
+            assert all(cid in defined_ids for cid in comp["children"])

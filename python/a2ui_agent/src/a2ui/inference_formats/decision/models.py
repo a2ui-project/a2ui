@@ -464,6 +464,7 @@ class SlotBinding:
     literal: Any = None
     fields: Mapping[str, SlotBinding] = field(default_factory=dict, hash=False)
     items: tuple[Mapping[str, SlotBinding], ...] = ()
+    semantic_type: str | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "fields", dict(self.fields))

@@ -1326,3 +1326,23 @@ async def test_batching_decision_backend_coalesces_20_predicts_and_isolates_fail
             continue
         assert isinstance(item, DecisionDistribution)
         assert item.top_choice()[0] == f"Target_{idx}"
+
+    # H1: truncated answer tuple raises ValueError on all chunk futures instead of hanging
+    class _TruncatedAnswerBackend(DeterministicMockBackend):
+
+        async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+            full = await super().answer(batch)
+            return full[:-1]
+
+    trunc_inner = _TruncatedAnswerBackend()
+    async with BatchingDecisionBackend(trunc_inner, window_ms=2.0) as batcher:
+        with pytest.raises(ValueError, match="Expected .* answers from backend"):
+            await asyncio.gather(
+                batcher.predict(
+                    DecisionQuery(task="t", prompt="q1", candidates=("A", "B"))
+                ),
+                batcher.predict(
+                    DecisionQuery(task="t", prompt="q2", candidates=("A", "B"))
+                ),
+            )
+    await batcher.aclose_current_loop()

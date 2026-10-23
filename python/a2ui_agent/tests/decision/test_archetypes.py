@@ -441,3 +441,12 @@ def test_bundled_grammar_mutation_is_caught_by_lint() -> None:
     raw["archetypes"][0]["blocks"] = ["banner?", "filters?"]
     with pytest.raises(GrammarError, match="Archetype 'feed'"):
         ArchetypeGrammar.from_json(raw)
+
+
+def test_lint_rejects_unknown_archetype_family() -> None:
+    raw = _minimal_grammar()
+    raw["archetypes"][0]["family"] = "orient"
+    with pytest.raises(
+        GrammarError, match="Archetype 'detail' references unknown family 'orient'"
+    ):
+        ArchetypeGrammar.from_json(raw)

@@ -1701,7 +1701,7 @@
     },
     {
       "id": "fallback-must-end",
-      "rule": "Every block's fallback chain ends in a terminal (repeat-in-parent, first-item, prose, or facts); the loader rejects a grammar where one does not."
+      "rule": "Every block's fallback chain entries must be abstract pattern names, pattern:knob forms, or terminals (repeat-in-parent, first-item, prose, or facts); the loader rejects a grammar with unknown fallback entries."
     }
   ],
   "lint": [

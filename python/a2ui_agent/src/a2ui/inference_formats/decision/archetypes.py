@@ -560,11 +560,21 @@ def _lint_options_from(blocks: Mapping[str, BlockSpec]) -> list[str]:
 
 
 def lint_grammar(
-    archetypes: Sequence[LayoutArchetype], blocks: Sequence[BlockSpec]
+    archetypes: Sequence[LayoutArchetype],
+    blocks: Sequence[BlockSpec],
+    *,
+    families: Sequence[str] = (),
 ) -> list[str]:
     """Runs every lint check and returns the findings (empty when clean)."""
     by_id = {b.id: b for b in blocks}
     findings = _lint_unique_ids(archetypes, blocks)
+    if families:
+        allowed_families = set(families)
+        findings.extend(
+            f"Archetype {a.id!r} references unknown family {a.family!r}."
+            for a in archetypes
+            if a.family not in allowed_families
+        )
     findings.extend(_lint_archetype_anchor(archetypes))
     findings.extend(_lint_block_ids_exist(archetypes, by_id))
     findings.extend(_lint_fallbacks(by_id))
@@ -612,9 +622,12 @@ class ArchetypeGrammar:
                 "Archetype grammar failed schema validation:\n  "
                 + "\n  ".join(findings)
             )
+        job = _parse_questions(data["job"])
         archetypes = tuple(LayoutArchetype.from_json(a) for a in data["archetypes"])
         blocks = tuple(BlockSpec.from_json(b) for b in data["blocks"])
-        findings = lint_grammar(archetypes, blocks)
+        findings = lint_grammar(
+            archetypes, blocks, families=tuple(job["family"].options)
+        )
         if findings:
             raise GrammarError(
                 "Archetype grammar failed lint:\n  " + "\n  ".join(findings)
@@ -622,7 +635,7 @@ class ArchetypeGrammar:
         return cls(
             version=str(data["version"]),
             thresholds={k: float(v) for k, v in data["thresholds"].items()},
-            job=_parse_questions(data["job"]),
+            job=job,
             archetypes=archetypes,
             blocks={b.id: b for b in blocks},
             rules=tuple(

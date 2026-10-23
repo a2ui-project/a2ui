@@ -158,6 +158,10 @@ class BatchingDecisionBackend(_AsyncClosable):
         )
         try:
             answers = await self.inner.answer(batch)
+            if len(answers) != len(chunk):
+                raise ValueError(
+                    f"Expected {len(chunk)} answers from backend, got {len(answers)}."
+                )
         except Exception as exc:
             if len(chunk) == 1:
                 _set_future_exception(chunk[0].future, exc)
@@ -196,6 +200,19 @@ class BatchingDecisionBackend(_AsyncClosable):
         futures = [self._enqueue(q, batch.shared_context) for q in batch.questions]
         results = await asyncio.gather(*futures)
         return tuple(results)
+
+    async def aclose_current_loop(self) -> None:
+        """Drains flushes on the running loop and closes loop-local inner state."""
+        loop = asyncio.get_running_loop()
+        while True:
+            loop_tasks = tuple(t for t in self._active_flushes if t.get_loop() is loop)
+            if not loop_tasks:
+                break
+            self._active_flushes.difference_update(loop_tasks)
+            await asyncio.gather(*loop_tasks, return_exceptions=True)
+        close_fn = getattr(self.inner, "aclose_current_loop", None)
+        if callable(close_fn):
+            await close_fn()
 
     async def aclose(self) -> None:
         """Drains any pending flushes and closes the inner backend."""

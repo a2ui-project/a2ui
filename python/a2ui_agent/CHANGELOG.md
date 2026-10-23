@@ -36,14 +36,14 @@
     normalizes v0.8 `surfaceUpdate` promotions to v0.9 wire envelopes.
   - `LayoutPlanner`, `ArchetypeGrammar`, `PatternLibrary`, `MergedPatternLibrary`,
     and `PatternExpander` plan and expand multi-block layout archetypes (`feed`,
-    `catalog`, `search_results`, `comparison`, `dashboard`, `status`, `detail`,
-    `profile`, `document`, `confirm`, `checkout`, `form`, `settings`, `result`,
-    `thread`) in a single batched `DecisionBackend.answer(batch)` call before
-    falling back to the flat leaf/container path (`SynthesisStage.ARCHETYPE`,
+    `compare`, `dashboard`, `detail`, `result`, `confirm`, `checkout`, `form`,
+    `settings`, `guide`, `article`, `timeline`, `location`, `chat`) across 19
+    semantic blocks in a single batched `DecisionBackend.answer(batch)` call
+    before falling back to the flat leaf/container path (`SynthesisStage.ARCHETYPE`,
     `SynthesisConfig`: `use_archetypes`, `max_pairs`, `action_gate_floor`,
     `action_gate_cap`, `expected_block_threshold`, `optional_block_threshold`,
     `reask_below`).
-  - `SemanticType` and `classify_scalar` classify payload pointers across 25
+  - `SemanticType` and `classify_scalar` classify payload pointers across 36
     semantic types; `DecisionQuestion`, `DecisionAnswer`, `DecisionBatch`, and
     `QuestionKind` (`choice`, `boolean`, `score`) support batched multi-question
     scoring, and `BatchingDecisionBackend` coalesces concurrent `predict()` and

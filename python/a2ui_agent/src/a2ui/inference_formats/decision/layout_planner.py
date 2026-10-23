@@ -660,17 +660,19 @@ def _bind_scalar_slot(
         candidates,
         key=lambda p: _score_candidate_pointer(p, slot, preferred_paths),
     )
-    return SlotBinding(pointer=best.path)
+    return SlotBinding(pointer=best.path, semantic_type=best.semantic_type)
 
 
 def _pick_best_element_key(
     arr_ptr: PointerSummary,
+    field_name: str,
     field_spec: SlotSpec,
     used_keys: set[str],
 ) -> str | None:
     """Selects the best matching relative key on `arr_ptr` for `field_spec`."""
     best_key: str | None = None
     best_score = -1
+    preferred_names = {p.lower() for p in (*field_spec.prefer, field_name)}
     for ek in arr_ptr.element_keys:
         if ek in used_keys:
             continue
@@ -684,7 +686,7 @@ def _pick_best_element_key(
         )
         if not _pointer_matches_types(fake_ptr, field_spec.from_types):
             continue
-        score = sum(10 for p in field_spec.prefer if p.lower() == ek.lower()) + (
+        score = (10 if ek.lower() in preferred_names else 0) + (
             5 if ek_sem in field_spec.from_types else 1
         )
         if score > best_score:
@@ -701,16 +703,37 @@ def _bind_array_element_fields(
     bound_fields: dict[str, SlotBinding] = {}
     used_keys: set[str] = set()
     for field_name, field_spec in fields.items():
-        best_key = _pick_best_element_key(arr_ptr, field_spec, used_keys)
+        best_key = _pick_best_element_key(arr_ptr, field_name, field_spec, used_keys)
         if best_key is not None:
             used_keys.add(best_key)
-            bound_fields[field_name] = SlotBinding(pointer=best_key)
+            bound_fields[field_name] = SlotBinding(
+                pointer=best_key,
+                semantic_type=arr_ptr.element_semantic_types.get(best_key, "string"),
+            )
         elif not arr_ptr.element_keys and field_spec.required:
             bound_fields[field_name] = SlotBinding(pointer="")
     return bound_fields
 
 
+def _unroll_array_items(
+    ptr: PointerSummary, fields: Mapping[str, SlotBinding]
+) -> tuple[dict[str, SlotBinding], ...]:
+    """Unrolls `fields` into indexed element bindings across `ptr.cardinality`."""
+    return tuple(
+        {
+            f_name: SlotBinding(
+                pointer=f"{ptr.path}/{idx}/{f_bind.pointer}",
+                semantic_type=f_bind.semantic_type,
+            )
+            for f_name, f_bind in fields.items()
+            if f_bind.pointer
+        }
+        for idx in range(ptr.cardinality)
+    )
+
+
 def _bind_array_repeated_slot(
+    block_id: str,
     slot: SlotSpec,
     pointers: Sequence[PointerSummary],
     used: set[str],
@@ -726,7 +749,8 @@ def _bind_array_repeated_slot(
             not f_spec.required or f_name in fields
             for f_name, f_spec in slot.fields.items()
         ):
-            return SlotBinding(pointer=ptr.path, fields=fields)
+            items = _unroll_array_items(ptr, fields) if block_id == "steps" else ()
+            return SlotBinding(pointer=ptr.path, fields=fields, items=items)
     return SlotBinding()
 
 
@@ -913,9 +937,7 @@ def _resolve_block_pattern(
             return entry, {}
         pat_name, _, knob_val = entry.partition(":")
         if knob_val:
-            if capabilities.has_pattern(pat_name, knob_val) or capabilities.has_pattern(
-                pat_name
-            ):
+            if capabilities.has_pattern(pat_name, knob_val):
                 return pat_name, {"layout": knob_val}
         elif capabilities.has_pattern(pat_name):
             return pat_name, {}
@@ -1669,7 +1691,7 @@ class LayoutPlanner:
         if slot.from_types == ("object",):
             return _bind_groups_slot(pointers, used)
         if slot.from_types == ("array",):
-            return _bind_array_repeated_slot(slot, pointers, used)
+            return _bind_array_repeated_slot(spec.id, slot, pointers, used)
         return _bind_scalar_repeated_slot(
             spec.id,
             slot,

@@ -122,8 +122,7 @@
         "$event": { "$ref": "#/$defs/eventDirective" },
         "$blocks": { "$ref": "#/$defs/blocksDirective" },
         "$knobValue": { "$ref": "#/$defs/knobValueDirective" },
-        "$item": { "$ref": "#/$defs/itemDirective" },
-        "$index1": { "$ref": "#/$defs/index1Directive" }
+        "$item": { "$ref": "#/$defs/itemDirective" }
       },
       "patternProperties": {
         "^[^$]": { "$ref": "#/$defs/templateValue" }
@@ -206,10 +205,6 @@
     "itemDirective": {
       "const": true,
       "description": "Inside `$repeat`, the current element's pointer, bound as the event context."
-    },
-    "index1Directive": {
-      "const": true,
-      "description": "Inside `$repeat`, the 1-based index of the current element."
     }
   }
 }

@@ -780,3 +780,42 @@ def test_leading_all_or_none_degrades_sparse_collection_pictures() -> None:
     assert outcome.plan is not None
     col = next(b for b in outcome.plan.blocks if b.block_id == "collection")
     assert col.variant_knobs.get("leading") == "none"
+
+    # M3: fallback entry `collection:grid` requires the specific `(collection, grid)` variant
+    caps_no_grid = StubCapabilities(
+        disabled=frozenset({("nonexistent_pic", None), ("collection", "grid")})
+    )
+    planner_no_grid = LayoutPlanner(
+        ArchetypeGrammar.default(), SynthesisConfig(), capabilities=caps_no_grid
+    )
+    spec_with_grid_fb = replace(
+        ArchetypeGrammar.default().block("picture"),
+        pattern="nonexistent_pic",
+        fallback=("nonexistent_pic", "collection:grid"),
+    )
+    from a2ui.inference_formats.decision.layout_planner import (
+        _resolve_block_pattern,
+    )
+
+    assert _resolve_block_pattern(spec_with_grid_fb, caps_no_grid) is None
+
+    # Q1: `steps` array binding unrolls `items` so `{$index1}` renders 1., 2., 3.
+    steps_payload = {
+        "title": "How to brew",
+        "steps": [
+            {"title": "Grind beans", "detail": "Medium-fine"},
+            {"title": "Pour water", "detail": "93C"},
+        ],
+    }
+    steps_ptrs = inspect_payload_pointers(steps_payload)
+    steps_bindings = planner_no_grid.bind_slots(
+        ArchetypeGrammar.default().block("steps"),
+        steps_ptrs,
+        set(),
+        payload=steps_payload,
+    )
+    steps_slot = steps_bindings.get("items")
+    assert steps_slot is not None
+    assert len(steps_slot.items) == 2
+    assert steps_slot.items[0]["title"].pointer == "/steps/0/title"
+    assert steps_slot.items[1]["title"].pointer == "/steps/1/title"

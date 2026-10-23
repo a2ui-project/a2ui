@@ -823,3 +823,18 @@ async def test_render_tool_run_async_fallbacks() -> None:
 
     with pytest.raises(ValueError, match="intent"):
         await tool.run_async({"payload": PAYLOAD})
+
+    # L1 + M2: schema pattern accepts `~` tokens and tool accepts pre-parsed LayoutBrief
+    from a2ui.inference_formats.decision.models import LayoutBrief
+
+    schema = tool.parameters_json_schema()
+    layout_pattern = schema["properties"]["layout"]["items"]["pattern"]
+    import re
+
+    assert re.match(layout_pattern, "prose:/foo~1bar") is not None
+    brief_res = await tool.run_async({
+        "intent": "low",
+        "payload": PAYLOAD,
+        "layout": LayoutBrief.parse(["prose:/foo~1bar"], roles=frozenset({"prose"})),
+    })
+    assert brief_res.fallback_source is FallbackSource.CARD

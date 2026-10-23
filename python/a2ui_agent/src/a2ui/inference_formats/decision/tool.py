@@ -204,7 +204,7 @@ class DecisionRenderTool:
                     "maxItems": MAX_BRIEF_SECTIONS,
                     "items": {
                         "type": "string",
-                        "pattern": r"^[a-z_]+:[A-Za-z0-9_/,.-]+$",
+                        "pattern": r"^[a-z_]+:[A-Za-z0-9_/,.~-]+$",
                     },
                     "description": (
                         "Optional ordered layout brief grouping payload keys by"
@@ -221,7 +221,7 @@ class DecisionRenderTool:
         self, args: Mapping[str, Any]
     ) -> tuple[DecisionBlock, dict[str, Any]]:
         raw_layout = args.get("layout")
-        parsed_brief: LayoutBrief | None = None
+        block_args: Mapping[str, Any] = args
         if isinstance(raw_layout, Sequence) and not isinstance(
             raw_layout, (str, bytes)
         ):
@@ -229,14 +229,16 @@ class DecisionRenderTool:
                 [str(item) for item in raw_layout],
                 roles=self.synthesizer.archetypes.brief_roles(),
             )
-        block = DecisionBlock.from_mapping(args)
+            block_args = {
+                **args,
+                "layout": parsed_brief if parsed_brief.sections else None,
+            }
+        block = DecisionBlock.from_mapping(block_args)
         kwargs: dict[str, Any] = {
             "template_id": block.template_id,
             "fallback_dsl": block.fallback_dsl,
         }
-        brief = block.layout or (
-            parsed_brief if parsed_brief and parsed_brief.sections else None
-        )
+        brief = block.layout
         if brief is not None:
             kwargs["layout"] = brief
         surface_id = block.surface_id or self._surface_id
