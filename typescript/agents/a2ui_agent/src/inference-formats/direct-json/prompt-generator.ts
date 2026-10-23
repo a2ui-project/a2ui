@@ -42,8 +42,8 @@ export type DirectJsonExamples =
   | ReadonlyArray<AgentToRendererMessage[] | string>;
 
 /**
- * Renders the Direct JSON prompt snippet: the payload rules, the protocol and
- * catalog schemas inside a schema block, and any examples inside `<a2ui-json>` tags.
+ * Renders the Direct JSON prompt snippet: the payload rules, a schema block with the
+ * protocol schemas, one schema block per catalog, and any examples inside `<a2ui-json>` tags.
  */
 export class DirectJsonPromptGenerator extends PromptGenerator {
   private readonly decompiler = new DirectJsonDecompiler();
@@ -66,16 +66,14 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     checkParserCatalogs(catalogs);
   }
 
-  generateBaseRules(): string {
-    return DEFAULT_WORKFLOW_RULES;
-  }
-
   /**
-   * The schema block: agent-to-renderer schema, pruned common types schema, then each
-   * catalog's serialized JSON document (`catalog.toJson()`).
+   * The payload rules, then a schema block with the protocol schemas: the agent-to-renderer
+   * schema and the common types schema pruned to what the active catalogs and that schema
+   * use. The protocol schemas live here rather than in the catalog instructions, so output
+   * that combines several catalogs' instructions holds them once.
    */
-  override generateCatalogInstructions(catalog?: CatalogApi): string {
-    const targets = catalog ? [catalog] : this.catalogs;
+  generateBaseRules(): string {
+    const targets = this.catalogs;
     if (targets.length === 0) {
       throw new A2uiCatalogError('The schema prompt needs at least one catalog.');
     }
@@ -107,10 +105,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
       a2rSchema,
     );
 
-    const sections = [
-      A2UI_SCHEMA_BLOCK_START,
-      `### Agent to Renderer Schema:\n${JSON.stringify(a2rSchema)}`,
-    ];
+    const sections = [`### Agent to Renderer Schema:\n${JSON.stringify(a2rSchema)}`];
 
     const commonDefs = commonTypesSchema.$defs;
     if (
@@ -121,16 +116,12 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
       sections.push(`### Common Types Schema:\n${JSON.stringify(commonTypesSchema)}`);
     }
 
-    for (const catalogDoc of catalogDocs) {
-      sections.push(`### Catalog Schema:\n${JSON.stringify(catalogDoc)}`);
-    }
-
-    sections.push(A2UI_SCHEMA_BLOCK_END);
-    return sections.join('\n\n');
+    return `${DEFAULT_WORKFLOW_RULES}\n\n${schemaBlock(sections)}`;
   }
 
+  /** A schema block holding one catalog's serialized JSON document (`catalog.toJson()`). */
   protected renderCatalogInstructions(catalog: CatalogApi): string {
-    return `### Catalog Schema:\n${JSON.stringify(catalog.toJson())}`;
+    return schemaBlock([`### Catalog Schema:\n${JSON.stringify(catalog.toJson())}`]);
   }
 
   private isTurnArray(
@@ -187,16 +178,9 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     const decompiled = this.decompiler.decompile(exampleMessages);
     return this.decompiler.wrap([{type: 'a2ui', a2uiRaw: decompiled, isFinal: true}]);
   }
+}
 
-  override generate(): string {
-    const parts = [
-      `## Workflow Description:\n${this.generateBaseRules()}`,
-      this.generateCatalogInstructions(),
-    ];
-    const examplesStr = this.generateExamples();
-    if (examplesStr.length > 0) {
-      parts.push(`### Examples:\n${examplesStr}`);
-    }
-    return parts.join('\n\n');
-  }
+/** Wraps sections between the schema block start and end lines. */
+function schemaBlock(sections: readonly string[]): string {
+  return [A2UI_SCHEMA_BLOCK_START, ...sections, A2UI_SCHEMA_BLOCK_END].join('\n\n');
 }
