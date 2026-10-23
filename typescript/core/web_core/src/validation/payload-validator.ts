@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+import {z} from 'zod';
 import {CatalogInterface} from '../catalog/types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
-import {A2uiValidationError} from '../errors.js';
+import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
 import {getKnownSchemaKeys} from '../resolution/data-context.js';
 import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
@@ -178,17 +179,32 @@ export class PayloadValidator {
   validateComponent(comp: Record<string, unknown>, knownType?: string): void {
     const id = comp['id'];
     if (typeof id !== 'string' || !id) {
+      const msg = `Component '${comp['component']}' is missing an 'id'; entries require a valid string 'id'.`;
       throw new A2uiValidationError(
-        `Component '${comp['component']}' is missing an 'id'; entries require a valid string 'id'.`,
+        msg,
+        [{path: '/id', code: 'missing_field', message: msg}],
+        'VALIDATION_ERROR',
+        {path: '/id'},
       );
     }
 
-    this.assertIdentifier(id, `Component id '${id}' must be a valid UAX #31 identifier`);
+    this.assertIdentifier(
+      id,
+      `Component id '${id}' must be a valid UAX #31 identifier`,
+      false,
+      '/id',
+    );
 
     const declaredType = comp['component'];
     const componentType = typeof declaredType === 'string' ? declaredType : knownType;
     if (!componentType) {
-      throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
+      const msg = `Cannot create component ${id} without a type.`;
+      throw new A2uiValidationError(
+        msg,
+        [{path: '/component', code: 'missing_field', message: msg}],
+        'VALIDATION_ERROR',
+        {path: '/component'},
+      );
     }
 
     // Decides which nested calls run in this catalog; see
@@ -200,8 +216,12 @@ export class PayloadValidator {
     const componentApi = this.catalog.components.get(componentType);
     if (!componentApi) {
       if (!this.allowUnknown) {
+        const msg = `Unknown component type '${componentType}' not found in catalog '${this.catalog.id}'.`;
         throw new A2uiValidationError(
-          `Unknown component type '${componentType}' not found in catalog '${this.catalog.id}'.`,
+          msg,
+          [{path: '/component', code: 'invalid_value', message: msg}],
+          'VALIDATION_ERROR',
+          {path: '/component'},
         );
       }
       // The component's properties can't be checked without its schema, but
@@ -214,17 +234,21 @@ export class PayloadValidator {
 
     const knownKeys = getKnownSchemaKeys(componentApi.schema);
     this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id, componentCatalogId);
+    this.validateNestedFunctions(properties, componentCatalogId);
 
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
       const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const details = zodIssuesToDetails(result.error.issues);
+      const uniquePaths = new Set(details.map(d => d.path));
+      const firstPath = uniquePaths.size === 1 ? details[0]?.path : undefined;
       throw new A2uiValidationError(
         `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-        result.error.issues,
+        details,
+        'VALIDATION_ERROR',
+        {path: firstPath && firstPath !== '/' ? firstPath : undefined},
       );
     }
-
-    this.validateNestedFunctions(properties, componentCatalogId);
   }
 
   /**
@@ -245,12 +269,15 @@ export class PayloadValidator {
       const accResult = AccessibilityAttributesSchema.optional().safeParse(accVal);
       if (!accResult.success) {
         const formattedErrors = accResult.error.errors.map(formatZodIssue).join(', ');
+        const details = zodIssuesToDetails(accResult.error.issues, '/accessibility');
         throw new A2uiValidationError(
           `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-          accResult.error.issues,
+          details,
+          'VALIDATION_ERROR',
+          {path: details[0]?.path},
         );
       }
-      this.validateNestedFunctions(accVal, componentCatalogId);
+      this.validateNestedFunctions(accVal, componentCatalogId, '/accessibility');
     }
 
     if ('metadata' in properties && !knownKeys?.has('metadata')) {
@@ -259,9 +286,12 @@ export class PayloadValidator {
       const metaResult = ComponentCommonSchema.shape.metadata.safeParse(metaVal);
       if (!metaResult.success) {
         const formattedErrors = metaResult.error.errors.map(formatZodIssue).join(', ');
+        const details = zodIssuesToDetails(metaResult.error.issues, '/metadata');
         throw new A2uiValidationError(
           `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-          metaResult.error.issues,
+          details,
+          'VALIDATION_ERROR',
+          {path: details[0]?.path},
         );
       }
     }
@@ -322,10 +352,45 @@ export class PayloadValidator {
    * @param componentCatalogId The `catalogId` the component names, if any.
    * @throws {A2uiValidationError} If any nested function call fails schema or identifier validation.
    */
-  private validateNestedFunctions(val: unknown, componentCatalogId: string | undefined): void {
+  private checkNestedCallRecord(
+    record: Record<string, unknown>,
+    rawName: string,
+    componentCatalogId: string | undefined,
+  ): void {
+    const rawArgs = record['args'];
+    const argsDict = (rawArgs !== undefined ? rawArgs : {}) as Record<string, unknown>;
+    if (!this.enforceIdentifiers) {
+      this.validateFunction(rawName, argsDict);
+      return;
+    }
+    if (rawName.startsWith('@')) {
+      assertSystemCallNamesNoCatalog(rawName, record);
+      this.validateFunction(rawName, argsDict);
+      return;
+    }
+    const callCatalogId = record['catalogId'];
+    if (callCatalogId !== undefined && typeof callCatalogId !== 'string') {
+      throw new A2uiValidationError(nonStringCatalogIdMessage(rawName));
+    }
+    if (
+      nestedCallRunsInCatalog(callCatalogId, this.catalog.id, {
+        catalogIsDefault: componentCatalogId === undefined,
+      })
+    ) {
+      this.validateFunction(rawName, argsDict);
+    } else {
+      this.assertFunctionIdentifiers(rawName, argsDict);
+    }
+  }
+
+  private validateNestedFunctions(
+    val: unknown,
+    componentCatalogId: string | undefined,
+    currentPath = '',
+  ): void {
     if (Array.isArray(val)) {
-      for (const item of val) {
-        this.validateNestedFunctions(item, componentCatalogId);
+      for (let i = 0; i < val.length; i++) {
+        this.validateNestedFunctions(val[i], componentCatalogId, `${currentPath}/${i}`);
       }
       return;
     }
@@ -341,45 +406,19 @@ export class PayloadValidator {
     const rawName = this.enforceIdentifiers
       ? record['@call']
       : (record['call'] ?? record['function']);
-    // From v1.0 any string name is checked, so an empty one is reported as an
-    // invalid identifier rather than skipped.
     if (typeof rawName === 'string' && (this.enforceIdentifiers || rawName.length > 0)) {
-      const rawArgs = record['args'];
-      const argsDict = (rawArgs !== undefined ? rawArgs : {}) as Record<string, unknown>;
-
-      if (!this.enforceIdentifiers) {
-        // Below v1.0 a call cannot select a catalog: it runs in the surface
-        // catalog whatever `catalogId` it carries, so validate it here.
-        this.validateFunction(rawName, argsDict);
-      } else if (rawName.startsWith('@')) {
-        // Reserved system functions such as `@index` belong to no catalog.
-        assertSystemCallNamesNoCatalog(rawName, record);
-        this.validateFunction(rawName, argsDict);
-      } else {
-        const callCatalogId = record['catalogId'];
-        if (callCatalogId !== undefined && typeof callCatalogId !== 'string') {
-          throw new A2uiValidationError(nonStringCatalogIdMessage(rawName));
+      try {
+        this.checkNestedCallRecord(record, rawName, componentCatalogId);
+      } catch (err: unknown) {
+        if (err instanceof A2uiValidationError && currentPath) {
+          err.path = err.path && err.path !== '/' ? `${currentPath}${err.path}` : currentPath;
         }
-        // Any string, the empty string included, names a catalog. A component
-        // that names no catalogId is taken to be in the surface default.
-        if (
-          nestedCallRunsInCatalog(callCatalogId, this.catalog.id, {
-            catalogIsDefault: componentCatalogId === undefined,
-          })
-        ) {
-          this.validateFunction(rawName, argsDict);
-        } else {
-          // The call runs in a catalog this validator cannot see: check
-          // identifiers only.
-          this.assertFunctionIdentifiers(rawName, argsDict);
-        }
+        throw err;
       }
     }
 
-    // Component envelope keys were stripped before this walk, so every key
-    // here, including a nested `id` or `component`, holds property data.
-    for (const v of Object.values(record)) {
-      this.validateNestedFunctions(v, componentCatalogId);
+    for (const [k, v] of Object.entries(record)) {
+      this.validateNestedFunctions(v, componentCatalogId, `${currentPath}/${k}`);
     }
   }
 
@@ -413,6 +452,9 @@ export class PayloadValidator {
       ) {
         throw new A2uiValidationError(
           `Validation failed for function '${name}': Expected object, received ${Array.isArray(args) ? 'array' : typeof args}`,
+          undefined,
+          'VALIDATION_ERROR',
+          {path: '/args'},
         );
       }
       return (args ?? {}) as Record<string, unknown>;
@@ -421,9 +463,12 @@ export class PayloadValidator {
     const result = fn.schema.safeParse(args ?? {});
     if (!result.success) {
       const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const details = zodIssuesToDetails(result.error.issues, '/args');
       throw new A2uiValidationError(
         `Validation failed for function '${name}': ${formattedErrors}`,
-        result.error.issues,
+        details,
+        'VALIDATION_ERROR',
+        {path: details[0]?.path},
       );
     }
     return result.data as Record<string, unknown>;
@@ -445,9 +490,12 @@ export class PayloadValidator {
     const result = themeSchema.safeParse(theme);
     if (!result.success) {
       const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const details = zodIssuesToDetails(result.error.issues, '/theme');
       throw new A2uiValidationError(
         `Validation failed for theme: ${formattedErrors}`,
-        result.error.issues,
+        details,
+        'VALIDATION_ERROR',
+        {path: details[0]?.path ?? '/theme'},
       );
     }
     return result.data;
@@ -458,14 +506,53 @@ export class PayloadValidator {
    *
    * @param name Identifier to check.
    * @param message Error message to use when validation fails.
+   * @param allowLeadingAt Whether a leading `@` is permitted.
+   * @param path Optional JSON Pointer path for error context.
    * @throws {A2uiValidationError} If identifier enforcement is active and `name` is invalid.
    */
-  private assertIdentifier(name: string, message: string, allowLeadingAt = false): void {
+  private assertIdentifier(
+    name: string,
+    message: string,
+    allowLeadingAt = false,
+    path?: string,
+  ): void {
     if (!this.enforceIdentifiers) return;
     if (!isValidUax31Identifier(name, allowLeadingAt)) {
-      throw new A2uiValidationError(message);
+      throw new A2uiValidationError(
+        message,
+        path ? [{path, code: 'invalid_value', message}] : undefined,
+        'VALIDATION_ERROR',
+        {path},
+      );
     }
   }
+}
+
+/**
+ * Converts Zod validation issues into structured `A2uiErrorDetail` entries.
+ */
+function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErrorDetail[] {
+  return issues.map(issue => {
+    const segments = issue.path.map(String);
+    if (
+      issue.code === 'unrecognized_keys' &&
+      'keys' in issue &&
+      Array.isArray(issue.keys) &&
+      issue.keys.length > 0
+    ) {
+      segments.push(String(issue.keys[0]));
+    }
+    const relPath = segments.length > 0 ? `/${segments.join('/')}` : '';
+    const fullPath = `${prefix}${relPath}` || '/';
+    const isMissing =
+      (issue.code === 'invalid_type' && 'received' in issue && issue.received === 'undefined') ||
+      issue.message === 'Required';
+    return {
+      path: fullPath,
+      code: isMissing ? 'missing_field' : 'invalid_value',
+      message: issue.message,
+    };
+  });
 }
 
 /**

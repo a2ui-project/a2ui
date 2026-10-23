@@ -942,7 +942,8 @@ function createCatalogInvoker<F extends FunctionApi>(
     }
 
     try {
-      const safeArgs = fn.schema.parse(rawArgs);
+      const coercedArgs = coerceLogicalValidationResultArgs(name, rawArgs, protocolVersion);
+      const safeArgs = fn.schema.parse(coercedArgs);
       return execute.call(fn, safeArgs, ctx, abortSignal);
     } catch (e: any) {
       if (e?.name === 'ZodError' || e instanceof z.ZodError) {
@@ -955,6 +956,46 @@ function createCatalogInvoker<F extends FunctionApi>(
       throw e;
     }
   };
+}
+
+function coerceLogicalValidationResultArgs(
+  name: string,
+  rawArgs: Record<string, unknown>,
+  protocolVersion: string | undefined,
+): Record<string, unknown> {
+  if (
+    !isAtLeastVersion(protocolVersion, SpecVersion.V1_0) ||
+    !rawArgs ||
+    typeof rawArgs !== 'object'
+  ) {
+    return rawArgs;
+  }
+  if ((name === 'and' || name === 'or') && Array.isArray(rawArgs.values)) {
+    return {
+      ...rawArgs,
+      values: rawArgs.values.map(v =>
+        v !== null &&
+        typeof v === 'object' &&
+        'valid' in v &&
+        typeof (v as {valid: unknown}).valid === 'boolean'
+          ? (v as {valid: boolean}).valid
+          : v,
+      ),
+    };
+  }
+  if (
+    name === 'not' &&
+    rawArgs.value !== null &&
+    typeof rawArgs.value === 'object' &&
+    'valid' in rawArgs.value &&
+    typeof (rawArgs.value as {valid: unknown}).valid === 'boolean'
+  ) {
+    return {
+      ...rawArgs,
+      value: (rawArgs.value as {valid: boolean}).valid,
+    };
+  }
+  return rawArgs;
 }
 
 function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): void {

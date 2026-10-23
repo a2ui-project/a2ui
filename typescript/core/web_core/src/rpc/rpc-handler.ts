@@ -27,6 +27,7 @@ import {
   RendererFunctionResponseMessage,
   CallAgentFunctionMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
+import type {ErrorMessage} from '../processing/message-error-mapper.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
 import {A2uiRpcError, RpcErrorCode} from '../errors.js';
@@ -37,7 +38,7 @@ export {A2uiRpcError, RpcErrorCode};
  * Callback function type receiving outbound renderer messages intended for the agent.
  */
 export type OutboundMessageListener = (
-  message: RendererFunctionResponseMessage | CallAgentFunctionMessage,
+  message: RendererFunctionResponseMessage | CallAgentFunctionMessage | ErrorMessage,
 ) => void | Promise<void>;
 
 /**
