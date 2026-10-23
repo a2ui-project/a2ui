@@ -156,6 +156,15 @@ public final class DataContext {
       )
       return .null
     }
+    // Bindings, checks and actions are renderer callers. An agentOnly function runs only
+    // through an agent-initiated callRendererFunction, which RPCHandler evaluates directly.
+    if function.api.allowedCallers == .agentOnly {
+      functionHandler?.handleFunctionError(
+        FunctionError.callerDisallowed(name: callName, caller: "renderer"),
+        functionName: callName
+      )
+      return .null
+    }
 
     var resolvedArgs: [String: JSONValue] = [:]
     if let argsObj = dict["args"]?.dictionaryValue {
