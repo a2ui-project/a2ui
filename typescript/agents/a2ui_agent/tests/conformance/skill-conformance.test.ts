@@ -15,11 +15,19 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 import {describe, expect, test} from 'vitest';
 
-import {CatalogConfig, DirectJsonFormat, ExpressFormat, SkillGenerator} from '../../src/index.js';
+import {
+  CatalogConfig,
+  DirectJsonFormat,
+  ExpressFormat,
+  Skill,
+  SkillGenerator,
+  SkillSet,
+} from '../../src/index.js';
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {loadBasicCatalog, REPO_ROOT} from '../helpers/basic-catalogs.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
@@ -44,10 +52,10 @@ function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
   }
 
   const fmtName = (args.format as string | undefined) ?? 'express';
-  const fmt =
-    fmtName === 'express'
-      ? new ExpressFormat(catalog ? [catalog] : [])
-      : new DirectJsonFormat(catalog ? [catalog] : [basicCatalogV10]);
+  // Cases without a catalog (such as `export_to_directory`) still get a usable
+  // generator; Express rejects an empty catalog list.
+  const catalogs = catalog ? [catalog] : [basicCatalogV10];
+  const fmt = fmtName === 'express' ? new ExpressFormat(catalogs) : new DirectJsonFormat(catalogs);
   const generator = new SkillGenerator(fmt);
   return {args, catalog, generator};
 }
@@ -89,6 +97,39 @@ function runSkillSetCase(testCase: LoadedCase, {generator}: SkillCaseContext): v
   }
 }
 
+interface LiteralSkill {
+  name: string;
+  description: string;
+  content: string;
+  filename?: string;
+}
+
+function runExportToDirectoryCase(testCase: LoadedCase, {args}: SkillCaseContext): void {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-skill-export-'));
+  try {
+    for (const rel of (args.pre_existing_files as string[] | undefined) ?? []) {
+      const abs = path.join(tempDir, rel);
+      fs.mkdirSync(path.dirname(abs), {recursive: true});
+      fs.writeFileSync(abs, 'pre-existing', 'utf-8');
+    }
+
+    const skillSet = new SkillSet();
+    for (const s of (args.skills as LiteralSkill[] | undefined) ?? []) {
+      skillSet.add(new Skill(s));
+    }
+    skillSet.exportToDirectory(tempDir);
+
+    for (const rel of (testCase.expected_files as string[] | undefined) ?? []) {
+      expect(fs.existsSync(path.join(tempDir, rel)), `expected ${rel} to exist`).toBe(true);
+    }
+    for (const rel of (testCase.expected_absent_files as string[] | undefined) ?? []) {
+      expect(fs.existsSync(path.join(tempDir, rel)), `expected ${rel} to be removed`).toBe(false);
+    }
+  } finally {
+    fs.rmSync(tempDir, {recursive: true, force: true});
+  }
+}
+
 const SKILL_ACTION_HANDLERS: Record<
   string,
   (testCase: LoadedCase, ctx: SkillCaseContext) => void | Promise<void>
@@ -97,6 +138,7 @@ const SKILL_ACTION_HANDLERS: Record<
   core_syntax: runCoreSyntaxCase,
   from_catalog: runFromCatalogCase,
   skill_set: runSkillSetCase,
+  export_to_directory: runExportToDirectoryCase,
 };
 
 describe('Conformance: skill.yaml', () => {

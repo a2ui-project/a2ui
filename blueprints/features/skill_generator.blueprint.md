@@ -52,10 +52,12 @@ For managed agent sandbox environments (such as `.agents/` or `/.agents/`), gene
 
 When exporting a `SkillSet` to disk via `export_to_directory(output_dir)`:
 
-- **What is wiped**: Existing subdirectories matching skills in the set (for example, `{output_dir}/a2ui-core` or `{output_dir}/a2ui-basic`) MUST be completely removed before writing new files. This ensures no stale or orphaned files (such as obsolete notes, old scripts, or deleted files) remain from prior exports.
+- **What is wiped**: For each skill, the directory that directly holds the skill file (the dirname of `skill.filename`, for example `{output_dir}/a2ui-core` for `a2ui-core/SKILL.md`, or `{output_dir}/src/skills/nested` for `src/skills/nested/SKILL.md`) MUST be completely removed before writing new files. This ensures no stale or orphaned files (such as obsolete notes, old scripts, or deleted files) remain from prior exports.
 - **What is NOT wiped**:
+  - Ancestors of the skill's directory (for example `{output_dir}/src` for `src/skills/nested/SKILL.md`) MUST NOT be removed. Only the deepest directory named by the filename is cleaned.
   - Unrelated sibling skill directories in `output_dir` (e.g. `{output_dir}/git-workflow/` or `{output_dir}/custom-skill/`) MUST be strictly preserved and left untouched.
-  - The `output_dir` root directory itself MUST NOT be wiped.
+  - The `output_dir` root directory itself MUST NOT be wiped. A skill whose filename has no directory component (such as `FLAT.md`) is written into `output_dir` without removing anything.
+- These rules are checked by the `export_to_directory` cases in `conformance/agent/skill.yaml`.
 
 ---
 
