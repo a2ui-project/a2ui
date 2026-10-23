@@ -18,7 +18,7 @@ import A2UICore
 public enum V10BasicFunctions: Sendable {
   /// Standard function implementations for A2UI Protocol v1.0.
   public static let allFunctions: [any FunctionImplementation] = [
-    AndFunction(),
+    AndFunction(readsValidationResults: true),
     EmailFunction(returnValidationResult: true),
     FormatCurrencyFunction(),
     FormatDateFunction(),
@@ -26,10 +26,10 @@ public enum V10BasicFunctions: Sendable {
     FormatStringFunction(),
     IndexFunction(),
     LengthFunction(returnValidationResult: true),
-    NotFunction(),
+    NotFunction(readsValidationResults: true),
     NumericFunction(returnValidationResult: true),
     OpenURLFunction(requiresUserActivation: true),
-    OrFunction(),
+    OrFunction(readsValidationResults: true),
     PluralizeFunction(),
     RegexFunction(returnValidationResult: true),
     RequiredFunction(returnValidationResult: true),

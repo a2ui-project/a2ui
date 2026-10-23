@@ -43,12 +43,7 @@ from a2ui.catalog_transformers import (
     ComponentPruningTransformer,
     FunctionPruningTransformer,
 )
-from a2ui.core import (
-    CatalogApi,
-    MessageProcessor,
-    MessageProcessorOptions,
-    STRICT_VALIDATION,
-)
+from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats import (
@@ -57,9 +52,18 @@ from a2ui.inference_formats import (
     ElementalFormat,
     ExpressFormat,
     to_message_dicts,
+    to_message_models,
 )
-from a2ui.parser import A2uiPart, Parser, TextPart, normalize_prompt_example_messages
+from a2ui.parser import (
+    A2uiPart,
+    Parser,
+    RawA2uiPart,
+    ResponsePart,
+    TextPart,
+    normalize_prompt_example_messages,
+)
 from a2ui.processor import CatalogConfig
+from a2ui.utils import RendererState
 
 from .base import (
     DEFAULT_PARSE_TIMEOUT_SEC,
@@ -236,7 +240,7 @@ def _check_complete_tags(parser: Parser, format_name: str, completion: str) -> N
 
 
 def _serialize_parts(
-    parts: Sequence[TextPart | A2uiPart],
+    parts: Sequence[ResponsePart],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Splits parsed parts into the compiled messages and their JSON form."""
     compiled_jsons: list[dict[str, Any]] = []
@@ -251,10 +255,28 @@ def _serialize_parts(
     return compiled_jsons, serialized_parts
 
 
+def _seeded_state(
+    catalogs: Sequence[CatalogApi],
+    initial_renderer_state: Sequence[dict[str, Any]] | None,
+) -> RendererState:
+    """Returns a renderer state that already holds any pre-seeded messages."""
+    state = RendererState(list(catalogs))
+    if initial_renderer_state:
+        state.check_topology(state.apply(list(initial_renderer_state)))
+    return state
+
+
 def _check_streamed_parse(
-    strategy: InferenceFormat, completion: str, chunk_size: int
+    strategy: InferenceFormat,
+    catalogs: Sequence[CatalogApi],
+    initial_renderer_state: Sequence[dict[str, Any]] | None,
+    completion: str,
+    chunk_size: int,
 ) -> None:
-    """Feeds `completion` through a fresh streaming parser in fixed slices.
+    """Feeds `completion` through a fresh response stream in fixed slices.
+
+    The stream checks the messages against a renderer state seeded with
+    `initial_renderer_state`, as a client receiving the model's stream would.
 
     Raises:
         ValueError: If the streamed parse raises, or yields no A2UI part.
@@ -264,10 +286,12 @@ def _check_streamed_parse(
     parser = strategy.create_parser()
     if not parser.supports_streaming:
         return
-    streamed: list[Any] = []
+    stream = parser.open_stream(state=_seeded_state(catalogs, initial_renderer_state))
+    streamed: list[ResponsePart] = []
     try:
         for start in range(0, len(completion), chunk_size):
-            streamed.extend(parser.parse_chunk(completion[start : start + chunk_size]))
+            streamed.extend(stream.feed(completion[start : start + chunk_size]))
+        streamed.extend(stream.close())
     except Exception as e:
         raise ValueError(
             f"Streaming parse failed with chunks of {chunk_size} characters: {e}"
@@ -285,13 +309,8 @@ def _validate_messages(
     initial_renderer_state: Sequence[dict[str, Any]] | None,
 ) -> None:
     """Strictly validates the model's turn, after any pre-seeded state."""
-    processor = MessageProcessor(
-        list(catalogs),
-        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-    )
-    if initial_renderer_state:
-        processor.process_messages(list(initial_renderer_state))
-    processor.process_messages(compiled_jsons)
+    state = _seeded_state(catalogs, initial_renderer_state)
+    state.check_topology(state.apply(compiled_jsons))
 
 
 def parse_and_validate_in_process(
@@ -307,10 +326,12 @@ def parse_and_validate_in_process(
 ) -> dict[str, Any]:
     """Parses an LLM response in the current Python process.
 
-    When `validate` is True, the compiled messages are also run through a strict
-    `MessageProcessor`, seeded with `options["initial_renderer_state"]` when
-    given. When `options["stream_chunk_size"]` is set and the format's parser
-    streams, the completion is also parsed in slices of that many characters.
+    When `validate` is True, the compiled messages are checked against a
+    `RendererState` seeded with `options["initial_renderer_state"]` when given,
+    so together they must form complete surfaces. Otherwise the blocks are only
+    compiled. When `options["stream_chunk_size"]` is set and the format's
+    parser streams, the completion is also parsed in slices of that many
+    characters.
     """
     opts = options or {}
     catalogs, examples = build_catalogs_and_examples(
@@ -328,9 +349,7 @@ def parse_and_validate_in_process(
     if require_complete_tags:
         _check_complete_tags(parser, format_name, completion)
 
-    compiled_jsons, serialized_parts = _serialize_parts(
-        parser.parse_response(completion)
-    )
+    compiled_jsons, serialized_parts = _serialize_parts(_compile(parser, completion))
     if not compiled_jsons:
         if format_name == "direct_json":
             raise ValueError("No A2UI JSON found in response (tags missing or empty)")
@@ -338,12 +357,27 @@ def parse_and_validate_in_process(
             f"No compiled A2UI {format_name} user interface found in parsed parts."
         )
 
+    initial_state = opts.get("initial_renderer_state")
     chunk_size = opts.get("stream_chunk_size")
     if chunk_size is not None:
-        _check_streamed_parse(strategy, completion, int(chunk_size))
+        _check_streamed_parse(
+            strategy, catalogs, initial_state, completion, int(chunk_size)
+        )
     if validate:
-        _validate_messages(catalogs, compiled_jsons, opts.get("initial_renderer_state"))
+        _validate_messages(catalogs, compiled_jsons, initial_state)
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
+
+
+def _compile(parser: Parser, completion: str) -> list[ResponsePart]:
+    """Splits a response and compiles its blocks without checking them."""
+    parts: list[ResponsePart] = []
+    for raw in parser.unwrap(completion):
+        if isinstance(raw.part, TextPart):
+            parts.append(raw.part)
+        elif isinstance(raw.part, RawA2uiPart):
+            messages = parser.compile(raw.part.a2ui_raw, is_final=raw.is_final)
+            parts.append(A2uiPart(a2ui=to_message_models(messages)))
+    return parts
 
 
 def _worker_main() -> None:

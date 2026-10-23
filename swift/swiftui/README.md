@@ -96,6 +96,13 @@ stack:
   `.combine` for read-only content), so the label describes the component as a whole. The basic
   catalog's `Row`, `Column`, `List` and `Card` do this.
 
+The basic catalog's selectable controls expose their state to assistive technologies without
+custom strings: `CheckBox` and `multipleSelection` `ChoicePicker` options are represented as a
+standard `Toggle` (`accessibilityRepresentation`), so the platform announces their on/off state
+in the user's language, while `mutuallyExclusive` options and the selected `Tabs` header carry
+the selected trait. On iOS 17 and macOS 14 and later, the row of tab headers also carries the tab
+bar trait.
+
 Limitations: SwiftUI drops an accessibility hint on a group, so `description` has no effect on
 layout containers or other `.contain` groups (for example `ChoicePicker`). Announcing changes to
 a live component's visible text, rather than its label, is tracked in

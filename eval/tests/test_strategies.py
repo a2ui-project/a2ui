@@ -374,6 +374,7 @@ def test_specialist_system_prompt_supports_v2_and_legacy_keys() -> None:
             "system_prompt": "V2 domain prompt.",
         },
         "SCHEMA_PROMPT",
+        "direct_json",
     )
     assert "V2 protocol role." in v2_prompt
     assert "V2 generation rules." in v2_prompt
@@ -386,10 +387,31 @@ def test_specialist_system_prompt_supports_v2_and_legacy_keys() -> None:
             "workflow_description": "Legacy workflow.",
         },
         "SCHEMA_PROMPT",
+        "direct_json",
     )
     assert "Legacy role." in legacy_prompt
     assert "Legacy workflow." in legacy_prompt
     assert "## Domain Instructions" not in legacy_prompt
+
+
+@pytest.mark.parametrize(
+    ("subagent_format", "tags", "has_catalog_id_notes"),
+    [
+        ("direct_json", "<a2ui-json> and </a2ui-json>", True),
+        ("express", "<a2ui> and </a2ui>", False),
+    ],
+)
+def test_specialist_system_prompt_adds_environment_notes(
+    subagent_format: str, tags: str, has_catalog_id_notes: bool
+) -> None:
+    prompt = _specialist_system_prompt(
+        {"workflow_description": "Workflow."}, "SCHEMA_PROMPT", subagent_format
+    )
+    assert prompt.index("Workflow.") < prompt.index("## Environment Notes:")
+    assert "No external tools are available to you" in prompt
+    assert f"enclosed in literal {tags} tags" in prompt
+    assert ("never invent a custom or placeholder" in prompt) == has_catalog_id_notes
+    assert prompt.endswith("SCHEMA_PROMPT")
 
 
 @pytest.mark.asyncio

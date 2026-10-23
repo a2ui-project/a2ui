@@ -507,6 +507,60 @@ struct RendererToAgentMessageTests {
     }
   }
 
+  @Test func functionResponsesEncodeExactlyOneOfValueOrError() throws {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    let decoder = makeVersionedDecoder(.v10)
+    let payload = FunctionErrorPayload(code: "ERR", message: "fail")
+
+    let rendererValue = RendererFunctionResponseMessage(
+      functionCallID: "c1", value: .number(1), version: .v10)
+    let rendererValueJSON = try #require(
+      String(data: try encoder.encode(rendererValue), encoding: .utf8))
+    #expect(rendererValueJSON == #"{"functionCallId":"c1","value":1}"#)
+    #expect(
+      try decoder.decode(RendererFunctionResponseMessage.self, from: encoder.encode(rendererValue))
+        == rendererValue)
+    #expect(rendererValue.value == .number(1))
+    #expect(rendererValue.error == nil)
+
+    let rendererError = RendererFunctionResponseMessage(
+      functionCallID: "c1", error: payload, version: .v10)
+    let rendererErrorJSON = try #require(
+      String(data: try encoder.encode(rendererError), encoding: .utf8))
+    #expect(
+      rendererErrorJSON == #"{"error":{"code":"ERR","message":"fail"},"functionCallId":"c1"}"#)
+    #expect(
+      try decoder.decode(RendererFunctionResponseMessage.self, from: encoder.encode(rendererError))
+        == rendererError)
+    #expect(rendererError.value == nil)
+    #expect(rendererError.error == payload)
+    #expect(rendererValue != rendererError)
+
+    let agentValue = AgentFunctionResponseMessage(
+      functionCallID: "c1", value: .number(1), version: .v10)
+    let agentValueJSON = try #require(
+      String(data: try encoder.encode(agentValue), encoding: .utf8))
+    #expect(agentValueJSON == #"{"functionCallId":"c1","value":1}"#)
+    #expect(
+      try decoder.decode(AgentFunctionResponseMessage.self, from: encoder.encode(agentValue))
+        == agentValue)
+    #expect(agentValue.value == .number(1))
+    #expect(agentValue.error == nil)
+
+    let agentError = AgentFunctionResponseMessage(
+      functionCallID: "c1", error: payload, version: .v10)
+    let agentErrorJSON = try #require(
+      String(data: try encoder.encode(agentError), encoding: .utf8))
+    #expect(agentErrorJSON == #"{"error":{"code":"ERR","message":"fail"},"functionCallId":"c1"}"#)
+    #expect(
+      try decoder.decode(AgentFunctionResponseMessage.self, from: encoder.encode(agentError))
+        == agentError)
+    #expect(agentError.value == nil)
+    #expect(agentError.error == payload)
+    #expect(agentValue != agentError)
+  }
+
   @Test func functionErrorPayloadCodeEnum() {
     let payload = FunctionErrorPayload(code: .invalidFunctionCall, message: "Invalid")
     #expect(payload.code == "INVALID_FUNCTION_CALL")

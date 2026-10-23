@@ -85,7 +85,12 @@ norecursedirs = [
     "node_modules",
     ".venv",
 ]
-addopts = "--import-mode=importlib"
+# Timing tests are deselected here; `uv run pytest -m performance` runs only
+# them. See python/a2ui_core/tests/timing_harness.py.
+addopts = "--import-mode=importlib -m 'not performance'"
+markers = [
+    "performance: times an operation; run apart from the other tests with `-m performance`",
+]
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple"

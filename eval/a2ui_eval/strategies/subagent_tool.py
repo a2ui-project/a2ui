@@ -72,8 +72,52 @@ SPECIALIST_RESULT_KEYS = (
 )
 
 
-def _specialist_system_prompt(sample_meta: Mapping[str, Any], snippet: str) -> str:
-    """Prefixes the bridge's prompt snippet with the sample's role, workflow, and domain instructions."""
+def _environment_notes(subagent_format: str) -> str:
+    """Notes that stop the specialist from calling tools or inventing catalog ids.
+
+    The specialist has no tools, but sample instructions written for the outer
+    agent can mention some. The catalog id notes are the ones
+    `format_system_prompt` adds for Direct JSON, and like there they are only
+    added for Direct JSON.
+    """
+    if subagent_format == "direct_json":
+        payload = (
+            "A2UI JSON payload enclosed in literal <a2ui-json> and </a2ui-json> tags"
+        )
+    else:
+        payload = "A2UI payload enclosed in literal <a2ui> and </a2ui> tags"
+    notes = (
+        "## Environment Notes:\n"
+        "- No external tools are available to you in this specialist"
+        " environment. Even if the instructions above mention calling"
+        " tools (such as data-fetching or app-fetching tools), do NOT call"
+        " any tools or emit tool-call syntax; instead, directly construct"
+        f" the complete {payload} using synthesized sample data."
+    )
+    if subagent_format != "direct_json":
+        return notes
+    return notes + (
+        "\n- When specifying `catalogId` (in `createSurface` as the surface"
+        " default, or on individual components and function calls), always"
+        " use the exact `catalogId` value(s) defined in the provided"
+        " Catalog Schema(s); never invent a custom or placeholder"
+        " `catalogId` URL or identifier (such as `example.com`), even if"
+        " the user prompt mentions a custom catalog.\n"
+        "- In `createSurface`, set `catalogId` to the primary catalog ID"
+        " as the surface default. Components or functions belonging to"
+        " secondary catalogs must specify their own `catalogId`."
+    )
+
+
+def _specialist_system_prompt(
+    sample_meta: Mapping[str, Any], snippet: str, subagent_format: str
+) -> str:
+    """Builds the specialist's system prompt around the bridge's prompt snippet.
+
+    The snippet is preceded by the sample's role and workflow and by the
+    environment notes, and the result is wrapped in the sample's domain
+    instructions when it has any.
+    """
     prompt_parts = []
     role_description = sample_meta.get("protocol_role") or sample_meta.get(
         "role_description", ""
@@ -85,6 +129,7 @@ def _specialist_system_prompt(sample_meta: Mapping[str, Any], snippet: str) -> s
     )
     if workflow_description:
         prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+    prompt_parts.append(_environment_notes(subagent_format))
     prompt_parts.append(snippet)
     a2ui_prompt = "\n\n".join(prompt_parts)
     domain_prompt = str(sample_meta.get("system_prompt", "")).strip()
@@ -203,7 +248,9 @@ def a2ui_specialist(
         )
         messages: list[ChatMessage] = [
             ChatMessageSystem(
-                content=_specialist_system_prompt(sample_meta, generated_snippet)
+                content=_specialist_system_prompt(
+                    sample_meta, generated_snippet, subagent_format
+                )
             ),
             ChatMessageUser(content=input),
         ]
