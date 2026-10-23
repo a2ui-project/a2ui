@@ -84,9 +84,9 @@ class PromptGenerator(ABC):
         return assemble_instructions(self)
 
 
-_cache: weakref.WeakKeyDictionary[
-    PromptGenerator, dict[tuple[int, ...], tuple[tuple[CatalogApi, ...], str]]
-] = weakref.WeakKeyDictionary()
+# The snippet for each generator's own catalogs, which the generator already
+# holds, so an entry keeps nothing alive beyond the generator.
+_cache: weakref.WeakKeyDictionary[PromptGenerator, str] = weakref.WeakKeyDictionary()
 
 
 def assemble_instructions(
@@ -117,19 +117,20 @@ def assemble_instructions(
         generator's `catalogs`.
 
     Returns:
-      The assembled text, cached per generator and catalogs.
+      The assembled text. The text for the generator's own catalogs is cached
+      per generator; text for other catalogs is assembled on each call.
     """
     own_catalogs = tuple(generator.catalogs)
     targets = own_catalogs if catalogs is None else tuple(catalogs)
-    key = tuple(id(c) for c in targets)
-    try:
-        per_generator = _cache.setdefault(generator, {})
-    except TypeError:
-        # A generator that can't be weakly referenced isn't cached.
-        per_generator = {}
-    cached = per_generator.get(key)
-    if cached is not None:
-        return cached[1]
+    own = _same_catalogs(targets, own_catalogs)
+    if own:
+        try:
+            cached = _cache.get(generator)
+        except TypeError:
+            # A generator that can't be weakly referenced isn't cached.
+            cached = None
+        if cached is not None:
+            return cached
 
     parts: list[str] = []
     base_rules = generator.generate_base_rules()
@@ -137,7 +138,7 @@ def assemble_instructions(
         parts.append(base_rules)
 
     examples: list[str] = []
-    if _same_catalogs(targets, own_catalogs):
+    if own:
         instructions = generator.generate_catalog_instructions()
         if instructions:
             parts.append(instructions)
@@ -156,9 +157,11 @@ def assemble_instructions(
         parts.append(EXAMPLES_HEADING + "\n\n".join(examples))
 
     text = "\n\n".join(parts)
-    # The catalogs are kept with the text so their ids can't be reused while
-    # the entry exists.
-    per_generator[key] = (targets, text)
+    if own:
+        try:
+            _cache[generator] = text
+        except TypeError:
+            pass
     return text
 
 
