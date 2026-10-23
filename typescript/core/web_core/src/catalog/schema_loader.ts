@@ -18,6 +18,7 @@ import {z} from 'zod';
 
 import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
+import {A2uiCatalogError} from '../errors.js';
 import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
 import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
@@ -1122,6 +1123,61 @@ function parseThemeSchema(
 }
 
 /**
+ * Whether a v1.0 catalog may use `ref` as a `$ref` target.
+ *
+ * A v1.0 catalog may reference its own document, through a local reference
+ * (`#/...`) or the `catalog.json` envelope placeholder, and `common_types.json`,
+ * by a relative or absolute URI.
+ *
+ * @param ref The `$ref` value.
+ * @returns Whether the reference is allowed.
+ */
+function isSupportedV10Ref(ref: string): boolean {
+  if (ref.startsWith('#')) return true;
+  const hashIndex = ref.indexOf('#');
+  const documentPart = hashIndex === -1 ? ref : ref.slice(0, hashIndex);
+  if (documentPart === 'catalog.json') return true;
+  return documentPart.split('/').pop() === 'common_types.json';
+}
+
+/**
+ * Escapes a key as an RFC 6901 JSON Pointer reference token.
+ */
+function escapeJsonPointerToken(token: string): string {
+  return token.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
+/**
+ * Checks that every `$ref` of a v1.0 catalog document targets the document
+ * itself or `common_types.json`.
+ *
+ * Walks the whole document, including components, functions and `$defs`.
+ * References are only inspected, never resolved or fetched.
+ *
+ * @param node The document, or a value nested in it.
+ * @param pointer JSON Pointer of `node` within the document.
+ * @throws {A2uiCatalogError} If a `$ref` targets any other document, such as
+ *   another catalog.
+ */
+function assertSupportedV10Refs(node: unknown, pointer: string): void {
+  if (Array.isArray(node)) {
+    node.forEach((item, index) => assertSupportedV10Refs(item, `${pointer}/${index}`));
+    return;
+  }
+  if (!isPlainObject(node)) return;
+  for (const [key, value] of Object.entries(node)) {
+    const childPointer = `${pointer}/${escapeJsonPointerToken(key)}`;
+    if (key === '$ref' && typeof value === 'string' && !isSupportedV10Ref(value)) {
+      throw new A2uiCatalogError(
+        `Unsupported external $ref '${value}' at ${childPointer}: a v1.0 catalog may only ` +
+          'reference its own components and functions (#/...) or common_types.json.',
+      );
+    }
+    assertSupportedV10Refs(value, childPointer);
+  }
+}
+
+/**
  * Parses a raw A2UI catalog schema into its typed component, function, and metadata fields.
  *
  * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
@@ -1139,6 +1195,8 @@ function parseThemeSchema(
  *   declares. The schema itself is kept as written.
  * @returns Parsed catalog fields ready to construct a `Catalog` instance.
  * @throws {Error} If the catalog ID is missing or not a string.
+ * @throws {A2uiCatalogError} If a v1.0+ catalog has a `$ref` to a document
+ *   other than itself or `common_types.json`, such as another catalog.
  */
 export function parseCatalogSchema(
   inputSchema: Record<string, unknown>,
@@ -1164,6 +1222,11 @@ export function parseCatalogSchema(
     (catalogSchema.protocolVersion as string | undefined) ??
     DEFAULT_PROTOCOL_VERSION;
   const atLeastV10 = isAtLeastVersion(resolvedVersion, '1.0');
+  if (atLeastV10) {
+    // Before anything reads the entries, so no unsupported reference is ever
+    // followed.
+    assertSupportedV10Refs(catalogSchema, '');
+  }
 
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
   const components = parseCatalogComponents(

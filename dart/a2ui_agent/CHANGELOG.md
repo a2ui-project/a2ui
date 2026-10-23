@@ -136,6 +136,9 @@
   processor's catalogs, so an agent that keeps a state per conversation can
   tell when to make a new one.
   `A2uiRequestProcessor.parseResponse` also takes `wrapped`.
+- `CatalogConfig.transformedCatalog` is computed on first access and then
+  reused, so every request sees the same transformed catalog
+  ([#3575](https://github.com/a2ui-project/a2ui/pull/3575)).
 - Implemented protocol v1.0. The SDK reads and writes the protocol version
   that the active catalogs target, rather than always v0.9:
   - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` load documents

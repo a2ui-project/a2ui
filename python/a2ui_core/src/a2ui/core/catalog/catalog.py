@@ -2296,7 +2296,8 @@ class Catalog(Generic[TComponent, TFunction]):
 
         Raises:
             A2uiCatalogError: If the document has no catalog id or is
-                malformed.
+                malformed, or if a v1.0 document has a `$ref` to a document
+                other than itself or `common_types.json`.
         """
         catalog_id = catalog_id or catalog_schema.get("catalogId")
         if not catalog_id:
@@ -2308,6 +2309,12 @@ class Catalog(Generic[TComponent, TFunction]):
         raw_version = document.get("protocolVersion")
         declared_version = raw_version if isinstance(raw_version, str) else None
         p_ver = protocol_version or declared_version or _DEFAULT_PROTOCOL_VERSION
+
+        validate_identifiers = is_at_least_version(p_ver, ProtocolVersion.V1_0)
+        if validate_identifiers:
+            # Before anything resolves a reference: a v1.0 catalog may not
+            # reference another catalog, and such a target is never fetched.
+            _check_v10_external_refs(document)
 
         components_map = document.get("components", {})
         if not isinstance(components_map, Mapping):
@@ -2324,8 +2331,6 @@ class Catalog(Generic[TComponent, TFunction]):
         permitted_func_names = _union_member_names(
             defs_map.get("anyFunction"), "#/functions/"
         )
-
-        validate_identifiers = is_at_least_version(p_ver, ProtocolVersion.V1_0)
 
         components = []
         for name, schema in components_map.items():
@@ -2526,6 +2531,52 @@ class _DerivedEntries:
 def _is_object_schema(node: Mapping[str, Any]) -> bool:
     """Whether a theme is written as an object schema, not a bare property map."""
     return "properties" in node or "allOf" in node or node.get("type") == "object"
+
+
+def _is_supported_v10_ref(ref: str) -> bool:
+    """Whether a v1.0 catalog may use `ref` as a `$ref` target.
+
+    A v1.0 catalog may reference its own definitions (`#...`), the shared
+    `common_types.json` (by relative or absolute URI), and `catalog.json`, the
+    envelope placeholder for the catalog itself.
+    """
+    document = ref.split("#", 1)[0]
+    if not document or document == "catalog.json":
+        return True
+    return document.rsplit("/", 1)[-1] == "common_types.json"
+
+
+def _escape_pointer_token(token: str) -> str:
+    """Escapes a JSON Pointer reference token (RFC 6901)."""
+    return token.replace("~", "~0").replace("/", "~1")
+
+
+def _check_v10_external_refs(node: Any, pointer: str = "") -> None:
+    """Rejects every `$ref` in a v1.0 catalog document it cannot resolve.
+
+    Walks the document as authored, without resolving or fetching any
+    reference.
+
+    Raises:
+        A2uiCatalogError: If a `$ref` targets a document other than the
+            catalog itself or `common_types.json`.
+    """
+    stack: list[tuple[Any, str]] = [(node, pointer)]
+    while stack:
+        current, path = stack.pop()
+        if isinstance(current, Mapping):
+            ref = current.get("$ref")
+            if isinstance(ref, str) and not _is_supported_v10_ref(ref):
+                raise A2uiCatalogError(
+                    f"Unsupported external $ref '{ref}' at {path}/$ref: a v1.0"
+                    " catalog may only reference its own components and"
+                    " functions (#/...) or common_types.json."
+                )
+            for key, value in reversed(list(current.items())):
+                stack.append((value, f"{path}/{_escape_pointer_token(str(key))}"))
+        elif isinstance(current, list):
+            for index in reversed(range(len(current))):
+                stack.append((current[index], f"{path}/{index}"))
 
 
 def _union_member_names(union: Any, prefix: str) -> set[str]:

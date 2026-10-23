@@ -181,6 +181,92 @@
     category: "CatalogError"
     message: "Invalid UAX #31 component identifier"
 
+- name: test_v10_catalog_from_json_rejects_ref_to_another_catalog
+  description: Tests that a v1.0 catalog whose component inherits a component of another catalog through an external $ref raises CatalogError when loaded.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/other_catalog_ref"
+    components:
+      FancyText:
+        type: object
+        allOf:
+          - $ref: "basic_catalog.json#/components/Text"
+        properties:
+          component: {const: "FancyText"}
+          badge: {type: string}
+        required: ["component"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_rejects_absolute_uri_ref
+  description: Tests that a v1.0 catalog property that references another catalog by absolute URI raises CatalogError when loaded, without fetching the URI.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/absolute_uri_ref"
+    components:
+      FancyButton:
+        type: object
+        properties:
+          component: {const: "FancyButton"}
+          action:
+            $ref: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json#/components/Button/properties/action"
+        required: ["component", "action"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_rejects_external_ref_in_function_args
+  description: Tests that a v1.0 function whose argument schema references another catalog raises CatalogError when loaded.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/function_arg_ref"
+    functions:
+      formatBadge:
+        type: object
+        returnType: string
+        properties:
+          "@call": {const: "formatBadge"}
+          args:
+            type: object
+            properties:
+              value:
+                $ref: "other_catalog.json#/functions/formatString/properties/args/properties/value"
+            required: ["value"]
+        required: ["@call", "args"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_accepts_local_and_common_types_refs
+  description: Tests that local references and common_types.json references, in relative or absolute form, remain valid $ref targets in a v1.0 catalog.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/allowed_refs"
+    components:
+      Label:
+        type: object
+        allOf:
+          - $ref: "common_types.json#/$defs/Checkable"
+        properties:
+          component: {const: "Label"}
+          text: {$ref: "common_types.json#/$defs/DynamicString"}
+          caption:
+            $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+        required: ["component", "text"]
+      Wrapper:
+        type: object
+        properties:
+          component: {const: "Wrapper"}
+          child: {$ref: "common_types.json#/$defs/ComponentId"}
+        required: ["component", "child"]
+  expect:
+    components: ["Label", "Wrapper"]
+
 - name: test_v09_catalog_from_json_allows_hyphen_identifiers
   description: Tests that v0.9 catalogs permit hyphenated component identifiers.
   action: from_json

@@ -120,9 +120,16 @@ function declaredComponent(doc: Schema, commonDefs: Record<string, Schema>, name
       ...commonCheckLists,
     ]),
   ];
+  // The first definition of a property wins, so the component's own definition
+  // overrides one it inherits.
   const enums = new Map<string, unknown>();
+  const defined = new Set<string>();
   for (const props of ownProperties) {
     for (const [propName, prop] of Object.entries(props)) {
+      if (defined.has(propName)) {
+        continue;
+      }
+      defined.add(propName);
       const values = findEnum(prop);
       if (values) {
         enums.set(propName, values);
@@ -429,6 +436,58 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
       expect(expectsOptionObjects(null)).toBe(false);
       expect(expectsOptionObjects('string')).toBe(false);
+    });
+  });
+
+  describe('a property both a component and what it inherits define', () => {
+    const doc: Record<string, unknown> = {
+      catalogId: 'test_own_property_override',
+      protocolVersion: '1.0',
+      components: {
+        Badge: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/BadgeMixin'},
+            {
+              type: 'object',
+              properties: {
+                size: {type: 'string', enum: ['inline-s', 'inline-m']},
+                tone: {type: 'string', enum: ['inline-calm', 'inline-loud']},
+              },
+            },
+          ],
+          properties: {
+            component: {const: 'Badge'},
+            label: {type: 'string'},
+            tone: {type: 'string', enum: ['own-calm', 'own-loud']},
+            size: {type: 'string', enum: ['own-s', 'own-m']},
+          },
+        },
+      },
+      functions: {},
+      $defs: {
+        BadgeMixin: {
+          type: 'object',
+          properties: {
+            size: {type: 'string', enum: ['mixin-s', 'mixin-m']},
+            label: {type: 'number'},
+            extra: {type: 'string'},
+          },
+        },
+      },
+    };
+    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), 'v1.0');
+
+    it("uses the component's own definition over an allOf entry and a local mixin", () => {
+      expect(helper.getPropertyEnum('Badge', 'tone')).toEqual(['own-calm', 'own-loud']);
+      expect(helper.getPropertyEnum('Badge', 'size')).toEqual(['own-s', 'own-m']);
+      expect(helper.getPropertySchema('Badge', 'tone')?.enum).toEqual(['own-calm', 'own-loud']);
+      expect(helper.getPropertySchema('Badge', 'size')?.enum).toEqual(['own-s', 'own-m']);
+      expect(helper.getPropertySchema('Badge', 'label')?.type).toBe('string');
+    });
+
+    it('keeps each property where it is first declared', () => {
+      expect(helper.getComponentProperties('Badge')).toEqual(['label', 'tone', 'size', 'extra']);
     });
   });
 

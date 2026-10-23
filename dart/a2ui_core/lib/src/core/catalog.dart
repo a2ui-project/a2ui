@@ -500,7 +500,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// Throws [A2uiCatalogError] if the document is malformed, has no catalog
   /// id, conflicts with [expectedCatalogId], declares a `protocolVersion`
   /// this SDK does not implement, or holds a local `$ref` that names
-  /// nothing.
+  /// nothing. A v1.0 document also throws when it holds a `$ref` to a
+  /// document other than itself and `common_types.json`, such as another
+  /// catalog; such a reference is never fetched.
   static CatalogApi fromJson(
     Map<String, Object?> json, {
     String? expectedCatalogId,
@@ -539,6 +541,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       rawId,
     );
     final A2uiProtocolVersion? version = declaredVersion ?? protocolVersion;
+    if (version?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false) {
+      _checkExternalRefs(json, rawId);
+    }
 
     // Expanding the local references checks that each names something, and
     // lets the identifier check see names reached through them. The
@@ -673,6 +678,56 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           '${A2uiProtocolVersion.supportedVersions}.',
           catalogId: catalogId,
         ));
+  }
+
+  /// Checks that every `$ref` in a v1.0 catalog document names a target the
+  /// protocol allows: a local reference (`#/...`), `common_types.json`
+  /// (relative or absolute), or `catalog.json`, the placeholder for the
+  /// catalog itself.
+  ///
+  /// Runs on the document as written, before any reference is resolved, so a
+  /// reference to another catalog is reported rather than fetched or dropped.
+  ///
+  /// Throws [A2uiCatalogError] naming the first unsupported reference and
+  /// the JSON pointer of the `$ref` that holds it.
+  static void _checkExternalRefs(Object? json, String catalogId) {
+    String escape(String token) =>
+        token.replaceAll('~', '~0').replaceAll('/', '~1');
+
+    void visit(Object? node, String pointer) {
+      if (node is Map) {
+        for (final MapEntry<Object?, Object?> entry in node.entries) {
+          final path = '$pointer/${escape('${entry.key}')}';
+          final Object? value = entry.value;
+          if (entry.key == r'$ref' &&
+              value is String &&
+              !_isSupportedRef(value)) {
+            throw A2uiCatalogError(
+              "Unsupported external \$ref '$value' at $path: a v1.0 catalog "
+              'may only reference its own components and functions (#/...) '
+              'or common_types.json.',
+              catalogId: catalogId,
+            );
+          }
+          visit(value, path);
+        }
+      } else if (node is List) {
+        for (var i = 0; i < node.length; i++) {
+          visit(node[i], '$pointer/$i');
+        }
+      }
+    }
+
+    visit(json, '');
+  }
+
+  /// Whether [ref] is a `$ref` target a v1.0 catalog may use.
+  static bool _isSupportedRef(String ref) {
+    if (ref.startsWith('#')) return true;
+    final int hash = ref.indexOf('#');
+    final String document = hash < 0 ? ref : ref.substring(0, hash);
+    return document == 'catalog.json' ||
+        document.split('/').last == 'common_types.json';
   }
 
   /// Checks the names a v1.0 catalog declares against UAX #31.
