@@ -744,7 +744,10 @@ def test_message_processor_v10_checks_inline_component_metadata():
 
     with pytest.raises(
         A2uiValidationError,
-        match=r"createSurface\.components\.0\.metadata\.extensions: .*'bad-key'",
+        match=(
+            r"Invalid v1\.0 message:"
+            r" createSurface\.components\.0\.metadata\.extensions: .*'bad-key'"
+        ),
     ):
         processor.process_messages([{
             "version": "v1.0",

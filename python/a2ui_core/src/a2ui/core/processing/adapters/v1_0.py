@@ -82,7 +82,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                     e, path_prefix=f"{action}.components.{i}.metadata"
                 )
                 raise A2uiValidationError(
-                    f"Invalid {self.version} message: {summary}"
+                    f"Invalid {self.version.value} message: {summary}"
                 ) from None
 
     def _extract_operations_for_action(
