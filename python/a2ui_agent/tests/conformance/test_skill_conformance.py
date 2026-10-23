@@ -19,6 +19,7 @@ import unittest
 
 import yaml
 
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
@@ -81,20 +82,26 @@ class TestSkillConformance(unittest.TestCase):
             args = case.get("args", {})
 
             with self.subTest(name=name):
-                cat_rel_path = args.get("catalog")
-                catalog = None
-                if cat_rel_path:
-                    abs_cat_path = os.path.join(REPO_ROOT, cat_rel_path)
-                    cat_config = CatalogConfig.from_path(abs_cat_path)
-                    catalog = cat_config.transformed_catalog
+                cat_rel_paths = args.get("catalogs") or (
+                    [args["catalog"]] if args.get("catalog") else []
+                )
+                catalogs = [
+                    CatalogConfig.from_path(
+                        os.path.join(REPO_ROOT, rel_path)
+                    ).transformed_catalog
+                    for rel_path in cat_rel_paths
+                ]
+                catalog = catalogs[0] if catalogs else None
 
                 fmt_name = args.get("format", "express")
                 if fmt_name == "express":
-                    fmt = ExpressFormat([catalog]) if catalog else ExpressFormat()
+                    fmt = ExpressFormat(catalogs) if catalogs else ExpressFormat()
+                elif fmt_name == "direct_json":
+                    fmt = DirectJsonFormat(catalogs)
                 elif fmt_name == "atom":
-                    fmt = AtomFormat([catalog]) if catalog else AtomFormat()
+                    fmt = AtomFormat(catalogs) if catalogs else AtomFormat()
                 elif fmt_name == "elemental":
-                    fmt = ElementalFormat([catalog]) if catalog else ElementalFormat()
+                    fmt = ElementalFormat(catalogs) if catalogs else ElementalFormat()
                 else:
                     raise ValueError(f"Unsupported format: {fmt_name}")
 
@@ -126,11 +133,24 @@ class TestSkillConformance(unittest.TestCase):
                         expected_content = gf.read()
                     self.assertEqual(skill_obj.to_markdown(), expected_content)
 
+                elif action == "from_format_matches_snippet":
+                    skill_obj = generator.generate_skill()
+                    snippet = fmt.prompt_generator.generate()
+                    self.assertEqual(skill_obj.content, snippet + "\n")
+                    # The serialized skill trims whitespace at the body's ends.
+                    self.assertEqual(
+                        skill_obj.to_markdown().split("---\n\n", 1)[1],
+                        snippet.strip() + "\n",
+                    )
+
                 elif action == "skill_set":
                     skill_set = generator.generate_skillset()
                     expected_keys = case.get("expected_skills", [])
                     for k in expected_keys:
                         self.assertIn(k, skill_set.to_dict())
+
+                else:
+                    self.fail(f"Unhandled conformance action: {action}")
 
 
 if __name__ == "__main__":
