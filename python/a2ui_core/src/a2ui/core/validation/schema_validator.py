@@ -23,7 +23,6 @@ from typing import Any, Final
 from jsonschema import Draft202012Validator
 import jsonschema.exceptions
 from jsonschema.validators import extend
-from jsonschema_specifications import REGISTRY as SPECIFICATIONS  # type: ignore[import-untyped]
 import referencing
 import regex
 
@@ -132,10 +131,10 @@ def _refuse_retrieval(uri: str) -> referencing.Resource[Any]:
     )
 
 
-# Like jsonschema's default registry (the bundled JSON Schema meta-schemas),
-# but an unknown URI raises instead of being downloaded.
-_NO_RETRIEVAL_REGISTRY: Final[referencing.Registry[Any]] = SPECIFICATIONS.combine(
-    referencing.Registry(retrieve=_refuse_retrieval)  # type: ignore[call-arg]
+# jsonschema combines any non-default registry with its bundled meta-schemas,
+# so those still resolve; any other unknown URI raises instead of being fetched.
+_NO_RETRIEVAL_REGISTRY: Final[referencing.Registry[Any]] = referencing.Registry(
+    retrieve=_refuse_retrieval  # type: ignore[call-arg]
 )
 
 _orig_init = SchemaValidator.__init__

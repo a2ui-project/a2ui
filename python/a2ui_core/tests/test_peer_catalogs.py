@@ -34,7 +34,7 @@ from a2ui.core import (
     link_catalogs,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.validation.schema_validator import SchemaValidator
+from a2ui.core.validation import SchemaValidator
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 _CATALOGS = os.path.join(_REPO_ROOT, "conformance", "test_data", "catalogs")

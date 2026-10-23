@@ -5,8 +5,7 @@
   `<peer>#/components/Button/allOf/1/properties/action`, now resolves against
   the held peer catalog; previously it was left in place and jsonschema
   downloaded the peer. A `$ref` into a catalog that isn't held now fails
-  validation with an unresolvable-reference error instead. The bundled JSON
-  Schema meta-schemas still resolve locally.
+  validation with an unresolvable-reference error instead.
 - `SchemaValidator.evolve` no longer raises `TypeError` (`_registry`) for a
   subschema that declares its own `$schema`, and keeps the validator's
   registry.
