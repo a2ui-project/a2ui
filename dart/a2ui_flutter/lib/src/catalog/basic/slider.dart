@@ -47,6 +47,7 @@ Widget buildSlider(
       : null;
   final double raw = props.number('value') ?? min;
   final double value = raw.isFinite ? raw.clamp(min, max) : min;
+  final String label = props.string('label') ?? '';
   final String valueText = ComponentProps.asString(value)!;
   final String? error = props.validationErrors.firstOrNull;
   final void Function(Object?)? write = writerFor(context, props, 'value');
@@ -56,36 +57,43 @@ Widget buildSlider(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                props.string('label') ?? '',
-                style: theme.textTheme.titleSmall,
-              ),
-            ),
-            Text(valueText, style: theme.textTheme.bodySmall),
-          ],
+        // The slider announces both, as its name and its value. Read here as
+        // well, a screen reader would say them twice.
+        ExcludeSemantics(
+          child: Row(
+            children: [
+              Expanded(child: Text(label, style: theme.textTheme.titleSmall)),
+              Text(valueText, style: theme.textTheme.bodySmall),
+            ],
+          ),
         ),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          label: valueText,
-          onChanged: write == null || !range.isFinite
-              ? null
-              : (moved) {
-                  final double snapped = divisions == null
-                      ? moved
-                      : math.min(max, min + (moved - min).round());
-                  write(
-                    snapped == snapped.roundToDouble() &&
-                            snapped.abs() < _twoTo53
-                        ? snapped.toInt()
-                        : snapped,
-                  );
-                },
+        // The label names the node that carries the value and the actions.
+        // Flutter's own `label` is the value bubble, and it would be
+        // announced as the slider's name.
+        MergeSemantics(
+          child: Semantics(
+            label: label,
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              divisions: divisions,
+              semanticFormatterCallback: (v) => ComponentProps.asString(v)!,
+              onChanged: write == null || !range.isFinite
+                  ? null
+                  : (moved) {
+                      final double snapped = divisions == null
+                          ? moved
+                          : math.min(max, min + (moved - min).round());
+                      write(
+                        snapped == snapped.roundToDouble() &&
+                                snapped.abs() < _twoTo53
+                            ? snapped.toInt()
+                            : snapped,
+                      );
+                    },
+            ),
+          ),
         ),
         if (error != null)
           Text(

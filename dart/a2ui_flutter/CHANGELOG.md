@@ -19,4 +19,7 @@
 ## Unreleased
 
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
+- `Slider` is named by its `label` and reads the value it shows, instead of a
+  percentage. The value bubble is gone, since Flutter reads its text as the
+  slider's name; the value stays on screen above the track.
 - Initial version.
