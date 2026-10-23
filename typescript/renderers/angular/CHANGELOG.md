@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Integrate `NodeResolver` into `ComponentHostComponent` to emit `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` surface diagnostics, upgrade progressive child placeholders in place, and dispose universal element controllers on unmount.
+- Update `ComponentBinder` to support v1.0 `@path` data bindings, expose structured `validationResults` with severity levels (`error`, `warning`, `info`), and release child-list and check subscriptions on destroy.
+
 ## 0.13.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.
