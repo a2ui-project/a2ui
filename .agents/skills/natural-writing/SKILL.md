@@ -135,7 +135,7 @@ Do not use inline-header lists (such as `* **Header:** Description...`). Instead
 
 Avoid excessive bolding of keywords, "key takeaways," or names in the body text, except for the first mention in the lead.
 
-Use numbered lists (`1.`, `2.`) instead of bullets, so readers can refer to an item by its number, as in "see point 3". Do not use emojis (🚀, 🧠) as list markers.
+Use numbered lists (`1.`, `2.`) instead of bullets, so readers can refer to an item by its number, as in "see point 3" (except in changelogs, which use `-` bullets; see [`update-changelog`](../update-changelog/SKILL.md)). Do not use emojis (🚀, 🧠) as list markers.
 
 Avoid creating tables for simple information that easily fits in a sentence.
 

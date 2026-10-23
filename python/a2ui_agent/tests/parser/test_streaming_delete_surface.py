@@ -26,6 +26,7 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import A2uiPart
+from a2ui.utils import RendererState
 
 
 @pytest.fixture(scope="module")
@@ -52,11 +53,17 @@ def _extract_v08(parts: list) -> list[tuple[str, str | None]]:
     return res
 
 
+def _turn(parser: DirectJsonParser, state: RendererState, msgs: list[dict]) -> list:
+    """Streams one turn's response against the conversation's state."""
+    stream = parser.open_stream(state=state)
+    parts = stream.feed(f"{A2UI_OPEN_TAG}{json.dumps(msgs)}{A2UI_CLOSE_TAG}")
+    return parts + stream.close()
+
+
 def _run_v08(
-    parser: DirectJsonParser, msgs: list[dict]
+    parser: DirectJsonParser, state: RendererState, msgs: list[dict]
 ) -> list[tuple[str, str | None]]:
-    chunk = f"{A2UI_OPEN_TAG}{json.dumps(msgs)}{A2UI_CLOSE_TAG}"
-    return _extract_v08(parser.parse_chunk(chunk))
+    return _extract_v08(_turn(parser, state, msgs))
 
 
 def _surf_v08(sid: str, txt: str) -> list[dict]:
@@ -89,10 +96,9 @@ def _extract_v09(parts: list) -> list[tuple[str, str | None]]:
 
 
 def _run_v09(
-    parser: DirectJsonParser, msgs: list[dict]
+    parser: DirectJsonParser, state: RendererState, msgs: list[dict]
 ) -> list[tuple[str, str | None]]:
-    chunk = f"{A2UI_OPEN_TAG}{json.dumps(msgs)}{A2UI_CLOSE_TAG}"
-    return _extract_v09(parser.parse_chunk(chunk))
+    return _extract_v09(_turn(parser, state, msgs))
 
 
 def _surf_v09(sid: str, txt: str, catalog_id: str) -> list[dict]:
@@ -116,15 +122,16 @@ def test_v08_delete_surface_and_recreate_across_turns(
 ) -> None:
     """v0.8 emits deleteSurface and allows re-creating the deleted surface across turns."""
     parser = DirectJsonParser(catalogs=[catalog_v08])
+    state = RendererState([catalog_v08])
 
-    assert _run_v08(parser, _surf_v08("s1", "hello")) == [
+    assert _run_v08(parser, state, _surf_v08("s1", "hello")) == [
         ("beginRendering", "s1"),
         ("surfaceUpdate", "s1"),
     ]
-    assert _run_v08(parser, [{"deleteSurface": {"surfaceId": "s1"}}]) == [
+    assert _run_v08(parser, state, [{"deleteSurface": {"surfaceId": "s1"}}]) == [
         ("deleteSurface", "s1")
     ]
-    assert _run_v08(parser, _surf_v08("s1", "hello again")) == [
+    assert _run_v08(parser, state, _surf_v08("s1", "hello again")) == [
         ("beginRendering", "s1"),
         ("surfaceUpdate", "s1"),
     ]
@@ -135,12 +142,13 @@ def test_v08_delete_surface_and_recreate_in_single_response(
 ) -> None:
     """v0.8 emits both pre-delete and post-recreate surfaceUpdate messages in a single response."""
     parser = DirectJsonParser(catalogs=[catalog_v08])
+    state = RendererState([catalog_v08])
     msgs = (
         _surf_v08("s1", "a")
         + [{"deleteSurface": {"surfaceId": "s1"}}]
         + _surf_v08("s1", "b")
     )
-    assert _run_v08(parser, msgs) == [
+    assert _run_v08(parser, state, msgs) == [
         ("beginRendering", "s1"),
         ("surfaceUpdate", "s1"),
         ("deleteSurface", "s1"),
@@ -152,15 +160,17 @@ def test_v08_delete_surface_and_recreate_in_single_response(
 def test_v08_duplicate_begin_rendering_without_delete_raises(
     catalog_v08: CatalogApi,
 ) -> None:
-    """Duplicate beginRendering on s1 without deleteSurface raises A2uiValidationError and resets parser state."""
+    """Duplicate beginRendering on s1 without deleteSurface raises A2uiValidationError and leaves the state as it was."""
     parser = DirectJsonParser(catalogs=[catalog_v08])
+    state = RendererState([catalog_v08])
     with pytest.raises(A2uiValidationError, match="Surface s1 already exists"):
         _run_v08(
             parser,
+            state,
             _surf_v08("s1", "a")
             + [{"beginRendering": {"surfaceId": "s1", "root": "root"}}],
         )
-    assert _run_v08(parser, _surf_v08("s1", "recovered")) == [
+    assert _run_v08(parser, state, _surf_v08("s1", "recovered")) == [
         ("beginRendering", "s1"),
         ("surfaceUpdate", "s1"),
     ]
@@ -171,23 +181,24 @@ def test_v09_delete_surface_and_recreate_same_and_changed_content(
 ) -> None:
     """v0.9 allows re-creating a deleted surface with either identical or changed content."""
     parser = DirectJsonParser(catalogs=[catalog_v09])
+    state = RendererState([catalog_v09])
     cid = catalog_v09.catalog_id
 
-    assert _run_v09(parser, _surf_v09("s1", "hello", cid)) == [
+    assert _run_v09(parser, state, _surf_v09("s1", "hello", cid)) == [
         ("createSurface", "s1"),
         ("updateComponents", "s1"),
     ]
     assert _run_v09(
-        parser, [{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]
+        parser, state, [{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]
     ) == [("deleteSurface", "s1")]
-    assert _run_v09(parser, _surf_v09("s1", "hello", cid)) == [
+    assert _run_v09(parser, state, _surf_v09("s1", "hello", cid)) == [
         ("createSurface", "s1"),
         ("updateComponents", "s1"),
     ]
     assert _run_v09(
-        parser, [{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]
+        parser, state, [{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]
     ) == [("deleteSurface", "s1")]
-    assert _run_v09(parser, _surf_v09("s1", "changed", cid)) == [
+    assert _run_v09(parser, state, _surf_v09("s1", "changed", cid)) == [
         ("createSurface", "s1"),
         ("updateComponents", "s1"),
     ]
@@ -198,9 +209,10 @@ def test_v09_ignores_updates_after_delete_until_recreated(
 ) -> None:
     """v0.9 withholds updateComponents and updateDataModel for a deleted surface while streaming and rejects them if not recreated."""
     parser = DirectJsonParser(catalogs=[catalog_v09])
+    state = RendererState([catalog_v09])
     cid = catalog_v09.catalog_id
 
-    assert _run_v09(parser, _surf_v09("s1", "hello", cid)) == [
+    assert _run_v09(parser, state, _surf_v09("s1", "hello", cid)) == [
         ("createSurface", "s1"),
         ("updateComponents", "s1"),
     ]
@@ -222,11 +234,12 @@ def test_v09_ignores_updates_after_delete_until_recreated(
         },
     ]
     open_chunk = f"{A2UI_OPEN_TAG}{json.dumps(invalid_after_delete)[:-1]}"
-    assert _extract_v09(parser.parse_chunk(open_chunk)) == [("deleteSurface", "s1")]
+    stream = parser.open_stream(state=state)
+    assert _extract_v09(stream.feed(open_chunk)) == [("deleteSurface", "s1")]
     with pytest.raises(A2uiValidationError, match="Surface not found for message: s1"):
-        parser.parse_chunk(f"]{A2UI_CLOSE_TAG}")
+        stream.feed(f"]{A2UI_CLOSE_TAG}")
 
-    assert _run_v09(parser, _surf_v09("s1", "recreated", cid)) == [
+    assert _run_v09(parser, state, _surf_v09("s1", "recreated", cid)) == [
         ("createSurface", "s1"),
         ("updateComponents", "s1"),
     ]

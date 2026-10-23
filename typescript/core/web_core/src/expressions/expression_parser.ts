@@ -356,7 +356,7 @@ export class ExpressionParser {
   }
 }
 
-const XID_CONTINUE_REGEX = /^\p{XID_Continue}$/u;
+const XID_CONTINUE_REGEX = new RegExp('^\\p{XID_Continue}$', 'u');
 
 function isIdContinue(input: string): boolean {
   if (Array.from(input).length !== 1) {
