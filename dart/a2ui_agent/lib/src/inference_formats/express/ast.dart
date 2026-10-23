@@ -391,11 +391,16 @@ Object? _literal(LiteralContext literal) {
   if (literal.string() case final StringContext string) return _string(string);
   if (literal.NUMBER() case final TerminalNode number) {
     final String text = number.text!;
-    // The grammar takes integers of any size, so one too large for an `int`
-    // is read as a double rather than rejected.
-    return text.contains('.')
-        ? double.parse(text)
-        : int.tryParse(text) ?? double.parse(text);
+    // Every SDK reads a NUMBER as a double first, so a literal outside the
+    // double range is rejected the same way everywhere.
+    final double value = double.parse(text);
+    if (!value.isFinite) {
+      throw A2uiParseError('Number literal $text is out of range.');
+    }
+    // Integer text is an exact `int` while it fits. `int.tryParse` returns
+    // null for a fraction or an exponent, and for an integer too large for an
+    // `int` (the grammar takes integers of any size), so those stay doubles.
+    return int.tryParse(text) ?? value;
   }
   if (literal.BOOLEAN() case final TerminalNode boolean) {
     return boolean.text == 'true';

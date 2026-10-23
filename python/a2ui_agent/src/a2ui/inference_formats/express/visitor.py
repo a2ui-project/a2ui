@@ -14,14 +14,46 @@
 
 """Custom AST visitor for A2UI Express."""
 
+import math
 import re
 from typing import Any
 
 from antlr4 import Lexer
 from antlr4.error.ErrorListener import ErrorListener
 
+from .errors import ExpressParseError
 from .generated.express_parser import ExpressParser
 from .generated.express_visitor import ExpressVisitor
+
+
+def parse_number_literal(text: str) -> int | float:
+    """Reads the text of a `NUMBER` token into a Python number.
+
+    Integer text (no `.`, `e` or `E`) becomes an exact `int`, so integers keep
+    Python's native precision. Anything else becomes a `float`.
+
+    Args:
+        text: The token text, such as `42`, `-.5`, `+3` or `2.5e-7`.
+
+    Returns:
+        The number the literal denotes.
+
+    Raises:
+        ExpressParseError: If the literal is not finite as a double (such as
+            `1e999`), so every SDK rejects the same literals.
+    """
+    value = float(text)
+    if not math.isfinite(value):
+        raise ExpressParseError(f"Number literal {text} is out of range.")
+    if any(ch in text for ch in ".eE"):
+        return value
+    # A finite double has at most about 310 significant digits, but a long run
+    # of leading zeros could still push the text past CPython's
+    # `int_max_str_digits` limit, so strip the sign and the zeros first.
+    negative = text.startswith("-")
+    digits = text.lstrip("+-").lstrip("0") or "0"
+    magnitude = int(digits)
+    return -magnitude if negative else magnitude
 
 
 def _unescape_string(val: str) -> str:
@@ -175,8 +207,7 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
         if ctx.string():
             return self.visit(ctx.string())
         if ctx.NUMBER():
-            val = ctx.NUMBER().getText()
-            return float(val) if "." in val else int(val)
+            return parse_number_literal(ctx.NUMBER().getText())
         if ctx.BOOLEAN():
             return ctx.BOOLEAN().getText() == "true"
         return None

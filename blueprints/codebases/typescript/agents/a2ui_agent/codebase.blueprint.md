@@ -100,5 +100,5 @@ The Express lexer, parser, and visitor in `src/inference-formats/express/generat
   - Did a parser rule get added? Add a matching visitor override in both SDKs; otherwise the visitor silently returns the last child's result.
   - Did a lexer rule's character class widen beyond ASCII (for example `IDENTIFIER`)? Check column and slicing logic: Python counts Unicode code points while JavaScript counts UTF-16 code units.
   - Did an ignored token move from `-> skip` to a hidden channel? Recheck `getText()` callers.
-  - Did `NUMBER` (for example gaining an exponent) or string delimiters change? Recheck literal parsing in both visitors and formatting in both decompilers.
+  - Did `NUMBER` (for example gaining an exponent) or string delimiters change? Recheck literal parsing in both visitors and formatting in both decompilers. Since issue 3019, `NUMBER` is `[+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)?` (a JSON number plus an optional `+`), an out-of-range literal is a `ParseError`, and decompilers write doubles as ECMAScript `Number.prototype.toString` does; the `*_number_*` and `*_integers_*` cases in `conformance/agent/express/compiler.yaml` and `decompiler.yaml` pin this.
   - Were both SDKs regenerated in the same change? The ATN parity test fails until they are.
