@@ -271,15 +271,12 @@ class FileResolver:
                     ip = res[4][0]
                     try:
                         ip_obj = ipaddress.ip_address(ip)
-                        if (
-                            ip_obj.is_private
-                            or ip_obj.is_loopback
-                            or ip_obj.is_link_local
-                            or ip_obj.is_multicast
-                            or ip_obj.is_unspecified
-                        ):
+                        # Allow only public unicast addresses. Listing private
+                        # categories misses ranges such as 100.64.0.0/10 (RFC 6598),
+                        # and is_global is True for multicast addresses.
+                        if not ip_obj.is_global or ip_obj.is_multicast:
                             raise FileResolverSecurityError(
-                                f"Host '{current_hostname}' resolves to a private/local"
+                                f"Host '{current_hostname}' resolves to a non-public"
                                 f" IP '{ip}', which is not permitted."
                             )
                         if not resolved_ip:

@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `FileResolver` rejects any host that resolves to a non-public address. It
+  used to check only for private, loopback, link-local, multicast and
+  unspecified addresses, so the Shared Address Space `100.64.0.0/10`
+  (RFC 6598) got through when `allowed_hosts` allowed the host.
 - Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
   `a2ui.constants`, the message metadata key under which the v1.0 A2A
   extension sends the renderer capabilities. v0.8 and v0.9 use
