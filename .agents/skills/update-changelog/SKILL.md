@@ -27,7 +27,7 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
 1. **Preserve Unrelated Entries and All Version Headers**:
 
    > [!CAUTION]
-   > **Preserve Unrelated Entries**: NEVER delete, overwrite, or clear unrelated items under `## Unreleased` or any items under past release sections. Other merged branches, concurrent PRs, or foundational commits have their own entries under `## Unreleased`. However, read the entire `## Unreleased` section before adding your entry: if your PR supersedes, renames, or modifies a change introduced earlier in the same `## Unreleased` cycle, update or merge that unreleased entry so `## Unreleased` describes the net changes since the last published release rather than a chronological log of contradicting pull requests.
+   > **Preserve Unrelated Entries**: NEVER delete, overwrite, or clear unrelated items under `## Unreleased` or any items under past release sections. Other merged branches, concurrent PRs, or foundational commits have their own entries under `## Unreleased`. However, read the entire `## Unreleased` section before adding your entry: if your PR supersedes, renames, or modifies a change introduced earlier in the same `## Unreleased` cycle, update or merge that unreleased entry so `## Unreleased` describes the net changes since the last published release rather than a chronological log of contradicting pull requests. When merging, keep every PR link the merged entries carried (for example `[#123](...), [#456](...)`) so each change stays traceable to its pull request.
 
    > [!CAUTION]
    > **Preserve All Version Headers**: NEVER delete a `## <version>` heading (for example `## 0.10.6`). Removing one moves every entry beneath it into the section above, so released changes reappear as unreleased and that version's history is lost. This most often happens while resolving a merge conflict at the top of the file, or when inserting an entry overwrites the lines that follow `## Unreleased`. After any conflict resolution, re-read the top of the file and confirm the version headers are still present and in descending order.
@@ -130,7 +130,7 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
 5. **Verify No Unrelated Entries or Version Headers Were Removed**:
 
    ```bash
-   git diff main -- '**/CHANGELOG.md' | grep '^-[^-]'
+   git diff main -- '**/CHANGELOG.md' | grep '^-' | grep -v '^---'
    ```
 
    The only acceptable output is a revision or consolidation of an `## Unreleased` entry modified or superseded by the current PR. Any deleted version header or unrelated pre-existing entry must be restored immediately.
