@@ -26,6 +26,7 @@ from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonForma
 from a2ui.inference_formats.express import ExpressFormat, ExpressFormatFactory
 from a2ui.parser import A2uiPart, TextPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import RendererState
 
 
 def test_request_processor_rejects_empty_catalogs():
@@ -167,3 +168,24 @@ def test_processor_validates_examples_against_active_catalogs():
     ])
     with pytest.raises(A2uiValidationError):
         A2uiRequestProcessor(catalogs=[pruned], examples=[bad_example])
+
+
+def test_generator_binds_the_state_to_the_processor():
+    basic = BasicCatalog("v1.0")
+    generator = A2uiGenerator(catalogs=[CatalogConfig(basic)])
+    capabilities = {"v1.0": {"supportedCatalogIds": [basic.catalog_id]}}
+    state = generator.create_processor(capabilities).create_state()
+
+    processor = generator.create_processor(capabilities, state=state)
+
+    assert processor.state is state
+
+
+def test_generator_rejects_a_state_for_other_catalogs():
+    basic = BasicCatalog("v1.0")
+    generator = A2uiGenerator(catalogs=[CatalogConfig(basic)])
+    capabilities = {"v1.0": {"supportedCatalogIds": [basic.catalog_id]}}
+    other = RendererState([Catalog(catalog_id="other", protocol_version="1.0")])
+
+    with pytest.raises(A2uiCatalogError, match="active catalogs"):
+        generator.create_processor(capabilities, state=other)

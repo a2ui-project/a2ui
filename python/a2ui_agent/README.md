@@ -43,9 +43,11 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`schema_pruning.py`**: `prune_messages_schema` and
   `prune_common_types_schema` reduce the protocol schemas to the allowed
   messages and the common types that are referenced.
-- **`validation.py`**: `validate_payload` checks a payload the way a renderer
-  holding the catalogs would, and raises `A2uiValidationError` if the
-  renderer would reject it.
+- **`renderer_state.py`**: `RendererState` is the agent's mirror of the
+  surfaces a renderer holds, and checks each outbound message against
+  everything sent before it. `validate_payload` checks one payload the way a
+  renderer holding the catalogs would, on a short-lived `RendererState`, and
+  raises `A2uiValidationError` if the renderer would reject it.
 
 ### Parser (`src/a2ui/parser`)
 
