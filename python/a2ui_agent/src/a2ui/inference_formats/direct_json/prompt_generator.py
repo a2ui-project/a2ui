@@ -25,8 +25,8 @@ from a2ui.inference_formats._shared import check_catalogs
 from a2ui.inference_formats._shared import to_message_dicts
 from a2ui.inference_formats.direct_json.decompiler import DirectJsonDecompiler
 from a2ui.inference_formats.direct_json.schema_prompt import (
-    catalog_schema_prompt,
-    protocol_schema_prompt,
+    _catalog_schema_prompt,
+    _protocol_schema_prompt,
     schema_to_prompt,
 )
 from a2ui.prompt import PromptGenerator
@@ -76,14 +76,24 @@ class DirectJsonPromptGenerator(PromptGenerator):
         `generate_catalog_instructions`, so output that combines several
         catalogs' instructions, such as a skill, holds them once.
 
+        The common types are pruned against all of the generator's catalogs.
+        Output built for a subset of them, such as
+        `SkillGenerator.generate_skill(catalogs=[...])`, may therefore hold
+        common types that only the other catalogs use.
+
         Args:
           allowed_messages: The messages to keep in the agent-to-renderer
             schema. Defaults to the generator's `allowed_messages`.
+
+        Raises:
+          A2uiCatalogError: If the generator's catalogs target different
+            protocol versions or a version this SDK doesn't define. The
+            constructor's catalog check normally rejects these first.
         """
         effective_allowed = (
             allowed_messages if allowed_messages is not None else self._allowed_messages
         )
-        protocol_block = protocol_schema_prompt(
+        protocol_block = _protocol_schema_prompt(
             self._catalogs, allowed_messages=effective_allowed
         )
         return f"{DEFAULT_WORKFLOW_RULES}\n\n{protocol_block}"
@@ -100,7 +110,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
         """
         if not include_schema:
             return ""
-        return catalog_schema_prompt(
+        return _catalog_schema_prompt(
             [catalog] if catalog is not None else self._catalogs
         )
 
