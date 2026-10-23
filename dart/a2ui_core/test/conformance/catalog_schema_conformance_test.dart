@@ -55,6 +55,12 @@ const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 /// Cases whose expected outcome Dart does not produce, with the reason.
 const Map<String, String> _knownDivergences = {};
 
+/// `from_json` error cases whose expected message is worded for another SDK,
+/// so only the error's category is checked.
+const Set<String> _messageWordedDifferently = {
+  'test_catalog_from_json_missing_catalog_id_error',
+};
+
 /// The built-in catalogs this package implements, by catalog id.
 final Map<String, CatalogApi> _builtinCatalogs = {
   for (final CatalogApi catalog in [BasicCatalog.v0_9(), BasicCatalog.v1_0()])
@@ -102,14 +108,23 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
   final A2uiProtocolVersion version =
       _version(testCase) ?? A2uiProtocolVersion.v0_9;
 
-  if (testCase['expectError'] != null) {
+  if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    final String? message = _messageWordedDifferently.contains(name)
+        ? null
+        : expectError['message'] as String?;
     expect(
       () => Catalog.fromJson(
         input,
         protocolVersion: version,
         catalogId: catalogId,
       ),
-      throwsA(isA<A2uiCatalogError>()),
+      throwsA(
+        isA<A2uiCatalogError>().having(
+          (error) => error.message,
+          'message',
+          message == null ? anything : contains(message),
+        ),
+      ),
       reason: name,
     );
     return;

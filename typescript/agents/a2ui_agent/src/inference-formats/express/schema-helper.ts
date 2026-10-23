@@ -435,9 +435,16 @@ export class CatalogSchemaHelper {
         }
         const subObj = sub as Record<string, unknown>;
         if (subObj.properties && typeof subObj.properties === 'object') {
-          const subProps = subObj.properties as Record<string, unknown>;
-          Object.assign(props, subProps);
-          for (const [pk, pv] of Object.entries(subProps)) {
+          // `subSchemas` lists the component's own schema first, then its
+          // allOf entries, then its local mixins. The first definition of a
+          // property wins, as in `getPropertySchema`, so the component's own
+          // definition overrides an inherited one, and a property keeps the
+          // position where it is first declared.
+          for (const [pk, pv] of Object.entries(subObj.properties as Record<string, unknown>)) {
+            if (Object.hasOwn(props, pk)) {
+              continue;
+            }
+            props[pk] = pv;
             const enumVal = findEnum(pv);
             if (enumVal) {
               this.componentPropertyEnums.set(`${name}.${pk}`, enumVal);
@@ -651,6 +658,10 @@ export class CatalogSchemaHelper {
 
   /**
    * Crawls all sub-schemas of a component to retrieve a property's schema definition.
+   *
+   * The component's own schema is searched first, then its allOf entries, then
+   * its local mixins, and the first definition found is returned, so the
+   * component's own definition of a property overrides an inherited one.
    */
   getPropertySchema(
     componentName: string,

@@ -142,20 +142,26 @@ class CatalogSchemaHelper:
                         is_checkable = True
                 if "properties" in sub:
                     props.update(sub["properties"])
-                    for pk, pv in sub["properties"].items():
-                        enum_val = _find_enum(pv)
-                        if enum_val:
-                            self.component_property_enums[(name, pk)] = enum_val
                 if "required" in sub:
                     reqs.extend(sub["required"])
 
-            # Filter out structural properties component, id, and catalogId
-            ordered_keys = []
-            for k in props:
-                if k not in ["component", "id", "catalogId"]:
-                    ordered_keys.append(k)
+            # Filter out structural properties component, id, and catalogId,
+            # and checks, which a checkable component lists last.
+            excluded = {"component", "id", "catalogId"}
+            if is_checkable:
+                excluded.add("checks")
+            ordered_keys = [k for k in props if k not in excluded]
 
-            # If it's checkable, add checks at the end
+            # The enum comes from the definition that wins for the property:
+            # the component's own one over an `allOf` sub-schema, so an
+            # inherited enum does not outlive an own definition without one.
+            for k in ordered_keys:
+                enum_val = _find_enum(self.get_property_schema(name, k))
+                if enum_val:
+                    self.component_property_enums[(name, k)] = enum_val
+
+            # If it's checkable, add checks at the end, once, even when the
+            # component also defines it itself.
             if is_checkable:
                 ordered_keys.append("checks")
 

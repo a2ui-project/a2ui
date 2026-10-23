@@ -78,6 +78,23 @@ class _TextParser extends Parser {
       throw UnimplementedError();
 }
 
+/// A transformer that counts its runs and otherwise wraps
+/// [ComponentPruningTransformer].
+class _CountingTransformer extends CatalogTransformer {
+  _CountingTransformer(this.keep);
+
+  final List<String> keep;
+  int runs = 0;
+
+  @override
+  Catalog<C, F> transform<C extends ComponentApi, F extends FunctionApi>(
+    Catalog<C, F> catalog,
+  ) {
+    runs++;
+    return ComponentPruningTransformer(keep).transform(catalog);
+  }
+}
+
 /// A catalog with an id and components named [components], each taking a
 /// required string `text`.
 CatalogApi _catalog(String id, [List<String> components = const []]) =>
@@ -220,6 +237,33 @@ void main() {
         A2uiRequestProcessor(activeCatalogs: [a]).formatFactory,
         isA<ExpressFormatFactory>(),
       );
+    });
+  });
+
+  group('CatalogConfig.transformedCatalog', () {
+    test('runs the transformers once and reuses the result', () {
+      final first = _CountingTransformer(['Text', 'Card']);
+      final second = _CountingTransformer(['Card']);
+      final config = CatalogConfig(a, transformers: [first, second]);
+
+      final CatalogApi transformed = config.transformedCatalog;
+      expect(config.transformedCatalog, same(transformed));
+      expect(resolveCatalogs([config], null).single, same(transformed));
+      expect(resolveCatalogs([config], null).single, same(transformed));
+
+      expect(first.runs, 1);
+      expect(second.runs, 1);
+      expect(transformed.components.keys, ['Card']);
+    });
+
+    test('caches per config', () {
+      final counting = _CountingTransformer(['Card']);
+      final one = CatalogConfig(a, transformers: [counting]);
+      final other = CatalogConfig(a, transformers: [counting]);
+
+      expect(one.transformedCatalog, isNot(same(other.transformedCatalog)));
+      expect(one.transformedCatalog, same(one.transformedCatalog));
+      expect(counting.runs, 2);
     });
   });
 

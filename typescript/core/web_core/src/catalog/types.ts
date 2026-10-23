@@ -709,6 +709,9 @@ export class Catalog<
    *   in `toJson`.
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
+   * @throws {A2uiCatalogError} If a v1.0 catalog has a `$ref` to a document
+   *   other than itself or `common_types.json`, such as another catalog. Such
+   *   a reference is never fetched.
    */
   static fromJson(
     json: Record<string, any>,

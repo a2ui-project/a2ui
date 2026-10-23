@@ -5,8 +5,12 @@
   `link_catalogs` are gone, `inline_local_refs` no longer takes a `peers`
   argument, and `MessageProcessor` no longer links the catalogs passed to it.
   A catalog resolves `$ref`s only against its own document and the protocol's
-  `common_types.json`. Recommended migration: bundle referenced components,
-  properties and functions into each catalog so it is standalone.
+  `common_types.json`. `Catalog.from_json` raises `A2uiCatalogError` for a
+  v1.0 catalog with a `$ref` to any other document, such as
+  `basic_catalog.json#/components/Text` or an absolute catalog URI, and never
+  fetches it; v0.8 and v0.9 catalogs load as before. Recommended migration:
+  bundle referenced components, properties and functions into each catalog so
+  it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232)
 - Schema validation never fetches a `$ref` over the network. A `$ref` to a
   document that is not available locally fails validation with an

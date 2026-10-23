@@ -592,6 +592,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `Action`
      - `DataBinding`
      - `FunctionCall`
+   - Any other external `$ref` target, such as a reference into another catalog, makes the catalog invalid. Implementations MUST report a catalog error when the catalog is loaded, and MUST NOT fetch the target over the network.
 
    > [!NOTE]
    > **Catalog Evolution and Protocol Compatibility**

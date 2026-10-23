@@ -85,3 +85,58 @@ def test_function_property_schema(helper):
 def test_unsupported_catalog_type_raises():
     with pytest.raises(TypeError):
         CatalogSchemaHelper("invalid_catalog_type")  # type: ignore[arg-type]
+
+
+@pytest.fixture
+def inheriting_helper() -> CatalogSchemaHelper:
+    catalog = Catalog.from_json({
+        "catalogId": "inheriting",
+        "protocolVersion": "v1.0",
+        "components": {
+            "Base": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Base"},
+                    "mode": {"type": "string", "enum": ["a", "b"]},
+                    "size": {"type": "string", "enum": ["s", "m"]},
+                    "label": {"type": "string"},
+                },
+                "required": ["component"],
+            },
+            "Derived": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "#/components/Base"},
+                    {"$ref": "common_types.json#/$defs/Checkable"},
+                ],
+                "properties": {
+                    "component": {"const": "Derived"},
+                    "mode": {"type": "string"},
+                    "size": {"type": "string", "enum": ["l"]},
+                    "label": {"$ref": "common_types.json#/$defs/ComponentId"},
+                    "checks": {"type": "array"},
+                    "extra": {"type": "string"},
+                },
+                "required": ["component"],
+            },
+        },
+    })
+    return CatalogSchemaHelper(catalog)
+
+
+def test_own_property_definition_wins_over_inherited_one(inheriting_helper):
+    assert inheriting_helper.get_property_enum("Derived", "mode") is None
+    assert inheriting_helper.get_property_enum("Derived", "size") == ["l"]
+    assert inheriting_helper.get_property_type("Derived", "label") == "Child"
+    assert inheriting_helper.get_property_enum("Base", "mode") == ["a", "b"]
+
+
+def test_inherited_property_order_lists_checks_once_and_last(inheriting_helper):
+    assert inheriting_helper.get_component_properties("Derived") == [
+        "mode",
+        "size",
+        "label",
+        "extra",
+        "checks",
+    ]
+    assert inheriting_helper.is_checkable("Derived")
