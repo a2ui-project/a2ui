@@ -707,7 +707,8 @@ public final class MessageProcessor: ObservableObject {
   ///   - functionName: The name of the function to execute on the agent.
   ///   - catalogID: Optional catalog identifier.
   ///   - args: Named argument dictionary.
-  ///   - returnType: Expected return type name.
+  ///   - returnType: Expected return type name. Not sent on the wire, because v1.0
+  ///     `FunctionCall` has no `returnType`.
   ///   - version: The A2UI protocol version for the outbound message.
   ///   - timeoutSeconds: Maximum duration to wait before timing out (default 30s).
   /// - Returns: The evaluated JSONValue returned by the agent.

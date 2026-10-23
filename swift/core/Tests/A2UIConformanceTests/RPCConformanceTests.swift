@@ -176,8 +176,13 @@ struct RPCConformanceTests {
       {
         let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
         let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
-        let call = outboundCall["callFunction"]?["call"]?.stringValue ?? ""
-        let catID = outboundCall["callFunction"]?["catalogId"]?.stringValue
+        let expectedCallFunction = try #require(outboundCall["callFunction"]?.objectValue)
+        let call = try #require(expectedCallFunction["@call"]?.stringValue)
+        let catID = expectedCallFunction["catalogId"]?.stringValue
+        let args: [String: JSONValue]? = expectedCallFunction["args"]?.objectValue.map {
+          Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
+        }
+        let sent = ConformanceOutboundBox()
 
         let callTask = Task {
           try await rpcHandler.callAgentFunction(
@@ -185,13 +190,30 @@ struct RPCConformanceTests {
             functionName: call,
             catalogID: catID,
             functionCallID: fnCallID,
+            args: args,
             version: .v10,
             timeoutSeconds: 5.0,
-            sendOutbound: { _ in }
+            sendOutbound: { sent.messages.append($0) }
           )
         }
 
         try await Task.sleep(nanoseconds: 10_000_000)
+
+        // The outbound message must be the v1.0 callAgentFunction the case describes.
+        #expect(sent.messages.count == 1)
+        let outbound = try #require(sent.messages.first)
+        let outboundJSON = try JSONDecoder().decode(
+          JSONValue.self, from: JSONEncoder().encode(outbound))
+        let sentCall = try #require(outboundJSON["callAgentFunction"])
+        #expect(sentCall["surfaceId"]?.stringValue == surfaceID)
+        #expect(
+          sentCall["functionCallId"]?.stringValue
+            == testCase.expect?["correlatedCallId"]?.stringValue)
+        let sentCallFunction = try #require(sentCall["callFunction"]?.objectValue)
+        #expect(Set(sentCallFunction.keys) == Set(expectedCallFunction.keys))
+        for (key, value) in expectedCallFunction {
+          #expect(sentCallFunction[key] == value, "callFunction.\(key)")
+        }
 
         // Parse inbound response and route
         let respData = try JSONEncoder().encode(inboundResponse)
@@ -206,6 +228,10 @@ struct RPCConformanceTests {
       }
     }
   }
+}
+
+private final class ConformanceOutboundBox: @unchecked Sendable {
+  var messages: [RendererToAgentMessage] = []
 }
 
 private final class ConformanceMockRPCFunction: FunctionImplementation, Sendable {
