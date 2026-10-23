@@ -261,6 +261,33 @@ void main() {
       expect(written, contains('surface("g", "${custom.id}")'));
     });
 
+    group('a double the way ECMAScript Number.prototype.toString does', () {
+      /// What a `Gauge` with [value] is written as, after a round trip.
+      String gauge(double value) => roundTrip([
+        create('g', custom.id),
+        components('g', [
+          {'id': 'root', 'component': 'Gauge', 'value': value},
+        ]),
+      ]);
+
+      // Plain decimal for 1e-6 <= |v| < 1e21, exponent form otherwise, with
+      // `.0` kept on integral doubles.
+      final cases = <double, String>{
+        1e-7: '1e-7',
+        0.000015: '0.000015',
+        1e16: '10000000000000000.0',
+        1e21: '1e+21',
+        1.5e300: '1.5e+300',
+        3.0: '3.0',
+        -0.0: '-0.0',
+      };
+      for (final MapEntry<double, String> entry in cases.entries) {
+        test(entry.value, () {
+          expect(gauge(entry.key), contains('root = Gauge(${entry.value})'));
+        });
+      }
+    });
+
     test('an empty data model', () {
       roundTrip([
         {
@@ -364,12 +391,6 @@ void main() {
           },
         ]),
       ],
-      'a number written with an exponent': [
-        create('s'),
-        components('s', [
-          {'id': 'root', 'component': 'Slider', 'max': 1e21},
-        ]),
-      ],
       'sendDataModel': [
         {
           'createSurface': {
@@ -434,6 +455,22 @@ void main() {
       test(entry.key, () {
         expect(
           () => parser.decompile(messages(entry.value)),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+    }
+
+    for (final double value in [double.infinity, double.nan]) {
+      test('a non-finite number ($value)', () {
+        expect(
+          () => parser.decompile(
+            messages([
+              create('g', custom.id),
+              components('g', [
+                {'id': 'root', 'component': 'Gauge', 'value': value},
+              ]),
+            ]),
+          ),
           throwsA(isA<A2uiValidationError>()),
         );
       });

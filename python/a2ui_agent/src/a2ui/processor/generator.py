@@ -22,7 +22,7 @@ from a2ui.core import A2uiCatalogError
 from a2ui.core.schema import A2uiRendererCapabilities, AgentToRendererMessage
 from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats.express import ExpressFormatFactory
-from a2ui.utils import resolve_catalogs
+from a2ui.utils import RendererState, resolve_catalogs
 
 from .catalog_config import CatalogConfig
 from .processor import A2uiRequestProcessor
@@ -72,6 +72,8 @@ class A2uiGenerator:
         self,
         renderer_capabilities: A2uiRendererCapabilities,
         inference_format_factory: InferenceFormatFactory | None = None,
+        *,
+        state: RendererState | None = None,
     ) -> A2uiRequestProcessor:
         """Creates an A2uiRequestProcessor bound to the specified renderer capabilities.
 
@@ -80,12 +82,16 @@ class A2uiGenerator:
                 a processor is negotiated for one renderer, so a request without capabilities
                 is a catalog error here, although resolve_catalogs accepts one.
             inference_format_factory: Optional override format factory for this processor.
+            state: The renderer state a canvas agent keeps for the
+                conversation, bound to the processor so that its
+                `parse_response` and `open_stream` use it.
 
         Returns:
             Pre-negotiated client-bound A2uiRequestProcessor instance.
 
         Raises:
-            A2uiCatalogError: If renderer_capabilities is None or no catalog can be resolved.
+            A2uiCatalogError: If renderer_capabilities is None, no catalog can be
+                resolved, or `state` holds other catalogs than the resolved ones.
             A2uiValidationError: If renderer_capabilities or prompt examples are invalid.
         """
         if renderer_capabilities is None:
@@ -106,4 +112,5 @@ class A2uiGenerator:
             catalogs=active_catalogs,
             examples=self.examples,
             format_factory=factory,
+            state=state,
         )
