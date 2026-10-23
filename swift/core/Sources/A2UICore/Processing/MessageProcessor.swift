@@ -1107,7 +1107,6 @@ public final class MessageProcessor: ObservableObject {
         props[key] = val
       }
 
-      surface.nodeResolver.clearReportedExpressionErrors(forComponentID: id)
       let existing = surface.componentsModel.get(id)
       if let existing, existing.type != type || existing.catalogID != componentCatalogID {
         removedIDs.append(id)
