@@ -29,14 +29,23 @@ itself::
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from typing import Any
 
 from a2ui.core import CatalogApi
+from a2ui.parser.messages import to_message_dicts
 
+from .archetypes import ArchetypeGrammar
 from .backends import DecisionBackend
 from .catalog_graph import CatalogDecisionGraph
 from .decision_block import DecisionBlock
-from .models import SynthesisConfig, SynthesisOutput
+from .models import (
+    LayoutBrief,
+    MAX_BRIEF_SECTIONS,
+    SynthesisConfig,
+    SynthesisOutput,
+)
+from .patterns import MergedPatternLibrary, PatternLibrary
 from .synthesizer import DecisionSynthesizer, FallbackCallback
 from .template_registry import TemplateRegistry
 
@@ -55,6 +64,7 @@ class DecisionRenderTool:
         name: Tool name advertised to the model.
         description: Tool description advertised to the model.
         synthesizer: The synthesizer that renders each call.
+        include_trace: Whether serialized tool results include the decision trace.
     """
 
     def __init__(
@@ -64,6 +74,7 @@ class DecisionRenderTool:
         name: str = _DEFAULT_TOOL_NAME,
         description: str = _DEFAULT_DESCRIPTION,
         surface_id: str | None = None,
+        include_trace: bool = False,
     ) -> None:
         """Wraps a synthesizer as a tool.
 
@@ -74,11 +85,13 @@ class DecisionRenderTool:
             surface_id: Surface used when a call names none; None defers to
                 the synthesizer's `config.default_surface_id`. A call's own
                 `surfaceId` always wins.
+            include_trace: Whether serialized results include `trace`.
         """
         self.name = name
         self.description = description
         self.synthesizer = synthesizer
         self._surface_id = surface_id
+        self.include_trace = include_trace
 
     @classmethod
     def create(
@@ -88,11 +101,14 @@ class DecisionRenderTool:
         backend: DecisionBackend | None = None,
         config: SynthesisConfig | None = None,
         registry: TemplateRegistry | None = None,
+        archetypes: ArchetypeGrammar | None = None,
+        patterns: PatternLibrary | MergedPatternLibrary | None = None,
         fallback_card: bool = True,
         fallback_fn: FallbackCallback | None = None,
         name: str = _DEFAULT_TOOL_NAME,
         description: str = _DEFAULT_DESCRIPTION,
         surface_id: str | None = None,
+        include_trace: bool = False,
     ) -> DecisionRenderTool:
         """Builds a tool and its synthesizer in one call.
 
@@ -105,23 +121,32 @@ class DecisionRenderTool:
             backend: Decision backend; defaults to `create_decision_backend()`.
             config: Synthesis thresholds and limits.
             registry: Surface templates offered through the `template` field.
+            archetypes: Layout archetype grammar.
+            patterns: Catalog pattern library.
             fallback_card: Render a deterministic card on abstention.
             fallback_fn: Custom fallback tried before the card.
             name: Tool name advertised to the model.
             description: Tool description advertised to the model.
             surface_id: Surface used when a call names none; None defers to
                 `config.default_surface_id`. A call's own `surfaceId` wins.
+            include_trace: Whether serialized results include `trace`.
         """
         synthesizer = DecisionSynthesizer(
             catalogs,
             backend,
             registry=registry,
             config=config,
+            archetypes=archetypes,
+            patterns=patterns,
             fallback_card=fallback_card,
             fallback_fn=fallback_fn,
         )
         return cls(
-            synthesizer, name=name, description=description, surface_id=surface_id
+            synthesizer,
+            name=name,
+            description=description,
+            surface_id=surface_id,
+            include_trace=include_trace,
         )
 
     def parameters_json_schema(self) -> dict[str, Any]:
@@ -174,6 +199,19 @@ class DecisionRenderTool:
                         " confident enough to choose components."
                     ),
                 },
+                "layout": {
+                    "type": "array",
+                    "maxItems": MAX_BRIEF_SECTIONS,
+                    "items": {
+                        "type": "string",
+                        "pattern": r"^[a-z_]+:[A-Za-z0-9_/,.-]+$",
+                    },
+                    "description": (
+                        "Optional ordered layout brief grouping payload keys by"
+                        " role ('<role>:<key>,<key>', up to 6 sections; no"
+                        " nested sections)."
+                    ),
+                },
             },
             "required": ["intent", "payload"],
             "additionalProperties": False,
@@ -182,35 +220,113 @@ class DecisionRenderTool:
     def _synthesis_kwargs(
         self, args: Mapping[str, Any]
     ) -> tuple[DecisionBlock, dict[str, Any]]:
+        raw_layout = args.get("layout")
+        parsed_brief: LayoutBrief | None = None
+        if isinstance(raw_layout, Sequence) and not isinstance(
+            raw_layout, (str, bytes)
+        ):
+            parsed_brief = LayoutBrief.parse(
+                [str(item) for item in raw_layout],
+                roles=self.synthesizer.archetypes.brief_roles(),
+            )
         block = DecisionBlock.from_mapping(args)
         kwargs: dict[str, Any] = {
             "template_id": block.template_id,
             "fallback_dsl": block.fallback_dsl,
         }
+        brief = block.layout or (
+            parsed_brief if parsed_brief and parsed_brief.sections else None
+        )
+        if brief is not None:
+            kwargs["layout"] = brief
         surface_id = block.surface_id or self._surface_id
         if surface_id is not None:
             kwargs["surface_id"] = surface_id
         return block, kwargs
 
-    async def run_async(self, args: Mapping[str, Any]) -> SynthesisOutput:
+    def format_result(
+        self,
+        output: SynthesisOutput,
+        *,
+        include_trace: bool | None = None,
+    ) -> dict[str, Any]:
+        """Serializes a `SynthesisOutput` into a tool-result dictionary."""
+        with_trace = self.include_trace if include_trace is None else include_trace
+        result: dict[str, Any] = {
+            "stage": str(output.stage),
+            "confidence": output.confidence,
+            "entropy": output.entropy,
+            "messages": to_message_dicts(output.messages),
+        }
+        if output.layout_plan is not None:
+            result["layoutPlan"] = {
+                "archetype": output.layout_plan.archetype,
+                "blocks": list(output.layout_plan.block_ids()),
+            }
+        if with_trace:
+            result["trace"] = [
+                {
+                    "questionId": r.question.id,
+                    "outcome": r.outcome,
+                    "threshold": r.threshold,
+                }
+                for r in output.trace
+            ]
+        return result
+
+    def _enrich_output(
+        self, output: SynthesisOutput, *, include_trace: bool
+    ) -> SynthesisOutput:
+        """Attaches `layoutPlan` and optional `trace` to `output.component_tree_spec`."""
+        if output.layout_plan is None and not include_trace:
+            return output
+        spec = dict(output.component_tree_spec or {})
+        if output.layout_plan is not None:
+            spec["layoutPlan"] = {
+                "archetype": output.layout_plan.archetype,
+                "blocks": list(output.layout_plan.block_ids()),
+            }
+        if include_trace:
+            spec["trace"] = [
+                {
+                    "questionId": r.question.id,
+                    "outcome": r.outcome,
+                    "threshold": r.threshold,
+                }
+                for r in output.trace
+            ]
+        return replace(output, component_tree_spec=spec)
+
+    async def run_async(
+        self, args: Mapping[str, Any], *, include_trace: bool | None = None
+    ) -> SynthesisOutput:
         """Renders one tool call.
 
         Args:
             args: The tool-call arguments, with the field names from
                 `parameters_json_schema` (snake_case spellings are accepted).
+            include_trace: When True, includes `trace` in `component_tree_spec`.
 
         Raises:
             ValueError: If `intent` is missing, `payload` is an invalid JSON
-                string, or `template` is unknown.
+                string, `template` is unknown, or `layout` is invalid.
             TypeError: If `payload` is neither an object nor an array.
         """
         block, kwargs = self._synthesis_kwargs(args)
-        return await self.synthesizer.synthesize(block.intent, block.payload, **kwargs)
+        output = await self.synthesizer.synthesize(
+            block.intent, block.payload, **kwargs
+        )
+        with_trace = self.include_trace if include_trace is None else include_trace
+        return self._enrich_output(output, include_trace=with_trace)
 
-    def run_sync(self, args: Mapping[str, Any]) -> SynthesisOutput:
+    def run_sync(
+        self, args: Mapping[str, Any], *, include_trace: bool | None = None
+    ) -> SynthesisOutput:
         """Renders one tool call from synchronous code. See `run_async`."""
         block, kwargs = self._synthesis_kwargs(args)
-        return self.synthesizer.synthesize_sync(block.intent, block.payload, **kwargs)
+        output = self.synthesizer.synthesize_sync(block.intent, block.payload, **kwargs)
+        with_trace = self.include_trace if include_trace is None else include_trace
+        return self._enrich_output(output, include_trace=with_trace)
 
 
 __all__ = ["DecisionRenderTool"]

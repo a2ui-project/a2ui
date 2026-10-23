@@ -16,14 +16,22 @@
 
 from __future__ import annotations
 
+from .archetypes import (
+    ArchetypeGrammar,
+    BlockSpec,
+    GrammarError,
+    LayoutArchetype,
+)
 from .backends import (
     DecisionBackend,
     DeterministicMockBackend,
     JevHttpBackend,
     LocalCrossEncoderBackend,
     StepZeroLogprobBackend,
+    answer_from_distribution,
     create_decision_backend,
 )
+from .batching import BatchingDecisionBackend
 from .calibration import (
     LabeledDecisionExample,
     SynthesizerLike,
@@ -33,17 +41,34 @@ from .calibration import (
 from .catalog_graph import CatalogDecisionGraph
 from .decision_block import DecisionBlock, decision_block_from_messages
 from .format import DecisionFormat, DecisionFormatFactory
+from .layout_lint import LintFinding, lint_components
+from .layout_planner import LayoutPlanner
 from .models import (
+    BlockBindings,
+    BriefSection,
     CalibrationPoint,
     CalibrationResult,
     ComponentNodeSpec,
     ComponentSlot,
+    DecisionAnswer,
     DecisionBackendType,
+    DecisionBatch,
     DecisionDistribution,
     DecisionQuery,
+    DecisionQuestion,
+    DecisionRecord,
     DecisionTask,
     DecisionWireFormat,
     FallbackSource,
+    LayoutBrief,
+    LayoutPlan,
+    PageBindings,
+    PatternCapabilities,
+    PlannedBlock,
+    PlanOutcome,
+    QuestionKind,
+    SemanticType,
+    SlotBinding,
     SlotKind,
     SynthesisConfig,
     SynthesisOutput,
@@ -51,25 +76,40 @@ from .models import (
     coerce_decision_payload,
 )
 from .parser import DecisionParser
+from .patterns import (
+    MergedPatternLibrary,
+    PatternError,
+    PatternExpander,
+    PatternLibrary,
+    eligible_archetypes,
+)
 from .payload_inspector import (
     PointerSummary,
     PointerValueType,
     inspect_payload_pointers,
 )
 from .prompt_generator import DECISION_RULES, DecisionPromptGenerator
+from .semantic_types import classify_scalar
 from .synthesizer import DecisionSynthesizer, FallbackCallback
 from .template_registry import SurfaceTemplate, TemplateRegistry
 from .tool import DecisionRenderTool
 
 __all__ = [
     "DECISION_RULES",
+    "ArchetypeGrammar",
+    "BatchingDecisionBackend",
+    "BlockBindings",
+    "BlockSpec",
+    "BriefSection",
     "CalibrationPoint",
     "CalibrationResult",
     "CatalogDecisionGraph",
     "ComponentNodeSpec",
     "ComponentSlot",
+    "DecisionAnswer",
     "DecisionBackend",
     "DecisionBackendType",
+    "DecisionBatch",
     "DecisionBlock",
     "DecisionDistribution",
     "DecisionFormat",
@@ -77,6 +117,8 @@ __all__ = [
     "DecisionParser",
     "DecisionPromptGenerator",
     "DecisionQuery",
+    "DecisionQuestion",
+    "DecisionRecord",
     "DecisionRenderTool",
     "DecisionSynthesizer",
     "DecisionTask",
@@ -84,11 +126,28 @@ __all__ = [
     "DeterministicMockBackend",
     "FallbackCallback",
     "FallbackSource",
+    "GrammarError",
     "JevHttpBackend",
     "LabeledDecisionExample",
+    "LayoutArchetype",
+    "LayoutBrief",
+    "LayoutPlan",
+    "LayoutPlanner",
+    "LintFinding",
     "LocalCrossEncoderBackend",
+    "MergedPatternLibrary",
+    "PageBindings",
+    "PatternCapabilities",
+    "PatternError",
+    "PatternExpander",
+    "PatternLibrary",
+    "PlanOutcome",
+    "PlannedBlock",
     "PointerSummary",
     "PointerValueType",
+    "QuestionKind",
+    "SemanticType",
+    "SlotBinding",
     "SlotKind",
     "StepZeroLogprobBackend",
     "SurfaceTemplate",
@@ -97,10 +156,14 @@ __all__ = [
     "SynthesisStage",
     "SynthesizerLike",
     "TemplateRegistry",
+    "answer_from_distribution",
     "calibrate_thresholds",
+    "classify_scalar",
     "coerce_decision_payload",
     "compute_bayes_optimal_threshold",
     "create_decision_backend",
     "decision_block_from_messages",
+    "eligible_archetypes",
     "inspect_payload_pointers",
+    "lint_components",
 ]

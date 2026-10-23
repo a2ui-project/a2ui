@@ -1057,3 +1057,51 @@ async def test_stage2b_action_filtering_and_all_action_leaf_catalog_abstention()
         await bad_tpl_synth.synthesize(
             "Show widget", {"serviceName": "a"}, template_id="bad_comp_tpl"
         )
+
+
+@pytest.mark.asyncio
+async def test_basic_catalog_default_config_attempts_archetype_path_and_flat_opt_out() -> (
+    None
+):
+    """Verifies BasicCatalog attempts the archetype path by default and flat path when use_archetypes=False."""
+    from a2ui.core.basic_catalog import BasicCatalog
+    from .layout_fixtures import RESORT, ScriptedAnswers
+
+    basic = BasicCatalog("v1.0")
+    sa = ScriptedAnswers(
+        answers={
+            "family": ("inspect", 0.80),
+            "stakes": 0.2,
+            "urgency": 0.1,
+            "archetype:inspect": ("detail", 0.85),
+            "gate:picture": 0.90,
+            "gate:banner": 0.10,
+            "gate:headline": 0.80,
+            "gate:prose": 0.90,
+            "gate:facts": 0.40,
+            "gate:collection": 0.85,
+            "gate:actions": 0.30,
+            "anatomy:picture.framing": ("banner", 0.80),
+            "anatomy:picture.prominence": 2.2,
+            "anatomy:collection.layout": ("reel", 0.70),
+            "anatomy:collection.leading": ("thumbnail", 0.80),
+            "anatomy:collection.trailing": ("none", 0.80),
+            "salience:/rating": 2.4,
+            "salience:/priceFrom": 2.6,
+        }
+    )
+    synth = DecisionSynthesizer([basic], sa.backend())
+    out = await synth.synthesize(RESORT.intent, RESORT.payload)
+    assert out.stage == SynthesisStage.ARCHETYPE
+    assert out.trace
+    assert out.trace[0].question.id == "family"
+    validate_payload([basic], out.messages)
+
+    flat_synth = DecisionSynthesizer(
+        [basic],
+        DeterministicMockBackend(scripted={"root_component": {"Text": 0.90}}),
+        config=SynthesisConfig(use_archetypes=False),
+    )
+    flat_out = await flat_synth.synthesize("Show title", {"title": "Coral Bay Resort"})
+    assert flat_out.stage == SynthesisStage.FAST_1PASS_LEAF
+    assert flat_out.layout_plan is None

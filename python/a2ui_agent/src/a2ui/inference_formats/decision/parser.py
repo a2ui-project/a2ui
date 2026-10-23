@@ -156,6 +156,7 @@ class DecisionParser(Parser):
                     surface_id=target_surface_id,
                     template_id=block.template_id,
                     fallback_dsl=block.fallback_dsl,
+                    layout=block.layout,
                 )
             except A2uiError:
                 raise

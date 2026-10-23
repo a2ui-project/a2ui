@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 import concurrent.futures
+from dataclasses import replace
 import inspect
 import re
 from typing import Any, TypeAlias, cast
@@ -29,6 +30,7 @@ from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.parser.messages import to_message_models
 from a2ui.utils.validation import validate_payload
 
+from .archetypes import ArchetypeGrammar, LayoutArchetype
 from .backends import (
     DecisionBackend,
     DeterministicMockBackend,
@@ -37,18 +39,34 @@ from .backends import (
 from .bindings import is_v10 as _is_v10
 from .bindings import make_data_binding as _make_data_binding
 from .catalog_graph import CatalogDecisionGraph
+from .layout_lint import lint_components
+from .layout_planner import LayoutPlanner, PlannerState
 from .models import (
     ComponentNodeSpec,
     ComponentSlot,
+    DecisionBatch,
     DecisionDistribution,
     DecisionQuery,
+    DecisionQuestion,
+    DecisionRecord,
     DecisionTask,
     FallbackSource,
+    LayoutBrief,
+    LayoutPlan,
+    PlanOutcome,
+    QuestionKind,
     SlotKind,
     SynthesisConfig,
     SynthesisOutput,
     SynthesisStage,
     coerce_decision_payload,
+)
+from .patterns import (
+    MergedPatternLibrary,
+    PatternError,
+    PatternExpander,
+    PatternLibrary,
+    eligible_archetypes,
 )
 from .payload_inspector import (
     PointerSummary,
@@ -434,6 +452,91 @@ def _named_child_entry(
     return entry
 
 
+def _coerce_layout_brief(
+    layout: LayoutBrief | Sequence[str] | None,
+    grammar: ArchetypeGrammar,
+) -> LayoutBrief | None:
+    """Normalizes an optional `LayoutBrief` or string sequence into a `LayoutBrief`."""
+    if layout is None:
+        return None
+    if isinstance(layout, LayoutBrief):
+        return layout if layout.sections else None
+    parsed = LayoutBrief.parse(layout, roles=grammar.brief_roles())
+    return parsed if parsed.sections else None
+
+
+def _catalog_slug(catalog_id: str) -> str:
+    """Extracts a short identifier slug from a catalog URI or ID."""
+    parts = [
+        p
+        for p in catalog_id.split("/")
+        if p
+        and not p.endswith(".json")
+        and not p.startswith("http")
+        and not re.match(r"^v\d", p)
+    ]
+    raw = parts[-1] if parts else catalog_id
+    return re.sub(r"[^a-zA-Z0-9]+", "_", raw).strip("_").lower() or "cat"
+
+
+def _stamp_function_calls(value: Any, catalog_id: str) -> None:
+    """Recursively stamps `catalogId` onto function call dicts inside `value`."""
+    if isinstance(value, list):
+        for item in value:
+            _stamp_function_calls(item, catalog_id)
+        return
+    if not isinstance(value, dict):
+        return
+    if ("@call" in value or "call" in value) and "args" in value:
+        value.setdefault("catalogId", catalog_id)
+    for child in value.values():
+        _stamp_function_calls(child, catalog_id)
+
+
+def _archetype_confidence_and_entropy(
+    state: PlannerState, plan: LayoutPlan | None
+) -> tuple[float, float]:
+    """Extracts confidence and normalized entropy from the archetype or family answer."""
+    family = (
+        plan.family
+        if plan is not None
+        else (
+            state.selected_archetype.family
+            if state.selected_archetype is not None
+            else None
+        )
+    )
+    arch_ans = state.answers_by_id.get(f"archetype:{family}") if family else None
+    conf = (
+        plan.confidence
+        if plan is not None
+        else (arch_ans.top()[1] if arch_ans is not None else 0.0)
+    )
+    if arch_ans is not None:
+        return conf, arch_ans.distribution.normalized_entropy()
+    fam_ans = state.answers_by_id.get("family")
+    if fam_ans is not None:
+        return conf, fam_ans.distribution.normalized_entropy()
+    return conf, 0.0
+
+
+def _record_trace_reason(trace: list[DecisionRecord], reason: str, prompt: str) -> None:
+    """Appends a synthetic `DecisionRecord` with `outcome=reason` if not already last."""
+    if trace and trace[-1].outcome == reason:
+        return
+    trace.append(
+        DecisionRecord(
+            question=DecisionQuestion(
+                id="archetype_status",
+                kind=QuestionKind.BOOLEAN,
+                prompt=prompt,
+                allow_none=False,
+            ),
+            outcome=reason,
+        )
+    )
+
+
 class DecisionSynthesizer:
     """Catalog-agnostic local decision-model A2UI surface synthesizer.
 
@@ -442,6 +545,10 @@ class DecisionSynthesizer:
         backend: The decision backend that scores candidates.
         registry: The surface template registry consulted first.
         config: Default thresholds and structural limits.
+        archetypes: The layout archetype grammar.
+        patterns: The catalog pattern library for expanding planned blocks.
+        planner: The speculative layout planner.
+        expander: The pattern template expander.
     """
 
     def __init__(
@@ -451,6 +558,8 @@ class DecisionSynthesizer:
         *,
         registry: TemplateRegistry | None = None,
         config: SynthesisConfig | None = None,
+        archetypes: ArchetypeGrammar | None = None,
+        patterns: PatternLibrary | MergedPatternLibrary | None = None,
         fallback_card: bool = False,
         fallback_fn: FallbackCallback | None = None,
     ) -> None:
@@ -465,6 +574,10 @@ class DecisionSynthesizer:
             registry: Surface templates tried before catalog synthesis.
             config: Default `SynthesisConfig`; `synthesize` may override it
                 per call.
+            archetypes: Layout archetype grammar. Defaults to
+                `ArchetypeGrammar.default()`.
+            patterns: Catalog pattern library. Defaults to
+                `PatternLibrary.for_catalogs(graph.catalogs)`.
             fallback_card: When True and the model abstains with no other
                 fallback available, render a deterministic root container
                 bound to the payload instead of returning no messages.
@@ -480,6 +593,20 @@ class DecisionSynthesizer:
         self.backend = backend if backend is not None else create_decision_backend()
         self.registry = registry if registry is not None else TemplateRegistry()
         self.config = config if config is not None else SynthesisConfig()
+        self.archetypes = (
+            archetypes if archetypes is not None else ArchetypeGrammar.default()
+        )
+        self.patterns: PatternLibrary | MergedPatternLibrary = (
+            patterns
+            if patterns is not None
+            else PatternLibrary.for_catalogs(self.graph.catalogs)
+        )
+        self.planner = LayoutPlanner(
+            self.archetypes, self.config, capabilities=self.patterns
+        )
+        self.expander = PatternExpander(
+            self.patterns, self.graph, grammar=self.archetypes
+        )
         self._fallback_card = fallback_card
         self._fallback_fn = fallback_fn
 
@@ -491,6 +618,8 @@ class DecisionSynthesizer:
         backend: DecisionBackend | None = None,
         registry: TemplateRegistry | None = None,
         config: SynthesisConfig | None = None,
+        archetypes: ArchetypeGrammar | None = None,
+        patterns: PatternLibrary | MergedPatternLibrary | None = None,
         fallback_card: bool = False,
         fallback_fn: FallbackCallback | None = None,
     ) -> DecisionSynthesizer:
@@ -504,6 +633,8 @@ class DecisionSynthesizer:
             backend,
             registry=registry,
             config=config,
+            archetypes=archetypes,
+            patterns=patterns,
             fallback_card=fallback_card,
             fallback_fn=fallback_fn,
         )
@@ -534,6 +665,7 @@ class DecisionSynthesizer:
         config: SynthesisConfig | None = None,
         template_id: str | None = None,
         fallback_dsl: str | None = None,
+        layout: LayoutBrief | Sequence[str] | None = None,
     ) -> SynthesisOutput:
         """Synthesizes validated A2UI messages without mutating the template registry.
 
@@ -549,6 +681,8 @@ class DecisionSynthesizer:
             template_id: Render this registered template directly, skipping
                 model selection.
             fallback_dsl: A2UI Express rendered when the model abstains.
+            layout: Optional `LayoutBrief` (or `'role:key,key'` string sequence)
+                pinning roles to payload pointers.
 
         Returns:
             The synthesis result. When the model abstains and a fallback
@@ -557,8 +691,9 @@ class DecisionSynthesizer:
             output, and `fallback_source` names which fallback produced it.
 
         Raises:
-            ValueError: If `template_id` names no registered template, or a
-                string payload is not valid JSON.
+            ValueError: If `template_id` names no registered template, a
+                string payload is not valid JSON, or `layout` fails brief
+                validation.
             TypeError: If the payload is neither an object nor an array.
         """
         active_config = config if config is not None else self.config
@@ -566,6 +701,7 @@ class DecisionSynthesizer:
             surface_id if surface_id is not None else active_config.default_surface_id
         )
         data = _as_data_model(payload)
+        brief = _coerce_layout_brief(layout, self.archetypes)
 
         if template_id is not None:
             return self._render_named_template(template_id, data, target_surface_id)
@@ -591,6 +727,7 @@ class DecisionSynthesizer:
             target_surface_id=target_surface_id,
             has_mutable=has_mutable,
             config=active_config,
+            layout=brief,
         )
         if output.stage is not SynthesisStage.ABSTAIN_FALLBACK or output.messages:
             return output
@@ -716,6 +853,8 @@ class DecisionSynthesizer:
             confidence=abstained.confidence,
             entropy=abstained.entropy,
             fallback_source=source,
+            layout_plan=abstained.layout_plan,
+            trace=abstained.trace,
         )
 
     def _compile_fallback_dsl(
@@ -856,6 +995,226 @@ class DecisionSynthesizer:
             component_tree_spec=tree_spec,
         )
 
+    async def _plan_layout(
+        self,
+        intent: str,
+        data: Mapping[str, Any],
+        pointers: Sequence[PointerSummary],
+        *,
+        brief: LayoutBrief | None,
+        config: SynthesisConfig,
+    ) -> tuple[PlanOutcome, PlannerState]:
+        """Builds a speculative batch, calls `backend.answer` (with at most one re-ask), and reads the plan."""
+        planner = (
+            self.planner
+            if config == self.config
+            else LayoutPlanner(self.archetypes, config, capabilities=self.patterns)
+        )
+        batch, state = planner.build_batch(intent, pointers, brief=brief, payload=data)
+        answers = await self.backend.answer(batch)
+        outcome = planner.read(state, answers)
+        if outcome.plan is None:
+            return outcome, state
+        reask = planner.needs_reask(outcome.plan, state)
+        if not reask:
+            return outcome, state
+        reask_batch = DecisionBatch(
+            shared_context={**batch.shared_context, "reask": True},
+            questions=reask,
+        )
+        reask_answers = await self.backend.answer(reask_batch)
+        reask_by_id = {ans.question_id: ans for ans in reask_answers}
+        existing_ids = {a.question_id for a in answers}
+        merged = tuple(reask_by_id.get(a.question_id, a) for a in answers) + tuple(
+            ans for ans in reask_answers if ans.question_id not in existing_ids
+        )
+        state.trace.clear()
+        return planner.read(state, merged), state
+
+    def _block_prefix_and_owner(
+        self, block_id: str, pattern: str
+    ) -> tuple[str, str | None]:
+        """Returns `(id_prefix, owner_catalog_id)` for a planned block."""
+        if self.graph.surface_catalog_id is not None:
+            return block_id, None
+        base_pattern = pattern.split(".", 1)[0].split(":", 1)[0]
+        owner: str | None = None
+        if isinstance(self.patterns, MergedPatternLibrary):
+            owner = self.patterns.owner_catalog_id(base_pattern)
+        elif self.patterns.catalog_ids:
+            owner = self.patterns.catalog_ids[0]
+        if owner is None and self.graph.catalogs:
+            owner = self.graph.catalogs[0].catalog_id
+        slug = _catalog_slug(owner) if owner else "cat"
+        return f"{slug}_{block_id}", owner
+
+    def _stamp_multi_catalog_id(
+        self, comps: Sequence[dict[str, Any]], owner: str | None
+    ) -> None:
+        """Assigns `catalogId` to expanded components on multi-catalog surfaces."""
+        if self.graph.surface_catalog_id is not None:
+            return
+        default_cat = owner or (
+            self.graph.catalogs[0].catalog_id if self.graph.catalogs else None
+        )
+        if default_cat is None:
+            return
+        for comp in comps:
+            comp.setdefault("catalogId", default_cat)
+            _stamp_function_calls(comp, default_cat)
+
+    def _expand_plan(self, plan: LayoutPlan) -> list[dict[str, Any]]:
+        """Expands every `PlannedBlock` and the `page` frame through `self.expander`."""
+        block_roots: list[str] = []
+        block_components: list[dict[str, Any]] = []
+        for block in plan.blocks:
+            prefix, owner = self._block_prefix_and_owner(block.block_id, block.pattern)
+            expanded = self.expander.expand_block(
+                block.block_id,
+                block.pattern,
+                block.bindings,
+                block.variant_knobs,
+                block.instances,
+                prefix,
+            )
+            if expanded:
+                self._stamp_multi_catalog_id(expanded, owner)
+                block_roots.append(str(expanded[0]["id"]))
+                block_components.extend(expanded)
+        page_owner = (
+            self.patterns.owner_catalog_id("page")
+            if isinstance(self.patterns, MergedPatternLibrary)
+            else None
+        )
+        page_components = self.expander.expand_page(plan.page, block_roots=block_roots)
+        self._stamp_multi_catalog_id(page_components, page_owner)
+        return [*page_components, *block_components]
+
+    def _finish_archetype_output(
+        self,
+        plan: LayoutPlan,
+        state: PlannerState,
+        components: list[dict[str, Any]],
+        data: Mapping[str, Any],
+        target_surface_id: str,
+    ) -> SynthesisOutput:
+        """Runs `lint_components`, validates wire messages, and builds `SynthesisOutput`."""
+        trace = list(state.trace)
+        findings = lint_components(components, plan)
+        has_error = False
+        for finding in findings:
+            trace.append(
+                DecisionRecord(
+                    question=DecisionQuestion(
+                        id=f"lint:{finding.code}",
+                        kind=QuestionKind.BOOLEAN,
+                        prompt=finding.message,
+                        allow_none=False,
+                    ),
+                    outcome=f"{finding.severity}:{finding.code}",
+                )
+            )
+            if finding.severity == "error":
+                has_error = True
+        conf, entropy = _archetype_confidence_and_entropy(state, plan)
+        if has_error:
+            return SynthesisOutput(
+                stage=SynthesisStage.ABSTAIN_FALLBACK,
+                messages=[],
+                confidence=conf,
+                entropy=entropy,
+                layout_plan=plan,
+                trace=tuple(trace),
+            )
+        messages = self._build_validated_messages(target_surface_id, components, data)
+        root_comp = (
+            str(components[0].get("component", "Column")) if components else "Column"
+        )
+        return SynthesisOutput(
+            stage=SynthesisStage.ARCHETYPE,
+            messages=messages,
+            confidence=conf,
+            entropy=entropy,
+            component_tree_spec={
+                "root_component": root_comp,
+                "archetype": plan.archetype,
+                "blocks": list(plan.block_ids()),
+                "layoutPlan": {
+                    "archetype": plan.archetype,
+                    "blocks": list(plan.block_ids()),
+                },
+                "components": components,
+            },
+            layout_plan=plan,
+            trace=tuple(trace),
+        )
+
+    async def _synthesize_with_archetypes(
+        self,
+        intent: str,
+        data: Mapping[str, Any],
+        pointers: Sequence[PointerSummary],
+        *,
+        target_surface_id: str,
+        brief: LayoutBrief | None,
+        config: SynthesisConfig,
+    ) -> tuple[SynthesisOutput | None, tuple[DecisionRecord, ...]]:
+        """Attempts archetype-planned synthesis, returning `(output, trace)`."""
+        eligible = eligible_archetypes(self.archetypes, self.patterns, pointers)
+        if not eligible:
+            trace: list[DecisionRecord] = []
+            _record_trace_reason(
+                trace,
+                "no eligible archetype",
+                "Are any layout archetypes eligible for the active catalogs and"
+                " payload?",
+            )
+            return None, tuple(trace)
+        trace = []
+        try:
+            outcome, state = await self._plan_layout(
+                intent,
+                data,
+                pointers,
+                brief=brief,
+                config=config,
+            )
+            trace = list(state.trace)
+            if outcome.reason == "action_gate":
+                _record_trace_reason(trace, "action_gate", "Action confidence gate")
+                conf, entropy = _archetype_confidence_and_entropy(state, None)
+                return (
+                    SynthesisOutput(
+                        stage=SynthesisStage.ABSTAIN_FALLBACK,
+                        messages=[],
+                        confidence=conf,
+                        entropy=entropy,
+                        trace=tuple(trace),
+                    ),
+                    tuple(trace),
+                )
+            if outcome.reason != "planned" or outcome.plan is None:
+                _record_trace_reason(
+                    trace, outcome.reason, "Archetype planning outcome"
+                )
+                return None, tuple(trace)
+            components = self._expand_plan(outcome.plan)
+            finished = self._finish_archetype_output(
+                outcome.plan, state, components, data, target_surface_id
+            )
+            return finished, finished.trace
+        except (
+            _NoEligibleChildError,
+            PatternError,
+            A2uiValidationError,
+        ) as exc:
+            _record_trace_reason(
+                trace,
+                f"{type(exc).__name__}: {exc}",
+                "Archetype planning or expansion validation",
+            )
+            return None, tuple(trace)
+
     async def _synthesize_from_catalog(
         self,
         intent: str,
@@ -865,8 +1224,43 @@ class DecisionSynthesizer:
         target_surface_id: str,
         has_mutable: bool,
         config: SynthesisConfig,
+        layout: LayoutBrief | None = None,
     ) -> SynthesisOutput:
         """Executes Stage 2 catalog-guided synthesis or Stage 3 abstain fallback."""
+        arch_trace: tuple[DecisionRecord, ...] = ()
+        if config.use_archetypes:
+            arch_out, arch_trace = await self._synthesize_with_archetypes(
+                intent,
+                payload,
+                pointers,
+                target_surface_id=target_surface_id,
+                brief=layout,
+                config=config,
+            )
+            if arch_out is not None:
+                return arch_out
+
+        flat_out = await self._synthesize_flat_catalog_path(
+            intent,
+            payload,
+            pointers,
+            target_surface_id=target_surface_id,
+            has_mutable=has_mutable,
+            config=config,
+        )
+        return replace(flat_out, trace=arch_trace) if arch_trace else flat_out
+
+    async def _synthesize_flat_catalog_path(
+        self,
+        intent: str,
+        payload: Mapping[str, Any],
+        pointers: Sequence[PointerSummary],
+        *,
+        target_surface_id: str,
+        has_mutable: bool,
+        config: SynthesisConfig,
+    ) -> SynthesisOutput:
+        """Executes the flat leaf/container/switcher catalog synthesis path."""
         root_candidates = (
             (self.graph.leaf_candidates() or self.graph.root_candidates())
             if config.max_tree_depth <= 1

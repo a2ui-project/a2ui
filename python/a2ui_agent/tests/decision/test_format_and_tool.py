@@ -398,6 +398,8 @@ async def test_abstention_fallback_fn_sync_and_async() -> None:
 
 
 def test_format_factory_shares_one_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    from a2ui.inference_formats.decision import BatchingDecisionBackend
+
     monkeypatch.setenv("A2UI_DECISION_BACKEND", "mock")
     catalog = _make_catalog()
 
@@ -406,13 +408,19 @@ def test_format_factory_shares_one_backend(monkeypatch: pytest.MonkeyPatch) -> N
     first = lazy.create_format([catalog])
     second = lazy.create_format([catalog])
     assert first.synthesizer.backend is second.synthesizer.backend is lazy.backend
-    assert isinstance(lazy.backend, DeterministicMockBackend)
+    assert isinstance(lazy.backend, BatchingDecisionBackend)
+    assert isinstance(lazy.backend.inner, DeterministicMockBackend)
     # The catalog graph is still per format.
     assert first.synthesizer.graph is not second.synthesizer.graph
 
     explicit_backend = _confident_backend()
     explicit = DecisionFormatFactory(backend=explicit_backend)
-    assert explicit.create_format([catalog]).synthesizer.backend is explicit_backend
+    explicit_fmt = explicit.create_format([catalog])
+    assert isinstance(explicit_fmt.synthesizer.backend, BatchingDecisionBackend)
+    assert explicit_fmt.synthesizer.backend.inner is explicit_backend
+
+    unbatched = DecisionFormatFactory(backend=explicit_backend, batch_backend=False)
+    assert unbatched.create_format([catalog]).synthesizer.backend is explicit_backend
 
 
 @pytest.mark.asyncio

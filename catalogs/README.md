@@ -15,8 +15,15 @@ catalogs/
 ├── basic/
 │   └── v1/                 # Basic catalog, major version 1
 │       ├── catalog.json
+│       ├── patterns.json   # Abstract block pattern templates for Basic v1
 │       ├── examples/
 │       └── basic_catalog_implementation_guide.md
+├── decision/               # Catalog-agnostic layout archetype grammar & schemas
+│   ├── README.md
+│   └── v1/
+│       ├── archetypes.json
+│       ├── archetype_definition.json
+│       └── pattern_definition.json
 └── mcp/                    # MCP catalog
     ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
     └── v1/                 # MCP catalog, major version 1 (protocol v1.0)
@@ -29,6 +36,15 @@ catalogs/
   catalog at its existing `$id` URL
   (`https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json`), so
   moving files here does not affect consumers.
+- `basic/v1/patterns.json` maps the 17 abstract block patterns (`page`, `banner`,
+  `picture`, `media`, `filters`, `headline`, `facts`, `prose`, `collection`,
+  `comparison`, `steps`, `form`, `groups`, `actions`, `outcome`, `conversation`,
+  `compose`) onto Basic Catalog components for decision-model layout synthesis,
+  while `decision/v1/archetypes.json` (with `archetype_definition.json` and
+  `pattern_definition.json`, documented in `decision/README.md`) defines the
+  catalog-agnostic layout archetype grammar (`ArchetypeGrammar`). Python
+  packages mirror these assets via
+  `python/a2ui_agent/scripts/sync_decision_assets.py`.
 - `basic/` is versioned by catalog major version (`v1/`), which is independent
   of the protocol version. Newer catalogs start unversioned
   (`catalogs/<catalog>/catalog.json`) and add a version directory only when

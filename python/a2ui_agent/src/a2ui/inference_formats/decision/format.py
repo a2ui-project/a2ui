@@ -32,10 +32,13 @@ from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
 from a2ui.inference_formats._shared import check_mixed_catalogs
 
+from .archetypes import ArchetypeGrammar
 from .backends import DecisionBackend, create_decision_backend
+from .batching import BatchingDecisionBackend
 from .catalog_graph import CatalogDecisionGraph
 from .models import SynthesisConfig
 from .parser import DecisionParser
+from .patterns import MergedPatternLibrary, PatternLibrary
 from .prompt_generator import DecisionPromptGenerator
 from .synthesizer import DecisionSynthesizer, FallbackCallback
 from .template_registry import TemplateRegistry
@@ -58,6 +61,8 @@ class DecisionFormat(InferenceFormat):
         backend: DecisionBackend | None = None,
         config: SynthesisConfig | None = None,
         registry: TemplateRegistry | None = None,
+        archetypes: ArchetypeGrammar | None = None,
+        patterns: PatternLibrary | MergedPatternLibrary | None = None,
         surface_id: str = "main",
         fallback_card: bool = True,
         fallback_fn: FallbackCallback | None = None,
@@ -70,6 +75,10 @@ class DecisionFormat(InferenceFormat):
             backend: Decision backend; defaults to `create_decision_backend()`.
             config: Synthesis thresholds and limits.
             registry: Surface templates offered in the prompt and tried first.
+            archetypes: Layout archetype grammar; defaults to
+                `ArchetypeGrammar.default()`.
+            patterns: Catalog pattern library; defaults to
+                `PatternLibrary.for_catalogs(catalogs)`.
             surface_id: Surface used when a block names none. A block's own
                 `surfaceId` wins; `SynthesisConfig.default_surface_id` is not
                 consulted on this path.
@@ -88,6 +97,8 @@ class DecisionFormat(InferenceFormat):
             backend,
             registry=self._registry,
             config=config,
+            archetypes=archetypes,
+            patterns=patterns,
             fallback_card=fallback_card,
             fallback_fn=fallback_fn,
         )
@@ -142,6 +153,9 @@ class DecisionFormatFactory(InferenceFormatFactory):
         backend: DecisionBackend | None = None,
         config: SynthesisConfig | None = None,
         registry: TemplateRegistry | None = None,
+        archetypes: ArchetypeGrammar | None = None,
+        patterns: PatternLibrary | MergedPatternLibrary | None = None,
+        batch_backend: bool = True,
         surface_id: str = "main",
         fallback_card: bool = True,
         fallback_fn: FallbackCallback | None = None,
@@ -154,13 +168,31 @@ class DecisionFormatFactory(InferenceFormatFactory):
                 call and reused afterwards.
             config: See `DecisionFormat`.
             registry: See `DecisionFormat`.
+            archetypes: See `DecisionFormat`.
+            patterns: See `DecisionFormat`. When None, built once per catalog
+                set via `PatternLibrary.for_catalogs`.
+            batch_backend: When True (default), wraps the shared backend in
+                `BatchingDecisionBackend`.
             surface_id: See `DecisionFormat`.
             fallback_card: See `DecisionFormat`.
             fallback_fn: See `DecisionFormat`.
         """
-        self._backend = backend
+        self._raw_backend = backend
+        self._backend: DecisionBackend | None = None
+        if backend is not None:
+            self._backend = (
+                BatchingDecisionBackend(backend)
+                if (batch_backend and not isinstance(backend, BatchingDecisionBackend))
+                else backend
+            )
         self._config = config
         self._registry = registry
+        self._archetypes = archetypes
+        self._patterns = patterns
+        self._batch_backend = batch_backend
+        self._pattern_cache: dict[
+            tuple[str, ...], PatternLibrary | MergedPatternLibrary
+        ] = {}
         self._surface_id = surface_id
         self._fallback_card = fallback_card
         self._fallback_fn = fallback_fn
@@ -173,8 +205,30 @@ class DecisionFormatFactory(InferenceFormatFactory):
     def _shared_backend(self) -> DecisionBackend:
         """Returns the backend every created format shares, building it on first use."""
         if self._backend is None:
-            self._backend = create_decision_backend()
+            raw = (
+                self._raw_backend
+                if self._raw_backend is not None
+                else create_decision_backend()
+            )
+            self._backend = (
+                BatchingDecisionBackend(raw)
+                if (
+                    self._batch_backend and not isinstance(raw, BatchingDecisionBackend)
+                )
+                else raw
+            )
         return self._backend
+
+    def _patterns_for_catalogs(
+        self, catalogs: Sequence[CatalogApi]
+    ) -> PatternLibrary | MergedPatternLibrary:
+        """Returns the cached `PatternLibrary` for `catalogs`."""
+        if self._patterns is not None:
+            return self._patterns
+        key = tuple(c.catalog_id for c in catalogs)
+        if key not in self._pattern_cache:
+            self._pattern_cache[key] = PatternLibrary.for_catalogs(catalogs)
+        return self._pattern_cache[key]
 
     def create_format(
         self,
@@ -187,6 +241,8 @@ class DecisionFormatFactory(InferenceFormatFactory):
             backend=self._shared_backend(),
             config=self._config,
             registry=self._registry,
+            archetypes=self._archetypes,
+            patterns=self._patterns_for_catalogs(catalogs),
             surface_id=self._surface_id,
             fallback_card=self._fallback_card,
             fallback_fn=self._fallback_fn,

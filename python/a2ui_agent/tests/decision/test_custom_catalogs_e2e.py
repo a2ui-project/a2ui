@@ -319,6 +319,7 @@ async def test_finance_catalog_e2e_v09_and_v10(protocol_version: str) -> None:
         {"ticker": "GOOG", "price": 182.50},
     )
     assert quote_out.stage == SynthesisStage.FAST_1PASS_LEAF
+    assert quote_out.trace and quote_out.trace[0].outcome == "no eligible archetype"
     _assert_valid_surface([catalog], quote_out, expected_root="TickerQuoteCard")
 
     # Promote synthesized quote surface and verify Stage 1 template reuse.
@@ -379,6 +380,7 @@ async def test_healthcare_catalog_e2e_v09_and_v10(
         {"patientName": "J. Doe", "heartRateBpm": 74},
     )
     assert vitals_out.stage == SynthesisStage.FAST_1PASS_LEAF
+    assert vitals_out.trace and vitals_out.trace[0].outcome == "no eligible archetype"
     _assert_valid_surface([catalog], vitals_out, expected_root="VitalsTelemetryCard")
 
     banner_out = await synth.synthesize(
@@ -415,6 +417,7 @@ async def test_devops_catalog_and_calibration_e2e(
         {"clusterName": "prod-us-west1", "cpuPercent": 68.2},
     )
     assert gauge_out.stage == SynthesisStage.FAST_1PASS_LEAF
+    assert gauge_out.trace and gauge_out.trace[0].outcome == "no eligible archetype"
     _assert_valid_surface([catalog], gauge_out, expected_root="ClusterHealthGauge")
 
     feed_out = await synth.synthesize(

@@ -716,16 +716,20 @@ _ELIGIBILITY_CACHE: dict[tuple[Any, ...], tuple[LayoutArchetype, ...]] = {}
 def eligible_archetypes(
     grammar: ArchetypeGrammar,
     library: PatternCapabilities,
-    pointers: Sequence[PointerSummary],
+    pointers: Sequence[PointerSummary] | CatalogDecisionGraph,
+    maybe_pointers: Sequence[PointerSummary] | None = None,
 ) -> tuple[LayoutArchetype, ...]:
     """Returns the archetypes in `grammar` eligible for `library` and `pointers`."""
-    if not pointers:
+    actual_pointers: Sequence[PointerSummary] = (
+        maybe_pointers or () if isinstance(pointers, CatalogDecisionGraph) else pointers
+    )
+    if not actual_pointers:
         return ()
     cache_key = (
         id(grammar),
         grammar.version,
         _library_cache_key(library),
-        _shape_signature(pointers),
+        _shape_signature(actual_pointers),
     )
     cached = _ELIGIBILITY_CACHE.get(cache_key)
     if cached is not None:
@@ -738,7 +742,9 @@ def eligible_archetypes(
     result = tuple(
         arch
         for arch in grammar.archetypes
-        if _archetype_is_eligible(arch, grammar, library, pointers, prose_measure)
+        if _archetype_is_eligible(
+            arch, grammar, library, actual_pointers, prose_measure
+        )
     )
     _ELIGIBILITY_CACHE[cache_key] = result
     return result

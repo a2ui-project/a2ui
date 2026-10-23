@@ -272,11 +272,25 @@ def _text_heading_level(props: Mapping[str, Any]) -> int | None:
     return None
 
 
+def _match_block_suffix(comp_id: str, block_id: str) -> str | None:
+    """Returns the suffix after `block_id_` in `comp_id`, or `None`."""
+    prefix = f"{block_id}_"
+    if comp_id.startswith(prefix):
+        return comp_id[len(prefix) :]
+    if f"_{prefix}" in comp_id:
+        return comp_id.split(f"_{prefix}", 1)[1]
+    return None
+
+
 def _block_group_for_id(comp_id: str, block_ids: Sequence[str]) -> str:
-    """Maps a component id to its owning block id, or ``'_surface'``."""
+    """Maps a component id to its owning block (or unrolled item) group."""
     for block_id in block_ids:
-        if comp_id == block_id or comp_id.startswith(f"{block_id}_"):
+        if comp_id == block_id:
             return block_id
+        rest = _match_block_suffix(comp_id, block_id)
+        if rest is not None:
+            head = rest.split("_", 1)[0]
+            return f"{block_id}_{head}" if head.isdigit() else block_id
     return "_surface"
 
 

@@ -234,8 +234,22 @@ def _infer_fallback_semantics(
     return ("number" if ptr.value_type == "number" else "string"), hints
 
 
+class _NormalizedPointers(tuple[PointerSummary, ...]):
+    """Marker tuple subclass indicating pointers have already been normalized."""
+
+
 def _normalize_single_pointer(ptr: PointerSummary) -> PointerSummary:
     """Populates missing label, semantic type, and array sample fields on `ptr`."""
+    if (
+        ptr.label
+        and ptr.semantic_type != "string"
+        and (
+            ptr.value_type != "array"
+            or not ptr.element_keys
+            or ptr.element_semantic_types
+        )
+    ):
+        return ptr
     sem_type, hints = _infer_fallback_semantics(ptr)
     label = ptr.label or _humanize_key(ptr.key)
     elem_sem = dict(ptr.element_semantic_types)
@@ -291,6 +305,8 @@ def _normalize_pointers(
     pointers: Sequence[PointerSummary],
 ) -> tuple[PointerSummary, ...]:
     """Normalizes `pointers` and adds missing parent object or sample pointers."""
+    if isinstance(pointers, _NormalizedPointers):
+        return pointers
     normalized = [_normalize_single_pointer(p) for p in pointers]
     existing_paths = {p.path for p in normalized}
     excluded_parents = existing_paths | {
@@ -307,7 +323,7 @@ def _normalize_pointers(
             if sample not in existing_paths:
                 existing_paths.add(sample)
                 result.append(_build_sample_pointer_summary(sample))
-    return tuple(result)
+    return _NormalizedPointers(result)
 
 
 def _in_range(value: int, bounds: Range | None) -> bool:
@@ -2026,10 +2042,14 @@ class LayoutPlanner:
         seen_ids = {q.id for q in questions}
         page_ptr = _page_title_pointer(state.pointers)
         absorbed = _collect_absorbed_siblings(state.pointers)
+        added = 0
         for ptr in state.pointers:
             if not self._is_salience_candidate(ptr, page_ptr, absorbed, state):
                 continue
-            self._try_add_question(
+            if added >= _MAX_SALIENCE_QUESTIONS:
+                state.budget_exhausted = True
+                break
+            if self._try_add_question(
                 questions,
                 DecisionQuestion(
                     id=f"salience:{ptr.path}",
@@ -2040,7 +2060,8 @@ class LayoutPlanner:
                 ),
                 state,
                 seen_ids=seen_ids,
-            )
+            ):
+                added += 1
 
     def _append_instance_questions(
         self,
@@ -2820,6 +2841,9 @@ class LayoutPlanner:
             if win_prob < self._config.reask_below:
                 reask.append(question)
         return tuple(reask)
+
+
+_MAX_SALIENCE_QUESTIONS = 20
 
 
 def _single_apply_condition_holds(

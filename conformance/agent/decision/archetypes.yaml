@@ -1,0 +1,469 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Decision layout archetypes, eligibility, planning, and pattern expansion.
+
+- name: test_grammar_default_loads_and_lints
+  description: Default archetype grammar loads cleanly and passes structural lint checks.
+  action: load
+  args:
+    kind: grammar
+  expect:
+    version: "1"
+    families:
+      - browse
+      - monitor
+      - inspect
+      - act
+      - input
+      - follow
+    archetype_count: 14
+    block_count: 19
+
+- name: test_eligibility_resort_basic_v1
+  description: Resort overview payload makes detail and feed archetypes eligible on Basic v1.
+  action: validate
+  args:
+    kind: eligibility
+    catalog: basic_v1
+  input:
+    name: "Casa Verde"
+    logoUrl: "https://example.com/casa-verde/logo.png"
+    rating: 4.6
+    priceFrom: 240
+    about: "A quiet hillside resort twenty minutes from the old town, with a spring-fed pool, garden suites, and a breakfast terrace that looks over the valley. Families and walkers come back year after year."
+    photos:
+      - url: "https://example.com/casa-verde/1.jpg"
+        caption: "Pool at dusk"
+      - url: "https://example.com/casa-verde/2.jpg"
+        caption: "Garden suite"
+      - url: "https://example.com/casa-verde/3.jpg"
+        caption: "Breakfast terrace"
+  expect:
+    contains_archetypes:
+      - detail
+      - feed
+
+- name: test_eligibility_host_basic_v1
+  description: Host health payload makes the dashboard archetype eligible on Basic v1.
+  action: validate
+  args:
+    kind: eligibility
+    catalog: basic_v1
+  input:
+    host: "prod-1"
+    cpu: 0.78
+    cpuDelta: 0.12
+    status: "degraded"
+    uptimeHours: 412
+  expect:
+    contains_archetypes:
+      - dashboard
+
+- name: test_eligibility_transfer_basic_v1
+  description: Transfer confirmation payload makes confirm, checkout, and result eligible on Basic v1.
+  action: validate
+  args:
+    kind: eligibility
+    catalog: basic_v1
+    mutable_paths:
+      - /actions
+  input:
+    amount: 50
+    currency: "USD"
+    recipient: "Alex Chen"
+    fee: 0.5
+    arrives: "2026-10-24"
+    actions:
+      - "Send"
+      - "Cancel"
+  expect:
+    contains_archetypes:
+      - confirm
+      - checkout
+      - result
+
+- name: test_eligibility_settings_basic_v1
+  description: Podcast settings payload makes settings and form archetypes eligible on Basic v1.
+  action: validate
+  args:
+    kind: eligibility
+    catalog: basic_v1
+    mutable_paths:
+      - /playback
+      - /notifications
+      - /account
+  input:
+    playback:
+      skipForward: "30 seconds"
+      autoDownload: true
+      speed: 1.25
+    notifications:
+      newEpisodes: true
+      digest: false
+    account:
+      signOut: "Sign out"
+  expect:
+    contains_archetypes:
+      - settings
+      - form
+
+- name: test_eligibility_two_component_catalog_none
+  description: A two-component domain catalog with no basic patterns has zero eligible archetypes.
+  action: validate
+  args:
+    kind: eligibility
+    catalog: two_component
+  input:
+    name: "Casa Verde"
+    rating: 4.6
+    priceFrom: 240
+  expect:
+    exact_archetypes: []
+
+- name: test_plan_resort_detail
+  description: Resort payload plans to inspect/detail with picture, headline, prose, and collection in order.
+  action: render
+  args:
+    kind: plan
+    intent: "Show the resort overview"
+    scripted_answers:
+      family: ["inspect", 0.80]
+      stakes: 0.2
+      urgency: 0.1
+      "archetype:inspect": ["detail", 0.85]
+      "gate:picture": 0.90
+      "gate:banner": 0.10
+      "gate:headline": 0.80
+      "gate:prose": 0.90
+      "gate:facts": 0.40
+      "gate:collection": 0.85
+      "gate:actions": 0.30
+      "anatomy:picture.framing": ["banner", 0.80]
+      "anatomy:picture.prominence": 2.2
+      "anatomy:collection.layout": ["reel", 0.70]
+      "anatomy:collection.leading": ["thumbnail", 0.80]
+      "anatomy:collection.trailing": ["none", 0.80]
+      "salience:/rating": 2.4
+      "salience:/priceFrom": 2.6
+  input:
+    name: "Casa Verde"
+    logoUrl: "https://example.com/casa-verde/logo.png"
+    rating: 4.6
+    priceFrom: 240
+    about: "A quiet hillside resort twenty minutes from the old town, with a spring-fed pool, garden suites, and a breakfast terrace that looks over the valley. Families and walkers come back year after year."
+    photos:
+      - url: "https://example.com/casa-verde/1.jpg"
+        caption: "Pool at dusk"
+      - url: "https://example.com/casa-verde/2.jpg"
+        caption: "Garden suite"
+      - url: "https://example.com/casa-verde/3.jpg"
+        caption: "Breakfast terrace"
+  expect:
+    reason: "planned"
+    family: "inspect"
+    archetype: "detail"
+    blocks:
+      - picture
+      - headline
+      - prose
+      - collection
+    actions_allowed: true
+    block_knobs:
+      picture:
+        framing: "banner"
+        prominence: "leading"
+      prose:
+        length: "blurb"
+      collection:
+        layout: "reel"
+        leading: "thumbnail"
+
+- name: test_plan_host_dashboard
+  description: Host payload plans to monitor/dashboard with banner, headline, and facts in order.
+  action: render
+  args:
+    kind: plan
+    intent: "Show CPU utilization for prod-1"
+    scripted_answers:
+      family: ["monitor", 0.90]
+      stakes: 1.0
+      urgency: 1.4
+      "archetype:monitor": ["dashboard", 0.85]
+      "gate:banner": 0.80
+      "gate:headline": 0.90
+      "gate:facts": 0.80
+      "salience:/cpu": 2.8
+      "salience:/status": 2.1
+      "salience:/uptimeHours": 1.2
+      "salience:/host": 0.4
+      "instance:banner.tone:/status": ["warning", 0.90]
+      "instance:headline.news:/cpu": ["bad", 0.85]
+      "instance:headline.state_tone:/status": ["warning", 0.80]
+  input:
+    host: "prod-1"
+    cpu: 0.78
+    cpuDelta: 0.12
+    status: "degraded"
+    uptimeHours: 412
+  expect:
+    reason: "planned"
+    family: "monitor"
+    archetype: "dashboard"
+    blocks:
+      - banner
+      - headline
+      - facts
+    actions_allowed: true
+    block_knobs:
+      banner:
+        tone: "warning"
+
+- name: test_plan_transfer_confirm_committed
+  description: Transfer payload at confidence 0.90 passes the 0.875 action gate and plans act/confirm.
+  action: render
+  args:
+    kind: plan
+    intent: "Confirm sending $50 to Alex before it goes through"
+    mutable_paths:
+      - /actions
+    scripted_answers:
+      family: ["act", 0.85]
+      stakes: 2.1
+      urgency: 0.6
+      "archetype:act": ["confirm", 0.90]
+      "gate:banner": 0.20
+      "gate:prose": 0.45
+      "gate:facts": 0.85
+      "gate:actions": 0.90
+      "instance:actions.primary:/actions": ["Send", 0.90]
+      "instance:actions.destructive:0": 0.80
+      "instance:actions.destructive:1": 0.10
+      "salience:/amount": 2.9
+      "salience:/recipient": 2.6
+      "salience:/fee": 1.9
+      "salience:/arrives": 1.7
+  input:
+    amount: 50
+    currency: "USD"
+    recipient: "Alex Chen"
+    fee: 0.5
+    arrives: "2026-10-24"
+    actions:
+      - "Send"
+      - "Cancel"
+  expect:
+    reason: "planned"
+    family: "act"
+    archetype: "confirm"
+    blocks:
+      - facts
+      - actions
+    actions_allowed: true
+    block_knobs: {}
+
+- name: test_plan_transfer_confirm_blocked
+  description: Transfer payload at confidence 0.80 is blocked by the 0.875 action gate.
+  action: render
+  args:
+    kind: plan
+    intent: "Confirm sending $50 to Alex before it goes through"
+    mutable_paths:
+      - /actions
+    scripted_answers:
+      family: ["act", 0.85]
+      stakes: 2.1
+      urgency: 0.6
+      "archetype:act": ["confirm", 0.80]
+      "gate:banner": 0.20
+      "gate:prose": 0.45
+      "gate:facts": 0.85
+      "gate:actions": 0.90
+      "instance:actions.primary:/actions": ["Send", 0.90]
+      "instance:actions.destructive:0": 0.80
+      "instance:actions.destructive:1": 0.10
+      "salience:/amount": 2.9
+      "salience:/recipient": 2.6
+      "salience:/fee": 1.9
+      "salience:/arrives": 1.7
+  input:
+    amount: 50
+    currency: "USD"
+    recipient: "Alex Chen"
+    fee: 0.5
+    arrives: "2026-10-24"
+    actions:
+      - "Send"
+      - "Cancel"
+  expect:
+    reason: "action_gate"
+
+- name: test_plan_settings_groups
+  description: Settings payload at confidence 0.85 plans input/settings with groups and actions_allowed=true.
+  action: render
+  args:
+    kind: plan
+    intent: "Playback and notification settings"
+    mutable_paths:
+      - /playback
+      - /notifications
+      - /account
+    scripted_answers:
+      family: ["input", 0.80]
+      stakes: 1.2
+      urgency: 0.2
+      "archetype:input": ["settings", 0.85]
+      "gate:groups": 0.90
+      "gate:actions": 0.20
+      "instance:groups.row_kind:/playback/skipForward": ["value", 0.90]
+      "instance:groups.row_kind:/playback/autoDownload": ["switch", 0.95]
+      "instance:groups.row_kind:/playback/speed": ["value", 0.70]
+      "instance:groups.row_kind:/notifications/newEpisodes": ["switch", 0.90]
+      "instance:groups.row_kind:/notifications/digest": ["switch", 0.90]
+      "instance:groups.row_kind:/account/signOut": ["danger", 0.90]
+  input:
+    playback:
+      skipForward: "30 seconds"
+      autoDownload: true
+      speed: 1.25
+    notifications:
+      newEpisodes: true
+      digest: false
+    account:
+      signOut: "Sign out"
+  expect:
+    reason: "planned"
+    family: "input"
+    archetype: "settings"
+    blocks:
+      - groups
+    actions_allowed: true
+    block_knobs: {}
+
+- name: test_expand_banner_v1_0
+  description: Expands the Basic v1 banner pattern with warning tone to its exact v1.0 component list.
+  action: render
+  args:
+    kind: expand_block
+    block_id: "banner"
+    pattern: "banner"
+    knobs:
+      tone: "warning"
+    slots:
+      title:
+        pointer: "/status"
+  expect:
+    - id: "banner_card"
+      component: "Card"
+      child: "banner_row"
+    - id: "banner_row"
+      component: "Row"
+      align: "center"
+      children:
+        - "banner_icon"
+        - "banner_col"
+    - id: "banner_icon"
+      component: "Icon"
+      name: "info"
+    - id: "banner_col"
+      component: "Column"
+      weight: 1
+      children:
+        - "banner_title"
+    - id: "banner_title"
+      component: "Text"
+      text:
+        "@call": "formatString"
+        args:
+          value: "**${/status}**"
+
+- name: test_expand_prose_blurb_v1_0
+  description: Expands the Basic v1 prose pattern with blurb length to its exact v1.0 component list.
+  action: render
+  args:
+    kind: expand_block
+    block_id: "prose"
+    pattern: "prose"
+    knobs:
+      length: "blurb"
+    slots:
+      body:
+        pointer: "/about"
+  expect:
+    - id: "prose_col"
+      component: "Column"
+      children:
+        - "prose_body"
+    - id: "prose_body"
+      component: "Text"
+      text:
+        "@path": "/about"
+      variant: "body"
+
+- name: test_expand_facts_v1_0
+  description: Expands the Basic v1 facts pattern with two static item rows to its exact v1.0 component list.
+  action: render
+  args:
+    kind: expand_block
+    block_id: "facts"
+    pattern: "facts"
+    slots:
+      rows:
+        items:
+          - label:
+              literal: "Uptime Hours"
+            value:
+              pointer: "/uptimeHours"
+          - label:
+              literal: "Host"
+            value:
+              pointer: "/host"
+  expect:
+    - id: "facts_card"
+      component: "Card"
+      child: "facts_list"
+    - id: "facts_list"
+      component: "List"
+      direction: "vertical"
+      children:
+        - "facts_row_0"
+        - "facts_row_1"
+    - id: "facts_row_0"
+      component: "Row"
+      justify: "spaceBetween"
+      children:
+        - "facts_0_facts_label"
+        - "facts_0_facts_value"
+    - id: "facts_0_facts_label"
+      component: "Text"
+      text: "Uptime Hours"
+      variant: "caption"
+    - id: "facts_0_facts_value"
+      component: "Text"
+      text:
+        "@path": "/uptimeHours"
+    - id: "facts_row_1"
+      component: "Row"
+      justify: "spaceBetween"
+      children:
+        - "facts_1_facts_label"
+        - "facts_1_facts_value"
+    - id: "facts_1_facts_label"
+      component: "Text"
+      text: "Host"
+      variant: "caption"
+    - id: "facts_1_facts_value"
+      component: "Text"
+      text:
+        "@path": "/host"
