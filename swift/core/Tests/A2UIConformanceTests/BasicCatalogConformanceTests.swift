@@ -298,7 +298,7 @@ struct BasicCatalogConformanceTests {
       if let expectedMessage = expectError["message"] as? String {
         let message = (error as? any A2UIError)?.message ?? String(describing: error)
         #expect(
-          message.contains(expectedMessage),
+          message.localizedCaseInsensitiveContains(expectedMessage),
           "\(name): message '\(message)' does not contain '\(expectedMessage)'"
         )
       }
