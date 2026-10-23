@@ -111,7 +111,7 @@ export function extractEnvelopeErrorContext(
 
   const version =
     typeof rawMessage['version'] === 'string' ? rawMessage['version'] : fallbackVersion;
-  const actionType = ACTION_ENVELOPE_KEYS.find(key => key in rawMessage);
+  const actionType = ACTION_ENVELOPE_KEYS.find(key => Object.hasOwn(rawMessage, key));
   if (!actionType) {
     return {version};
   }
