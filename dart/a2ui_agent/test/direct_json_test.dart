@@ -126,10 +126,12 @@ void main() {
     test('reads a raw line break inside a string', () {
       final List<Map<String, Object?>> messages = compile(
         '[{"version": "v0.9", "updateComponents": {"surfaceId": "s", '
-        '"components": [{"id": "root", "component": "Text", '
-        '"text": "Line 1\nLine 2"}]}}]',
+        '"components": [{"id": "root", "component": "Column", '
+        '"children\n": ["work\nText"]}, {"id": "\nworkText\n", '
+        '"component": "Text", "text": "Line 1\nLine 2"}]}}]',
       );
       expect(jsonEncode(messages), contains(r'Line 1\nLine 2'));
+      expect(jsonEncode(messages), contains('"workText"'));
     });
 
     test('removes a markdown fence around an unwrapped payload', () {
@@ -384,6 +386,16 @@ void main() {
         ['One'],
         ['   two'],
         <Object?>[],
+      ]);
+    });
+
+    test('preserves lone backtick chunks in text', () {
+      expect(stream(['Use ', '`', 'Text', '`', ' for labels.']), [
+        ['Use'],
+        <Object?>[],
+        [' `Text'],
+        <Object?>[],
+        ['` for labels.'],
       ]);
     });
 
@@ -822,8 +834,11 @@ void main() {
   });
 
   group('A2uiRequestProcessor', () {
-    test('uses direct JSON by default', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+    test('parses direct JSON when configured with DirectJsonFormatFactory', () {
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       expect(processor.promptSnippet, contains('<a2ui-json>'));
       final List<ResponsePart> parts = processor.parseResponse(
         'Here:<a2ui-json>[${create('s')}, ${update('s', [
@@ -835,7 +850,10 @@ void main() {
     });
 
     test('rejects a response the renderer would reject', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       expect(
         () => processor.parseResponse(
           '<a2ui-json>[${create('s')}, ${update('s', [

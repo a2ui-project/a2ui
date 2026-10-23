@@ -771,14 +771,39 @@ class _PayloadState(RendererState):
     component is still checked against that catalog, but the surface's tree
     is not: references to components outside the payload, a missing root and
     unreachable components are accepted there.
+    A surface whose catalog the caller knows is created on that catalog only.
     """
 
     _assumes_unknown_surfaces = True
+
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        surface_catalog_ids: Mapping[str, str] | None = None,
+    ) -> None:
+        super().__init__(catalogs)
+        self._surface_catalog_ids = dict(surface_catalog_ids or {})
+
+    def _placeholder_catalogs(
+        self, surface_id: str, updates: list[dict[str, Any]]
+    ) -> list[CatalogApi]:
+        catalog_id = self._surface_catalog_ids.get(surface_id)
+        if catalog_id is None:
+            return super()._placeholder_catalogs(surface_id, updates)
+        candidates = [c for c in self.catalogs if c.catalog_id == catalog_id]
+        if not candidates:
+            raise A2uiValidationError(
+                f"Surface '{surface_id}' uses catalog '{catalog_id}', which"
+                " isn't one of the active catalogs."
+            )
+        return candidates
 
 
 def validate_payload(
     catalogs: Sequence[CatalogApi],
     payload: _MessagePayload,
+    *,
+    surface_catalog_ids: Mapping[str, str] | None = None,
 ) -> None:
     """Checks a payload the way a renderer holding the catalogs would.
 
@@ -791,7 +816,10 @@ def validate_payload(
     updates may already hold components, so references to components outside
     the payload and a missing root are accepted there. Each of its components
     is still checked against a catalog that defines all of them, and the
-    surface passes if one such catalog accepts it.
+    surface passes if one such catalog accepts it. A caller that knows the
+    catalog an earlier payload created the surface with passes it in
+    `surface_catalog_ids`, and the surface is then checked against that
+    catalog only.
 
     To check a payload against what earlier payloads sent, keep a
     `RendererState` and call its `apply` and `check_topology` inside
@@ -807,6 +835,9 @@ def validate_payload(
         names. A v0.8 surface that names none uses the first catalog.
       payload: One message or an iterable of messages, as parsed JSON mappings
         or typed schema models.
+      surface_catalog_ids: The catalog ids that earlier payloads created
+        surfaces with, keyed by surface id. A surface that the payload creates
+        uses the catalog that the payload names instead.
 
     Raises:
       A2uiValidationError: If a renderer holding the catalogs would reject the
@@ -815,7 +846,7 @@ def validate_payload(
       A2uiCatalogError: If no catalogs are given, or if their messages state
         different versions, for example v0.9 and v1.0 catalogs.
     """
-    state = _PayloadState(catalogs)
+    state = _PayloadState(catalogs, surface_catalog_ids)
     state.check_topology(state.apply(payload))
 
 

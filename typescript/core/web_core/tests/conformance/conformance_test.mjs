@@ -122,56 +122,15 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 
 /**
  * Transition skip list containing specific test case names to skip.
- *
- * The entries are known web_core divergences that the Python and Dart engines
- * already satisfy:
- *
- * - 'test_v08_topology_card_child_reachable': the v0.8 reference map does not
- *   treat a single-child property such as `Card.child` as a component
- *   reference, so strict validation reports the child as orphaned.
  */
-const SKIP_TEST_NAMES = new Set(['test_v08_topology_card_child_reachable']);
+const SKIP_TEST_NAMES = new Set();
 
 /**
  * Cases that web_core's behaviour does not satisfy, keyed by suite path and
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const FUNCTION_CALL_EXTRA_KEY_ACCEPTED =
-  'the validator accepts a function call carrying a key its catalog function' +
-  ' definition does not declare';
-const KNOWN_DIVERGENCES = new Map([
-  [
-    'core/catalog.yaml',
-    new Map([
-      [
-        'test_v09_published_basic_catalog_rejects_function_call_extra_key',
-        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
-      ],
-      [
-        'test_v09_published_minimal_catalog_rejects_function_call_extra_key',
-        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
-      ],
-      [
-        'test_v091_published_basic_catalog_rejects_function_call_extra_key',
-        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
-      ],
-      [
-        'test_v10_published_basic_catalog_rejects_function_call_extra_key',
-        FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
-      ],
-    ]),
-  ],
-  [
-    'core/message_processor_v1_0.yaml',
-    new Map([
-      [
-        'test_v10_create_surface_metadata_extension_key_must_be_identifier',
-        'the v1.0 CreateSurface schema does not yet enforce UAX #31 identifier syntax on metadata.extensions keys',
-      ],
-    ]),
-  ],
-]);
+const KNOWN_DIVERGENCES = new Map();
 
 /**
  * The `expect` keys a `from_json` case may use (`FromJsonExpect` in
@@ -251,6 +210,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['parse_full', 'web_core has no inference-format parser'],
   ['fix_payload', 'web_core has no payload fixer'],
   ['has_parts', 'web_core has no inference-format parser'],
+  ['has_format_content', 'web_core has no inference-format parser'],
   ['generate_prompt', 'web_core has no prompt generator'],
   ['load_catalog', 'these cases exercise A2uiSchemaManager, which is agent-side only'],
   ['compile', 'web_core has no inference-format compiler'],
@@ -273,7 +233,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['validate_common_type', 'web_core has no per-definition validators for the common types'],
   [
     'measure_growth',
-    'the timing cases depend on the machine and need a runner that keeps them apart from the other tests, which web_core does not have',
+    'the timing cases depend on the machine, so `yarn test:timing` runs them apart from the other tests (tests/timing/)',
   ],
   ['measure_overhead', 'web_core has no streaming inference parser'],
 ]);

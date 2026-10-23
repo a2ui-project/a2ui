@@ -20,6 +20,8 @@ on:
     branches: [main]
     paths:
       - "swift/core/**"
+      - "swift/swiftui/**"
+      - "swift/sample/**"
       - "conformance/**"
       - "Package.swift"
       - "specification/**"
@@ -29,6 +31,8 @@ on:
     branches: [main]
     paths:
       - "swift/core/**"
+      - "swift/swiftui/**"
+      - "swift/sample/**"
       - "conformance/**"
       - "Package.swift"
       - "specification/**"
@@ -51,3 +55,50 @@ jobs:
           persist-credentials: false
       - name: Run tests
         run: swift test --enable-swift-testing
+
+  ios-build:
+    # `swift test` above builds for macOS only, so `#if os(iOS)` and UIKit code
+    # is never compiled. Build the libraries, and the sample app when Swift code
+    # changes, for the iOS Simulator.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+        id: filter
+        with:
+          filters: |
+            sample:
+              - 'swift/**'
+              - 'Package.swift'
+              - 'specification/v0_9_1/**'
+              - '.github/workflows/swift_build_and_test.yml'
+      # arm64 only: both simulator architectures compile the same source, and
+      # adding x86_64 roughly doubles the build time.
+      - name: Build package libraries (iOS Simulator)
+        run: >-
+          xcodebuild build
+          -scheme A2UISwiftCore-Package
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/DerivedData"
+          -skipMacroValidation
+          -skipPackagePluginValidation
+          ARCHS=arm64
+          CODE_SIGNING_ALLOWED=NO
+      # The sample links every library product, so this recompiles them inside
+      # the app's build graph. Skip it on spec/catalog/conformance-only changes.
+      - name: Build sample app (iOS Simulator)
+        if: >-
+          github.event_name == 'workflow_dispatch' ||
+          steps.filter.outputs.sample == 'true'
+        run: >-
+          xcodebuild build
+          -project swift/sample/A2UISampleClient.xcodeproj
+          -scheme A2UISampleClient
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/DerivedData"
+          -skipMacroValidation
+          -skipPackagePluginValidation
+          ARCHS=arm64
+          CODE_SIGNING_ALLOWED=NO

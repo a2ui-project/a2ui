@@ -76,6 +76,24 @@ def a2ui_specialist() -> Tool:
             prompt_parts.append(role_description)
         if workflow_description:
             prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        prompt_parts.append(
+            "## Environment Notes:\n"
+            "- No external tools are available to you in this specialist"
+            " environment. Even if the instructions above mention calling"
+            " tools (such as data-fetching or app-fetching tools), do NOT call"
+            " any tools or emit tool-call syntax; instead, directly construct"
+            " the complete A2UI JSON payload enclosed in literal <a2ui-json>"
+            " and </a2ui-json> tags using synthesized sample data.\n"
+            "- When specifying `catalogId` (in `createSurface` as the surface"
+            " default, or on individual components and function calls), always"
+            " use the exact `catalogId` value(s) defined in the provided"
+            " Catalog Schema(s); never invent a custom or placeholder"
+            " `catalogId` URL or identifier (such as `example.com`), even if"
+            " the user prompt mentions a custom catalog.\n"
+            "- In `createSurface`, set `catalogId` to the primary catalog ID"
+            " as the surface default. Components or functions belonging to"
+            " secondary catalogs must specify their own `catalogId`."
+        )
         prompt_parts.append(generated_snippet)
         system_content = "\n\n".join(prompt_parts)
 
@@ -83,6 +101,9 @@ def a2ui_specialist() -> Tool:
             ChatMessageSystem(content=system_content),
             ChatMessageUser(content=input),
         ]
+
+        allowed_surface_ids = store().get("allowed_surface_ids") or ["main"]
+        surface_id = allowed_surface_ids[0]
 
         output = await get_model().generate(messages)
         if output.completion:
@@ -96,7 +117,7 @@ def a2ui_specialist() -> Tool:
                     "direct_json",
                     version,
                     resolved_catalog_path,
-                    "main",
+                    surface_id,
                     output.completion,
                     DEFAULT_PARSE_TIMEOUT_SEC,
                     True,
@@ -127,6 +148,10 @@ def push_metadata_to_store(version: str, sdk: str = "python") -> Solver:
         state.store.set("version", version)
         state.store.set("sdk", norm_sdk)
         state.store.set("catalog", state.metadata.get("catalog"))
+        state.store.set(
+            "allowed_surface_ids",
+            state.metadata.get("allowed_surface_ids", ["main"]),
+        )
         state.store.set("role_description", state.metadata.get("role_description"))
         state.store.set(
             "workflow_description", state.metadata.get("workflow_description")
@@ -142,7 +167,6 @@ def extract_subagent_payload() -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         payload = state.store.get(PAYLOAD_STORE_KEY)
-
         if payload is not None and state.output and state.output.choices:
             formatted_payload = f"<a2ui-json>\n{payload}\n</a2ui-json>"
             state.output = ModelOutput(

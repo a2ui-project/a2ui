@@ -46,6 +46,7 @@ from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart, Parser
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
@@ -164,6 +165,7 @@ class ContactAgent:
         config = CatalogConfig(BasicCatalog(version))
         return A2uiGenerator(
             [config],
+            inference_format_factory=DirectJsonFormatFactory(),
             accepts_inline_catalogs=self._accepts_inline_catalogs,
         )
 

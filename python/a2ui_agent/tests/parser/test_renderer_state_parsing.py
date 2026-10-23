@@ -30,7 +30,10 @@ from a2ui.core import (
 )
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.direct_json import DirectJsonParser
+from a2ui.inference_formats.direct_json import (
+    DirectJsonFormatFactory,
+    DirectJsonParser,
+)
 from a2ui.inference_formats.express import ExpressParser
 from a2ui.parser import A2uiPart, ResponsePart, TextPart
 from a2ui.processor import A2uiRequestProcessor
@@ -233,7 +236,7 @@ def test_feed_after_close_is_an_error():
 
 
 def test_request_processor_parses_canvas_turns_against_its_state():
-    processor = A2uiRequestProcessor([_BASIC])
+    processor = A2uiRequestProcessor([_BASIC], format_factory=DirectJsonFormatFactory())
     state = processor.create_state()
     processor.parse_response(
         _block(_CREATE, _update(_column("a"), _text("a"))), state=state
@@ -311,7 +314,9 @@ def test_a_response_may_reference_a_component_a_later_block_adds():
 
 def test_a_bound_state_is_used_when_a_call_passes_none():
     state = RendererState([_BASIC])
-    processor = A2uiRequestProcessor([_BASIC], state=state)
+    processor = A2uiRequestProcessor(
+        [_BASIC], format_factory=DirectJsonFormatFactory(), state=state
+    )
 
     processor.parse_response(_block(_CREATE, _update(_column("a"), _text("a"))))
     stream = processor.open_stream()
@@ -341,7 +346,9 @@ def test_a_bound_state_normalizes_protocol_version_spelling():
 
 def test_accepts_state_tells_whether_a_state_fits_the_active_catalogs():
     other = Catalog(catalog_id="other", protocol_version="0.9")
-    processor = A2uiRequestProcessor([_BASIC, other])
+    processor = A2uiRequestProcessor(
+        [_BASIC, other], format_factory=DirectJsonFormatFactory()
+    )
 
     assert processor.accepts_state(processor.create_state())
     assert processor.accepts_state(RendererState([_BASIC, other]))

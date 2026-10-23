@@ -43,6 +43,7 @@ from .blocks import CLOSE_TAG
 from .blocks import CLOSE_TAG_RE
 from .blocks import OPEN_TAG
 from .blocks import OPEN_TAG_RE
+from .blocks import OPEN_TAG_START_RE
 from .blocks import payload_start
 from .blocks import possible_tag_start
 from .blocks import trailing_fence_start
@@ -64,8 +65,8 @@ _GROWING_FIELDS = {
 }
 # What may surround the payload of a closed block: whitespace, and a Markdown
 # fence, as `clean` strips them.
-_LEADING_FENCE_RE = re.compile(r"\s*(?:```[a-zA-Z-]*\s*)?")
-_TRAILING_FENCE_RE = re.compile(r"\s*(?:```[a-zA-Z-]*)?\s*")
+_LEADING_FENCE_RE = re.compile(r"\s*(?:```[a-zA-Z-]*\s*|`+\s*)?")
+_TRAILING_FENCE_RE = re.compile(r"\s*(?:```[a-zA-Z-]*|`+)?\s*")
 
 
 @dataclasses.dataclass
@@ -139,6 +140,8 @@ class DirectJsonResponseStream(ResponseStream):
         self._closed = False
         # Text outside blocks.
         self._held = ""
+        self._held_backticks = ""
+        self._strip_close_backticks = False
         self._run_started = False
         self._held_space = ""
         # The open block.
@@ -200,6 +203,9 @@ class DirectJsonResponseStream(ResponseStream):
         except BaseException:
             self._fail(self._touched)
             raise
+        if self._held_backticks:
+            self._emit_text(parts, self._held_backticks)
+            self._held_backticks = ""
         if self._held:
             self._emit_text(parts, self._held)
             self._held = ""
@@ -229,6 +235,28 @@ class DirectJsonResponseStream(ResponseStream):
 
         input_str = self._held + chunk
         self._held = ""
+        if self._strip_close_backticks:
+            if input_str.startswith("`"):
+                input_str = input_str.lstrip("`")
+            if input_str:
+                self._strip_close_backticks = False
+
+        if not self._in_block and self._held_backticks:
+            if input_str:
+                is_open_tag = bool(
+                    OPEN_TAG_RE.match(input_str)
+                    or OPEN_TAG_START_RE.match(input_str)
+                    or (
+                        input_str.startswith("<")
+                        and "<a2ui-json".startswith(input_str.lower())
+                    )
+                )
+                if is_open_tag:
+                    self._held_backticks = ""
+                else:
+                    input_str = self._held_backticks + input_str
+                    self._held_backticks = ""
+
         while input_str:
             if self._in_block:
                 self._block += input_str
@@ -240,22 +268,39 @@ class DirectJsonResponseStream(ResponseStream):
                 close_match = CLOSE_TAG_RE.match(self._block, close_start)
                 assert close_match is not None
                 input_str = self._block[close_match.end() :]
+                if input_str.startswith("`"):
+                    input_str = input_str.lstrip("`")
+                elif not input_str:
+                    self._strip_close_backticks = True
                 self._finish_block(parts, close_start)
                 continue
 
             open_match = OPEN_TAG_RE.search(input_str)
             if open_match:
-                self._emit_text(parts, input_str[: open_match.start()])
+                text_before = input_str[: open_match.start()]
+                if text_before.endswith("`"):
+                    text_before = text_before.rstrip("`")
+                self._emit_text(parts, text_before)
                 self._run_started = False
                 self._held_space = ""
+                self._held_backticks = ""
                 self._in_block = True
                 input_str = input_str[open_match.end() :]
                 continue
 
             hold = possible_tag_start(input_str)
-            self._emit_text(parts, input_str[:hold])
+            if hold < len(input_str):
+                while hold > 0 and input_str[hold - 1] == "`":
+                    hold -= 1
+            text_to_emit = input_str[:hold]
             self._held = input_str[hold:]
             input_str = ""
+            if not self._held:
+                m = re.search(r"`+\Z", text_to_emit)
+                if m:
+                    self._held_backticks = m.group(0)
+                    text_to_emit = text_to_emit[: m.start()]
+            self._emit_text(parts, text_to_emit)
 
         return parts
 

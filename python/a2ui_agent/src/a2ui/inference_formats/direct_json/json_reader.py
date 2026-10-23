@@ -34,6 +34,7 @@ _NUMBER_RE = re.compile(r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$")
 _URL_PREFIXES = ("http://", "https://", "data:")
 # A run of string characters that are neither a quote nor an escape.
 _PLAIN_RUN = re.compile(r'[^"\\]+')
+_PLAIN_RUN_NO_NEWLINES = re.compile(r'[^"\\\r\n]+')
 
 
 def read_json(text: str) -> Any:
@@ -169,6 +170,16 @@ def _straighten_quotes(text: str) -> str:
     )
 
 
+_NEWLINE_STRIPPED_KEYS = frozenset({
+    "id",
+    "component",
+    "child",
+    "surfaceId",
+    "catalogId",
+    "componentId",
+})
+
+
 class _Unfinished(Exception):
     """Raised where the text ends before a value that cannot be healed."""
 
@@ -194,6 +205,7 @@ class _Reader:
         self._cut = False
         # Whether the read reached the end of the payload's JSON value.
         self.complete = False
+        self._in_data_model = False
 
     @property
     def _partial(self) -> bool:
@@ -285,7 +297,7 @@ class _Reader:
                 closed_count = len(messages)
                 resume = self._i
 
-    def _value(self, *, healable: bool) -> Any:
+    def _value(self, *, healable: bool, strip_newlines: bool = False) -> Any:
         if self._at_end:
             self._end()
         c = self.text[self._i]
@@ -294,7 +306,7 @@ class _Reader:
         if c == "[":
             return self._array()
         if c == '"':
-            return self._string(healable=healable)
+            return self._string(healable=healable, strip_newlines=strip_newlines)
         if c == "-" or ("0" <= c <= "9"):
             return self._number()
         for word, val in (("true", True), ("false", False), ("null", None)):
@@ -307,8 +319,8 @@ class _Reader:
                 self._end()
         self._fail(f"unexpected character '{c}'")
 
-    def _object(self) -> dict[str, Any]:
-        return self._closed_or(self._read_object)
+    def _object(self, parent_key: str | None = None) -> dict[str, Any]:
+        return self._closed_or(lambda: self._read_object(parent_key=parent_key))
 
     def _closed_or(self, read: Callable[[], _T]) -> _T:
         """Reads a list or map through `read`, unless an earlier read saw it close.
@@ -331,7 +343,7 @@ class _Reader:
         self._cut = cut_before or self._cut
         return value
 
-    def _read_object(self) -> dict[str, Any]:
+    def _read_object(self, parent_key: str | None = None) -> dict[str, Any]:
         self._i += 1
         obj: dict[str, Any] = {}
         while True:
@@ -343,7 +355,10 @@ class _Reader:
                 return obj
             if self.text[self._i] != '"':
                 self._fail("expected a key")
-            key = self._string(healable=False)
+            key = self._string(
+                healable=False,
+                strip_newlines=not self._in_data_model,
+            )
             self._skip_space()
             if self._at_end:
                 self._end()
@@ -351,18 +366,36 @@ class _Reader:
                 self._fail(f"expected ':' after key '{key}'")
             self._i += 1
             self._skip_space()
-            if (
-                not self._at_end
-                and self.text[self._i] == "["
-                and self._partial
-                and key in self.whole_item_keys
-            ):
-                obj[key] = self._array(whole_items=True)
-            else:
-                healable_val = (
-                    self.progressive_keys is not None and key in self.progressive_keys
-                )
-                obj[key] = self._value(healable=healable_val)
+            is_data_value = not self._in_data_model and (
+                (parent_key == "updateDataModel" and key == "value")
+                or (parent_key == "createSurface" and key == "dataModel")
+            )
+            if is_data_value:
+                self._in_data_model = True
+            try:
+                if not self._at_end and self.text[self._i] == "[":
+                    obj[key] = self._array(
+                        whole_items=self._partial and key in self.whole_item_keys,
+                        strip_item_newlines=(
+                            key == "children" and not self._in_data_model
+                        ),
+                    )
+                elif not self._at_end and self.text[self._i] == "{":
+                    obj[key] = self._object(parent_key=key)
+                else:
+                    healable_val = (
+                        self.progressive_keys is not None
+                        and key in self.progressive_keys
+                    )
+                    obj[key] = self._value(
+                        healable=healable_val,
+                        strip_newlines=(
+                            key in _NEWLINE_STRIPPED_KEYS and not self._in_data_model
+                        ),
+                    )
+            finally:
+                if is_data_value:
+                    self._in_data_model = False
             self._skip_space()
             if self._at_end:
                 return self._healed(obj)
@@ -371,10 +404,19 @@ class _Reader:
             elif self.text[self._i] != "}":
                 self._fail("expected ',' or '}'")
 
-    def _array(self, *, whole_items: bool = False) -> list[Any]:
-        return self._closed_or(lambda: self._read_array(whole_items=whole_items))
+    def _array(
+        self, *, whole_items: bool = False, strip_item_newlines: bool = False
+    ) -> list[Any]:
+        return self._closed_or(
+            lambda: self._read_array(
+                whole_items=whole_items,
+                strip_item_newlines=strip_item_newlines,
+            )
+        )
 
-    def _read_array(self, *, whole_items: bool) -> list[Any]:
+    def _read_array(
+        self, *, whole_items: bool, strip_item_newlines: bool = False
+    ) -> list[Any]:
         start = self._i
         self._i += 1
         arr: list[Any] = []
@@ -421,13 +463,15 @@ class _Reader:
             self._cut = False
             if whole_items:
                 try:
-                    item = self._value(healable=False)
+                    item = self._value(
+                        healable=False, strip_newlines=strip_item_newlines
+                    )
                 except _Unfinished:
                     return healed()
                 if self._cut:
                     return healed()
             else:
-                item = self._value(healable=False)
+                item = self._value(healable=False, strip_newlines=strip_item_newlines)
             arr.append(item)
             if self._cut:
                 # An item closed early ends the text, so the list closes
@@ -443,7 +487,7 @@ class _Reader:
         self._cut = True
         return value
 
-    def _string(self, *, healable: bool) -> str:
+    def _string(self, *, healable: bool, strip_newlines: bool = False) -> str:
         self._i += 1
         buf: list[str] = []
         n = self._limit
@@ -453,12 +497,21 @@ class _Reader:
                 self._i += 1
                 return "".join(buf)
             if c != "\\":
-                # Takes the run of plain characters up to the next quote or
-                # escape at once.
-                run = _PLAIN_RUN.match(self.text, self._i, n)
-                assert run is not None
-                buf.append(run.group())
-                self._i = run.end()
+                if strip_newlines:
+                    if c in ("\r", "\n"):
+                        self._i += 1
+                        continue
+                    run = _PLAIN_RUN_NO_NEWLINES.match(self.text, self._i, n)
+                    assert run is not None
+                    buf.append(run.group())
+                    self._i = run.end()
+                else:
+                    # Takes the run of plain characters up to the next quote or
+                    # escape at once.
+                    run = _PLAIN_RUN.match(self.text, self._i, n)
+                    assert run is not None
+                    buf.append(run.group())
+                    self._i = run.end()
                 continue
             if self._i + 1 >= n:
                 self._i = n

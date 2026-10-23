@@ -34,6 +34,7 @@ from a2ui.parser import (
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_SURFACE_UPDATE,
     MSG_TYPE_UPDATE_COMPONENTS,
+    TextPart,
 )
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.utils import RendererState
@@ -522,3 +523,15 @@ def test_url_value_under_a_progressive_key_is_not_healed(value, healed):
         "updateDataModel": {"surfaceId": "s1", "value": {"greeting": value}},
     }
     assert messages == ([expected] if healed else [])
+
+
+def test_stream_text_with_lone_backticks_kept(basic_catalog_v10):
+    """Text chunks containing lone backticks outside blocks are preserved."""
+    parser = DirectJsonParser([basic_catalog_v10])
+    stream = parser.open_stream()
+    parts = []
+    for chunk in ["Use ", "`", "Text", "`", " for labels."]:
+        parts.extend(stream.feed(chunk))
+    parts.extend(stream.close())
+    texts = [p.text for p in parts if isinstance(p, TextPart)]
+    assert "".join(texts) == "Use `Text` for labels."

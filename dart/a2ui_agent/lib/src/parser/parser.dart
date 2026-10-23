@@ -41,10 +41,11 @@ abstract class Parser {
 
   /// Whether [content] carries a payload block in this format.
   ///
-  /// Reads the sentinel tags only and never compiles, so a caller can decide
-  /// whether a response is this format's business without paying for a parse.
-  /// When [complete] is false an opening tag is enough, which tells a
-  /// streaming caller that a payload has started.
+  /// Tokenizes blocks through [unwrap] without compiling, so a caller can
+  /// decide whether a response is this format's business without paying for a
+  /// compile. Counts a block recovered by [unwrap] when its opening sentinel
+  /// tag was omitted. When [complete] is false an opening tag is enough, which
+  /// tells a streaming caller that a payload has started.
   bool hasFormatContent(String content, {bool complete = false});
 
   /// Writes [parts] out as one response: text as it is, and each raw payload
@@ -55,6 +56,10 @@ abstract class Parser {
 
   /// Splits [content] into text and raw payload blocks, in the order the LLM
   /// wrote them.
+  ///
+  /// In one-shot parsing, also recovers at most one payload block whose opening
+  /// sentinel tag was omitted when closed by this format's closing tag
+  /// ([openStream] requires the opening sentinel tag).
   List<RawResponsePart> unwrap(String content);
 
   /// Translates the content of one payload block, without its sentinel tags,

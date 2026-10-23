@@ -19,6 +19,7 @@ import * as path from 'path';
 import {describe, test, expect} from 'vitest';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
 import {createFileCatalogConfig} from './fixtures.js';
+import {compileChecked} from './suite-helpers.js';
 import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
 import {
   A2uiCatalogError,
@@ -136,7 +137,7 @@ async function getParser(args: Record<string, unknown> = {}): Promise<ExpressPar
 
   const catalogs = catalogPaths.map(p => createFileCatalogConfig(p).catalog);
 
-  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID, 'v1.0');
+  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID);
 }
 
 function assertRawPartsMatch(
@@ -199,14 +200,14 @@ describe('Express Conformance Suite', () => {
         if (testCase.expect_error) {
           assertThrows(
             () => {
-              parser.compile(payload);
+              compileChecked(parser, payload);
             },
             testCase.expect_error as Record<string, unknown>,
           );
           return;
         }
 
-        const compiled = parser.compile(payload);
+        const compiled = compileChecked(parser, payload);
 
         if (testCase.expect_present) {
           for (const pointer of testCase.expect_present as string[]) {
@@ -220,6 +221,16 @@ describe('Express Conformance Suite', () => {
       } else if (action === 'decompile') {
         const parser = await getParser(args);
         const messages = testCase.messages as AgentToRendererMessage[];
+
+        if (testCase.expect_error) {
+          assertThrows(
+            () => {
+              parser.decompile(messages.length > 1 ? messages : messages[0]);
+            },
+            testCase.expect_error as Record<string, unknown>,
+          );
+          return;
+        }
 
         const notation = parser.decompile(messages.length > 1 ? messages : messages[0]);
 
@@ -235,15 +246,26 @@ describe('Express Conformance Suite', () => {
         }
 
         if (testCase.expect_round_trip) {
-          expect(parser.compile(notation)).toEqual(messages);
+          expect(compileChecked(parser, notation)).toEqual(messages);
         }
         if (testCase.expect_recompiled) {
-          expect(parser.compile(notation)).toEqual(testCase.expect_recompiled);
+          expect(compileChecked(parser, notation)).toEqual(testCase.expect_recompiled);
         }
       } else if (action === 'unwrap') {
         const parser = await getParser(args);
+        const expected = testCase.expect as Array<Record<string, unknown>>;
         const actual = parser.unwrap(testCase.input as string);
-        assertRawPartsMatch(actual, testCase.expect as Array<Record<string, unknown>>);
+        assertRawPartsMatch(actual, expected);
+        const hasAny = expected.some(p => 'a2ui_raw' in p);
+        const hasComplete = expected.some(p => 'a2ui_raw' in p && (p.is_final ?? true) === true);
+        expect(parser.hasFormatContent(testCase.input as string)).toBe(hasAny);
+        expect(parser.hasFormatContent(testCase.input as string, {complete: true})).toBe(
+          hasComplete,
+        );
+      } else if (action === 'has_format_content') {
+        const parser = await getParser(args);
+        const complete = (args.complete as boolean) ?? false;
+        expect(parser.hasFormatContent(testCase.input as string, {complete})).toBe(testCase.expect);
       } else if (action === 'wrap') {
         const parser = await getParser(args);
         const parts = testCase.parts as Array<Record<string, unknown>>;
@@ -279,14 +301,14 @@ describe('Express Conformance Suite', () => {
         if (testCase.expect_error) {
           assertThrows(
             () => {
-              parser.parseResponse(testCase.input as string, wrapped);
+              parser.parseResponse(testCase.input as string, {wrapped});
             },
             testCase.expect_error as Record<string, unknown>,
           );
           return;
         }
 
-        const parts = parser.parseResponse(testCase.input as string, wrapped);
+        const parts = parser.parseResponse(testCase.input as string, {wrapped});
         assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>);
       } else if (action === 'generate_prompt_snippet') {
         const catEntries =

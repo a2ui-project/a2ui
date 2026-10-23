@@ -20,6 +20,7 @@ from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.core import CatalogApi
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
@@ -179,6 +180,7 @@ class FileUploadSummarizerAgent:
         )
         return A2uiGenerator(
             [config],
+            inference_format_factory=DirectJsonFormatFactory(),
             accepts_inline_catalogs=self._accepts_inline_catalogs,
         )
 

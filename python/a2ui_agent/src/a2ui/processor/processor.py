@@ -22,7 +22,7 @@ from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
-from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.inference_formats.express import ExpressFormatFactory
 from a2ui.parser import Parser, ResponsePart, ResponseStream
 from a2ui.utils import RendererState, validate_payload
 
@@ -47,7 +47,7 @@ class A2uiRequestProcessor:
         Args:
             catalogs: List of active Catalog instances.
             examples: Optional list of prompt example turns.
-            format_factory: Format factory for instantiating format strategies.
+            format_factory: Format factory for instantiating format strategies (defaults to ExpressFormatFactory).
             state: The renderer state a canvas agent keeps for the
                 conversation. `parse_response` and `open_stream` use it when
                 a call passes none. Without one, each call checks the response
@@ -69,7 +69,7 @@ class A2uiRequestProcessor:
             for turn in self._examples:
                 validate_payload(self._active_catalogs, turn)
         factory = (
-            format_factory if format_factory is not None else DirectJsonFormatFactory()
+            format_factory if format_factory is not None else ExpressFormatFactory()
         )
         self._format: InferenceFormat = factory.create_format(
             catalogs=self._active_catalogs,

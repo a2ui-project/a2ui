@@ -16,6 +16,15 @@
 
 import {ParseError} from '../errors.js';
 
+const NEWLINE_STRIPPED_KEYS = new Set([
+  'id',
+  'component',
+  'child',
+  'surfaceId',
+  'catalogId',
+  'componentId',
+]);
+
 /**
  * Validates and applies autofixes to a raw JSON string and returns the parsed payload.
  *
@@ -23,12 +32,21 @@ import {ParseError} from '../errors.js';
  * @returns A parsed and potentially fixed payload (array of objects).
  */
 export function parseAndFix(payload: string): Record<string, unknown>[] {
-  const normalizedPayload = normalizeSmartQuotes(payload);
   try {
-    return parse(normalizedPayload);
+    return parse(payload);
   } catch {
-    const updatedPayload = removeTrailingCommas(normalizedPayload);
-    return parse(updatedPayload);
+    const repairedNewlines = repairStringNewlines(payload);
+    try {
+      return parse(repairedNewlines);
+    } catch {
+      const normalizedPayload = repairStringNewlines(normalizeSmartQuotes(payload));
+      try {
+        return parse(normalizedPayload);
+      } catch {
+        const updatedPayload = removeTrailingCommas(normalizedPayload);
+        return parse(updatedPayload);
+      }
+    }
   }
 }
 
@@ -68,6 +86,115 @@ function normalizeSmartQuotes(jsonStr: string): string {
     .replace(/\u201D/g, '"')
     .replace(/\u2018/g, "'")
     .replace(/\u2019/g, "'");
+}
+
+/**
+ * Repairs raw unescaped line breaks inside JSON string literals.
+ *
+ * Strips raw `\r` and `\n` inside object keys and identifier-like property
+ * values (`id`, `component`, `child`, `surfaceId`, `catalogId`, `componentId`,
+ * and string items of `children` arrays), while escaping raw `\r` and `\n` in
+ * all other string values so free-form text preserves its line breaks.
+ */
+export function repairStringNewlines(jsonStr: string): string {
+  const out: string[] = [];
+  const stack: Array<{type: 'object' | 'array'; parentKey?: string; inDataModel?: boolean}> = [];
+  let lastKey: string | undefined;
+  let i = 0;
+  const n = jsonStr.length;
+  while (i < n) {
+    const ch = jsonStr[i];
+    if (ch !== '"') {
+      if (ch === '{') {
+        const top = stack[stack.length - 1];
+        const inDataModel =
+          top?.inDataModel ||
+          (top?.type === 'object' &&
+            ((top.parentKey === 'updateDataModel' && lastKey === 'value') ||
+              (top.parentKey === 'createSurface' && lastKey === 'dataModel')));
+        stack.push({type: 'object', parentKey: lastKey, inDataModel});
+        lastKey = undefined;
+      } else if (ch === '}') {
+        stack.pop();
+        lastKey = undefined;
+      } else if (ch === '[') {
+        const top = stack[stack.length - 1];
+        const inDataModel =
+          top?.inDataModel ||
+          (top?.type === 'object' &&
+            ((top.parentKey === 'updateDataModel' && lastKey === 'value') ||
+              (top.parentKey === 'createSurface' && lastKey === 'dataModel')));
+        stack.push({type: 'array', parentKey: lastKey, inDataModel});
+        lastKey = undefined;
+      } else if (ch === ']') {
+        stack.pop();
+        lastKey = undefined;
+      } else if (ch === ',' && stack[stack.length - 1]?.type === 'object') {
+        lastKey = undefined;
+      }
+      out.push(ch);
+      i++;
+      continue;
+    }
+    const strChars: string[] = [];
+    i++; // skip opening quote
+    let closed = false;
+    while (i < n) {
+      const c = jsonStr[i];
+      if (c === '\\') {
+        strChars.push(c);
+        i++;
+        if (i < n) {
+          strChars.push(jsonStr[i]);
+          i++;
+        }
+        continue;
+      }
+      if (c === '"') {
+        closed = true;
+        i++;
+        break;
+      }
+      strChars.push(c);
+      i++;
+    }
+    if (!closed) {
+      out.push('"', strChars.join(''));
+      continue;
+    }
+    let lookahead = i;
+    while (lookahead < n && /\s/.test(jsonStr[lookahead])) lookahead++;
+    const isKey = lookahead < n && jsonStr[lookahead] === ':';
+    const top = stack[stack.length - 1];
+    const inDataModel =
+      top?.inDataModel ||
+      (top?.type === 'object' &&
+        ((top.parentKey === 'updateDataModel' && lastKey === 'value') ||
+          (top.parentKey === 'createSurface' && lastKey === 'dataModel')));
+    const inChildrenArray = !inDataModel && top?.type === 'array' && top.parentKey === 'children';
+    const stripNewlines =
+      !inDataModel &&
+      (isKey || (lastKey !== undefined && NEWLINE_STRIPPED_KEYS.has(lastKey)) || inChildrenArray);
+
+    const processed: string[] = [];
+    for (const c of strChars) {
+      if (c === '\r' || c === '\n') {
+        if (!stripNewlines) {
+          processed.push(c === '\r' ? '\\r' : '\\n');
+        }
+      } else {
+        processed.push(c);
+      }
+    }
+    const inner = processed.join('');
+    if (isKey) {
+      lastKey = inner;
+    } else if (top?.type === 'object') {
+      lastKey = undefined;
+    }
+    out.push('"', inner, '"');
+  }
+  return out.join('');
 }
 
 /**

@@ -17,7 +17,7 @@ The `agent_sdk` revolves around four main classes:
   `A2uiRequestProcessor` for a client's renderer capabilities.
 - **`A2uiRequestProcessor`**: Request-scoped facade that binds the catalogs
   negotiated for one request to an `InferenceFormat` (defaulting to
-  `DirectJsonFormat`). It exposes `prompt_snippet` for the system prompt, and
+  `ExpressFormat`). It exposes `prompt_snippet` for the system prompt, and
   `parse_response()` and `open_stream()`, which parse and validate the model's
   response.
 
@@ -49,6 +49,8 @@ catalogs = [
     CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
     CatalogConfig.from_path("path/to/catalog.json"),
 ]
+# ExpressFormatFactory is used by default; pass DirectJsonFormatFactory for
+# multi-catalog v0.9 or incremental streaming
 generator = A2uiGenerator(catalogs)
 
 # Per request: the capabilities that the client sent, keyed by protocol version
@@ -318,7 +320,12 @@ A string still being written is emitted only for the format's progressive keys, 
 
 ```python
 from a2ui.a2a import to_a2a_parts
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 
+processor = generator.create_processor(
+    capabilities,
+    inference_format_factory=DirectJsonFormatFactory(),
+)
 # One stream per response.
 stream = processor.open_stream()
 
@@ -553,10 +560,18 @@ agent card. At runtime, use `try_activate_a2ui_extension` to negotiate the
 version, and create the request's processor with that version's generator.
 
 ```python
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+
 # During initialization: one generator per supported version
 generators = {
-    ProtocolVersion.V0_8: A2uiGenerator([CatalogConfig(BasicCatalog(ProtocolVersion.V0_8))]),
-    ProtocolVersion.V0_9: A2uiGenerator([CatalogConfig(BasicCatalog(ProtocolVersion.V0_9))]),
+    ProtocolVersion.V0_8: A2uiGenerator(
+        [CatalogConfig(BasicCatalog(ProtocolVersion.V0_8))],
+        inference_format_factory=DirectJsonFormatFactory(),
+    ),
+    ProtocolVersion.V0_9: A2uiGenerator(
+        [CatalogConfig(BasicCatalog(ProtocolVersion.V0_9))],
+        inference_format_factory=DirectJsonFormatFactory(),
+    ),
 }
 extensions = [
     get_a2ui_agent_extension(

@@ -33,10 +33,12 @@ The syntax rules define how types, structures, data paths, and validation action
 
 Every component definition is assigned to a unique variable identifier, or constructed inline directly within a parent component's argument list. A reserved variable named `root` acts as the primary entry point for the interface tree.
 
-To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)):
+To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)), matching the [Catalog Entity Naming Rules](../../v1_0/docs/a2ui_protocol.md#catalog-entity-naming-rules):
 
-- An identifier must start with a Unicode letter or an underscore `_`.
-- Subsequent characters must be Unicode letters, digits (`0-9`), or underscores `_`.
+- The first character must be in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`).
+- Subsequent characters must be in the Unicode property class `XID_Continue`.
+- In canonical regular-expression syntax: `^[\p{XID_Start}_][\p{XID_Continue}]*$`.
+- Reserved tokens (`true`, `false`, `null`, `_`) cannot be used as variable identifiers, and `root` is reserved for the surface root component.
 
 A2UI Express supports flexible hybrid component nesting: child components can either be defined inline (e.g., `Card(child=Text("Hello"))`) or assigned to top-level variables and referenced by name (e.g., `header = Text("Hello")` and `root = Card(child=header)`).
 
@@ -44,14 +46,14 @@ A2UI Express supports flexible hybrid component nesting: child components can ei
 
 By default, a component's Express variable name becomes its A2UI component `"id"` in the compiled JSON (for example, `root = Column([grid])` compiles to a component with `"id": "root"`).
 
-In the A2UI JSON protocol, a component `"id"` can be any string (such as `"content-grid"`, which contains a hyphen `-`), whereas an Express variable name can only contain letters, digits, and underscores (`_`) so `-` is not mistaken for subtraction. To produce an A2UI component `"id"` that contains characters like hyphens, assign the component to a valid Express variable name (such as `grid`), reference that variable in parent child lists, and pass the target A2UI ID via the reserved `id=` keyword argument:
+In protocol versions before v1.0, a component `"id"` can be any string (such as `"content-grid"`, which contains a hyphen `-`), whereas an Express variable name must be a UAX #31 identifier so `-` is not mistaken for subtraction. To produce an A2UI component `"id"` that differs from its Express variable name (such as a pre-v1.0 hyphenated ID, or a reserved word like `"true"`), assign the component to a valid Express variable name (such as `grid`), reference that variable in parent child lists, and pass the target A2UI ID via the reserved `id=` keyword argument:
 
 ```
 root = Column([grid])
 grid = Row([left, right], id="content-grid")
 ```
 
-Here `root` compiles with `"id": "root"` and `"children": ["content-grid"]`, while `grid` compiles with `"id": "content-grid"`. The `id=` keyword argument works the same way on an inline component, and every catalog accepts it. When the decompiler encounters a component ID like `"content-grid"`, it derives a valid variable name (`content_grid`) and emits `id="content-grid"`.
+Here `root` compiles with `"id": "root"` and `"children": ["content-grid"]`, while `grid` compiles with `"id": "content-grid"`. The `id=` keyword argument works the same way on an inline component, and every catalog accepts it. For protocol versions before v1.0, when the decompiler encounters a component ID like `"content-grid"`, it derives a valid variable name (`content_grid`) and emits `id="content-grid"`. From protocol v1.0 onward, component IDs must themselves be valid UAX #31 identifiers, so the decompiler rejects non-UAX #31 component IDs rather than deriving a variable name (reserved words such as `"true"` are valid UAX #31 identifiers and continue to be derived as `_true` with `id="true"`).
 
 When updating an existing surface and referencing a child component ID that was created in an earlier turn (and is not defined in the current block), write the ID as a bare identifier if it is a valid variable name, or as a quoted string if it contains characters like hyphens:
 

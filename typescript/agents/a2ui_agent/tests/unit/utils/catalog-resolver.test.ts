@@ -19,7 +19,7 @@ import {resolveCatalogs} from '../../../src/utils/catalog-resolver.js';
 import {CatalogConfig} from '../../../src/processor/catalog-config.js';
 import {Catalog, CatalogApi, V10RendererCapabilities} from '../../../src/internal/web-core.js';
 import {ComponentPruningTransformer} from '../../../src/catalog-transformers/pruning.js';
-import {A2uiCatalogError} from '../../../src/errors.js';
+import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
 
 describe('resolveCatalogs', () => {
   const catBasic = new Catalog('id_basic', 'v1.0', [], []);
@@ -98,6 +98,33 @@ describe('resolveCatalogs', () => {
   it('activates every registered catalog when capabilities are absent', () => {
     const resolved = resolveCatalogs(supportedConfigs, undefined);
     expect(resolved.map(c => c.id)).toEqual(['id_basic', 'id_custom1', 'id_custom2']);
+  });
+
+  it('resolves version-keyed capabilities for the registered catalogs protocol version', () => {
+    const caps = {
+      'v1.0': {
+        supportedCatalogIds: ['id_custom1', 'id_basic'],
+      },
+    };
+    const resolved = resolveCatalogs(supportedConfigs, caps);
+    expect(resolved.map(c => c.id)).toEqual(['id_custom1', 'id_basic']);
+  });
+
+  it('throws A2uiValidationError when version-keyed capabilities omit the catalogs version', () => {
+    const caps = {
+      'v0.8': {
+        supportedCatalogIds: ['id_basic'],
+      },
+    };
+    expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(A2uiValidationError);
+  });
+
+  it('throws A2uiCatalogError when registered catalogs read different capabilities keys', () => {
+    const catV09 = new Catalog('id_v09', 'v0.9', [], []);
+    const mixedConfigs = [configBasic, new CatalogConfig(catV09)];
+    expect(() =>
+      resolveCatalogs(mixedConfigs, {'v1.0': {supportedCatalogIds: ['id_basic']}}),
+    ).toThrowError(A2uiCatalogError);
   });
 });
 
