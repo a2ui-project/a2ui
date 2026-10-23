@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Breaking: `DirectJsonPromptGenerator.generate()` follows the prompt layout
+- `DirectJsonPromptGenerator.generate()` follows the prompt layout
   the other SDKs use: the rules without the `## Workflow Description:` heading,
   then a schema block with the protocol schemas, then one schema block per
   catalog, then the examples under `### Examples:` followed by a blank line.

@@ -1,6 +1,6 @@
 ## Unreleased
 
-- **BREAKING**: Prompt snippets (`PromptGenerator.generate()` and
+- Prompt snippets (`PromptGenerator.generate()` and
   `prompt_snippet`) follow one layout across formats and SDKs: the base rules,
   then the catalog instructions, then the examples under `### Examples:`
   followed by a blank line. The `## Workflow Description:` heading before the
