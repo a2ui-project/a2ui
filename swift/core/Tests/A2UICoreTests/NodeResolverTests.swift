@@ -822,12 +822,267 @@ struct NodeResolverTests {
     #expect(rebornRoot.box !== root.box)
     #expect(rebornRoot.string(for: "text") == "Reborn")
   }
+
+  @Test func incrementalReparentingUpdatesVisitedAndPreservesNodeIdentity() throws {
+    let catalog = try makeCatalog()
+    // Initial hierarchy: root -> a -> b -> c
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["child": .string("a")]
+        ),
+        "a": ComponentModel(
+          id: "a",
+          type: "Container",
+          properties: ["child": .string("b")]
+        ),
+        "b": ComponentModel(
+          id: "b",
+          type: "Container",
+          properties: ["child": .string("c")]
+        ),
+        "c": ComponentModel(
+          id: "c",
+          type: "Container",
+          properties: [:]
+        ),
+      ]
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let initialA = try #require(root.child(for: "child"))
+    let initialB = try #require(initialA.child(for: "child"))
+    let initialC = try #require(initialB.child(for: "child"))
+
+    // Reparent to: root -> b -> c -> a
+    // "a" is no longer an ancestor of "c", so "c" referencing "a" is valid and not a cycle.
+    componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["child": .string("b")]
+      ),
+      ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: [:]
+      ),
+      ComponentModel(
+        id: "c",
+        type: "Container",
+        properties: ["child": .string("a")]
+      ),
+    ])
+
+    let updatedRoot = try #require(resolver.resolveTree())
+    let updatedB = try #require(updatedRoot.child(for: "child"))
+    let updatedC = try #require(updatedB.child(for: "child"))
+    let reparentedA = try #require(updatedC.child(for: "child"))
+
+    #expect(updatedB.id == "b")
+    #expect(updatedC.id == "c")
+    #expect(reparentedA.id == "a")
+    #expect(updatedB.box === initialB.box)
+    #expect(updatedC.box === initialC.box)
+    #expect(reparentedA.box === initialA.box)
+  }
+
+  @Test func siblingTemplateListsSharingComponentIDMaintainIsolatedNodes() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("activeList"), .string("completedList")])]
+        ),
+        "activeList": ComponentModel(
+          id: "activeList",
+          type: "Container",
+          properties: [
+            "children": .object([
+              "componentId": .string("itemCard"),
+              "path": .string("/activeItems"),
+            ])
+          ]
+        ),
+        "completedList": ComponentModel(
+          id: "completedList",
+          type: "Container",
+          properties: [
+            "children": .object([
+              "componentId": .string("itemCard"),
+              "path": .string("/completedItems"),
+            ])
+          ]
+        ),
+        "itemCard": ComponentModel(
+          id: "itemCard",
+          type: "Text",
+          properties: ["text": .object(["path": .string("title")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "activeItems": .array([
+          .object(["title": .string("Write tests")])
+        ]),
+        "completedItems": .array([
+          .object(["title": .string("Review PR")])
+        ]),
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let lists = root.children(for: "children")
+    #expect(lists.count == 2)
+    let activeItem0 = try #require(lists[0].children(for: "children").first)
+    let completedItem0 = try #require(lists[1].children(for: "children").first)
+
+    #expect(activeItem0.id == "itemCard_0")
+    #expect(completedItem0.id == "itemCard_0")
+    #expect(activeItem0.box !== completedItem0.box)
+    #expect(activeItem0.string(for: "text") == "Write tests")
+    #expect(completedItem0.string(for: "text") == "Review PR")
+
+    // Updating /activeItems/0/title only re-resolves activeItem0 and leaves completedItem0 untouched.
+    dataModel.set("/activeItems/0/title", value: .string("Ship fix"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(activeItem0.string(for: "text") == "Ship fix")
+    #expect(activeItem0.box.revision == 1)
+    #expect(completedItem0.string(for: "text") == "Review PR")
+    #expect(completedItem0.box.revision == 0)
+  }
+
+  @Test func redundantSlashesInBindingPathReceiveIncrementalUpdates() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Text",
+          properties: ["text": .object(["path": .string("//user/name/")])]
+        )
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "user": .object(["name": .string("Alice")])
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(root.string(for: "text") == "Alice")
+
+    dataModel.set("/user/name", value: .string("Bob"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.string(for: "text") == "Bob")
+  }
+
+  @Test func actionUserMessagePathDoesNotTriggerButtonReResolutionOnDataChange() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "action": {
+              "$ref": "https://a2ui.org/schemas/v1_0/common_types.json#/$defs/Action"
+            }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    ).eraseToAnyCatalog()
+
+    let handler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Button",
+          properties: [
+            "action": .object([
+              "event": .object([
+                "name": .string("send"),
+                "userMessage": .object(["@path": .string("/draft")]),
+              ])
+            ])
+          ]
+        )
+      ]
+    )
+    let dataModel = DataModel(initial: .object(["draft": .string("Initial draft")]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel,
+      actionHandler: handler,
+      protocolVersion: .v10
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.box.revision == 0)
+
+    // Updating /draft should not re-resolve the Button node or bump its revision.
+    dataModel.set("/draft", value: .string("Updated draft"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+    #expect(root.box.revision == 0)
+
+    // Triggering the action evaluates userMessage against the latest data model state.
+    let action = try #require(root.action(for: "action"))
+    action()
+    #expect(handler.capturedActions.count == 1)
+    #expect(
+      handler.capturedActions.first?.identity
+        == .event(name: "send", context: [:], userMessage: "Updated draft")
+    )
+  }
 }
 
 private final class ExpressionErrorCaptureHandler: ActionHandling, @unchecked Sendable {
+  var capturedActions: [ResolvedAction] = []
   var capturedErrors: [RendererError] = []
 
-  func handle(action: ResolvedAction, from surfaceID: String) {}
+  func handle(action: ResolvedAction, from surfaceID: String) {
+    capturedActions.append(action)
+  }
 
   func handle(error: RendererError, from surfaceID: String) {
     capturedErrors.append(error)
