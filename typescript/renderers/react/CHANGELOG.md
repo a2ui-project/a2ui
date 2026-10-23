@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Ensure `A2uiSurface` and `ChildElement` render distinct fallback placeholders for `pending`, `unknown-type`, and `cyclic` component states and release custom element controller subscriptions on unmount.
+
 ## 0.14.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.

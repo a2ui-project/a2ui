@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Resolve `<a2ui-surface>` component trees through `NodeResolver` from `@a2ui/web_core`, surfacing `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` diagnostics on `surface.onError` and disposing active node subscriptions on disconnect.
+
 ## 0.14.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.
