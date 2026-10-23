@@ -396,7 +396,10 @@ async def test_security_allowed_hosts_policy():
     [
         # Shared Address Space (RFC 6598): not public, but not "private" either.
         ("http://100.64.0.1/secret", "100.64.0.1"),
+        # IPv4-mapped forms are checked as the IPv4 address they wrap
+        # (before Python 3.13, is_global reports ::ffff:100.64.0.1 as global).
         ("http://[::ffff:100.64.0.1]/secret", "::ffff:100.64.0.1"),
+        ("http://[::ffff:127.0.0.1]/secret", "::ffff:127.0.0.1"),
         # Still rejected: is_global is True for multicast addresses.
         ("http://224.0.0.1/secret", "224.0.0.1"),
         ("http://[ff02::1]/secret", "ff02::1"),

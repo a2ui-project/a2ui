@@ -271,6 +271,14 @@ class FileResolver:
                     ip = res[4][0]
                     try:
                         ip_obj = ipaddress.ip_address(ip)
+                        # Check an IPv4-mapped IPv6 address as the IPv4 address it
+                        # wraps: before Python 3.13, is_global looks only at the
+                        # IPv6 form, so ::ffff:100.64.0.1 reports as global.
+                        if (
+                            isinstance(ip_obj, ipaddress.IPv6Address)
+                            and ip_obj.ipv4_mapped
+                        ):
+                            ip_obj = ip_obj.ipv4_mapped
                         # Allow only public unicast addresses. Listing private
                         # categories misses ranges such as 100.64.0.0/10 (RFC 6598),
                         # and is_global is True for multicast addresses.
