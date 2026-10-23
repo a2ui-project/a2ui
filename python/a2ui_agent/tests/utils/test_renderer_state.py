@@ -355,6 +355,25 @@ def test_nested_rollbacks_restore_the_outer_snapshot():
     assert component.properties["text"] == "Hi"
 
 
+def test_mark_checked_stops_holding_changed_components_against_checks():
+    state = _canvas()
+    state.apply(_update(_text("orphan")))
+
+    state.mark_checked(["s"])
+
+    state.check_topology(["s"])
+
+
+def test_mark_checked_still_reports_a_dangling_reference():
+    state = _canvas()
+    state.apply(_update(_column("a", "missing")))
+
+    state.mark_checked(["s"])
+
+    with pytest.raises(A2uiIntegrityError, match="Dangling reference"):
+        state.check_topology(["s"])
+
+
 def test_a_failed_inner_transaction_undoes_only_its_own_changes():
     state = _canvas()
 
@@ -535,6 +554,19 @@ def test_a_rollback_restores_each_components_own_catalog_on_a_deleted_surface():
     assert item.catalog is not None and item.catalog.catalog_id == "items"
     root = surface.components_model.get("root")
     assert root is not None and root.catalog.catalog_id == basic.catalog_id
+
+
+def test_a_failed_transaction_undoes_mark_checked():
+    state = _canvas()
+    state.apply(_update(_text("orphan")))
+
+    with pytest.raises(A2uiValidationError):
+        with state.transaction():
+            state.mark_checked(["s"])
+            state.apply(_update({"id": "x", "component": "Unknown"}))
+
+    with pytest.raises(A2uiIntegrityError, match="'orphan' is not reachable"):
+        state.check_topology(["s"])
 
 
 def _order(state: RendererState, surface_id: str = "s") -> list[str]:
