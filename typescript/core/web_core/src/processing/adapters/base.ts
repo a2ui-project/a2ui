@@ -242,7 +242,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     }
 
     const preparedPayload = this.preparePayloadForValidation(msgObj);
-    const parseResult = this.schema.safeParse(preparedPayload);
+    const parseResult = this.validatePayload(preparedPayload);
     if (!parseResult.success) {
       const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
       throw new A2uiValidationError(
@@ -252,6 +252,18 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     }
 
     return this.extractOperationsFromObject(msgObj);
+  }
+
+  /**
+   * Validates a normalized message payload against the version's schema.
+   *
+   * @param payload Normalized message payload.
+   * @returns The schema's parse result.
+   */
+  protected validatePayload(
+    payload: Record<string, unknown>,
+  ): z.SafeParseReturnType<unknown, unknown> {
+    return this.schema.safeParse(payload);
   }
 
   /**

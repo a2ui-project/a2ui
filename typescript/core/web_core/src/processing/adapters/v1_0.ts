@@ -14,13 +14,44 @@
  * limitations under the License.
  */
 
+import {z} from 'zod';
 import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 import {
   InternalComponentPayload,
   InternalOperation,
   INTERNAL_OPERATION_TYPES,
 } from '../operations.js';
-import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
+import {
+  AgentToRendererMessageSchema,
+  CallRendererFunctionMessageSchema,
+} from '../../v1_0/schema/agent-to-renderer.js';
+import {FunctionCallSchema} from '../../v1_0/schema/common-types.js';
+
+let callRendererFunctionOmittingCatalogIdSchema: z.ZodTypeAny | undefined;
+
+/**
+ * `CallRendererFunctionMessageSchema` without its `callFunction.catalogId` requirement.
+ *
+ * The specification answers a call that omits `catalogId` with an `INVALID_FUNCTION_CALL`
+ * `rendererFunctionResponse`, which `RpcHandler` sends, so such a call must pass validation.
+ *
+ * Built on first use rather than at module load: the schemas it derives from may not be
+ * initialized yet when this module is evaluated (for example in bundled production builds).
+ */
+function getCallRendererFunctionOmittingCatalogIdSchema(): z.ZodTypeAny {
+  callRendererFunctionOmittingCatalogIdSchema ??= CallRendererFunctionMessageSchema.extend({
+    callRendererFunction: CallRendererFunctionMessageSchema.shape.callRendererFunction.extend({
+      callFunction: FunctionCallSchema,
+    }),
+  });
+  return callRendererFunctionOmittingCatalogIdSchema;
+}
+
+function omitsCatalogId(payload: Record<string, unknown>): boolean {
+  const crf = payload.callRendererFunction as Record<string, unknown> | undefined;
+  const cf = crf?.callFunction;
+  return !!cf && typeof cf === 'object' && !Array.isArray(cf) && !Object.hasOwn(cf, 'catalogId');
+}
 
 /**
  * Protocol version adapter for specification v1.0.
@@ -31,6 +62,15 @@ export class V1Point0Adapter extends BaseVersionAdapter {
 
   protected getNativeActionKeys(): string[] {
     return [...INTERNAL_OPERATION_TYPES];
+  }
+
+  protected override validatePayload(
+    payload: Record<string, unknown>,
+  ): z.SafeParseReturnType<unknown, unknown> {
+    const result = super.validatePayload(payload);
+    if (result.success || !omitsCatalogId(payload)) return result;
+    const relaxed = getCallRendererFunctionOmittingCatalogIdSchema().safeParse(payload);
+    return relaxed.success ? relaxed : result;
   }
 
   protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
