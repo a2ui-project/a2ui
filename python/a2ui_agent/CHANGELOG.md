@@ -31,6 +31,13 @@
   JSON block, use `DirectJsonParser(catalogs).compile(text)` or
   `A2uiRequestProcessor.parse_response`.
   [#3632](https://github.com/a2ui-project/a2ui/pull/3632)
+- **BREAKING CHANGE**: Cross-catalog `$ref` resolution across peer catalogs is
+  removed. `resolve_catalogs`, `validate_payload`, `RendererState`, and the
+  Direct JSON and Express formats no longer link the catalogs they are given,
+  so a catalog's `$ref`s resolve only against its own document and the
+  protocol's `common_types.json`. Recommended migration: bundle referenced
+  components, properties and functions into each catalog so it is standalone.
+  [#3232](https://github.com/a2ui-project/a2ui/issues/3232)
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
   `call`, `check`, `skipped`); before, such a map was read as a variable

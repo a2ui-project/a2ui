@@ -24,7 +24,6 @@ import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
-import {A2uiCatalogError} from '../errors.js';
 
 describe('Catalog.fromJson & schema_loader', () => {
   const basicCatalogPath = resolve(
@@ -198,7 +197,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     }
   });
 
-  it('rejects an external reference that names no canonical protocol type or peer', () => {
+  it('ignores an external reference that names no canonical protocol type', () => {
     const catalog = Catalog.fromJson({
       catalogId: 'test_unknown_external_ref',
       protocolVersion: 'v1.0',
@@ -215,13 +214,8 @@ describe('Catalog.fromJson & schema_loader', () => {
 
     const widget = catalog.components.get('Widget');
     assert.ok(widget);
-    // An unresolvable cross-catalog reference is a catalog error, never silently dropped.
-    assert.throws(
-      () => widget.schema,
-      (err: Error) =>
-        err instanceof A2uiCatalogError &&
-        err.message.includes("'other_document.json#/$defs/NotAProtocolType'"),
-    );
+    const shape = (widget.schema as z.ZodObject<any>).shape;
+    assert.deepStrictEqual(Object.keys(shape), ['label']);
   });
 
   it('is catalog-agnostic and does not inject weight into custom catalogs lacking weight in $defs', () => {

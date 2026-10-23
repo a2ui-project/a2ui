@@ -1,3 +1,7 @@
+## Unreleased
+
+- **BREAKING CHANGE**: Remove cross-catalog `$ref` resolution across peer catalogs, which shipped in 0.0.1. `resolveCatalogs` returns the active catalogs as is instead of copies linked to each other and to the registered catalogs, and `DirectJsonFormat`, `DirectJsonPromptGenerator`, `DirectJsonParser`, payload validation and the Express schema helpers no longer link the catalogs they are given (`linkCatalogs`, `inlinePeerAndLocalRefs` and `Catalog.withPeerCatalogs` are removed from `@a2ui/web_core`). A catalog's `$ref`s resolve only against its own document and `common_types.json`. Recommended migration: copy the referenced definitions into each catalog that uses them. [#3232](https://github.com/a2ui-project/a2ui/issues/3232)
+
 ## 0.0.2
 
 - Added `Skill`, `SkillSet`, and `SkillGenerator` to generate `SKILL.md` packages from inference formats and component catalogs.
