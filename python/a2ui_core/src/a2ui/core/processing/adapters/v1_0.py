@@ -13,7 +13,10 @@
 # limitations under the License.
 
 from typing import Any
+from pydantic import ValidationError
 from .base import BaseVersionAdapter
+from ..format_pydantic_error import format_validation_error_summary
+from ...exceptions import A2uiValidationError
 from ...schema import ProtocolVersion
 from ...schema.v1_0 import (
     MSG_TYPE_CREATE_SURFACE,
@@ -25,6 +28,7 @@ from ...schema.v1_0 import (
     AgentFunctionResponseMessage,
     AgentToRendererMessageListWrapper,
     CallRendererFunction,
+    ComponentCommonMetadata,
 )
 from ..operations import (
     InternalAgentFunctionResponseOp,
@@ -59,6 +63,28 @@ class V1Point0Adapter(BaseVersionAdapter):
             MSG_TYPE_AGENT_FUNCTION_RESPONSE,
         }
 
+    def _validate_component_metadata(self, action: str, components: Any) -> None:
+        """Checks each component's `metadata` against the spec's `ComponentCommon`.
+
+        The message schema leaves a component's keys to its catalog, which is
+        only checked with a validation config. `metadata` is not catalog
+        specific, so it is checked here, as `createSurface.metadata` is.
+        """
+        if not isinstance(components, list):
+            return
+        for i, comp in enumerate(components):
+            if not isinstance(comp, dict) or "metadata" not in comp:
+                continue
+            try:
+                ComponentCommonMetadata.model_validate(comp["metadata"])
+            except ValidationError as e:
+                summary = format_validation_error_summary(
+                    e, path_prefix=f"{action}.components.{i}.metadata"
+                )
+                raise A2uiValidationError(
+                    f"Invalid {self.version.value} message: {summary}"
+                ) from None
+
     def _extract_operations_for_action(
         self,
         action: str,
@@ -81,6 +107,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                 )
             )
             comps = cs.get("components")
+            self._validate_component_metadata(action, comps)
             if comps is not None:
                 res.append(
                     InternalUpdateComponentsOp(
@@ -99,6 +126,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                 )
         elif action == MSG_TYPE_UPDATE_COMPONENTS:
             uc = message[MSG_TYPE_UPDATE_COMPONENTS]
+            self._validate_component_metadata(action, uc.get("components"))
             res.append(
                 InternalUpdateComponentsOp(
                     surface_id=self._get_surface_id(uc),
