@@ -18,6 +18,7 @@ import {z} from 'zod';
 import {InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
 import {formatZodIssue} from '../format-zod-issue.js';
+import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from '../message-error-mapper.js';
 import {SemVer, normalizeVersionString, toSemVer, toCanonicalVersion} from '../../common/semver.js';
 
 /**
@@ -167,7 +168,13 @@ function validateActionSurfaceIds(
         actionObj.surfaceId !== undefined &&
         typeof actionObj.surfaceId !== 'string'
       ) {
-        throw new A2uiValidationError('surfaceId must be a string');
+        const msg = 'surfaceId must be a string';
+        throw new A2uiValidationError(
+          msg,
+          [{path: `/${key}/surfaceId`, code: 'type_mismatch', message: msg}],
+          'VALIDATION_ERROR',
+          {path: '/surfaceId'},
+        );
       }
     }
   }
@@ -232,8 +239,12 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       );
       const sortedAllowed = nativeActionKeys.slice().sort().join(', ');
       if (otherAction) {
+        const msg = `Invalid ${this.version} message: action '${otherAction}' is not supported in protocol version ${this.version}. Allowed actions: ${sortedAllowed}.`;
         throw new A2uiValidationError(
-          `Invalid ${this.version} message: action '${otherAction}' is not supported in protocol version ${this.version}. Allowed actions: ${sortedAllowed}.`,
+          msg,
+          [{path: '/version', code: 'invalid_value', message: msg}],
+          'VALIDATION_ERROR',
+          {path: '/version'},
         );
       }
       throw new A2uiValidationError(
@@ -245,9 +256,21 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     const parseResult = this.schema.safeParse(preparedPayload);
     if (!parseResult.success) {
       const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
+      const envCtx = extractEnvelopeErrorContext(msgObj, this.version);
+      const preliminaryErr = new A2uiValidationError(
+        `Invalid ${this.version} message: ${formattedErrors}`,
+        parseResult.error,
+      );
+      const mapped = mapErrorToRendererMessage(preliminaryErr, envCtx);
       throw new A2uiValidationError(
         `Invalid ${this.version} message: ${formattedErrors}`,
         parseResult.error,
+        'VALIDATION_ERROR',
+        {
+          path: mapped.error.path,
+          surfaceId: mapped.error.surfaceId,
+          functionCallId: mapped.error.functionCallId,
+        },
       );
     }
 

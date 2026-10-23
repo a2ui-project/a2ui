@@ -578,7 +578,7 @@ export class GenericBinder<T> {
     }
     const res: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(context)) {
-      res[k] = this.resolveDeepSync(v, 1);
+      res[k] = this.context.dataContext.resolveDynamicValue(v);
     }
     return res;
   }
@@ -601,7 +601,9 @@ export class GenericBinder<T> {
       // `userMessage` is a DynamicString; the agent expects it already
       // resolved to a plain string.
       if (ev['userMessage'] !== undefined) {
-        resolvedEvent['userMessage'] = this.resolveDeepSync(ev['userMessage'], 1);
+        resolvedEvent['userMessage'] = this.context.dataContext.resolveDynamicValue(
+          ev['userMessage'],
+        );
       }
       return {...obj, event: resolvedEvent};
     }
@@ -611,7 +613,7 @@ export class GenericBinder<T> {
         context: obj.context ? this.resolveActionContext(obj.context) : undefined,
       };
       if (obj['userMessage'] !== undefined) {
-        resolved['userMessage'] = this.resolveDeepSync(obj['userMessage'], 1);
+        resolved['userMessage'] = this.context.dataContext.resolveDynamicValue(obj['userMessage']);
       }
       return resolved;
     }

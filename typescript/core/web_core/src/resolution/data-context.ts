@@ -330,6 +330,7 @@ export class DataContext {
   private readonly warnedPaths: Set<string>;
   private _isUserActivated = false;
   private _isPassiveEvaluation = false;
+  private _isActionExecution = false;
 
   readonly surface?: SurfaceModel<any>;
 
@@ -894,6 +895,61 @@ export class DataContext {
     return objSig;
   }
 
+  private throwInvalidActionError(message: string): never {
+    this.surface?.dispatchError({
+      code: 'INVALID_ACTION',
+      surfaceId: this.surface.id,
+      message,
+    });
+    throw new A2uiValidationError(message, undefined, 'INVALID_ACTION', {
+      surfaceId: this.surface?.id,
+    });
+  }
+
+  private resolveActionEventObject(ev: Record<string, unknown>): Record<string, unknown> {
+    if (typeof ev.name !== 'string' || ev.name.length === 0) {
+      this.throwInvalidActionError("Action event is missing required 'name' string.");
+    }
+    const resolvedContext: Record<string, unknown> = {};
+    if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
+      for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
+        resolvedContext[key] = this.resolveDynamicValue(value);
+      }
+    }
+    const resolvedEvent: Record<string, unknown> = {
+      ...ev,
+      context: resolvedContext,
+    };
+    if (ev.userMessage !== undefined) {
+      const resolvedMsg = this.resolveDynamicValue(ev.userMessage);
+      if (typeof resolvedMsg !== 'string') {
+        this.throwInvalidActionError("Action event 'userMessage' must resolve to a string.");
+      }
+      resolvedEvent.userMessage = resolvedMsg;
+    }
+    return resolvedEvent;
+  }
+
+  private executeActionFunctionCall(
+    action: Record<string, unknown>,
+    options?: {userActivation?: boolean},
+  ): unknown {
+    const callTarget = 'functionCall' in action ? (action as any).functionCall : action;
+    const userActivated = options?.userActivation ?? true;
+    const prevAction = this._isActionExecution;
+    const prevPassive = this._isPassiveEvaluation;
+    this._isActionExecution = true;
+    if (options?.userActivation === false) {
+      this._isPassiveEvaluation = true;
+    }
+    try {
+      return this.resolveDynamicValue(callTarget, 0, userActivated);
+    } finally {
+      this._isActionExecution = prevAction;
+      this._isPassiveEvaluation = prevPassive;
+    }
+  }
+
   /**
    * Resolves an action by evaluating its top-level dynamic values.
    *
@@ -903,49 +959,21 @@ export class DataContext {
    * @param action The Action object to resolve.
    * @returns The resolved action payload or function execution result.
    */
-  resolveAction(action: Action | Record<string, unknown>): Action | unknown {
+  resolveAction(
+    action: Action | Record<string, unknown>,
+    options?: {userActivation?: boolean},
+  ): Action | unknown {
     if ('event' in action && typeof action.event === 'object' && action.event !== null) {
-      const resolvedContext: Record<string, unknown> = {};
-      const ev = action.event as Record<string, unknown>;
-      if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
-        for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
-          resolvedContext[key] = this.resolveDynamicValue(value);
-        }
-      }
-      const resolvedEvent: Record<string, unknown> = {
-        ...ev,
-        context: resolvedContext,
-      };
-      if (ev.userMessage !== undefined) {
-        resolvedEvent.userMessage = this.resolveDynamicValue(ev.userMessage);
-      }
       return {
         ...action,
-        event: resolvedEvent,
+        event: this.resolveActionEventObject(action.event as Record<string, unknown>),
       };
     }
     if ('name' in action) {
-      const actObj = action as Record<string, unknown>;
-      const resolvedContext: Record<string, unknown> = {};
-      if (actObj.context && typeof actObj.context === 'object' && !Array.isArray(actObj.context)) {
-        for (const [key, value] of Object.entries(actObj.context as Record<string, unknown>)) {
-          resolvedContext[key] = this.resolveDynamicValue(value);
-        }
-      }
-      const resolved: Record<string, unknown> = {
-        ...actObj,
-        context: resolvedContext,
-      };
-      if (actObj.userMessage !== undefined) {
-        resolved.userMessage = this.resolveDynamicValue(actObj.userMessage);
-      }
-      return resolved;
+      return this.resolveActionEventObject(action as Record<string, unknown>);
     }
-    if ('functionCall' in action) {
-      return this.resolveDynamicValue((action as any).functionCall, 0, true);
-    }
-    if ('call' in action) {
-      return this.resolveDynamicValue(action, 0, true);
+    if ('functionCall' in action || 'call' in action || '@call' in action) {
+      return this.executeActionFunctionCall(action as Record<string, unknown>, options);
     }
     return action;
   }
@@ -1147,7 +1175,7 @@ export class DataContext {
     } else {
       const errObj = typeof e === 'object' && e !== null ? (e as {message?: string}) : {};
       this.surface.dispatchError({
-        code: 'EXPRESSION_ERROR',
+        code: this._isActionExecution ? 'EXECUTION_ERROR' : 'EXPRESSION_ERROR',
         message: errObj.message ?? `An unexpected error occurred in function ${name}.`,
         expression: name,
       });
