@@ -112,4 +112,14 @@ extension type const ComponentProps(NodeProps _props) implements NodeProps {
     final List<Object?> l => l.whereType<String>().toList(growable: false),
     _ => const [],
   };
+
+  /// The failing [ValidationResult]s of the component's `checks`, including
+  /// non-blocking `warning` and `info` diagnostics.
+  List<ValidationResult> get validationResults =>
+      switch (this['validationResults']) {
+        final List<Object?> l => l.whereType<ValidationResult>().toList(
+          growable: false,
+        ),
+        _ => const [],
+      };
 }
