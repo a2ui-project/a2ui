@@ -23,15 +23,18 @@ otherwise valid JSON is kept.
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 import re
-from typing import Any, NoReturn, TypeVar
+from typing import Any, NoReturn, TypeVar, cast
 
 _T = TypeVar("_T")
 _NUMBER_RE = re.compile(r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$")
 # Values that are never healed while they arrive: a cut URL is a different,
 # usually broken, address rather than a shorter version of the same text.
 _URL_PREFIXES = ("http://", "https://", "data:")
+# A run of string characters that are neither a quote nor an escape.
+_PLAIN_RUN = re.compile(r'[^"\\]+')
+_PLAIN_RUN_NO_NEWLINES = re.compile(r'[^"\\\r\n]+')
 
 
 def read_json(text: str) -> Any:
@@ -63,12 +66,71 @@ def read_partial_messages(
     ]
 
 
+class PartialReadCache:
+    """What the reads of a payload as it arrives keep for the next read.
+
+    Each read through a cache then reads only what the earlier ones left
+    open: a list or map that closed in an earlier read is taken from the
+    cache, as the same object, and a list still open, the list of messages
+    included, is read on from its last item that closed.
+
+    Every read through a cache must start at the same offset, and read a text
+    that holds the same characters as the earlier ones wherever both reach,
+    and that reaches the end of every list or map they read. The Direct JSON
+    stream reads a block that only grows, less any Markdown fence at its end.
+    """
+
+    def __init__(self) -> None:
+        self._plain = _ReadState()
+        # The reads of the text with curly quotes straightened, which has the
+        # same offsets.
+        self._straight = _ReadState()
+        self.complete = False
+        """Whether the last read reached the end of the payload's JSON value."""
+
+
+class _ReadState:
+    """What the reads of one text keep for the next read.
+
+    An offset is the index of a character in the text, so the offset after a
+    closing bracket is the index of the character that follows it.
+    """
+
+    def __init__(self) -> None:
+        # Each list or map that closed, by the offset of its opening bracket,
+        # with the offset after its closing one.
+        self.closed: dict[int, tuple[Any, int]] = {}
+        # Each list still open, by the offset of its opening bracket, with
+        # the items that closed and the offset after the last of them.
+        self.open: dict[int, tuple[list[Any], int]] = {}
+        # For a payload written as a list of messages, the messages whose
+        # JSON value has closed and the offset after the last of them, where
+        # the next read goes on.
+        self.messages: tuple[list[tuple[Any, bool]], int] | None = None
+
+
 def read_partial_message_items(
     text: str,
     progressive_keys: Collection[str],
     whole_item_keys: Collection[str] = frozenset(),
+    *,
+    cache: PartialReadCache | None = None,
+    start: int = 0,
+    end: int | None = None,
 ) -> list[tuple[Any, bool]]:
     """Reads a partial JSON array or object into candidate envelopes.
+
+    Args:
+      text: The start of a payload: a list of messages, or one message.
+      progressive_keys: The keys whose string value is healed while it
+        arrives.
+      whole_item_keys: The keys whose list value holds only the items that
+        have closed.
+      cache: What earlier reads of the same payload kept, as
+        `PartialReadCache` describes. The caller must not change the lists
+        and maps returned.
+      start: Where the payload starts in `text`.
+      end: Where the part of `text` to read ends. All of it by default.
 
     Returns:
       One `(envelope, closed)` pair per message, in order. `closed` is False
@@ -76,14 +138,25 @@ def read_partial_message_items(
     """
     prog_set = set(progressive_keys)
     whole_set = set(whole_item_keys)
+    limit = len(text) if end is None else end
+
+    def read(source: str, state: _ReadState | None) -> list[tuple[Any, bool]]:
+        reader = _Reader(source, prog_set, whole_set, state, start, limit)
+        items = reader.message_items()
+        if cache is not None:
+            cache.complete = reader.complete
+        return items
+
+    if cache is not None:
+        cache.complete = False
     try:
-        return _Reader(text, prog_set, whole_set).message_items()
+        return read(text, cache._plain if cache is not None else None)
     except ValueError:
         straight = _straighten_quotes(text)
         if straight == text:
             return []
         try:
-            return _Reader(straight, prog_set, whole_set).message_items()
+            return read(straight, cache._straight if cache is not None else None)
         except ValueError:
             return []
 
@@ -119,12 +192,19 @@ class _Reader:
         text: str,
         progressive_keys: set[str] | None,
         whole_item_keys: set[str] = frozenset(),  # type: ignore[assignment]
+        state: _ReadState | None = None,
+        start: int = 0,
+        end: int | None = None,
     ):
         self.text = text
         self.progressive_keys = progressive_keys
         self.whole_item_keys = set(whole_item_keys)
-        self._i = 0
+        self._state = state
+        self._i = start
+        self._limit = len(text) if end is None else end
         self._cut = False
+        # Whether the read reached the end of the payload's JSON value.
+        self.complete = False
         self._in_data_model = False
 
     @property
@@ -133,7 +213,7 @@ class _Reader:
 
     @property
     def _at_end(self) -> bool:
-        return self._i >= len(self.text)
+        return self._i >= self._limit
 
     def document(self) -> Any:
         self._skip_space()
@@ -155,34 +235,67 @@ class _Reader:
                 self._skip_space()
                 if not self._at_end:
                     self._fail("unexpected text after the JSON value")
+                self.complete = closed
                 return [(message, closed)]
             except _Unfinished:
                 return []
         self._i += 1
         messages: list[tuple[Any, bool]] = []
+        # How many of the messages closed, and where the text after the last
+        # of them starts, for the next read to go on from.
+        closed_count = 0
+        resume = self._i
+        after_item = False
+        state = self._state
+        if state is not None and state.messages is not None:
+            closed_messages, resume = state.messages
+            messages = list(closed_messages)
+            closed_count = len(messages)
+            self._i = resume
+            after_item = bool(messages)
+
+        def so_far() -> list[tuple[Any, bool]]:
+            if state is not None:
+                state.messages = (
+                    (
+                        messages
+                        if closed_count == len(messages)
+                        else messages[:closed_count]
+                    ),
+                    resume,
+                )
+            return messages
+
         while True:
+            if after_item:
+                self._skip_space()
+                if self._at_end:
+                    return so_far()
+                if self.text[self._i] == ",":
+                    self._i += 1
+                elif self.text[self._i] != "]":
+                    self._fail("expected ',' or ']'")
+            after_item = True
             self._skip_space()
             if self._at_end:
-                return messages
+                return so_far()
             if self.text[self._i] == "]":
                 self._i += 1
                 self._skip_space()
                 if not self._at_end:
                     self._fail("unexpected text after the JSON value")
+                self.complete = True
                 return messages
             try:
                 self._cut = False
                 message = self._value(healable=False)
-                messages.append((message, not self._cut))
             except _Unfinished:
-                return messages
-            self._skip_space()
-            if self._at_end:
-                return messages
-            if self.text[self._i] == ",":
-                self._i += 1
-            elif self.text[self._i] != "]":
-                self._fail("expected ',' or ']'")
+                return so_far()
+            closed = not self._cut
+            messages.append((message, closed))
+            if closed:
+                closed_count = len(messages)
+                resume = self._i
 
     def _value(self, *, healable: bool, strip_newlines: bool = False) -> Any:
         if self._at_end:
@@ -197,14 +310,40 @@ class _Reader:
         if c == "-" or ("0" <= c <= "9"):
             return self._number()
         for word, val in (("true", True), ("false", False), ("null", None)):
-            if self.text.startswith(word, self._i):
+            if self._i + len(word) <= self._limit and self.text.startswith(
+                word, self._i
+            ):
                 self._i += len(word)
                 return val
-            if self._partial and word.startswith(self.text[self._i :]):
+            if self._partial and word.startswith(self.text[self._i : self._limit]):
                 self._end()
         self._fail(f"unexpected character '{c}'")
 
     def _object(self, parent_key: str | None = None) -> dict[str, Any]:
+        return self._closed_or(lambda: self._read_object(parent_key=parent_key))
+
+    def _closed_or(self, read: Callable[[], _T]) -> _T:
+        """Reads a list or map through `read`, unless an earlier read saw it close.
+
+        A list or map that closes is kept for the reads after this one.
+        """
+        state = self._state
+        if state is None:
+            return read()
+        start = self._i
+        cached = state.closed.get(start)
+        if cached is not None:
+            self._i = cached[1]
+            return cast(_T, cached[0])
+        cut_before = self._cut
+        self._cut = False
+        value = read()
+        if not self._cut:
+            state.closed[start] = (value, self._i)
+        self._cut = cut_before or self._cut
+        return value
+
+    def _read_object(self, parent_key: str | None = None) -> dict[str, Any]:
         self._i += 1
         obj: dict[str, Any] = {}
         while True:
@@ -268,39 +407,79 @@ class _Reader:
     def _array(
         self, *, whole_items: bool = False, strip_item_newlines: bool = False
     ) -> list[Any]:
+        return self._closed_or(
+            lambda: self._read_array(
+                whole_items=whole_items,
+                strip_item_newlines=strip_item_newlines,
+            )
+        )
+
+    def _read_array(
+        self, *, whole_items: bool, strip_item_newlines: bool = False
+    ) -> list[Any]:
+        start = self._i
         self._i += 1
         arr: list[Any] = []
+        # How many of the items closed, and where the text after the last of
+        # them starts, for the next read to go on from.
+        closed_count = 0
+        resume = self._i
+        after_item = False
+        state = self._state
+        if state is not None and start in state.open:
+            items, resume = state.open[start]
+            arr = list(items)
+            closed_count = len(arr)
+            self._i = resume
+            after_item = bool(arr)
+
+        def healed() -> list[Any]:
+            if state is not None:
+                state.open[start] = (
+                    arr if closed_count == len(arr) else arr[:closed_count],
+                    resume,
+                )
+            return self._healed(arr)
+
         while True:
+            if after_item:
+                self._skip_space()
+                if self._at_end:
+                    return healed()
+                if self.text[self._i] == ",":
+                    self._i += 1
+                elif self.text[self._i] != "]":
+                    self._fail("expected ',' or ']'")
+            after_item = True
             self._skip_space()
             if self._at_end:
-                return self._healed(arr)
+                return healed()
             if self.text[self._i] == "]":
                 self._i += 1
+                if state is not None:
+                    state.open.pop(start, None)
                 return arr
+            cut_before = self._cut
+            self._cut = False
             if whole_items:
-                cut_before = self._cut
-                self._cut = False
                 try:
                     item = self._value(
                         healable=False, strip_newlines=strip_item_newlines
                     )
                 except _Unfinished:
-                    return self._healed(arr)
+                    return healed()
                 if self._cut:
-                    return self._healed(arr)
-                self._cut = cut_before
-                arr.append(item)
+                    return healed()
             else:
-                arr.append(
-                    self._value(healable=False, strip_newlines=strip_item_newlines)
-                )
-            self._skip_space()
-            if self._at_end:
-                return self._healed(arr)
-            if self.text[self._i] == ",":
-                self._i += 1
-            elif self.text[self._i] != "]":
-                self._fail("expected ',' or ']'")
+                item = self._value(healable=False, strip_newlines=strip_item_newlines)
+            arr.append(item)
+            if self._cut:
+                # An item closed early ends the text, so the list closes
+                # early too.
+                continue
+            self._cut = cut_before
+            closed_count = len(arr)
+            resume = self._i
 
     def _healed(self, value: _T) -> _T:
         if not self._partial:
@@ -311,18 +490,28 @@ class _Reader:
     def _string(self, *, healable: bool, strip_newlines: bool = False) -> str:
         self._i += 1
         buf: list[str] = []
-        n = len(self.text)
+        n = self._limit
         while not self._at_end:
             c = self.text[self._i]
             if c == '"':
                 self._i += 1
                 return "".join(buf)
             if c != "\\":
-                if strip_newlines and c in ("\r", "\n"):
-                    self._i += 1
-                    continue
-                buf.append(c)
-                self._i += 1
+                if strip_newlines:
+                    if c in ("\r", "\n"):
+                        self._i += 1
+                        continue
+                    run = _PLAIN_RUN_NO_NEWLINES.match(self.text, self._i, n)
+                    assert run is not None
+                    buf.append(run.group())
+                    self._i = run.end()
+                else:
+                    # Takes the run of plain characters up to the next quote or
+                    # escape at once.
+                    run = _PLAIN_RUN.match(self.text, self._i, n)
+                    assert run is not None
+                    buf.append(run.group())
+                    self._i = run.end()
                 continue
             if self._i + 1 >= n:
                 self._i = n

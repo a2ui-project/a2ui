@@ -13,6 +13,9 @@
 - `SurfaceComponentsModel.components_update_applied` reports that a batch
   `validate_components_update` passed has been applied, so that the next check
   can start from what that check found. `MessageProcessor` calls it.
+- `SurfaceComponentsModel.insert_component(index, component)` adds a component
+  at a position in the model's order, which checks such as `allowedParents`
+  read. `add_component` still appends.
 - `ComponentModel.get_child_references` and `is_v0_8_heuristic_child_prop_key`
   accept any container of known component ids, not only a set.
 - A component property declared directly as an array of component ids
