@@ -31,7 +31,7 @@ import {
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {loadBasicCatalog, REPO_ROOT} from '../helpers/basic-catalogs.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
-import {conformancePath} from './suite-helpers.js';
+import {conformancePath, errorClassFor} from './suite-helpers.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
 
@@ -52,10 +52,10 @@ function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
   }
 
   const fmtName = (args.format as string | undefined) ?? 'express';
-  // Cases without a catalog (such as `export_to_directory`) still get a usable
-  // generator; Express rejects an empty catalog list.
-  const catalogs = catalog ? [catalog] : [basicCatalogV10];
-  const fmt = fmtName === 'express' ? new ExpressFormat(catalogs) : new DirectJsonFormat(catalogs);
+  const fmt =
+    fmtName === 'express'
+      ? new ExpressFormat(catalog ? [catalog] : [])
+      : new DirectJsonFormat(catalog ? [catalog] : [basicCatalogV10]);
   const generator = new SkillGenerator(fmt);
   return {args, catalog, generator};
 }
@@ -104,7 +104,12 @@ interface LiteralSkill {
   filename?: string;
 }
 
-function runExportToDirectoryCase(testCase: LoadedCase, {args}: SkillCaseContext): void {
+/**
+ * Runs an `export_to_directory` case. It needs no inference format, so it is dispatched
+ * before `buildSkillContext`, as the Python runner does.
+ */
+function runExportToDirectoryCase(testCase: LoadedCase): void {
+  const args = (testCase.args as Record<string, unknown>) || {};
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-skill-export-'));
   try {
     for (const rel of (args.pre_existing_files as string[] | undefined) ?? []) {
@@ -113,11 +118,18 @@ function runExportToDirectoryCase(testCase: LoadedCase, {args}: SkillCaseContext
       fs.writeFileSync(abs, 'pre-existing', 'utf-8');
     }
 
-    const skillSet = new SkillSet();
-    for (const s of (args.skills as LiteralSkill[] | undefined) ?? []) {
-      skillSet.add(new Skill(s));
+    const run = () => {
+      const skillSet = new SkillSet();
+      for (const s of (args.skills as LiteralSkill[] | undefined) ?? []) {
+        skillSet.add(new Skill(s));
+      }
+      skillSet.exportToDirectory(tempDir);
+    };
+    if (testCase.expect_error) {
+      expect(run).toThrow(errorClassFor(testCase));
+    } else {
+      run();
     }
-    skillSet.exportToDirectory(tempDir);
 
     for (const rel of (testCase.expected_files as string[] | undefined) ?? []) {
       expect(fs.existsSync(path.join(tempDir, rel)), `expected ${rel} to exist`).toBe(true);
@@ -138,7 +150,6 @@ const SKILL_ACTION_HANDLERS: Record<
   core_syntax: runCoreSyntaxCase,
   from_catalog: runFromCatalogCase,
   skill_set: runSkillSetCase,
-  export_to_directory: runExportToDirectoryCase,
 };
 
 describe('Conformance: skill.yaml', () => {
@@ -148,6 +159,10 @@ describe('Conformance: skill.yaml', () => {
     const testName = `${action} · ${name}`;
 
     const testFn = async () => {
+      if (action === 'export_to_directory') {
+        runExportToDirectoryCase(testCase);
+        return;
+      }
       const handler = Object.hasOwn(SKILL_ACTION_HANDLERS, action)
         ? SKILL_ACTION_HANDLERS[action]
         : undefined;

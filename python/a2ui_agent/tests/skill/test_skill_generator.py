@@ -19,7 +19,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
-from a2ui.core import Catalog
+from a2ui.core import A2uiValidationError, Catalog
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.processor import CatalogConfig
 from a2ui.skill import Skill, SkillGenerator, SkillSet
@@ -131,9 +131,11 @@ class TestSkillGenerator(unittest.TestCase):
         """A filename that is absolute or has a '.', '..' or empty segment is rejected on construction."""
         for filename in ("../x/SKILL.md", "/abs/SKILL.md", "a/./b.md", "a//b.md"):
             with self.subTest(filename=filename):
-                with self.assertRaisesRegex(ValueError, "must be a relative path"):
+                with self.assertRaisesRegex(
+                    A2uiValidationError, "must be a relative path"
+                ):
                     Skill("bad", "d", "# Bad", filename=filename)
-        with self.assertRaisesRegex(ValueError, "must be a relative path"):
+        with self.assertRaisesRegex(A2uiValidationError, "must be a relative path"):
             SkillSet({"../x/SKILL.md": Skill("ok", "d", "# Ok")})
         # Accepted: nested relative paths and a bare file at the root.
         self.assertEqual(
@@ -144,13 +146,13 @@ class TestSkillGenerator(unittest.TestCase):
     def test_filename_reassigned_after_construction_is_rejected(self):
         """A filename reassigned later goes through the same check, in the setter and in add()."""
         skill = Skill("ok", "d", "# Ok")
-        with self.assertRaisesRegex(ValueError, "must be a relative path"):
+        with self.assertRaisesRegex(A2uiValidationError, "must be a relative path"):
             skill.filename = "../victim/SKILL.md"
         self.assertEqual(skill.filename, "ok/SKILL.md")
 
         # Bypassing the setter still cannot get a bad key into a SkillSet.
         skill.__dict__["_filename"] = "../victim/SKILL.md"
-        with self.assertRaisesRegex(ValueError, "must be a relative path"):
+        with self.assertRaisesRegex(A2uiValidationError, "must be a relative path"):
             SkillSet().add(skill)
 
     def test_export_aborts_when_skill_directory_sits_under_symlink_leaving_output_dir(
@@ -172,7 +174,7 @@ class TestSkillGenerator(unittest.TestCase):
         skill_set.add(
             Skill("nested", "d", "# Nested", filename="src/skills/nested/SKILL.md")
         )
-        with self.assertRaisesRegex(ValueError, "through a symlink"):
+        with self.assertRaisesRegex(A2uiValidationError, "through a symlink"):
             skill_set.export_to_directory(out)
 
         # Nothing was removed or written, not even for the unrelated skill.

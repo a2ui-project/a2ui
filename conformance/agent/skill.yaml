@@ -124,3 +124,25 @@
     - FLAT.md
     - other.md
     - some-skill/SKILL.md
+
+- name: test_export_rejects_filename_outside_output_dir
+  description: >-
+    A skill whose filename is absolute or has a `.` or `..` segment is rejected with a
+    validation error, and nothing in the output directory is removed or written.
+  action: export_to_directory
+  args:
+    skills:
+      - name: outside
+        description: Escapes the output directory.
+        content: "# Outside"
+        filename: ../outside/SKILL.md
+    pre_existing_files:
+      - root_note.txt
+      - some-skill/SKILL.md
+  expect_error:
+    category: ValidationError
+  expected_files:
+    - root_note.txt
+    - some-skill/SKILL.md
+  expected_absent_files:
+    - ../outside/SKILL.md

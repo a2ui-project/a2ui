@@ -914,6 +914,10 @@
           "type": "array",
           "description": "Paths relative to the output directory that must not exist after exporting.",
           "items": {"type": "string"}
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError",
+          "description": "When set, building the SkillSet or exporting it must fail with this error, and `expected_files` / `expected_absent_files` are checked afterwards to show nothing was removed or written."
         }
       },
       "required": ["action", "args", "expected_files"]

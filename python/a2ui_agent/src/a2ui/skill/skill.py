@@ -23,7 +23,7 @@ import shutil
 from typing import Any, Optional
 import yaml
 
-from a2ui.core import CatalogApi
+from a2ui.core import A2uiValidationError, CatalogApi
 from a2ui.inference_format import InferenceFormat
 
 
@@ -66,7 +66,8 @@ def _validate_skill_filename(filename: str) -> str:
     escape on.
 
     Raises:
-        ValueError: If the filename is not such a path.
+        A2uiValidationError: If the filename is not such a path. It subclasses
+            `ValueError`, so callers catching that still do.
     """
     segments = re.split(r"[\\/]", filename)
     escapes = (
@@ -76,7 +77,7 @@ def _validate_skill_filename(filename: str) -> str:
         or any(segment in ("", ".", "..") for segment in segments)
     )
     if escapes:
-        raise ValueError(
+        raise A2uiValidationError(
             f"Skill filename {filename!r} must be a relative path without '.' or '..'"
             " segments."
         )
@@ -92,7 +93,7 @@ def _assert_resolves_inside(target: str, output_root: str, filename: str) -> Non
     would reach outside it. `output_root` must already be resolved.
 
     Raises:
-        ValueError: If the resolved path is outside `output_root`.
+        A2uiValidationError: If the resolved path is outside `output_root`.
     """
     existing = target
     while not os.path.lexists(existing):
@@ -102,7 +103,7 @@ def _assert_resolves_inside(target: str, output_root: str, filename: str) -> Non
         existing = parent
     real = os.path.realpath(existing)
     if real != output_root and not real.startswith(output_root + os.sep):
-        raise ValueError(
+        raise A2uiValidationError(
             f"Skill filename {filename!r} resolves through a symlink to {real!r},"
             " outside the output directory."
         )
@@ -120,7 +121,8 @@ class Skill:
     directory.
 
     Raises:
-        ValueError: If `filename` is absolute or has an empty, `.` or `..` segment.
+        A2uiValidationError: If `filename` is absolute or has an empty, `.` or `..`
+            segment.
     """
 
     def __init__(
@@ -232,7 +234,7 @@ class SkillSet:
         can reach outside `output_dir`.
 
         Raises:
-            ValueError: If a skill directory's parent is a symlink that resolves outside
+            A2uiValidationError: If a skill directory's parent is a symlink that resolves outside
                 `output_dir`. Nothing is removed or written in that case.
 
         Returns:

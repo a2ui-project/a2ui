@@ -20,6 +20,7 @@ import unittest
 
 import yaml
 
+from a2ui.core import A2uiValidationError
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
@@ -31,6 +32,10 @@ from ..repo_paths import find_repo_root
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_YAML_PATH = os.path.join(REPO_ROOT, "conformance", "agent", "skill.yaml")
 GOLDENS_DIR = os.path.join(REPO_ROOT, "conformance", "test_data", "skills")
+
+_ERROR_CATEGORIES: dict[str, type[Exception]] = {
+    "ValidationError": A2uiValidationError,
+}
 
 
 class TestSkillConformance(unittest.TestCase):
@@ -154,17 +159,25 @@ class TestSkillConformance(unittest.TestCase):
                 with open(abs_path, "w", encoding="utf-8") as f:
                     f.write("pre-existing")
 
-            skill_set = SkillSet()
-            for spec in args.get("skills", []):
-                skill_set.add(
-                    Skill(
-                        name=spec["name"],
-                        description=spec["description"],
-                        content=spec["content"],
-                        filename=spec.get("filename"),
+            def run() -> None:
+                skill_set = SkillSet()
+                for spec in args.get("skills", []):
+                    skill_set.add(
+                        Skill(
+                            name=spec["name"],
+                            description=spec["description"],
+                            content=spec["content"],
+                            filename=spec.get("filename"),
+                        )
                     )
-                )
-            skill_set.export_to_directory(temp_dir)
+                skill_set.export_to_directory(temp_dir)
+
+            expect_error = case.get("expect_error")
+            if expect_error:
+                with self.assertRaises(_ERROR_CATEGORIES[expect_error["category"]]):
+                    run()
+            else:
+                run()
 
             for rel in case.get("expected_files", []):
                 self.assertTrue(
