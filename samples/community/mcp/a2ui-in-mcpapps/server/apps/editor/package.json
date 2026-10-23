@@ -2,12 +2,12 @@
   "name": "basic-mcp-app-angular-editor",
   "version": "1.0.0",
   "dependencies": {
-    "@a2ui/angular": "^0.10.0",
+    "@a2ui/angular": "^0.14.0",
     "@a2ui/markdown-it": "*",
-    "@angular/common": "^21.2.5",
-    "@angular/compiler": "^21.2.5",
-    "@angular/core": "^21.2.5",
-    "@angular/platform-browser": "^21.2.5",
+    "@angular/common": "^22.2.3",
+    "@angular/compiler": "^22.2.3",
+    "@angular/core": "^22.2.3",
+    "@angular/platform-browser": "^22.2.3",
     "@editorjs/editorjs": "^2.31.6",
     "@editorjs/paragraph": "^2.11.7",
     "rxjs": "^7.8.2",
@@ -15,11 +15,11 @@
     "zone.js": "~0.16.2"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.5",
-    "@angular/cli": "^21.2.5",
-    "@angular/compiler-cli": "^21.2.5",
+    "@angular/build": "^22.2.3",
+    "@angular/cli": "^22.2.3",
+    "@angular/compiler-cli": "^22.2.3",
     "eslint": "^10.4.1",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   },
   "scripts": {
     "build": "ng build --output-path=../dist/raw --configuration production",
