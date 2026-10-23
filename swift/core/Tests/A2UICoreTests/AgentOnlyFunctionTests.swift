@@ -42,7 +42,7 @@ struct AgentOnlyFunctionTests {
     }
   }
 
-  private func makeCatalog() throws -> AnyCatalog {
+  private func makeCatalog(protocolVersion: A2UIProtocolVersion = .v10) throws -> AnyCatalog {
     let common = "https://a2ui.org/schemas/v0_9_1/common.json#/$defs"
     let buttonSchema = try Schema(
       instance: """
@@ -59,7 +59,7 @@ struct AgentOnlyFunctionTests {
     )
     return Catalog(
       id: "a",
-      protocolVersion: .v10,
+      protocolVersion: protocolVersion,
       components: [AnyComponentAPI(name: "Button", schema: buttonSchema)],
       functions: [
         RecordingFunction(name: "agentOnly", allowedCallers: .agentOnly),
@@ -72,16 +72,18 @@ struct AgentOnlyFunctionTests {
   private func render(
     _ function: String,
     in property: String,
-    handler: TestProcessorActionHandler
+    handler: TestProcessorActionHandler,
+    protocolVersion: A2UIProtocolVersion = .v10
   ) throws -> NodeResolver {
     let resolver = NodeResolver(
       surfaceID: "s",
-      catalogs: ["a": try makeCatalog()],
+      catalogs: ["a": try makeCatalog(protocolVersion: protocolVersion)],
       defaultCatalogID: "a",
       actionHandler: handler,
-      protocolVersion: .v10
+      protocolVersion: protocolVersion
     )
-    let call: JSONValue = .object(["@call": .string(function)])
+    let callKey = protocolVersion.isAtLeastV10 ? "@call" : "call"
+    let call: JSONValue = .object([callKey: .string(function)])
     let value: JSONValue =
       property == "checks"
       ? .array([.object(["condition": call, "message": .string("Blocked")])])
@@ -119,6 +121,16 @@ struct AgentOnlyFunctionTests {
     let resolver = try render("rendererOrAgent", in: property, handler: handler)
 
     #expect(resolver.dataModel.get("/ran/rendererOrAgent") == .boolean(true))
+    #expect(handler.capturedErrors.isEmpty)
+  }
+
+  /// allowedCallers is a v1.0 feature, so a v0.9 renderer call is not restricted by it.
+  @Test(arguments: ["label", "checks", "onClick"])
+  func v09RendererCallerIgnoresAllowedCallers(property: String) throws {
+    let handler = TestProcessorActionHandler()
+    let resolver = try render("agentOnly", in: property, handler: handler, protocolVersion: .v091)
+
+    #expect(resolver.dataModel.get("/ran/agentOnly") == .boolean(true))
     #expect(handler.capturedErrors.isEmpty)
   }
 

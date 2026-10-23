@@ -156,9 +156,10 @@ public final class DataContext {
       )
       return .null
     }
-    // Bindings, checks and actions are renderer callers. An agentOnly function runs only
-    // through an agent-initiated callRendererFunction, which RPCHandler evaluates directly.
-    if function.api.allowedCallers == .agentOnly {
+    // Bindings, checks and actions are renderer callers. In v1.0 an agentOnly function runs
+    // only through an agent-initiated callRendererFunction, which RPCHandler evaluates
+    // directly. allowedCallers is a v1.0 feature, so v0.9 calls are not restricted.
+    if atLeastV10 && function.api.allowedCallers == .agentOnly {
       functionHandler?.handleFunctionError(
         FunctionError.callerDisallowed(name: callName, caller: "renderer"),
         functionName: callName
