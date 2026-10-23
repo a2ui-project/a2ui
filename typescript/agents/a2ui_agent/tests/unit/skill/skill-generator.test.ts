@@ -81,12 +81,12 @@ describe('SkillGenerator', () => {
     expect(coreSkill.content).toContain('A2UI Express DSL Output Contract');
   });
 
-  it('generates a modular SkillSet package via generateSkillset()', () => {
-    const skillSet = generator.generateSkillset();
+  it('generates a modular SkillSet package via generateSkillSet()', () => {
+    const skillSet = generator.generateSkillSet();
 
     expect(skillSet.has('a2ui-core/SKILL.md')).toBe(true);
     expect(skillSet.has('a2ui-basic/SKILL.md')).toBe(true);
-    expect(skillSet.length).toBe(2);
+    expect(skillSet.size).toBe(2);
 
     const coreSk = skillSet.get('a2ui-core');
     expect(coreSk?.name).toBe('a2ui-core');
@@ -112,7 +112,7 @@ describe('SkillGenerator', () => {
     fs.writeFileSync(rootNote, 'keep me', 'utf-8');
 
     // 2. Export skillset
-    const skillSet = generator.generateSkillset();
+    const skillSet = generator.generateSkillSet();
     const exported = skillSet.exportToDirectory(tempDir);
 
     // 3. Assert skills were written
@@ -162,9 +162,10 @@ describe('SkillGenerator', () => {
         filename,
       ).toThrow(/must be a relative path/);
     }
-    expect(() => new SkillSet({'../x/SKILL.md': new Skill('ok', 'd', '# Ok')})).toThrow(
-      /must be a relative path/,
-    );
+    expect(
+      () =>
+        new SkillSet({'../x/SKILL.md': new Skill({name: 'ok', description: 'd', content: '# Ok'})}),
+    ).toThrow(/must be a relative path/);
     // Accepted: nested relative paths and a bare file at the root.
     expect(
       new Skill({name: 'n', description: 'd', content: 'c', filename: 'a/b/SKILL.md'}).filename,
@@ -174,8 +175,15 @@ describe('SkillGenerator', () => {
     ).toBe('FLAT.md');
   });
 
+  it('rejects a filename reassigned after construction when the skill is added', () => {
+    // `filename` is read-only in TypeScript, but JavaScript callers can still write it.
+    const skill = new Skill({name: 'ok', description: 'd', content: '# Ok'});
+    (skill as {filename: string}).filename = '../victim/SKILL.md';
+    expect(() => new SkillSet().add(skill)).toThrow(/must be a relative path/);
+  });
+
   it('enforces SkillSet.get matching rules (exact key, exact name, min-3-char substring)', () => {
-    const skillSet = generator.generateSkillset();
+    const skillSet = generator.generateSkillSet();
 
     // 1. Exact key match
     expect(skillSet.get('a2ui-core/SKILL.md')?.name).toBe('a2ui-core');
@@ -212,9 +220,9 @@ describe('SkillGenerator', () => {
     const catSkill = generator.generateCatalogSkill({catalog: testingCatalog});
     expect(catSkill.name).toBe('a2ui-specification');
 
-    // 2. generateSkillset with explicit catalogs only includes the specified catalog
-    const skillSet = generator.generateSkillset({catalogs: [testingCatalog]});
-    expect(skillSet.length).toBe(2);
+    // 2. generateSkillSet with explicit catalogs only includes the specified catalog
+    const skillSet = generator.generateSkillSet({catalogs: [testingCatalog]});
+    expect(skillSet.size).toBe(2);
     expect(skillSet.has('a2ui-core/SKILL.md')).toBe(true);
     expect(skillSet.has('a2ui-specification/SKILL.md')).toBe(true);
     expect(skillSet.has('a2ui-basic/SKILL.md')).toBe(false);
@@ -282,7 +290,7 @@ describe('SkillGenerator', () => {
     expect(skill.content.split('SHARED EXAMPLES').length - 1).toBe(1);
 
     generateExamplesMock.mockClear();
-    const skillSet = gen.generateSkillset();
+    const skillSet = gen.generateSkillSet();
     const examplesPerSkill = Object.values(skillSet.toDict())
       .map(text => text.split('SHARED EXAMPLES').length - 1)
       .sort((a, b) => a - b);
@@ -309,7 +317,7 @@ describe('SkillGenerator', () => {
     expect([...skillSet.keys()]).toEqual([skill.filename]);
     expect([...skillSet.values()]).toEqual([skill]);
     expect([...skillSet.entries()]).toEqual([[skill.filename, skill]]);
-    expect([...skillSet.items()]).toEqual([[skill.filename, skill]]);
+    expect([...skillSet.entries()]).toEqual([[skill.filename, skill]]);
     expect(skillSet.size).toBe(1);
     expect(skillSet.toDict()).toEqual({[skill.filename]: skill.toMarkdown()});
   });

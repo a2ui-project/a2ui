@@ -190,7 +190,7 @@ export class SkillGenerator {
    *
    * If `catalogs` is not specified, defaults to the catalogs configured on the inference format.
    */
-  generateSkillset(options: GenerateSkillSetOptions = {}): SkillSet {
+  generateSkillSet(options: GenerateSkillSetOptions = {}): SkillSet {
     const skillSet = new SkillSet();
 
     // 1. Core Syntax Skill
@@ -209,12 +209,5 @@ export class SkillGenerator {
     }
 
     return skillSet;
-  }
-
-  /**
-   * Alias for {@link generateSkillset}.
-   */
-  generateSkillSet(options: GenerateSkillSetOptions = {}): SkillSet {
-    return this.generateSkillset(options);
   }
 }

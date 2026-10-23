@@ -194,46 +194,23 @@ export interface SkillOptions {
  * before serializing back to markdown format.
  *
  * `filename` is the path the skill is written to, relative to the directory a `SkillSet` is
- * exported to. It is checked on construction (see {@link validateSkillFilename}), so
- * `SkillSet.exportToDirectory` can rely on every filename staying inside its output directory.
+ * exported to. It is checked on construction (see {@link validateSkillFilename}) and is
+ * read-only, so `SkillSet.exportToDirectory` can rely on every filename staying inside its
+ * output directory. To write a skill somewhere else, construct a new one.
  */
 export class Skill {
   name: string;
   description: string;
   content: string;
   metadata: Record<string, unknown>;
-  filename: string;
+  readonly filename: string;
 
-  constructor(options: SkillOptions);
-  constructor(
-    name: string,
-    description: string,
-    content: string,
-    metadata?: Record<string, unknown>,
-    filename?: string,
-  );
-  constructor(
-    nameOrOptions: string | SkillOptions,
-    description = '',
-    content = '',
-    metadata?: Record<string, unknown>,
-    filename?: string,
-  ) {
-    if (typeof nameOrOptions === 'object' && nameOrOptions !== null) {
-      this.name = nameOrOptions.name;
-      this.description = nameOrOptions.description;
-      this.content = nameOrOptions.content;
-      this.metadata = nameOrOptions.metadata ?? {};
-      this.filename = validateSkillFilename(
-        nameOrOptions.filename || `${nameOrOptions.name}/SKILL.md`,
-      );
-    } else {
-      this.name = nameOrOptions;
-      this.description = description;
-      this.content = content;
-      this.metadata = metadata ?? {};
-      this.filename = validateSkillFilename(filename || `${nameOrOptions}/SKILL.md`);
-    }
+  constructor(options: SkillOptions) {
+    this.name = options.name;
+    this.description = options.description;
+    this.content = options.content;
+    this.metadata = options.metadata ?? {};
+    this.filename = validateSkillFilename(options.filename || `${options.name}/SKILL.md`);
   }
 
   /**
@@ -277,10 +254,13 @@ export class SkillSet implements Iterable<string> {
   }
 
   /**
-   * Adds a Skill to the collection.
+   * Adds a Skill to the collection, keyed by its filename.
+   *
+   * The filename is checked again here: it is read-only in TypeScript, but a JavaScript
+   * caller can still reassign it, and the export trusts every key of this map.
    */
   add(skill: Skill): void {
-    this.skills.set(skill.filename, skill);
+    this.skills.set(validateSkillFilename(skill.filename), skill);
   }
 
   /**
@@ -367,10 +347,6 @@ export class SkillSet implements Iterable<string> {
     return this.skills.size;
   }
 
-  get length(): number {
-    return this.skills.size;
-  }
-
   keys(): IterableIterator<string> {
     return this.skills.keys();
   }
@@ -380,10 +356,6 @@ export class SkillSet implements Iterable<string> {
   }
 
   entries(): IterableIterator<[string, Skill]> {
-    return this.skills.entries();
-  }
-
-  items(): IterableIterator<[string, Skill]> {
     return this.skills.entries();
   }
 

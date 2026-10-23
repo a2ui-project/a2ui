@@ -76,7 +76,7 @@ function runFromCatalogCase(testCase: LoadedCase, {catalog, generator}: SkillCas
 }
 
 function runSkillSetCase(testCase: LoadedCase, {generator}: SkillCaseContext): void {
-  const skillSet = generator.generateSkillset();
+  const skillSet = generator.generateSkillSet();
   const expectedKeys = (testCase.expected_skills as string[]) || [];
   const dict = skillSet.toDict();
   for (const k of expectedKeys) {
