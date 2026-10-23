@@ -57,6 +57,7 @@ When exporting a `SkillSet` to disk via `export_to_directory(output_dir)`:
   - Ancestors of the skill's directory (for example `{output_dir}/src` for `src/skills/nested/SKILL.md`) MUST NOT be removed. Only the deepest directory named by the filename is cleaned.
   - Unrelated sibling skill directories in `output_dir` (e.g. `{output_dir}/git-workflow/` or `{output_dir}/custom-skill/`) MUST be strictly preserved and left untouched.
   - The `output_dir` root directory itself MUST NOT be wiped. A skill whose filename has no directory component (such as `FLAT.md`) is written into `output_dir` without removing anything.
+- **Rejected filenames**: A `Skill` whose `filename` is absolute or has an empty, `.` or `..` segment (such as `../other/SKILL.md`) MUST be rejected with an error when it is constructed or added to a `SkillSet`, so `export_to_directory` can rely on every filename staying inside `output_dir` without re-checking each path.
 - These rules are checked by the `export_to_directory` cases in `conformance/agent/skill.yaml`.
 
 ---

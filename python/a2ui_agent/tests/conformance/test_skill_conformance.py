@@ -133,9 +133,14 @@ class TestSkillConformance(unittest.TestCase):
 
                 elif action == "skill_set":
                     skill_set = generator.generate_skillset()
-                    expected_keys = case.get("expected_skills", [])
-                    for k in expected_keys:
-                        self.assertIn(k, skill_set.to_dict())
+                    skills_by_file = skill_set.to_dict()
+                    for k in case.get("expected_skills", []):
+                        self.assertIn(k, skills_by_file)
+                    for k, golden_rel in case.get("expected_skill_files", {}).items():
+                        with open(
+                            os.path.join(REPO_ROOT, golden_rel), "r", encoding="utf-8"
+                        ) as gf:
+                            self.assertEqual(skills_by_file[k], gf.read(), k)
 
                 else:
                     self.fail(f"Unhandled conformance action: {action}")

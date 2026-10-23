@@ -22,7 +22,7 @@ from unittest.mock import MagicMock
 from a2ui.core import Catalog
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.processor import CatalogConfig
-from a2ui.skill import SkillGenerator
+from a2ui.skill import Skill, SkillGenerator, SkillSet
 
 from ..repo_paths import find_repo_root
 
@@ -126,6 +126,20 @@ class TestSkillGenerator(unittest.TestCase):
         with open(unrelated_file, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), "custom content")
         self.assertTrue(os.path.exists(root_note))
+
+    def test_skill_rejects_filename_that_could_escape_export_directory(self):
+        """A filename that is absolute or has a '.', '..' or empty segment is rejected on construction."""
+        for filename in ("../x/SKILL.md", "/abs/SKILL.md", "a/./b.md", "a//b.md"):
+            with self.subTest(filename=filename):
+                with self.assertRaisesRegex(ValueError, "must be a relative path"):
+                    Skill("bad", "d", "# Bad", filename=filename)
+        with self.assertRaisesRegex(ValueError, "must be a relative path"):
+            SkillSet({"../x/SKILL.md": Skill("ok", "d", "# Ok")})
+        # Accepted: nested relative paths and a bare file at the root.
+        self.assertEqual(
+            Skill("n", "d", "c", filename="a/b/SKILL.md").filename, "a/b/SKILL.md"
+        )
+        self.assertEqual(Skill("n", "d", "c", filename="FLAT.md").filename, "FLAT.md")
 
     def test_skill_set_get_matching_rules(self):
         """Verifies SkillSet.get matching rules (exact key, exact name, min-3-char substring)."""
