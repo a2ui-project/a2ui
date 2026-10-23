@@ -14,7 +14,7 @@
 
 """The schema prompt text that the Direct JSON format shows the model."""
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 import json
 
 from a2ui import constants
@@ -29,7 +29,7 @@ from a2ui.utils import (
 
 
 def schema_to_prompt(
-    catalogs: Sequence[CatalogApi],
+    catalogs: Iterable[CatalogApi],
     allowed_messages: Sequence[str] | None = None,
 ) -> str:
     """Returns the prompt text that describes catalogs to the model.
@@ -66,7 +66,7 @@ def schema_to_prompt(
 
 
 def protocol_schema_prompt(
-    catalogs: Sequence[CatalogApi],
+    catalogs: Iterable[CatalogApi],
     allowed_messages: Sequence[str] | None = None,
 ) -> str:
     """Returns a schema block with only the protocol schemas for catalogs.
@@ -92,7 +92,7 @@ def protocol_schema_prompt(
     return _schema_block(_protocol_schema_sections(linked, allowed_messages))
 
 
-def catalog_schema_prompt(catalogs: Sequence[CatalogApi]) -> str:
+def catalog_schema_prompt(catalogs: Iterable[CatalogApi]) -> str:
     """Returns a schema block with only the catalog schemas, one per catalog.
 
     The block holds no protocol schema; `protocol_schema_prompt` writes those.
@@ -110,8 +110,9 @@ def catalog_schema_prompt(catalogs: Sequence[CatalogApi]) -> str:
     return _schema_block(_catalog_schema_sections(_check_and_link(catalogs)))
 
 
-def _check_and_link(catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
+def _check_and_link(catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
     """Checks that catalogs can share one schema prompt and links them."""
+    catalogs = list(catalogs)
     if not catalogs:
         raise A2uiCatalogError("The schema prompt needs at least one catalog.")
     versions = {to_protocol_version(c.protocol_version) for c in catalogs}
