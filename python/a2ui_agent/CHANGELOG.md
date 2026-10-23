@@ -8,7 +8,9 @@
   no longer takes `allowed_messages`. A Direct JSON skill from `SkillGenerator`
   therefore holds the protocol schemas once: the monolithic skill no longer
   repeats them for each catalog, and in a modular skill set they move from each
-  catalog skill into `a2ui-core` (#3526). `generate()` and `prompt_snippet` are
+  catalog skill into `a2ui-core` (#3526). A Direct JSON catalog skill no longer
+  works on its own: load `a2ui-core` with it to give the model the message
+  schemas. `generate()` and `prompt_snippet` are
   unchanged. Code that put `generate_base_rules()` next to `schema_to_prompt()`
   output, as `SendA2uiToClientToolset` users do, should use
   `DEFAULT_WORKFLOW_RULES` instead to avoid repeating the protocol schemas.
