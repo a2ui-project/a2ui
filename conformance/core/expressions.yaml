@@ -52,6 +52,20 @@
   input: "${my-path.with_underscores}"
   expect: [{path: "my-path.with_underscores"}]
 
+- name: test_expr_non_ascii_path
+  description: Path segments may use any UAX 31 XID_Continue character.
+  action: parse_expression_template
+  input: "${/użytkownik/größe}"
+  expect: [{path: "/użytkownik/größe"}]
+
+- name: test_expr_error_non_identifier_character_in_path
+  description: A character outside XID_Continue, such as ½, ends the path.
+  action: parse_expression_template
+  input: "${a½}"
+  expect_error:
+    category: "ParseError"
+    message: "Unexpected characters"
+
 - name: test_expr_literal_between_bindings
   description: Literal text surrounding interpolations is preserved.
   action: parse_expression_template
@@ -148,6 +162,20 @@
   input: "${trueish}"
   expect: [{path: "trueish"}]
 
+- name: test_expr_keyword_followed_by_non_ascii_letter_is_a_path
+  description: A non-ASCII XID_Continue character after a keyword makes it part of a path.
+  action: parse_expression_template
+  input: "${nullß}"
+  expect: [{path: "nullß"}]
+
+- name: test_expr_error_keyword_followed_by_non_identifier_character
+  description: A character outside XID_Continue, such as ½, does not extend a keyword.
+  action: parse_expression_template
+  input: "${true½}"
+  expect_error:
+    category: "ParseError"
+    message: "Unexpected characters"
+
 - name: test_expr_function_call_no_args
   description: A function call with no arguments parses to an empty args map.
   action: parse_expression_template
@@ -159,6 +187,20 @@
   action: parse_expression_template
   input: "sum is ${add(a: 10, b: 20)}"
   expect: ["sum is ", {call: "add", args: {a: 10, b: 20}, returnType: "any"}]
+
+- name: test_expr_non_ascii_function_and_argument_names
+  description: Function and argument names may use any UAX 31 XID_Continue character.
+  action: parse_expression_template
+  input: "${größe(wartość: 1, 値: 2)}"
+  expect: [{call: "größe", args: {wartość: 1, 値: 2}, returnType: "any"}]
+
+- name: test_expr_error_non_identifier_character_in_argument_name
+  description: A character outside XID_Continue, such as ½, is not part of an argument name.
+  action: parse_expression_template
+  input: "${add(½: 1)}"
+  expect_error:
+    category: "ParseError"
+    message: "after argument name"
 
 - name: test_expr_function_call_negative_args
   description: Function arguments may be negative numeric literals.
