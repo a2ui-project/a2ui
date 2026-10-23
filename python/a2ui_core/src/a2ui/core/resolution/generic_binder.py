@@ -110,23 +110,71 @@ def _is_dynamic_def(def_schema: Any) -> bool:
     return dynamic_literal_kinds(_localize_branch_refs(items)) is not None
 
 
+_SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset({
+    BehaviorType.CHECKABLE,
+    BehaviorType.ACTION,
+    BehaviorType.STRUCTURAL,
+    BehaviorType.DYNAMIC,
+})
+
+
+def _merge_all_of_branch(
+    branch: Any,
+    defs: Mapping[str, Any],
+    merged_shape: dict[str, BehaviorNode],
+) -> BehaviorNode | None:
+    """Merges one allOf branch into merged_shape and returns any special BehaviorNode."""
+    if not isinstance(branch, dict):
+        return None
+    if _extract_ref_name(branch.get("$ref")) == "Checkable":
+        merged_shape["checks"] = BehaviorNode(BehaviorType.CHECKABLE)
+        return BehaviorNode(BehaviorType.CHECKABLE)
+    node = classify_schema_behavior(branch, defs)
+    if node.type == BehaviorType.OBJECT and node.shape:
+        merged_shape.update(node.shape)
+        return None
+    return node if node.type in _SPECIAL_BEHAVIORS else None
+
+
+def _classify_all_of(
+    schema: dict[str, Any], defs: Mapping[str, Any], all_of: list[Any]
+) -> BehaviorNode | None:
+    """Classifies an allOf combiner into a merged OBJECT or special BehaviorNode."""
+    merged_shape: dict[str, BehaviorNode] = {}
+    first_special: BehaviorNode | None = None
+    for branch in all_of:
+        special = _merge_all_of_branch(branch, defs, merged_shape)
+        if special is not None and first_special is None:
+            first_special = special
+    own_props = schema.get("properties")
+    if isinstance(own_props, dict):
+        for k, v in own_props.items():
+            if isinstance(v, dict):
+                merged_shape[k] = classify_schema_behavior(v, defs)
+    if merged_shape:
+        return BehaviorNode(BehaviorType.OBJECT, shape=merged_shape)
+    return first_special
+
+
 def _classify_combiners(
     schema: dict[str, Any], defs: Mapping[str, Any]
 ) -> BehaviorNode | None:
     """Classifies oneOf/anyOf/allOf combiners into a BehaviorNode if recognized."""
-    for comb in ("oneOf", "anyOf", "allOf"):
-        branches = schema.get(comb)
-        if isinstance(branches, list):
-            for branch in branches:
-                if isinstance(branch, dict):
-                    node = classify_schema_behavior(branch, defs)
-                    if node.type in (
-                        BehaviorType.CHECKABLE,
-                        BehaviorType.ACTION,
-                        BehaviorType.STRUCTURAL,
-                        BehaviorType.DYNAMIC,
-                    ):
-                        return node
+    one_of = schema.get("oneOf")
+    any_of = schema.get("anyOf")
+    branches = (one_of if isinstance(one_of, list) else []) + (
+        any_of if isinstance(any_of, list) else []
+    )
+    for branch in branches:
+        if isinstance(branch, dict):
+            node = classify_schema_behavior(branch, defs)
+            if node.type in _SPECIAL_BEHAVIORS:
+                return node
+
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        return _classify_all_of(schema, defs, all_of)
+
     return None
 
 
@@ -279,8 +327,10 @@ class GenericBinder:
         self,
         context: ComponentContext,
         schema: dict[str, Any] | None = None,
+        expand_templates: bool = False,
     ):
         self.context = context
+        self.expand_templates = expand_templates
         self.data_listeners: list[Subscription] = []
         self.listeners: set[Callable[[dict[str, Any]], None]] = set()
         self.current_props: dict[str, Any] = {}
@@ -289,14 +339,18 @@ class GenericBinder:
 
         resolved_schema = schema
         cat = context.component_model.catalog
-        if (
-            resolved_schema is None
-            and cat is not None
-            and hasattr(cat, "get_component")
-        ):
-            comp_api = cat.get_component(context.component_model.type)
-            if comp_api is not None:
-                resolved_schema = getattr(comp_api, "schema", None)
+        if resolved_schema is None and cat is not None:
+            resolve_fn = getattr(cat, "resolved_component_schema", None)
+            if callable(resolve_fn):
+                resolved_schema = resolve_fn(context.component_model.type)
+            if resolved_schema is None and hasattr(cat, "get_component"):
+                comp_api = cat.get_component(context.component_model.type)
+                if comp_api is not None:
+                    resolved_schema = getattr(comp_api, "schema", None)
+            if isinstance(resolved_schema, type) and hasattr(
+                resolved_schema, "model_json_schema"
+            ):
+                resolved_schema = resolved_schema.model_json_schema()
 
         self.behavior_tree = (
             classify_schema_behavior(
@@ -341,7 +395,10 @@ class GenericBinder:
     ) -> dict[str, Any]:
         result: dict[str, Any] = {}
 
-        for k, v in val_obj.items():
+        ordered_items = sorted(
+            val_obj.items(), key=lambda kv: (0 if kv[0] == "checks" else 1)
+        )
+        for k, v in ordered_items:
             child_behavior = shape.get(k) or _classify_value_fallback(
                 k, v, at_least_v10=self.context.data_context.at_least_v10
             )
@@ -409,28 +466,84 @@ class GenericBinder:
             return self._bind_action(value, path)
 
         if behavior.type == BehaviorType.STRUCTURAL:
-            return value
+            return (
+                self._bind_structural_template(value, path, is_sync)
+                if self.expand_templates and isinstance(value, dict)
+                else value
+            )
 
         if behavior.type == BehaviorType.CHECKABLE:
-            return self._bind_checkable(value, parent_dict, is_sync)
+            return self._bind_checkable(value, parent_dict, path, is_sync)
 
         if behavior.type == BehaviorType.ARRAY:
-            if not isinstance(value, list):
-                return value
-            elem_behavior = behavior.element or BehaviorNode(BehaviorType.STATIC)
-            return [
-                self._resolve_and_bind(
-                    item, elem_behavior, {}, str(i), [*path, str(i)], is_sync
-                )
-                for i, item in enumerate(value)
-            ]
+            return self._bind_array(value, behavior, path, is_sync)
 
-        if behavior.type == BehaviorType.OBJECT:
-            if not isinstance(value, dict):
-                return value
+        if behavior.type == BehaviorType.OBJECT and isinstance(value, dict):
             return self._bind_object(value, behavior.shape or {}, path, is_sync)
 
         return value
+
+    def _bind_array(
+        self,
+        value: Any,
+        behavior: BehaviorNode,
+        path: list[str],
+        is_sync: bool,
+    ) -> Any:
+        if not isinstance(value, list):
+            return value
+        elem_behavior = behavior.element or BehaviorNode(BehaviorType.STATIC)
+        return [
+            self._resolve_and_bind(
+                item, elem_behavior, {}, str(i), [*path, str(i)], is_sync
+            )
+            for i, item in enumerate(value)
+        ]
+
+    def _bind_structural_template(
+        self, value: dict[str, Any], path: list[str], is_sync: bool
+    ) -> Any:
+        template_obj = value.get("template") if "template" in value else value
+        if not isinstance(template_obj, dict) or "componentId" not in template_obj:
+            return value
+        comp_id = template_obj.get("componentId")
+        template_path = (
+            template_obj.get("@path")
+            if self.context.data_context.at_least_v10
+            else template_obj.get("path") or template_obj.get("dataBinding")
+        )
+        if not isinstance(comp_id, str) or not isinstance(template_path, str):
+            return value
+        binding_expr = (
+            {"@path": template_path}
+            if self.context.data_context.at_least_v10
+            else {"path": template_path}
+        )
+
+        def map_items(arr: Any) -> list[dict[str, Any]]:
+            if not isinstance(arr, list):
+                return []
+            list_ctx = self.context.data_context.nested(template_path)
+            return [
+                {
+                    "id": comp_id,
+                    "basePath": list_ctx.nested(str(i)).path.rstrip("/") or "/",
+                }
+                for i in range(len(arr))
+            ]
+
+        def on_change(new_val: Any) -> None:
+            self._update_deep_value(path, map_items(new_val))
+            self._notify()
+
+        bound = self.context.data_context.subscribe_dynamic_value(
+            binding_expr, on_change
+        )
+        if not is_sync:
+            self.data_listeners.append(bound)
+        else:
+            bound.unsubscribe()
+        return map_items(bound.value)
 
     def _update_deep_value(self, path: list[str], new_value: Any) -> None:
         if not path:
@@ -489,47 +602,94 @@ class GenericBinder:
         self._action_closures[cache_key] = (value, closure)
         return closure
 
+    @staticmethod
+    def _process_rule_val(val: Any, fallback_msg: str | None) -> dict[str, Any]:
+        from ..schema.v1_0.catalog_definition import ValidationResult
+
+        is_obj = False
+        if isinstance(val, dict):
+            is_obj = "severity" in val or "code" in val
+            raw = dict(val)
+        elif hasattr(val, "valid"):
+            is_obj = True
+            raw = {
+                k: getattr(val, k)
+                for k in ("valid", "code", "message", "severity")
+                if hasattr(val, k)
+            }
+        else:
+            raw = {"valid": bool(val)}
+
+        if not raw.get("valid") and not raw.get("message") and fallback_msg:
+            raw["message"] = fallback_msg
+
+        try:
+            vr = ValidationResult.model_validate(raw)
+            dumped = vr.model_dump(exclude_none=True)
+        except Exception:
+            dumped = {"valid": False, "message": fallback_msg or "Validation failed"}
+
+        if not dumped.get("valid") and "severity" not in dumped:
+            dumped["severity"] = "error"
+        dumped["_is_obj"] = is_obj
+        return dumped
+
+    @staticmethod
+    def _compute_validation_summary(
+        rule_results: list[dict[str, Any]],
+    ) -> tuple[bool, list[str], list[dict[str, Any]], dict[str, Any]]:
+        failed_rules = [r for r in rule_results if not r["valid"]]
+        error_rules = [
+            r for r in failed_rules if r.get("severity", "error") == "error"
+        ]
+        is_valid = len(error_rules) == 0
+        validation_errors = [r["message"] for r in error_rules if r.get("message")]
+        validation_results = [
+            {k: v for k, v in r.items() if k != "_is_obj"} for r in failed_rules
+        ]
+        if not failed_rules:
+            return is_valid, validation_errors, validation_results, {"valid": True}
+        first_res = {k: v for k, v in failed_rules[0].items() if k != "_is_obj"}
+        if not failed_rules[0].get("_is_obj"):
+            first_res.pop("severity", None)
+        return is_valid, validation_errors, validation_results, first_res
+
     def _bind_checkable(
-        self, value: Any, parent_dict: dict[str, Any], is_sync: bool
+        self,
+        value: Any,
+        parent_dict: dict[str, Any],
+        path: list[str],
+        is_sync: bool,
     ) -> Any:
         rules = value if isinstance(value, list) else []
         rule_results: list[dict[str, Any]] = [
-            {"valid": True, "message": ""} for _ in rules
+            {"valid": True, "message": "", "severity": "error"} for _ in rules
         ]
+        parent_path = path[:-1]
 
-        from ..schema.v1_0.catalog_definition import ValidationResult
-
-        def _process_rule_val(val: Any, fallback_msg: str | None) -> dict[str, Any]:
-            if isinstance(val, dict):
-                raw = dict(val)
-            elif hasattr(val, "valid"):
-                raw = {
-                    k: getattr(val, k)
-                    for k in ("valid", "code", "message", "severity")
-                    if hasattr(val, k)
-                }
-            else:
-                raw = {"valid": bool(val)}
-
-            if not raw.get("valid") and not raw.get("message") and fallback_msg:
-                raw["message"] = fallback_msg
-
-            try:
-                vr = ValidationResult.model_validate(raw)
-                return vr.model_dump(exclude_none=True)
-            except Exception:
-                return {"valid": False, "message": fallback_msg or "Validation failed"}
-
-        def update_validation_state() -> None:
-            failed_rules = [r for r in rule_results if not r["valid"]]
-            parent_dict["isValid"] = len(failed_rules) == 0
-            parent_dict["validationErrors"] = [
-                r["message"] for r in failed_rules if r.get("message")
-            ]
-            parent_dict["validationResult"] = (
-                failed_rules[0] if failed_rules else {"valid": True}
-            )
-            self._notify()
+        def _apply_validation_state(reactive: bool) -> None:
+            (
+                is_valid,
+                validation_errors,
+                validation_results,
+                validation_result,
+            ) = self._compute_validation_summary(rule_results)
+            parent_dict["isValid"] = is_valid
+            parent_dict["validationErrors"] = validation_errors
+            parent_dict["validationResults"] = validation_results
+            parent_dict["validationResult"] = validation_result
+            if reactive:
+                self._update_deep_value([*parent_path, "isValid"], is_valid)
+                self._update_deep_value(
+                    [*parent_path, "validationErrors"], validation_errors
+                )
+                self._update_deep_value(
+                    [*parent_path, "validationResults"], validation_results
+                )
+                self._update_deep_value(
+                    [*parent_path, "validationResult"], validation_result
+                )
+                self._notify()
 
         for idx, rule in enumerate(rules):
             condition = rule
@@ -542,8 +702,8 @@ class GenericBinder:
 
             def make_on_change(i: int, fallback: str) -> Callable[[Any], None]:
                 def on_change(new_val: Any) -> None:
-                    rule_results[i] = _process_rule_val(new_val, fallback)
-                    update_validation_state()
+                    rule_results[i] = self._process_rule_val(new_val, fallback)
+                    _apply_validation_state(reactive=True)
 
                 return on_change
 
@@ -555,16 +715,9 @@ class GenericBinder:
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = _process_rule_val(bound.value, message)
+            rule_results[idx] = self._process_rule_val(bound.value, message)
 
-        initial_failed = [r for r in rule_results if not r["valid"]]
-        parent_dict["isValid"] = len(initial_failed) == 0
-        parent_dict["validationErrors"] = [
-            r["message"] for r in initial_failed if r.get("message")
-        ]
-        parent_dict["validationResult"] = (
-            initial_failed[0] if initial_failed else {"valid": True}
-        )
+        _apply_validation_state(reactive=False)
         return value
 
     def _notify(self) -> None:
