@@ -153,8 +153,10 @@ PATH : '$' [a-zA-Z0-9_/]* ;
 // Validation check identifier (e.g. '?required'); a catalog function name, UAX 31.
 CHECK : '?' [\p{XID_Start}_] [\p{XID_Continue}]* ;
 
-// Numeric literal supporting negatives and decimals
-NUMBER : '-'? [0-9]+ ('.' [0-9]+)? ;
+// Numeric literal: a JSON number plus an optional leading '+'. Same grammar as
+// the core `${...}` expression parsers: sign, digits with an optional fraction
+// (`1.` and `.5` included) and an optional exponent.
+NUMBER : [+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)? ;
 
 // Boolean literal
 BOOLEAN : 'true' | 'false' ;

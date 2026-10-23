@@ -77,7 +77,7 @@ The syntax supports three literal primitive types:
 - **Strings** are represented in two formats:
   - **Standard Strings**: Enclosed in single double quotes (e.g., `"Enter your name"`) or triple double quotes (e.g., `"""Line 1\nLine 2"""`). Standard strings support common escape sequences: `\n` (newline), `\t` (tab), `\\` (backslash), and `\"` (double quote). Embedded newlines are allowed.
   - **Raw Strings**: Prefaced by `r` (e.g., `r"^[a-zA-Z]+$"` or `r"""Raw multi-line content"""`). In raw strings, no escape sequences are processed, and backslashes are interpreted as literal characters. This is particularly useful for validation regex patterns containing backslashes. Embedded newlines are allowed.
-- **Numbers** are written as plain integers or decimals, for example `42` or `3.14` or `-1`.
+- **Numbers** are JSON numbers with an optional leading `+`, for example `42`, `3.14`, `-1`, `.5`, `1e-7` or `2.5E+3`. The grammar is `[+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)?`, the same one the core `${...}` expression parsers use. A literal outside the range of a double (such as `1e999`) is a parse error. Integers beyond ±(2^53−1) are not portable across SDKs, because an implementation may read them as doubles. `3` and `3.0` are the same value. Decompilers write numbers the way ECMAScript `Number.prototype.toString` does (exponent notation only below 1e-6 or at or above 1e21, written `2.5e-7` or `1.5e+21`), and may keep a `.0` on an integral double.
 - **Booleans** are represented by `true` or `false`.
 - **Null values** are represented by `null`.
 

@@ -172,15 +172,15 @@ def test_supports_streaming_property(test_catalog):
     assert elemental_fmt.create_parser().supports_streaming is False
 
 
-def test_parse_chunk_raises_not_implemented(test_catalog):
+def test_open_stream_raises_not_implemented(test_catalog):
     express_parser = ExpressParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:
-        express_parser.parse_chunk("chunk")
+        express_parser.open_stream()
     assert "Streaming is not supported by ExpressParser" in str(exc_info.value)
 
     elemental_parser = ElementalParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:
-        elemental_parser.parse_chunk("chunk")
+        elemental_parser.open_stream()
     assert "Streaming is not supported by ElementalParser" in str(exc_info.value)
 
 
@@ -312,8 +312,10 @@ def test_direct_json_format_progressive_keys_reach_its_parser(progressive_keys, 
     catalog = BasicCatalog("0.9")
     direct_json_format = DirectJsonFormat([catalog], progressive_keys=progressive_keys)
 
-    parts = direct_json_format.create_parser().parse_chunk(
-        _CUT_TEXT_CHUNK % catalog.catalog_id
+    parts = (
+        direct_json_format.create_parser()
+        .open_stream()
+        .feed(_CUT_TEXT_CHUNK % catalog.catalog_id)
     )
     messages = [
         message.model_dump(by_alias=True, exclude_none=True)
