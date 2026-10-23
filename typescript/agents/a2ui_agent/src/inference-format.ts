@@ -25,11 +25,6 @@ export interface InferenceFormat {
   readonly promptGenerator: PromptGenerator;
 
   /**
-   * The negotiated catalogs associated with this format, if applicable.
-   */
-  readonly catalogs?: readonly CatalogApi[];
-
-  /**
    * Whether parsers created by this format support streaming. Mirrors Python InferenceFormat.supports_streaming.
    */
   readonly supportsStreaming: boolean;

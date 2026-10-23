@@ -38,7 +38,7 @@ export interface ExpressFormatOptions {
 export class ExpressFormat implements InferenceFormat {
   readonly promptGenerator: ExpressPromptGenerator;
   readonly supportsStreaming = false;
-  readonly catalogs: CatalogApi[];
+  private readonly catalogs: CatalogApi[];
   private readonly surfaceId: string;
   private readonly version: string;
 

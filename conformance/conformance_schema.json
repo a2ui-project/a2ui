@@ -855,9 +855,15 @@
         },
         "expected_skills": {
           "type": "array",
+          "description": "Filenames the SkillSet must contain.",
           "items": {
             "type": "string"
           }
+        },
+        "expected_skill_files": {
+          "type": "object",
+          "description": "Golden file, relative to the repository root, that each listed skill's markdown must equal byte for byte. Keys are skill filenames.",
+          "additionalProperties": {"type": "string"}
         }
       },
       "required": ["action", "args", "expected_skills"]

@@ -33,28 +33,6 @@ interface SkillCaseContext {
   generator: SkillGenerator;
 }
 
-/**
- * The `skill.yaml` goldens for base rules still contain basic-catalog names that
- * the pruning conformance case forbids (see `KNOWN_GAPS.md`). Apply the same
- * catalog-agnostic substitutions used by `prompt-generator.test.ts`.
- */
-function applyCatalogAgnosticRuleSubstitutions(text: string): string {
-  const substitutions: [string, string][] = [
-    ['date-time inputs (e.g. in DateTimeInput)', 'date-time properties'],
-    ['itemTemplate = Image($url)', 'itemTemplate = ComponentA($url)'],
-    [
-      "Parameters named 'action' (or annotated in component signatures)",
-      'Action parameters (or parameters annotated in component signatures)',
-    ],
-    ['root = Card(...)', 'root = ComponentA(...)'],
-  ];
-  let out = text;
-  for (const [from, to] of substitutions) {
-    out = out.replace(from, to);
-  }
-  return out;
-}
-
 function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
   const args = (testCase.args as Record<string, unknown>) || {};
   const catRelPath = args.catalog as string | undefined;
@@ -78,9 +56,7 @@ function runFromFormatCase(testCase: LoadedCase, {args, generator}: SkillCaseCon
   const monoName = (args.name as string | undefined) ?? 'a2ui';
   const skillObj = generator.generateSkill({name: monoName});
   const expectedRel = testCase.expected_file as string;
-  const expectedContent = applyCatalogAgnosticRuleSubstitutions(
-    fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8'),
-  );
+  const expectedContent = fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8');
   expect(skillObj.toMarkdown()).toBe(expectedContent);
 }
 
@@ -88,14 +64,12 @@ function runCoreSyntaxCase(testCase: LoadedCase, {args, generator}: SkillCaseCon
   const coreName = (args.name as string | undefined) ?? 'a2ui-core';
   const skillObj = generator.generateCoreSkill({name: coreName});
   const expectedRel = testCase.expected_file as string;
-  const expectedContent = applyCatalogAgnosticRuleSubstitutions(
-    fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8'),
-  );
+  const expectedContent = fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8');
   expect(skillObj.toMarkdown()).toBe(expectedContent);
 }
 
 function runFromCatalogCase(testCase: LoadedCase, {catalog, generator}: SkillCaseContext): void {
-  const skillObj = generator.generateCatalogSkill(catalog!);
+  const skillObj = generator.generateCatalogSkill({catalog});
   const expectedRel = testCase.expected_file as string;
   const expectedContent = fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8');
   expect(skillObj.toMarkdown()).toBe(expectedContent);
@@ -106,7 +80,12 @@ function runSkillSetCase(testCase: LoadedCase, {generator}: SkillCaseContext): v
   const expectedKeys = (testCase.expected_skills as string[]) || [];
   const dict = skillSet.toDict();
   for (const k of expectedKeys) {
-    expect(Object.hasOwn(dict, k)).toBe(true);
+    expect(Object.hasOwn(dict, k), `expected skill ${k}`).toBe(true);
+  }
+  const expectedFiles = (testCase.expected_skill_files as Record<string, string>) || {};
+  for (const [k, goldenRel] of Object.entries(expectedFiles)) {
+    const golden = fs.readFileSync(path.resolve(REPO_ROOT, goldenRel), 'utf-8');
+    expect(dict[k], `content of ${k}`).toBe(golden);
   }
 }
 

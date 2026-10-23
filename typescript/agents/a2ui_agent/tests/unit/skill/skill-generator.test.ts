@@ -56,7 +56,7 @@ describe('SkillGenerator', () => {
   });
 
   it('generates a monolithic Skill object via generateSkill()', () => {
-    const skillObj = generator.generateSkill('a2ui-custom-monolithic');
+    const skillObj = generator.generateSkill({name: 'a2ui-custom-monolithic'});
 
     expect(skillObj.name).toBe('a2ui-custom-monolithic');
     expect(skillObj.filename).toContain('a2ui-custom-monolithic');
@@ -66,7 +66,7 @@ describe('SkillGenerator', () => {
   });
 
   it('generates a catalog skill with clean LLM name via generateCatalogSkill()', () => {
-    const skillObj = generator.generateCatalogSkill(catalog);
+    const skillObj = generator.generateCatalogSkill({catalog});
 
     expect(skillObj.name).toBe('a2ui-basic');
     expect(skillObj.filename).toContain('a2ui-basic/SKILL.md');
@@ -75,7 +75,7 @@ describe('SkillGenerator', () => {
   });
 
   it('generates a base grammar skill via generateCoreSkill()', () => {
-    const coreSkill = generator.generateCoreSkill('a2ui-base-core');
+    const coreSkill = generator.generateCoreSkill({name: 'a2ui-base-core'});
 
     expect(coreSkill.name).toBe('a2ui-base-core');
     expect(coreSkill.content).toContain('A2UI Express DSL Output Contract');
@@ -155,6 +155,25 @@ describe('SkillGenerator', () => {
     expect(fs.readFileSync(siblingFile, 'utf-8')).toBe('keep me');
   });
 
+  it('rejects a Skill filename that could escape the export directory', () => {
+    for (const filename of ['../x/SKILL.md', '/abs/SKILL.md', 'a/./b.md', 'a//b.md']) {
+      expect(
+        () => new Skill({name: 'bad', description: 'd', content: '# Bad', filename}),
+        filename,
+      ).toThrow(/must be a relative path/);
+    }
+    expect(() => new SkillSet({'../x/SKILL.md': new Skill('ok', 'd', '# Ok')})).toThrow(
+      /must be a relative path/,
+    );
+    // Accepted: nested relative paths and a bare file at the root.
+    expect(
+      new Skill({name: 'n', description: 'd', content: 'c', filename: 'a/b/SKILL.md'}).filename,
+    ).toBe('a/b/SKILL.md');
+    expect(
+      new Skill({name: 'n', description: 'd', content: 'c', filename: 'FLAT.md'}).filename,
+    ).toBe('FLAT.md');
+  });
+
   it('enforces SkillSet.get matching rules (exact key, exact name, min-3-char substring)', () => {
     const skillSet = generator.generateSkillset();
 
@@ -190,7 +209,7 @@ describe('SkillGenerator', () => {
     ).transformedCatalog;
 
     // 1. generateCatalogSkill with explicit catalog generates for that catalog
-    const catSkill = generator.generateCatalogSkill(testingCatalog);
+    const catSkill = generator.generateCatalogSkill({catalog: testingCatalog});
     expect(catSkill.name).toBe('a2ui-specification');
 
     // 2. generateSkillset with explicit catalogs only includes the specified catalog
@@ -230,7 +249,7 @@ describe('SkillGenerator', () => {
       createParser: () => ({}) as unknown as Parser,
     } satisfies InferenceFormat;
     const gen = new SkillGenerator(mockFmt);
-    const skill = gen.generateCatalogSkill(catalog);
+    const skill = gen.generateCatalogSkill({catalog});
     expect(skill.content).toBe('\n');
   });
 
@@ -248,8 +267,8 @@ describe('SkillGenerator', () => {
 
     const generateExamplesMock = vi.fn(() => 'SHARED EXAMPLES');
     const mockFmt = {
-      catalogs: [catalog, other],
       promptGenerator: {
+        catalogs: [catalog, other],
         generateBaseRules: () => 'RULES',
         generateCatalogInstructions: () => 'INST',
         generateExamples: generateExamplesMock,

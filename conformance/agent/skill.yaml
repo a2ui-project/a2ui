@@ -49,3 +49,6 @@
   expected_skills:
     - a2ui-core/SKILL.md
     - a2ui-basic/SKILL.md
+  expected_skill_files:
+    a2ui-core/SKILL.md: conformance/test_data/skills/express_core.skill.md
+    a2ui-basic/SKILL.md: conformance/test_data/skills/express_basic_catalog.skill.md

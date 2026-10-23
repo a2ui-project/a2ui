@@ -41,7 +41,7 @@ export class DirectJsonFormat implements InferenceFormat {
   readonly supportsStreaming = true;
 
   /** The active catalogs, linked to each other so cross-catalog `$ref`s resolve. */
-  readonly catalogs: CatalogApi[];
+  private readonly catalogs: CatalogApi[];
   private readonly progressiveKeys: readonly string[];
 
   constructor(

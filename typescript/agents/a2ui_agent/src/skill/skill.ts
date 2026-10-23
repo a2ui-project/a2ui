@@ -21,6 +21,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import {A2uiValidationError} from '../errors.js';
 import {InferenceFormat} from '../inference-format.js';
 import {CatalogApi} from '../internal/web-core.js';
 
@@ -51,23 +52,13 @@ export function cleanCatalogName(catalog: unknown): string {
 }
 
 /**
- * Resolves catalogs from an explicit sequence or the format's defaults.
+ * Resolves catalogs from an explicit sequence or the format's prompt generator.
  */
 export function resolveCatalogsList(
   catalogs: readonly CatalogApi[] | undefined,
   fmt: InferenceFormat,
 ): CatalogApi[] {
-  if (catalogs !== undefined) {
-    return [...catalogs];
-  }
-  if (Array.isArray(fmt.catalogs) && fmt.catalogs.length > 0) {
-    return [...fmt.catalogs];
-  }
-  const promptGenWithCatalogs = fmt.promptGenerator as {catalogs?: readonly CatalogApi[]};
-  if (Array.isArray(promptGenWithCatalogs?.catalogs) && promptGenWithCatalogs.catalogs.length > 0) {
-    return [...promptGenWithCatalogs.catalogs];
-  }
-  return [];
+  return [...(catalogs ?? fmt.promptGenerator.catalogs)];
 }
 
 /**
@@ -165,6 +156,29 @@ function serializeYamlValue(key: string, value: unknown, indent = 0): string {
   return `${keyPrefix} ${JSON.stringify(value)}`;
 }
 
+/**
+ * Checks that a skill filename is a relative path that stays inside the directory a
+ * `SkillSet` is exported to: no absolute path, no empty segment, and no `.` or `..`
+ * segment. Both `/` and `\\` separate segments, so a filename is rejected on every
+ * platform it would escape on.
+ *
+ * @throws {A2uiValidationError} If the filename is not such a path.
+ */
+export function validateSkillFilename(filename: string): string {
+  const segments = filename.split(/[\\/]/);
+  const escapes =
+    filename === '' ||
+    path.posix.isAbsolute(filename) ||
+    path.win32.isAbsolute(filename) ||
+    segments.some(segment => segment === '' || segment === '.' || segment === '..');
+  if (escapes) {
+    throw new A2uiValidationError(
+      `Skill filename ${JSON.stringify(filename)} must be a relative path without "." or ".." segments.`,
+    );
+  }
+  return filename;
+}
+
 export interface SkillOptions {
   name: string;
   description: string;
@@ -178,6 +192,10 @@ export interface SkillOptions {
  *
  * Allows developers to inspect and mutate fields (`name`, `description`, `metadata`, `content`)
  * before serializing back to markdown format.
+ *
+ * `filename` is the path the skill is written to, relative to the directory a `SkillSet` is
+ * exported to. It is checked on construction (see {@link validateSkillFilename}), so
+ * `SkillSet.exportToDirectory` can rely on every filename staying inside its output directory.
  */
 export class Skill {
   name: string;
@@ -206,13 +224,15 @@ export class Skill {
       this.description = nameOrOptions.description;
       this.content = nameOrOptions.content;
       this.metadata = nameOrOptions.metadata ?? {};
-      this.filename = nameOrOptions.filename || `${nameOrOptions.name}/SKILL.md`;
+      this.filename = validateSkillFilename(
+        nameOrOptions.filename || `${nameOrOptions.name}/SKILL.md`,
+      );
     } else {
       this.name = nameOrOptions;
       this.description = description;
       this.content = content;
       this.metadata = metadata ?? {};
-      this.filename = filename || `${nameOrOptions}/SKILL.md`;
+      this.filename = validateSkillFilename(filename || `${nameOrOptions}/SKILL.md`);
     }
   }
 
@@ -244,14 +264,14 @@ export class SkillSet implements Iterable<string> {
 
   constructor(skills?: Record<string, Skill> | Iterable<[string, Skill]>) {
     if (skills) {
-      if (typeof (skills as Iterable<[string, Skill]>)[Symbol.iterator] === 'function') {
-        for (const [k, v] of skills as Iterable<[string, Skill]>) {
-          this.skills.set(k, v);
-        }
-      } else {
-        for (const [k, v] of Object.entries(skills as Record<string, Skill>)) {
-          this.skills.set(k, v);
-        }
+      const entries =
+        typeof (skills as Iterable<[string, Skill]>)[Symbol.iterator] === 'function'
+          ? (skills as Iterable<[string, Skill]>)
+          : Object.entries(skills as Record<string, Skill>);
+      // Keys are the paths the export writes, so they are held to the same rule as
+      // `Skill.filename`.
+      for (const [k, v] of entries) {
+        this.skills.set(validateSkillFilename(k), v);
       }
     }
   }
@@ -310,7 +330,9 @@ export class SkillSet implements Iterable<string> {
    * The directory holding each skill file (for example, `{outputDir}/a2ui-core`
    * or `{outputDir}/a2ui-basic`) is removed before writing so no stale files
    * persist. Unrelated sibling directories and files in `outputDir` are preserved,
-   * and `outputDir` itself is never removed.
+   * and `outputDir` itself is never removed. Every filename was checked by
+   * {@link validateSkillFilename} when it entered the set, so nothing here can
+   * reach outside `outputDir`.
    *
    * @param outputDir Root directory where skill packages should be written.
    * @returns A dictionary mapping skill filenames to generated markdown content.
@@ -320,18 +342,14 @@ export class SkillSet implements Iterable<string> {
 
     const skillDirsToClean = new Set<string>();
     for (const filename of this.skills.keys()) {
-      const dirName = path.dirname(path.normalize(filename));
-      if (dirName !== '.' && dirName !== '..' && dirName !== '/' && dirName !== '') {
+      const dirName = path.dirname(filename);
+      if (dirName !== '.') {
         skillDirsToClean.add(path.join(outputDir, dirName));
       }
     }
 
     for (const skillFolder of skillDirsToClean) {
-      const relative = path.relative(outputDir, skillFolder);
-      const isSafe = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
-      if (isSafe) {
-        fs.rmSync(skillFolder, {recursive: true, force: true});
-      }
+      fs.rmSync(skillFolder, {recursive: true, force: true});
     }
 
     const results: Record<string, string> = {};

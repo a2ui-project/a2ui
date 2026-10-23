@@ -18,42 +18,43 @@
  * SkillGenerator for compiling InferenceFormat and Catalog into Skill and SkillSet packages.
  */
 
+import {A2uiCatalogError} from '../errors.js';
 import {InferenceFormat} from '../inference-format.js';
 import {CatalogApi} from '../internal/web-core.js';
 import {cleanCatalogName, resolveCatalogsList, Skill, SkillSet} from './skill.js';
 
 export interface GenerateSkillOptions {
+  /** Skill name. Defaults to `a2ui`. */
   name?: string;
+  /** LLM-facing description. Defaults to a generic one. */
   description?: string;
+  /** Catalogs to compile. Defaults to the catalogs bound to the format. */
   catalogs?: readonly CatalogApi[];
 }
 
 export interface GenerateCatalogSkillOptions {
+  /** Catalog to compile. Defaults to the first catalog bound to the format. */
   catalog?: CatalogApi;
+  /** Skill name. Defaults to `a2ui-<catalog name>`. */
   name?: string;
+  /** LLM-facing description. Defaults to one derived from the catalog name. */
   description?: string;
+  /** Whether to append the catalog's examples. Defaults to `true`. */
   includeExamples?: boolean;
 }
 
 export interface GenerateCoreSkillOptions {
+  /** Skill name. Defaults to `a2ui-core`. */
   name?: string;
+  /** LLM-facing description. Defaults to a generic one. */
   description?: string;
 }
 
 export interface GenerateSkillSetOptions {
+  /** Catalogs to compile, one skill each. Defaults to the catalogs bound to the format. */
   catalogs?: readonly CatalogApi[];
+  /** Name of the core syntax skill. Defaults to `a2ui-core`. */
   coreName?: string;
-}
-
-function isCatalogApi(value: unknown): value is CatalogApi {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (Object.hasOwn(value, 'id') ||
-      Object.hasOwn(value, 'components') ||
-      Object.hasOwn(value, 'catalogId') ||
-      Object.hasOwn(value, 'catalog_id'))
-  );
 }
 
 /**
@@ -67,24 +68,9 @@ export class SkillGenerator {
    *
    * If `catalogs` is not specified, defaults to the catalogs configured on the inference format.
    */
-  generateSkill(
-    nameOrOptions?: string | GenerateSkillOptions,
-    description?: string,
-    catalogs?: readonly CatalogApi[],
-  ): Skill {
-    let resolvedName = 'a2ui';
-    let resolvedDesc = description;
-    let explicitCatalogs = catalogs;
-
-    if (typeof nameOrOptions === 'object' && nameOrOptions !== null) {
-      resolvedName = nameOrOptions.name ?? 'a2ui';
-      resolvedDesc = nameOrOptions.description ?? description;
-      explicitCatalogs = nameOrOptions.catalogs ?? catalogs;
-    } else if (typeof nameOrOptions === 'string') {
-      resolvedName = nameOrOptions;
-    }
-
-    const resolvedCatalogs = resolveCatalogsList(explicitCatalogs, this.fmt);
+  generateSkill(options: GenerateSkillOptions = {}): Skill {
+    const resolvedName = options.name ?? 'a2ui';
+    const resolvedCatalogs = resolveCatalogsList(options.catalogs, this.fmt);
     const promptGen = this.fmt.promptGenerator;
 
     const baseRules = promptGen.generateBaseRules();
@@ -117,7 +103,7 @@ export class SkillGenerator {
 
     const contentStr = bodyParts.join('\n\n') + '\n';
     const desc =
-      resolvedDesc || 'Generates interactive user interface components for user requests.';
+      options.description || 'Generates interactive user interface components for user requests.';
 
     return new Skill({
       name: resolvedName,
@@ -130,45 +116,28 @@ export class SkillGenerator {
   /**
    * Compiles a single catalog into a dedicated catalog Skill.
    *
-   * If `catalog` is not specified, defaults to the catalog configured on the inference format.
+   * If `catalog` is not specified, defaults to the first catalog configured on the inference
+   * format.
+   *
+   * @throws {A2uiCatalogError} If no catalog is given and the format has none.
    */
-  generateCatalogSkill(
-    catalogOrOptions?: CatalogApi | GenerateCatalogSkillOptions,
-    name?: string,
-    description?: string,
-    includeExamples = true,
-  ): Skill {
-    let targetCatalog: CatalogApi | undefined;
-    let resolvedName = name;
-    let resolvedDesc = description;
-    let shouldIncludeExamples = includeExamples;
-
-    if (catalogOrOptions !== undefined) {
-      if (isCatalogApi(catalogOrOptions)) {
-        targetCatalog = catalogOrOptions;
-      } else {
-        targetCatalog = catalogOrOptions.catalog;
-        resolvedName = catalogOrOptions.name ?? name;
-        resolvedDesc = catalogOrOptions.description ?? description;
-        shouldIncludeExamples = catalogOrOptions.includeExamples ?? includeExamples;
-      }
-    }
-
+  generateCatalogSkill(options: GenerateCatalogSkillOptions = {}): Skill {
+    let targetCatalog = options.catalog;
     if (targetCatalog === undefined) {
       const formatCatalogs = resolveCatalogsList(undefined, this.fmt);
-      if (formatCatalogs.length > 0) {
-        targetCatalog = formatCatalogs[0];
-      } else {
-        throw new Error(
+      if (formatCatalogs.length === 0) {
+        throw new A2uiCatalogError(
           'No catalog provided or configured on the inference format to compile catalog skill.',
         );
       }
+      targetCatalog = formatCatalogs[0];
     }
 
-    const examples = shouldIncludeExamples
+    const includeExamples = options.includeExamples ?? true;
+    const examples = includeExamples
       ? (this.fmt.promptGenerator.generateExamples(targetCatalog) ?? '')
       : '';
-    return this.buildCatalogSkill(targetCatalog, examples, resolvedName, resolvedDesc);
+    return this.buildCatalogSkill(targetCatalog, examples, options.name, options.description);
   }
 
   private buildCatalogSkill(
@@ -202,22 +171,11 @@ export class SkillGenerator {
   /**
    * Compiles core syntax rules for an inference format into a base core skill.
    */
-  generateCoreSkill(
-    nameOrOptions?: string | GenerateCoreSkillOptions,
-    description?: string,
-  ): Skill {
-    let resolvedName = 'a2ui-core';
-    let resolvedDesc = description;
-    if (typeof nameOrOptions === 'object' && nameOrOptions !== null) {
-      resolvedName = nameOrOptions.name ?? 'a2ui-core';
-      resolvedDesc = nameOrOptions.description ?? description;
-    } else if (typeof nameOrOptions === 'string') {
-      resolvedName = nameOrOptions;
-    }
-
+  generateCoreSkill(options: GenerateCoreSkillOptions = {}): Skill {
+    const resolvedName = options.name ?? 'a2ui-core';
     const baseRules = this.fmt.promptGenerator.generateBaseRules() || '';
     const desc =
-      resolvedDesc || 'Core A2UI protocol instructions and syntax rules for UI generation.';
+      options.description || 'Core A2UI protocol instructions and syntax rules for UI generation.';
 
     return new Skill({
       name: resolvedName,
@@ -232,29 +190,16 @@ export class SkillGenerator {
    *
    * If `catalogs` is not specified, defaults to the catalogs configured on the inference format.
    */
-  generateSkillset(
-    catalogsOrOptions?: readonly CatalogApi[] | GenerateSkillSetOptions,
-    coreName = 'a2ui-core',
-  ): SkillSet {
-    let explicitCatalogs: readonly CatalogApi[] | undefined;
-    let resolvedCoreName = coreName;
-
-    if (Array.isArray(catalogsOrOptions)) {
-      explicitCatalogs = catalogsOrOptions;
-    } else if (typeof catalogsOrOptions === 'object' && catalogsOrOptions !== null) {
-      explicitCatalogs = (catalogsOrOptions as GenerateSkillSetOptions).catalogs;
-      resolvedCoreName = (catalogsOrOptions as GenerateSkillSetOptions).coreName ?? coreName;
-    }
-
+  generateSkillset(options: GenerateSkillSetOptions = {}): SkillSet {
     const skillSet = new SkillSet();
 
     // 1. Core Syntax Skill
-    skillSet.add(this.generateCoreSkill(resolvedCoreName));
+    skillSet.add(this.generateCoreSkill({name: options.coreName ?? 'a2ui-core'}));
 
     // 2. Per-Catalog Skills
     // A format whose examples aren't kept per catalog returns the same
     // examples for each catalog, so only the first catalog skill gets them.
-    const resolvedCatalogs = resolveCatalogsList(explicitCatalogs, this.fmt);
+    const resolvedCatalogs = resolveCatalogsList(options.catalogs, this.fmt);
     const promptGen = this.fmt.promptGenerator;
     const seenExamples = new Set<string>();
     for (const cat of resolvedCatalogs) {
@@ -269,10 +214,7 @@ export class SkillGenerator {
   /**
    * Alias for {@link generateSkillset}.
    */
-  generateSkillSet(
-    catalogsOrOptions?: readonly CatalogApi[] | GenerateSkillSetOptions,
-    coreName = 'a2ui-core',
-  ): SkillSet {
-    return this.generateSkillset(catalogsOrOptions, coreName);
+  generateSkillSet(options: GenerateSkillSetOptions = {}): SkillSet {
+    return this.generateSkillset(options);
   }
 }
