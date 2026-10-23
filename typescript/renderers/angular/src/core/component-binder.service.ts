@@ -21,19 +21,19 @@ import {
   Signal as AngularSignal,
   EnvironmentInjector,
 } from '@angular/core';
-import { ComponentContext, computed, signal } from '@a2ui/web_core/v0_9';
-import { BoundProperty, ComponentTemplate } from './types';
-import { assertAngularSignal, initializeAngularReactivity } from './reactivity';
+import {ComponentContext, computed, signal} from '@a2ui/web_core/v0_9';
+import {BoundProperty, ComponentTemplate} from './types';
+import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
 
 function isChildListTemplateObject(
   value: unknown,
-): value is { componentId: string; path?: string; '@path'?: string } {
+): value is {componentId: string; path?: string; '@path'?: string} {
   return (
     typeof value === 'object' &&
     value !== null &&
     !Array.isArray(value) &&
-    'componentId' in value &&
-    ('path' in value || '@path' in value)
+    Object.hasOwn(value, 'componentId') &&
+    (Object.hasOwn(value, 'path') || Object.hasOwn(value, '@path'))
   );
 }
 
@@ -42,7 +42,7 @@ function extractBoundPath(value: unknown): string | undefined {
     typeof value !== 'object' ||
     value === null ||
     Array.isArray(value) ||
-    'componentId' in value
+    Object.hasOwn(value, 'componentId')
   ) {
     return undefined;
   }
@@ -53,7 +53,9 @@ function extractBoundPath(value: unknown): string | undefined {
 }
 
 function isStructuredValidationResult(val: unknown): val is Record<string, unknown> {
-  return typeof val === 'object' && val !== null && !Array.isArray(val) && 'valid' in val;
+  return (
+    typeof val === 'object' && val !== null && !Array.isArray(val) && Object.hasOwn(val, 'valid')
+  );
 }
 
 /** Represents a reference to a child component. */
@@ -116,12 +118,7 @@ export class ComponentBinder {
           ? this.createChildListSignal(value, context)
           : context.dataContext.resolveSignal(value);
 
-    const { valueSignal, template } = this.transformStructuralSignal(
-      key,
-      value,
-      baseSignal,
-      context,
-    );
+    const {valueSignal, template} = this.transformStructuralSignal(key, value, baseSignal, context);
 
     if (valueSignal?.unsubscribe) {
       this.destroyRef.onDestroy(() => valueSignal.unsubscribe!());
@@ -139,13 +136,13 @@ export class ComponentBinder {
   }
 
   private createChildListSignal(
-    value: { componentId: string; path?: string; '@path'?: string },
+    value: {componentId: string; path?: string; '@path'?: string},
     context: ComponentContext,
   ) {
     const templatePath = value['@path'] ?? value.path ?? '';
     const listBinding = context.dataContext.atLeastV10
-      ? { '@path': templatePath }
-      : { path: templatePath };
+      ? {'@path': templatePath}
+      : {path: templatePath};
     const listSig = context.dataContext.resolveSignal(listBinding);
     if (listSig?.unsubscribe) {
       this.destroyRef.onDestroy(() => listSig.unsubscribe!());
@@ -168,7 +165,7 @@ export class ComponentBinder {
     value: any,
     valueSignal: any,
     context: ComponentContext,
-  ): { valueSignal: any; template: ComponentTemplate | undefined } {
+  ): {valueSignal: any; template: ComponentTemplate | undefined} {
     if (['child', 'trigger', 'content'].includes(key)) {
       assertAngularSignal(valueSignal);
       return {
@@ -183,18 +180,18 @@ export class ComponentBinder {
       assertAngularSignal(valueSignal);
       const id = value?.componentId;
       const path = value?.['@path'] ?? value?.path;
-      const template = id && path ? { id, path } : undefined;
+      const template = id && path ? {id, path} : undefined;
       return {
         template,
         valueSignal: computed(() => {
           const val = valueSignal();
           const arr = Array.isArray(val) ? val : [];
-          return arr.map((item) => this.normalizeChildItem(item, context.dataContext.path));
+          return arr.map(item => this.normalizeChildItem(item, context.dataContext.path));
         }),
       };
     }
 
-    return { valueSignal, template: undefined };
+    return {valueSignal, template: undefined};
   }
 
   private normalizeChildItem(val: unknown, basePath: string): unknown {
@@ -202,15 +199,15 @@ export class ComponentBinder {
     if (typeof val === 'object' && 'id' in val) {
       return val;
     }
-    return { id: val, basePath };
+    return {id: val, basePath};
   }
 
   private resolveCheckRuleSignals(
     checksArray: unknown[],
     context: ComponentContext,
-  ): Array<{ conditionSig: unknown; messageSig: unknown }> {
-    return checksArray.map((rule) => {
-      const ruleObj = rule as { condition?: unknown; message?: unknown };
+  ): Array<{conditionSig: unknown; messageSig: unknown}> {
+    return checksArray.map(rule => {
+      const ruleObj = rule as {condition?: unknown; message?: unknown};
       const condition = ruleObj.condition ?? rule;
       const message = ruleObj.message ?? 'Validation failed';
       const conditionSig = context.dataContext.resolveSignal(condition);
@@ -221,7 +218,7 @@ export class ComponentBinder {
       if (messageSig?.unsubscribe) {
         this.destroyRef.onDestroy(() => messageSig.unsubscribe!());
       }
-      return { conditionSig, messageSig };
+      return {conditionSig, messageSig};
     });
   }
 
@@ -237,26 +234,24 @@ export class ComponentBinder {
     const ruleResults = this.resolveCheckRuleSignals(checksArray, context);
 
     const isValidSignal = computed(() =>
-      ruleResults.every(
-        (r) => !this.evaluateCheckRule(r.conditionSig, r.messageSig).isBlockingError,
-      ),
+      ruleResults.every(r => !this.evaluateCheckRule(r.conditionSig, r.messageSig).isBlockingError),
     );
 
     const validationErrorsSignal = computed(() =>
       ruleResults
-        .map((r) => this.evaluateCheckRule(r.conditionSig, r.messageSig))
-        .filter((res) => res.isBlockingError)
-        .map((res) => res.errorMessage),
+        .map(r => this.evaluateCheckRule(r.conditionSig, r.messageSig))
+        .filter(res => res.isBlockingError)
+        .map(res => res.errorMessage),
     );
 
     const validationResultsSignal = computed(() =>
       ruleResults
-        .map((r) => this.evaluateCheckRule(r.conditionSig, r.messageSig))
-        .filter((res) => !res.isValid)
-        .map((res) => ({
+        .map(r => this.evaluateCheckRule(r.conditionSig, r.messageSig))
+        .filter(res => !res.isValid)
+        .map(res => ({
           valid: false,
           message: res.errorMessage,
-          ...(res.code !== undefined ? { code: res.code } : {}),
+          ...(res.code !== undefined ? {code: res.code} : {}),
           severity: res.severity,
         })),
     );
