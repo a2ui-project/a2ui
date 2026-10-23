@@ -33,16 +33,17 @@ The Core module defines three SPM targets in root [Package.swift](../../Package.
 ```swift
 import A2UICore
 import BasicCatalog
+import Combine
 
-// 1. Initialize MessageProcessor with supported catalogs
+// 1. Initialize MessageProcessor with supported catalogs (on the main actor)
 let processor = MessageProcessor(catalogs: BasicCatalog.allCatalogs)
 
 // 2. Observe surfaces
-let cancellable = processor.surfaceGroupModel.onSurfaceCreated { surface in
-  print("Surface created: \(surface.surfaceID)")
+let cancellable = processor.surfaceGroupModel.$surfacesMap.sink { surfaces in
+  print("Active surfaces: \(surfaces.keys.sorted())")
 }
 
-// 3. Ingest incoming JSON or message objects
+// 3. Parse and process incoming JSON messages
 let jsonMessage = """
 {
   "version": "v1.0",
@@ -53,7 +54,7 @@ let jsonMessage = """
 }
 """
 
-let message = try MessageParser.parse(string: jsonMessage)
+let message = try MessageParser().parse(jsonString: jsonMessage)
 processor.process(message: message)
 ```
 
@@ -68,6 +69,7 @@ Define a component schema conforming to `ComponentAPI`:
 ```swift
 import A2UICore
 import JSONSchema
+import OrderedJSON
 
 public struct UserCardAPI: ComponentAPI {
   public let name = "UserCard"
@@ -122,7 +124,7 @@ public struct ToUpperFunction: FunctionImplementation {
 let customCatalog = Catalog(
   id: "https://example.com/catalogs/custom.json",
   protocolVersion: "v1.0",
-  components: [UserCardAPI().eraseToAnyComponentAPI()],
+  components: [UserCardAPI()],
   functions: [ToUpperFunction()]
 )
 ```

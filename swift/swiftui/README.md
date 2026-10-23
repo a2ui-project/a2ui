@@ -1,8 +1,7 @@
 # A2UI SwiftUI framework adapter (`A2UISwiftUI`)
 
 The `A2UISwiftUI` package provides the native SwiftUI rendering layer for A2UI, mapping
-`SurfaceViewModel` trees into declarative Apple views across iOS, macOS, iPadOS, tvOS,
-and visionOS.
+`SurfaceViewModel` trees into declarative Apple views on iOS and iPadOS 17+ and macOS 14+.
 
 For the platform-agnostic rendering and layout specifications, see the
 [framework adapter blueprint][adapter-bp] and the [basic catalog guide][catalog-guide].
@@ -42,7 +41,7 @@ struct ChatView: View {
       // Embed native A2UI Surface with registered SwiftUI catalogs
       Surface(
         viewModel: surfaceViewModel,
-        catalogs: BasicCatalogSwiftUI.allCatalogs
+        catalogs: BasicCatalogImplementation.allCatalogs
       )
     }
   }
