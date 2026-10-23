@@ -23,6 +23,7 @@ from typing import Any
 import urllib.request
 
 import pytest
+import referencing.exceptions
 
 from a2ui.core import (
     A2uiValidationError,
@@ -33,6 +34,7 @@ from a2ui.core import (
     link_catalogs,
 )
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.validation.schema_validator import SchemaValidator
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 _CATALOGS = os.path.join(_REPO_ROOT, "conformance", "test_data", "catalogs")
@@ -359,4 +361,29 @@ def test_ref_to_an_unheld_catalog_is_an_error_without_network(
         validator.validate_component(
             {"id": "r", "component": "Rune", "action": _RUNE_ACTION}
         )
+    assert no_network == []
+
+
+def test_meta_schema_ref_resolves_without_network(no_network: list[str]) -> None:
+    """The bundled JSON Schema meta-schemas stay resolvable without the network."""
+    validator = SchemaValidator(
+        {"$ref": "https://json-schema.org/draft/2020-12/schema"}
+    )
+    assert validator.is_valid({"type": "string"})
+    assert not validator.is_valid({"type": 12})
+    assert no_network == []
+
+
+def test_evolve_keeps_no_retrieval_registry(no_network: list[str]) -> None:
+    """A subschema with its own $schema is evolved without losing the registry."""
+    validator = SchemaValidator({
+        "properties": {
+            "x": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$ref": "https://example.com/not-held.json",
+            }
+        }
+    })
+    with pytest.raises(referencing.exceptions.Unresolvable, match="not-held.json"):
+        list(validator.iter_errors({"x": 1}))
     assert no_network == []
