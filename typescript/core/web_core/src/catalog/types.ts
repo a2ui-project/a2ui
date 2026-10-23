@@ -976,7 +976,7 @@ function coerceLogicalValidationResultArgs(
       values: rawArgs.values.map(v =>
         v !== null &&
         typeof v === 'object' &&
-        'valid' in v &&
+        Object.hasOwn(v, 'valid') &&
         typeof (v as {valid: unknown}).valid === 'boolean'
           ? (v as {valid: boolean}).valid
           : v,
@@ -987,7 +987,7 @@ function coerceLogicalValidationResultArgs(
     name === 'not' &&
     rawArgs.value !== null &&
     typeof rawArgs.value === 'object' &&
-    'valid' in rawArgs.value &&
+    Object.hasOwn(rawArgs.value, 'valid') &&
     typeof (rawArgs.value as {valid: unknown}).valid === 'boolean'
   ) {
     return {
