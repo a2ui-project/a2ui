@@ -95,17 +95,20 @@ def test_examples_every_catalog_shares_are_added_once():
     assert text.count("EXAMPLES") == 1
 
 
-def test_the_assembled_text_is_cached_per_generator_and_catalogs():
+def test_the_snippet_for_the_generators_own_catalogs_is_cached():
     a, b = _catalog("a"), _catalog("b")
     gen = _RecordingGenerator([a, b])
 
     gen.generate()
     gen.generate()
+    assemble_instructions(gen, [a, b])
     assert gen.calls == 1
 
+    # Other catalogs aren't cached, so the cache holds no catalog the
+    # generator doesn't.
     assemble_instructions(gen, [b])
     assemble_instructions(gen, [b])
-    assert gen.calls == 2
+    assert gen.calls == 3
 
 
 def test_a_generator_must_name_its_catalogs():
