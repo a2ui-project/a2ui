@@ -751,7 +751,12 @@ class NodeResolver<T extends ComponentApi> {
       final occurrenceKey = (componentId, dataPath);
       final int occurrence = (occurrences[occurrenceKey] ?? 0) + 1;
       occurrences[occurrenceKey] = occurrence;
-      final _EdgeKey edgeKey = (record.node, slot, componentId, dataPath);
+      final _EdgeKey edgeKey = (
+        record.node,
+        (slot.$1, slot.$2 ?? occurrence, slot.$3),
+        componentId,
+        dataPath,
+      );
       final MutableComponentNode<T> child;
       try {
         child = _childNode(
@@ -809,7 +814,7 @@ class NodeResolver<T extends ComponentApi> {
             final Object? item = value[index];
             if (item is ChildNode) {
               return resolveChild(
-                (key, index, null),
+                (key, item.index, null),
                 item.id,
                 item.basePath,
                 index: item.index,
@@ -817,7 +822,7 @@ class NodeResolver<T extends ComponentApi> {
             }
             if (item is String && item.isNotEmpty) {
               return resolveChild(
-                (key, index, null),
+                (key, null, null),
                 item,
                 record.node.dataPath,
               );
@@ -971,11 +976,15 @@ class NodeResolver<T extends ComponentApi> {
       }
     }
     if (releaseDiagnostics && node.state == NodeState.cyclic) {
-      // Replacements are committed before retired nodes are disposed. A new
-      // cyclic stand-in on this same edge still represents the old condition;
-      // retiring its predecessor must not erase the replacement's key.
-      final MutableComponentNode<T>? replacement = _nodesByEdge[record.edgeKey];
-      if ((replacement == null || replacement.state != NodeState.cyclic) &&
+      // Replacements are committed before retired nodes are disposed. Any
+      // live cyclic stand-in for the same (componentId, dataPath) still
+      // represents the old condition; retiring a cyclic node must not erase
+      // the shared key while another cyclic node for that scope remains.
+      final bool stillCyclic = byId != null &&
+          byId.any(
+            (n) => n.state == NodeState.cyclic && n.dataPath == node.dataPath,
+          );
+      if (!stillCyclic &&
           identical(
             _dispatchedErrors[(node.componentId, node.dataPath)],
             record.diagnosticCodes,
