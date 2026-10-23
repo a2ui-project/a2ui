@@ -17,6 +17,32 @@
   protocolVersion: "v1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "a11y_surface"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1", "status_text"]
+          - id: "btn1"
+            component: "Button"
+            child: "btn1_label"
+            action:
+              event:
+                name: "tap"
+            accessibility:
+              label: "Mute Notifications"
+              description: "Silences notifications about this conversation"
+          - id: "btn1_label"
+            component: "Text"
+            text: "Mute"
+          - id: "status_text"
+            component: "Text"
+            text: "Status: Active"
+            accessibility:
+              live: "polite"
   surface:
     id: root
     component: Column
@@ -24,10 +50,17 @@
     components:
       btn1:
         component: Button
+        child: "btn1_label"
         title: "Mute"
+        action:
+          event:
+            name: "tap"
         accessibility:
           label: "Mute Notifications"
           description: "Silences notifications about this conversation"
+      btn1_label:
+        component: Text
+        text: "Mute"
       status_text:
         component: Text
         text: "Status: Active"
@@ -50,9 +83,24 @@
   protocolVersion: "v1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "a11y_surface"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "alert_box"
+          - id: "alert_box"
+            component: "Text"
+            text: "Connection Lost!"
+            accessibility:
+              label: "Critical Alert"
+              live: "assertive"
   surface:
     id: root
-    component: Container
+    component: Card
     child: alert_box
     components:
       alert_box:
@@ -74,6 +122,23 @@
   protocolVersion: "v1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "a11y_surface"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        components:
+          - id: "root"
+            component: "Column"
+            accessibility:
+              hidden: true
+            children: ["visible_text", "decorative_icon"]
+          - id: "visible_text"
+            component: "Text"
+            text: "Visible Content"
+          - id: "decorative_icon"
+            component: "Icon"
+            name: "star"
   surface:
     id: root
     component: Column
@@ -99,6 +164,24 @@
   protocolVersion: "v1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "a11y_surface"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["submit_btn"]
+          - id: "submit_btn"
+            component: "Button"
+            child: "submit_btn_label"
+            action:
+              event:
+                name: "tap"
+          - id: "submit_btn_label"
+            component: "Text"
+            text: "Submit Form"
   surface:
     id: root
     component: Column
@@ -106,7 +189,14 @@
     components:
       submit_btn:
         component: Button
+        child: "submit_btn_label"
         title: "Submit Form"
+        action:
+          event:
+            name: "tap"
+      submit_btn_label:
+        component: Text
+        text: "Submit Form"
   assertions:
     axeCore:
       - "button-name"
@@ -119,6 +209,48 @@
   protocolVersion: "v1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "a11y_surface"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn", "text_input", "check_box", "choice_picker"]
+          - id: "btn"
+            component: "Button"
+            child: "btn_label"
+            action:
+              event:
+                name: "tap"
+            accessibility:
+              label: "Submit Feedback"
+          - id: "btn_label"
+            component: "Text"
+            text: "Submit"
+          - id: "text_input"
+            component: "TextField"
+            label: "Your Email"
+            accessibility:
+              description: "Enter a valid email address"
+          - id: "check_box"
+            component: "CheckBox"
+            label: "I agree to terms"
+            value: true
+            accessibility:
+              label: "Accept Terms and Conditions"
+          - id: "choice_picker"
+            component: "ChoicePicker"
+            variant: "mutuallyExclusive"
+            value: ["1"]
+            options:
+              - label: "Option 1"
+                value: "1"
+              - label: "Option 2"
+                value: "2"
+            accessibility:
+              label: "Select Preference"
   surface:
     id: root
     component: Column
@@ -126,9 +258,16 @@
     components:
       btn:
         component: Button
+        child: "btn_label"
         title: "Submit"
+        action:
+          event:
+            name: "tap"
         accessibility:
           label: "Submit Feedback"
+      btn_label:
+        component: Text
+        text: "Submit"
       text_input:
         component: TextField
         label: "Your Email"
@@ -137,11 +276,14 @@
       check_box:
         component: CheckBox
         label: "I agree to terms"
+        value: true
         checked: true
         accessibility:
           label: "Accept Terms and Conditions"
       choice_picker:
         component: ChoicePicker
+        variant: "mutuallyExclusive"
+        value: ["1"]
         options:
           - label: "Option 1"
             value: "1"
@@ -175,6 +317,104 @@
   protocolVersion: "v1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "a11y_surface"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        dataModel:
+          buttonLabel: "Mute Audio"
+          isButtonHidden: false
+          isStatusHidden: true
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["dynamic_btn", "dynamic_status"]
+          - id: "dynamic_btn"
+            component: "Button"
+            child: "dynamic_btn_label"
+            action:
+              event:
+                name: "tap"
+            accessibility:
+              label:
+                "@path": "/buttonLabel"
+              hidden:
+                "@path": "/isButtonHidden"
+          - id: "dynamic_btn_label"
+            component: "Text"
+            text: "Dynamic Action"
+          - id: "dynamic_status"
+            component: "Text"
+            text: "Status"
+            accessibility:
+              hidden:
+                "@path": "/isStatusHidden"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "a11y_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              buttonLabel: "Mute Audio"
+              isButtonHidden: false
+              isStatusHidden: true
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["dynamic_btn", "dynamic_status"]
+              - id: "dynamic_btn"
+                component: "Button"
+                child: "dynamic_btn_label"
+                action:
+                  event:
+                    name: "tap"
+                accessibility:
+                  label:
+                    "@path": "/buttonLabel"
+                  hidden:
+                    "@path": "/isButtonHidden"
+              - id: "dynamic_btn_label"
+                component: "Text"
+                text: "Dynamic Action"
+              - id: "dynamic_status"
+                component: "Text"
+                text: "Status"
+                accessibility:
+                  hidden:
+                    "@path": "/isStatusHidden"
+      assertions:
+        axeCore:
+          - "button-name"
+          - "aria-hidden-focus"
+        accessibilityTree:
+          dynamic_btn:
+            label: "Mute Audio"
+            hidden: false
+          dynamic_status:
+            hidden: true
+    - messages:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "a11y_surface"
+            path: "/buttonLabel"
+            value: "Unmute Audio"
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "a11y_surface"
+            path: "/isButtonHidden"
+            value: true
+      assertions:
+        axeCore:
+          - "button-name"
+          - "aria-hidden-focus"
+        accessibilityTree:
+          dynamic_btn:
+            label: "Unmute Audio"
+            hidden: true
+          dynamic_status:
+            hidden: true
   surface:
     id: root
     component: Column
@@ -182,12 +422,19 @@
     components:
       dynamic_btn:
         component: Button
+        child: "dynamic_btn_label"
         title: "Dynamic Action"
+        action:
+          event:
+            name: "tap"
         accessibility:
           label:
             "@path": "/buttonLabel"
           hidden:
             "@path": "/isButtonHidden"
+      dynamic_btn_label:
+        component: Text
+        text: "Dynamic Action"
       dynamic_status:
         component: Text
         text: "Status"
@@ -200,10 +447,7 @@
       - "aria-hidden-focus"
     accessibilityTree:
       dynamic_btn:
-        label:
-          path: "/buttonLabel"
-        hidden:
-          path: "/isButtonHidden"
+        label: "Mute Audio"
+        hidden: false
       dynamic_status:
-        hidden:
-          path: "/isStatusHidden"
+        hidden: true
