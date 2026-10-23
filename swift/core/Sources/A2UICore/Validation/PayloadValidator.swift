@@ -489,7 +489,7 @@ public final class PayloadValidator: Sendable {
 
   private func buildFunctionSchemaValidationError(
     name: String,
-    result: Schema.ValidationResult
+    result: JSONSchema.ValidationResult
   ) -> A2UIValidationError {
     let leafErrors = (result.errors ?? []).flatMap { extractLeafErrors(from: $0) }
     var leafMessages: [String] = []
