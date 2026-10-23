@@ -78,8 +78,8 @@ export class SkillGenerator {
 
     if (typeof nameOrOptions === 'object' && nameOrOptions !== null) {
       resolvedName = nameOrOptions.name ?? 'a2ui';
-      resolvedDesc = nameOrOptions.description;
-      explicitCatalogs = nameOrOptions.catalogs;
+      resolvedDesc = nameOrOptions.description ?? description;
+      explicitCatalogs = nameOrOptions.catalogs ?? catalogs;
     } else if (typeof nameOrOptions === 'string') {
       resolvedName = nameOrOptions;
     }
@@ -210,7 +210,7 @@ export class SkillGenerator {
     let resolvedDesc = description;
     if (typeof nameOrOptions === 'object' && nameOrOptions !== null) {
       resolvedName = nameOrOptions.name ?? 'a2ui-core';
-      resolvedDesc = nameOrOptions.description;
+      resolvedDesc = nameOrOptions.description ?? description;
     } else if (typeof nameOrOptions === 'string') {
       resolvedName = nameOrOptions;
     }

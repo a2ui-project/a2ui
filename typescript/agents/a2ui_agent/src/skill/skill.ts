@@ -307,10 +307,10 @@ export class SkillSet implements Iterable<string> {
   /**
    * Exports all skills in the set to the specified output directory on disk.
    *
-   * Any existing subdirectories matching skills in this set (for example,
-   * `{outputDir}/a2ui-core` or `{outputDir}/a2ui-basic`) are completely wiped
-   * before writing so no stale files persist. Unrelated sibling directories and
-   * files in `outputDir` are preserved.
+   * The directory holding each skill file (for example, `{outputDir}/a2ui-core`
+   * or `{outputDir}/a2ui-basic`) is removed before writing so no stale files
+   * persist. Unrelated sibling directories and files in `outputDir` are preserved,
+   * and `outputDir` itself is never removed.
    *
    * @param outputDir Root directory where skill packages should be written.
    * @returns A dictionary mapping skill filenames to generated markdown content.
@@ -320,16 +320,16 @@ export class SkillSet implements Iterable<string> {
 
     const skillDirsToClean = new Set<string>();
     for (const filename of this.skills.keys()) {
-      const parts = path.normalize(filename).split(/[\\/]/);
-      if (parts.length > 1 && parts[0] !== '.' && parts[0] !== '..' && parts[0] !== '') {
-        skillDirsToClean.add(path.join(outputDir, parts[0]));
+      const dirName = path.dirname(path.normalize(filename));
+      if (dirName !== '.' && dirName !== '..' && dirName !== '/' && dirName !== '') {
+        skillDirsToClean.add(path.join(outputDir, dirName));
       }
     }
 
     for (const skillFolder of skillDirsToClean) {
       const relative = path.relative(outputDir, skillFolder);
       const isSafe = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
-      if (isSafe && fs.existsSync(skillFolder) && fs.statSync(skillFolder).isDirectory()) {
+      if (isSafe) {
         fs.rmSync(skillFolder, {recursive: true, force: true});
       }
     }

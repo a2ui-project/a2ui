@@ -129,6 +129,32 @@ describe('SkillGenerator', () => {
     expect(fs.existsSync(rootNote)).toBe(true);
   });
 
+  it('cleans only the directory holding a nested skill file, not its ancestors', () => {
+    // A skill whose filename nests under `src/skills/` must not wipe `src/`.
+    const siblingFile = path.join(tempDir, 'src', 'keep.ts');
+    fs.mkdirSync(path.dirname(siblingFile), {recursive: true});
+    fs.writeFileSync(siblingFile, 'keep me', 'utf-8');
+
+    const staleFile = path.join(tempDir, 'src', 'skills', 'nested', 'stale.txt');
+    fs.mkdirSync(path.dirname(staleFile), {recursive: true});
+    fs.writeFileSync(staleFile, 'old data', 'utf-8');
+
+    const skillSet = new SkillSet();
+    skillSet.add(
+      new Skill({
+        name: 'nested',
+        description: 'Nested skill',
+        content: '# Nested',
+        filename: 'src/skills/nested/SKILL.md',
+      }),
+    );
+    skillSet.exportToDirectory(tempDir);
+
+    expect(fs.existsSync(path.join(tempDir, 'src', 'skills', 'nested', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(staleFile)).toBe(false);
+    expect(fs.readFileSync(siblingFile, 'utf-8')).toBe('keep me');
+  });
+
   it('enforces SkillSet.get matching rules (exact key, exact name, min-3-char substring)', () => {
     const skillSet = generator.generateSkillset();
 
