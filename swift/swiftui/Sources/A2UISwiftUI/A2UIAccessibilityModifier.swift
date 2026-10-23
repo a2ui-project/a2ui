@@ -56,9 +56,28 @@ public struct A2UIAccessibilityModifier: ViewModifier {
     attributes?.label.flatMap { $0.isEmpty ? nil : $0 }
   }
 
+  /// The effective accessibility label, falling back to inferred text from the node or its child.
+  public var effectiveLabel: String? {
+    if let explicit = label {
+      return explicit
+    }
+    if let inferred = node.accessibilityAttributes?.label, !inferred.isEmpty {
+      return inferred
+    }
+    if let child = node.child(for: "child") {
+      return child.accessibilityAttributes?.label ?? child.string(for: "text")
+    }
+    return nil
+  }
+
   /// The accessibility hint, taken from the explicit `description`.
   public var hint: String? {
     attributes?.description.flatMap { $0.isEmpty ? nil : $0 }
+  }
+
+  /// The politeness level for live announcements (`"off"`, `"polite"`, or `"assertive"`).
+  public var live: String? {
+    attributes?.live
   }
 
   /// Whether the component and its subtree are hidden from assistive technologies.
@@ -74,6 +93,29 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   /// Whether announcements interrupt current speech (`live` is `assertive`).
   public var isAssertive: Bool {
     attributes?.live == "assertive"
+  }
+
+  /// The semantic role mapped for this component node.
+  public var role: String {
+    switch node.type {
+    case "Button":
+      return "button"
+    case "TextField":
+      return "textbox"
+    case "CheckBox":
+      return "checkbox"
+    case "ChoicePicker":
+      let variant = node.string(for: "variant") ?? "mutuallyExclusive"
+      return variant == "mutuallyExclusive" ? "radiogroup" : "group"
+    default:
+      return node.type.lowercased()
+    }
+  }
+
+  /// The checked state for toggle/checkbox controls, or `nil` for other components.
+  public var isChecked: Bool? {
+    guard node.type == "CheckBox" else { return nil }
+    return node.bool(for: "value") ?? false
   }
 
   /// The text announced when it changes: the explicit label of a live component. `nil` when
