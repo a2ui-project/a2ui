@@ -18,6 +18,7 @@ This document is the authoritative guide for AI agents working within the A2UI r
 - **For developing Python code anywhere in the repository (libraries, agents, tools, scripts, best practices):** Read [.agents/skills/coding-principles/subskills/python/INDEX.md](.agents/skills/coding-principles/subskills/python/INDEX.md)
 - **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/coding-principles/subskills/swift/INDEX.md](.agents/skills/coding-principles/subskills/swift/INDEX.md)
 - **For developing in the Dart & Flutter codebases (`dart/`, `samples/client/flutter/`) or versioning Dart packages:** Read [.agents/skills/coding-principles/subskills/dart/INDEX.md](.agents/skills/coding-principles/subskills/dart/INDEX.md)
+- **For writing documentation, READMEs, or PR descriptions:** Read [.agents/skills/natural-writing/SKILL.md](.agents/skills/natural-writing/SKILL.md)
 
 ---
 
