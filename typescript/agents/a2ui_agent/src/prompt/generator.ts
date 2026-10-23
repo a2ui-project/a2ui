@@ -17,6 +17,9 @@
 import {A2uiCatalogError} from '../errors.js';
 import {CatalogApi} from '../internal/web-core.js';
 
+/** Heading that introduces the few-shot examples in a prompt snippet or skill. */
+export const EXAMPLES_HEADING = '### Examples:\n\n';
+
 /**
  * Abstract base class for format-specific prompt generation.
  *
@@ -78,7 +81,12 @@ export abstract class PromptGenerator {
    * Formats override the pieces, never this method.
    */
   generate(): string {
-    return [this.generateBaseRules(), this.generateCatalogInstructions(), this.generateExamples()]
+    const examples = this.generateExamples();
+    return [
+      this.generateBaseRules(),
+      this.generateCatalogInstructions(),
+      examples.length > 0 ? `${EXAMPLES_HEADING}${examples}` : '',
+    ]
       .filter(s => s.length > 0)
       .join('\n\n');
   }
