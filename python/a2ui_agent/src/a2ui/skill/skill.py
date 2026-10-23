@@ -150,17 +150,18 @@ class SkillSet:
         """
         os.makedirs(output_dir, exist_ok=True)
 
-        # Identify unique top-level skill folders directly under output_dir
+        # Identify the directory that directly holds each skill file. Only that
+        # directory is wiped, never an ancestor such as `src/` for
+        # `src/skills/nested/SKILL.md`, and never `output_dir` itself.
         skill_dirs_to_clean: set[str] = set()
         for filename in self._skills:
-            parts = os.path.normpath(filename).split(os.sep)
-            if len(parts) > 1 and parts[0] not in (".", "..", ""):
-                skill_dirs_to_clean.add(os.path.join(output_dir, parts[0]))
+            dir_name = os.path.dirname(os.path.normpath(filename))
+            if dir_name not in (".", "..", os.sep, ""):
+                skill_dirs_to_clean.add(os.path.join(output_dir, dir_name))
 
-        # Wipe only the specific matching skill subdirectories
+        # Wipe only the specific matching skill directories
         for skill_folder in skill_dirs_to_clean:
-            if os.path.isdir(skill_folder):
-                shutil.rmtree(skill_folder)
+            shutil.rmtree(skill_folder, ignore_errors=True)
 
         results = {}
         for filename, skill in self._skills.items():
