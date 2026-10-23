@@ -30,9 +30,13 @@ from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import check_mixed_catalogs
 from a2ui.prompt import PromptGenerator
 
+from .archetypes import ArchetypeGrammar
 from .catalog_graph import CatalogDecisionGraph
 from .decision_block import DecisionBlock, decision_block_from_messages
+from .models import MAX_BRIEF_SECTIONS
 from .template_registry import TemplateRegistry
+
+_BRIEF_ROLES = ", ".join(f"`{r}`" for r in ArchetypeGrammar.default().brief_roles())
 
 DECISION_RULES = f"""# A2UI Decision Block Output Contract
 
@@ -64,11 +68,18 @@ one JSON object (or a JSON array of such objects, one per surface).
 5. `fallbackDsl` (optional, string): A2UI Express source rendered if the
    decision model is not confident enough to choose components.
 
+6. `layout` (optional, array of up to {MAX_BRIEF_SECTIONS} strings): An ordered
+   layout brief grouping payload keys by role, each formatted as
+   `"<role>:<key>,<key>"` (keys may be bare top-level names or `/`-prefixed
+   JSON pointers; no nested sections). Valid roles are {_BRIEF_ROLES}.
+   Example: `["picture:name,logoUrl", "collection:/photos", "facts:address,phone"]`.
+
 ## Example
 
 {A2UI_INFERENCE_OPEN_TAG}
 {{"intent": "Show the service health with latency and a refresh button",
  "payload": {{"serviceName": "checkout", "latencyMs": 42, "status": "healthy"}},
+ "layout": ["headline:serviceName,latencyMs,status"],
  "surfaceId": "main"}}
 {A2UI_INFERENCE_CLOSE_TAG}"""
 

@@ -497,6 +497,7 @@ def test_decision_block_round_trip_and_aliases() -> None:
     assert block.surface_id == "s1"
     assert block.template_id == "badge_tpl"
     assert block.fallback_dsl is None
+    assert block.layout is None
     assert block.to_json() == {
         "intent": "Show it",
         "payload": PAYLOAD,
@@ -511,13 +512,78 @@ def test_decision_block_round_trip_and_aliases() -> None:
         DecisionBlock.from_mapping({"intent": "x", "payload": {}, "surfaceId": 3})
 
 
+def test_decision_block_layout_brief_parsing_and_rejection() -> None:
+    from a2ui.inference_formats.decision.archetypes import ArchetypeGrammar
+    from a2ui.inference_formats.decision.models import (
+        BriefSection,
+        LayoutBrief,
+        MAX_BRIEF_SECTIONS,
+    )
+
+    with_layout = DecisionBlock.from_mapping({
+        "intent": "Show resort",
+        "payload": PAYLOAD,
+        "layout": ["picture:name,logoUrl", "collection:/photos", "facts:address"],
+    })
+    assert with_layout.layout == LayoutBrief(
+        sections=(
+            BriefSection(role="picture", pointers=("/name", "/logoUrl")),
+            BriefSection(role="collection", pointers=("/photos",)),
+            BriefSection(role="facts", pointers=("/address",)),
+        )
+    )
+    assert with_layout.to_json()["layout"] == [
+        "picture:/name,/logoUrl",
+        "collection:/photos",
+        "facts:/address",
+    ]
+
+    # Empty layout array normalizes to None
+    assert (
+        DecisionBlock.from_mapping(
+            {"intent": "Show resort", "payload": PAYLOAD, "layout": []}
+        ).layout
+        is None
+    )
+
+    # Reject > MAX_BRIEF_SECTIONS (7 sections)
+    roles = list(ArchetypeGrammar.default().brief_roles())
+    too_many = [f"{roles[i]}:k{i}" for i in range(MAX_BRIEF_SECTIONS + 1)]
+    with pytest.raises(ValueError, match=str(MAX_BRIEF_SECTIONS)):
+        DecisionBlock.from_mapping(
+            {"intent": "Show resort", "payload": PAYLOAD, "layout": too_many}
+        )
+
+    # Reject nested sections (`role:a:b`), unknown roles, and bare keys without a role
+    for invalid_item in ("picture:name:sub", "sparkles:name", "name,logoUrl"):
+        with pytest.raises(ValueError):
+            DecisionBlock.from_mapping(
+                {"intent": "Show resort", "payload": PAYLOAD, "layout": [invalid_item]}
+            )
+
+    # Reject non-array or non-string layout items
+    with pytest.raises(TypeError, match="layout"):
+        DecisionBlock.from_mapping(
+            {"intent": "Show resort", "payload": PAYLOAD, "layout": "picture:name"}
+        )
+    with pytest.raises(TypeError, match="layout"):
+        DecisionBlock.from_mapping(
+            {"intent": "Show resort", "payload": PAYLOAD, "layout": [123]}
+        )
+
+
 def test_prompt_generator_lists_components_and_templates() -> None:
+    from a2ui.inference_formats.decision.archetypes import ArchetypeGrammar
+
     catalog = _make_catalog()
     registry = TemplateRegistry()
     registry.register(_badge_template())
     gen = DecisionPromptGenerator([catalog], registry=registry)
     prompt = gen.generate()
     assert "<a2ui>" in prompt and "intent" in prompt and "payload" in prompt
+    assert "`layout`" in prompt
+    for role in ArchetypeGrammar.default().brief_roles():
+        assert f"`{role}`" in prompt
     assert "- TelemetryBadge" in prompt
     assert "`badge_tpl`: Pre-approved telemetry badge" in prompt
     assert gen.generate_catalog_instructions(include_schema=False) == ""
