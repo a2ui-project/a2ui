@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **BREAKING**: `DirectJsonPromptGenerator.generate_base_rules()` now returns
+  the workflow rules followed by a schema block holding the protocol schemas
+  (the agent-to-renderer schema and the common types the format's catalogs
+  use), and takes an optional `allowed_messages`.
+  `generate_catalog_instructions()` now returns only the catalog schemas, and
+  no longer takes `allowed_messages`. A Direct JSON skill from `SkillGenerator`
+  therefore holds the protocol schemas once: the monolithic skill no longer
+  repeats them for each catalog, and in a modular skill set they move from each
+  catalog skill into `a2ui-core` (#3526). `generate()` and `prompt_snippet` are
+  unchanged. Code that put `generate_base_rules()` next to `schema_to_prompt()`
+  output, as `SendA2uiToClientToolset` users do, should use
+  `DEFAULT_WORKFLOW_RULES` instead to avoid repeating the protocol schemas.
 - Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
   `a2ui.constants`, the message metadata key under which the v1.0 A2A
   extension sends the renderer capabilities. v0.8 and v0.9 use
