@@ -230,22 +230,47 @@ String? extractErrorCode(A2uiError error) {
 ///   `"code/path not asserted: ..."` rather than silently passing.
 Matcher matchesErrorFields(
   Map<String, Object?> expectedError, {
+  Object? rawMessage,
+  String defaultVersion = 'v0.9',
+  ErrorMessage? capturedErrorMessage,
   void Function(String message) onUnassertedField = markTestSkipped,
 }) =>
     _ErrorFieldsMatcher(
       expectedCode: expectedError['code'] as String?,
       expectedPath: expectedError['path'] as String?,
+      expectedSurfaceId: expectedError['surfaceId'] as String?,
+      expectedFunctionCallId: expectedError['functionCallId'] as String?,
+      expectedDetails: expectedError['details'] as List<Object?>?,
+      expectedRendererError:
+          expectedError['rendererError'] as Map<String, Object?>?,
+      rawMessage: rawMessage,
+      defaultVersion: defaultVersion,
+      capturedErrorMessage: capturedErrorMessage,
       onUnassertedField: onUnassertedField,
     );
 
 class _ErrorFieldsMatcher extends Matcher {
   final String? expectedCode;
   final String? expectedPath;
+  final String? expectedSurfaceId;
+  final String? expectedFunctionCallId;
+  final List<Object?>? expectedDetails;
+  final Map<String, Object?>? expectedRendererError;
+  final Object? rawMessage;
+  final String defaultVersion;
+  final ErrorMessage? capturedErrorMessage;
   final void Function(String message) onUnassertedField;
 
   const _ErrorFieldsMatcher({
     this.expectedCode,
     this.expectedPath,
+    this.expectedSurfaceId,
+    this.expectedFunctionCallId,
+    this.expectedDetails,
+    this.expectedRendererError,
+    this.rawMessage,
+    this.defaultVersion = 'v0.9',
+    this.capturedErrorMessage,
     required this.onUnassertedField,
   });
 
@@ -256,28 +281,27 @@ class _ErrorFieldsMatcher extends Matcher {
       return false;
     }
 
+    final ErrorMessage mapped = capturedErrorMessage ??
+        MessageErrorMapper.map(
+          item,
+          rawMessage: rawMessage,
+          defaultVersion: defaultVersion,
+        );
     final unasserted = <String>[];
 
-    if (expectedCode != null) {
-      final String? actualCode = extractErrorCode(item);
-      if (actualCode == null) {
-        unasserted.add('code "$expectedCode"');
-      } else if (actualCode != expectedCode) {
-        matchState['reason'] =
-            'has code "$actualCode" instead of "$expectedCode"';
-        return false;
-      }
+    if (!_matchesCodeAndPath(item, mapped, unasserted, matchState) ||
+        !_matchesContextIds(item, mapped, matchState)) {
+      return false;
     }
 
-    if (expectedPath != null) {
-      final (bool supported, String? actualPath) = extractErrorPath(item);
-      if (!supported) {
-        unasserted.add('path "$expectedPath"');
-      } else if (actualPath != expectedPath) {
-        matchState['reason'] =
-            'has path "$actualPath" instead of "$expectedPath"';
-        return false;
-      }
+    if (expectedDetails != null &&
+        !_matchesDetails(item, expectedDetails!, matchState)) {
+      return false;
+    }
+
+    if (expectedRendererError != null &&
+        !_matchesRendererError(mapped, expectedRendererError!, matchState)) {
+      return false;
     }
 
     if (unasserted.isNotEmpty) {
@@ -287,6 +311,182 @@ class _ErrorFieldsMatcher extends Matcher {
       );
     }
 
+    return true;
+  }
+
+  bool _matchesCodeAndPath(
+    A2uiError item,
+    ErrorMessage mapped,
+    List<String> unasserted,
+    Map<dynamic, dynamic> matchState,
+  ) {
+    if (expectedCode != null) {
+      final String? actualCode = extractErrorCode(item);
+      final String wireCode = mapped.error.code;
+      if (actualCode == null) {
+        unasserted.add('code "$expectedCode"');
+      } else if (actualCode != expectedCode && wireCode != expectedCode) {
+        matchState['reason'] = 'has code "$actualCode" (wire "$wireCode") '
+            'instead of "$expectedCode"';
+        return false;
+      }
+    }
+
+    if (expectedPath != null) {
+      final (bool supported, String? actualPath) = extractErrorPath(item);
+      if (!supported) {
+        unasserted.add('path "$expectedPath"');
+      } else if (actualPath != expectedPath &&
+          mapped.error.path != expectedPath) {
+        matchState['reason'] =
+            'has path "$actualPath" instead of "$expectedPath"';
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _matchesContextIds(
+    A2uiError item,
+    ErrorMessage mapped,
+    Map<dynamic, dynamic> matchState,
+  ) {
+    if (expectedSurfaceId != null) {
+      final String? actualSurfaceId = item.surfaceId ?? mapped.error.surfaceId;
+      if (actualSurfaceId != expectedSurfaceId) {
+        matchState['reason'] =
+            'has surfaceId "$actualSurfaceId" instead of "$expectedSurfaceId"';
+        return false;
+      }
+    }
+
+    if (expectedFunctionCallId != null) {
+      final String? actualCallId =
+          item.functionCallId ?? mapped.error.functionCallId;
+      if (actualCallId != expectedFunctionCallId) {
+        matchState['reason'] = 'has functionCallId "$actualCallId" instead of '
+            '"$expectedFunctionCallId"';
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _matchesDetails(
+    A2uiError item,
+    List<Object?> expectedList,
+    Map<dynamic, dynamic> matchState,
+  ) {
+    if (item is! A2uiValidationError) {
+      matchState['reason'] =
+          'expected A2uiValidationError with details, got ${item.runtimeType}';
+      return false;
+    }
+    for (final entry in expectedList) {
+      if (entry is! Map<String, Object?>) continue;
+      if (!item.errors.any((d) => _detailMatches(d, entry))) {
+        matchState['reason'] =
+            'missing expected detail $entry in ${item.errors}';
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _detailMatches(A2uiErrorDetail d, Map<String, Object?> entry) {
+    final expPath = entry['path'] as String?;
+    final expCode = entry['code'] as String?;
+    final expSurfaceId = entry['surfaceId'] as String?;
+    final expMessage = entry['message'] as String?;
+    return (expPath == null || d.path == expPath || d.path == '/$expPath') &&
+        (expCode == null || d.code == expCode) &&
+        (expSurfaceId == null || d.surfaceId == expSurfaceId) &&
+        (expMessage == null || _textMatches(d.message, expMessage));
+  }
+
+  static bool _textMatches(String actual, String expected) {
+    if (actual.toLowerCase().contains(expected.toLowerCase())) return true;
+    final String aligned = expected
+        .replaceAll('allowedParents', '(allowedParents|Allowed parents)')
+        .replaceAll('allowedChildren', '(allowedChildren|Allowed children)');
+    try {
+      return RegExp(aligned, caseSensitive: false).hasMatch(actual);
+    } on FormatException {
+      return false;
+    }
+  }
+
+  bool _matchesRendererError(
+    ErrorMessage actualMessage,
+    Map<String, Object?> expectedEnvelope,
+    Map<dynamic, dynamic> matchState,
+  ) {
+    final expVersion = expectedEnvelope['version'] as String?;
+    if (expVersion != null && actualMessage.version != expVersion) {
+      matchState['reason'] = 'rendererError.version was '
+          '"${actualMessage.version}" instead of "$expVersion"';
+      return false;
+    }
+    final expErr = expectedEnvelope['error'] as Map<String, Object?>?;
+    if (expErr == null) return true;
+    final A2uiRendererError actual = actualMessage.error;
+    return _matchesRendererErrorIds(actual, expErr, matchState) &&
+        _matchesRendererErrorFields(actual, expErr, matchState);
+  }
+
+  static bool _matchesRendererErrorIds(
+    A2uiRendererError actual,
+    Map<String, Object?> expErr,
+    Map<dynamic, dynamic> matchState,
+  ) {
+    if (expErr.containsKey('surfaceId')) {
+      final expSurface = expErr['surfaceId'] as String?;
+      if (actual.surfaceId != expSurface) {
+        matchState['reason'] = 'rendererError.error.surfaceId was '
+            '"${actual.surfaceId}" instead of "$expSurface"';
+        return false;
+      }
+    } else if (expErr.containsKey('functionCallId') &&
+        actual.surfaceId != null) {
+      matchState['reason'] = 'rendererError.error.surfaceId was '
+          '"${actual.surfaceId}" instead of null';
+      return false;
+    }
+    if (expErr.containsKey('functionCallId')) {
+      final expCallId = expErr['functionCallId'] as String?;
+      if (actual.functionCallId != expCallId) {
+        matchState['reason'] = 'rendererError.error.functionCallId was '
+            '"${actual.functionCallId}" instead of "$expCallId"';
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _matchesRendererErrorFields(
+    A2uiRendererError actual,
+    Map<String, Object?> expErr,
+    Map<dynamic, dynamic> matchState,
+  ) {
+    if (expErr['code'] case final String expCode when actual.code != expCode) {
+      matchState['reason'] =
+          'rendererError.error.code was "${actual.code}" instead of "$expCode"';
+      return false;
+    }
+    if (expErr.containsKey('path')) {
+      final expPath = expErr['path'] as String?;
+      if (actual.path != expPath) {
+        matchState['reason'] = 'rendererError.error.path was "${actual.path}" '
+            'instead of "$expPath"';
+        return false;
+      }
+    }
+    if (expErr['message'] case final String expMsg
+        when !_textMatches(actual.message, expMsg)) {
+      matchState['reason'] = 'rendererError.error.message '
+          '"${actual.message}" did not match "$expMsg"';
+      return false;
+    }
     return true;
   }
 
@@ -336,6 +536,7 @@ Catalog<ComponentApi, FunctionImplementation> basicCatalogFor(
     components: basic.components.values.toList(),
     functions: basic.functions.values.toList(),
     themeSchema: basic.themeSchema,
+    definitions: basic.definitions,
     schemaId: basic.schemaId,
     title: basic.title,
     description: basic.description,
