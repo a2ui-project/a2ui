@@ -178,25 +178,37 @@ def _binding_path(v: Any, path_key: str) -> str | None:
     return val if isinstance(val, str) else None
 
 
-def _has_databinding(v: Any, path_key: str, call_key: str) -> bool:
-    """Recursively checks if a value structure contains a dynamic data binding.
+def _has_databinding(
+    node: Any,
+    raw_symbols: dict[str, Any],
+    seen: frozenset[str] = frozenset(),
+) -> bool:
+    """Checks whether an AST value writes a data binding outside of any call.
+
+    The check runs on the AST rather than on the compiled value, so that a map
+    literal whose keys are named like a call, an event or a function call
+    (`call`, `@call`, `event`, `functionCall`) is still searched. The arguments
+    of calls, events and templates are not searched, since a function resolves
+    its own arguments.
 
     Args:
-        v: The value (dict, list, or primitive) to inspect.
-        path_key: The data binding key of the target version.
-        call_key: The function call key of the target version.
+        node: The AST value (node, dict, list, or primitive) to inspect.
+        raw_symbols: The variables of the block, to follow references.
+        seen: The variables already followed, which guards against cycles.
 
     Returns:
-        True if a dynamic DataBinding is found; False otherwise.
+        True if a `$path` is found; False otherwise.
     """
-    if isinstance(v, dict):
-        if any(k in v for k in (call_key, "event", "functionCall")):
+    if isinstance(node, PathNode):
+        return True
+    if isinstance(node, VariableNode):
+        if node.name in seen or node.name not in raw_symbols:
             return False
-        if _binding_path(v, path_key) is not None:
-            return True
-        return any(_has_databinding(x, path_key, call_key) for x in v.values())
-    if isinstance(v, list):
-        return any(_has_databinding(x, path_key, call_key) for x in v)
+        return _has_databinding(raw_symbols[node.name], raw_symbols, seen | {node.name})
+    if isinstance(node, dict):
+        return any(_has_databinding(v, raw_symbols, seen) for v in node.values())
+    if isinstance(node, list):
+        return any(_has_databinding(v, raw_symbols, seen) for v in node)
     return False
 
 
@@ -1138,7 +1150,7 @@ class ExpressCompiler:
             )
             prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
-                if _has_databinding(mapped_val, ctx.path_key, ctx.call_key):
+                if _has_databinding(arg, raw_symbols):
                     raise ExpressForbiddenDatabindingError(comp_name, prop_name)
                 if isinstance(mapped_val, list) and _schema_expects_option_objects(
                     prop_schema
@@ -1148,11 +1160,7 @@ class ExpressCompiler:
                         for opt in mapped_val
                     ]
             enum_vals = comp_helper.get_property_enum(comp_name, prop_name)
-            if (
-                enum_vals
-                and not isinstance(mapped_val, (dict, list))
-                and not _has_databinding(mapped_val, ctx.path_key, ctx.call_key)
-            ):
+            if enum_vals and not isinstance(mapped_val, (dict, list)):
                 if mapped_val not in enum_vals:
                     raise ExpressValidationError(
                         f"Value '{mapped_val}' is not a valid enum choice for"

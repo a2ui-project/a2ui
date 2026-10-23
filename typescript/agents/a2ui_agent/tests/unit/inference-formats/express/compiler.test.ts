@@ -368,6 +368,25 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect((root.payload as {polluted?: unknown}).polluted).toBeUndefined();
       expect(({} as {polluted?: unknown}).polluted).toBeUndefined();
     });
+
+    it('keeps a __proto__ key in an Event context as data', () => {
+      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('root = Probe({e: Event("go", {"__proto__": {polluted: true}, n: 1})})'),
+      ) as Array<{payload: {e: {event: {context: Record<string, unknown>}}}}>;
+      const context = root.payload.e.event.context;
+
+      expect(Object.getPrototypeOf(context)).toBe(Object.prototype);
+      expect(Object.keys(context)).toEqual(['__proto__', 'n']);
+      expect((context as {polluted?: unknown}).polluted).toBeUndefined();
+    });
+
+    it('rejects a __proto__ keyword argument as an unknown property', () => {
+      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      expect(() => compiler.compile('root = Probe(payload={a: 1}, __proto__={b: 2})')).toThrow(
+        ExpressUnknownPropertyError,
+      );
+    });
   });
 
   describe('_template argument errors', () => {

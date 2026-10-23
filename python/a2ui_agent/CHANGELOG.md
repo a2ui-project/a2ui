@@ -8,6 +8,18 @@
   later, only `@path` marks a data binding when the compiler checks a property
   that does not admit one, so a plain `path` key is data. A `_` anywhere but in
   place of an argument now raises `ExpressValidationError`.
+- The Express compiler finds a data binding inside a map literal given to a
+  property that does not admit one even when the map has keys named `event`,
+  `functionCall` or `@call`, and raises `ExpressForbiddenDatabindingError`.
+- A map literal with a `catalogId` key among the arguments of an Express check
+  holds the check's options: any other key in it, or two such maps naming
+  different catalogs, raises `ExpressValidationError`. Before, only a map with
+  a single `catalogId` string was read as options, and any other was passed to
+  the check as an argument.
+- The Express decompiler reads only the binding and function call keys of the
+  catalogs' version, so in v1.0 an object with a plain `path` or `call` key is
+  written as a map literal rather than as a data binding or function call. An
+  `event` or `functionCall` key whose value is not an object is also data.
 - Package dependency updated to require `a2ui-core>=0.4.1,<0.5.0`.
 - The response parsers for Direct JSON, Express, Elemental and Atom remove the
   backticks left at the edges of a block when a model writes the tags as inline

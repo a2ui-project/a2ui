@@ -132,12 +132,13 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
             args.append(self.visit(expr))
         return CheckNode(name, args)
 
-    def visitArg(self, ctx: ExpressParser.ArgContext) -> dict[str, Any]:
+    def visitArg(self, ctx: ExpressParser.ArgContext) -> tuple[str | None, Any]:
         # arg : named_arg | expression ;
+        # Returns (name, value), with a name of None for a positional argument.
         if ctx.named_arg():
             k, v = self.visit(ctx.named_arg())
-            return {"type": "kw", "key": k, "value": v}
-        return {"type": "pos", "value": self.visit(ctx.expression())}
+            return k, v
+        return None, self.visit(ctx.expression())
 
     def visitNamed_arg(self, ctx: ExpressParser.Named_argContext) -> tuple[str, Any]:
         # named_arg : identifier '=' expression ;
@@ -151,13 +152,11 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
         args = []
         kwargs = {}
         for arg_ctx in ctx.arg():
-            res = self.visit(arg_ctx)
-            if isinstance(res, dict) and res.get("type") == "kw":
-                kwargs[res["key"]] = res["value"]
-            elif isinstance(res, dict) and res.get("type") == "pos":
-                args.append(res["value"])
+            key, value = self.visit(arg_ctx)
+            if key is None:
+                args.append(value)
             else:
-                args.append(res)
+                kwargs[key] = value
         return CallNode(name, args, kwargs)
 
     def visitVariable(

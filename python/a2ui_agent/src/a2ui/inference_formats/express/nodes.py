@@ -42,7 +42,7 @@ class SkippedNode:
     """The `_` placeholder that skips a positional argument."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CallNode:
     """A component or function call such as `Text("Hi", variant="h1")`."""
 
@@ -51,7 +51,7 @@ class CallNode:
     kwargs: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True)
 class CheckNode:
     """A check such as `?required` or `?length(min=1)`."""
 

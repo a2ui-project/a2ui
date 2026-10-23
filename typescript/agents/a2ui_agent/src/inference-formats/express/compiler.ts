@@ -117,46 +117,6 @@ export function setNestedPath(d: Record<string, unknown>, pathStr: string, val: 
 }
 
 /**
- * Recursively checks if a compiled value contains a dynamic DataBinding ($path) ref (compiler.py:104-122).
- *
- * @param v The compiled value.
- * @param keys The wire keys of the protocol version the value was compiled for.
- */
-export function hasDatabinding(v: unknown, keys: ReservedKeys): boolean {
-  if (v && typeof v === 'object') {
-    if (Array.isArray(v)) {
-      return v.some(item => hasDatabinding(item, keys));
-    }
-    const obj = v as Record<string, unknown>;
-    if (keys.call in obj || 'event' in obj || 'functionCall' in obj) {
-      return false;
-    }
-    if (keys.path in obj && !('componentId' in obj)) {
-      return true;
-    }
-    return Object.values(obj).some(item => hasDatabinding(item, keys));
-  }
-  return false;
-}
-
-/**
- * Checks if a compiled value is a direct dynamic DataBinding ($path) ref.
- *
- * @param v The compiled value.
- * @param keys The wire keys of the protocol version the value was compiled for.
- */
-function isDirectBinding(v: unknown, keys: ReservedKeys): boolean {
-  if (!v || typeof v !== 'object' || Array.isArray(v)) {
-    return false;
-  }
-  const obj = v as Record<string, unknown>;
-  if (keys.call in obj || 'event' in obj || 'functionCall' in obj) {
-    return false;
-  }
-  return keys.path in obj && !('componentId' in obj);
-}
-
-/**
  * Checks if a parsed AST value represents a validation check expression (compiler.py:154-160).
  */
 export function isCheckExpression(val: unknown): boolean {
@@ -997,7 +957,7 @@ export class ExpressCompiler {
       // Gated like Python (compiler.py:547): a property whose schema admits a path
       // as a whole is not inspected further.
       if (propSchema && !compHelper.admitsPath(propSchema)) {
-        this._checkDataBindings(compName, propName, mappedVal, propSchema, compHelper);
+        this._checkDataBindings(compName, propName, arg, propSchema, compHelper, rawSymbols);
       }
 
       // Sanctioned departure §5.2 item 2: option-object coercion
@@ -1434,16 +1394,23 @@ export class ExpressCompiler {
           targetMajorMinor,
           isAction,
         );
+        // Entries are copied as own properties, so that a key such as `__proto__`
+        // stays data rather than changing the context's prototype.
         const compiledContext: Record<string, unknown> = {};
+        const mergeContext = (source: object): void => {
+          for (const [k, v] of Object.entries(source)) {
+            setOwnEntry(compiledContext, k, v);
+          }
+        };
         if (rawContext && typeof rawContext === 'object') {
           if (Array.isArray(rawContext)) {
             for (const item of rawContext) {
               if (item && typeof item === 'object' && !Array.isArray(item)) {
-                Object.assign(compiledContext, item);
+                mergeContext(item);
               }
             }
           } else {
-            Object.assign(compiledContext, rawContext);
+            mergeContext(rawContext);
           }
         }
         return {
@@ -1508,10 +1475,14 @@ export class ExpressCompiler {
   /**
    * Validates dynamic databindings against the schema (sanctioned departure §5.2 item 5).
    *
-   * Walks the compiled value alongside the schema. At each node, if the value is a
-   * dynamic databinding, it is allowed iff `helper.admitsPath(schemaAtThisPosition)`.
-   * Descends into arrays via schema `items` and into objects via `properties[key]`.
-   * If schema cannot be determined at a position, the binding is treated as allowed.
+   * Walks the AST value alongside the schema. At each node, a `$path` is allowed iff
+   * `helper.admitsPath(schemaAtThisPosition)`. Descends into arrays via schema `items`,
+   * into map literals via `properties[key]`, and into the value of a referenced
+   * variable. Walking the AST rather than the compiled value means a map literal whose
+   * keys are named like a call, an event or a function call is still searched. Calls,
+   * checks, events and templates are not searched, since they resolve their own
+   * arguments. If schema cannot be determined at a position, the binding is treated
+   * as allowed.
    */
   private _checkDataBindings(
     compName: string,
@@ -1519,33 +1490,36 @@ export class ExpressCompiler {
     val: unknown,
     schema: unknown,
     helper: CatalogSchemaHelper,
+    rawSymbols: Record<string, unknown>,
   ): void {
-    const walk = (v: unknown, s: unknown): void => {
-      if (isDirectBinding(v, helper.keys)) {
+    const walk = (v: unknown, s: unknown, seen: ReadonlySet<string>): void => {
+      if (isExpressNode(v, 'path')) {
         if (s && !helper.admitsPath(s)) {
           throw new ExpressForbiddenDatabindingError(compName, topLevelPropName);
+        }
+        return;
+      }
+      if (isExpressNode(v, 'variable')) {
+        if (!seen.has(v.name) && Object.hasOwn(rawSymbols, v.name)) {
+          walk(rawSymbols[v.name], s, new Set([...seen, v.name]));
         }
         return;
       }
       if (Array.isArray(v)) {
         const itemSchema = s ? helper.resolveSubschema(s, 'items') : undefined;
         for (const item of v) {
-          walk(item, itemSchema);
+          walk(item, itemSchema, seen);
         }
         return;
       }
-      if (v && typeof v === 'object') {
-        const obj = v as Record<string, unknown>;
-        if (helper.keys.call in obj || 'event' in obj || 'functionCall' in obj) {
-          return;
-        }
-        for (const [k, subVal] of Object.entries(obj)) {
+      if (isExpressNode(v, 'map')) {
+        for (const [k, subVal] of Object.entries(v.entries)) {
           const propSchema = s ? helper.resolveSubschema(s, k) : undefined;
-          walk(subVal, propSchema);
+          walk(subVal, propSchema, seen);
         }
       }
     };
 
-    walk(val, schema);
+    walk(val, schema, new Set());
   }
 }

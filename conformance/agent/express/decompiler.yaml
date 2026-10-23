@@ -800,3 +800,28 @@
           user:
             city: "London"
             name: "Ada"
+
+- name: test_decompile_express_map_with_keys_named_like_express_constructs
+  description: In v1.0 only `@path` marks a data binding and `@call` a function call, so an object whose keys are plain `path` or `call`, or whose `event` or `functionCall` is not an object, is data and writes back out as a map literal.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              path: "p"
+              call: "c"
+              variable: "m"
+              event: "e"
+              functionCall: "f"
+              count: 6
+  expect_contains:
+    - 'root = Probe({path: "p", call: "c", variable: "m", event: "e", functionCall: "f", count: 6})'
+  expect_round_trip: true

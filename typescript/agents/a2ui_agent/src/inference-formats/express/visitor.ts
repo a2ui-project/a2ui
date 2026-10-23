@@ -381,7 +381,7 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
     for (const argCtx of ctx.arg()) {
       const res = this.visit(argCtx);
       if (isArgKeyword(res)) {
-        kwargs[res.key] = res.value;
+        setOwnEntry(kwargs, res.key, res.value);
       } else if (isArgPositional(res)) {
         args.push(res.value);
       } else {

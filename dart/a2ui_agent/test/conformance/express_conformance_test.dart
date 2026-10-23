@@ -86,6 +86,11 @@ const Map<String, String> _v1OnlyCases = {
       _reservedPlainKeys,
   'test_compile_express_map_literals_in_function_arguments_keep_their_keys':
       _reservedPlainKeys,
+  'test_decompile_express_map_with_keys_named_like_express_constructs':
+      _reservedPlainKeys,
+  'test_compile_express_map_with_call_like_keys_still_rejects_bindings':
+      'Lowered to v0.9, this SDK does not reject a binding nested in a '
+      'free-form object property.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.

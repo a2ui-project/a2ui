@@ -1598,3 +1598,35 @@
                   nested:
                     path: "deep"
                     call: "c"
+
+- name: test_compile_express_map_with_call_like_keys_still_rejects_bindings
+  description: A path inside a map literal given to a property that admits no binding is a validation error, even when the map has keys named like an event or a function call, since a map literal is data and is searched like any other.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    root = Probe({event: "e", functionCall: "f", "@call": "c", inner: $/y})
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_skipped_outside_an_argument_is_a_validation_error
+  description: The `_` placeholder only stands in for an argument. Inside an array or a map literal it is a validation error rather than a value.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    root = Probe({items: [_]})
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_check_options_with_other_keys_is_a_validation_error
+  description: A map literal with a catalogId key in a check's arguments holds the check's options, and catalogId is the only option, so any other key is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Email", $/email, _, [?required("Email is required", {catalogId: "conformance/forms", extra: 1})])'
+  expect_error:
+    category: "ValidationError"
