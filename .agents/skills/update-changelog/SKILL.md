@@ -14,7 +14,7 @@ description: >-
 Before editing a `CHANGELOG.md` file, check which language directory the modified package belongs to:
 
 - **Dart / Flutter packages (`dart/*/CHANGELOG.md`)**:
-  - Load and follow [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md), which defines Dart-specific `Breaking:` annotations, `## Unreleased` consolidation rules, and `pubspec.yaml` versioning conventions.
+  - Load and follow [`dart/versioning-and-releases.md`](../coding-principles/subskills/dart/versioning-and-releases.md), which defines Dart-specific `Breaking:` annotations, `## Unreleased` consolidation rules, and `pubspec.yaml` versioning conventions.
 - **Python packages (`python/*/CHANGELOG.md`)**:
   - Follow the core rules below for `## Unreleased` entries during feature or bugfix PRs. When cutting a Python package release, load [`a2ui-release-python`](../a2ui-release-python/SKILL.md).
 - **TypeScript / Web packages (`typescript/*/*/CHANGELOG.md`)**:
@@ -109,7 +109,7 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
 ## Step-by-Step Workflow
 
 1. **Identify Affected Packages**:
-   Find the `CHANGELOG.md` in the root of each published package modified in the PR (e.g. `typescript/core/web_core/CHANGELOG.md`, `typescript/renderers/angular/CHANGELOG.md`, `typescript/renderers/lit/CHANGELOG.md`, `typescript/renderers/react/CHANGELOG.md`, `dart/a2ui_core/CHANGELOG.md`). If modifying a Dart package under `dart/`, follow [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md).
+   Find the `CHANGELOG.md` in the root of each published package modified in the PR (e.g. `typescript/core/web_core/CHANGELOG.md`, `typescript/renderers/angular/CHANGELOG.md`, `typescript/renderers/lit/CHANGELOG.md`, `typescript/renderers/react/CHANGELOG.md`, `dart/a2ui_core/CHANGELOG.md`). If modifying a Dart package under `dart/`, follow [`dart/versioning-and-releases.md`](../coding-principles/subskills/dart/versioning-and-releases.md).
 
 2. **Retrieve Current PR Number**:
 

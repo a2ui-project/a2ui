@@ -28,6 +28,13 @@
   variable name and `id="..."` so they round-trip through `ExpressCompiler`;
   from v1.0 onward, component ids that are not valid UAX 31 identifiers throw
   `A2uiValidationError`.
+- Express number literals follow the grammar of the core `${...}` expression
+  parsers: an optional sign, digits with an optional fraction (`.5`, `1.`) and
+  an optional exponent (`1e6`, `2.5E-7`). A literal outside the double range
+  (`1e999`) throws `A2uiParseError`. `ExpressDecompiler` now writes doubles
+  that need exponent notation (`1e-7`, `1e+21`) instead of throwing, and
+  throws `A2uiValidationError` only for non-finite values
+  ([#3019](https://github.com/a2ui-project/a2ui/issues/3019)).
 - Requires the next release of `a2ui_core`, which adds
   `SurfaceComponentsModel.insertComponent`, `insertComponents`,
   `saveReferenceFields` and `restoreReferenceFields` and
