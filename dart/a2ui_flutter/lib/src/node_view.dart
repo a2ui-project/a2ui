@@ -39,9 +39,40 @@ class NodeView extends StatefulWidget {
 
 class _NodeViewState extends State<NodeView> with SignalState {
   late void Function() _unsubscribe;
+  final List<void Function()> _accessibilityUnsubscribes = [];
 
   void _subscribe() {
-    _unsubscribe = listenAfterFirst(widget.node.props, (_) => signalChanged());
+    _unsubscribe = listenAfterFirst(widget.node.props, (_) {
+      _subscribeAccessibility();
+      signalChanged();
+    });
+    _subscribeAccessibility();
+  }
+
+  void _subscribeAccessibility() {
+    _unsubscribeAccessibility();
+    final ComponentContext? context = widget.node.context;
+    final Object? attributes = ComponentProps(widget.node.props.peek())
+        .value('accessibility');
+    if (context == null || attributes is! Map) return;
+    for (final Object? raw in attributes.values) {
+      final Object? unwrapped = ComponentProps.unwrap(raw);
+      if (unwrapped is Map) {
+        _accessibilityUnsubscribes.add(
+          listenAfterFirst(
+            context.dataContext.resolveSignal(unwrapped),
+            (_) => signalChanged(),
+          ),
+        );
+      }
+    }
+  }
+
+  void _unsubscribeAccessibility() {
+    for (final void Function() dispose in _accessibilityUnsubscribes) {
+      dispose();
+    }
+    _accessibilityUnsubscribes.clear();
   }
 
   @override
@@ -54,6 +85,7 @@ class _NodeViewState extends State<NodeView> with SignalState {
   void didUpdateWidget(NodeView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.node, widget.node)) {
+      _unsubscribeAccessibility();
       _unsubscribe();
       _subscribe();
     }
@@ -61,6 +93,7 @@ class _NodeViewState extends State<NodeView> with SignalState {
 
   @override
   void dispose() {
+    _unsubscribeAccessibility();
     _unsubscribe();
     super.dispose();
   }
@@ -82,28 +115,29 @@ class _NodeViewState extends State<NodeView> with SignalState {
 }
 
 /// Builds a resolved [node] through its implementation, in a [Semantics]
-/// with the component's `accessibility` label and description. The
-/// [Semantics] is there even without them, so adding one later keeps the
-/// subtree's state.
+/// with the component's `accessibility` attributes. The [Semantics] is there
+/// even without them, so adding one later keeps the subtree's state.
 Widget _buildResolved(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
 ) {
   final props = ComponentProps(node.props.peek());
   final Object? attributes = props.value('accessibility');
-  String? read(String key) {
-    final String? text = attributes is Map
-        ? ComponentProps.asString(attributes[key])
-        : null;
-    return text == null || text.isEmpty ? null : text;
-  }
-
-  final String? label = read('label');
-  final String? description = read('description');
+  final String? label = _readAccessibilityString(node, attributes, 'label');
+  final String? description = _readAccessibilityString(
+    node,
+    attributes,
+    'description',
+  );
+  final String? live = _readAccessibilityString(node, attributes, 'live');
+  final bool liveRegion = live == 'polite' || live == 'assertive';
+  final bool hidden = _readAccessibilityBool(node, attributes, 'hidden');
   return Semantics(
-    container: label != null || description != null,
+    container: label != null || description != null || liveRegion || hidden,
     label: label,
     hint: description,
+    liveRegion: liveRegion ? true : null,
+    hidden: hidden ? true : null,
     // A type or catalog change keeps the instance id, so the implementation
     // keys the subtree.
     child: KeyedSubtree(
@@ -111,6 +145,42 @@ Widget _buildResolved(
       child: node.impl!.builder(context, node, props, NodeView.new),
     ),
   );
+}
+
+Object? _resolveAccessibilityValue(
+  ComponentNode<ComponentImplementation> node,
+  Object? raw,
+) {
+  final Object? unwrapped = ComponentProps.unwrap(raw);
+  final ComponentContext? context = node.context;
+  if (unwrapped is Map && context != null) {
+    return context.dataContext.resolveDynamicValue(unwrapped);
+  }
+  return unwrapped;
+}
+
+String? _readAccessibilityString(
+  ComponentNode<ComponentImplementation> node,
+  Object? attributes,
+  String key,
+) {
+  if (attributes is! Map) return null;
+  final String? text = ComponentProps.asString(
+    _resolveAccessibilityValue(node, attributes[key]),
+  );
+  return text == null || text.isEmpty ? null : text;
+}
+
+bool _readAccessibilityBool(
+  ComponentNode<ComponentImplementation> node,
+  Object? attributes,
+  String key,
+) {
+  if (attributes is! Map) return false;
+  return ComponentProps.asBoolean(
+        _resolveAccessibilityValue(node, attributes[key]),
+      ) ??
+      false;
 }
 
 /// A small progress indicator that stands in for a component that has not
