@@ -20,6 +20,9 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from .models import SemanticType
+from .semantic_types import classify_array_field, classify_scalar, humanize_key
+
 PointerValueType = Literal["string", "number", "boolean", "array", "object"]
 
 
@@ -123,8 +126,10 @@ def _record_element_mapping(
     item: Mapping[str, Any],
     element_keys: list[str],
     sample_type_by_key: dict[str, str],
+    values_by_key: dict[str, list[Any]],
+    siblings_by_key: dict[str, list[Mapping[str, Any]]],
 ) -> None:
-    """Records RFC 6901-escaped keys and sample types from an array dict element."""
+    """Records RFC 6901-escaped keys, coarse types, and column values from a dict item."""
     for raw_key, raw_val in item.items():
         key = _escape_pointer_segment(str(raw_key))
         if key not in element_keys:
@@ -133,6 +138,38 @@ def _record_element_mapping(
             val_type = _classify_value_type(raw_val)
             if val_type is not None:
                 sample_type_by_key[key] = val_type
+        values_by_key.setdefault(key, []).append(raw_val)
+        siblings_by_key.setdefault(key, []).append(item)
+
+
+def _compute_element_semantics(
+    path: str,
+    items: Sequence[Any],
+    unescaped_key: str,
+    element_keys: Sequence[str],
+    values_by_key: Mapping[str, Sequence[Any]],
+    siblings_by_key: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> tuple[dict[str, str], tuple[str, ...]]:
+    """Computes `element_semantic_types` and `sample_pointers` for an array node."""
+    element_semantic_types: dict[str, str] = {}
+    sample_pointers: list[str] = []
+    for key in element_keys:
+        raw_field = _unescape_pointer_segment(key)
+        sem = classify_array_field(
+            values_by_key.get(key, ()),
+            raw_field,
+            siblings_per_item=siblings_by_key.get(key),
+        )
+        element_semantic_types[key] = sem.value
+        if sem == SemanticType.IMAGE_URL:
+            sample_pointers.append(f"{path}/0/{key}")
+
+    if not element_keys and items:
+        scalar_sem = classify_array_field(items, unescaped_key)
+        if scalar_sem == SemanticType.IMAGE_URL:
+            sample_pointers.append(f"{path}/0")
+
+    return element_semantic_types, tuple(sample_pointers)
 
 
 def _summarize_array(
@@ -141,9 +178,28 @@ def _summarize_array(
     """Builds a PointerSummary for an array node without recursing into indices."""
     element_keys: list[str] = []
     sample_type_by_key: dict[str, str] = {}
+    values_by_key: dict[str, list[Any]] = {}
+    siblings_by_key: dict[str, list[Mapping[str, Any]]] = {}
     for item in items:
         if isinstance(item, Mapping):
-            _record_element_mapping(item, element_keys, sample_type_by_key)
+            _record_element_mapping(
+                item,
+                element_keys,
+                sample_type_by_key,
+                values_by_key,
+                siblings_by_key,
+            )
+
+    _, unescaped_key = split_pointer(path)
+    element_semantic_types, sample_pointers = _compute_element_semantics(
+        path,
+        items,
+        unescaped_key,
+        element_keys,
+        values_by_key,
+        siblings_by_key,
+    )
+    sem_type = SemanticType.ARRAY.value if items else SemanticType.EMPTY.value
     return PointerSummary(
         path=path,
         value_type="array",
@@ -151,6 +207,30 @@ def _summarize_array(
         element_keys=tuple(element_keys),
         sample_type_by_key=sample_type_by_key,
         mutable_hint=is_mutable,
+        semantic_type=sem_type,
+        key=unescaped_key,
+        label=humanize_key(unescaped_key),
+        element_semantic_types=element_semantic_types,
+        sample_pointers=sample_pointers,
+    )
+
+
+def _summarize_mapping_node(
+    path: str,
+    value: Mapping[str, Any],
+    raw_key: str,
+    is_mutable: bool,
+) -> PointerSummary:
+    """Builds a `PointerSummary` for a nested mapping (empty or non-empty)."""
+    sem_type = SemanticType.OBJECT.value if value else SemanticType.EMPTY.value
+    return PointerSummary(
+        path=path,
+        value_type="object",
+        cardinality=len(value),
+        mutable_hint=is_mutable,
+        semantic_type=sem_type,
+        key=raw_key,
+        label=humanize_key(raw_key),
     )
 
 
@@ -162,20 +242,13 @@ def _traverse_mapping(
 ) -> None:
     """Recursively walks `node` and appends `PointerSummary` entries to `out`."""
     for raw_key, value in node.items():
-        segment = _escape_pointer_segment(str(raw_key))
+        raw_key_str = str(raw_key)
+        segment = _escape_pointer_segment(raw_key_str)
         path = f"{prefix}/{segment}"
         is_mutable = _is_mutable_path(path, mutable_set)
         if isinstance(value, Mapping):
-            if not value:
-                out.append(
-                    PointerSummary(
-                        path=path,
-                        value_type="object",
-                        cardinality=0,
-                        mutable_hint=is_mutable,
-                    )
-                )
-            else:
+            out.append(_summarize_mapping_node(path, value, raw_key_str, is_mutable))
+            if value:
                 _traverse_mapping(value, path, mutable_set, out)
             continue
         if isinstance(value, Sequence) and not isinstance(
@@ -185,12 +258,17 @@ def _traverse_mapping(
             continue
         scalar_type = _classify_value_type(value)
         if scalar_type is not None:
+            sem_type, hints = classify_scalar(value, raw_key_str, siblings=node)
             out.append(
                 PointerSummary(
                     path=path,
                     value_type=scalar_type,
                     cardinality=1,
                     mutable_hint=is_mutable,
+                    semantic_type=sem_type.value,
+                    hints=hints,
+                    key=raw_key_str,
+                    label=humanize_key(raw_key_str),
                 )
             )
 

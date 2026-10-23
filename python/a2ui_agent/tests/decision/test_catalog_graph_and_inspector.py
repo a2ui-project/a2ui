@@ -340,6 +340,7 @@ class TestPayloadInspector:
         by_path = {p.path: p for p in pointers}
 
         assert set(by_path) == {
+            "/metrics",
             "/metrics/cpu",
             "/metrics/cores",
             "/metrics/throttled",
@@ -347,23 +348,54 @@ class TestPayloadInspector:
             "/metrics/host",
             "/emptyConfig",
         }
+        assert by_path["/metrics"] == PointerSummary(
+            path="/metrics",
+            value_type="object",
+            cardinality=5,
+            semantic_type="object",
+            label="Metrics",
+        )
         assert by_path["/metrics/cpu"] == PointerSummary(
-            path="/metrics/cpu", value_type="number", cardinality=1
+            path="/metrics/cpu",
+            value_type="number",
+            cardinality=1,
+            semantic_type="number",
+            label="Cpu",
         )
         assert by_path["/metrics/cores"] == PointerSummary(
-            path="/metrics/cores", value_type="number", cardinality=1
+            path="/metrics/cores",
+            value_type="number",
+            cardinality=1,
+            semantic_type="integer",
+            label="Cores",
         )
         assert by_path["/metrics/throttled"] == PointerSummary(
-            path="/metrics/throttled", value_type="boolean", cardinality=1
+            path="/metrics/throttled",
+            value_type="boolean",
+            cardinality=1,
+            semantic_type="boolean",
+            label="Throttled",
         )
         assert by_path["/metrics/healthy"] == PointerSummary(
-            path="/metrics/healthy", value_type="boolean", cardinality=1
+            path="/metrics/healthy",
+            value_type="boolean",
+            cardinality=1,
+            semantic_type="boolean",
+            label="Healthy",
         )
         assert by_path["/metrics/host"] == PointerSummary(
-            path="/metrics/host", value_type="string", cardinality=1
+            path="/metrics/host",
+            value_type="string",
+            cardinality=1,
+            semantic_type="string",
+            label="Host",
         )
         assert by_path["/emptyConfig"] == PointerSummary(
-            path="/emptyConfig", value_type="object", cardinality=0
+            path="/emptyConfig",
+            value_type="object",
+            cardinality=0,
+            semantic_type="empty",
+            label="Empty config",
         )
 
     def test_array_of_dicts_collects_element_keys_without_recursing(self) -> None:
@@ -378,7 +410,9 @@ class TestPayloadInspector:
         summary = pointers[0]
         assert summary.path == "/positions"
         assert summary.value_type == "array"
+        assert summary.semantic_type == "array"
         assert summary.cardinality == 2
+        assert summary.label == "Positions"
         assert summary.element_keys == ("ticker", "shares", "hedged", "sector")
         assert summary.sample_type_by_key == {
             "ticker": "string",
@@ -386,6 +420,33 @@ class TestPayloadInspector:
             "hedged": "boolean",
             "sector": "string",
         }
+        assert summary.element_semantic_types == {
+            "ticker": "string",
+            "shares": "integer",
+            "hedged": "boolean",
+            "sector": "string",
+        }
+
+    def test_array_sample_pointers_and_label_derivation(self) -> None:
+        payload = {
+            "photoGallery": [
+                {"url": "https://example.com/1.jpg", "caption": "Pool"},
+                {"url": "https://example.com/2.jpg", "caption": "Garden"},
+            ],
+            "bannerImages": [
+                "https://example.com/hero1.png",
+                "https://example.com/hero2.png",
+            ],
+        }
+        by_path = {p.path: p for p in inspect_payload_pointers(payload)}
+        gallery = by_path["/photoGallery"]
+        assert gallery.label == "Photo gallery"
+        assert gallery.element_semantic_types["url"] == "image_url"
+        assert gallery.sample_pointers == ("/photoGallery/0/url",)
+
+        banners = by_path["/bannerImages"]
+        assert banners.label == "Banner images"
+        assert banners.sample_pointers == ("/bannerImages/0",)
 
     def test_rfc6901_tilde_and_slash_escaping(self) -> None:
         payload = {
@@ -394,7 +455,15 @@ class TestPayloadInspector:
         }
         pointers = inspect_payload_pointers(payload)
         by_path = {p.path: p for p in pointers}
-        assert list(by_path) == ["/a~1b/c~0d", "/a~1b/normal", "/rows"]
+        assert list(by_path) == [
+            "/a~1b",
+            "/a~1b/c~0d",
+            "/a~1b/normal",
+            "/rows",
+        ]
+        assert by_path["/a~1b"].key == "a/b"
+        assert by_path["/a~1b/c~0d"].key == "c~d"
+        assert by_path["/a~1b/c~0d"].parent == "/a~1b"
         assert by_path["/rows"].element_keys == ("service~1name", "latency~0ms")
         assert by_path["/rows"].sample_type_by_key == {
             "service~1name": "string",
@@ -412,9 +481,11 @@ class TestPayloadInspector:
             payload, mutable_paths=["/form", "/directFlag"]
         )
         by_path = {p.path: p for p in pointers}
+        assert by_path["/form"].mutable_hint is True
         assert by_path["/form/ticker"].mutable_hint is True
         assert by_path["/form/quantity"].mutable_hint is True
         assert by_path["/directFlag"].mutable_hint is True
+        assert by_path["/format"].mutable_hint is False
         assert by_path["/format/theme"].mutable_hint is False
 
 
