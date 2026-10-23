@@ -181,13 +181,17 @@ def test_parser_streaming_defaults() -> None:
 
 
 def test_prompt_generator_abc() -> None:
-    """Verifies PromptGenerator is abstract and requires generate()."""
+    """Verifies PromptGenerator is abstract and requires catalogs."""
     with pytest.raises(TypeError):
         PromptGenerator()  # type: ignore[abstract]
 
     class ConcretePromptGenerator(PromptGenerator):
 
-        def generate(self, *args: Any, **kwargs: Any) -> str:
+        @property
+        def catalogs(self) -> list[CatalogApi]:
+            return []
+
+        def generate_base_rules(self) -> str:
             return "system prompt"
 
     gen = ConcretePromptGenerator()
@@ -206,7 +210,13 @@ def test_inference_format_and_factory_abcs() -> None:
         def __init__(self, catalog: CatalogApi) -> None:
             self.catalog = catalog
 
-        def generate(self, *args: Any, **kwargs: Any) -> str:
+        @property
+        def catalogs(self) -> list[CatalogApi]:
+            return [self.catalog]
+
+        def generate_catalog_instructions(
+            self, include_schema: bool = True, catalog: Any | None = None
+        ) -> str:
             return f"Prompt for {self.catalog.catalog_id}"
 
     class ConcreteFormat(InferenceFormat):
