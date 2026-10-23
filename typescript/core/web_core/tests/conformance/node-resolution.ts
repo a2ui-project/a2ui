@@ -19,12 +19,13 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import yaml from 'js-yaml';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../../src/catalog/types.js';
+import {MessageProcessor} from '../../src/processing/message-processor.js';
 import {ComponentNode, isComponentNode} from '../../src/resolution/component-node.js';
 import {NodeResolver} from '../../src/resolution/node-resolver.js';
 import {ResolvedBinding, isWritable} from '../../src/resolution/resolved-binding.js';
 import {effect, getValue, peekValue} from '../../src/reactivity/signals.js';
 import {ComponentModel} from '../../src/state/component-model.js';
-import {SurfaceModel} from '../../src/state/surface-model.js';
+import {SurfaceModel, A2uiErrorPayload} from '../../src/state/surface-model.js';
 
 type Component = Record<string, unknown> & {id: string; component: string};
 interface Fixture {
@@ -37,6 +38,9 @@ interface NodeExpectation {
   type?: string;
   state?: string;
   data_path?: string;
+  isValid?: boolean;
+  validationErrors?: string[];
+  validationResults?: Array<Record<string, unknown>>;
   props?: Record<string, unknown>;
 }
 interface Expectation {
@@ -48,6 +52,7 @@ interface Expectation {
   data?: Record<string, unknown>;
   events?: unknown[];
   functions?: unknown[];
+  errors?: Array<{code?: string; surfaceId?: string; message?: string}>;
 }
 type Operation =
   | {op: 'set_data'; path: string; value: unknown}
@@ -55,6 +60,7 @@ type Operation =
   | {op: 'remove_component'; component_id: string}
   | {op: 'write'; node: string; property: string; value: unknown}
   | {op: 'invoke'; node: string; property: string}
+  | {op: 'process_messages'; messages: unknown[]}
   | {op: 'dispose'};
 export interface ConformanceCase {
   name: string;
@@ -127,8 +133,33 @@ function requiredNode(nodes: Map<string, ComponentNode>, path: string): Componen
   return node;
 }
 
+function resolveNodeType(node: ComponentNode, surface: SurfaceModel): string {
+  if (node.state === 'cyclic' && node.type === 'Placeholder') {
+    return surface.componentsModel.get(node.componentId)?.type ?? node.type;
+  }
+  return node.type;
+}
+
+function checkNodeValidationProps(
+  props: Record<string, unknown>,
+  fields: NodeExpectation,
+  path: string,
+  reason: string,
+): void {
+  for (const key of ['isValid', 'validationErrors', 'validationResults'] as const) {
+    if (key in fields) {
+      assert.deepEqual(
+        normalize(props[key], `${path}/${key}`),
+        fields[key],
+        `${reason}: ${path}.${key}`,
+      );
+    }
+  }
+}
+
 function checkNodes(
   nodes: Map<string, ComponentNode>,
+  surface: SurfaceModel,
   expected: Expectation,
   reason: string,
 ): void {
@@ -141,7 +172,7 @@ function checkNodes(
     const node = requiredNode(nodes, path);
     const actual = {
       component_id: node.componentId,
-      type: node.type,
+      type: resolveNodeType(node, surface),
       state: node.state,
       data_path: node.dataPath,
     };
@@ -149,6 +180,7 @@ function checkNodes(
       if (key in fields) assert.equal(actual[key], fields[key], `${reason}: ${path}.${key}`);
     }
     const props = peekValue(node.props);
+    checkNodeValidationProps(props, fields, path, reason);
     for (const [key, value] of Object.entries(fields.props ?? {})) {
       assert.ok(key in props, `${reason}: ${path}.${key} is absent`);
       assert.deepEqual(normalize(props[key], `${path}/${key}`), value, `${reason}: ${path}.${key}`);
@@ -187,6 +219,76 @@ function saveBindings(
   return saved;
 }
 
+function checkExpectedErrors(
+  actualErrors: A2uiErrorPayload[],
+  expectedErrors: NonNullable<Expectation['errors']> | undefined,
+  reason: string,
+): void {
+  if (expectedErrors === undefined) return;
+  assert.equal(actualErrors.length, expectedErrors.length, `${reason}: errors count`);
+  for (let i = 0; i < expectedErrors.length; i++) {
+    const expErr: {code?: string; surfaceId?: string; message?: string} = expectedErrors[i];
+    const actErr = actualErrors[i];
+    if (expErr.code !== undefined) {
+      assert.equal(actErr.code, expErr.code, `${reason}: errors[${i}].code`);
+    }
+    if (expErr.surfaceId !== undefined) {
+      assert.equal(actErr.surfaceId, expErr.surfaceId, `${reason}: errors[${i}].surfaceId`);
+    }
+    if (expErr.message !== undefined) {
+      assert.ok(
+        actErr.message.includes(expErr.message),
+        `${reason}: errors[${i}].message (${actErr.message})`,
+      );
+    }
+  }
+}
+
+async function executeNodeResolutionStep(
+  step: ConformanceCase['steps'][number],
+  before: Map<string, ComponentNode>,
+  surface: SurfaceModel,
+  catalog: Catalog<ComponentApi>,
+  processor: MessageProcessor,
+  resolver: NodeResolver,
+  reason: string,
+): Promise<void> {
+  switch (step.op) {
+    case 'set_data':
+      surface.dataModel.set(step.path, step.value);
+      break;
+    case 'update_components':
+      updateComponents(surface, catalog, step.components);
+      break;
+    case 'remove_component':
+      surface.componentsModel.removeComponent(step.component_id);
+      break;
+    case 'write': {
+      const binding = peekValue(requiredNode(before, step.node).props)[step.property];
+      assert.ok(
+        binding instanceof ResolvedBinding && isWritable(binding),
+        `${reason}: not a writable binding`,
+      );
+      binding.set(step.value);
+      break;
+    }
+    case 'invoke': {
+      const action = peekValue(requiredNode(before, step.node).props)[step.property];
+      assert.equal(typeof action, 'function', `${reason}: not an action`);
+      await (action as () => unknown)();
+      break;
+    }
+    case 'process_messages':
+      processor.processMessages(step.messages as any);
+      break;
+    case 'dispose':
+      resolver.dispose();
+      break;
+    default:
+      assert.fail(`Unknown node operation: ${(step as {op: string}).op}`);
+  }
+}
+
 /**
  * Runs one `resolve_nodes` case; fixture and catalog paths resolve against
  * `conformanceRoot`.
@@ -204,6 +306,7 @@ export async function runNodeResolutionCase(
   );
   const functions: unknown[] = [];
   const events: unknown[] = [];
+  const errors: A2uiErrorPayload[] = [];
   const catalog = new Catalog(
     parsed.id,
     parsed.protocolVersion,
@@ -216,6 +319,8 @@ export async function runNodeResolutionCase(
     ),
   );
   const surface = new SurfaceModel('s', catalog);
+  const processor = new MessageProcessor([catalog]);
+  processor.model.addSurface(surface);
   surface.dataModel.set('/', fixture.data);
   updateComponents(surface, catalog, fixture.components);
   const resolver = new NodeResolver(surface, catalog);
@@ -226,6 +331,9 @@ export async function runNodeResolutionCase(
       source_component_id: action.sourceComponentId,
       context: normalize(action.context, ''),
     });
+  });
+  const stopErrors = surface.onError.subscribe(err => {
+    errors.push(err);
   });
 
   function watchNodes(nodes: Map<string, ComponentNode>): void {
@@ -259,7 +367,7 @@ export async function runNodeResolutionCase(
 
   function check(expected: Expectation, before: Map<string, ComponentNode>, reason: string): void {
     const after = mountedNodes(resolver);
-    checkNodes(after, expected, reason);
+    checkNodes(after, surface, expected, reason);
     const surviving = new Set(after.values());
     const emissions: Record<string, number> = {};
     const destroyed: Record<string, number> = {};
@@ -304,6 +412,7 @@ export async function runNodeResolutionCase(
     }
     assert.deepEqual(events, expected.events ?? [], `${reason}: events`);
     assert.deepEqual(functions, expected.functions ?? [], `${reason}: functions`);
+    checkExpectedErrors(errors, expected.errors, reason);
   }
 
   try {
@@ -320,38 +429,9 @@ export async function runNodeResolutionCase(
       }
       events.length = 0;
       functions.length = 0;
+      errors.length = 0;
       const bindings = saveBindings(before);
-      switch (step.op) {
-        case 'set_data':
-          surface.dataModel.set(step.path, step.value);
-          break;
-        case 'update_components':
-          updateComponents(surface, catalog, step.components);
-          break;
-        case 'remove_component':
-          surface.componentsModel.removeComponent(step.component_id);
-          break;
-        case 'write': {
-          const binding = peekValue(requiredNode(before, step.node).props)[step.property];
-          assert.ok(
-            binding instanceof ResolvedBinding && isWritable(binding),
-            `${reason}: not a writable binding`,
-          );
-          binding.set(step.value);
-          break;
-        }
-        case 'invoke': {
-          const action = peekValue(requiredNode(before, step.node).props)[step.property];
-          assert.equal(typeof action, 'function', `${reason}: not an action`);
-          await (action as () => unknown)();
-          break;
-        }
-        case 'dispose':
-          resolver.dispose();
-          break;
-        default:
-          assert.fail(`Unknown node operation: ${(step as {op: string}).op}`);
-      }
+      await executeNodeResolutionStep(step, before, surface, catalog, processor, resolver, reason);
       await flush();
       check(step.expect, before, reason);
       for (const [binding, value] of bindings) {
@@ -368,5 +448,6 @@ export async function runNodeResolutionCase(
     await flush();
     for (const watch of watches.values()) watch.stop();
     stopActions.unsubscribe();
+    stopErrors.unsubscribe();
   }
 }

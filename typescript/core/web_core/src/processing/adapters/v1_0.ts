@@ -20,7 +20,48 @@ import {
   InternalOperation,
   INTERNAL_OPERATION_TYPES,
 } from '../operations.js';
+import {A2uiValidationError} from '../../errors.js';
 import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
+
+function assertObjectArgs(
+  cf: Record<string, unknown>,
+  version: ProtocolVersion,
+  functionCallId: string,
+): void {
+  if (
+    'args' in cf &&
+    cf.args !== undefined &&
+    (typeof cf.args !== 'object' || cf.args === null || Array.isArray(cf.args))
+  ) {
+    throw new A2uiValidationError(
+      `Invalid ${version} message: callRendererFunction.callFunction.args: Expected object, received ${Array.isArray(cf.args) ? 'array' : typeof cf.args}`,
+      undefined,
+      'VALIDATION_ERROR',
+      {functionCallId: functionCallId || undefined},
+    );
+  }
+}
+
+function extractCallRendererFunctionOp(
+  crf: Record<string, unknown> | undefined,
+  version: ProtocolVersion,
+): InternalOperation {
+  const cf = (crf?.callFunction || {}) as Record<string, unknown>;
+  const functionCallId = String(crf?.functionCallId || '');
+  assertObjectArgs(cf, version, functionCallId);
+  return {
+    type: 'callRendererFunction',
+    surfaceId: typeof crf?.surfaceId === 'string' ? crf.surfaceId : undefined,
+    functionCallId,
+    call: String(cf?.['@call'] || cf?.call || ''),
+    version,
+    catalogId: typeof cf?.catalogId === 'string' ? cf?.catalogId : undefined,
+    args:
+      cf?.args && typeof cf.args === 'object' && !Array.isArray(cf.args)
+        ? (cf.args as Record<string, unknown>)
+        : {},
+  };
+}
 
 /**
  * Protocol version adapter for specification v1.0.
@@ -84,20 +125,12 @@ export class V1Point0Adapter extends BaseVersionAdapter {
       });
     }
     if ('callRendererFunction' in msgObj) {
-      const crf = msgObj.callRendererFunction as Record<string, unknown>;
-      const cf = (crf?.callFunction || {}) as Record<string, unknown>;
-      ops.push({
-        type: 'callRendererFunction',
-        surfaceId: typeof crf?.surfaceId === 'string' ? crf.surfaceId : undefined,
-        functionCallId: String(crf?.functionCallId || ''),
-        call: String(cf?.['@call'] || cf?.call || ''),
-        version: this.version,
-        catalogId: typeof cf?.catalogId === 'string' ? cf.catalogId : undefined,
-        args:
-          cf?.args && typeof cf.args === 'object' && !Array.isArray(cf.args)
-            ? (cf.args as Record<string, unknown>)
-            : {},
-      });
+      ops.push(
+        extractCallRendererFunctionOp(
+          msgObj.callRendererFunction as Record<string, unknown>,
+          this.version,
+        ),
+      );
     }
     if ('agentFunctionResponse' in msgObj) {
       const afr = msgObj.agentFunctionResponse as Record<string, unknown>;
