@@ -118,6 +118,45 @@ describe('ExpressDecompiler', () => {
     });
   });
 
+  describe('Writing numbers', () => {
+    // Numbers are written as ECMAScript `Number.prototype.toString` writes them,
+    // which every SDK's decompiler agrees on and the Express grammar reads back.
+    it.each([
+      {value: 1e-7, text: '1e-7'},
+      {value: 0.000015, text: '0.000015'},
+      {value: 1e16, text: '10000000000000000'},
+      {value: 1e21, text: '1e+21'},
+      {value: 1.5e300, text: '1.5e+300'},
+      {value: 123456.789, text: '123456.789'},
+      {value: 3, text: '3'},
+      {value: -0, text: '-0.0'},
+      {value: 9007199254740991, text: '9007199254740991'},
+    ])('writes $value as $text', ({value, text}) => {
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      expect(decompiler.decompileValue(value, new Map())).toBe(text);
+      const message = {
+        version: 'v0.9',
+        updateDataModel: {surfaceId: 'default', path: '/n', value},
+      } as unknown as AgentToRendererMessage;
+      const dsl = decompiler.decompile(message);
+      expect(dsl).toBe(`surface("default")\n$/n = ${text}`);
+      const [compiled] = new ExpressParser([catalog], 'default', version).compile(dsl);
+      expect((compiled as {updateDataModel: {value: {n: number}}}).updateDataModel.value.n).toBe(
+        value,
+      );
+    });
+
+    it.each([Infinity, -Infinity, NaN])('throws A2uiValidationError for %s', value => {
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      expect(() => decompiler.decompileValue(value, new Map())).toThrow(A2uiValidationError);
+      expect(() => decompiler.decompileValue(value, new Map())).toThrow(
+        `The number ${value} has no Express notation.`,
+      );
+    });
+  });
+
   describe('Writing other messages', () => {
     it('writes a callFunction message as a standalone call', () => {
       const {catalog, version} = getCatalogInfo('simplified');

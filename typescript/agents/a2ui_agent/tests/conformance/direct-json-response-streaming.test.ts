@@ -33,19 +33,7 @@ import {conformancePath, registerCase} from './suite-helpers.js';
  * An expected failure still runs, and the suite asserts that it fails, so fixing the gap
  * turns the test red and prompts removing the entry.
  */
-const KNOWN_FAILURES = new Map<string, string>([
-  // #3269 changes these two shared cases to hold back a message for a surface that does not
-  // exist yet, as this stream does. The cases change here once #3269 lands, since the Python and
-  // Dart SDKs on main still emit the message.
-  [
-    'test_stream_update_before_create_surface_fails_v09',
-    'the shared case still expects the message emitted; #3269 updates it',
-  ],
-  [
-    'test_stream_data_model_before_create_surface_fails_v09',
-    'the shared case still expects the message emitted; #3269 updates it',
-  ],
-]);
+const KNOWN_FAILURES = new Map<string, string>();
 
 /** Protocol versions this SDK does not implement, with the reason for skipping. */
 const UNSUPPORTED_VERSIONS = new Map<string, string>([['0.8', 'this SDK does not implement v0.8']]);
