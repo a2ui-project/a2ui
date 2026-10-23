@@ -332,6 +332,16 @@
     min: 2
   expect: false
 
+- name: test_evaluate_function_length_null_value
+  description: Verifies length counts a null value, such as an unset field, as length 0.
+  protocolVersion: "v0.9"
+  action: evaluate_function
+  function: length
+  args:
+    value: null
+    max: 10
+  expect: true
+
 # --- NumericFunction (D23) ---
 - name: test_evaluate_function_numeric_valid_float
   description: Verifies numeric returns true for float within bounds.
