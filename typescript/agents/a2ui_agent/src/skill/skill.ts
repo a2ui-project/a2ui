@@ -179,6 +179,30 @@ export function validateSkillFilename(filename: string): string {
   return filename;
 }
 
+/**
+ * Resolves the nearest existing ancestor of `target` (or `target` itself) through any
+ * symlinks and checks that it is `outputRoot` or inside it. `outputRoot` must already be
+ * resolved. The lexical check in {@link validateSkillFilename} cannot see a symlinked
+ * directory under the output directory, and removing or writing through one would reach
+ * outside it.
+ *
+ * @throws {A2uiValidationError} If the resolved path is outside `outputRoot`.
+ */
+function assertResolvesInside(target: string, outputRoot: string, filename: string): void {
+  let existing = target;
+  while (!fs.existsSync(existing)) {
+    const parent = path.dirname(existing);
+    if (parent === existing) break;
+    existing = parent;
+  }
+  const real = fs.realpathSync(existing);
+  if (real !== outputRoot && !real.startsWith(outputRoot + path.sep)) {
+    throw new A2uiValidationError(
+      `Skill filename ${JSON.stringify(filename)} resolves through a symlink to ${JSON.stringify(real)}, outside the output directory.`,
+    );
+  }
+}
+
 export interface SkillOptions {
   name: string;
   description: string;
@@ -309,26 +333,35 @@ export class SkillSet implements Iterable<string> {
    *
    * The directory holding each skill file (for example, `{outputDir}/a2ui-core`
    * or `{outputDir}/a2ui-basic`) is removed before writing so no stale files
-   * persist. Unrelated sibling directories and files in `outputDir` are preserved,
-   * and `outputDir` itself is never removed. Every filename was checked by
-   * {@link validateSkillFilename} when it entered the set, so nothing here can
-   * reach outside `outputDir`.
+   * persist. A symlink or file at that path is removed as such, not followed.
+   * Unrelated sibling directories and files in `outputDir` are preserved, and
+   * `outputDir` itself is never removed.
+   *
+   * Every filename was checked by {@link validateSkillFilename} when it entered
+   * the set, and each skill directory's parent is resolved through symlinks before
+   * anything is removed, so nothing here can reach outside `outputDir`.
    *
    * @param outputDir Root directory where skill packages should be written.
    * @returns A dictionary mapping skill filenames to generated markdown content.
+   * @throws {A2uiValidationError} If a skill directory's parent is a symlink that
+   *     resolves outside `outputDir`. Nothing is removed or written in that case.
    */
   exportToDirectory(outputDir: string): Record<string, string> {
     fs.mkdirSync(outputDir, {recursive: true});
+    const outputRoot = fs.realpathSync(outputDir);
 
-    const skillDirsToClean = new Set<string>();
+    // Check every skill directory before touching any, so a bad one aborts the export whole.
+    const skillDirsToClean = new Map<string, string>();
     for (const filename of this.skills.keys()) {
       const dirName = path.dirname(filename);
-      if (dirName !== '.') {
-        skillDirsToClean.add(path.join(outputDir, dirName));
-      }
+      if (dirName === '.') continue;
+      const skillFolder = path.join(outputDir, dirName);
+      assertResolvesInside(path.dirname(skillFolder), outputRoot, filename);
+      skillDirsToClean.set(skillFolder, filename);
     }
 
-    for (const skillFolder of skillDirsToClean) {
+    for (const skillFolder of skillDirsToClean.keys()) {
+      // `rmSync` removes a symlink itself rather than its target.
       fs.rmSync(skillFolder, {recursive: true, force: true});
     }
 

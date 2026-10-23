@@ -182,6 +182,66 @@ describe('SkillGenerator', () => {
     expect(() => new SkillSet().add(skill)).toThrow(/must be a relative path/);
   });
 
+  it('aborts the export when a skill directory sits under a symlink that leaves the output directory', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-skill-symlink-'));
+    try {
+      const victim = path.join(base, 'victim');
+      const victimFile = path.join(victim, 'skills', 'nested', 'keep.txt');
+      fs.mkdirSync(path.dirname(victimFile), {recursive: true});
+      fs.writeFileSync(victimFile, 'keep me', 'utf-8');
+
+      const out = path.join(base, 'out');
+      fs.mkdirSync(out);
+      fs.symlinkSync(victim, path.join(out, 'src'), 'dir');
+
+      const skillSet = new SkillSet();
+      skillSet.add(
+        new Skill({name: 'ok', description: 'd', content: '# Ok', filename: 'ok/SKILL.md'}),
+      );
+      skillSet.add(
+        new Skill({
+          name: 'nested',
+          description: 'd',
+          content: '# Nested',
+          filename: 'src/skills/nested/SKILL.md',
+        }),
+      );
+      expect(() => skillSet.exportToDirectory(out)).toThrow(/through a symlink/);
+
+      // Nothing was removed or written, not even for the unrelated skill.
+      expect(fs.readFileSync(victimFile, 'utf-8')).toBe('keep me');
+      expect(fs.existsSync(path.join(out, 'ok'))).toBe(false);
+    } finally {
+      fs.rmSync(base, {recursive: true, force: true});
+    }
+  });
+
+  it('removes a symlink at the skill directory path instead of writing through it', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-skill-symlink-'));
+    try {
+      const victim = path.join(base, 'victim');
+      fs.mkdirSync(victim);
+      fs.writeFileSync(path.join(victim, 'stale.txt'), 'keep me', 'utf-8');
+
+      const out = path.join(base, 'out');
+      fs.mkdirSync(out);
+      const link = path.join(out, 'a2ui-core');
+      fs.symlinkSync(victim, link, 'dir');
+
+      const skillSet = new SkillSet();
+      skillSet.add(new Skill({name: 'a2ui-core', description: 'd', content: '# Core'}));
+      skillSet.exportToDirectory(out);
+
+      // The link is gone and a real directory took its place; the target is untouched.
+      expect(fs.lstatSync(link).isSymbolicLink()).toBe(false);
+      expect(fs.existsSync(path.join(link, 'SKILL.md'))).toBe(true);
+      expect(fs.readFileSync(path.join(victim, 'stale.txt'), 'utf-8')).toBe('keep me');
+      expect(fs.existsSync(path.join(victim, 'SKILL.md'))).toBe(false);
+    } finally {
+      fs.rmSync(base, {recursive: true, force: true});
+    }
+  });
+
   it('enforces SkillSet.get matching rules (exact key, exact name, min-3-char substring)', () => {
     const skillSet = generator.generateSkillSet();
 
