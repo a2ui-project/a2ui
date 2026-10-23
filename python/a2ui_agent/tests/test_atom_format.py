@@ -863,7 +863,7 @@ def test_v09_rejects_per_component_catalog() -> None:
 
 
 def test_format_and_parser_integration(basic: CatalogApi) -> None:
-    parser = AtomFormat([basic], surface_id="main").parser
+    parser = AtomFormat([basic], surface_id="main").create_parser()
     raw = '<a2ui>(Card (Text "Hello"))</a2ui>'
     assert parser.has_format_content(raw, complete=True)
     assert not parser.has_format_content("no tags", complete=True)
@@ -878,7 +878,7 @@ def test_format_and_parser_integration(basic: CatalogApi) -> None:
 
 def test_parser_wraps_errors(basic: CatalogApi) -> None:
     with pytest.raises(A2uiCompilationError):
-        AtomFormat([basic]).parser.compile(12345)  # type: ignore[arg-type]
+        AtomFormat([basic]).create_parser().compile(12345)  # type: ignore[arg-type]
 
 
 def test_prompt_generator_single_catalog(basic: CatalogApi) -> None:

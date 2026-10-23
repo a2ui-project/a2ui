@@ -69,15 +69,6 @@ const Set<String> _v1OnlyCases = {
   'test_stream_catalog_id_split_across_chunks_v10',
 };
 
-/// Shared streaming cases that #3269 changes to hold back a message for a
-/// surface that does not exist yet, as this stream does. They stay as main
-/// has them until #3269 lands, since the Python and TypeScript SDKs on main
-/// still emit the message, and are skipped here until then.
-const Set<String> _casesPendingSharedUpdate = {
-  'test_stream_update_before_create_surface_fails_v09',
-  'test_stream_data_model_before_create_surface_fails_v09',
-};
-
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
 bool _targetsV1(Map<String, Object?> testCase) =>
     switch (caseCatalogVersion(testCase['args']! as Map<String, Object?>)) {
@@ -90,10 +81,6 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   if (caseCatalogVersion(args) == '0.8') {
     return 'This SDK does not implement v0.8.';
-  }
-  if (_casesPendingSharedUpdate.contains(testCase['name'])) {
-    return 'The shared case still expects the message emitted; #3269 '
-        'updates it.';
   }
   if (version == SuiteVersion.v0_9) {
     if (_v1OnlyCases.contains(testCase['name'])) {
