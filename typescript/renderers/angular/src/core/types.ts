@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import {Signal} from '@angular/core';
-import {z} from 'zod';
-import {ComponentApi, DataBindingSchema, FunctionCallSchema} from '@a2ui/web_core/v0_9';
-import {Child} from './component-binder.service';
+import { Signal } from '@angular/core';
+import { z } from 'zod';
+import { ComponentApi, DataBindingSchema, FunctionCallSchema } from '@a2ui/web_core/v0_9';
+import { Child } from './component-binder.service';
 
 /** Data structure that represents a template used to render a collection of children. */
 export interface ComponentTemplate {
@@ -75,13 +75,22 @@ type InferredInterfaceToProps<InferredSchema> = {
       : BoundProperty<DynamicSchemaValueToRaw<InferredSchema[K]>>;
 };
 
+/** Structured validation result emitted by check rules. */
+export interface CheckValidationResult {
+  valid: boolean;
+  message: string;
+  code?: string;
+  severity: string;
+}
+
 interface CheckProps {
   isValid: boolean;
   validationErrors: string[];
+  validationResults?: CheckValidationResult[];
 }
 
 /** The binder can add some properties to the Props object. This util adds them to the type. */
-export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
+export type ExtendedProps<ComponentProps extends { [key: string]: unknown }> =
   'checks' extends keyof ComponentProps ? ComponentProps & CheckProps : ComponentProps;
 
 /**

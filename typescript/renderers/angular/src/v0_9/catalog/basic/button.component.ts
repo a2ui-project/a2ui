@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {ComponentHostComponent} from '@a2ui/angular';
-import {DataContext} from '@a2ui/web_core/v0_9';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
+import { ComponentHostComponent } from '@a2ui/angular';
+import { DataContext } from '@a2ui/web_core/v0_9';
+import { BasicCatalogComponent } from './basic-catalog-component';
+import { ButtonApi } from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Button component (v0.9).
@@ -106,8 +106,13 @@ export class ButtonComponent extends BasicCatalogComponent<typeof ButtonApi> {
       const surface = this.surface();
       if (surface) {
         const dataContext = new DataContext(surface, this.dataContextPath());
+        const isFunctionCall =
+          typeof action === 'object' &&
+          ('functionCall' in action || 'call' in action || '@call' in action);
         const resolvedAction = dataContext.resolveAction(action);
-        surface.dispatchAction(resolvedAction, this.componentId());
+        if (!isFunctionCall) {
+          surface.dispatchAction(resolvedAction as Record<string, unknown>, this.componentId());
+        }
       }
     }
   }

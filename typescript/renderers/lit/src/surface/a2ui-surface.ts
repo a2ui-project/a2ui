@@ -16,7 +16,13 @@
 
 import {html, nothing, LitElement, PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
-import {SurfaceModel, ComponentContext, Catalog} from '@a2ui/web_core';
+import {
+  NodeResolver,
+  effect,
+  getValue,
+  type ComponentNode,
+  type SurfaceModel,
+} from '@a2ui/web_core';
 import {renderA2uiNode} from './render-a2ui-node.js';
 import type {LitComponentApi} from '../types.js';
 
@@ -42,10 +48,22 @@ export class A2uiSurface extends LitElement {
    */
   @state() accessor _hasRoot = false;
   /**
+   * Resolved root component node from `NodeResolver`.
+   * @internal
+   */
+  private _rootNode?: ComponentNode<LitComponentApi>;
+  /**
    * Subscription cleanup function.
    * @internal
    */
   private unsubscribe?: () => void;
+
+  /**
+   * Returns the currently resolved root component node for this surface, if any.
+   */
+  get rootNode(): ComponentNode<LitComponentApi> | undefined {
+    return this._rootNode;
+  }
 
   /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot
@@ -86,11 +104,12 @@ export class A2uiSurface extends LitElement {
     super.disconnectedCallback();
     this.unsubscribe?.();
     this.unsubscribe = undefined;
+    this._rootNode = undefined;
   }
 
   /**
-   * Tracks the 'root' component of the current surface for as long as the
-   * surface is shown.
+   * Tracks the 'root' component of the current surface via `NodeResolver` for
+   * as long as the surface is shown.
    *
    * The processor replaces a component's model when an update changes its
    * type or catalog, deleting the old model and creating a new one, so the
@@ -100,25 +119,24 @@ export class A2uiSurface extends LitElement {
   private subscribeToRoot() {
     this.unsubscribe?.();
     this.unsubscribe = undefined;
-    const components = this.surface?.componentsModel;
-    this._hasRoot = !!components?.get('root');
-    if (!components) return;
+    this._rootNode = undefined;
 
-    const created = components.onCreated.subscribe(comp => {
-      if (comp.id === 'root') {
-        this._hasRoot = true;
-        this.requestUpdate();
-      }
+    if (!this.surface) {
+      this._hasRoot = false;
+      return;
+    }
+
+    const resolver = new NodeResolver(this.surface);
+    const stopEffect = effect(() => {
+      const root = getValue(resolver.rootNode);
+      this._rootNode = root;
+      this._hasRoot = !!root && root.state !== 'pending';
+      this.requestUpdate();
     });
-    const deleted = components.onDeleted.subscribe(id => {
-      if (id === 'root') {
-        this._hasRoot = !!components.get('root');
-        this.requestUpdate();
-      }
-    });
+
     this.unsubscribe = () => {
-      created.unsubscribe();
-      deleted.unsubscribe();
+      stopEffect();
+      resolver.dispose();
     };
   }
 
@@ -131,18 +149,14 @@ export class A2uiSurface extends LitElement {
    */
   override render() {
     if (!this.surface) return nothing;
-    if (!this._hasRoot) {
+    if (!this._hasRoot || !this._rootNode) {
       return html`<div>Loading surface...</div>`;
     }
 
     try {
-      const rootContext = new ComponentContext(this.surface, 'root', '/');
-      // The root resolves against its own catalog, so a v1.0 surface without a
-      // default catalog still renders.
-      const activeCatalog = rootContext.componentModel.catalog as Catalog<LitComponentApi>;
-      return renderA2uiNode(rootContext, activeCatalog);
+      return renderA2uiNode(this._rootNode);
     } catch (e) {
-      console.error('Error creating root context:', e);
+      console.error('Error rendering root node:', e);
       return html`<div>Error rendering surface</div>`;
     }
   }
