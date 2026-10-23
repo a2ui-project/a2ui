@@ -42,7 +42,7 @@ const CallRendererFunctionOmittingCatalogIdSchema = CallRendererFunctionMessageS
 function omitsCatalogId(payload: Record<string, unknown>): boolean {
   const crf = payload.callRendererFunction as Record<string, unknown> | undefined;
   const cf = crf?.callFunction;
-  return !!cf && typeof cf === 'object' && !Array.isArray(cf) && !('catalogId' in cf);
+  return !!cf && typeof cf === 'object' && !Array.isArray(cf) && !Object.hasOwn(cf, 'catalogId');
 }
 
 /**
