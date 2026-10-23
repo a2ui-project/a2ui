@@ -387,6 +387,31 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
         ExpressUnknownPropertyError,
       );
     });
+
+    it('keeps a variable named __proto__ as a variable without changing the prototype', () => {
+      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('__proto__ = {a: 1}\nroot = Probe(__proto__)'),
+      ) as Array<{payload: Record<string, unknown>}>;
+
+      expect(root.payload).toEqual({a: 1});
+    });
+
+    it('does not resolve a name inherited from Object.prototype as a variable', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(createSurfaceComponents(compiler.compile('root = Text(toString)'))).toEqual([
+        {id: 'root', component: 'Text', text: 'toString'},
+      ]);
+    });
+
+    it('does not bind checks to a map literal shaped like a data binding', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('root = TextField("L", {"@path": "/x"}, ?required)'),
+      ) as Array<{checks: Array<{condition: {args: Record<string, unknown>}}>}>;
+
+      expect(root.checks[0].condition.args).toEqual({});
+    });
   });
 
   describe('_template argument errors', () => {

@@ -88,6 +88,12 @@ const Map<String, String> _v1OnlyCases = {
       _reservedPlainKeys,
   'test_decompile_express_map_with_keys_named_like_express_constructs':
       _reservedPlainKeys,
+  'test_decompile_express_map_with_plain_call_and_args_keys':
+      _reservedPlainKeys,
+  'test_decompile_express_map_with_a_binding_key_beside_other_keys':
+      'Lowered to v0.9, the @path key becomes the plain path key, which '
+      'v0.9 reserves for data bindings, so the case runs as written in v1.0 '
+      'only.',
   'test_compile_express_map_with_call_like_keys_still_rejects_bindings':
       'Lowered to v0.9, this SDK does not reject a binding nested in a '
       'free-form object property.',

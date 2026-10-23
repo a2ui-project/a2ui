@@ -344,12 +344,12 @@ class ExpressDecompiler:
     def _is_function_call(self, val: dict[str, Any]) -> bool:
         """Checks whether a value in a component property is a function call.
 
-        A call is named by the function call key of the version. A plain `call`
-        key also names one when the object has `args` or `catalogId` beside it,
-        as the TypeScript decompiler accepts; otherwise it is data.
+        In v1.0 and later, only `@call` names a function call, so an object
+        with a plain `call` key is data. Before v1.0, `call` names one when the
+        object has `args` or `catalogId` beside it; otherwise it is data.
         """
-        if isinstance(val.get(self._call_key), str):
-            return True
+        if self._v1:
+            return isinstance(val.get(self._call_key), str)
         return isinstance(val.get("call"), str) and (
             "args" in val or "catalogId" in val
         )
@@ -829,13 +829,14 @@ class ExpressDecompiler:
         """
         if isinstance(val, dict):
             # A child list template keeps the plain `path` key in every
-            # version. A data binding uses the binding key of the version, so a
-            # plain `path` key in v1.0 is data.
+            # version. A data binding is an object whose only key is the
+            # binding key of the version, so a plain `path` key in v1.0, or a
+            # binding key beside other keys, is data.
             if "componentId" in val and "path" in val:
                 comp_id_repr = _decompile_reference(val["componentId"], var_names)
                 return f"_template({_decompile_path(val['path'])}, {comp_id_repr})"
             bound_path = val.get(self._path_key)
-            if isinstance(bound_path, str) and "componentId" not in val:
+            if isinstance(bound_path, str) and len(val) == 1:
                 return _decompile_path(bound_path)
 
             if isinstance(val.get("event"), dict):

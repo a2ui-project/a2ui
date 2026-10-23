@@ -1709,3 +1709,26 @@
   input: 'root = TextField("Email", $/email, _, [?required("Email is required", {catalogId: "conformance/forms", extra: 1})])'
   expect_error:
     category: "ValidationError"
+
+- name: test_compile_express_variable_cycle_is_a_validation_error
+  description: A variable whose value refers back to it, directly or through other variables, has no value to compile.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    a = {next: b}
+    b = a
+    root = Probe(a)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_check_options_with_null_catalog_id_is_a_validation_error
+  description: A check's options map must name its catalog with a string; a null catalogId is rejected rather than read as no catalogId.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Email", $/email, _, [?required({catalogId: null})])'
+  expect_error:
+    category: "ValidationError"

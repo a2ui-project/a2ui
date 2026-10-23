@@ -178,6 +178,21 @@ def _binding_path(v: Any, path_key: str) -> str | None:
     return val if isinstance(val, str) else None
 
 
+def _resolves_to_path(node: Any, raw_symbols: dict[str, Any]) -> bool:
+    """Checks whether an AST value is a `$path`, directly or through variables.
+
+    A map literal is data even when its compiled value looks like a data
+    binding, so it is not a path.
+    """
+    seen: set[str] = set()
+    while isinstance(node, VariableNode):
+        if node.name in seen or node.name not in raw_symbols:
+            return False
+        seen.add(node.name)
+        node = raw_symbols[node.name]
+    return isinstance(node, PathNode)
+
+
 def _has_databinding(
     node: Any,
     raw_symbols: dict[str, Any],
@@ -420,6 +435,9 @@ class _CompileContext:
         self.inline_counter: int = 0
         self.call_counter: int = 0
         self.active_value_path: dict[str, Any] | None = None
+        # The variables whose values are being compiled, to catch a variable
+        # whose value refers back to it.
+        self.resolving: set[str] = set()
 
     def check_catalog_override(self, target: str) -> None:
         """Rejects a per-component or per-function catalogId below v1.0.
@@ -1169,10 +1187,9 @@ class ExpressCompiler:
                     )
             comp_dict[prop_name] = mapped_val
 
-            if (
-                prop_name == "value"
-                and _binding_path(mapped_val, ctx.path_key) is not None
-            ):
+            # Only a `$path` value binds the checks; a map literal shaped like
+            # a binding is data.
+            if prop_name == "value" and _resolves_to_path(arg, raw_symbols):
                 sibling_value_path = mapped_val
 
         # Checks bind the component's own value implicitly.
@@ -1215,7 +1232,8 @@ class ExpressCompiler:
 
         Raises:
             ExpressValidationError: If a `{catalogId: ...}` argument has other
-                keys, or two of them name different catalogs.
+                keys or a null `catalogId`, or two of them name different
+                catalogs.
         """
         check_name = rc.name
         explicit_args: list[Any] = []
@@ -1227,6 +1245,12 @@ class ExpressCompiler:
                     raise ExpressValidationError(
                         f"Unsupported key(s) in check options for '?{check_name}':"
                         f" {', '.join(other_keys)}. Only 'catalogId' is allowed."
+                    )
+                # `_resolve` reads None as "no catalogId", so a null one is
+                # rejected here rather than ignored.
+                if arg_item["catalogId"] is None:
+                    raise ExpressValidationError(
+                        f"Check '{check_name}' catalogId must be a string, got: None"
                     )
                 if chk_cat_id is not None and chk_cat_id != arg_item["catalogId"]:
                     raise ExpressValidationError(
@@ -1312,7 +1336,7 @@ class ExpressCompiler:
 
         Raises:
             ExpressValidationError: If `_` appears anywhere but in place of an
-                argument.
+                argument, or a variable's value refers back to the variable.
         """
         if isinstance(val, PathNode):
             return {ctx.path_key: val.path}
@@ -1327,12 +1351,20 @@ class ExpressCompiler:
                     return _component_id(
                         ref_name, symbol_val, at_least_v10=ctx.at_least_v10
                     )
-            return self._compile_value(
-                symbol_val,
-                raw_symbols,
-                ctx,
-                is_action,
-            )
+            if ref_name in ctx.resolving:
+                raise ExpressValidationError(
+                    f"Variable '{ref_name}' refers to itself through its own value."
+                )
+            ctx.resolving.add(ref_name)
+            try:
+                return self._compile_value(
+                    symbol_val,
+                    raw_symbols,
+                    ctx,
+                    is_action,
+                )
+            finally:
+                ctx.resolving.discard(ref_name)
         if isinstance(val, CheckNode):
             condition, _ = self._compile_check(val, raw_symbols, ctx, is_action)
             return condition

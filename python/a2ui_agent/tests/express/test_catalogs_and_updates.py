@@ -313,6 +313,17 @@ def test_check_binds_component_value_implicitly(parser: ExpressParser) -> None:
     assert "?required" in _round_trip(parser, messages)
 
 
+def test_map_literal_shaped_like_a_binding_does_not_bind_checks(
+    parser: ExpressParser,
+) -> None:
+    messages = _compile(
+        parser, 'surface("s1")\nroot = Input({"@path": "/name"}, ?required)'
+    )
+    component = messages[0]["createSurface"]["components"][0]
+    assert component["value"] == {"@path": "/name"}
+    assert "value" not in component["checks"][0]["condition"].get("args", {})
+
+
 def test_decompile_reads_bare_call_check_as_its_condition(
     parser: ExpressParser,
 ) -> None:

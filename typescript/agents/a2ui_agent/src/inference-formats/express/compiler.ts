@@ -132,6 +132,25 @@ export function isCheckExpression(val: unknown): boolean {
 /**
  * Parses numeric major.minor.patch components from a version string.
  */
+/**
+ * Checks whether an AST value is a `$path`, directly or through variables.
+ *
+ * A map literal is data even when its compiled value looks like a data binding, so it is not a
+ * path.
+ */
+function resolvesToPath(node: unknown, rawSymbols: Record<string, unknown>): boolean {
+  const seen = new Set<string>();
+  let current = node;
+  while (isExpressNode(current, 'variable')) {
+    if (seen.has(current.name) || !Object.hasOwn(rawSymbols, current.name)) {
+      return false;
+    }
+    seen.add(current.name);
+    current = rawSymbols[current.name];
+  }
+  return isExpressNode(current, 'path');
+}
+
 function parseVersionNumbers(v: string): number[] {
   const norm = normalizeVersionString(v);
   if (!norm) {
@@ -198,6 +217,8 @@ class CompileContext {
   inlineCounter = 0;
   /** Compiled data bindings of the component being compiled, by property name. */
   activeBoundPaths: Map<string, Record<string, unknown>> = new Map();
+  /** The variables whose values are being compiled, to catch a variable whose value refers back to it. */
+  readonly resolving: Set<string> = new Set();
   readonly keys: ReservedKeys;
 
   constructor(keys: ReservedKeys) {
@@ -531,7 +552,7 @@ export class ExpressCompiler {
         if (varName.startsWith('$')) {
           currentScope.dataPathAssignments[varName] = parsedVal;
         } else {
-          currentScope.rawSymbols[varName] = parsedVal;
+          setOwnEntry(currentScope.rawSymbols, varName, parsedVal);
         }
       }
     }
@@ -984,14 +1005,10 @@ export class ExpressCompiler {
 
       compDict[propName] = mappedVal;
 
-      // Sanctioned departure §5.2 item 3: record bound path of every property whose compiled
-      // value is an object with a path key (and not a componentId).
-      if (
-        mappedVal &&
-        typeof mappedVal === 'object' &&
-        compHelper.keys.path in mappedVal &&
-        !('componentId' in mappedVal)
-      ) {
+      // Sanctioned departure §5.2 item 3: record the bound path of every property whose value
+      // is a `$path`, directly or through variables. A map literal shaped like a data binding
+      // is data, so it binds no check.
+      if (resolvesToPath(arg, rawSymbols)) {
         boundPaths.set(propName, mappedVal as Record<string, unknown>);
       }
     }
@@ -1306,9 +1323,25 @@ export class ExpressCompiler {
       if (compIds.has(refName)) {
         return compIds.get(refName)!;
       }
-      if (refName in rawSymbols) {
-        const symbolVal = rawSymbols[refName];
-        return this._compileValue(symbolVal, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+      if (Object.hasOwn(rawSymbols, refName)) {
+        if (ctx.resolving.has(refName)) {
+          throw new ExpressValidationError(
+            `Variable '${refName}' refers to itself through its own value.`,
+          );
+        }
+        ctx.resolving.add(refName);
+        try {
+          return this._compileValue(
+            rawSymbols[refName],
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+            isAction,
+          );
+        } finally {
+          ctx.resolving.delete(refName);
+        }
       }
       return refName;
     }
@@ -1430,7 +1463,7 @@ export class ExpressCompiler {
             : `${inlineCtx.parentId}_${inlineCtx.property}`
           : `_inline_${ctx.inlineCounter}`;
         if (
-          inlineId in rawSymbols ||
+          Object.hasOwn(rawSymbols, inlineId) ||
           Array.from(compIds.values()).includes(inlineId) ||
           ctx.generatedIds.has(inlineId)
         ) {
