@@ -66,6 +66,8 @@ class DirectJsonResponseStream extends ResponseStream {
   String _held = '';
   bool _runStarted = false;
   String _heldSpace = '';
+  String _heldBackticks = '';
+  bool _stripCloseBackticks = false;
 
   // The open block.
   bool _inBlock;
@@ -136,7 +138,10 @@ class DirectJsonResponseStream extends ResponseStream {
       _fail(_touched);
       rethrow;
     }
-    if (_held.isNotEmpty) {
+    if (_heldBackticks.isNotEmpty) {
+      _emitText(parts, _heldBackticks);
+      _heldBackticks = '';
+    } else if (_held.isNotEmpty) {
       _emitText(parts, _held);
       _held = '';
     }
@@ -163,6 +168,28 @@ class DirectJsonResponseStream extends ResponseStream {
     }
     String input = _held + chunk;
     _held = '';
+    if (_stripCloseBackticks) {
+      if (input.startsWith('`')) {
+        input = input.replaceAll(RegExp(r'^`+'), '');
+      }
+      if (input.isNotEmpty) {
+        _stripCloseBackticks = false;
+      }
+    }
+    if (!_inBlock && _heldBackticks.isNotEmpty) {
+      if (input.isNotEmpty) {
+        final bool isOpenTag =
+            openTag.matchAsPrefix(input) != null ||
+            (input.startsWith('<') &&
+                openTagText.startsWith(input.toLowerCase()));
+        if (isOpenTag) {
+          _heldBackticks = '';
+        } else {
+          input = '$_heldBackticks$input';
+          _heldBackticks = '';
+        }
+      }
+    }
     while (input.isNotEmpty) {
       if (_inBlock) {
         _block += input;
@@ -176,22 +203,48 @@ class DirectJsonResponseStream extends ResponseStream {
         input = _block.substring(
           closeTag.matchAsPrefix(_block, closeStart)!.end,
         );
+        if (input.startsWith('`')) {
+          input = input.replaceAll(RegExp(r'^`+'), '');
+        } else if (input.isEmpty) {
+          _stripCloseBackticks = true;
+        }
         _finishBlock(parts, closeStart);
         continue;
       }
       final Match? open = openTag.firstMatch(input);
       if (open != null) {
-        _emitText(parts, input.substring(0, open.start));
+        String textBefore = input.substring(0, open.start);
+        if (textBefore.endsWith('`')) {
+          textBefore = textBefore.replaceAll(RegExp(r'`+$'), '');
+        }
+        _emitText(parts, textBefore);
         _runStarted = false;
         _heldSpace = '';
+        _heldBackticks = '';
         _inBlock = true;
         input = input.substring(open.end);
         continue;
       }
-      final int hold = possibleTagStart(input);
-      _emitText(parts, input.substring(0, hold));
+      int hold = possibleTagStart(input);
+      if (hold < input.length) {
+        while (hold > 0 && input.codeUnitAt(hold - 1) == 0x60) {
+          hold--;
+        }
+      }
+      String textToEmit = input.substring(0, hold);
       _held = input.substring(hold);
       input = '';
+      if (_held.isEmpty) {
+        final Match? ticksMatch = RegExp(r'`+$').firstMatch(textToEmit);
+        if (ticksMatch != null) {
+          _heldBackticks = ticksMatch.group(0)!;
+          textToEmit = textToEmit.substring(
+            0,
+            textToEmit.length - _heldBackticks.length,
+          );
+        }
+      }
+      _emitText(parts, textToEmit);
     }
     return parts;
   }
@@ -201,7 +254,7 @@ class DirectJsonResponseStream extends ResponseStream {
   void _emitText(List<ResponsePart> parts, String text) {
     final String body = (_runStarted ? text : text.trimLeft()).trimRight();
     if (body.isEmpty) {
-      if (_runStarted) _heldSpace += text;
+      if (_runStarted && body.isEmpty) _heldSpace += text;
       return;
     }
     final int start = _runStarted ? 0 : text.indexOf(body);

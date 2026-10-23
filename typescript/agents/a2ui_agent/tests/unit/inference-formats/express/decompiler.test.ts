@@ -16,10 +16,9 @@
 
 import {describe, expect, it} from 'vitest';
 
-import {A2uiCatalogError} from '../../../../src/errors.js';
+import {A2uiCatalogError, A2uiValidationError} from '../../../../src/errors.js';
 import {ExpressDecompiler} from '../../../../src/inference-formats/express/decompiler.js';
 import {
-  ExpressInvalidIdentifierError,
   ExpressUnknownComponentError,
   ExpressUnknownFunctionError,
   ExpressValidationError,
@@ -312,8 +311,8 @@ describe('ExpressDecompiler', () => {
     });
   });
 
-  describe('B6: decompiling a component id that is not an Express identifier throws', () => {
-    it('throws ExpressInvalidIdentifierError when component id contains hyphen', () => {
+  describe('UAX 31 identifiers and version-aware component ids', () => {
+    it('throws A2uiValidationError in v1.0 when component id is not a UAX 31 identifier', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
       const msg = {
@@ -328,16 +327,27 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(msg)).toThrow(ExpressInvalidIdentifierError);
+      expect(() => decompiler.decompile(msg)).toThrow(A2uiValidationError);
+      expect(() => decompiler.decompile(msg)).toThrow(
+        "Component id 'title-heading' must be a valid UAX #31 identifier",
+      );
     });
 
-    it('throws ExpressInvalidIdentifierError when component id is a reserved keyword', () => {
+    it('derives a variable name and emits id= for a reserved word component id', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
+      const parser = new ExpressParser([catalog], 'default_surface', version);
       const msg = {
+        version: 'v1.0',
         createSurface: {
           surfaceId: 'default_surface',
+          catalogId: catalog.id,
           components: [
+            {
+              id: 'root',
+              component: 'Card',
+              child: 'true',
+            },
             {
               id: 'true',
               component: 'Text',
@@ -346,7 +356,87 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(msg)).toThrow(ExpressInvalidIdentifierError);
+      const dsl = decompiler.decompile(msg);
+      expect(dsl).toBe('root = Card(_true)\n_true = Text("Hello", id="true")');
+      expect(parser.compile(dsl)).toEqual([msg]);
+    });
+
+    it('derives variable names with deduplication for pre-v1.0 non-identifier component ids', () => {
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const parser = new ExpressParser([catalog], 'default', version);
+      const messages = [
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'default',
+            catalogId: catalog.id,
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'default',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                children: ['title-heading', 'title_heading'],
+              },
+              {
+                id: 'title-heading',
+                component: 'Text',
+                text: 'First',
+              },
+              {
+                id: 'title_heading',
+                component: 'Text',
+                text: 'Second',
+              },
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+      const dsl = decompiler.decompile(messages);
+      expect(dsl).toContain('root = Column([title_heading_2, title_heading])');
+      expect(dsl).toContain('title_heading_2 = Text("First", id="title-heading")');
+      expect(dsl).toContain('title_heading = Text("Second")');
+      expect(parser.compile(dsl)).toEqual(messages);
+    });
+
+    it('round-trips non-ASCII UAX 31 identifiers as bare variable and map key names', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const parser = new ExpressParser([catalog], 's1', version);
+      const msg = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['entête', '見出し_1'],
+            },
+            {
+              id: 'entête',
+              component: 'Text',
+              text: 'Bonjour',
+            },
+            {
+              id: '見出し_1',
+              component: 'Text',
+              text: 'こんにちは',
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const dsl = decompiler.decompile(msg);
+      expect(dsl).toBe(
+        'surface("s1")\nroot = Column([entête, 見出し_1])\nentête = Text("Bonjour")\n見出し_1 = Text("こんにちは")',
+      );
+      expect(parser.compile(dsl)).toEqual([msg]);
     });
   });
 

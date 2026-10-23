@@ -67,6 +67,23 @@ describe('ExpressCompiler', () => {
       ]);
     });
 
+    it('advances a positional numeric argument to the next numeric property', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(compiler.compile('-- SQL comment\nroot = Column([t], 2)\nt = Text("Hello")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            components: [
+              {id: 'root', component: 'Column', children: ['t'], weight: 2},
+              {id: 't', component: 'Text', text: 'Hello'},
+            ],
+          },
+        },
+      ]);
+    });
+
     it('compiles a Card whose child is declared on its own line', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('root = Card(t)\nt = Text("Card body")')).toEqual([
@@ -631,7 +648,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = compiler.compile(
         'surface("s1", sendDataModel=true)\n' +
           'root = Card(child_var)\n' +
-          'child_var = Text("Hello", id="custom-child-id")\n' +
+          'child_var = Text("Hello", id="true")\n' +
           'surface("s1", update=true)\n' +
           'root = Text("Updated root")\n' +
           'openUrl("https://example.com", functionCallId="custom-call-1")\n' +
@@ -645,8 +662,8 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
             catalogId: simplifiedCatalog.id,
             sendDataModel: true,
             components: [
-              {id: 'root', component: 'Card', child: 'custom-child-id'},
-              {id: 'custom-child-id', component: 'Text', text: 'Hello'},
+              {id: 'root', component: 'Card', child: 'true'},
+              {id: 'true', component: 'Text', text: 'Hello'},
             ],
           },
         },
@@ -675,6 +692,9 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           },
         },
       ]);
+      expect(() =>
+        compiler.compile('root = Card(child_var)\nchild_var = Text("Hello", id="custom-child-id")'),
+      ).toThrow("Component id 'custom-child-id' on 'Text' is not a valid UAX 31 identifier.");
     });
 
     it('determines createSurface vs updateComponents from compiled component id="root"', () => {

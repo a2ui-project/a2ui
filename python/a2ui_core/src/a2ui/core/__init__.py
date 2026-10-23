@@ -23,6 +23,9 @@ from a2ui.core.catalog import (
     is_valid_uax31_identifier as is_valid_uax31_identifier,
     link_catalogs as link_catalogs,
 )
+from a2ui.core.common import (
+    to_protocol_version as to_protocol_version,
+)
 from a2ui.core.exceptions import (
     A2uiCatalogError as A2uiCatalogError,
     A2uiDataError as A2uiDataError,
@@ -99,4 +102,5 @@ __all__ = [
     "inline_local_refs",
     "is_valid_uax31_identifier",
     "link_catalogs",
+    "to_protocol_version",
 ]
