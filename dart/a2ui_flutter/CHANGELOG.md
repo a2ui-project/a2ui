@@ -40,5 +40,6 @@
   `package:a2ui_flutter/v0_9/basic_catalog.dart`, under the same names.
 - Error and warning listeners no longer run while an `A2uiSurface` builds, so
   they may call `setState` directly instead of deferring it to the next frame.
+- Support `live`, `hidden`, and dynamically bound `accessibility` attributes in `NodeView`, and expose `validationResults` on `ComponentProps` with non-blocking warning helper text in `TextField`.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
 - Initial version.
