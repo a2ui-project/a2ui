@@ -39,9 +39,20 @@ Widget buildTextField(
     variant: props.string('variant'),
     pattern: props.string('validationRegexp'),
     error: props.validationErrors.firstOrNull,
+    warning: _firstWarning(props),
     write: writerFor(context, props, 'value'),
   ),
 );
+
+String? _firstWarning(ComponentProps props) {
+  for (final ValidationResult result in props.validationResults) {
+    if ((result.severity ?? 'error') != 'error') {
+      final String? message = result.message;
+      if (message != null && message.isNotEmpty) return message;
+    }
+  }
+  return null;
+}
 
 /// Shown when the text does not match `validationRegexp`.
 const String _invalidFormatMessage = 'Invalid format';
@@ -76,6 +87,7 @@ class _TextField extends StatefulWidget {
     required this.variant,
     required this.pattern,
     required this.error,
+    required this.warning,
     required this.write,
   });
 
@@ -84,6 +96,7 @@ class _TextField extends StatefulWidget {
   final String? variant;
   final String? pattern;
   final String? error;
+  final String? warning;
   final bool Function(String)? write;
 
   @override
@@ -168,6 +181,7 @@ class _TextFieldState extends State<_TextField> {
       decoration: InputDecoration(
         labelText: label == null || label.isEmpty ? null : label,
         errorText: _errorText,
+        helperText: widget.warning,
       ),
       obscureText: obscured,
       autocorrect: !obscured && !number,
