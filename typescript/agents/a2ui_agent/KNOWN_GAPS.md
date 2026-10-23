@@ -6,34 +6,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ## 1. `@a2ui/agent` (This package)
 
-### Streaming follows the legacy suite
-
-- **What it is:** `DirectJsonStreamProcessorImpl` was written against `conformance/agent/legacy/streaming_parser.yaml`. The harness now runs `conformance/agent/direct_json/response_streaming.yaml`, which replaced it, and 47 of its 79 v0.9 and v1.0 cases fail. The processor adds `loading_*` placeholder components and prunes a message that is still arriving where the suite withholds it until it reads whole; emits a message only once the block closes; keeps the whitespace at the edges of text; raises on an invalid message as it arrives, and a cycle as `A2uiRecursionError`, where the suite raises a validation error when the block closes; drops or accepts messages for a surface the block has not created and drops orphans, where the suite reports them; and heals cut numbers and escape sequences.
-- **Why it exists:** The new suite was written with Python's `DirectJsonParser.parse_chunk`, which replaced the Python stream parser this processor was ported from.
-- **What it risks:** Streamed output differs from Python's and Dart's for the same model output, and a renderer can receive placeholder components and pruned messages.
-- **Done looks like:** The stream processor follows `response_streaming.yaml`, every case leaves `KNOWN_FAILURES` in `tests/conformance/direct-json-response-streaming.test.ts`, and the v0.8 cases stay skipped since this package does not implement v0.8.
-
-### Streamed component properties are not validated against catalogs
-
-- **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, and checks that each reachable component's `component` type exists in its resolved catalog, but does not validate component properties against the catalog schema during streaming.
-- **Why it exists:** Full schema validation against component catalogs lives in `A2uiRequestProcessor`, and streaming isn't available through that facade yet. Callers construct the stream processor themselves.
-- **What it risks:** Streaming callers can forward components with invalid or unknown properties to a renderer.
-- **Done looks like:** The stream processor validates completed component properties against the catalog each component resolves to, for example through web_core's `MessageProcessor`, or streaming moves behind `A2uiRequestProcessor` and is validated there.
-
-### `resolveCatalogs` can't tell when capabilities omit the catalogs' version
-
-- **What it is:** `resolveCatalogs` and `A2uiGenerator.createProcessor` take the renderer capabilities entry for one protocol version, not the object keyed by version that the renderer sends. Python takes the keyed object, looks up the entry for the registered catalogs' version, and raises a validation error when it's missing.
-- **Why it exists:** The TypeScript SDK was written against v1.0 only, so callers unwrap the `v1.0` entry before calling in.
-- **What it risks:** A caller that unwraps the wrong key, or passes `undefined` because the key is missing, gets every registered catalog instead of an error.
-- **Done looks like:** The resolver takes the version-keyed capabilities, picks the entry for the catalogs' protocol version, and throws `A2uiValidationError` when there is none, so `test_capabilities_without_the_catalogs_version_are_invalid` in `conformance/agent/catalog_resolution.yaml` passes.
-
-### State leakage across requests (Sharp edge)
-
-- **What it is:** `A2uiRequestProcessor` holds a single `MessageProcessor` that accrues state across every `parseResponse` call.
-- **Why it exists:** `MessageProcessor` is inherently stateful, tracking created surfaces to validate future updates.
-- **What it risks:** Re-sending the same `createSurface` in a new payload across multiple turns of a conversational session using the same processor instance will throw an `A2uiStateError`. Callers must manually recreate and recycle the `A2uiRequestProcessor` per _request_ (turn), not per session.
-- **Done looks like:** The request-scoped lifecycle is prominently documented, or the internal structure is changed to expose a clear `reset()` method.
-
 ### Partial protocol version support and unimplemented formats
 
 - **What it is:** The package supports `v1.0`, `v0.9` and `v0.9.1`, a patch release that shares the v0.9 schemas. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
@@ -64,17 +36,17 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Some blueprint conformance suites are not run
 
-- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/direct_json/prompt_generator.yaml` and `agent/direct_json/response_streaming.yaml` run. The rest do not: the other `agent/direct_json/*.yaml` files, `agent/catalog_transformer.yaml` and `agent/builder/`.
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness still reads `legacy/parser.yaml` and `legacy/inference_format.yaml` there, skipping the cases the newer suites replaced. The blueprint suites `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, every `agent/direct_json/*.yaml` file and every `agent/express/*.yaml` file run. The timing suites among them, `agent/direct_json/scaling.yaml` and `agent/express/scaling.yaml`, run with `yarn test:timing` rather than `yarn test`. `agent/builder/` and `agent/macros/` do not run.
 - **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
 - **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
 
 ### `no-explicit-any` lint warnings
 
-- **What it is:** There are eslint warnings for `no-explicit-any` in the Direct JSON streaming healer (`streaming.ts`) and in `tests/conformance/conformance.test.ts`. The Express code has none.
-- **Why it exists:** In the streaming healer, partial JSON chunks are untyped before they are repaired and compiled.
+- **What it is:** There are eslint warnings for `no-explicit-any` in `tests/conformance/direct-json-conformance.test.ts`. The package source has none.
+- **Why it exists:** The harnesses read untyped YAML cases and walk them with loosely typed helpers.
 - **What it risks:** Mild technical debt.
-- **Done looks like:** The partial JSON trees are given a more rigorous generic recursive type, or `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
+- **Done looks like:** The harness helpers take `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
 
 ## 2. `web_core`
 
@@ -84,13 +56,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The generic typing in `web_core` does not differentiate between execution catalogs and schema-only catalogs.
 - **What it risks:** Forces a double cast (`as unknown as Catalog<ComponentApi, FunctionImplementation>[]`) in `processor.ts` when passing schema-only catalogs.
 - **Done looks like:** `MessageProcessor` relaxes its type constraint to allow omitting `FunctionImplementation` when no action handler is provided.
-
-### Catalog loader keeps a second copy of the common types map
-
-- **What it is:** `schema_loader.ts` resolves protocol `$ref`s through its own `COMMON_TYPE_SCHEMAS` table, a partial copy of the complete `CommonSchemas` map that `types/common-types.ts` already exports.
-- **Why it exists:** The two grew independently.
-- **What it risks:** The copy falls behind silently. It already has once: it lacked `Child`, so every v1.0 single-child reference resolved to nothing and the basic catalog lost its child references with no test noticing. That was fixed by adding the entry, not by removing the duplication, so the next new common type will hit the same wall.
-- **Done looks like:** The loader resolves against `CommonSchemas` directly and the local table is deleted.
 
 ### No v0.9.1 basic catalog
 
@@ -119,7 +84,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Behaviours TypeScript enforces that no conformance case pins
 
-- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling a component id that is not an Express identifier, such as `title-heading` or `true` (`ExpressInvalidIdentifierError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`).
+- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`).
 - **Why it exists:** Each was decided while making TypeScript follow the suite: throwing is preferred to silently producing wrong output.
 - **What it risks:** Python may choose differently, and nothing would catch the drift.
 - **Done looks like:** Conformance cases pin each behaviour, so both SDKs are held to it.
@@ -132,20 +97,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Done looks like:** `web_core` exports the basic catalog instructions natively so consumers without filesystem access do not need to read `catalog.json`.
 
 ## 4. Upstream Python & Conformance Suite
-
-### Python's `has_format_content` tests substrings
-
-- **What it is:** With `complete=True`, Python's `has_format_content` checks that the opening and closing tags each appear somewhere in the content, so `</a2ui-json> <a2ui-json>` counts as a complete block. TypeScript's `hasFormatContent` runs the block lexer and requires a closing tag after an opening one. Without `complete`, both return true for an opening tag on its own, as the module blueprint specifies. The conformance `has_parts` cases check the `complete` form, and both SDKs pass them.
-- **Why it exists:** TypeScript reuses the block lexer that `unwrap` already needs, rather than porting Python's substring test.
-- **What it risks:** Content with a stray closing tag before the opening one is reported differently by the two SDKs.
-- **Done looks like:** Python's `parser.py` checks tag order too, or the blueprint says that a substring test is enough.
-
-### Python's trailing-comma repair rewrites string contents
-
-- **What it is:** When a Direct JSON payload fails to parse, Python's `_remove_trailing_commas` in `payload_fixer.py` drops every comma followed by whitespace and a `]` or `}`, using the regex `,(?=\s*[\]}])`. It does not skip string literals, so a value such as `"a,}"` loses its comma. The TypeScript `removeTrailingCommas` skips string literals and keeps it.
-- **Why it exists:** The TypeScript port started from the same regex. A review of this package pointed out the corruption, and only the TypeScript side was changed.
-- **What it risks:** For the same model output, the two SDKs can emit different string values. Conformance does not catch it: `test_compile_json_trailing_commas_removed` has no comma inside a string.
-- **Done looks like:** Python skips string literals as well, and a conformance case with a `,}` inside a string value pins the behaviour.
 
 ### Python's Express emits checks on components that take none
 
@@ -199,11 +150,11 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Python's Express cannot decompile the restaurant finder's v0.9 examples
 
-- **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile in Python. Component ids such as `title-heading` are not Express identifiers, so the lexer stops at the `-`. In Python, `updateDataModel.path` is ignored, so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`. `createSurface` and `updateComponents` each write a `surface("default")` line, and a program with two `surface` lines fails with "Root target 'root' is not defined". `createSurface.theme` is dropped without notice.
-- **TypeScript:** The TypeScript decompiler honours `updateDataModel.path` (mapping non-root paths to `$/path` leaf assignments), groups messages per surface to emit a single `surface` block, decompiles standalone `updateComponents` into blocks without a `root`, quotes keyword dictionary keys, and throws `ExpressInvalidIdentifierError` on invalid component ids like `title-heading` or `true`. The TS compiler now successfully compiles blocks with component assignments but no `root` target into `updateComponents`. Python still fails all these cases.
+- **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile in Python. Although Python now derives variable names with `id="..."` for pre-v1.0 non-identifier component ids such as `title-heading`, `updateDataModel.path` is still ignored (so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`), `createSurface` and `updateComponents` each write a `surface("default")` line (and a program with two `surface` lines fails with "Root target 'root' is not defined"), and `createSurface.theme` is dropped without notice.
+- **TypeScript:** The TypeScript decompiler honours `updateDataModel.path` (mapping non-root paths to `$/path` leaf assignments), groups messages per surface to emit a single `surface` block, decompiles standalone `updateComponents` into blocks without a `root`, quotes keyword dictionary keys, and derives variable names with `id="..."` for pre-v1.0 non-identifier component ids like `title-heading` (while rejecting non-UAX 31 component ids from v1.0 with `A2uiValidationError`). The TS compiler now successfully compiles blocks with component assignments but no `root` target into `updateComponents`.
 - **Why it exists:** The decompiler handles each message on its own and was written against v1.0, where one `createSurface` carries the components and the data model.
-- **What it risks:** Examples written for Direct JSON cannot be reused for Express as they are. In TypeScript the only remaining obstacle is ids that are not identifiers, which now throw instead of producing broken text; the Node sample keeps its own copies of the examples with underscore ids for that reason. It no longer drops `createSurface` before decompiling.
-- **Done looks like:** Python's decompiler honours `updateDataModel.path`, writes one `surface` line per surface, and either rejects or rewrites ids that are not identifiers.
+- **What it risks:** In Python, v0.9 examples written for Direct JSON that use `updateDataModel.path` or separate `createSurface` and `updateComponents` messages cannot be reused for Express as they are. TypeScript handles both and derives variable names with `id="..."` for pre-v1.0 non-identifier component ids.
+- **Done looks like:** Python's decompiler honours `updateDataModel.path` and writes one `surface` line per surface.
 
 ### Python's Express leaves v0.9 JSON examples untranslated
 

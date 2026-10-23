@@ -20,9 +20,19 @@ signatures, and requirements directly from standard catalog JSON schemas.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
-from a2ui.core import Catalog, CatalogApi, inline_local_refs
+from a2ui.core import (
+    A2uiCatalogError,
+    Catalog,
+    CatalogApi,
+    get_common_types_schema_map,
+    inline_local_refs,
+    to_protocol_version,
+)
+
+_COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
 
 
 def _find_enum(s: Any) -> list[Any] | None:
@@ -104,6 +114,14 @@ class CatalogSchemaHelper:
         self.catalog = inline_local_refs(
             catalog_schema, catalog_schema, peers=catalog.peer_catalogs
         )
+        try:
+            self.common_types: dict[str, Any] = get_common_types_schema_map(
+                to_protocol_version(catalog.protocol_version)
+            )
+            self.common_types_loaded: bool = True
+        except (A2uiCatalogError, ValueError):
+            self.common_types = {}
+            self.common_types_loaded = False
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))
         self.component_properties: dict[str, list[str]] = {}
@@ -319,3 +337,109 @@ class CatalogSchemaHelper:
             return None
 
         return _crawl_ref(p_schema)
+
+    def _lookup_common_def(self, def_name: str) -> Any:
+        defs = self.common_types.get("$defs") or self.common_types.get("definitions")
+        return defs.get(def_name) if isinstance(defs, dict) else None
+
+    def _resolve_json_pointer(self, root: dict[str, Any], pointer: str) -> Any:
+        if not pointer.startswith("#/"):
+            return None
+        current: Any = root
+        for part in pointer[2:].split("/"):
+            if not isinstance(current, dict):
+                return None
+            unescaped = part.replace("~1", "/").replace("~0", "~")
+            current = current.get(unescaped)
+        return current
+
+    def accepts_number(self, schema: Any) -> bool:
+        """Checks whether a property schema accepts a numeric value by resolving $refs."""
+        visited: set[int] = set()
+
+        def _check(s: Any, in_common_types: bool) -> bool:
+            if not isinstance(s, dict):
+                return False
+            obj_id = id(s)
+            if obj_id in visited:
+                return False
+            visited.add(obj_id)
+
+            s_type = s.get("type")
+            if s_type in ("number", "integer"):
+                return True
+            if isinstance(s_type, list) and any(
+                t in ("number", "integer") for t in s_type
+            ):
+                return True
+
+            const_val = s.get("const")
+            if isinstance(const_val, (int, float)) and not isinstance(const_val, bool):
+                return True
+
+            enum_val = s.get("enum")
+            if isinstance(enum_val, list) and any(
+                isinstance(v, (int, float)) and not isinstance(v, bool)
+                for v in enum_val
+            ):
+                return True
+
+            ref = s.get("$ref")
+            if isinstance(ref, str):
+                m = _COMMON_DEF_RE.search(ref)
+                if m:
+                    resolved = self._lookup_common_def(m.group(1))
+                    if resolved is None:
+                        return True
+                    if _check(resolved, True):
+                        return True
+                elif in_common_types and (
+                    ref.startswith("#/$defs/") or ref.startswith("#/definitions/")
+                ):
+                    name = ref[8:] if ref.startswith("#/$defs/") else ref[14:]
+                    resolved = self._lookup_common_def(name)
+                    if resolved is None:
+                        return True
+                    if _check(resolved, True):
+                        return True
+                elif ref.startswith("#/"):
+                    resolved = self._resolve_json_pointer(self.catalog, ref)
+                    if resolved is None:
+                        return True
+                    if _check(resolved, False):
+                        return True
+                elif ref.startswith("catalog.json#/"):
+                    resolved = self._resolve_json_pointer(self.catalog, ref[12:])
+                    if resolved is None:
+                        return True
+                    if _check(resolved, False):
+                        return True
+                else:
+                    return True
+
+            for key in ("allOf", "oneOf", "anyOf"):
+                subs = s.get(key)
+                if isinstance(subs, list):
+                    for sub in subs:
+                        if _check(sub, in_common_types):
+                            return True
+
+            type_keys = {
+                "type",
+                "const",
+                "enum",
+                "$ref",
+                "allOf",
+                "oneOf",
+                "anyOf",
+                "properties",
+                "items",
+                "prefixItems",
+                "not",
+            }
+            if not any(k in s for k in type_keys):
+                return True
+
+            return False
+
+        return _check(schema, False)

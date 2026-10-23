@@ -49,10 +49,7 @@ void main() {
   });
 
   A2uiRequestProcessor processor([List<CatalogApi>? catalogs]) =>
-      A2uiRequestProcessor(
-        activeCatalogs: catalogs ?? [basic],
-        formatFactory: const ExpressFormatFactory(),
-      );
+      A2uiRequestProcessor(activeCatalogs: catalogs ?? [basic]);
 
   /// The messages one block compiles to, as JSON.
   List<Map<String, Object?>> compile(String block) {
@@ -126,21 +123,10 @@ title = Card(Text("Nested"))
       );
     });
 
-    test('common properties accessibility and weight as kwargs', () {
-      expect(
-        components(
-          'root = Text("Hello", weight=2, accessibility={label: "Greeting"})',
-        ),
-        [
-          {
-            'id': 'root',
-            'component': 'Text',
-            'text': 'Hello',
-            'weight': 2,
-            'accessibility': {'label': 'Greeting'},
-          },
-        ],
-      );
+    test('common property weight as kwarg', () {
+      expect(components('root = Text("Hello", weight=2)'), [
+        {'id': 'root', 'component': 'Text', 'text': 'Hello', 'weight': 2},
+      ]);
     });
 
     test('string literals', () {
@@ -242,6 +228,42 @@ root = Text($/user/name)
         {'id': 'root', 'component': 'Text', 'text': 'x', 'weight': 1e20},
       ]);
     });
+
+    test('line-wrapped identifiers, paths, and single-line strings', () {
+      expect(
+        components(
+          'root = Column([card2\nRating], justify="start\n")\n'
+          'card2\nRating = Card(lights\nCheckbox)\n'
+          'lightsCheckbox = Text(\$/\nform/phone)',
+        ),
+        containsAll(<Object?>[
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['card2Rating'],
+            'justify': 'start',
+          },
+          {'id': 'card2Rating', 'component': 'Card', 'child': 'lightsCheckbox'},
+          {
+            'id': 'lightsCheckbox',
+            'component': 'Text',
+            'text': {'path': '/form/phone'},
+          },
+        ]),
+      );
+    });
+
+    test('positional numeric weight skipping non-numeric properties', () {
+      expect(components('root = Column([a], 2)\na = Text("hi")'), [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['a'],
+          'weight': 2,
+        },
+        {'id': 'a', 'component': 'Text', 'text': 'hi'},
+      ]);
+    });
   });
 
   group('parses a response', () {
@@ -321,6 +343,15 @@ surface("s1")
         'root = Text("x"); orphan = Text("y")',
         throwsError<A2uiIntegrityError>(),
       ),
+      'two top-level components with the same explicit id': (
+        'root = Column([a, b]); a = Text("x", id="dup"); '
+            'b = Text("y", id="dup")',
+        throwsError<A2uiValidationError>(),
+      ),
+      'two inline components with the same explicit id': (
+        'root = Column([Text("x", id="dup"), Text("y", id="dup")])',
+        throwsError<A2uiValidationError>(),
+      ),
     };
     for (final MapEntry<String, (String, Matcher)> entry in cases.entries) {
       test(entry.key, () {
@@ -367,7 +398,7 @@ surface("s1")
         snippet,
         contains(
           '• TextField(label, value?, variant? (static), '
-          'validationRegexp? (static), accessibility? (static), '
+          'validationRegexp? (static), '
           'weight? (static), checks?)',
         ),
       );
@@ -375,7 +406,7 @@ surface("s1")
         snippet,
         contains(
           '• Button(child (component ID), variant? (static), action (action), '
-          'accessibility? (static), weight? (static), checks?)',
+          'weight? (static), checks?)',
         ),
       );
       expect(snippet, contains('• formatString(value)'));
@@ -513,7 +544,7 @@ surface("s1")
 
     test('does not stream', () {
       expect(parser.supportsStreaming, isFalse);
-      expect(() => parser.parseChunk('<a2ui>'), throwsUnsupportedError);
+      expect(parser.openStream, throwsUnsupportedError);
     });
   });
 

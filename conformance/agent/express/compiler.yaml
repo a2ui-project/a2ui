@@ -63,6 +63,10 @@
 #   a map, an `Event` or a check is substituted wherever it is named, and emits
 #   nothing of its own. Without this rule the two would be indistinguishable,
 #   since both are written `name = value`.
+# - As compile-time repairs on top of `Express.g4` (whose `COMMENT` rule is
+#   `#` and `//` only), `--` single-line comments outside string literals, raw
+#   line breaks at the edges of standard double-quoted strings, and tokens
+#   split across a line break outside strings and comments are tolerated.
 # - A check written without parentheses supplies no message. `CheckRule.message`
 #   is optional, but a renderer with no message has nothing to show a user, so
 #   an implementation fills one in; its wording is not fixed here. That is what
@@ -101,6 +105,9 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# A compile case checks the block on its own, as `validate_payload` does: a
+# surface that the block updates without creating is assumed to exist.
+
 - name: test_compile_express_minimal_root
   description: A block that assigns root compiles to one createSurface carrying that component.
   action: compile
@@ -117,6 +124,28 @@
           - id: "root"
             component: "Text"
             text: "Hello"
+
+- name: test_compile_express_unicode_identifier
+  description: A variable name that is a UAX 31 Unicode identifier lexes and compiles to a component with that id.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column([größe])
+    größe = Text("x")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["größe"]
+          - id: "größe"
+            component: "Text"
+            text: "x"
 
 - name: test_compile_express_nesting_by_variable_reference
   description: A child named by variable becomes a component id in the parent and a component of its own.
@@ -712,6 +741,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     # The greeting the user asked for.
+    -- SQL-style single-line comment.
     root = Text("Hello")  // the only component
     /* Nothing follows, but a block
        comment spanning lines still ends the block cleanly. */
@@ -1021,6 +1051,16 @@
   expect_error:
     category: "ValidationError"
 
+- name: test_compile_express_check_with_value_on_uncheckable_component_is_a_validation_error
+  description: A check that names the value it checks, passed to a component whose catalog schema does not declare a checks property, is a validation error. The check is complete, so the missing checks property is the only error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("hi", [?required($/name)])'
+  expect_error:
+    category: "ValidationError"
+
 - name: test_compile_express_components_without_root_is_update_components
   description: A block that assigns components without defining root compiles to an updateComponents message for an existing surface rather than createSurface.
   action: compile
@@ -1092,3 +1132,331 @@
     root = Text("hi")
   expect_error:
     category: "ValidationError"
+
+- name: test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error
+  description: From v1.0, component IDs must be valid UAX 31 identifiers, so setting id="..." to a non-identifier string is rejected with a validation error at compile time.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Column([t]); t = Text("x", id="main-title")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_sql_style_comment_and_edge_newlines_repaired
+  description: A SQL-style -- comment outside strings is ignored and raw line breaks at the edges of a standard string literal are stripped.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    -- Greeting surface
+    root = Text("
+    Hello -- world
+    ")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello -- world"
+
+- name: test_compile_express_split_identifier_and_split_path_repaired
+  description: An identifier or data binding path broken across a line outside string literals is joined when the joined identifier resolves to a declared variable.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    greeting_
+    label = Text($/user/
+    name)
+    root = Card(
+      greeting_
+      label
+    )
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "greeting_label"
+            component: "Text"
+            text:
+              "@path": "/user/name"
+          - id: "root"
+            component: "Card"
+            child: "greeting_label"
+
+- name: test_compile_express_triple_quoted_strings_not_corrupted_by_line_joins
+  description: Triple-quoted strings containing newlines, commas, parentheses, assignments, and $/ paths are kept verbatim without line-join rewrites.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    c1 = Text("""Colors: red, green
+    blue, yellow""")
+    c2 = Text("""Shopping list:
+    apples
+    pears = 2 kg""")
+    c3 = Text("""Price in $/
+    month""")
+    root = Column([c1, c2, c3])
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "c1"
+            component: "Text"
+            text: "Colors: red, green\nblue, yellow"
+          - id: "c2"
+            component: "Text"
+            text: "Shopping list:\napples\npears = 2 kg"
+          - id: "c3"
+            component: "Text"
+            text: "Price in $/\nmonth"
+          - id: "root"
+            component: "Column"
+            children: ["c1", "c2", "c3"]
+
+- name: test_compile_express_missing_comma_between_defined_variables_is_a_parse_error
+  description: Two defined variable names separated by a newline without a comma inside a list fail to parse even when their concatenation is also a defined variable.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    header = Text("H")
+    body = Text("B")
+    headerbody = Text("HB")
+    root = Column([header
+    body])
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_express_positional_number_skips_optional_enums_to_weight
+  description: A trailing numeric positional argument skips optional enum properties when exactly one later property accepts numbers.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    t = Text("Hello", 2)
+    root = Column([t], 1)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/weighted"
+        components:
+          - id: "t"
+            component: "Text"
+            text: "Hello"
+            weight: 2
+          - id: "root"
+            component: "Column"
+            children: ["t"]
+            weight: 1
+
+- name: test_compile_express_positional_number_does_not_skip_non_enum_optional_property
+  description: A numeric positional argument at an optional string property that is not an enum does not skip ahead to weight and fails validation.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: 'root = Image("https://example.com/a.png", 200)'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_positional_number_followed_by_more_args_is_a_validation_error
+  description: A numeric positional argument that is not the last positional argument does not skip ahead to weight, and extra positional arguments are rejected.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    t = Text("Hello")
+    root = Column([t], 2, "center")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_split_data_path_not_joined_across_assignment
+  description: A path ending in slash at the end of a line is not joined when the next line begins an identifier assignment.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    data = $/user/
+    root = Text("hi")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "hi"
+
+- name: test_compile_express_multiline_kwargs_not_treated_as_declared_lhs
+  description: Keyword arguments in multiline component calls are at depth greater than 0 and are not collected as top-level declared identifiers.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Card(
+      child = Text("Hello")
+    )
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "root_child"
+          - id: "root_child"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_positional_number_skips_optional_enum_to_ref_resolved_dynamic_number
+  description: A trailing numeric positional argument skips optional enum properties to a property whose type is a $ref to DynamicNumber.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Slider(50)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/weighted"
+        components:
+          - id: "root"
+            component: "Slider"
+            value: 50
+
+- name: test_compile_express_positional_number_does_not_skip_required_enum
+  description: A numeric positional argument does not skip a required enum property and fails validation.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Status(1, state = "active")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_positional_number_ambiguous_two_numeric_targets_is_validation_error
+  description: A numeric positional argument does not skip when two later properties accept numbers, making the target ambiguous.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = DualMetric(10)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_positional_number_target_in_kwargs_is_validation_error
+  description: A numeric positional argument does not skip to a numeric property that is already provided in keyword arguments.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Text("Hello", 2, weight = 1)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_sql_comment_inside_comment_or_triple_string_preserved
+  description: Double dashes inside single-line comments or triple-quoted strings are preserved as string or comment content.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    // comment with -- dash
+    root = Text("""Value -- with dashes""")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Value -- with dashes"
+
+- name: test_compile_express_split_identifier_one_half_resolves_not_joined
+  description: A split identifier is not joined when only one half resolves to a declared variable and the joined name does not.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    header = Text("H")
+    root = Column([header
+    suffix])
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_express_positional_number_skips_optional_enum_to_level_when_last_arg
+  description: A numeric positional argument skips an optional enum property when it is the last positional argument and a single later property accepts numbers.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Meter("CPU", 75)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/weighted"
+        components:
+          - id: "root"
+            component: "Meter"
+            label: "CPU"
+            level: 75
+
+- name: test_compile_express_positional_number_followed_by_more_args_pins_exact_assignment
+  description: A numeric positional argument followed by more arguments does not skip ahead to level, rejecting the invalid enum assignment instead of succeeding.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/weighted_catalog_v1_0.json"
+  input: |-
+    root = Meter("CPU", 75, "High priority")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_raw_newline_in_plain_string_preserved
+  description: A raw newline inside a plain string literal is preserved and not altered by source normalization.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("Hello
+    World")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello\nWorld"

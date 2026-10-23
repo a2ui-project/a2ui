@@ -17,6 +17,7 @@
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi, linkCatalogs} from '../catalog/types.js';
+import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
@@ -25,6 +26,11 @@ import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
 
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
+import {
+  RecordedGraphBound,
+  recordComponentGraphBound,
+  validateComponentGraph,
+} from '../state/validation-helpers.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
@@ -62,7 +68,6 @@ import {
 } from '../rpc/index.js';
 import {DataContext} from '../resolution/data-context.js';
 import {
-  getComponentReferences,
   RELAXED_VALIDATION,
   STRICT_VALIDATION,
   validateRecursionAndPaths,
@@ -157,6 +162,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly adapterRegistry: VersionAdapterResolver;
   private readonly validationConfig?: ValidationConfig;
   private readonly catalogs: Catalog<any>[];
+  /**
+   * What the last check of each surface's components found, under a config
+   * that defers the reference and reachability checks, with the number of
+   * changes the components had seen once that batch was applied.
+   */
+  private readonly graphBounds = new WeakMap<SurfaceComponentsModel, RecordedGraphBound>();
 
   /**
    * Initializes a new `MessageProcessor` instance.
@@ -312,6 +323,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         const rawZod = zodToJsonSchema(comp.schema, {
           target: 'jsonSchema2019-09',
           $refStrategy: 'none',
+          override: exclusiveUnionOverride,
         }) as Record<string, unknown>;
         cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         props = (rawZod.properties as Record<string, unknown>) || {};
@@ -341,6 +353,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         const rawZod = zodToJsonSchema(fn.schema, {
           target: 'jsonSchema2019-09',
           $refStrategy: 'none',
+          override: exclusiveUnionOverride,
         }) as Record<string, unknown>;
         cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         paramSchema = rawZod;
@@ -358,6 +371,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const rawTheme = zodToJsonSchema(catalog.themeSchema, {
         target: 'jsonSchema2019-09',
         $refStrategy: 'none',
+        override: exclusiveUnionOverride,
       }) as Record<string, unknown>;
       cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
       theme = (rawTheme.properties as Record<string, unknown>) || undefined;
@@ -1074,12 +1088,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.validateComponentProperties(comp, surface);
     }
 
-    this.validateCompositionConstraints(surface, op.components);
-    this.validateCandidateTopology(surface, op.components);
+    const bound = validateComponentGraph(
+      surface,
+      op.components,
+      this.validationConfig,
+      (comp, s) => this.resolveComponentCatalog(comp, s),
+      this.graphBounds,
+    );
 
     // 2. Mutation pass: apply state updates
     for (const comp of op.components) {
       this.applyComponentUpdate(comp, surface);
+    }
+    if (bound) {
+      recordComponentGraphBound(surface.componentsModel, bound, this.graphBounds);
     }
   }
 
@@ -1094,190 +1116,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const path = op.path || '/';
     const value = op.value;
     surface.dataModel.set(path, value);
-  }
-
-  private validateParentConstraints(
-    id: string,
-    componentType: string,
-    allowedParents: string[],
-    parents?: Array<{parentId: string; parentType: string}>,
-  ): void {
-    if (!parents || parents.length === 0) {
-      const isRoot = id === 'root';
-      const enforceTopLevel =
-        isRoot || (this.validationConfig && this.validationConfig.allowOrphanComponents === false);
-      if (enforceTopLevel && !allowedParents.includes('Surface')) {
-        throw new A2uiValidationError(
-          `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-          undefined,
-          'UNALLOWED_PARENT',
-        );
-      }
-      return;
-    }
-
-    for (const parentInfo of parents) {
-      if (!allowedParents.includes(parentInfo.parentType)) {
-        throw new A2uiValidationError(
-          `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-          undefined,
-          'UNALLOWED_PARENT',
-        );
-      }
-    }
-  }
-
-  private validateChildConstraints(
-    id: string,
-    componentType: string,
-    allowedChildren: string[],
-    children: string[],
-    typeMap: Map<string, string>,
-  ): void {
-    for (const childId of children) {
-      const childType = typeMap.get(childId);
-      if (childType && !allowedChildren.includes(childType)) {
-        throw new A2uiValidationError(
-          `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(allowedChildren)}.`,
-          undefined,
-          'UNALLOWED_CHILD',
-        );
-      }
-    }
-  }
-
-  private buildCompositionTopology(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ) {
-    const typeMap = new Map<string, string>();
-    const compCatalogMap = new Map<string, Catalog<T>>();
-    const childMap = new Map<string, string[]>();
-
-    for (const [id, model] of surface.componentsModel.entries) {
-      typeMap.set(id, model.type);
-      compCatalogMap.set(id, model.catalog as Catalog<T>);
-      const children = surface.componentsModel.getChildIds(id);
-      if (children.length > 0) {
-        childMap.set(id, children);
-      }
-    }
-
-    for (const comp of newComponents) {
-      const {id, component, ...props} = comp;
-      if (typeof id !== 'string') continue;
-
-      const compCatalog = this.resolveComponentCatalog(comp, surface);
-      compCatalogMap.set(id, compCatalog);
-      const existing = surface.componentsModel.get(id);
-      const compType = (typeof component === 'string' ? component : existing?.type) ?? '';
-      if (compType) {
-        typeMap.set(id, compType);
-      }
-      const compDef = {id, component: compType, ...props};
-      const children = Array.from(getComponentReferences(compDef, compCatalog as Catalog<any>)).map(
-        ([childId]) => childId,
-      );
-      if (children.length > 0) {
-        childMap.set(id, children);
-      } else {
-        childMap.delete(id);
-      }
-    }
-
-    const parentMap = new Map<string, Array<{parentId: string; parentType: string}>>();
-    for (const [parentId, children] of childMap.entries()) {
-      const parentType = typeMap.get(parentId) || 'Unknown';
-      for (const childId of children) {
-        const parents = parentMap.get(childId) ?? [];
-        parents.push({parentId, parentType});
-        parentMap.set(childId, parents);
-      }
-    }
-
-    return {typeMap, compCatalogMap, childMap, parentMap};
-  }
-
-  private validateCompositionConstraints(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ): void {
-    const {typeMap, compCatalogMap, childMap, parentMap} = this.buildCompositionTopology(
-      surface,
-      newComponents,
-    );
-
-    for (const [id, componentType] of typeMap.entries()) {
-      const compCatalog = compCatalogMap.get(id);
-      const componentApi = compCatalog?.components.get(componentType);
-      if (!componentApi) continue;
-
-      if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
-        this.validateParentConstraints(
-          id,
-          componentType,
-          componentApi.allowedParents,
-          parentMap.get(id),
-        );
-      }
-
-      if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
-        this.validateChildConstraints(
-          id,
-          componentType,
-          componentApi.allowedChildren,
-          childMap.get(id) || [],
-          typeMap,
-        );
-      }
-    }
-  }
-
-  private validateCandidateTopology(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ): void {
-    if (!this.validationConfig) return;
-
-    const candidateModel = new SurfaceComponentsModel(surface.defaultCatalog);
-    for (const [id, comp] of surface.componentsModel.entries) {
-      candidateModel.addComponent(
-        new ComponentModel(id, comp.type, comp.properties, comp.catalog as Catalog<T>),
-      );
-    }
-
-    for (const comp of newComponents) {
-      const {id, component, ...properties} = comp;
-      if (typeof id !== 'string' || !id) continue;
-
-      const targetCatalog = this.resolveComponentCatalog(comp, surface);
-      delete properties.catalogId;
-      delete properties.metadata;
-
-      const existing = candidateModel.get(id);
-      const componentType = (typeof component === 'string' ? component : existing?.type) || '';
-      if (!componentType) continue;
-
-      if (existing) {
-        if (componentType !== existing.type || existing.catalog.id !== targetCatalog.id) {
-          candidateModel.removeComponent(id);
-          candidateModel.addComponent(
-            new ComponentModel(id, componentType, properties, targetCatalog),
-          );
-        } else {
-          existing.properties = properties;
-        }
-      } else {
-        candidateModel.addComponent(
-          new ComponentModel(id, componentType, properties, targetCatalog),
-        );
-      }
-    }
-
-    candidateModel.validateTopology({
-      ...this.validationConfig,
-      rootId: this.validationConfig.rootId ?? surface.rootId,
-    });
   }
 }
 

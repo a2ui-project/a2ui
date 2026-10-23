@@ -42,6 +42,23 @@
 # - An empty response unwraps to no parts at all.
 # - A text run is trimmed of leading and trailing whitespace, and a run left
 #   empty by that is dropped. The whitespace between two blocks is not a part.
+# - Backticks at the edges of a block are removed, since no direct JSON payload
+#   starts or ends with one. They are what is left when a model writes the tags
+#   as inline code (`` `<a2ui-json>` ... `</a2ui-json>` ``). A text run made of
+#   nothing but backticks is dropped, while a backtick inside other text is
+#   kept.
+# - In one-shot unwrapping (`unwrap` and `parse_response`), at most one block
+#   whose opening `<a2ui-json>` tag was omitted is recovered when closed by
+#   `</a2ui-json>`. Recovery splits at an opening markdown code fence anchored
+#   to the start of a line (` ```json ` / ` ``` `) or at the first line that
+#   begins a JSON array or object (`[` or `{`) after any closed prose fences,
+#   using the string-aware scanner so a `</a2ui-json>` inside a JSON string
+#   literal does not terminate the block early. When a closing `</a2ui-json>` is
+#   only mentioned in prose with no JSON-start line or fence, the response stays
+#   conversational text.
+# - `has_format_content` uses the same unwrapping rules, so a block recovered
+#   without an explicit opening tag counts as a closed format block, while a
+#   closing tag mentioned only in prose does not.
 #
 # The `parse_response` cases compile as well as unwrap, so a compilation failure
 # surfaces through them. `ParseError` is for payload text the format cannot
@@ -55,6 +72,9 @@
 # The catalogs under test live in `args`, and every case here is written against
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
+
+# A response is parsed as one chat turn, against a renderer that holds no
+# surfaces yet, so a case that updates a surface also creates it.
 
 # --- Unwrapping a response ---
 
@@ -138,6 +158,210 @@
   expect:
     - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
 
+- name: test_unwrap_inline_code_tags_stripped
+  description: Tags the model wrote as inline code leave a backtick at each edge of the block and one on each side of it; all of them are removed.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    `<a2ui-json>`
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    `</a2ui-json>`
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_inline_code_around_block_stripped
+  description: A block wrapped in a single pair of backticks unwraps to the block alone.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    `<a2ui-json>
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>`
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_fenced_open_with_close_tag
+  description: A block opened with a markdown fence such as ```json and closed with </a2ui-json> unwraps to the payload part.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Here is the surface.
+    ```json
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+    ```
+  expect:
+    - text: "Here is the surface."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_closed_fence_before_close_tag
+  description: A block opened and closed with markdown fences right before a stray </a2ui-json> tag recovers the fenced payload.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Here is the surface.
+    ```json
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    ```
+    </a2ui-json>
+  expect:
+    - text: "Here is the surface."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_bare_payload_with_close_tag
+  description: A bare JSON payload with no opening tag and a closing </a2ui-json> tag recovers the payload.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_prose_before_bare_payload_with_close_tag
+  description: Prose before a bare JSON payload closed by </a2ui-json> stays a text part while the payload is recovered.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Here is the surface.
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect:
+    - text: "Here is the surface."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_close_tag_in_prose_stays_text
+  description: A closing </a2ui-json> tag mentioned in conversational prose with no JSON-start line stays conversational text.
+  action: unwrap
+  args:
+    format: direct_json
+  input: "Close every block with </a2ui-json> when you are done."
+  expect:
+    - text: "Close every block with </a2ui-json> when you are done."
+
+- name: test_unwrap_stray_close_tag_in_prose_then_recovered_payload
+  description: A closing tag mentioned in prose before a bare JSON payload does not prevent recovering the payload at the closing tag after it.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Remember to close with </a2ui-json> at the end.
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect:
+    - text: "Remember to close with </a2ui-json> at the end."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_prose_with_punctuation_before_payload_with_close_tag
+  description: Prose containing parentheses, equals signs, or brackets before a bare JSON payload stays in the leading text part.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Sure (here is the layout [v1] where x = 1):
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect:
+    - text: "Sure (here is the layout [v1] where x = 1):"
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_close_tag_inside_string_without_open_tag
+  description: When recovering a bare JSON payload without an opening tag, a </a2ui-json> inside a JSON string literal does not end the block early.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    [{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "</a2ui-json>"}]}}]
+    </a2ui-json>
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "</a2ui-json>"}]}}]'
+
+- name: test_unwrap_inline_backticks_in_prose_before_payload_with_close_tag
+  description: Inline triple backticks in conversational prose do not act as an opening fence for missing-open-tag recovery.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Do not wrap the block in ``` fences.
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect:
+    - text: "Do not wrap the block in ``` fences."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
+- name: test_unwrap_close_tag_after_comment_marker_in_string
+  description: Comment markers inside a JSON string do not hide a closing </a2ui-json> tag on the same line.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    <a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "https://example.com -- note"}]}}]</a2ui-json>
+    Trailing text.
+  expect:
+    - a2ui_raw: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "https://example.com -- note"}]}}]'
+    - text: "Trailing text."
+
+- name: test_has_format_content_recovered_bare_payload
+  description: A bare JSON payload closed by </a2ui-json> counts as complete format content.
+  action: has_format_content
+  args:
+    format: direct_json
+    complete: true
+  input: |-
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect: true
+
+- name: test_has_format_content_recovered_fenced_payload
+  description: A fenced JSON payload closed by </a2ui-json> counts as complete format content.
+  action: has_format_content
+  args:
+    format: direct_json
+    complete: true
+  input: |-
+    ```json
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect: true
+
+- name: test_has_format_content_close_tag_in_prose_is_false
+  description: A closing </a2ui-json> tag mentioned in prose with no payload is not format content.
+  action: has_format_content
+  args:
+    format: direct_json
+  input: "Close every block with </a2ui-json> when you are done."
+  expect: false
+
+- name: test_has_format_content_unterminated_block
+  description: An unterminated <a2ui-json> block counts as format content when complete is false, and not when complete is true.
+  action: has_format_content
+  args:
+    format: direct_json
+    complete: true
+  input: |-
+    <a2ui-json>[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}
+  expect: false
+
+- name: test_unwrap_backtick_in_text_kept
+  description: Only text made of nothing but backticks is dropped; inline code in conversational text is kept.
+  action: unwrap
+  args:
+    format: direct_json
+  input: |-
+    Use `Text` for labels.
+    <a2ui-json>
+    [{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]
+    </a2ui-json>
+  expect:
+    - text: "Use `Text` for labels."
+    - a2ui_raw: '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+
 - name: test_unwrap_attributes_on_open_tag_tolerated
   description: An open tag that carries attributes still opens a block.
   action: unwrap
@@ -213,11 +437,15 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     Here is the surface.
-    <a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>
+    <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>
     Tell me if you want it changed.
   expect:
     - text: "Here is the surface."
     - a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "conformance/simplified"
         - version: "v1.0"
           updateComponents:
             surfaceId: "s1"

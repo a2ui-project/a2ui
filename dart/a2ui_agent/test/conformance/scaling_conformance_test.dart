@@ -23,6 +23,7 @@
 @Tags(['performance'])
 library;
 
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:a2ui_agent/a2ui_agent.dart';
@@ -90,8 +91,12 @@ InferenceFormat _format(Map<String, Object?> args) {
 }
 
 /// The call [operation] names, made on [payload] with a new parser of
-/// [format]. `parse_chunk` hands the parser the response holding [payload]
-/// in chunks of [chunkSize] characters.
+/// [format].
+///
+/// `compile` compiles and checks the payload as one block, as
+/// `parseResponse(payload, wrapped: false)` does. `parse_chunk` feeds the
+/// response holding [payload] to a new stream in chunks of [chunkSize]
+/// characters, and closes it.
 void Function() _call(
   InferenceFormat format,
   String operation,
@@ -106,17 +111,72 @@ void Function() _call(
         for (var i = 0; i < response.length; i += size)
           response.substring(i, min(i + size, response.length)),
       ];
+      final List<CatalogApi> catalogs = format.createParser().catalogs;
+      final List<AgentToRendererMessage> creates = _updatedBeforeCreated(
+        payload,
+        catalogs.first.id,
+      );
       return () {
-        final Parser parser = format.createParser();
-        for (final chunk in chunks) {
-          parser.parseChunk(chunk);
+        final state = RendererState(catalogs)..apply(creates);
+        final ResponseStream stream = format.createParser().openStream(
+          state: state,
+        );
+        for (final String chunk in chunks.take(chunks.length - 1)) {
+          stream.feed(chunk);
+        }
+        try {
+          stream
+            ..feed(chunks.last)
+            ..close();
+        } on A2uiValidationError {
+          // A surface an earlier response created holds components the
+          // state never saw, so the tree check that closes the block rejects
+          // it. Everything before it was streamed and timed.
+          if (creates.isEmpty) rethrow;
         }
       };
     case 'compile':
-      return () => format.createParser().compile(payload);
+      return () => format.createParser().parseResponse(payload, wrapped: false);
     default:
       throw UnsupportedError('Unknown operation $operation');
   }
+}
+
+/// The `createSurface` messages, on the catalog [catalogId], for the
+/// surfaces [payload] updates before it creates them.
+///
+/// A case may add components to a surface "an earlier response created", so
+/// the state each run streams into holds those surfaces.
+List<AgentToRendererMessage> _updatedBeforeCreated(
+  String payload,
+  String catalogId,
+) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(payload);
+  } on FormatException {
+    return const [];
+  }
+  final created = <String>{};
+  final creates = <AgentToRendererMessage>[];
+  for (final Object? message in decoded is List ? decoded : [decoded]) {
+    if (message is! Map<String, Object?>) continue;
+    for (final MapEntry<String, Object?>(:String key, :Object? value)
+        in message.entries) {
+      if (value case {'surfaceId': final String surfaceId}) {
+        if (created.add(surfaceId) && key != 'createSurface') {
+          creates.add(
+            CreateSurfaceMessage(
+              version: message['version']! as String,
+              surfaceId: surfaceId,
+              catalogId: catalogId,
+            ),
+          );
+        }
+      }
+    }
+  }
+  return creates;
 }
 
 /// The payload of a timing case written at [size]; see `PayloadTemplate` in

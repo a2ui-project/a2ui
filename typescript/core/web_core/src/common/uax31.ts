@@ -29,7 +29,7 @@ import {A2uiCatalogError} from '../errors.js';
  * Note that neither side rejects language keywords: `class` is a valid A2UI
  * identifier in both SDKs.
  */
-const UAX31_IDENTIFIER = /^[\p{XID_Start}_][\p{XID_Continue}]*$/u;
+const UAX31_IDENTIFIER = new RegExp('^[\\p{XID_Start}_][\\p{XID_Continue}]*$', 'u');
 
 /**
  * Checks whether a name is a valid A2UI identifier.

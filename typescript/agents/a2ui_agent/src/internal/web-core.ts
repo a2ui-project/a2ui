@@ -77,6 +77,7 @@ export {
   STRICT_VALIDATION,
   getComponentReferences,
   buildComponentRefMap,
+  isValidUax31Identifier,
   V10_CHILD_REF_OPTIONS,
 } from '@a2ui/web_core/validating';
 export type {ValidationConfig} from '@a2ui/web_core/validating';
@@ -84,6 +85,9 @@ export type {ValidationConfig} from '@a2ui/web_core/validating';
 // types.ts declares, and types.ts imports this type without re-exporting it, so it is not
 // reachable through the ./catalog subpath.
 export type {ComponentRefMap} from '@a2ui/web_core/validating';
+
+// ./state
+export {ComponentModel, DataModel, SurfaceModel} from '@a2ui/web_core/state';
 
 // ./processing
 export {MessageProcessor} from '@a2ui/web_core/processing';
@@ -105,4 +109,4 @@ export {
 export type {ProtocolVersion} from '@a2ui/web_core/adapters';
 
 // ./semver
-export {compareSemVer, normalizeVersionString} from '@a2ui/web_core/semver';
+export {compareSemVer, isAtLeastVersion, normalizeVersionString} from '@a2ui/web_core/semver';

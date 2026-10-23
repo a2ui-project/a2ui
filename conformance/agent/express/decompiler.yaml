@@ -47,8 +47,13 @@
 # own notation.
 #
 # The catalogs under test live in `args`, and every case here is written against
-# v1.0. A case states no version of its own: the version it runs under is the
-# one its catalog document declares.
+# v1.0 except `test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable`,
+# which uses a v0.9 catalog because the behavior it verifies applies only before v1.0.
+# A case states no version of its own: the version it runs under is the one its
+# catalog document declares.
+
+# A round trip checks the recompiled block on its own, as `validate_payload`
+# does: a surface that the block updates without creating is assumed to exist.
 
 - name: test_decompile_express_components
   description: A createSurface writes back out as the surface line and the component assignments it came from.
@@ -73,6 +78,78 @@
     - "root = Card(body)"
     - 'body = Text("Hello")'
   expect_round_trip: true
+
+- name: test_decompile_express_unicode_identifier_round_trips
+  description: Component ids that are UAX 31 Unicode identifiers are written as bare variable names and round-trip.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["größe", "名前"]
+          - id: "größe"
+            component: "Text"
+            text: "Size"
+          - id: "名前"
+            component: "Text"
+            text: "Name"
+  expect_contains:
+    - "größe = Text("
+    - "名前 = Text("
+    - "root = Column([größe, 名前])"
+  expect_round_trip: true
+
+- name: test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable
+  description: Before v1.0, a component id that is not a UAX 31 identifier gets a derived variable name and an explicit id= argument.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+  messages:
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "header"
+            component: "Card"
+            child: "title-heading"
+          - id: "title-heading"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - 'surface("s1")'
+    - "header = Card(title_heading)"
+    - 'title_heading = Text("Hello", id="title-heading")'
+  expect_round_trip: true
+
+- name: test_decompile_express_non_identifier_id_from_v1_0_is_a_validation_error
+  description: From v1.0, a component id that is not a UAX 31 identifier is rejected as a validation error rather than derived.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "title-heading"
+          - id: "title-heading"
+            component: "Text"
+            text: "Hello"
+  expect_error:
+    category: "ValidationError"
+    message: "UAX #31"
 
 - name: test_decompile_express_data_model
   description: An initial data model writes back out as the data path assignments that would produce it.
