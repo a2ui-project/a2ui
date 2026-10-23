@@ -122,6 +122,8 @@ export class DirectJsonResponseStream implements ResponseStream {
   private held = '';
   private runStarted = false;
   private heldSpace = '';
+  private heldBackticks = '';
+  private stripCloseBackticks = false;
   // The open block.
   private inBlock: boolean;
   private block = '';
@@ -188,7 +190,10 @@ export class DirectJsonResponseStream implements ResponseStream {
       this.fail(this.touched);
       throw e;
     }
-    if (this.held) {
+    if (this.heldBackticks) {
+      this.emitText(parts, this.heldBackticks);
+      this.heldBackticks = '';
+    } else if (this.held) {
       this.emitText(parts, this.held);
       this.held = '';
     }
@@ -219,6 +224,27 @@ export class DirectJsonResponseStream implements ResponseStream {
 
     let input = this.held + chunk;
     this.held = '';
+    if (this.stripCloseBackticks) {
+      if (input.startsWith('`')) {
+        input = input.replace(/^`+/, '');
+      }
+      if (input.length > 0) {
+        this.stripCloseBackticks = false;
+      }
+    }
+    if (!this.inBlock && this.heldBackticks.length > 0) {
+      if (input.length > 0) {
+        const isOpenTag =
+          searchOpenTag(input)?.start === 0 ||
+          (input.startsWith('<') && OPEN_TAG.toLowerCase().startsWith(input.toLowerCase()));
+        if (isOpenTag) {
+          this.heldBackticks = '';
+        } else {
+          input = `${this.heldBackticks}${input}`;
+          this.heldBackticks = '';
+        }
+      }
+    }
     while (input) {
       if (this.inBlock) {
         this.block += input;
@@ -230,24 +256,47 @@ export class DirectJsonResponseStream implements ResponseStream {
         }
         const closeEnd = matchCloseTag(this.block, closeStart)!;
         input = this.block.slice(closeEnd);
+        if (input.startsWith('`')) {
+          input = input.replace(/^`+/, '');
+        } else if (!input) {
+          this.stripCloseBackticks = true;
+        }
         this.finishBlock(parts, this.block.slice(0, closeStart));
         continue;
       }
 
       const open = searchOpenTag(input);
       if (open) {
-        this.emitText(parts, input.slice(0, open.start));
+        let textBefore = input.slice(0, open.start);
+        if (textBefore.endsWith('`')) {
+          textBefore = textBefore.replace(/`+$/, '');
+        }
+        this.emitText(parts, textBefore);
         this.runStarted = false;
         this.heldSpace = '';
+        this.heldBackticks = '';
         this.inBlock = true;
         input = input.slice(open.end);
         continue;
       }
 
-      const hold = possibleTagStart(input);
-      this.emitText(parts, input.slice(0, hold));
+      let hold = possibleTagStart(input);
+      if (hold < input.length) {
+        while (hold > 0 && input.charCodeAt(hold - 1) === 0x60) {
+          hold--;
+        }
+      }
+      let textToEmit = input.slice(0, hold);
       this.held = input.slice(hold);
       input = '';
+      if (!this.held) {
+        const ticksMatch = textToEmit.match(/`+$/);
+        if (ticksMatch) {
+          this.heldBackticks = ticksMatch[0];
+          textToEmit = textToEmit.slice(0, textToEmit.length - this.heldBackticks.length);
+        }
+      }
+      this.emitText(parts, textToEmit);
     }
     return parts;
   }
@@ -255,7 +304,7 @@ export class DirectJsonResponseStream implements ResponseStream {
   private emitText(parts: ResponsePart[], text: string): void {
     const body = (this.runStarted ? text : text.trimStart()).trimEnd();
     if (!body) {
-      if (this.runStarted) this.heldSpace += text;
+      if (this.runStarted && !body) this.heldSpace += text;
       return;
     }
     const start = this.runStarted ? 0 : text.indexOf(body);

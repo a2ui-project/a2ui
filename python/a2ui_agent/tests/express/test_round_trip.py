@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from a2ui.core import A2uiValidationError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts, to_message_models
 from a2ui.inference_formats._shared import coalesce_surface_messages
@@ -58,6 +59,21 @@ def _compiler(catalog):
 @pytest.fixture(name="decompiler", scope="module")
 def _decompiler(catalog):
     return ExpressDecompiler([catalog])
+
+
+@pytest.fixture(name="catalog_v09", scope="module")
+def _catalog_v09():
+    return BasicCatalog("0.9")
+
+
+@pytest.fixture(name="compiler_v09", scope="module")
+def _compiler_v09(catalog_v09):
+    return ExpressCompiler([catalog_v09], version="v0.9")
+
+
+@pytest.fixture(name="decompiler_v09", scope="module")
+def _decompiler_v09(catalog_v09):
+    return ExpressDecompiler([catalog_v09])
 
 
 def _normalize(messages: Any) -> list[dict[str, Any]]:
@@ -130,7 +146,68 @@ def test_examples_are_found():
     assert len(EXAMPLE_FILES) > 30
 
 
-def test_non_identifier_ids_are_written_with_id_argument(compiler, decompiler):
+def _create_v09(components):
+    return [
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": SURFACE,
+                "catalogId": BasicCatalog("0.9").catalog_id,
+                "sendDataModel": False,
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {"surfaceId": SURFACE, "components": components},
+        },
+    ]
+
+
+def _update_v09(components):
+    return {
+        "version": "v0.9",
+        "updateComponents": {"surfaceId": SURFACE, "components": components},
+    }
+
+
+def test_non_identifier_ids_are_written_with_id_argument(compiler_v09, decompiler_v09):
+    messages = _create_v09([
+        {"id": "root", "component": "Column", "children": ["content-grid"]},
+        {"id": "content-grid", "component": "Text", "text": "Hi"},
+    ])
+
+    dsl, recompiled = _round_trip(compiler_v09, decompiler_v09, messages)
+
+    assert dsl == (
+        'surface("s1", sendDataModel=false)\n'
+        "root = Column([content_grid])\n"
+        'content_grid = Text("Hi", id="content-grid")'
+    )
+    assert _normalize(recompiled) == _normalize(messages)
+
+
+def test_derived_variable_names_do_not_collide(compiler_v09, decompiler_v09):
+    messages = _create_v09([
+        {
+            "id": "root",
+            "component": "Row",
+            "children": ["a-b", "a_b", "1st", "true"],
+        },
+        {"id": "a-b", "component": "Text", "text": "dash"},
+        {"id": "a_b", "component": "Text", "text": "underscore"},
+        {"id": "1st", "component": "Text", "text": "digit"},
+        {"id": "true", "component": "Text", "text": "keyword"},
+    ])
+
+    dsl, recompiled = _round_trip(compiler_v09, decompiler_v09, messages)
+
+    assert "root = Row([a_b_2, a_b, _1st, _true])" in dsl
+    assert 'a_b_2 = Text("dash", id="a-b")' in dsl
+    assert 'a_b = Text("underscore")' in dsl
+    assert _normalize(recompiled) == _normalize(messages)
+
+
+def test_v1_rejects_non_identifier_component_id(decompiler):
     messages = [
         _create([
             {"id": "root", "component": "Column", "children": ["content-grid"]},
@@ -138,36 +215,55 @@ def test_non_identifier_ids_are_written_with_id_argument(compiler, decompiler):
         ])
     ]
 
-    dsl, recompiled = _round_trip(compiler, decompiler, messages)
+    with pytest.raises(
+        A2uiValidationError,
+        match="Component id 'content-grid' must be a valid UAX #31 identifier",
+    ) as exc_info:
+        decompiler.decompile(to_message_models(messages))
 
-    assert dsl == (
-        'surface("s1")\n'
-        "root = Column([content_grid])\n"
-        'content_grid = Text("Hi", id="content-grid")'
-    )
-    assert _normalize(recompiled) == _normalize(messages)
+    assert len(exc_info.value.details) == 1
+    assert exc_info.value.details[0].code == "invalid_identifier"
+    assert exc_info.value.details[0].path == "components.content-grid.id"
 
 
-def test_derived_variable_names_do_not_collide(compiler, decompiler):
+def test_v1_reserved_word_id_is_derived(compiler, decompiler):
     messages = [
         _create([
-            {
-                "id": "root",
-                "component": "Row",
-                "children": ["a-b", "a_b", "1st", "true"],
-            },
-            {"id": "a-b", "component": "Text", "text": "dash"},
-            {"id": "a_b", "component": "Text", "text": "underscore"},
-            {"id": "1st", "component": "Text", "text": "digit"},
+            {"id": "root", "component": "Row", "children": ["true", "_"]},
             {"id": "true", "component": "Text", "text": "keyword"},
+            {"id": "_", "component": "Text", "text": "placeholder"},
         ])
     ]
 
     dsl, recompiled = _round_trip(compiler, decompiler, messages)
 
-    assert "root = Row([a_b_2, a_b, _1st, _true])" in dsl
-    assert 'a_b_2 = Text("dash", id="a-b")' in dsl
-    assert 'a_b = Text("underscore")' in dsl
+    assert "root = Row([_true, __])" in dsl
+    assert '_true = Text("keyword", id="true")' in dsl
+    assert '__ = Text("placeholder", id="_")' in dsl
+    assert _normalize(recompiled) == _normalize(messages)
+
+
+def test_unicode_identifiers_round_trip(compiler, decompiler):
+    combining_id = "e\u0301"
+    messages = [
+        _create([
+            {
+                "id": "root",
+                "component": "Column",
+                "children": ["größe", "名前", combining_id],
+            },
+            {"id": "größe", "component": "Text", "text": "Size"},
+            {"id": "名前", "component": "Text", "text": "Name"},
+            {"id": combining_id, "component": "Text", "text": "Accent"},
+        ])
+    ]
+
+    dsl, recompiled = _round_trip(compiler, decompiler, messages)
+
+    assert f"root = Column([größe, 名前, {combining_id}])" in dsl
+    assert 'größe = Text("Size")' in dsl
+    assert '名前 = Text("Name")' in dsl
+    assert f'{combining_id} = Text("Accent")' in dsl
     assert _normalize(recompiled) == _normalize(messages)
 
 
@@ -189,28 +285,28 @@ def test_out_of_scope_references(compiler, decompiler):
 
 
 def test_out_of_scope_reference_colliding_with_block_variable_is_quoted(
-    compiler, decompiler
+    compiler_v09, decompiler_v09
 ):
     messages = [
-        _update([
+        _update_v09([
             {"id": "card", "component": "Row", "children": ["x-y", "x_y"]},
             {"id": "x-y", "component": "Text", "text": "in block"},
         ])
     ]
 
-    dsl, recompiled = _round_trip(compiler, decompiler, messages)
+    dsl, recompiled = _round_trip(compiler_v09, decompiler_v09, messages)
 
     assert 'card = Row([x_y, "x_y"])' in dsl
     assert _normalize(recompiled) == _normalize(messages)
 
 
-def test_compiler_id_argument_sets_component_id_and_references(compiler):
+def test_compiler_id_argument_sets_component_id_and_references(compiler_v09):
     dsl = (
         'root = Column([grid, Text("inline", id="inline-text")])\n'
         'grid = Text("Hi", id="content-grid")'
     )
 
-    components = to_message_dicts(compiler.compile(dsl))[0]["createSurface"][
+    components = to_message_dicts(compiler_v09.compile(dsl))[1]["updateComponents"][
         "components"
     ]
 
@@ -223,6 +319,11 @@ def test_compiler_id_argument_sets_component_id_and_references(compiler):
         {"id": "inline-text", "component": "Text", "text": "inline"},
         {"id": "content-grid", "component": "Text", "text": "Hi"},
     ]
+
+
+def test_compiler_rejects_non_uax31_id_in_v1_0(compiler):
+    with pytest.raises(ExpressValidationError, match="not a valid UAX 31 identifier"):
+        compiler.compile('root = Column([grid]); grid = Text("Hi", id="a-b")')
 
 
 def test_compiler_rejects_non_string_id(compiler):

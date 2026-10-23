@@ -26,8 +26,8 @@ import {
   THEME_DOCUMENT_KEYS,
   type CatalogDocumentModel,
 } from './schema_serializer.js';
-import {inlinePeerAndLocalRefs} from './schema_loader.js';
-import {standardDefsForVersion} from './spec_shape.js';
+import {inlinePeerAndLocalRefs, isShorthandParameterMap} from './schema_loader.js';
+import {schemaRequiresArgs, standardDefsForVersion} from './spec_shape.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 
 /**
@@ -454,7 +454,7 @@ function authoredFunctionArgs(
   if (explicit !== undefined) {
     if (!isJsonObject(explicit)) return {};
     // A bare map of argument schemas, with the object keywords beside it.
-    if (Object.keys(explicit).length > 0 && !('properties' in explicit) && !('type' in explicit)) {
+    if (isShorthandParameterMap(explicit)) {
       return {
         type: 'object',
         properties: explicit,
@@ -812,7 +812,7 @@ function processSingleFunction(
   context: SourceContext,
 ): JsonObject {
   const argsSchema = buildFunctionArgsSchema(name, fn, defs, generated, context);
-  const hasRequiredArgs = Array.isArray(argsSchema.required) && argsSchema.required.length > 0;
+  const hasRequiredArgs = schemaRequiresArgs(argsSchema, {...context.defs, ...defs});
   const callKey = context.isV10 ? '@call' : 'call';
   const required = hasRequiredArgs ? [callKey, 'args'] : [callKey];
   if (context.isV10) {

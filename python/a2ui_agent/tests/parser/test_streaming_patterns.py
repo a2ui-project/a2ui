@@ -49,8 +49,8 @@ def _stream_create_surface(catalog: CatalogApi, extensions: dict[str, int]) -> N
             "metadata": {"extensions": extensions},
         },
     }
-    parser = DirectJsonParser(catalogs=[catalog])
-    parser.parse_chunk(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
+    stream = DirectJsonParser(catalogs=[catalog]).open_stream()
+    stream.feed(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
 
 
 def test_load_common_types_schema_comes_from_core() -> None:
