@@ -1,6 +1,6 @@
 ---
 name: natural-writing
-description: Contains well-defined rules for creating natural, accurate, and readable writing. Use this skill whenever authoring longer text, including reports, PR descriptions, READMEs, system designs, analysis documents, or general documentation.
+description: Contains well-defined rules for creating natural, accurate, and readable writing. Use this skill whenever authoring longer text, including changelogs, reports, PR descriptions, READMEs, system designs, analysis documents, or general documentation.
 ---
 
 # Rules for natural writing
@@ -173,3 +173,21 @@ Do not apologize for being an AI or mention knowledge cutoffs unless it is relev
 Do not preface responses with subject lines.
 
 Keep edit summaries concise and informal, avoiding verbose paragraphs.
+
+## 7. Changelogs
+
+### 7.1. User-facing changes only
+
+Write changelog entries for external callers of the package. Describe only new public APIs, changes to observable behavior, and migration steps. Omit internal classes, algorithms, data structures, test or conformance suite names, and benchmark numbers. Internal refactoring needs no entry.
+
+### 7.2. Breaking changes first
+
+Place all `**BREAKING**:` entries at the top of the `## Unreleased` section, with non-breaking additions and fixes below them.
+
+### 7.3. Consolidate unreleased notes
+
+Read the whole `## Unreleased` section before editing it. Rewrite or merge earlier entries when your change supersedes or extends them, so the section describes the net changes since the last published release rather than a chronological log of pull requests.
+
+### 7.4. Keep entries brief
+
+Keep each entry to one or two sentences stating what changed and how callers should update their code. Do not narrate why the previous implementation worked the way it did.
