@@ -17,11 +17,16 @@
 from collections.abc import Mapping, Sequence
 from abc import ABC, abstractmethod
 import copy
+import dataclasses
 from typing import Any
 from pydantic import ValidationError
 from ..operations import InternalOperation
-from ..format_pydantic_error import format_validation_error_summary
-from ...exceptions import A2uiValidationError
+from ..format_pydantic_error import (
+    format_validation_error,
+    format_validation_error_summary,
+    to_json_pointer,
+)
+from ...exceptions import A2uiErrorDetail, A2uiValidationError
 from ...state.validation_helpers import validate_recursion_and_paths
 from ...schema import AgentToRendererMessage, AgentToRendererMessagePayload, ProtocolVersion
 from ...common.semver import (
@@ -177,6 +182,45 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 payload["version"] = f"v{canonical}"
         return payload
 
+    def _raise_missing_action_error(self, message: dict[str, Any]) -> None:
+        """Raises A2uiValidationError when no valid action key is present in message."""
+        ver_str = (
+            self.version.value
+            if hasattr(self.version, "value")
+            else str(self.version)
+        )
+        from .factory import VersionAdapterFactory
+
+        all_known = VersionAdapterFactory.all_known_actions()
+        other_actions = [k for k in message if k in all_known]
+        if other_actions:
+            msg = (
+                f"Invalid {ver_str} message: action '{other_actions[0]}' is not"
+                f" supported in protocol version {ver_str}. Allowed actions:"
+                f" {', '.join(sorted(self.valid_actions))}."
+            )
+            has_ver = "version" in message
+            details = (
+                [
+                    A2uiErrorDetail(
+                        path="messages.0.version",
+                        code="invalid_value",
+                        message=msg,
+                    )
+                ]
+                if has_ver
+                else []
+            )
+            raise A2uiValidationError(
+                msg,
+                details=details,
+                path="/version" if has_ver else None,
+            )
+        raise A2uiValidationError(
+            f"Invalid {ver_str} message: message must contain exactly one update"
+            f" action: {', '.join(sorted(self.valid_actions))}."
+        )
+
     def _extract_single_action(self, message: dict[str, Any]) -> str:
         """Validates presence of exactly one action key from valid_actions."""
         update_types = sorted([k for k in self.valid_actions if k in message])
@@ -186,36 +230,31 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 f" {', '.join(update_types)}."
             )
         if not update_types:
-            ver_str = (
-                self.version.value
-                if hasattr(self.version, "value")
-                else str(self.version)
-            )
-            from .factory import VersionAdapterFactory
-
-            all_known = VersionAdapterFactory.all_known_actions()
-            other_actions = [k for k in message if k in all_known]
-            if other_actions:
-                raise A2uiValidationError(
-                    f"Invalid {ver_str} message: action '{other_actions[0]}' is not"
-                    f" supported in protocol version {ver_str}. Allowed actions:"
-                    f" {', '.join(sorted(self.valid_actions))}."
-                )
-            raise A2uiValidationError(
-                f"Invalid {ver_str} message: message must contain exactly one update"
-                f" action: {', '.join(sorted(self.valid_actions))}."
-            )
+            self._raise_missing_action_error(message)
         action = update_types[0]
         if isinstance(message.get(action), dict):
-            self._get_surface_id(message[action])
+            self._get_surface_id(message[action], action)
         return action
 
-    def _get_surface_id(self, action_dict: dict[str, Any]) -> str:
+    def _get_surface_id(self, action_dict: dict[str, Any], action: str = "") -> str:
         """Extracts surfaceId and validates that it is a string."""
         if "surfaceId" in action_dict:
             val = action_dict["surfaceId"]
             if not isinstance(val, str):
-                raise A2uiValidationError("surfaceId must be a string")
+                detail_path = (
+                    f"messages.0.{action}.surfaceId" if action else "surfaceId"
+                )
+                raise A2uiValidationError(
+                    "surfaceId must be a string",
+                    details=[
+                        A2uiErrorDetail(
+                            path=detail_path,
+                            code="type_mismatch",
+                            message="surfaceId must be a string",
+                        )
+                    ],
+                    path="/surfaceId",
+                )
             return val
         return ""
 
@@ -264,9 +303,20 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             )
             if ver_str != "v0.8":
                 if "version" not in raw_payload:
-                    raise A2uiValidationError(
+                    msg = (
                         f"Invalid {self.version} message: version: 'version'"
                         " is a required property"
+                    )
+                    raise A2uiValidationError(
+                        msg,
+                        details=[
+                            A2uiErrorDetail(
+                                path="messages.0.version",
+                                code="missing_field",
+                                message="'version' is a required property",
+                            )
+                        ],
+                        path="/version",
                     )
                 raw_ver = raw_payload["version"]
                 canonical_ver = (
@@ -286,22 +336,27 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                             f" {sorted(f'v{v}' for v in self.compatible_catalog_versions)}"
                         )
                     )
-                    raise A2uiValidationError(
+                    msg = (
                         f"Invalid {self.version} message: version: Input"
                         f" should be {expected}"
+                    )
+                    raise A2uiValidationError(
+                        msg,
+                        details=[
+                            A2uiErrorDetail(
+                                path="messages.0.version",
+                                code="invalid_value",
+                                message=f"Input should be {expected}",
+                            )
+                        ],
+                        path="/version",
                     )
 
             prepared_msg = self.prepare_payload_for_validation(raw_payload)
             try:
                 self.schema.model_validate({"messages": [prepared_msg]})
             except ValidationError as e:
-                summary = format_validation_error_summary(
-                    e,
-                    messages=[raw_payload],
-                    valid_actions=self.valid_actions,
-                    strip_messages_prefix=True,
-                )
-                raise A2uiValidationError(f"Invalid {self.version} message: {summary}")
+                self._raise_envelope_validation_error(e, raw_payload, action)
 
             return self._extract_operations_for_action(
                 action,
@@ -309,6 +364,46 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             )
 
         return []
+
+    def _raise_envelope_validation_error(
+        self,
+        e: ValidationError,
+        raw_payload: dict[str, Any],
+        action: str,
+    ) -> None:
+        """Formats and raises A2uiValidationError from a Pydantic envelope ValidationError."""
+        summary = format_validation_error_summary(
+            e,
+            messages=[raw_payload],
+            valid_actions=self.valid_actions,
+            strip_messages_prefix=True,
+        )
+        details = format_validation_error(
+            e,
+            messages=[raw_payload],
+            valid_actions=self.valid_actions,
+            strip_messages_prefix=False,
+        )
+        err_path = to_json_pointer(details[0].path) if details else None
+        raw_action = raw_payload.get(action)
+        action_dict = raw_action if isinstance(raw_action, dict) else {}
+        raw_sid = action_dict.get("surfaceId")
+        sid = raw_sid if isinstance(raw_sid, str) else None
+        raw_fc = action_dict.get("functionCallId")
+        fc_id = raw_fc if isinstance(raw_fc, str) else None
+        err_code = "INVALID_FUNCTION_CALL" if action == "callRendererFunction" else None
+        details = [
+            dataclasses.replace(d, surface_id=sid) if d.surface_id is None else d
+            for d in details
+        ]
+        raise A2uiValidationError(
+            f"Invalid {self.version} message: {summary}",
+            details=details,
+            code=err_code,
+            path=err_path,
+            surface_id=sid,
+            function_call_id=fc_id,
+        )
 
     @abstractmethod
     def _extract_operations_for_action(

@@ -26,6 +26,7 @@ from ..exceptions import (
     A2uiRecursionError,
     A2uiValidationError,
 )
+from ..processing.format_pydantic_error import to_json_pointer
 from .component_model import ComponentModel
 
 if TYPE_CHECKING:
@@ -110,6 +111,7 @@ def validate_recursion_and_paths(data: Any) -> None:
                                 message=f"Invalid path syntax: '{path}'",
                             )
                         ],
+                        path=f"/{path_key}",
                     )
 
             is_func_v08 = "functionCall" in item and isinstance(
@@ -221,21 +223,23 @@ def analyze_topology(
 
 def validate_composition_constraints(
     components: dict[str, ComponentModel],
+    batch_index_map: dict[str, int] | None = None,
+    surface_id: str | None = None,
 ) -> None:
     """Validates allowed_parents and allowed_children composition constraints for component trees."""
     type_map: dict[str, str] = {
         comp_id: model.type for comp_id, model in components.items()
     }
-    child_map: dict[str, list[str]] = {}
+    child_refs_map: dict[str, list[tuple[str, str]]] = {}
     for comp_id, model in components.items():
-        children = [ref_id for ref_id, _ in model.get_child_references()]
-        if children:
-            child_map[comp_id] = children
+        refs = list(model.get_child_references())
+        if refs:
+            child_refs_map[comp_id] = refs
 
     parent_map: dict[str, dict[str, str]] = {}
-    for parent_id, children in child_map.items():
+    for parent_id, refs in child_refs_map.items():
         parent_type = type_map.get(parent_id, "Unknown")
-        for child_id in children:
+        for child_id, _ in refs:
             parent_map[child_id] = {
                 "parent_id": parent_id,
                 "parent_type": parent_type,
@@ -252,9 +256,18 @@ def validate_composition_constraints(
             component_api,
             parent_info["parent_id"] if parent_info else None,
             parent_info["parent_type"] if parent_info else None,
+            batch_index_map=batch_index_map,
+            surface_id=surface_id,
         )
         check_allowed_children(
-            comp_id, model, component_api, child_map.get(comp_id, []), type_map.get
+            comp_id,
+            model,
+            component_api,
+            [ref_id for ref_id, _ in child_refs_map.get(comp_id, [])],
+            type_map.get,
+            child_refs=child_refs_map.get(comp_id),
+            batch_index_map=batch_index_map,
+            surface_id=surface_id,
         )
 
 
@@ -275,6 +288,9 @@ def check_allowed_parent(
     component_api: Any,
     parent_id: str | None,
     parent_type: str | None,
+    *,
+    batch_index_map: dict[str, int] | None = None,
+    surface_id: str | None = None,
 ) -> None:
     """Checks a component's `allowed_parents` against the parent it is under.
 
@@ -290,21 +306,43 @@ def check_allowed_parent(
         parent_id = "Surface"
 
     if parent_type not in allowed_parents:
+        comp_idx = batch_index_map.get(comp_id) if batch_index_map else None
+        json_ptr = f"/components/{comp_idx}" if comp_idx is not None else f"/components/{comp_id}"
         msg = (
             f"Component '{comp_id}' ({model.type}) cannot be placed"
             f" under parent '{parent_id}' ({parent_type}). Allowed parents:"
-            f" {allowed_parents}."
+            f" {allowed_parents} (allowedParents)."
         )
         raise A2uiValidationError(
             msg,
             details=[
                 A2uiErrorDetail(
-                    path=f"components.{comp_id}",
+                    path=json_ptr,
                     code="UNALLOWED_PARENT",
                     message=msg,
+                    surface_id=surface_id,
                 )
             ],
+            code="UNALLOWED_PARENT",
+            path=json_ptr,
+            surface_id=surface_id,
         )
+
+
+def _format_child_constraint_pointer(
+    comp_id: str,
+    field_path: str,
+    batch_index_map: dict[str, int] | None,
+) -> str:
+    """Formats the RFC 6901 JSON Pointer for an allowedChildren violation."""
+    comp_idx = batch_index_map.get(comp_id) if batch_index_map else None
+    base_seg = str(comp_idx) if comp_idx is not None else comp_id
+    dot_path = (
+        f"components.{base_seg}.{field_path}"
+        if field_path
+        else f"components.{base_seg}"
+    )
+    return to_json_pointer(dot_path)
 
 
 def check_allowed_children(
@@ -313,6 +351,10 @@ def check_allowed_children(
     component_api: Any,
     children: Iterable[str],
     type_of: Callable[[str], str | None],
+    *,
+    child_refs: list[tuple[str, str]] | None = None,
+    batch_index_map: dict[str, int] | None = None,
+    surface_id: str | None = None,
 ) -> None:
     """Checks the types of a component's `children` against its `allowed_children`.
 
@@ -322,21 +364,33 @@ def check_allowed_children(
     allowed_children = getattr(component_api, "allowed_children", None)
     if not allowed_children:
         return
-    for child_id in children:
+    refs_iter: list[tuple[str, str]] = (
+        child_refs
+        if child_refs is not None
+        else [(cid, "") for cid in children]
+    )
+    for child_id, field_path in refs_iter:
         child_type = type_of(child_id)
         if child_type and child_type not in allowed_children:
+            json_ptr = _format_child_constraint_pointer(
+                comp_id, field_path, batch_index_map
+            )
             msg = (
-                f"Component '{comp_id}' ({model.type}) cannot contain child"
+                f"Container '{comp_id}' ({model.type}) cannot contain child"
                 f" '{child_id}' ({child_type}). Allowed children:"
-                f" {allowed_children}."
+                f" {allowed_children} (allowedChildren)."
             )
             raise A2uiValidationError(
                 msg,
                 details=[
                     A2uiErrorDetail(
-                        path=f"components.{comp_id}",
+                        path=json_ptr,
                         code="UNALLOWED_CHILD",
                         message=msg,
+                        surface_id=surface_id,
                     )
                 ],
+                code="UNALLOWED_CHILD",
+                path=json_ptr,
+                surface_id=surface_id,
             )
