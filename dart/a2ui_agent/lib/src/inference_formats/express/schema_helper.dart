@@ -37,8 +37,8 @@ class CatalogSchemaHelper {
   /// The properties a positional argument can fill, in schema order.
   ///
   /// Specific component properties come first, followed by common mixin
-  /// properties such as `accessibility` and `weight`. Structural properties
-  /// (`id`, `component`, `checks`) are excluded.
+  /// properties such as `weight`. Structural properties
+  /// (`id`, `component`, `checks`) and `accessibility` are excluded.
   List<String> properties(String component) => _signature(component).properties;
 
   /// The properties the component requires, beyond `component` and `id`.
@@ -51,6 +51,70 @@ class CatalogSchemaHelper {
   /// The schema of one of [properties].
   Map<String, Object?>? propertySchema(String component, String property) =>
       _signature(component).schemas[property];
+
+  /// Whether common types were loaded into the catalog validation schema.
+  bool get commonTypesLoaded =>
+      catalog.validationSchema[r'$defs'] is Map &&
+      (catalog.validationSchema[r'$defs'] as Map).isNotEmpty;
+
+  /// Whether [schema] accepts a number literal, resolving `$ref`s against
+  /// [catalog]'s validation schema definitions.
+  bool acceptsNumber(Map<String, Object?>? schema) {
+    final visited = <Object>{};
+    final Object? defsObj = catalog.validationSchema[r'$defs'];
+    final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
+
+    bool check(Map<String, Object?>? s) {
+      if (s == null || !visited.add(s)) return false;
+      final Object? type = s['type'];
+      if (type == 'number' || type == 'integer') return true;
+      if (type is List &&
+          (type.contains('number') || type.contains('integer'))) {
+        return true;
+      }
+
+      if (s['const'] is num) return true;
+
+      final Object? enumVal = s['enum'];
+      if (enumVal is List && enumVal.any((v) => v is num)) return true;
+
+      final String? ref = _refName(s);
+      if (ref != null) {
+        if (defs == null) return true;
+        final Object? resolved = defs[ref];
+        if (resolved is Map) {
+          if (check(resolved.cast<String, Object?>())) return true;
+        } else {
+          return true;
+        }
+      }
+
+      for (final Map<String, Object?> alt in _alternatives(s)) {
+        if (check(alt)) return true;
+      }
+
+      const typeKeys = [
+        'type',
+        'const',
+        'enum',
+        r'$ref',
+        'allOf',
+        'oneOf',
+        'anyOf',
+        'properties',
+        'items',
+        'prefixItems',
+        'not',
+      ];
+      if (!typeKeys.any(s.containsKey)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    return check(schema);
+  }
 
   /// The component's own description, if its schema has one.
   String? componentDescription(String component) {
@@ -130,7 +194,7 @@ class CatalogSchemaHelper {
             if (!commonKeys.contains(key)) key,
         ];
         final List<String> commonProperties = [
-          for (final key in const ['accessibility', 'weight'])
+          for (final key in const ['weight'])
             if (schemas.containsKey(key)) key,
         ];
         final orderedProperties = [...specificProperties, ...commonProperties];
