@@ -47,6 +47,7 @@ function generateCommonTypes() {
   let commonTs =
     getHeader(VERSION_TAG, SCRIPT_SOURCE) +
     "import {z} from 'zod';\n" +
+    "import {isValidUax31Identifier} from '../../common/uax31.js';\n" +
     "import {markChildRef} from '../../types/child-ref-helpers.js';\n\n";
 
   const defKeys = [
@@ -157,7 +158,7 @@ export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
   .record(z.string(), z.unknown())
   .superRefine((value, ctx) => {
     for (const key in value) {
-      if (!key.match(/^[\\p{XID_Start}_][\\p{XID_Continue}]*$/u)) {
+      if (!isValidUax31Identifier(key)) {
         ctx.addIssue({
           path: [key],
           code: z.ZodIssueCode.custom,

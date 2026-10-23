@@ -105,12 +105,9 @@ public struct A2UIVideo: View {
     .onAppear {
       updatePlayer()
     }
-    .onChange(of: urlString) { _ in
+    .onChange(of: urlString) {
       isShowingPoster = true
       updatePlayer()
-    }
-    .onChange(of: posterURLString) { _ in
-      isShowingPoster = true
     }
     .onDisappear {
       player?.pause()

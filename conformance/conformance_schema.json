@@ -15,6 +15,7 @@
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
       {"$ref": "#/$defs/GeneratePromptSnippetTest"},
+      {"$ref": "#/$defs/HasFormatContentTest"},
       {"$ref": "#/$defs/UnwrapTest"},
       {"$ref": "#/$defs/WrapTest"},
       {"$ref": "#/$defs/CompileTest"},
@@ -66,6 +67,7 @@
             "get_renderer_capabilities",
             "get_renderer_data_model",
             "handle_rpc",
+            "has_format_content",
             "has_parts",
             "is_a2ui_part",
             "load",
@@ -1098,6 +1100,25 @@
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action", "args"]
+    },
+    "HasFormatContentTest": {
+      "type": "object",
+      "description": "Checking whether a model response carries a block written in a format.",
+      "properties": {
+        "action": {"const": "has_format_content"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "complete": {"type": "boolean", "default": false}
+          },
+          "required": ["format"],
+          "additionalProperties": false
+        },
+        "input": {"type": "string", "description": "The raw text the model emitted."},
+        "expect": {"type": "boolean"}
+      },
+      "required": ["action", "args", "input", "expect"]
     },
     "UnwrapTest": {
       "type": "object",

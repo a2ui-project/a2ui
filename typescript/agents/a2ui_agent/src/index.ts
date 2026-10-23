@@ -50,7 +50,8 @@ export {
   type ResponsePart,
 } from './parser/response-part.js';
 
-export {Parser} from './parser/parser.js';
+export {type ParseOptions, Parser} from './parser/parser.js';
+export {type ResponseStream} from './parser/response-stream.js';
 
 export {PromptGenerator} from './prompt/generator.js';
 
@@ -74,15 +75,24 @@ export {CatalogConfig} from './processor/catalog-config.js';
 
 export {resolveCatalogs} from './utils/catalog-resolver.js';
 
+// Renderer state and payload validation
+export {RendererState} from './utils/renderer-state.js';
+export {validatePayload} from './utils/validation.js';
+
+// The surface model of web_core. Re-exported because `RendererState.getSurface` returns it.
+export type {SurfaceModel} from './internal/web-core.js';
+
 // Direct JSON inference format
-export {DirectJsonFormat, DirectJsonFormatFactory} from './inference-formats/direct-json/format.js';
-export {DirectJsonParser} from './inference-formats/direct-json/parser.js';
-export type {
-  DirectJsonStreamProcessorFactory,
-  DirectJsonStreamProcessorOptions,
-  DirectJsonStreamProcessor,
-} from './inference-formats/direct-json/streaming-types.js';
-export {DirectJsonStreamProcessorImpl} from './inference-formats/direct-json/streaming.js';
+export {
+  type DirectJsonFormatOptions,
+  DirectJsonFormat,
+  DirectJsonFormatFactory,
+} from './inference-formats/direct-json/format.js';
+export {
+  type DirectJsonParserOptions,
+  DirectJsonParser,
+} from './inference-formats/direct-json/parser.js';
+export {DirectJsonResponseStream} from './inference-formats/direct-json/response-stream.js';
 export {DirectJsonPromptGenerator} from './inference-formats/direct-json/prompt-generator.js';
 export type {DirectJsonExamples} from './inference-formats/direct-json/prompt-generator.js';
 export {DirectJsonDecompiler} from './inference-formats/direct-json/decompiler.js';
@@ -112,10 +122,9 @@ export {
   ExpressDuplicateParamError,
   ExpressForbiddenDatabindingError,
   ExpressIdCollisionError,
-  ExpressInvalidIdentifierError,
   ExpressUnknownCatalogError,
 } from './inference-formats/express/errors.js';
 
 // Facades
 export {A2uiGenerator} from './processor/generator.js';
-export {A2uiRequestProcessor} from './processor/processor.js';
+export {type A2uiRequestProcessorOptions, A2uiRequestProcessor} from './processor/processor.js';

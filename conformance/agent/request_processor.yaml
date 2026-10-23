@@ -614,3 +614,33 @@
             required: ["component", "text"]
   expect_error:
     category: CatalogError
+
+- name: test_generator_defaults_to_express_format
+  description: When no inference format factory is passed to A2uiGenerator, the created processor defaults to the Express inference format, rendering Express syntax in its prompt snippet and parsing <a2ui> blocks.
+  action: create_processor
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    prompt_snippet_contains: ["<a2ui>", "Text("]
+    prompt_snippet_absent: ["<a2ui-json>"]
+  then_parse:
+    input: |
+      <a2ui>
+      surface("s1")
+      root = Text("Default Express")
+      </a2ui>
+    expect:
+      - a2ui:
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s1"
+              catalogId: "conformance/simplified"
+              components:
+                - id: "root"
+                  component: "Text"
+                  text: "Default Express"
