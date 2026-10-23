@@ -27,17 +27,25 @@ import {
 } from '../../v1_0/schema/agent-to-renderer.js';
 import {FunctionCallSchema} from '../../v1_0/schema/common-types.js';
 
+let callRendererFunctionOmittingCatalogIdSchema: z.ZodTypeAny | undefined;
+
 /**
  * `CallRendererFunctionMessageSchema` without its `callFunction.catalogId` requirement.
  *
  * The specification answers a call that omits `catalogId` with an `INVALID_FUNCTION_CALL`
  * `rendererFunctionResponse`, which `RpcHandler` sends, so such a call must pass validation.
+ *
+ * Built on first use rather than at module load: the schemas it derives from may not be
+ * initialized yet when this module is evaluated (for example in bundled production builds).
  */
-const CallRendererFunctionOmittingCatalogIdSchema = CallRendererFunctionMessageSchema.extend({
-  callRendererFunction: CallRendererFunctionMessageSchema.shape.callRendererFunction.extend({
-    callFunction: FunctionCallSchema,
-  }),
-});
+function getCallRendererFunctionOmittingCatalogIdSchema(): z.ZodTypeAny {
+  callRendererFunctionOmittingCatalogIdSchema ??= CallRendererFunctionMessageSchema.extend({
+    callRendererFunction: CallRendererFunctionMessageSchema.shape.callRendererFunction.extend({
+      callFunction: FunctionCallSchema,
+    }),
+  });
+  return callRendererFunctionOmittingCatalogIdSchema;
+}
 
 function omitsCatalogId(payload: Record<string, unknown>): boolean {
   const crf = payload.callRendererFunction as Record<string, unknown> | undefined;
@@ -61,7 +69,7 @@ export class V1Point0Adapter extends BaseVersionAdapter {
   ): z.SafeParseReturnType<unknown, unknown> {
     const result = super.validatePayload(payload);
     if (result.success || !omitsCatalogId(payload)) return result;
-    const relaxed = CallRendererFunctionOmittingCatalogIdSchema.safeParse(payload);
+    const relaxed = getCallRendererFunctionOmittingCatalogIdSchema().safeParse(payload);
     return relaxed.success ? relaxed : result;
   }
 
