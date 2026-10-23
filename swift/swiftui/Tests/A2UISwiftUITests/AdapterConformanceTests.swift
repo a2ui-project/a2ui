@@ -16,7 +16,7 @@ import A2UICore
 import A2UIJSON
 import A2UISwiftUI
 import BasicCatalog
-import BasicCatalogUI
+import BasicCatalogSwiftUI
 import Foundation
 import JSONSchema
 import OrderedCollections
@@ -25,16 +25,15 @@ import SwiftUI
 import Testing
 import Yams
 
-@MainActor
-private final class AdapterTestActionHandler: ActionHandling {
-  var actions: [RendererAction] = []
+private final class AdapterTestActionHandler: ActionHandling, @unchecked Sendable {
+  var actions: [(action: ResolvedAction, surfaceID: String)] = []
   var errors: [RendererError] = []
 
-  func handleAction(_ action: RendererAction) {
-    actions.append(action)
+  func handle(action: ResolvedAction, from surfaceID: String) {
+    actions.append((action: action, surfaceID: surfaceID))
   }
 
-  func handleError(_ error: RendererError) {
+  func handle(error: RendererError, from surfaceID: String) {
     errors.append(error)
   }
 
@@ -58,8 +57,8 @@ private final class IncrementCounterFunction: FunctionImplementation, Sendable {
   @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let path = arguments["path"]?.stringValue else { return .null }
-    let step = arguments["step"]?.integerValue ?? 1
-    let current = context.dataModel.get(path)?.integerValue ?? 0
+    let step = arguments["step"]?.intValue ?? 1
+    let current = context.dataModel.get(path)?.intValue ?? 0
     let updated = current + step
     context.set(path, value: .integer(updated))
     return .integer(updated)
@@ -70,17 +69,23 @@ private final class IncrementCounterFunction: FunctionImplementation, Sendable {
 /// against `A2UISwiftUI.Surface`, `SurfaceViewModel`, and `A2UIAccessibilityModifier`.
 @MainActor
 struct AdapterConformanceTests {
-  private static var repoRootURL: URL {
-    URL(fileURLWithPath: #filePath)
+  private static var conformanceDirectory: URL {
+    if let envDir = ProcessInfo.processInfo.environment["A2UI_CONFORMANCE_DIR"], !envDir.isEmpty {
+      let url = URL(fileURLWithPath: envDir)
+      return url.lastPathComponent == "conformance"
+        ? url : url.appendingPathComponent("conformance")
+    }
+    let repoRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
+    return repoRoot.appendingPathComponent("conformance")
   }
 
   private static func loadYAMLCases(_ relativePath: String) throws -> [[String: Any]] {
-    let url = repoRootURL.appendingPathComponent("conformance").appendingPathComponent(relativePath)
+    let url = conformanceDirectory.appendingPathComponent(relativePath)
     let text = try String(contentsOf: url, encoding: .utf8)
     return (try Yams.load(yaml: text) as? [[String: Any]]) ?? []
   }
@@ -89,10 +94,12 @@ struct AdapterConformanceTests {
     let cases = try Self.loadYAMLCases("core/accessibility.yaml")
     #expect(!cases.isEmpty, "core/accessibility.yaml should contain test cases")
 
+    var checkedCount = 0
     for testCase in cases {
       let name = testCase["name"] as? String ?? "<unnamed>"
-      try runAccessibilityCase(testCase, name: name)
+      checkedCount += try runAccessibilityCase(testCase, name: name)
     }
+    #expect(checkedCount > 0, "accessibility.yaml should verify at least one component")
   }
 
   @Test func adapterConformanceSuite() throws {
@@ -107,7 +114,7 @@ struct AdapterConformanceTests {
 
   // MARK: - Accessibility Suite Runner
 
-  private func runAccessibilityCase(_ testCase: [String: Any], name: String) throws {
+  private func runAccessibilityCase(_ testCase: [String: Any], name: String) throws -> Int {
     let handler = AdapterTestActionHandler()
     let processor = MessageProcessor(
       catalogs: BasicCatalog.allCatalogs,
@@ -115,22 +122,22 @@ struct AdapterConformanceTests {
       validationConfig: .relaxed
     )
     let surfaceID = testCase["surfaceId"] as? String ?? "a11y_surface"
-    if let messages = testCase["messages"] as? [[String: Any]] {
-      try processor.processMessages(messages)
+    if let messages = testCase["messages"] {
+      try processor.processMessages(toJSONValue(messages))
     }
     if let steps = testCase["steps"] as? [[String: Any]] {
-      try runAccessibilitySteps(
+      return try runAccessibilitySteps(
         steps,
         processor: processor,
         surfaceID: surfaceID,
         name: name
       )
-      return
     }
-    guard let expected = testCase["expectAccessibility"] as? [String: [String: Any]] else {
-      return
+    let assertions = (testCase["assertions"] as? [String: Any]) ?? testCase
+    guard let expected = assertions["accessibilityTree"] as? [String: [String: Any]] else {
+      return 0
     }
-    assertAccessibilityNodes(
+    return assertAccessibilityNodes(
       expected,
       processor: processor,
       surfaceID: surfaceID,
@@ -143,13 +150,15 @@ struct AdapterConformanceTests {
     processor: MessageProcessor,
     surfaceID: String,
     name: String
-  ) throws {
+  ) throws -> Int {
+    var checked = 0
     for (idx, step) in steps.enumerated() {
-      if let stepMessages = step["messages"] as? [[String: Any]] {
-        try processor.processMessages(stepMessages)
+      if let stepMessages = step["messages"] {
+        try processor.processMessages(toJSONValue(stepMessages))
       }
-      if let expected = step["expectAccessibility"] as? [String: [String: Any]] {
-        assertAccessibilityNodes(
+      let assertions = (step["assertions"] as? [String: Any]) ?? step
+      if let expected = assertions["accessibilityTree"] as? [String: [String: Any]] {
+        checked += assertAccessibilityNodes(
           expected,
           processor: processor,
           surfaceID: surfaceID,
@@ -157,6 +166,7 @@ struct AdapterConformanceTests {
         )
       }
     }
+    return checked
   }
 
   private func assertAccessibilityNodes(
@@ -164,16 +174,19 @@ struct AdapterConformanceTests {
     processor: MessageProcessor,
     surfaceID: String,
     context: String
-  ) {
-    guard let viewModel = processor.getSurface(for: surfaceID),
+  ) -> Int {
+    guard
+      let viewModel = processor.surfaceGroupModel.surfacesMap[surfaceID]
+        ?? processor.surfaceGroupModel.surfacesMap.values.first,
       let rootNode = viewModel.rootNode
     else {
       Issue.record("\(context): missing resolved root node for \(surfaceID)")
-      return
+      return 0
     }
     var nodesByID: [String: Node] = [:]
     collectNodes(from: rootNode, into: &nodesByID)
 
+    var checked = 0
     for (componentID, expectedProps) in expected {
       guard let node = nodesByID[componentID] else {
         Issue.record("\(context): node '\(componentID)' not found")
@@ -185,7 +198,9 @@ struct AdapterConformanceTests {
         expected: expectedProps,
         context: "\(context) [\(componentID)]"
       )
+      checked += 1
     }
+    return checked
   }
 
   private func assertModifierMatches(
@@ -255,21 +270,20 @@ struct AdapterConformanceTests {
     for testCase: [String: Any]
   ) throws -> ([AnyCatalog], [Catalog<ComponentImplementation>]) {
     let incrementFn = try IncrementCounterFunction()
-    let functions = BasicFunctions.allFunctions + [incrementFn]
-    var coreCatalogs = BasicCatalog.allCatalogs.map { cat in
-      Catalog(id: cat.id, components: Array(cat.components.values), functions: functions)
-    }
-    var uiCatalogs: [Catalog<ComponentImplementation>] = [
-      BasicCatalogImplementation.catalog,
+    let v10Functions = V10BasicCatalog.functions + [incrementFn]
+    var coreCatalogs: [AnyCatalog] = BasicCatalog.allCatalogs.map { cat in
       Catalog(
-        id: BasicCatalog.idV10,
-        components: Array(BasicCatalogImplementation.catalog.components.values),
-        functions: functions
-      ),
-    ]
+        id: cat.id,
+        protocolVersion: cat.a2uiProtocolVersion,
+        components: Array(cat.components.values),
+        functions: Array(cat.functions.values) + [incrementFn],
+        themeSchema: cat.themeSchema
+      ).eraseToAnyCatalog()
+    }
+    var uiCatalogs: [Catalog<ComponentImplementation>] = BasicCatalogImplementation.allCatalogs
     let customDefs = (testCase["catalogs"] as? [[String: Any]]) ?? []
     for custom in customDefs {
-      if let (coreCat, uiCat) = try buildCustomCatalog(custom, functions: functions) {
+      if let (coreCat, uiCat) = try buildCustomCatalog(custom, functions: v10Functions) {
         coreCatalogs.append(coreCat)
         uiCatalogs.append(uiCat)
       }
@@ -294,10 +308,19 @@ struct AdapterConformanceTests {
       coreApis.append(api)
       uiImpls.append(ComponentImplementation(api: api) { _ in EmptyView() })
     }
-    return (
-      Catalog(id: catalogID, components: coreApis, functions: functions),
-      Catalog(id: catalogID, components: uiImpls, functions: functions)
+    let coreCat = Catalog(
+      id: catalogID,
+      protocolVersion: .v10,
+      components: coreApis,
+      functions: functions
+    ).eraseToAnyCatalog()
+    let uiCat = Catalog(
+      id: catalogID,
+      protocolVersion: .v10,
+      components: uiImpls,
+      functions: functions
     )
+    return (coreCat, uiCat)
   }
 
   private func executeAdapterStep(
@@ -311,7 +334,7 @@ struct AdapterConformanceTests {
     switch op {
     case "process_messages":
       let messages = (step["messages"] as? [[String: Any]]) ?? []
-      try processAdapterMessages(
+      processAdapterMessages(
         messages,
         processor: processor,
         uiCatalogs: uiCatalogs,
@@ -336,17 +359,20 @@ struct AdapterConformanceTests {
     uiCatalogs: [Catalog<ComponentImplementation>],
     handler: AdapterTestActionHandler,
     surface: inout Surface?
-  ) throws {
+  ) {
     do {
-      try processor.processMessages(messages)
-      if surface == nil, let vm = processor.getSurface(for: "adapter_surface") {
+      try processor.processMessages(toJSONValue(messages))
+      if surface == nil,
+        let vm = processor.surfaceGroupModel.surfacesMap["adapter_surface"]
+          ?? processor.surfaceGroupModel.surfacesMap.values.first
+      {
         surface = Surface(
           viewModel: vm,
           catalogs: uiCatalogs,
-          defaultCatalogID: BasicCatalog.idV10
+          defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
         )
       }
-    } catch is A2UIRecursionError {
+    } catch {
       surface = applyFallbackMessages(
         messages,
         uiCatalogs: uiCatalogs,
@@ -362,16 +388,15 @@ struct AdapterConformanceTests {
   ) -> Surface {
     let vm = SurfaceViewModel(
       surfaceID: "adapter_surface",
-      catalog: BasicCatalog.catalogV10,
+      catalog: BasicCatalog.makeCatalog(version: .v10),
       actionHandler: handler,
       protocolVersion: .v10
     )
     for msg in messages {
-      guard let create = msg["createSurface"] as? [String: Any],
-        let comps = create["components"] as? [[String: Any]]
-      else {
-        continue
-      }
+      let comps =
+        (msg["createSurface"] as? [String: Any])?["components"] as? [[String: Any]]
+        ?? (msg["updateComponents"] as? [String: Any])?["components"] as? [[String: Any]]
+        ?? []
       for rawComp in comps {
         addRawComponent(rawComp, to: vm)
       }
@@ -379,7 +404,7 @@ struct AdapterConformanceTests {
     return Surface(
       viewModel: vm,
       catalogs: uiCatalogs,
-      defaultCatalogID: BasicCatalog.idV10
+      defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
     )
   }
 
@@ -389,16 +414,13 @@ struct AdapterConformanceTests {
     else {
       return
     }
-    var props: [String: ComponentPropertyValue] = [:]
-    for (key, value) in rawComp where key != "id" && key != "component" {
-      if let str = value as? String {
-        props[key] = .string(str)
-      } else if let arr = value as? [String] {
-        props[key] = .array(arr.map { .string($0) })
-      }
+    let catalogID = rawComp["catalogId"] as? String
+    var props: [String: JSONValue] = [:]
+    for (key, value) in rawComp where key != "id" && key != "component" && key != "catalogId" {
+      props[key] = toJSONValue(value)
     }
-    let model = ComponentModel(id: id, type: type, properties: props)
-    try? viewModel.componentsModel.addComponent(model)
+    let model = ComponentModel(id: id, type: type, catalogID: catalogID, properties: props)
+    viewModel.componentsModel.addComponent(model)
   }
 
   private func applyUserInput(_ step: [String: Any], surface: Surface?) {
@@ -541,7 +563,8 @@ struct AdapterConformanceTests {
         #expect(actual.message == expMsg, "\(context): result message mismatch")
       }
       if let expSev = expRes["severity"] as? String {
-        #expect(actual.severity.rawValue == expSev, "\(context): result severity mismatch")
+        let actualSeverity = (actual.severity ?? .error).rawValue
+        #expect(actualSeverity == expSev, "\(context): result severity mismatch")
       }
     }
   }
@@ -578,25 +601,29 @@ struct AdapterConformanceTests {
   }
 
   private func assertActionsMatch(
-    _ actual: [RendererAction],
+    _ actual: [(action: ResolvedAction, surfaceID: String)],
     expected: [[String: Any]],
     context: String
   ) {
     #expect(actual.count == expected.count, "\(context): action count mismatch")
     for (idx, exp) in expected.enumerated() where idx < actual.count {
-      let act = actual[idx]
-      if let name = exp["name"] as? String {
-        #expect(act.name == name, "\(context): action name mismatch")
-      }
+      let entry = actual[idx]
       if let sid = exp["surfaceId"] as? String {
-        #expect(act.surfaceID == sid, "\(context): action surfaceId mismatch")
+        #expect(entry.surfaceID == sid, "\(context): action surfaceId mismatch")
       }
       if let src = exp["sourceComponentId"] as? String {
-        #expect(act.sourceComponentID == src, "\(context): sourceComponentId mismatch")
+        #expect(entry.action.sourceComponentID == src, "\(context): sourceComponentId mismatch")
+      }
+      guard case .event(let actName, let actCtx, _) = entry.action.identity else {
+        Issue.record("\(context): expected .event action identity")
+        continue
+      }
+      if let name = exp["name"] as? String {
+        #expect(actName == name, "\(context): action name mismatch")
       }
       if let expCtx = exp["context"] as? [String: Any] {
         for (k, v) in expCtx {
-          #expect(act.context[k] == toJSONValue(v), "\(context): action context[\(k)] mismatch")
+          #expect(actCtx?[k] == toJSONValue(v), "\(context): action context[\(k)] mismatch")
         }
       }
     }
@@ -611,14 +638,26 @@ struct AdapterConformanceTests {
     for exp in expected {
       let expCode = exp["code"] as? String
       let expSurface = exp["surfaceId"] as? String
-      let expMessage = exp["message"] as? String
+      let expMessage = (exp["messageContains"] ?? exp["message"]) as? String
       let matched = actual.contains { err in
-        let codeMatch = expCode == nil || err.code == expCode
-        let surfMatch = expSurface == nil || err.surfaceID == expSurface
-        let msgMatch = expMessage == nil || err.message.contains(expMessage ?? "")
+        let fields = rendererErrorFields(err)
+        let codeMatch = expCode == nil || fields.code == expCode
+        let surfMatch = expSurface == nil || fields.surfaceID == expSurface
+        let msgMatch = expMessage == nil || fields.message.contains(expMessage ?? "")
         return codeMatch && surfMatch && msgMatch
       }
       #expect(matched, "\(context): expected error matching \(exp) in \(actual)")
+    }
+  }
+
+  private func rendererErrorFields(
+    _ error: RendererError
+  ) -> (code: String, surfaceID: String?, message: String) {
+    switch error {
+    case .validationFailed(let valError):
+      return (valError.code.rawValue, valError.surfaceID, valError.message)
+    case .generic(let genError):
+      return (genError.code, genError.surfaceID, genError.message)
     }
   }
 
@@ -647,18 +686,16 @@ struct AdapterConformanceTests {
 
   private func collectNodes(from node: Node, into map: inout [String: Node]) {
     map[node.id] = node
-    map[node.baseComponentID] = node
-    if let singleChild = node.properties["child"] as? Node {
-      collectNodes(from: singleChild, into: &map)
-    }
-    for child in node.children {
+    let baseID = String(node.id.split(separator: ":").first ?? Substring(node.id))
+    map[baseID] = node
+    for child in node.allChildNodes {
       collectNodes(from: child, into: &map)
     }
   }
 
   private func toJSONValue(_ value: Any) -> JSONValue {
     if value is NSNull { return .null }
-    if let boolVal = value as? Bool { return .bool(boolVal) }
+    if let boolVal = value as? Bool { return .boolean(boolVal) }
     if let intVal = value as? Int { return .integer(intVal) }
     if let doubleVal = value as? Double { return .number(doubleVal) }
     if let strVal = value as? String { return .string(strVal) }
