@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import copy
 import functools
+import re
 from typing import (
     Any,
     Final,
@@ -32,7 +33,7 @@ from ..catalog.catalog import CatalogApi
 from ..common.semver import is_at_least_version, to_protocol_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
-from ..processing.format_pydantic_error import format_validation_error
+from ..processing.format_pydantic_error import format_validation_error, to_json_pointer
 from ..schema import ProtocolVersion
 from ..schema.common_types_schema import get_common_types_catalog_defs
 from .schema_validator import SchemaValidator
@@ -251,6 +252,9 @@ class PayloadValidator:
     def validate_component(
         self,
         comp: dict[str, Any],
+        *,
+        component_index: int | None = None,
+        surface_id: str | None = None,
     ) -> None:
         """Validates a single component dictionary payload against the catalog schema.
 
@@ -268,9 +272,15 @@ class PayloadValidator:
                     path="components",
                     code="type_mismatch",
                     message="Component must be an object",
+                    surface_id=surface_id,
                 )
             )
-            raise A2uiValidationError("Component must be an object", details=errors)
+            raise A2uiValidationError(
+                "Component must be an object",
+                details=errors,
+                path="/components",
+                surface_id=surface_id,
+            )
 
         comp_id = comp.get("id")
         comp_type = comp.get("component")
@@ -290,6 +300,7 @@ class PayloadValidator:
                             f"Component id '{comp_id}' must be a valid UAX #31"
                             " identifier"
                         ),
+                        surface_id=surface_id,
                     )
                 )
 
@@ -319,6 +330,7 @@ class PayloadValidator:
                         path=f"components.{comp_id}.component",
                         code="unrecognized_component",
                         message=f"Unrecognized component type '{comp_type}'",
+                        surface_id=surface_id,
                     )
                 )
             # The component's properties can't be checked without its schema,
@@ -329,10 +341,9 @@ class PayloadValidator:
                 comp_id or "unknown", comp.get("catalogId"), comp, "", errors
             )
             if errors:
-                summary = "\n".join(
-                    f"{detail.path}: {detail.message}" for detail in errors
+                self._raise_component_validation_errors(
+                    errors, comp_id, component_index, surface_id
                 )
-                raise A2uiValidationError(summary, details=errors)
             return
 
         model_cls = (
@@ -358,15 +369,87 @@ class PayloadValidator:
             )
         else:
             raise A2uiCatalogError(
-                f"No schema defined for component '{comp_type}' in catalog."
+                f"No schema defined for component '{comp_type}' in catalog.",
+                surface_id=surface_id,
             )
 
         self._validate_nested_functions(
             comp_id or "unknown", comp.get("catalogId"), comp, "", errors
         )
         if errors:
-            summary = "\n".join(f"{detail.path}: {detail.message}" for detail in errors)
-            raise A2uiValidationError(summary, details=errors)
+            self._raise_component_validation_errors(
+                errors, comp_id, component_index, surface_id
+            )
+
+    @classmethod
+    def _raise_component_validation_errors(
+        cls,
+        errors: list[A2uiErrorDetail],
+        comp_id: str | None,
+        component_index: int | None,
+        surface_id: str | None,
+    ) -> None:
+        """Attaches surface_id to component validation details and raises A2uiValidationError."""
+        if surface_id is not None:
+            errors = [
+                A2uiErrorDetail(
+                    path=d.path,
+                    code=d.code,
+                    message=d.message,
+                    surface_id=d.surface_id or surface_id,
+                )
+                for d in errors
+            ]
+        summary = "\n".join(f"{detail.path}: {detail.message}" for detail in errors)
+        raise A2uiValidationError(
+            summary,
+            details=errors,
+            path=cls._resolve_component_error_path(
+                errors[0], comp_id, component_index
+            ),
+            surface_id=surface_id,
+        )
+
+    @staticmethod
+    def _extract_detail_error_path(detail: A2uiErrorDetail | str) -> str:
+        """Extracts the dot-separated path from a detail, appending missing or extra field names."""
+        if isinstance(detail, str):
+            return detail
+        detail_path = detail.path
+        pattern = (
+            r"^'([^']+)' is a required property"
+            if detail.code == "missing_field"
+            else (
+                r"\('([^']+)' was unexpected\)"
+                if detail.code == "extra_field"
+                else None
+            )
+        )
+        if pattern:
+            match = re.search(pattern, detail.message)
+            if match:
+                prop = match.group(1)
+                return f"{detail_path}.{prop}" if detail_path else prop
+        return detail_path
+
+    @classmethod
+    def _resolve_component_error_path(
+        cls,
+        detail: A2uiErrorDetail | str,
+        comp_id: str | None,
+        component_index: int | None,
+    ) -> str:
+        """Converts a detail path like 'components.root.text' into a JSON Pointer '/components/0/text'."""
+        detail_path = cls._extract_detail_error_path(detail)
+        comp_key = str(comp_id) if comp_id else "unknown"
+        prefix = f"components.{comp_key}"
+        if component_index is not None:
+            if detail_path == prefix:
+                return f"/components/{component_index}"
+            if detail_path.startswith(f"{prefix}."):
+                rest = detail_path[len(prefix) + 1 :]
+                return to_json_pointer(f"components.{component_index}.{rest}")
+        return to_json_pointer(detail_path)
 
     def _validate_model_component(
         self,
@@ -1086,18 +1169,7 @@ class PayloadValidator:
                     theme_validator.iter_errors(theme), key=lambda e: e.path
                 )
                 if schema_errors:
-                    details = [
-                        A2uiErrorDetail(
-                            path=".".join(str(p) for p in err.path) or "theme",
-                            code=self._map_json_schema_error_code(err.validator),
-                            message=err.message,
-                        )
-                        for err in schema_errors
-                    ]
-                    summary = "\n".join(
-                        f"{detail.path}: {detail.message}" for detail in details
-                    )
-                    raise A2uiValidationError(summary, details=details)
+                    self._raise_theme_schema_errors(schema_errors)
             except A2uiValidationError:
                 raise
             except referencing.exceptions.Unresolvable as ref_err:
@@ -1107,6 +1179,24 @@ class PayloadValidator:
                     message=str(ref_err),
                 )
                 raise A2uiValidationError(str(ref_err), details=[detail]) from ref_err
+
+    def _raise_theme_schema_errors(self, schema_errors: list[Any]) -> None:
+        details = [
+            A2uiErrorDetail(
+                path=".".join(str(p) for p in err.path) or "theme",
+                code=self._map_json_schema_error_code(err.validator),
+                message=err.message,
+            )
+            for err in schema_errors
+        ]
+        first_prop = details[0].path
+        err_ptr = (
+            "/theme"
+            if first_prop == "theme"
+            else f"/theme/{to_json_pointer(first_prop).lstrip('/')}"
+        )
+        summary = "\n".join(f"{detail.path}: {detail.message}" for detail in details)
+        raise A2uiValidationError(summary, details=details, path=err_ptr)
 
     def _map_json_schema_error_code(self, validator_name: str) -> str:
         if validator_name in ("required", "minProperties"):
