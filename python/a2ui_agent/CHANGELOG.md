@@ -1,5 +1,15 @@
 ## Unreleased
 
+- Prompt snippets (`PromptGenerator.generate()` and
+  `prompt_snippet`) follow one layout across formats and SDKs: the base rules,
+  then the catalog instructions, then the examples under `### Examples:`
+  followed by a blank line. The `## Workflow Description:` heading before the
+  base rules (and Atom's `## Instructions:`) is gone; add your own heading
+  around the snippet if you want one. A Direct JSON snippet puts the protocol
+  schemas in one schema block after the rules and each catalog schema in a
+  schema block of its own, and `generate_catalog_instructions()` with no
+  catalog returns one block per catalog. `a2ui.constants.EXAMPLES_HEADING` holds
+  the examples heading.
 - **BREAKING**: `DirectJsonPromptGenerator.generate_base_rules()` now returns
   the workflow rules followed by a schema block holding the protocol schemas
   (the agent-to-renderer schema and the common types the format's catalogs

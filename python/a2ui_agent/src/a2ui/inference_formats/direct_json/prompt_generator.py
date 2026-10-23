@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from a2ui.constants import DEFAULT_WORKFLOW_RULES
+from a2ui.constants import DEFAULT_WORKFLOW_RULES, EXAMPLES_HEADING
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import check_catalogs
@@ -27,7 +27,6 @@ from a2ui.inference_formats.direct_json.decompiler import DirectJsonDecompiler
 from a2ui.inference_formats.direct_json.schema_prompt import (
     _catalog_schema_prompt,
     _protocol_schema_prompt,
-    schema_to_prompt,
 )
 from a2ui.prompt import PromptGenerator
 from a2ui.utils import validate_payload
@@ -110,9 +109,8 @@ class DirectJsonPromptGenerator(PromptGenerator):
         """
         if not include_schema:
             return ""
-        return _catalog_schema_prompt(
-            [catalog] if catalog is not None else self._catalogs
-        )
+        targets = [catalog] if catalog is not None else self._catalogs
+        return "\n\n".join(_catalog_schema_prompt([c]) for c in targets)
 
     def generate_examples(
         self,
@@ -135,11 +133,8 @@ class DirectJsonPromptGenerator(PromptGenerator):
 
     def generate(self) -> str:
         """Assembles the prompt snippet for the Direct JSON format."""
-        parts: list[str] = [f"## Workflow Description:\n{DEFAULT_WORKFLOW_RULES}"]
-        parts.append(
-            schema_to_prompt(self._catalogs, allowed_messages=self._allowed_messages)
-        )
+        parts = [self.generate_base_rules(), self.generate_catalog_instructions()]
         examples_str = self.generate_examples()
         if examples_str:
-            parts.append(f"### Examples:\n{examples_str}")
+            parts.append(f"{EXAMPLES_HEADING}{examples_str}")
         return "\n\n".join(parts)
