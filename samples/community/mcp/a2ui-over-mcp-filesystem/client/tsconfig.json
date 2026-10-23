@@ -26,8 +26,8 @@
     // point there too so the program holds one copy of `@a2ui/web_core`.
     "paths": {
       "@a2ui/catalog-mcp": ["../../../../../typescript/catalogs/mcp/dist/index.d.ts"],
-      "@a2ui/lit/v0_9": ["../../../../../typescript/renderers/lit/dist/src/v0_9/index.d.ts"],
-      "@a2ui/web_core/v0_9": ["../../../../../typescript/core/web_core/dist/src/v0_9/index.d.ts"]
+      "@a2ui/lit": ["../../../../../typescript/renderers/lit/dist/src/index.d.ts"],
+      "@a2ui/web_core/v1_0": ["../../../../../typescript/core/web_core/dist/src/v1_0/index.d.ts"]
     }
   },
   "include": ["**/*.ts", "../a2ui_filesystem.json"]

@@ -17,14 +17,23 @@
 /**
  * Integration tests for the A2UI filesystem browser payload (`a2ui_filesystem.json`).
  *
- * Uses mocked MCP server responses to verify payload schema validation, startup action
- * execution, and UI control actions updating the surface data model.
+ * Uses mocked MCP server responses to verify that the payload processes on the
+ * basic and MCP catalogs, that the host's first listing runs, and that each UI
+ * control updates the surface data model.
  */
 
-import {DataContext} from '@a2ui/web_core/v0_9';
+import {MCP_CATALOG_ID, mcpCatalog} from '@a2ui/catalog-mcp';
+import {
+  basicCatalog,
+  DataContext,
+  MessageProcessor,
+  type ProcessableMessagePayload,
+  type WebComponentImplementation,
+} from '@a2ui/web_core/v1_0';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {A2uiFilesystemApp, CATALOG_ID} from './app';
+import surfaceMessages from '../a2ui_filesystem.json';
+import {A2uiFilesystemApp, BASIC_CATALOG_ID, SURFACE_ID} from './app';
 
 /** Sample response from list_directory_with_sizes. */
 const LISTING = [
@@ -43,7 +52,7 @@ const FILE_TEXT = 'line one\nline two\nline three';
 const MATCHES = '/Users/ada/a.md\n/Users/ada/notes/b.md';
 
 /** Regex pattern used by directory rows to parse directory listing lines. */
-const LISTING_PATTERN = '^\\[(DIR|FILE)\\]\\s+([^.].*?)(?:\\s\\s+([0-9.]+ [A-Za-z]+))?\\s*$';
+const LISTING_PATTERN = '^\\[(DIR|FILE)\\] ([^.\\s](?: ?\\S)*)(?:  +(?:([0-9.]+ [A-Za-z]+) *)?)?$';
 
 /** Regex pattern used by file rows to match full lines. */
 const LINE_PATTERN = '^(.*)$';
@@ -55,7 +64,7 @@ const HOME_ENTRIES = [
     size: '',
     icon: 'folder',
     tool: 'list_directory_with_sizes',
-    expr: {path: '/expr/list'},
+    kind: 'dir',
     pattern: LISTING_PATTERN,
   },
   {
@@ -63,7 +72,7 @@ const HOME_ENTRIES = [
     size: '2.39 KB',
     icon: 'attachFile',
     tool: 'read_text_file',
-    expr: {path: '/expr/read'},
+    kind: 'file',
     pattern: LINE_PATTERN,
   },
 ];
@@ -74,12 +83,13 @@ const hit = (name: string) => ({
   size: '',
   icon: 'attachFile',
   tool: 'read_text_file',
-  expr: {path: '/expr/read'},
+  kind: 'file',
   pattern: LINE_PATTERN,
 });
 
 let mockClient: {
   connect: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
   listTools: ReturnType<typeof vi.fn>;
   request: ReturnType<typeof vi.fn>;
   readResource: ReturnType<typeof vi.fn>;
@@ -107,7 +117,7 @@ if (typeof ShadowRoot !== 'undefined' && !(ShadowRoot.prototype as any).adoptedS
   (ShadowRoot.prototype as any).adoptedStyleSheets = [];
 }
 
-/** Mounts the app component so `<a2ui-surface>` renders and flushes startup updates. */
+/** Mounts the app component so `<a2ui-surface>` renders and flushes the first listing. */
 async function bootstrap(app: A2uiFilesystemApp) {
   document.body.replaceChildren(app);
   await Promise.resolve();
@@ -122,16 +132,16 @@ const toolCalls = () => mockClient.request.mock.calls.map(call => call[0].params
 const read = (app: A2uiFilesystemApp, path: string) => app.surface!.dataModel.get(path);
 
 /**
- * Executes a component's `action` function call within the specified data context scope
- * and asserts that no surface error occurred.
+ * Resolves a component's `action` within the specified data context scope and
+ * asserts that no surface error occurred.
  */
 async function press(app: A2uiFilesystemApp, componentId: string, scope = '/') {
   const component = app.surface!.componentsModel.get(componentId);
   expect(component, `the payload declares no ${componentId}`).toBeDefined();
+  const action = component!.properties['action'];
+  expect(action, `${componentId} has no action`).toBeDefined();
 
-  await new DataContext(app.surface!, scope).resolveDynamicValue(
-    component!.properties['action'].functionCall,
-  );
+  await new DataContext(app.surface!, scope).resolveAction(action);
 
   expect((app as any).error, `${componentId} dispatched a surface error`).toBe('');
 }
@@ -153,6 +163,7 @@ describe('the filesystem payload', () => {
 
     mockClient = {
       connect: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
       listTools: vi.fn().mockResolvedValue({tools: []}),
       readResource: vi.fn().mockResolvedValue({contents: []}),
       request: vi.fn().mockImplementation(async (request: any) => ({
@@ -163,18 +174,38 @@ describe('the filesystem payload', () => {
     app = new A2uiFilesystemApp();
   });
 
-  it('validates against the catalog it names', async () => {
+  it('processes on the basic and MCP catalogs without a surface error', () => {
+    const processor = new MessageProcessor<WebComponentImplementation>([basicCatalog, mcpCatalog]);
+    const errors: unknown[] = [];
+    processor.onSurfaceCreated(surface => {
+      surface.onError.subscribe(error => {
+        errors.push(error);
+      });
+    });
+
+    processor.processMessages(structuredClone(surfaceMessages) as ProcessableMessagePayload);
+
+    const surface = processor.model.getSurface(SURFACE_ID)!;
+    expect(surface.catalog).toBe(basicCatalog);
+    expect(surface.componentsModel.get('entry_row')?.type).toBe('Row');
+    expect(surface.dataModel.get('/dir')).toBe('~');
+    expect(errors).toEqual([]);
+    surface.dispose();
+  });
+
+  it('advertises the catalogs the payload names', async () => {
     await bootstrap(app);
 
-    expect(
-      app.processor.getClientCapabilities({versions: ['v0.9']})['v0.9']?.supportedCatalogIds,
-    ).toContain(CATALOG_ID);
+    const supported = app.processor.getClientCapabilities({versions: ['v1.0']})['v1.0']
+      ?.supportedCatalogIds;
+    expect(supported).toContain(BASIC_CATALOG_ID);
+    expect(supported).toContain(MCP_CATALOG_ID);
     expect(app.surface).toBeDefined();
     expect(app.surface!.componentsModel.get('entry_row')).toBeDefined();
     expect((app as any).error).toBe('');
   });
 
-  it('runs the startup action the payload declares, listing the home directory', async () => {
+  it('lists the home directory on startup by running the List directory action', async () => {
     await bootstrap(app);
 
     expect(toolCalls()).toEqual([{name: 'list_directory_with_sizes', arguments: {path: '~'}}]);
@@ -382,5 +413,29 @@ describe('the filesystem payload', () => {
 
     expect(app.surface).toBeUndefined();
     expect((app as any).error).toBe('Network error');
+  });
+
+  it('closes the MCP client when it leaves the document', async () => {
+    await bootstrap(app);
+    expect(mockClient.close).not.toHaveBeenCalled();
+
+    app.remove();
+
+    expect(mockClient.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs instead of throwing when closing the MCP client fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockClient.close.mockRejectedValue(new Error('already closed'));
+    await bootstrap(app);
+
+    app.remove();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to close the MCP client:',
+      expect.objectContaining({message: 'already closed'}),
+    );
+    consoleError.mockRestore();
   });
 });
