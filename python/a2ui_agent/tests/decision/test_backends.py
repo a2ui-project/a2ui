@@ -189,7 +189,7 @@ async def test_step_zero_logprob_backend_softmax_and_temperature_scaling() -> No
 
     assert captured_requests[0]["model"] == "gemma-decision"
     assert "Task: root_component" in captured_requests[0]["prompt"]
-    assert "Candidates: [VitalsCard, LabTable]" in captured_requests[0]["prompt"]
+    assert "Candidates: [A: VitalsCard, B: LabTable]" in captured_requests[0]["prompt"]
     assert "Intent: Show patient vitals" in captured_requests[0]["prompt"]
     assert captured_requests[0]["max_tokens"] == 1
     assert captured_requests[0]["temperature"] == 0.0
@@ -377,18 +377,21 @@ async def test_step_zero_logprob_backend_caps_logprobs_at_20_and_closes_owned_cl
     transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as client:
         backend = StepZeroLogprobBackend(
-            "http://vllm.local/v1/completions", "gemma", client=client
+            "http://vllm.local/v1/completions",
+            "gemma",
+            max_logprobs=8,
+            client=client,
         )
-        many_candidates = tuple(f"C{i}" for i in range(30))
+        ten_candidates = tuple(f"C{i}" for i in range(10))
         await backend.predict(
             DecisionQuery(
                 task="root_component",
                 prompt="Pick one",
-                candidates=many_candidates,
+                candidates=ten_candidates,
                 context={"k": "v"},
             )
         )
-    assert captured[0]["logprobs"] == 20
+    assert captured[0]["logprobs"] == 8
     assert "Context: {'k': 'v'}" in captured[0]["prompt"]
 
     owned_jev = JevHttpBackend("http://jev.local/predict")
@@ -861,3 +864,465 @@ async def test_non_finite_weights_adc_lock_and_off_thread_ensure_loaded(
     await local.predict(DecisionQuery(task="t", prompt="p", candidates=("A", "B")))
     assert len(seen_tids) == 1
     assert seen_tids[0] != main_tid
+
+
+@pytest.mark.asyncio
+async def test_mock_backend_scripted_answers_and_batches_recording() -> None:
+    from a2ui.inference_formats.decision.models import (
+        DecisionAnswer,
+        DecisionBatch,
+        DecisionQuestion,
+        QuestionKind,
+    )
+
+    q_choice = DecisionQuestion(
+        id="family",
+        kind=QuestionKind.CHOICE,
+        prompt="Browse or inspect?",
+        options=("browse", "inspect"),
+    )
+    q_bool = DecisionQuestion(
+        id="gate:picture",
+        kind=QuestionKind.BOOLEAN,
+        prompt="Show a picture?",
+        context={"yes": "Visual item.", "no": "Plain text."},
+    )
+    q_score = DecisionQuestion(
+        id="stakes",
+        kind=QuestionKind.SCORE,
+        prompt="How high are the stakes?",
+        options=("low", "medium", "high", "critical"),
+    )
+    q_explicit = DecisionQuestion(
+        id="anatomy:layout",
+        kind=QuestionKind.CHOICE,
+        prompt="Choose layout",
+        options=("rows", "cards"),
+        allow_none=False,
+    )
+    q_unscripted_bool = DecisionQuestion(
+        id="gate:facts",
+        kind=QuestionKind.BOOLEAN,
+        prompt="Include facts?",
+    )
+    q_unscripted_score = DecisionQuestion(
+        id="urgency",
+        kind=QuestionKind.SCORE,
+        prompt="How urgent?",
+        options=("none", "soon", "now", "immediate"),
+    )
+
+    explicit_ans = DecisionAnswer(
+        question_id="anatomy:layout",
+        distribution=DecisionDistribution({"rows": 0.15, "cards": 0.85}),
+    )
+    backend = DeterministicMockBackend(
+        scripted={"family": {"browse": 0.9, "inspect": 0.1, "none": 0.0}},
+        scripted_answers={
+            "family": "inspect",
+            "gate:picture": 0.85,
+            "stakes": 2.4,
+            "anatomy:layout": explicit_ans,
+        },
+    )
+    batch = DecisionBatch(
+        shared_context={"intent": "Inspect the resort"},
+        questions=(
+            q_choice,
+            q_bool,
+            q_score,
+            q_explicit,
+            q_unscripted_bool,
+            q_unscripted_score,
+        ),
+    )
+    answers = await backend.answer(batch)
+
+    assert backend.batches == [batch]
+    # scripted_answers wins over scripted when both match
+    assert answers[0].top() == ("inspect", pytest.approx(0.9))
+    assert answers[1].yes == pytest.approx(0.85)
+    assert answers[2].expected == pytest.approx(2.4)
+    assert answers[3] == explicit_ans
+    # Unscripted boolean defaults to 0.5 and unscripted score to midpoint 1.5
+    assert answers[4].yes == pytest.approx(0.5)
+    assert answers[5].expected == pytest.approx(1.5)
+
+
+@pytest.mark.asyncio
+async def test_step_zero_logprob_backend_single_char_labels_batch_and_over_10_error() -> (
+    None
+):
+    from a2ui.core import A2uiValidationError
+    from a2ui.inference_formats.decision.models import (
+        DecisionBatch,
+        DecisionQuestion,
+        QuestionKind,
+    )
+
+    captured_prompts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        captured_prompts.append(body["prompt"])
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{
+                    "logprobs": {
+                        "top_logprobs": [{
+                            " A": -2.0,
+                            " B": -0.2,
+                            " C": -4.0,
+                        }]
+                    }
+                }]
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        backend = StepZeroLogprobBackend(
+            "http://vllm.local/v1/completions",
+            "gemma-step0",
+            temperature=1.0,
+            client=client,
+        )
+
+        # 1. Single-char label mapping on predict
+        dist = await backend.predict(
+            DecisionQuery(
+                task="family",
+                prompt="Pick family",
+                candidates=("browse", "inspect", "monitor"),
+            )
+        )
+        assert dist.top_choice()[0] == "inspect"
+        assert "Candidates: [A: browse, B: inspect, C: monitor]" in captured_prompts[0]
+
+        # 2. >10 options raises A2uiValidationError on both predict and answer
+        eleven_opts = tuple(f"opt_{i}" for i in range(11))
+        with pytest.raises(A2uiValidationError, match="at most 10"):
+            await backend.predict(
+                DecisionQuery(task="t", prompt="p", candidates=eleven_opts)
+            )
+        with pytest.raises(A2uiValidationError, match="at most 10"):
+            await backend.answer(
+                DecisionBatch(
+                    shared_context={},
+                    questions=(
+                        DecisionQuestion(
+                            id="too_many",
+                            kind=QuestionKind.CHOICE,
+                            prompt="?",
+                            options=eleven_opts,
+                            allow_none=False,
+                        ),
+                    ),
+                )
+            )
+
+        # 3. answer() issues concurrent requests with one shared prefix string
+        captured_prompts.clear()
+        q1 = DecisionQuestion(
+            id="family",
+            kind=QuestionKind.CHOICE,
+            prompt="What job?",
+            options=("browse", "inspect"),
+        )
+        q2 = DecisionQuestion(
+            id="gate:picture",
+            kind=QuestionKind.BOOLEAN,
+            prompt="Show picture?",
+        )
+        answers = await backend.answer(
+            DecisionBatch(
+                shared_context={"intent": "Show resort"},
+                questions=(q1, q2),
+            )
+        )
+        assert len(answers) == 2
+        assert len(captured_prompts) == 2
+        first_line_0 = captured_prompts[0].splitlines()[0]
+        first_line_1 = captured_prompts[1].splitlines()[0]
+        assert first_line_0 == first_line_1
+        assert first_line_0.startswith("Shared context:")
+        assert answers[0].top()[0] == "inspect"
+        # "B" is "no" for boolean ("yes", "no") so "yes" is lower than "no"
+        assert answers[1].yes < 0.5
+
+
+@pytest.mark.asyncio
+async def test_jev_http_backend_answer_native_and_systemone() -> None:
+    from a2ui.inference_formats.decision.models import (
+        DecisionBatch,
+        DecisionQuestion,
+        QuestionKind,
+    )
+
+    native_requests: list[dict[str, Any]] = []
+
+    def native_handler(request: httpx.Request) -> httpx.Response:
+        native_requests.append(json.loads(request.content.decode("utf-8")))
+        return httpx.Response(
+            200,
+            json={
+                "calibrated": True,
+                "answers": {
+                    "family": {
+                        "probabilities": {
+                            "browse": 0.1,
+                            "inspect": 0.8,
+                            "none": 0.1,
+                        }
+                    },
+                    "gate:picture": {"probabilities": {"yes": 0.9, "no": 0.1}},
+                    "stakes": {
+                        "probabilities": {
+                            "low": 0.0,
+                            "medium": 0.5,
+                            "high": 0.5,
+                        }
+                    },
+                },
+            },
+        )
+
+    batch = DecisionBatch(
+        shared_context={"intent": "Show overview"},
+        questions=(
+            DecisionQuestion(
+                id="family",
+                kind=QuestionKind.CHOICE,
+                prompt="Family?",
+                options=("browse", "inspect"),
+            ),
+            DecisionQuestion(
+                id="gate:picture",
+                kind=QuestionKind.BOOLEAN,
+                prompt="Picture?",
+            ),
+            DecisionQuestion(
+                id="stakes",
+                kind=QuestionKind.SCORE,
+                prompt="Stakes?",
+                options=("low", "medium", "high"),
+            ),
+        ),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(native_handler)
+    ) as client:
+        jev_native = JevHttpBackend("http://jev.local/predict", client=client)
+        native_answers = await jev_native.answer(batch)
+
+    assert len(native_requests) == 1
+    assert native_requests[0]["shared_context"] == {"intent": "Show overview"}
+    assert [q["id"] for q in native_requests[0]["questions"]] == [
+        "family",
+        "gate:picture",
+        "stakes",
+    ]
+    assert [q["kind"] for q in native_requests[0]["questions"]] == [
+        "choice",
+        "boolean",
+        "score",
+    ]
+    assert native_answers[0].top() == ("inspect", pytest.approx(0.8))
+    assert native_answers[1].yes == pytest.approx(0.9)
+    assert native_answers[2].expected == pytest.approx(1.5)
+
+    # systemone falls back to per-question predict calls
+    sys1_requests: list[dict[str, Any]] = []
+
+    def sys1_handler(request: httpx.Request) -> httpx.Response:
+        sys1_requests.append(json.loads(request.content.decode("utf-8")))
+        return httpx.Response(
+            200,
+            json={
+                "answers": {
+                    "q": {
+                        "probabilities": {
+                            "browse": 0.2,
+                            "inspect": 0.8,
+                            "yes": 0.75,
+                            "no": 0.25,
+                            "low": 0.5,
+                            "medium": 0.5,
+                            "high": 0.0,
+                        },
+                        "confidence": 0.8,
+                    }
+                }
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(sys1_handler)) as client:
+        jev_sys1 = JevHttpBackend("https://api.example.com/v1/systemone", client=client)
+        sys1_answers = await jev_sys1.answer(batch)
+
+    assert len(sys1_requests) == 3
+    assert sys1_answers[0].top() == ("inspect", pytest.approx(0.8))
+    assert sys1_answers[1].yes == pytest.approx(0.75)
+    assert sys1_answers[2].expected == pytest.approx(0.5)
+
+
+@pytest.mark.asyncio
+async def test_local_cross_encoder_answer_batches_and_chunks_pairs() -> None:
+    import numpy as np
+    from a2ui.inference_formats.decision.models import (
+        DecisionBatch,
+        DecisionQuestion,
+        QuestionKind,
+    )
+
+    class _ChunkingFakeTokenizer:
+
+        def __init__(self) -> None:
+            self.call_sizes: list[int] = []
+            self.all_pairs: list[tuple[str, str]] = []
+
+        def encode_batch(self, pairs: list[tuple[str, str]]) -> list[_FakeEncoding]:
+            self.call_sizes.append(len(pairs))
+            self.all_pairs.extend(pairs)
+            return [
+                _FakeEncoding(ids=[101, 102], attention_mask=[1, 1], type_ids=[0, 0])
+                for _ in pairs
+            ]
+
+    class _DynamicFakeSession:
+
+        def __init__(self, logits: list[float]) -> None:
+            self._logits = logits
+            self._offset = 0
+            self.run_count = 0
+
+        def get_inputs(self) -> list[_FakeSessionInput]:
+            return [
+                _FakeSessionInput("input_ids"),
+                _FakeSessionInput("attention_mask"),
+            ]
+
+        def run(self, output_names: Any, feeds: dict[str, Any]) -> list[Any]:
+            del output_names
+            self.run_count += 1
+            batch_len = len(feeds["input_ids"])
+            chunk = self._logits[self._offset : self._offset + batch_len]
+            self._offset += batch_len
+            return [np.array(chunk, dtype=np.float32)[:, np.newaxis]]
+
+    batch = DecisionBatch(
+        shared_context={"pointers": ["/name", "/rating"]},
+        questions=(
+            DecisionQuestion(
+                id="family",
+                kind=QuestionKind.CHOICE,
+                prompt="What is the job?",
+                options=("browse", "inspect"),
+                option_texts=("Browse items", "Inspect one item"),
+            ),
+            DecisionQuestion(
+                id="gate:picture",
+                kind=QuestionKind.BOOLEAN,
+                prompt="Include a hero image?",
+                context={"yes": "Has a clear photo", "no": "Text only"},
+            ),
+            DecisionQuestion(
+                id="stakes",
+                kind=QuestionKind.SCORE,
+                prompt="How high are the stakes?",
+                options=("low", "medium", "high"),
+            ),
+        ),
+    )
+    # 3 candidates (browse, inspect, none) + 2 (yes, no) + 3 (low, medium, high) = 8 pairs
+    logits = [0.0, 3.0, -1.0, 2.0, 0.0, -2.0, 0.0, 2.0]
+
+    tok = _ChunkingFakeTokenizer()
+    sess = _DynamicFakeSession(logits)
+    backend = LocalCrossEncoderBackend(session=sess, tokenizer=tok, max_batch_pairs=256)
+    answers = await backend.answer(batch)
+
+    assert sess.run_count == 1
+    assert tok.call_sizes == [8]
+    assert len(tok.all_pairs) == 8
+    assert "yes: Has a clear photo" in tok.all_pairs[3][1]
+    assert "no: Text only" in tok.all_pairs[4][1]
+    assert answers[0].top()[0] == "inspect"
+    assert answers[1].yes > 0.85
+    assert answers[2].expected is not None and answers[2].expected > 1.5
+
+    # Verify chunking when max_batch_pairs=3 (8 pairs -> chunks of 3, 3, 2)
+    tok_chunked = _ChunkingFakeTokenizer()
+    sess_chunked = _DynamicFakeSession(logits)
+    chunked_backend = LocalCrossEncoderBackend(
+        session=sess_chunked, tokenizer=tok_chunked, max_batch_pairs=3
+    )
+    chunked_answers = await chunked_backend.answer(batch)
+    assert sess_chunked.run_count == 3
+    assert tok_chunked.call_sizes == [3, 3, 2]
+    assert [a.top() for a in chunked_answers] == [a.top() for a in answers]
+
+
+@pytest.mark.asyncio
+async def test_batching_decision_backend_coalesces_20_predicts_and_isolates_failure() -> (
+    None
+):
+    import asyncio
+    from a2ui.inference_formats.decision.batching import (
+        BatchingDecisionBackend,
+    )
+    from a2ui.inference_formats.decision.models import (
+        DecisionAnswer,
+        DecisionBatch,
+    )
+
+    inner = DeterministicMockBackend()
+    async with BatchingDecisionBackend(inner, window_ms=2.0) as batcher:
+        queries = [
+            DecisionQuery(
+                task="root_component",
+                prompt=f"Render component {i} with Target_{i}",
+                candidates=(f"Target_{i}", f"Other_{i}"),
+            )
+            for i in range(20)
+        ]
+        results = await asyncio.gather(*(batcher.predict(q) for q in queries))
+
+    assert len(inner.batches) == 1
+    assert len(inner.batches[0].questions) == 20
+    for idx, dist in enumerate(results):
+        top_cand, _ = dist.top_choice()
+        assert top_cand == f"Target_{idx}"
+
+    # Verify one failing call propagates its exception without poisoning the other 19
+    class _SelectiveFailBackend(DeterministicMockBackend):
+
+        async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+            for q in batch.questions:
+                if "POISON" in q.prompt:
+                    raise RuntimeError(f"failed on {q.id}")
+            return await super().answer(batch)
+
+    selective_inner = _SelectiveFailBackend()
+    async with BatchingDecisionBackend(selective_inner, window_ms=2.0) as batcher:
+        mixed_queries = [
+            DecisionQuery(
+                task="root_component",
+                prompt="POISON query" if i == 7 else f"Valid query Target_{i}",
+                candidates=(f"Target_{i}", f"Other_{i}"),
+            )
+            for i in range(20)
+        ]
+        outcomes = await asyncio.gather(
+            *(batcher.predict(q) for q in mixed_queries),
+            return_exceptions=True,
+        )
+
+    assert isinstance(outcomes[7], RuntimeError)
+    for idx, item in enumerate(outcomes):
+        if idx == 7:
+            continue
+        assert isinstance(item, DecisionDistribution)
+        assert item.top_choice()[0] == f"Target_{idx}"
