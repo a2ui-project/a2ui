@@ -1,6 +1,6 @@
 ---
 name: natural-writing
-description: Contains well-defined rules for creating natural, accurate, and readable writing. Use this skill whenever authoring longer text, including changelogs, reports, PR descriptions, READMEs, system designs, analysis documents, or general documentation.
+description: Contains well-defined rules for creating natural, accurate, and readable writing. Use this skill whenever authoring longer text, including reports, PR descriptions, READMEs, system designs, analysis documents, or general documentation.
 ---
 
 # Rules for natural writing
