@@ -391,6 +391,40 @@ async def test_security_allowed_hosts_policy():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "file_id, address",
+    [
+        # Shared Address Space (RFC 6598): not public, but not "private" either.
+        ("http://100.64.0.1/secret", "100.64.0.1"),
+        # IPv4-mapped forms are checked as the IPv4 address they wrap
+        # (before Python 3.13, is_global reports ::ffff:100.64.0.1 as global).
+        ("http://[::ffff:100.64.0.1]/secret", "::ffff:100.64.0.1"),
+        ("http://[::ffff:127.0.0.1]/secret", "::ffff:127.0.0.1"),
+        # Still rejected: is_global is True for multicast addresses.
+        ("http://224.0.0.1/secret", "224.0.0.1"),
+        ("http://[ff02::1]/secret", "ff02::1"),
+        # Still rejected: loopback and link-local.
+        ("http://127.0.0.1/secret", "127.0.0.1"),
+        ("http://169.254.169.254/latest/meta-data", "169.254.169.254"),
+    ],
+)
+async def test_security_rejects_non_global_addresses(file_id: str, address: str):
+    class MockHttpClient:
+
+        def stream(self, method: str, url: str, **kwargs):
+            raise AssertionError(f"{url} must not be fetched")
+
+    resolver = FileResolver(
+        allowed_hosts=["*"],
+        http_client=MockHttpClient(),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(FileResolverSecurityError) as exc_info:
+        await resolver.resolve_bytes({"fileId": file_id, "mimeType": "text/plain"})
+    assert address in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 async def test_security_allowed_hosts_redirect_blocked():
     class MockRedirectResponse:
 
