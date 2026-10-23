@@ -106,6 +106,30 @@ def test_schema_strategy_base_rules_hold_the_protocol_schemas(test_catalog):
     )
 
 
+def test_schema_strategy_base_rules_keep_only_the_allowed_messages(test_catalog):
+    generator = DirectJsonFormat([test_catalog]).prompt_generator
+    pruned_generator = DirectJsonFormat(
+        [test_catalog], allowed_messages=["CreateSurfaceMessage"]
+    ).prompt_generator
+
+    every_message = generator.generate_base_rules()
+    overridden = generator.generate_base_rules(
+        allowed_messages=["CreateSurfaceMessage"]
+    )
+
+    assert "UpdateDataModelMessage" in every_message
+    assert "CreateSurfaceMessage" in overridden
+    assert "UpdateDataModelMessage" not in overridden
+    # The generator's own allowlist is the default, and the argument overrides it.
+    assert pruned_generator.generate_base_rules() == overridden
+    assert (
+        pruned_generator.generate_base_rules(
+            allowed_messages=["CreateSurfaceMessage", "UpdateDataModelMessage"]
+        ).count("UpdateDataModelMessage")
+        > 0
+    )
+
+
 def test_schema_parser(test_catalog):
     parser = DirectJsonParser([test_catalog])
     parsed = parser.parse_response(
