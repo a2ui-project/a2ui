@@ -134,6 +134,47 @@ struct PayloadValidatorTests {
       "id": .string("unknown_1"),
       "component": .string("UnknownWidget"),
     ])
+
+    // Invalid UAX #31 component type identifier in v1.0
+    #expect(throws: A2UIValidationError.self) {
+      try permissiveValidator.validateComponent([
+        "id": .string("button_bar_1"),
+        "component": .string("flex:button-bar"),
+      ])
+    }
+  }
+
+  @Test func validateComponentAllowsNamespacedComponentIdentifiersInV091() throws {
+    let buttonBarSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "const": "flex:button-bar" }
+          },
+          "required": ["id", "component"],
+          "additionalProperties": false
+        }
+        """
+    )
+    let v091Catalog = Catalog(
+      id: "https://example.com/catalogs/flex/v0/catalog.json",
+      protocolVersion: "v0.9.1",
+      components: [AnyComponentAPI(name: "flex:button-bar", schema: buttonBarSchema)]
+    ).eraseToAnyCatalog()
+    let validator = PayloadValidator(
+      catalog: v091Catalog,
+      config: ValidationConfig(protocolVersion: .v091)
+    )
+    let component: [String: JSONValue] = [
+      "id": .string("root"),
+      "component": .string("flex:button-bar"),
+    ]
+
+    #expect(throws: Never.self) {
+      try validator.validateComponent(component)
+    }
   }
 
   @Test func validateComponentChecksAccessibilityOnSchemaWithoutIt() throws {

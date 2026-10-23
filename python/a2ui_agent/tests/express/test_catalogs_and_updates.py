@@ -119,6 +119,7 @@ def parser() -> ExpressParser:
 
 
 def _compile(parser: ExpressParser, dsl: str) -> list[dict[str, Any]]:
+    """Compiles DSL into messages, without checking them against a renderer state."""
     return to_message_dicts(parser.compile(dsl))
 
 
@@ -459,7 +460,7 @@ def test_update_components_on_non_default_surface_round_trips(
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
-                    "id": "sub",
+                    "id": "root",
                     "component": "Panel",
                     "catalogId": SECONDARY,
                     "headline": "B",
@@ -468,7 +469,7 @@ def test_update_components_on_non_default_surface_round_trips(
         },
     ]
     dsl = _round_trip(parser, messages)
-    assert dsl.count('surface("s2")') == 2
+    assert dsl.count('surface("s2"') == 2
     assert "catalogId" not in dsl
 
 
@@ -489,7 +490,7 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
-                    "id": "greeting",
+                    "id": "root",
                     "component": "Input",
                     "value": {"@path": "/v"},
                     "action": {
@@ -503,8 +504,8 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
         },
     ]
     dsl = parser.decompile(to_message_models(messages))
-    assert dsl.count('surface("s2")') == 2
-    assert 'greeting = Input($/v, sharedFn("p", catalogId="test/primary"))' in dsl
+    assert dsl.count('surface("s2"') == 2
+    assert 'root = Input($/v, sharedFn("p", catalogId="test/primary"))' in dsl
     recompiled = _compile(parser, dsl)
     assert recompiled[1]["updateComponents"]["components"][0]["catalogId"] == PRIMARY
 
@@ -548,8 +549,8 @@ def test_update_surface_components_carry_their_catalog(parser: ExpressParser) ->
         """
 surface("s2")
 root = Panel("A")
-surface("s2")
-sub = Panel("B")
+surface("s2", update=true)
+root = Panel("B")
 """,
     )
     assert messages[1] == {
@@ -557,7 +558,7 @@ sub = Panel("B")
         "updateComponents": {
             "surfaceId": "s2",
             "components": [{
-                "id": "sub",
+                "id": "root",
                 "component": "Panel",
                 "catalogId": SECONDARY,
                 "headline": "B",

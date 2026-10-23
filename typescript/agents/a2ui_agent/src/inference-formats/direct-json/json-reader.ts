@@ -29,6 +29,15 @@ const HEX_RE = /^[0-9a-fA-F]{4}$/;
 // address rather than a shorter version of the same text.
 const URL_PREFIXES = ['http://', 'https://', 'data:'];
 
+const NEWLINE_STRIPPED_KEYS = new Set([
+  'id',
+  'component',
+  'child',
+  'surfaceId',
+  'catalogId',
+  'componentId',
+]);
+
 /** A JSON value the reader produced. */
 export type JsonValue = unknown;
 
@@ -158,6 +167,7 @@ class Reader {
   private i: number;
   private readonly limit: number;
   private cut = false;
+  private inDataModel = false;
 
   /**
    * @param text The text to read.
@@ -269,12 +279,12 @@ class Reader {
     return [message, !this.cut];
   }
 
-  private value(healable: boolean): JsonValue {
+  private value(healable: boolean, stripNewlines: boolean = false): JsonValue {
     if (this.atEnd) this.end();
     const c = this.text[this.i];
     if (c === '{') return this.closedOr(() => this.object());
     if (c === '[') return this.closedOr(() => this.array(false));
-    if (c === '"') return this.string(healable);
+    if (c === '"') return this.string(healable, stripNewlines);
     if (c === '-' || (c >= '0' && c <= '9')) return this.number();
     const words: Array<[string, unknown]> = [
       ['true', true],
@@ -314,7 +324,7 @@ class Reader {
     return value;
   }
 
-  private object(): Record<string, unknown> {
+  private object(parentKey?: string): Record<string, unknown> {
     this.i += 1;
     const obj: Record<string, unknown> = {};
     for (;;) {
@@ -325,17 +335,36 @@ class Reader {
         return obj;
       }
       if (this.text[this.i] !== '"') this.fail('expected a key');
-      const key = this.string(false);
+      const key = this.string(false, !this.inDataModel);
       this.skipSpace();
       if (this.atEnd) this.end();
       if (this.text[this.i] !== ':') this.fail(`expected ':' after key '${key}'`);
       this.i += 1;
       this.skipSpace();
+      const isDataValue =
+        !this.inDataModel &&
+        ((parentKey === 'updateDataModel' && key === 'value') ||
+          (parentKey === 'createSurface' && key === 'dataModel'));
+      if (isDataValue) this.inDataModel = true;
       let value: unknown;
-      if (!this.atEnd && this.text[this.i] === '[' && this.partial && this.wholeItemKeys.has(key)) {
-        value = this.closedOr(() => this.array(true));
-      } else {
-        value = this.value(this.progressiveKeys?.has(key) ?? false);
+      try {
+        if (!this.atEnd && this.text[this.i] === '[') {
+          value = this.closedOr(() =>
+            this.array(
+              this.partial && this.wholeItemKeys.has(key),
+              key === 'children' && !this.inDataModel,
+            ),
+          );
+        } else if (!this.atEnd && this.text[this.i] === '{') {
+          value = this.closedOr(() => this.object(key));
+        } else {
+          value = this.value(
+            this.progressiveKeys?.has(key) ?? false,
+            NEWLINE_STRIPPED_KEYS.has(key) && !this.inDataModel,
+          );
+        }
+      } finally {
+        if (isDataValue) this.inDataModel = false;
       }
       // Defined as an own property, so a key such as `__proto__` stays plain data.
       Object.defineProperty(obj, key, {
@@ -358,7 +387,7 @@ class Reader {
    * Reads a list. When `wholeItems` is true, an item the text ends in is left out rather than
    * healed. A list still open goes on after the items an earlier read saw close.
    */
-  private array(wholeItems: boolean): unknown[] {
+  private array(wholeItems: boolean, stripItemNewlines: boolean = false): unknown[] {
     const start = this.i;
     this.i += 1;
     let arr: unknown[] = [];
@@ -403,14 +432,14 @@ class Reader {
       let item: unknown;
       if (wholeItems) {
         try {
-          item = this.value(false);
+          item = this.value(false, stripItemNewlines);
         } catch (e) {
           if (e instanceof Unfinished) return healed();
           throw e;
         }
         if (this.cut) return healed();
       } else {
-        item = this.value(false);
+        item = this.value(false, stripItemNewlines);
       }
       arr.push(item);
       // An item closed early ends the text, so the list closes early too.
@@ -427,7 +456,7 @@ class Reader {
     return value;
   }
 
-  private string(healable: boolean): string {
+  private string(healable: boolean, stripNewlines: boolean = false): string {
     this.i += 1;
     let buf = '';
     const text = this.text;
@@ -439,6 +468,10 @@ class Reader {
         return buf;
       }
       if (c !== '\\') {
+        if (stripNewlines && (c === '\r' || c === '\n')) {
+          this.i += 1;
+          continue;
+        }
         buf += c;
         this.i += 1;
         continue;

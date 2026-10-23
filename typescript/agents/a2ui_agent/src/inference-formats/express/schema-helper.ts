@@ -189,6 +189,7 @@ function reservedKeysFor(protocolVersion: string): ReservedKeys {
 export class CatalogSchemaHelper {
   readonly catalog: Record<string, unknown>;
   readonly commonTypes: Record<string, unknown>;
+  readonly commonTypesLoaded: boolean;
   /** The wire keys for data bindings and function calls in this catalog's version. */
   readonly keys: ReservedKeys;
   readonly components: ReadonlyMap<string, Record<string, unknown>>;
@@ -210,7 +211,13 @@ export class CatalogSchemaHelper {
       peers.length > 0
         ? (inlinePeerAndLocalRefs(rawCatalog, rawCatalog, peers) as Record<string, unknown>)
         : rawCatalog;
-    this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
+    try {
+      this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
+      this.commonTypesLoaded = true;
+    } catch {
+      this.commonTypes = {$defs: {}};
+      this.commonTypesLoaded = false;
+    }
     this.keys = reservedKeysFor(protocolVersion);
 
     const rawComponents = (this.catalog.components ?? {}) as Record<string, unknown>;
@@ -797,6 +804,118 @@ export class CatalogSchemaHelper {
             }
           }
         }
+      }
+
+      return false;
+    };
+
+    return check(schema, false);
+  }
+
+  /**
+   * Checks whether a property schema accepts a numeric value by resolving `$ref`s
+   * in `commonTypes` or the catalog document.
+   */
+  acceptsNumber(schema: unknown): boolean {
+    const visited = new Set<unknown>();
+
+    const check = (s: unknown, inCommonTypes: boolean): boolean => {
+      if (!s || typeof s !== 'object') {
+        return false;
+      }
+      if (visited.has(s)) {
+        return false;
+      }
+      visited.add(s);
+
+      const obj = s as Record<string, unknown>;
+
+      const type = obj.type;
+      if (type === 'number' || type === 'integer') {
+        return true;
+      }
+      if (Array.isArray(type) && (type.includes('number') || type.includes('integer'))) {
+        return true;
+      }
+
+      if (typeof obj.const === 'number') {
+        return true;
+      }
+
+      if (Array.isArray(obj.enum) && obj.enum.some(v => typeof v === 'number')) {
+        return true;
+      }
+
+      if (typeof obj.$ref === 'string') {
+        const ref = obj.$ref;
+        const defName = commonDefName(ref);
+        if (defName) {
+          const resolved = this.lookupCommonDef(defName);
+          if (!resolved) {
+            return true;
+          }
+          if (check(resolved, true)) {
+            return true;
+          }
+        } else if (
+          inCommonTypes &&
+          (ref.startsWith('#/$defs/') || ref.startsWith('#/definitions/'))
+        ) {
+          const name = ref.startsWith('#/$defs/') ? ref.slice(8) : ref.slice(14);
+          const resolved = this.lookupCommonDef(name);
+          if (!resolved) {
+            return true;
+          }
+          if (check(resolved, true)) {
+            return true;
+          }
+        } else if (ref.startsWith('#/')) {
+          const resolved = this.resolveJsonPointer(this.catalog, ref);
+          if (!resolved) {
+            return true;
+          }
+          if (check(resolved, false)) {
+            return true;
+          }
+        } else if (ref.startsWith('catalog.json#/')) {
+          const resolved = this.resolveJsonPointer(this.catalog, ref.slice(12));
+          if (!resolved) {
+            return true;
+          }
+          if (check(resolved, false)) {
+            return true;
+          }
+        } else {
+          return true;
+        }
+      }
+
+      for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
+        const list = obj[key];
+        if (Array.isArray(list)) {
+          for (const sub of list) {
+            if (check(sub, inCommonTypes)) {
+              return true;
+            }
+          }
+        }
+      }
+
+      const typeKeys = [
+        'type',
+        'const',
+        'enum',
+        '$ref',
+        'allOf',
+        'oneOf',
+        'anyOf',
+        'properties',
+        'items',
+        'prefixItems',
+        'not',
+      ];
+      if (!typeKeys.some(k => k in obj)) {
+        return true;
       }
 
       return false;

@@ -1179,7 +1179,7 @@ function convertComponentJsonSchemaToZod(
  * of parameter names to subschemas), rather than a full JSON Schema object or
  * reference combinator.
  */
-function isShorthandParameterMap(schema: unknown): boolean {
+export function isShorthandParameterMap(schema: unknown): boolean {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return false;
   }

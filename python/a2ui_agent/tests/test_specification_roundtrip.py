@@ -54,6 +54,41 @@ def _find_specification_example_files():
 EXAMPLE_FILES = _find_specification_example_files()
 
 
+def _reachable_from_root(components_by_id):
+    """Keeps the components that the final tree reaches from `root`.
+
+    The test flattens every message of an example into one surface, so a
+    placeholder that a later message replaced would be an unreachable
+    component there. Any string property naming a component counts as a
+    reference, which may keep a few extra components but never drops one the
+    tree reaches.
+    """
+    if "root" not in components_by_id:
+        return components_by_id
+
+    def references(value):
+        if isinstance(value, str):
+            if value in components_by_id:
+                yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from references(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from references(item)
+
+    reached = set()
+    pending = ["root"]
+    while pending:
+        component_id = pending.pop()
+        if component_id in reached:
+            continue
+        reached.add(component_id)
+        component = components_by_id[component_id]
+        pending.extend(references({k: v for k, v in component.items() if k != "id"}))
+    return {k: v for k, v in components_by_id.items() if k in reached}
+
+
 def _assert_recompiled_matches_payload(
     recompiled, expected_surface_id, expected_components
 ):
@@ -146,7 +181,7 @@ class TestSpecificationRoundtripAllFormats:
                     if isinstance(c, dict) and "id" in c:
                         components_by_id[c["id"]] = c
 
-        all_components = list(components_by_id.values())
+        all_components = list(_reachable_from_root(components_by_id).values())
 
         if not all_components:
             pytest.skip(f"No components in {os.path.basename(json_file)}")
@@ -164,9 +199,9 @@ class TestSpecificationRoundtripAllFormats:
 
         # 1. Test Express Format Roundtrip
         try:
-            express_dsl = self.express_fmt.parser.decompile(surface_payload)
+            express_dsl = self.express_fmt.create_parser().decompile(surface_payload)
             if express_dsl:
-                recompiled = self.express_fmt.parser.compile(express_dsl)
+                recompiled = self.express_fmt.create_parser().compile(express_dsl)
                 _assert_recompiled_matches_payload(
                     recompiled, surface_id, all_components
                 )
@@ -176,9 +211,11 @@ class TestSpecificationRoundtripAllFormats:
 
         # 2. Test Elemental Format Roundtrip
         try:
-            elemental_dom = self.elemental_fmt.parser.decompile(surface_payload)
+            elemental_dom = self.elemental_fmt.create_parser().decompile(
+                surface_payload
+            )
             if elemental_dom:
-                recompiled = self.elemental_fmt.parser.compile(elemental_dom)
+                recompiled = self.elemental_fmt.create_parser().compile(elemental_dom)
                 _assert_recompiled_matches_payload(
                     recompiled, surface_id, all_components
                 )
@@ -188,9 +225,9 @@ class TestSpecificationRoundtripAllFormats:
 
         # 3. Test Atom Format Roundtrip
         try:
-            atom_sexpr = self.atom_fmt.parser.decompile(surface_payload)
+            atom_sexpr = self.atom_fmt.create_parser().decompile(surface_payload)
             if atom_sexpr:
-                recompiled = self.atom_fmt.parser.compile(atom_sexpr)
+                recompiled = self.atom_fmt.create_parser().compile(atom_sexpr)
                 _assert_recompiled_matches_payload(
                     recompiled, surface_id, all_components
                 )

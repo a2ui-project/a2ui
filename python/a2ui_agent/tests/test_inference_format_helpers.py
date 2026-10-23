@@ -39,6 +39,7 @@ from a2ui.inference_formats._shared import (
     normalize_prompt_example_messages,
     surface_catalog_id,
 )
+from a2ui.utils import RendererState
 
 PRIMARY = "https://example.com/catalogs/primary"
 SECONDARY = "https://example.com/catalogs/secondary"
@@ -213,15 +214,22 @@ def test_direct_json_compile_passes_messages_through_unchanged():
             },
         },
     ]
-    parser = DirectJsonParser([BasicCatalog("1.0")])
-    compiled = parser.compile(json.dumps(messages))
-    assert to_message_dicts(compiled) == messages
+    catalog = BasicCatalog("1.0")
+    parser = DirectJsonParser([catalog])
+    create = {
+        "version": "v1.0",
+        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
+    }
+    state = RendererState([catalog])
+    state.apply(create)
+    parts = parser.parse_response(json.dumps(messages), wrapped=False, state=state)
+    assert to_message_dicts(parts[0].a2ui) == messages
 
 
-def test_direct_json_compile_of_invalid_messages_raises_validation_error():
+def test_direct_json_parse_of_invalid_messages_raises_validation_error():
     parser = DirectJsonParser([BasicCatalog("1.0")])
     with pytest.raises(A2uiValidationError):
-        parser.compile('[{"version": "v1.0", "notAMessage": {}}]')
+        parser.parse_response('[{"version": "v1.0", "notAMessage": {}}]', wrapped=False)
 
 
 def test_direct_json_decompiler_writes_the_messages_unchanged():
