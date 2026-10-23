@@ -141,6 +141,18 @@ class TestSkillGenerator(unittest.TestCase):
         )
         self.assertEqual(Skill("n", "d", "c", filename="FLAT.md").filename, "FLAT.md")
 
+    def test_filename_reassigned_after_construction_is_rejected(self):
+        """A filename reassigned later goes through the same check, in the setter and in add()."""
+        skill = Skill("ok", "d", "# Ok")
+        with self.assertRaisesRegex(ValueError, "must be a relative path"):
+            skill.filename = "../victim/SKILL.md"
+        self.assertEqual(skill.filename, "ok/SKILL.md")
+
+        # Bypassing the setter still cannot get a bad key into a SkillSet.
+        skill.__dict__["_filename"] = "../victim/SKILL.md"
+        with self.assertRaisesRegex(ValueError, "must be a relative path"):
+            SkillSet().add(skill)
+
     def test_skill_set_get_matching_rules(self):
         """Verifies SkillSet.get matching rules (exact key, exact name, min-3-char substring)."""
         skill_set = self.generator.generate_skillset()

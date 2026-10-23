@@ -90,8 +90,9 @@ class Skill:
     before serializing back to markdown format.
 
     `filename` is the path the skill is written to, relative to the directory a SkillSet
-    is exported to. It is checked on construction, so `SkillSet.export_to_directory` can
-    rely on every filename staying inside its output directory.
+    is exported to. It is checked on construction and on every assignment, so
+    `SkillSet.export_to_directory` can rely on every filename staying inside its output
+    directory.
 
     Raises:
         ValueError: If `filename` is absolute or has an empty, `.` or `..` segment.
@@ -109,7 +110,16 @@ class Skill:
         self.description = description
         self.content = content
         self.metadata = metadata or {}
-        self.filename = _validate_skill_filename(filename or f"{name}/SKILL.md")
+        self._filename = _validate_skill_filename(filename or f"{name}/SKILL.md")
+
+    @property
+    def filename(self) -> str:
+        """The path the skill is written to, relative to the export directory."""
+        return self._filename
+
+    @filename.setter
+    def filename(self, value: str) -> None:
+        self._filename = _validate_skill_filename(value)
 
     def to_markdown(self) -> str:
         """Serializes skill object back to complete markdown string with YAML frontmatter."""
@@ -142,8 +152,12 @@ class SkillSet:
         }
 
     def add(self, skill: Skill) -> None:
-        """Adds a Skill to the collection."""
-        self._skills[skill.filename] = skill
+        """Adds a Skill to the collection, keyed by its filename.
+
+        The filename is checked again here, since the export trusts every key of this
+        mapping and a caller can bypass the `filename` setter.
+        """
+        self._skills[_validate_skill_filename(skill.filename)] = skill
 
     def get(self, filename: str) -> Optional[Skill]:
         """Retrieves a Skill by filename or key."""
