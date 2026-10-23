@@ -644,7 +644,7 @@ describe('Catalog.fromJson', () => {
     assert.strictEqual(catalog.functionsLayout, 'map');
     // The unions list exactly the entries, so they are computed, not kept.
     assert.deepStrictEqual(catalog.unions, {anyComponent: true, anyFunction: true});
-    assert.deepStrictEqual(catalog.defs, {});
+    assert.deepStrictEqual(catalog.defs, {Weight: document.$defs.Weight});
     assert.strictEqual(catalog.extensionFields, undefined);
     const checkBox = catalog.components.get('CheckBox');
     const openUrl = catalog.functions.get('openUrl');
@@ -894,8 +894,11 @@ describe('entry definitions', () => {
 
   it('writes a loaded entry as its definition, and a spread copy from its schema', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
-    const loadedText = Catalog.fromJson(document).components.get('Text')!;
-    const reused = new Catalog('https://example.com/reused', '1.0', [loadedText]);
+    const loaded = Catalog.fromJson(document);
+    const loadedText = loaded.components.get('Text')!;
+    const reused = new Catalog('https://example.com/reused', '1.0', [loadedText], [], {
+      defs: loaded.defs,
+    });
     assert.deepStrictEqual(
       (reused.toJson().components as Record<string, unknown>).Text,
       document.components.Text,

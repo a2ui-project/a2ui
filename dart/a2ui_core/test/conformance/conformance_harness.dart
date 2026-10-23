@@ -340,5 +340,6 @@ Catalog<ComponentApi, FunctionImplementation> basicCatalogFor(
     title: basic.title,
     description: basic.description,
     protocolVersion: basic.protocolVersion,
+    definitions: basic.definitions,
   );
 }

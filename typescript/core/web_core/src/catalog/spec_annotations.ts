@@ -66,6 +66,8 @@ export interface SpecAnnotation {
   readonly mixins?: readonly SpecMixin[];
   /** The name under which a catalog document declares the model in `$defs`. */
   readonly defName?: string;
+  /** The canonical model declared in `$defs` by {@link specDef}. */
+  readonly defModel?: z.ZodTypeAny;
 }
 
 const annotations = new WeakMap<object, SpecAnnotation>();
@@ -101,9 +103,16 @@ export function spec<T extends z.ZodTypeAny>(schema: T, annotation: SpecAnnotati
 export function specDef<T extends z.ZodTypeAny>(
   name: string,
   schema: T,
-  annotation: Omit<SpecAnnotation, 'defName' | 'mixins'> = {},
+  annotation: Omit<SpecAnnotation, 'defName' | 'defModel' | 'mixins'> = {},
 ): T {
-  return spec(schema, {...annotation, defName: name});
+  const copy = schema.describe(schema.description as string) as T;
+  annotations.set(copy, {
+    ...annotations.get(schema),
+    ...annotation,
+    defName: name,
+    defModel: copy,
+  });
+  return copy;
 }
 
 /**

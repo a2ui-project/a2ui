@@ -1,5 +1,13 @@
 ## Unreleased
 
+- (v1_0) Relaxed v1.0 `CatalogDefinition` schema rules to permit non-object
+  catalog `$defs` (such as primitive, enum, or union design tokens), property
+  `$ref`s to `#/$defs/...`, and arbitrary vendor/metadata extension keys on
+  components and functions. Factored `weight` in the v1.0 basic catalog into
+  `#/$defs/Weight`, inlining catalog-local `$defs` in
+  `Catalog.resolved_component_schema` (used by `GenericBinder`) while
+  preserving `#/$defs/...` references in `Catalog.to_json()` and
+  `Catalog.validation_schema` ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - `to_protocol_version` is exported from the `a2ui.core` public facade.
 - Under a `ValidationConfig` that allows dangling references, and orphans or a
   missing root, as an agent mirroring a renderer's surfaces uses,

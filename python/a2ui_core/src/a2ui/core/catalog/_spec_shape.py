@@ -35,6 +35,7 @@ from ..common.semver import is_at_least_version
 from ..exceptions import A2uiCatalogError
 from ..schema import ProtocolVersion
 from ..schema._dynamic_types import clean_schema_node
+from ..schema._json_schema import CATALOG_DEF_MARKER
 from ..schema.common_types_schema import get_common_types_symbols
 
 _REF_TEMPLATE: Final[str] = "#/$defs/{model}"
@@ -103,8 +104,48 @@ def _find_referenced_models(
     return models
 
 
+def _find_referenced_type_aliases(tp: Any, visited: set[Any] | None = None) -> set[str]:
+    """Recursively finds names of TypeAliasType definitions referenced by a field."""
+    if visited is None:
+        visited = set()
+    if tp in visited:
+        return set()
+    visited.add(tp)
+    aliases: set[str] = set()
+    alias_name = getattr(tp, "__name__", None)
+    alias_val = getattr(tp, "__value__", None)
+    if isinstance(alias_name, str) and alias_val is not None and not _is_model(tp):
+        aliases.add(alias_name)
+        aliases.update(_find_referenced_type_aliases(alias_val, visited))
+    origin = get_origin(tp)
+    if origin is not None:
+        for arg in get_args(tp):
+            aliases.update(_find_referenced_type_aliases(arg, visited))
+    return aliases
+
+
+def _extract_catalog_defs(node: Any, catalog_defs: dict[str, Any]) -> Any:
+    """Replaces nodes marked with `CATALOG_DEF_MARKER` by `#/$defs/<name>` refs."""
+    if isinstance(node, list):
+        return [_extract_catalog_defs(item, catalog_defs) for item in node]
+    if not isinstance(node, dict):
+        return node
+    def_name = node.get(CATALOG_DEF_MARKER)
+    if isinstance(def_name, str) and def_name:
+        cleaned_def = {
+            k: _extract_catalog_defs(v, catalog_defs)
+            for k, v in node.items()
+            if k != CATALOG_DEF_MARKER
+        }
+        catalog_defs.setdefault(def_name, cleaned_def)
+        return {"$ref": f"#/$defs/{def_name}"}
+    return {k: _extract_catalog_defs(v, catalog_defs) for k, v in node.items()}
+
+
 def _object_schema(
-    model: type[BaseModel], description: str | None = None
+    model: type[BaseModel],
+    description: str | None = None,
+    catalog_defs: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Returns the object schema of `model`'s own fields and their defs.
 
@@ -112,6 +153,8 @@ def _object_schema(
     `required`, as the specification writes an object.
     """
     flat = model.model_json_schema(ref_template=_REF_TEMPLATE)
+    if catalog_defs is not None:
+        flat = _extract_catalog_defs(flat, catalog_defs)
     aliases = [model.model_fields[name].alias or name for name in _own_fields(model)]
     properties = {alias: flat["properties"][alias] for alias in aliases}
     required = [name for name in flat.get("required", []) if name in properties]
@@ -202,7 +245,7 @@ class SpecShaper:
             if def_name is None:
                 def_name = composed.__name__
                 catalog_defs[def_name], defs = _object_schema(
-                    composed, _description(composed)
+                    composed, _description(composed), catalog_defs
                 )
                 model_defs.update(defs)
             refs.append({"$ref": f"#/$defs/{def_name}"})
@@ -210,8 +253,16 @@ class SpecShaper:
         description = _description(model)
         # The specification puts a v1.0 description on the component and a
         # v0.9 description on the object of its own properties.
-        inner, defs = _object_schema(model, None if self._v1 else description)
+        inner, defs = _object_schema(
+            model, None if self._v1 else description, catalog_defs
+        )
         model_defs.update(defs)
+        for field_name in _own_fields(model):
+            for alias_name in _find_referenced_type_aliases(
+                model.model_fields[field_name].annotation
+            ):
+                if alias_name not in self.common_symbols and alias_name in model_defs:
+                    catalog_defs[alias_name] = model_defs.pop(alias_name)
         properties = inner["properties"]
         properties[_COMPONENT_KEY] = {"const": name}
         required = inner.setdefault("required", [])
@@ -243,8 +294,18 @@ class SpecShaper:
         args_model = getattr(function, "schema", None)
         if not _is_model(args_model):
             return None
-        args = args_model.model_json_schema(ref_template=_REF_TEMPLATE)
+        catalog_defs: dict[str, Any] = {}
+        args = _extract_catalog_defs(
+            args_model.model_json_schema(ref_template=_REF_TEMPLATE),
+            catalog_defs,
+        )
         model_defs = args.pop("$defs", {})
+        for field_name in _own_fields(args_model):
+            for alias_name in _find_referenced_type_aliases(
+                args_model.model_fields[field_name].annotation
+            ):
+                if alias_name not in self.common_symbols and alias_name in model_defs:
+                    catalog_defs[alias_name] = model_defs.pop(alias_name)
         args.pop("title", None)
         args = {"type": "object", **{k: v for k, v in args.items() if k != "type"}}
 
@@ -267,7 +328,7 @@ class SpecShaper:
             }
             schema["required"] = ["call", "args"]
             schema["unevaluatedProperties"] = False
-        return SpecSchema(schema, {}, model_defs)
+        return SpecSchema(schema, catalog_defs, model_defs)
 
 
 # The properties of a component that the v0.8 message envelope declares, which

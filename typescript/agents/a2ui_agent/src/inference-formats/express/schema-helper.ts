@@ -207,10 +207,7 @@ export class CatalogSchemaHelper {
   constructor(catalog: CatalogApi, protocolVersion: string) {
     const rawCatalog = catalog.toJson();
     const peers = catalog.peerCatalogs ?? [];
-    this.catalog =
-      peers.length > 0
-        ? (inlinePeerAndLocalRefs(rawCatalog, rawCatalog, peers) as Record<string, unknown>)
-        : rawCatalog;
+    this.catalog = inlinePeerAndLocalRefs(rawCatalog, rawCatalog, peers) as Record<string, unknown>;
     try {
       this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
       this.commonTypesLoaded = true;

@@ -1344,6 +1344,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         for (final MapEntry<String, Object?> entry in orderedProperties.entries)
           entry.key: _normalizePropertyRefs(
             _keepAuthoredDefRefs(entry.value, rootDoc, peerDocs),
+            stripCatalogDefMarker: false,
           ),
       },
     );
@@ -1658,15 +1659,28 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// [node] with each reference to a common type written as
   /// `common_types.json#/$defs/...`, together with a `commonTypesRef` marker
   /// naming the same definition.
-  static Object? _normalizePropertyRefs(Object? node) {
+  static Object? _normalizePropertyRefs(
+    Object? node, {
+    bool stripCatalogDefMarker = true,
+  }) {
     if (node is List) {
-      return [for (final item in node) _normalizePropertyRefs(item)];
+      return [
+        for (final item in node)
+          _normalizePropertyRefs(
+            item,
+            stripCatalogDefMarker: stripCatalogDefMarker,
+          ),
+      ];
     }
     if (node is! Map) return node;
 
     final map = Map<String, Object?>.from(
       node is Map<String, Object?> ? node : node.cast<String, Object?>(),
     );
+
+    if (stripCatalogDefMarker) {
+      map.remove('catalogDefRef');
+    }
 
     final String? fragment = _commonTypesFragment(map[r'$ref']);
     if (fragment != null) {
@@ -1677,7 +1691,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
     final newEntries = <String, Object?>{};
     for (final MapEntry<String, Object?> entry in map.entries) {
-      newEntries[entry.key] = _normalizePropertyRefs(entry.value);
+      newEntries[entry.key] = _normalizePropertyRefs(
+        entry.value,
+        stripCatalogDefMarker: stripCatalogDefMarker,
+      );
     }
     return newEntries;
   }
@@ -1955,7 +1972,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// [node] as a catalog document writes it: a copy in which each schema
   /// marked with a `commonTypesRef`, as a catalog defined in code writes a
   /// common type, becomes a `common_types.json` reference that keeps the
-  /// schema's annotations. Everything else is copied as it is.
+  /// schema's annotations, and each schema marked with a `catalogDefRef`
+  /// becomes a local `#/$defs/...` reference. Everything else is copied as it
+  /// is.
   static Object? _unbundleMarkers(Object? node) {
     if (node is List) {
       return [for (final Object? item in node) _unbundleMarkers(item)];
@@ -1965,6 +1984,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     if (marker is String) {
       return <String, Object?>{
         r'$ref': _externalRef(marker),
+        for (final MapEntry<Object?, Object?> entry in node.entries)
+          if (_annotationKeywords.contains(entry.key))
+            entry.key! as String: _deepCopyValue(entry.value),
+      };
+    }
+    final Object? catalogDefMarker = node['catalogDefRef'];
+    if (catalogDefMarker is String) {
+      return <String, Object?>{
+        r'$ref': catalogDefMarker,
         for (final MapEntry<Object?, Object?> entry in node.entries)
           if (_annotationKeywords.contains(entry.key))
             entry.key! as String: _deepCopyValue(entry.value),
@@ -2350,6 +2378,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         );
         return;
       }
+      if (map['catalogDefRef'] is String) {
+        final target = map['catalogDefRef'] as String;
+        map.removeWhere((k, _) => !_annotationKeywords.contains(k));
+        map[r'$ref'] = target;
+        return;
+      }
       final Object? ref = map[r'$ref'];
       final String? fragment = _commonTypesFragment(ref);
       if (fragment != null &&
@@ -2494,7 +2528,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       if (node is List) {
         pending.addAll(node);
       } else if (node is Map) {
-        final Object? ref = node[r'$ref'];
+        final Object? ref = node[r'$ref'] ?? node['catalogDefRef'];
         if (ref is String) {
           String? fragment;
           if (ref.startsWith('#/')) {
