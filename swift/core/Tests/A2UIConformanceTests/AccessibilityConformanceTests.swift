@@ -146,7 +146,10 @@ struct AccessibilityConformanceTests {
       return label
     }
     if let child = node.child(for: "child") {
-      return child.accessibilityAttributes?.label ?? child.string(for: "text")
+      if let childLabel = child.accessibilityAttributes?.label, !childLabel.isEmpty {
+        return childLabel
+      }
+      return child.string(for: "text")
     }
     return nil
   }
