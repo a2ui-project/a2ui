@@ -77,6 +77,12 @@
 #   `functionCallId` and `callFunction` at the top level instead, which
 #   `agent_to_renderer.json` rejects; the schema is the authority, so the
 #   proposal is wrong and these cases follow the schema.
+# - A number literal is a JSON number with an optional leading `+`: the
+#   grammar's `NUMBER` is `[+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+)
+#   ([eE] [+-]? [0-9]+)?`, so `.5`, `1.`, `+3` and `1e-7` all read as numbers.
+#   A literal outside the range of a double, such as `1e999`, is a `ParseError`.
+#   Integers are exact up to ±(2^53−1); beyond that an implementation may read
+#   them as doubles, so they are not portable and no case here relies on them.
 #
 # Three things the cases below rely on are the grammar's rather than this
 # suite's, and are stated here only because a reader of the cases would
@@ -1016,6 +1022,79 @@
             component: "Chart"
             values: [10, 20, 30]
             caption: "Sales"
+
+- name: test_compile_express_number_with_exponent
+  description: A number written with an exponent compiles to the double it names. The grammar admits the exponent, so a compiler that read only digits and a dot would reject text a model copies straight out of JSON.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: "root = Gauge(2.5e-7)"
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Gauge"
+            value: 2.5e-7
+
+- name: test_compile_express_number_forms_match_json
+  description: Every spelling the number grammar admits compiles to the same value JSON would give it, including a leading dot, a trailing dot, an explicit plus sign and an upper-case exponent. An implementation that converted the token with a narrower reader than its JSON parser would disagree with the other SDKs on one of these.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: 'root = Chart([.5, -.25, 1e2, 1E-2, +3, 1.], "Mixed")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [0.5, -0.25, 100, 0.01, 3, 1]
+            caption: "Mixed"
+
+- name: test_compile_express_integers_exact_to_2_pow_53
+  description: Integers up to ±(2^53−1) compile exactly in every SDK, since that is the largest magnitude a double represents without loss. Larger integers are not portable and are left unpinned.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: 'root = Chart([9007199254740991, -9007199254740991], "Limits")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [9007199254740991, -9007199254740991]
+            caption: "Limits"
+
+- name: test_compile_express_number_out_of_range_is_a_parse_error
+  description: A literal the grammar admits but no double can hold is a parse error. Every SDK's number reader turns it into infinity, which no message can carry, so the compiler rejects the text rather than emit a value the renderer cannot read.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: "root = Gauge(1e999)"
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_express_exponent_without_digits_is_a_parse_error
+  description: An exponent marker with no digits after it is a parse error. The lexer reads `1e` as the number `1` followed by the identifier `e`, and the parser rejects the leftover inside a call argument.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: "root = Gauge(1e)"
+  expect_error:
+    category: "ParseError"
 
 - name: test_compile_express_inline_id_collision_is_a_validation_error
   description: An inline child component takes the synthesized id <parent>_<property>, so a block that also assigns a variable of that name collides on the component id and fails validation rather than silently overwriting one of the two.

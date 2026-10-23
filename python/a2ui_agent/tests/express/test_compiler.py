@@ -38,6 +38,7 @@ from a2ui.inference_formats.express import (
     ExpressDuplicateParamError,
     ExpressDuplicatePropertyError,
     ExpressInvalidParamError,
+    ExpressParseError,
     ExpressParser,
     ExpressUndefinedRootError,
     ExpressUnknownPropertyError,
@@ -280,6 +281,44 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             comps["root"]["justify"],
             {"@call": "formatString", "args": {"value": "start"}},
         )
+
+    def test_number_literal_forms(self):
+        """Verifies the number literal grammar reads like JSON, with exact Python ints."""
+        compiler = ExpressCompiler([self.catalog])
+        cases = [
+            (".5", 0.5),
+            ("-.25", -0.25),
+            ("1.", 1.0),
+            ("+3", 3),
+            ("1e2", 100.0),
+            ("1E-2", 0.01),
+            ("2.5e-7", 2.5e-7),
+            ("9007199254740991", 9007199254740991),
+            ("18446744073709551616", 18446744073709551616),
+            ("-0", 0),
+        ]
+        for literal, expected in cases:
+            with self.subTest(literal=literal):
+                dsl = f'root = Column([t], weight={literal})\nt = Text("Hi")'
+                messages = to_message_dicts(compiler.compile(dsl))
+                comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+                weight = comps["root"]["weight"]
+                self.assertEqual(weight, expected)
+                self.assertIs(type(weight), type(expected))
+
+    def test_number_literal_parse_errors(self):
+        """Verifies out-of-range and malformed number literals are parse errors."""
+        compiler = ExpressCompiler([self.catalog])
+        for literal in ["1e999", "-1e999", "1e"]:
+            with self.subTest(literal=literal):
+                dsl = f'root = Column([t], weight={literal})\nt = Text("Hi")'
+                with self.assertRaises(ExpressParseError):
+                    compiler.compile(dsl)
+        # A bare `.` matches no token at all, which the compiler reports the
+        # way it reports every lexer error (ExpressParser maps both to
+        # A2uiParseError).
+        with self.assertRaises(SyntaxError):
+            compiler.compile('root = Column([t], weight=.)\nt = Text("Hi")')
 
 
 if __name__ == "__main__":
