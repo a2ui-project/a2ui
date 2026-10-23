@@ -71,16 +71,19 @@ class TestBlockLexer(unittest.TestCase):
         self.assertEqual(parts[1].part.a2ui_raw, 'text = "Hello')
         self.assertFalse(parts[1].is_final)
 
-    def test_lexer_embedded_tag_in_comment(self):
-        """Verify embedded close tag inside comment doesn't split the block."""
-        content = "Preamble\n<a2ui>\n# Some </a2ui> comment\ntext = 123\n</a2ui>"
+    def test_lexer_comment_quote_and_same_line_close_tag(self):
+        """Verify quotes inside comments don't hide close tags and same-line close tags close the block."""
+        content = (
+            "Preamble\n<a2ui>\n# User's comment\ntext = 123 # done </a2ui>\nPostamble"
+        )
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 2)
+        self.assertEqual(len(parts), 3)
         self.assertEqual(parts[0].part.text, "Preamble")
-        self.assertEqual(parts[1].part.a2ui_raw, "# Some </a2ui> comment\ntext = 123")
+        self.assertEqual(parts[1].part.a2ui_raw, "# User's comment\ntext = 123 # done")
         self.assertTrue(parts[1].is_final)
+        self.assertEqual(parts[2].part.text, "Postamble")
 
     def test_lexer_open_tag_with_attributes(self):
         """Verify that open tags with attributes are correctly matched and parsed."""
@@ -119,6 +122,27 @@ class TestBlockLexer(unittest.TestCase):
         self.assertEqual(parts[1].part.a2ui_raw, "code_here")
         self.assertTrue(parts[1].is_final)
         self.assertEqual(parts[2].part.text, "Postamble")
+
+    def test_lexer_unmatched_close_tag_with_fence_or_statements(self):
+        """Verify blocks opened with ```a2ui or missing <a2ui> before </a2ui> are recovered."""
+        fenced = (
+            'Preamble\n```a2ui\nsurface("main")\nroot ='
+            ' Text("Hi")\n</a2ui>\n```\nPostamble'
+        )
+        lexer = BlockLexer()
+        parts = lexer.tokenize(fenced)
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(parts[1].part.a2ui_raw, 'surface("main")\nroot = Text("Hi")')
+        self.assertTrue(parts[1].is_final)
+        self.assertEqual(parts[2].part.text, "Postamble")
+
+        unfenced = 'Here is the UI.\nsurface("main")\nroot = Text("Hi")\n</a2ui>'
+        parts2 = lexer.tokenize(unfenced)
+        self.assertEqual(len(parts2), 2)
+        self.assertEqual(parts2[0].part.text, "Here is the UI.")
+        self.assertEqual(parts2[1].part.a2ui_raw, 'surface("main")\nroot = Text("Hi")')
+        self.assertTrue(parts2[1].is_final)
 
 
 if __name__ == "__main__":
