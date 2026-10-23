@@ -135,7 +135,6 @@
 
 ## 0.8.0 (2026-10-08)
 
->>>>>>> upstream/main
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
 - **BREAKING**: `Parser.compile` and inference format parsers/compilers now
   return `list[AgentToRendererMessage]` models, and `Parser.decompile` and
