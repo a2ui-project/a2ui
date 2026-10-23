@@ -348,9 +348,7 @@ class DataContext:
                 if self.at_least_v10
                 else None
             )
-            names_cat = self.at_least_v10 and (
-                "catalogId" in fc or "catalog_id" in fc
-            )
+            names_cat = self.at_least_v10 and ("catalogId" in fc or "catalog_id" in fc)
             return self._execute_function(
                 fn_name,
                 fc.get("args", {}),
@@ -388,9 +386,7 @@ class DataContext:
                 action, action["functionCall"], is_user_activated
             )
         if isinstance(action.get("@call"), str) or isinstance(action.get("call"), str):
-            return self._resolve_function_call_action(
-                action, action, is_user_activated
-            )
+            return self._resolve_function_call_action(action, action, is_user_activated)
 
         return action
 
@@ -587,9 +583,7 @@ class DataContext:
                     )
 
             in_body = True
-            self._check_action_user_activation(
-                fn, name, is_action, is_user_activated
-            )
+            self._check_action_user_activation(fn, name, is_action, is_user_activated)
 
             resolved_args = self.resolve_dynamic_value(
                 raw_args, peek=True, abort_signal=abort_signal

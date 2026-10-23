@@ -404,9 +404,7 @@ class PayloadValidator:
         raise A2uiValidationError(
             summary,
             details=errors,
-            path=cls._resolve_component_error_path(
-                errors[0], comp_id, component_index
-            ),
+            path=cls._resolve_component_error_path(errors[0], comp_id, component_index),
             surface_id=surface_id,
         )
 

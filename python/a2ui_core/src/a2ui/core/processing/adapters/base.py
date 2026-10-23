@@ -185,9 +185,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
     def _raise_missing_action_error(self, message: dict[str, Any]) -> None:
         """Raises A2uiValidationError when no valid action key is present in message."""
         ver_str = (
-            self.version.value
-            if hasattr(self.version, "value")
-            else str(self.version)
+            self.version.value if hasattr(self.version, "value") else str(self.version)
         )
         from .factory import VersionAdapterFactory
 
