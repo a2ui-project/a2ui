@@ -50,36 +50,6 @@ def _find_enum(s: Any) -> list[Any] | None:
     return None
 
 
-def _ordered_component_sub_schemas(schema: Any) -> list[dict[str, Any]]:
-    """Returns component sub-schemas with specific definitions before common mixins."""
-    if not isinstance(schema, dict):
-        return []
-    specific: list[dict[str, Any]] = []
-    common: list[dict[str, Any]] = []
-
-    def _visit(node: Any, is_root: bool = False) -> None:
-        if not isinstance(node, dict):
-            return
-        props = node.get("properties")
-        is_specific = isinstance(props, dict) and "component" in props
-        if is_specific:
-            specific.append(node)
-        elif (
-            not is_root
-            or isinstance(props, dict)
-            or "required" in node
-            or "$ref" in node
-        ):
-            common.append(node)
-        all_of = node.get("allOf")
-        if isinstance(all_of, list):
-            for sub in all_of:
-                _visit(sub, is_root=False)
-
-    _visit(schema, is_root=True)
-    return [*specific, *common]
-
-
 class CatalogSchemaHelper:
     """Dynamic schema crawler for A2UI catalogs.
 
@@ -111,9 +81,7 @@ class CatalogSchemaHelper:
         # crawler read both kinds of catalog the same way while references to
         # common types, such as `Checkable`, stay intact.
         catalog_schema = dict(catalog.to_json() or {})
-        self.catalog = inline_local_refs(
-            catalog_schema, catalog_schema, peers=catalog.peer_catalogs
-        )
+        self.catalog = inline_local_refs(catalog_schema, catalog_schema)
         try:
             self.common_types: dict[str, Any] = get_common_types_schema_map(
                 to_protocol_version(catalog.protocol_version)
@@ -148,7 +116,22 @@ class CatalogSchemaHelper:
             # Prioritize specific component definition schemas over common mixins
             # (such as CatalogComponentCommon which contains 'weight') so positional
             # argument order is consistent across protocol versions.
-            sub_schemas = _ordered_component_sub_schemas(schema)
+            sub_schemas = []
+            if "allOf" in schema:
+                specific = []
+                common = []
+                for sub in schema["allOf"]:
+                    if (
+                        isinstance(sub, dict)
+                        and "properties" in sub
+                        and "component" in sub["properties"]
+                    ):
+                        specific.append(sub)
+                    else:
+                        common.append(sub)
+                sub_schemas.extend(specific)
+                sub_schemas.extend(common)
+            sub_schemas.append(schema)
 
             for sub in sub_schemas:
                 if not isinstance(sub, dict):
@@ -157,17 +140,14 @@ class CatalogSchemaHelper:
                     ref = sub["$ref"]
                     if "Checkable" in ref:
                         is_checkable = True
-                if "properties" in sub and isinstance(sub["properties"], dict):
+                if "properties" in sub:
+                    props.update(sub["properties"])
                     for pk, pv in sub["properties"].items():
-                        if pk not in props:
-                            props[pk] = pv
-                            enum_val = _find_enum(pv)
-                            if enum_val:
-                                self.component_property_enums[(name, pk)] = enum_val
-                if "required" in sub and isinstance(sub["required"], list):
-                    for r in sub["required"]:
-                        if r not in reqs:
-                            reqs.append(r)
+                        enum_val = _find_enum(pv)
+                        if enum_val:
+                            self.component_property_enums[(name, pk)] = enum_val
+                if "required" in sub:
+                    reqs.extend(sub["required"])
 
             # Filter out structural properties component, id, and catalogId
             ordered_keys = []
@@ -299,7 +279,9 @@ class CatalogSchemaHelper:
         if not schema or not isinstance(schema, dict):
             return None
 
-        sub_schemas = _ordered_component_sub_schemas(schema)
+        sub_schemas = [schema]
+        if "allOf" in schema and isinstance(schema["allOf"], list):
+            sub_schemas.extend(schema["allOf"])
 
         for sub in sub_schemas:
             if (

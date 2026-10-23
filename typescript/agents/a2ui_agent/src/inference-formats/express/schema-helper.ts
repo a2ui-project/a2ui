@@ -22,12 +22,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {
-  CatalogApi,
-  inlinePeerAndLocalRefs,
-  V09_STANDARD_DEFS,
-  V10_STANDARD_DEFS,
-} from '../../internal/web-core.js';
+import {CatalogApi, V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 
 const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;
@@ -205,12 +200,7 @@ export class CatalogSchemaHelper {
   private readonly functionRequired = new Map<string, string[]>();
 
   constructor(catalog: CatalogApi, protocolVersion: string) {
-    const rawCatalog = catalog.toJson();
-    const peers = catalog.peerCatalogs ?? [];
-    this.catalog =
-      peers.length > 0
-        ? (inlinePeerAndLocalRefs(rawCatalog, rawCatalog, peers) as Record<string, unknown>)
-        : rawCatalog;
+    this.catalog = catalog.toJson();
     try {
       this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
       this.commonTypesLoaded = true;
@@ -275,76 +265,6 @@ export class CatalogSchemaHelper {
     return ref ? this.resolveJsonPointer(this.catalog, ref) : undefined;
   }
 
-  private orderedComponentSubSchemas(schema: Record<string, unknown>): Record<string, unknown>[] {
-    const specific: Record<string, unknown>[] = [];
-    const inherited: Record<string, unknown>[] = [];
-    if (
-      schema.properties &&
-      typeof schema.properties === 'object' &&
-      'component' in (schema.properties as Record<string, unknown>)
-    ) {
-      specific.push(schema);
-    }
-    if (Array.isArray(schema.allOf)) {
-      for (let sub of schema.allOf) {
-        if (localRef(sub)) {
-          const resolved = this.resolveLocalRef(sub);
-          if (resolved && typeof resolved === 'object') {
-            sub = resolved;
-          }
-        }
-        if (!sub || typeof sub !== 'object') {
-          continue;
-        }
-        const subObj = sub as Record<string, unknown>;
-        const props = subObj.properties;
-        if (
-          props &&
-          typeof props === 'object' &&
-          'component' in (props as Record<string, unknown>)
-        ) {
-          specific.push(subObj);
-        } else {
-          inherited.push(subObj);
-        }
-      }
-    }
-    if (specific.length === 0 && schema.properties && typeof schema.properties === 'object') {
-      specific.push(schema);
-    }
-
-    const expanded: Record<string, unknown>[] = [];
-    const expand = (node: Record<string, unknown>) => {
-      let target = node;
-      if (localRef(target)) {
-        const resolved = this.resolveLocalRef(target);
-        if (resolved && typeof resolved === 'object') {
-          target = resolved as Record<string, unknown>;
-        }
-      }
-      expanded.push(target);
-      if (Array.isArray(target.allOf)) {
-        for (const child of target.allOf) {
-          if (child && typeof child === 'object') {
-            expand(child as Record<string, unknown>);
-          }
-        }
-      }
-    };
-
-    for (const s of specific) {
-      if (s === schema) {
-        expanded.push(s);
-      } else {
-        expand(s);
-      }
-    }
-    for (const s of inherited) {
-      expand(s);
-    }
-    return expanded;
-  }
-
   private getCheckRuleDefName(ref: unknown): string | undefined {
     if (typeof ref !== 'string') {
       return undefined;
@@ -404,12 +324,33 @@ export class CatalogSchemaHelper {
       const props: Record<string, unknown> = {};
       const reqs: string[] = [];
 
-      const subSchemas = this.orderedComponentSubSchemas(schema);
+      const subSchemas: unknown[] = [schema];
+      const localRefs: unknown[] = [];
+      if (Array.isArray(schema.allOf)) {
+        for (const sub of schema.allOf) {
+          if (localRef(sub)) {
+            localRefs.push(sub);
+          } else {
+            subSchemas.push(sub);
+          }
+        }
+      }
+      subSchemas.push(...localRefs);
 
       // Checkability (plan §5.2 item 4):
       // (a) own property whose schema is {type: 'array', items: {$ref: <common_types CheckRule>}}
       let ownCheckProp: string | undefined;
-      for (const subObj of subSchemas) {
+      for (let sub of subSchemas) {
+        if (!sub || typeof sub !== 'object') {
+          continue;
+        }
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
+        }
+        const subObj = sub as Record<string, unknown>;
         if (subObj.$ref) {
           continue;
         }
@@ -429,8 +370,12 @@ export class CatalogSchemaHelper {
       // (b) inherited property from allOf $ref into common_types
       let inheritedCheckProp: string | undefined;
       let inheritedSchema: Record<string, unknown> | undefined;
-      if (!ownCheckProp) {
-        for (const subObj of subSchemas) {
+      if (!ownCheckProp && Array.isArray(schema.allOf)) {
+        for (const sub of schema.allOf) {
+          if (!sub || typeof sub !== 'object') {
+            continue;
+          }
+          const subObj = sub as Record<string, unknown>;
           if (typeof subObj.$ref !== 'string') {
             continue;
           }
@@ -478,32 +423,36 @@ export class CatalogSchemaHelper {
         }
       }
 
-      for (const subObj of subSchemas) {
+      for (let sub of subSchemas) {
+        if (!sub || typeof sub !== 'object') {
+          continue;
+        }
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
+        }
+        const subObj = sub as Record<string, unknown>;
         if (subObj.properties && typeof subObj.properties === 'object') {
           const subProps = subObj.properties as Record<string, unknown>;
+          Object.assign(props, subProps);
           for (const [pk, pv] of Object.entries(subProps)) {
-            if (!(pk in props)) {
-              props[pk] = pv;
-              const enumVal = findEnum(pv);
-              if (enumVal) {
-                this.componentPropertyEnums.set(`${name}.${pk}`, enumVal);
-              }
+            const enumVal = findEnum(pv);
+            if (enumVal) {
+              this.componentPropertyEnums.set(`${name}.${pk}`, enumVal);
             }
           }
         }
         if (Array.isArray(subObj.required)) {
-          for (const r of subObj.required as string[]) {
-            if (!reqs.includes(r)) {
-              reqs.push(r);
-            }
-          }
+          reqs.push(...(subObj.required as string[]));
         }
       }
 
-      // Filter out structural properties 'component', 'id', and 'catalogId'
+      // Filter out structural properties 'component' and 'id'
       const orderedKeys: string[] = [];
       for (const k of Object.keys(props)) {
-        if (k !== 'component' && k !== 'id' && k !== 'catalogId') {
+        if (k !== 'component' && k !== 'id') {
           orderedKeys.push(k);
         }
       }
@@ -712,13 +661,33 @@ export class CatalogSchemaHelper {
       return undefined;
     }
 
-    const subSchemas = this.orderedComponentSubSchemas(schema);
+    const subSchemas: unknown[] = [schema];
+    const localRefs: unknown[] = [];
+    if (Array.isArray(schema.allOf)) {
+      for (const sub of schema.allOf) {
+        if (localRef(sub)) {
+          localRefs.push(sub);
+        } else {
+          subSchemas.push(sub);
+        }
+      }
+    }
+    subSchemas.push(...localRefs);
 
-    for (const subObj of subSchemas) {
-      if (subObj.properties && typeof subObj.properties === 'object') {
-        const props = subObj.properties as Record<string, unknown>;
-        if (propertyName in props) {
-          return props[propertyName] as Record<string, unknown>;
+    for (let sub of subSchemas) {
+      if (sub && typeof sub === 'object') {
+        if (localRef(sub)) {
+          const resolved = this.resolveLocalRef(sub);
+          if (resolved && typeof resolved === 'object') {
+            sub = resolved;
+          }
+        }
+        const subObj = sub as Record<string, unknown>;
+        if (subObj.properties && typeof subObj.properties === 'object') {
+          const props = subObj.properties as Record<string, unknown>;
+          if (propertyName in props) {
+            return props[propertyName] as Record<string, unknown>;
+          }
         }
       }
     }
