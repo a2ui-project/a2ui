@@ -1,0 +1,94 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Slash commands that change playground settings or ask for information."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from typing import Literal
+
+from modes import PlaygroundSettings, RenderMode, as_mode
+
+CommandName = Literal["mode", "compare", "trace", "help"]
+
+_KNOWN: tuple[CommandName, ...] = ("mode", "compare", "trace", "help")
+
+
+@dataclass(frozen=True)
+class Command:
+    """A parsed slash command."""
+
+    name: CommandName
+    argument: str | None = None
+    """The first word after the command, lowercased; for `/help`, an `unknown:<text>`
+    marker when the user typed a command that does not exist."""
+
+
+def parse_command(text: str) -> Command | None:
+    """Parses `/mode express`, `/compare`, `/trace`, or `/help`; None for plain text."""
+    stripped = text.strip()
+    if not stripped.startswith("/"):
+        return None
+    words = stripped[1:].split()
+    if not words:
+        return Command("help", argument="unknown:/")
+    name = words[0].lower()
+    argument = words[1].lower() if len(words) > 1 else None
+    if name not in _KNOWN:
+        return Command("help", argument=f"unknown:{stripped}")
+    return Command(name, argument)  # type: ignore[arg-type]
+
+
+def apply_command(
+    cmd: Command, settings: PlaygroundSettings
+) -> tuple[PlaygroundSettings, str | None]:
+    """Applies `cmd` to `settings`.
+
+    Returns the new settings and a reply, or `None` as the reply for `/help`
+    and `/trace`, which the agent answers itself.
+    """
+    if cmd.name == "mode":
+        mode = as_mode(cmd.argument) if cmd.argument else None
+        if mode is None:
+            choices = ", ".join(m.value for m in RenderMode)
+            return settings, f"Unknown mode `{cmd.argument or ''}`; choose {choices}."
+        return replace(settings, mode=mode), f"Mode set to `{mode}`."
+    if cmd.name == "compare":
+        return replace(settings, compare=True), (
+            "Next request renders through all three modes from the same data."
+        )
+    return settings, None
+
+
+def help_text(
+    settings: PlaygroundSettings, backend_name: str, model_name: str
+) -> list[str]:
+    """The `/help` reply, one entry per line."""
+    return [
+        "**Format playground**",
+        "Describe an interface and it is rendered through the active mode.",
+        (
+            f"Active mode: `{settings.mode}` · decision backend: `{backend_name}`"
+            f" · model: `{model_name}`"
+        ),
+        "`/mode decision|express|direct` picks how the next requests render.",
+        "`/compare` renders the next request through all three modes.",
+        "`/trace` shows the planner's questions for the last decision render.",
+        "`/help` shows this card.",
+        (
+            "Try: *give me an address entry form*, *show my stock portfolio*,"
+            " or paste a JSON object to render it as is."
+        ),
+    ]
