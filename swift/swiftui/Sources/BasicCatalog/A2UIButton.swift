@@ -39,6 +39,11 @@ public struct A2UIButton: View {
     self.node = node
   }
 
+  /// Whether the button is disabled due to a blocking validation error (`!node.isValid`).
+  public var isDisabled: Bool {
+    !node.isValid
+  }
+
   private var childNode: Node? {
     node.child(for: "child")
   }
@@ -71,7 +76,7 @@ public struct A2UIButton: View {
       .opacity(node.isValid ? 1.0 : 0.5)
     }
     .buttonStyle(.plain)
-    .disabled(!node.isValid)
+    .disabled(isDisabled)
     .accessibilityIdentifier("A2UIButton_\(node.id)")
   }
 
