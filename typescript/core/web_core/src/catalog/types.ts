@@ -932,6 +932,7 @@ function createCatalogInvoker<F extends FunctionApi>(
     if (!fn) {
       throw new A2uiExpressionError(`Function not found in catalog '${catalogId}': ${name}`, name);
     }
+    assertRendererCaller(fn);
     assertUserActivation(fn, ctx);
     const execute = (fn as Partial<FunctionImplementation>).execute;
     if (typeof execute !== 'function') {
@@ -955,6 +956,20 @@ function createCatalogInvoker<F extends FunctionApi>(
       throw e;
     }
   };
+}
+
+/**
+ * Refuses a function the catalog restricts to agent-initiated
+ * `callRendererFunction` calls. The invoker runs the renderer's own calls
+ * (bindings, checks and actions); `RpcHandler` runs agent calls without it.
+ */
+function assertRendererCaller(fn: FunctionApi): void {
+  if (fn.allowedCallers === 'agentOnly') {
+    throw new A2uiExpressionError(
+      `Function '${fn.name}' cannot be called by renderer (allowedCallers is agentOnly).`,
+      fn.name,
+    );
+  }
 }
 
 function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): void {

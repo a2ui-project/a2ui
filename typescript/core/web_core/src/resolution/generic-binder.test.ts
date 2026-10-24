@@ -1144,6 +1144,92 @@ describe('GenericBinder Checkable Trait', () => {
   });
 });
 
+describe('GenericBinder allowedCallers', () => {
+  function setup(allowedCallers: 'agentOnly' | 'rendererOrAgent') {
+    const calls: string[] = [];
+    const lookup: FunctionImplementation = {
+      name: 'lookup',
+      returnType: 'string',
+      schema: z.object({}),
+      allowedCallers,
+      execute: () => {
+        calls.push('lookup');
+        return 'secret';
+      },
+    };
+    const isValid: FunctionImplementation = {
+      name: 'isValid',
+      returnType: 'boolean',
+      schema: z.object({}),
+      allowedCallers,
+      execute: () => {
+        calls.push('isValid');
+        return true;
+      },
+    };
+    const catalog = new Catalog('test', '1.0', [], [lookup, isValid]);
+    const surface = new SurfaceModel('s1', catalog);
+    const errors: Array<{code: string; message: string; expression?: string}> = [];
+    surface.onError.subscribe(err => {
+      errors.push(err);
+    });
+
+    const schema = z.object({
+      text: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+      onTap: CommonSchemas.Action,
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c1',
+        'Test',
+        {
+          text: {'@call': 'lookup', args: {}},
+          checks: [{condition: {'@call': 'isValid', args: {}}, message: 'Invalid'}],
+          onTap: {functionCall: {'@call': 'lookup', args: {}}},
+        },
+        catalog,
+      ),
+    );
+    const binder = new GenericBinder<{text?: string; isValid?: boolean; onTap: () => void}>(
+      new ComponentContext(surface, 'c1'),
+      schema,
+    );
+    binder.subscribe(() => {});
+    return {binder, calls, errors};
+  }
+
+  it('refuses agentOnly functions in bindings, checks and actions without running them', () => {
+    const {binder, calls, errors} = setup('agentOnly');
+
+    assert.strictEqual(binder.snapshot.text, undefined);
+    assert.deepStrictEqual(new Set(errors.map(e => e.expression)), new Set(['lookup', 'isValid']));
+    const errorsBeforeTap = errors.length;
+    binder.snapshot.onTap();
+    assert.strictEqual(errors.length, errorsBeforeTap + 1);
+
+    assert.deepStrictEqual(calls, []);
+    for (const err of errors) {
+      assert.strictEqual(err.code, 'EXPRESSION_ERROR');
+      assert.match(err.message, /cannot be called by renderer \(allowedCallers is agentOnly\)/);
+    }
+    binder.dispose();
+  });
+
+  it('runs rendererOrAgent functions in bindings, checks and actions', () => {
+    const {binder, calls, errors} = setup('rendererOrAgent');
+
+    assert.strictEqual(binder.snapshot.text, 'secret');
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.ok(calls.includes('isValid'));
+    const callsBeforeTap = calls.length;
+    binder.snapshot.onTap();
+    assert.deepStrictEqual(calls.slice(callsBeforeTap), ['lookup']);
+    assert.deepStrictEqual(errors, []);
+    binder.dispose();
+  });
+});
+
 describe('getSafeChildList helper function', () => {
   it('returns an empty array for non-array or nullish inputs', () => {
     assert.deepStrictEqual(getSafeChildList(null), []);
