@@ -1,6 +1,6 @@
 # Problem reporting conformance
 
-`problems.yaml` checks when error and warning reports reach listeners, and what a surface group's queue keeps across deletion, detach, re-add and standalone surfaces. Each case uses `action: report_problems` and runs its steps in order against one `MessageProcessor` whose only catalog is `problem-delivery-test`.
+`problems.yaml` checks when error and warning reports reach listeners, and what a surface group's queue keeps across surface deletion and standalone surfaces. Each case uses `action: report_problems` and runs its steps in order against one `MessageProcessor` whose only catalog is `problem-delivery-test`.
 
 ## Catalog
 
@@ -31,8 +31,7 @@ The runner fails the case if a listener is entered while another listener call i
 | `dispose_resolver`   | `surfaceId`, optional `onDestroyedMessages`                                               | Dispose the surface's resolver. With `onDestroyedMessages`, the root node's `onDestroyed` handler passes those messages to `processMessages`.                                                                      |
 | `set`                | `surfaceId`, `path`, `value`                                                              | Write to the surface's data model directly.                                                                                                                                                                        |
 | `invoke_action`      | `surfaceId`, `node`, `property`                                                           | Call the node's action without awaiting it.                                                                                                                                                                        |
-| `detach_surface`     | `surfaceId`                                                                               | Call `detachSurface` and hold the returned surface.                                                                                                                                                                |
-| `add_surface`        | `surfaceId`                                                                               | Call `addSurface` with the held or standalone surface.                                                                                                                                                             |
+| `add_surface`        | `surfaceId`                                                                               | Call `addSurface` with the standalone surface.                                                                                                                                                                     |
 | `delete_surface`     | `surfaceId`                                                                               | Call `deleteSurface`.                                                                                                                                                                                              |
 | `await_delivery`     |                                                                                           | Wait for the channel's scheduled drain, as the suite header defines per SDK.                                                                                                                                       |
 

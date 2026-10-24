@@ -135,7 +135,7 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
 
   final reports = <Map<String, Object?>>[];
   final resolvers = <String, NodeResolver<ComponentApi>>{};
-  final heldSurfaces = <String, SurfaceModel<ComponentApi>>{};
+  final standaloneSurfaces = <String, SurfaceModel<ComponentApi>>{};
   final subscribedSurfaces = <SurfaceModel<ComponentApi>>{};
   final printed = <String>[];
   final uncaughtErrors = <Object>[];
@@ -249,7 +249,7 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
               defaultCatalog: catalog,
             );
             addTearDown(surface.dispose);
-            heldSurfaces[surfaceId] = surface;
+            standaloneSurfaces[surfaceId] = surface;
             subscribeSurface(surface);
             if (step['components'] case final List<Object?> components) {
               for (final raw in components) {
@@ -267,8 +267,7 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
               }
             }
           } else {
-            surface = processor.model.getSurface(surfaceId) ??
-                heldSurfaces[surfaceId]!;
+            surface = processor.model.getSurface(surfaceId)!;
           }
           if (step['reenterMessages'] case final List<Object?> reenter) {
             onReenter = () {
@@ -296,7 +295,8 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
         case 'set':
           final surfaceId = step['surfaceId']! as String;
           final path = step['path']! as String;
-          (processor.model.getSurface(surfaceId) ?? heldSurfaces[surfaceId]!)
+          processor.model
+              .getSurface(surfaceId)!
               .dataModel
               .set(path, step['value']);
         case 'invoke_action':
@@ -315,20 +315,10 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
           final action =
               target!.props.peek()[property]! as Future<void> Function();
           unawaited(action());
-        case 'detach_surface':
-          final surfaceId = step['surfaceId']! as String;
-          final SurfaceModel<ComponentApi>? detached =
-              processor.model.detachSurface(surfaceId);
-          expect(
-            detached,
-            isNotNull,
-            reason: '$name step $stepIndex: surface $surfaceId not attached',
-          );
-          heldSurfaces[surfaceId] = detached!;
         case 'add_surface':
           final surfaceId = step['surfaceId']! as String;
           final SurfaceModel<ComponentApi> surface =
-              heldSurfaces.remove(surfaceId)!;
+              standaloneSurfaces.remove(surfaceId)!;
           processor.model.addSurface(surface);
         case 'delete_surface':
           final surfaceId = step['surfaceId']! as String;

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Problem reporting conformance suite: delivery timing (T1 to T10), channel
-# lifetime (X1 to X4), and lazy evaluation on unmounted surfaces (L1). See
+# lifetime (X1, X3, X4), and lazy evaluation on unmounted surfaces (L1). See
 # problems.md for the catalog, steps and assertions.
 #
 # The web_core runner skips these cases by name, and the Swift runner does not
@@ -550,75 +550,6 @@
       expect_reports:
         - code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "b"
-
-- name: X2_detach_and_readd_delivers_once
-  description: >-
-    A detached surface holds its queued reports until re-added to the group,
-    and then delivers them once.
-  protocolVersion: "v0.9"
-  action: report_problems
-  listeners: ["surface", "processor"]
-  steps:
-    - op: process_messages
-      messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s"
-            catalogId: "problem-delivery-test"
-        - version: "v0.9"
-          updateDataModel:
-            surfaceId: "s"
-            path: "/flag"
-            value: false
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Column"
-                children: ["a", "b"]
-              - id: "a"
-                component: "Bogus"
-              - id: "b"
-                component: "Text"
-                text:
-                  call: "maybeFail"
-                  args:
-                    flag:
-                      path: "/flag"
-                  returnType: "string"
-    - op: construct_resolver
-      surfaceId: "s"
-      expect_reports: []
-    - op: detach_surface
-      surfaceId: "s"
-      expect_reports: []
-    - op: set
-      surfaceId: "s"
-      path: "/flag"
-      value: true
-      expect_reports: []
-    - op: await_delivery
-      expect_reports: []
-    - op: add_surface
-      surfaceId: "s"
-      expect_reports: []
-    - op: await_delivery
-      expect_reports:
-        - listener: "surface"
-          code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
-        - listener: "processor"
-          code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
-        - listener: "surface"
-          code: "EXPRESSION_ERROR"
-          surfaceId: "s"
-        - listener: "processor"
-          code: "EXPRESSION_ERROR"
-          surfaceId: "s"
-    - op: await_delivery
-      expect_reports: []
 
 - name: X3_standalone_surface_moves_pending_items_on_add_surface
   description: >-

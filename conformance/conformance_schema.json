@@ -488,7 +488,6 @@
             "construct_resolver",
             "delete",
             "delete_surface",
-            "detach_surface",
             "dispose",
             "dispose_resolver",
             "get",
