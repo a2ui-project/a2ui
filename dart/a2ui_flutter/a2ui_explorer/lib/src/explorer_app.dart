@@ -41,12 +41,14 @@ class ExplorerApp extends StatelessWidget {
   );
 }
 
-/// Three columns: the examples, the selected example's surfaces, messages and
-/// stepper, and its data models and action log.
+/// Three columns: the examples of one protocol version, the selected
+/// example's surfaces, messages and stepper, and its data models and action
+/// log.
 ///
 /// Selecting an example processes all of its messages. Reset starts it over
-/// with none processed. Below 1120 logical pixels wide, the columns scroll
-/// horizontally.
+/// with none processed. Selecting another version opens the example of the
+/// same file name in it, or its first example. Below 1120 logical pixels
+/// wide, the columns scroll horizontally.
 class ExplorerPage extends StatefulWidget {
   const ExplorerPage({super.key, required this.examples});
 
@@ -109,23 +111,70 @@ class _ExplorerPageState extends State<ExplorerPage> {
     ),
   );
 
-  Widget _examplesPane() => _Pane(
-    title: 'Examples',
-    child: ListView.builder(
-      key: const Key('examples'),
-      itemCount: widget.examples.length,
-      itemBuilder: (context, index) {
-        final Example example = widget.examples[index];
-        return ListTile(
-          key: ValueKey(example.fileName),
-          title: Text(example.name),
-          subtitle: Text(example.description),
-          selected: identical(example, _run.example),
-          onTap: () => _start(example, runAll: true),
-        );
-      },
-    ),
-  );
+  /// Opens the example of [version] with the selected example's file name,
+  /// or the first example of [version].
+  void _selectVersion(A2uiProtocolVersion version) {
+    final List<Example> examples = _examplesOf(version);
+    _start(
+      examples.firstWhere(
+        (e) => e.fileName == _run.example.fileName,
+        orElse: () => examples.first,
+      ),
+      runAll: true,
+    );
+  }
+
+  List<Example> _examplesOf(A2uiProtocolVersion version) => [
+    for (final example in widget.examples)
+      if (example.version == version) example,
+  ];
+
+  Widget _examplesPane() {
+    final List<A2uiProtocolVersion> versions = {
+      for (final example in widget.examples) example.version,
+    }.toList();
+    final List<Example> examples = _examplesOf(_run.example.version);
+    return _Pane(
+      title: 'Examples',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: SegmentedButton<A2uiProtocolVersion>(
+              key: const Key('version'),
+              showSelectedIcon: false,
+              segments: [
+                for (final version in versions)
+                  ButtonSegment(value: version, label: Text(version.jsonValue)),
+              ],
+              selected: {_run.example.version},
+              onSelectionChanged: (selected) => _selectVersion(selected.single),
+            ),
+          ),
+          Expanded(
+            child: KeyedSubtree(
+              key: ValueKey(_run.example.version),
+              child: ListView.builder(
+                key: const Key('examples'),
+                itemCount: examples.length,
+                itemBuilder: (context, index) {
+                  final Example example = examples[index];
+                  return ListTile(
+                    key: ValueKey(example.fileName),
+                    title: Text(example.name),
+                    subtitle: Text(example.description),
+                    selected: identical(example, _run.example),
+                    onTap: () => _start(example, runAll: true),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _runPane(BuildContext context) {
     final ExampleRun run = _run;
