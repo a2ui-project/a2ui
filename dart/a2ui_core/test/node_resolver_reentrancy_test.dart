@@ -107,7 +107,7 @@ void main() {
     for (final existingRoot in [false, true]) {
       test(
           'an error listener removes an unknown child '
-          '(${existingRoot ? 'existing' : 'new'} root)', () async {
+          '(${existingRoot ? 'existing' : 'new'} root)', () {
         final surface =
             SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -126,25 +126,20 @@ void main() {
           _add(surface, 'root', 'Card', {'child': 'weird'});
         }
 
-        await pumpEventQueue();
         expect(errors, 1);
-        await pumpEventQueue();
         expect(surface.componentsModel.get('weird'), isNull);
         final ComponentNode root = resolver.rootNode.peek()!;
-        await pumpEventQueue();
         expect(_child(root).state, NodeState.pending);
         _expectLiveTree(resolver);
 
         _add(surface, 'weird', 'Text', {'text': 'ready'});
-        await pumpEventQueue();
         expect(_child(root).state, NodeState.resolved);
-        await pumpEventQueue();
         expect(_text(_child(root)), 'ready');
         _expectLiveTree(resolver);
       });
     }
 
-    test('an error listener removes and replaces the unknown child', () async {
+    test('an error listener removes and replaces the unknown child', () {
       final surface =
           SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -158,13 +153,10 @@ void main() {
       _add(surface, 'root', 'Card', {'child': 'weird'});
 
       final ComponentNode root = resolver.rootNode.peek()!;
-      await pumpEventQueue();
       expect(_child(root).state, NodeState.resolved);
-      await pumpEventQueue();
       expect(_text(_child(root)), 'ready');
       _expectLiveTree(resolver);
       surface.componentsModel.get('weird')!.properties = {'text': 'updated'};
-      await pumpEventQueue();
       expect(_text(_child(root)), 'updated');
     });
 
@@ -172,7 +164,7 @@ void main() {
       test(
           'an error listener removes the root before '
           '${constructFromExistingSurface ? 'constructor' : 'creation'} '
-          'returns', () async {
+          'returns', () {
         final surface =
             SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         surface.onError.subscribe((error) {
@@ -189,21 +181,17 @@ void main() {
           _add(surface, 'root', 'Card', {'child': 'weird'});
         }
 
-        await pumpEventQueue();
         expect(surface.componentsModel.get('root'), isNull);
-        await pumpEventQueue();
         expect(resolver.rootNode.peek(), isNull);
         _expectLiveTree(resolver);
 
         _add(surface, 'root', 'Text', {'text': 'new root'});
-        await pumpEventQueue();
         expect(_text(resolver.rootNode.peek()!), 'new root');
         _expectLiveTree(resolver);
       });
     }
 
-    test('an error listener repairs a cyclic child on a binder update',
-        () async {
+    test('an error listener repairs a cyclic child on a binder update', () {
       final surface =
           SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -221,17 +209,14 @@ void main() {
 
       surface.componentsModel.get('card')!.properties = {'child': 'card'};
 
-      await pumpEventQueue();
       expect(errors, 1);
       final ComponentNode root = resolver.rootNode.peek()!;
-      await pumpEventQueue();
       expect(_child(root).type, 'Text');
-      await pumpEventQueue();
       expect(_text(_child(root)), 'repaired');
       _expectLiveTree(resolver);
     });
 
-    test('a cycle error listener removes the root during creation', () async {
+    test('a cycle error listener removes the root during creation', () {
       final surface =
           SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -243,13 +228,10 @@ void main() {
 
       _add(surface, 'root', 'Card', {'child': 'root'});
 
-      await pumpEventQueue();
       expect(surface.componentsModel.get('root'), isNull);
-      await pumpEventQueue();
       expect(resolver.rootNode.peek(), isNull);
       _expectLiveTree(resolver);
       _add(surface, 'root', 'Text', {'text': 'new root'});
-      await pumpEventQueue();
       expect(_text(resolver.rootNode.peek()!), 'new root');
       _expectLiveTree(resolver);
     });
@@ -288,8 +270,7 @@ void main() {
       });
     }
 
-    test('nested diagnostics drain before the initiating update returns',
-        () async {
+    test('nested diagnostics drain before the initiating update returns', () {
       final surface =
           SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -308,16 +289,14 @@ void main() {
 
       _add(surface, 'root', 'Bogus', {});
 
-      await pumpEventQueue();
       expect(errors, 2);
-      await pumpEventQueue();
       expect(_text(resolver.rootNode.peek()!), 'repaired');
       _expectLiveTree(resolver);
     });
 
     test(
       'a throwing error listener does not strand queued diagnostics',
-      () async {
+      () {
         final surface = SurfaceModel<ComponentApi>(
           'surf',
           defaultCatalog: _catalog(),
@@ -345,21 +324,16 @@ void main() {
           'children': ['weird', 'other'],
         });
 
-        await pumpEventQueue();
         expect(errors, 2);
-        await pumpEventQueue();
         expect(secondListenerErrors, 2);
         _expectLiveTree(resolver);
         _add(surface, 'unreferenced', 'Text', {'text': 'ready'});
-        await pumpEventQueue();
         expect(errors, 2);
-        await pumpEventQueue();
         expect(secondListenerErrors, 2);
       },
     );
 
-    test('disposing in an error listener cancels remaining diagnostics',
-        () async {
+    test('disposing in an error listener cancels remaining diagnostics', () {
       final surface =
           SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -375,17 +349,13 @@ void main() {
         'children': ['weird', 'other'],
       });
 
-      await pumpEventQueue();
       expect(errors, 1);
-      await pumpEventQueue();
       expect(resolver.disposed, isTrue);
-      await pumpEventQueue();
       expect(resolver.rootNode.peek(), isNull);
       _expectLiveTree(resolver);
       surface.componentsModel.get('root')!.properties = {
         'children': ['weird'],
       };
-      await pumpEventQueue();
       expect(errors, 1);
       _expectLiveTree(resolver);
     });
@@ -488,7 +458,7 @@ void _commitBoundaryTests() {
       test(
           'initial expression error '
           '${disposeResolver ? 'disposes resolver' : 'removes root'} '
-          'after ownership is complete', () async {
+          'after ownership is complete', () {
         final function = _FailingFunction();
         final surface = SurfaceModel<ComponentApi>(
           'surf',
@@ -511,21 +481,15 @@ void _commitBoundaryTests() {
 
         _add(surface, 'root', 'Text', {'text': _expression()});
 
-        await pumpEventQueue();
         expect(errors, 1);
-        await pumpEventQueue();
         expect(resolver.rootNode.peek(), isNull);
-        await pumpEventQueue();
         expect(resolver.activeNodeCount, 0);
-        await pumpEventQueue();
         expect(resolver.disposed, disposeResolver);
         resolver.dispose();
         resolver.dispose();
         surface.dataModel.set('/flag', false);
         surface.dataModel.set('/flag', true);
-        await pumpEventQueue();
         expect(function.calls, 1);
-        await pumpEventQueue();
         expect(errors, 1);
       });
     }
@@ -731,7 +695,6 @@ void _commitBoundaryTests() {
             };
           }
 
-          await pumpEventQueue();
           expect(errors, 1);
           expect(oldRoot.disposed, isTrue);
           expect(resolver.rootNode.peek(), isNull);
@@ -772,7 +735,6 @@ void _commitBoundaryTests() {
           expect(_text(resolver.rootNode.peek()!), isNull);
         });
         _add(surface, 'root', 'Text', {'text': _expression()});
-        await pumpEventQueue();
         expect(errors, 1);
 
         surface.dataModel.set('/tick', 1);
@@ -906,11 +868,9 @@ void _cleanupRegistrationTests() {
         root.addCleanup(() => events.add('root cleanup'));
         root.onDestroyed.subscribe((_) => events.add('root destroyed'));
 
-        await pumpEventQueue();
         expect(resolver.dispose, returnsNormally);
         await Future<void>.delayed(Duration.zero);
 
-        await pumpEventQueue();
         expect(events, [
           'first',
           'second',
@@ -920,19 +880,12 @@ void _cleanupRegistrationTests() {
           'root cleanup',
           'root destroyed',
         ]);
-        await pumpEventQueue();
         expect(logs, hasLength(1));
-        await pumpEventQueue();
         expect(logs.single.level, Level.SEVERE);
-        await pumpEventQueue();
         expect(logs.single.error, same(failure));
-        await pumpEventQueue();
         expect(resolver.activeNodeCount, 0);
-        await pumpEventQueue();
         expect(resolver.disposed, isTrue);
-        await pumpEventQueue();
         expect(root.disposed, isTrue);
-        await pumpEventQueue();
         expect(child.disposed, isTrue);
       },
     );
@@ -955,9 +908,7 @@ void _cleanupRegistrationTests() {
         final failure = StateError('late cleanup failed');
 
         root.addCleanup(() => calls++);
-        await pumpEventQueue();
         expect(calls, 1);
-        await pumpEventQueue();
         expect(
           () => root.addCleanup(() {
             calls++;
@@ -965,23 +916,16 @@ void _cleanupRegistrationTests() {
           }),
           returnsNormally,
         );
-        await pumpEventQueue();
         expect(calls, 2);
         root.addCleanup(() => calls++);
-        await pumpEventQueue();
         expect(calls, 3);
         resolver.dispose();
         await Future<void>.delayed(Duration.zero);
 
-        await pumpEventQueue();
         expect(calls, 3);
-        await pumpEventQueue();
         expect(logs, hasLength(1));
-        await pumpEventQueue();
         expect(logs.single.level, Level.SEVERE);
-        await pumpEventQueue();
         expect(logs.single.error, same(failure));
-        await pumpEventQueue();
         expect(resolver.activeNodeCount, 0);
       },
     );
@@ -1011,26 +955,19 @@ void _cleanupRegistrationTests() {
         });
         root.onDestroyed.subscribe((_) => events.add('second listener'));
 
-        await pumpEventQueue();
         expect(resolver.dispose, returnsNormally);
         await Future<void>.delayed(Duration.zero);
 
-        await pumpEventQueue();
         expect(events, [
           'listener start',
           'cleanup',
           'listener end',
           'second listener',
         ]);
-        await pumpEventQueue();
         expect(logs, hasLength(1));
-        await pumpEventQueue();
         expect(logs.single.level, Level.SEVERE);
-        await pumpEventQueue();
         expect(logs.single.error, same(failure));
-        await pumpEventQueue();
         expect(resolver.disposed, isTrue);
-        await pumpEventQueue();
         expect(resolver.activeNodeCount, 0);
       },
     );
