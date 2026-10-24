@@ -24,7 +24,9 @@ class _MaybeFail extends FunctionImplementation {
       : super(
           name: 'maybeFail',
           returnType: A2uiReturnType.string,
-          argumentSchema: Schema.object(properties: {'flag': Schema.boolean()}),
+          argumentSchema: Schema.object(
+            properties: {'flag': CommonSchemas.dynamicBoolean},
+          ),
         );
 
   @override
@@ -40,6 +42,7 @@ class _MaybeFail extends FunctionImplementation {
 
 Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
       id: 'problem-delivery-test',
+      protocolVersion: A2uiProtocolVersion.v0_9,
       functions: [_MaybeFail()],
       components: [
         ComponentApi(
@@ -54,6 +57,11 @@ Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
         ComponentApi(
           name: 'Button',
           schema: Schema.object(properties: {'action': CommonSchemas.action}),
+        ),
+        ComponentApi(
+          name: 'Column',
+          schema:
+              Schema.object(properties: {'children': CommonSchemas.childList}),
         ),
       ],
     );
@@ -371,6 +379,184 @@ void main() {
 
       await _microtask();
       expect(events, ['E1', 'W', 'E2', 'delivered']);
+    });
+  });
+
+  group('Problem delivery through MessageProcessor', () {
+    late MessageProcessor<ComponentApi> processor;
+    late List<String> events;
+
+    Map<String, Object?> update(
+      String surfaceId,
+      List<Map<String, Object?>> components,
+    ) =>
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': surfaceId,
+            'components': components,
+          },
+        };
+
+    Map<String, Object?> create(String surfaceId) => {
+          'version': 'v0.9',
+          'createSurface': {
+            'surfaceId': surfaceId,
+            'catalogId': 'problem-delivery-test',
+          },
+        };
+
+    Map<String, Object?> delete(String surfaceId) => {
+          'version': 'v0.9',
+          'deleteSurface': {'surfaceId': surfaceId},
+        };
+
+    /// Creates surface `s` with a Text root and mounts a resolver on it.
+    void mount() {
+      processor.processMessages([
+        create('s'),
+        update('s', [
+          {'id': 'root', 'component': 'Text', 'text': 'ready'},
+        ]),
+      ]);
+      final resolver = NodeResolver<ComponentApi>(
+        processor.model.getSurface('s')!,
+      );
+      addTearDown(resolver.dispose);
+    }
+
+    setUp(() {
+      events = [];
+      processor = MessageProcessor<ComponentApi>(
+        catalogs: [_catalog()],
+        defaultVersion: A2uiProtocolVersion.v0_9,
+        onError: (error) => events.add('error ${error.code}'),
+        onWarning: (warning) => events.add('warning ${warning.code}'),
+      );
+      addTearDown(processor.dispose);
+    });
+
+    test('a mounted surface error is delivered before processMessages returns',
+        () {
+      mount();
+
+      processor.processMessages([
+        update('s', [
+          {'id': 'root', 'component': 'Bogus'},
+        ]),
+      ]);
+
+      expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
+    });
+
+    test('an error found before a deleteSurface in one payload is delivered',
+        () {
+      mount();
+
+      processor.processMessages([
+        update('s', [
+          {'id': 'root', 'component': 'Bogus'},
+        ]),
+        delete('s'),
+      ]);
+
+      expect(processor.model.getSurface('s'), isNull);
+      expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
+    });
+
+    test(
+        'an error found before a message that throws is delivered before the '
+        'exception propagates', () {
+      mount();
+      List<String>? seen;
+
+      try {
+        processor.processMessages([
+          update('s', [
+            {'id': 'root', 'component': 'Bogus'},
+          ]),
+          update('missing', [
+            {'id': 'root', 'component': 'Text', 'text': 'never'},
+          ]),
+        ]);
+      } on A2uiError {
+        seen = List.of(events);
+      }
+
+      expect(seen, ['error UNKNOWN_COMPONENT_TYPE']);
+    });
+
+    test('a listener nested processMessages is delivered after it returns', () {
+      mount();
+      processor.model.onError.subscribe((error) {
+        if (error.code != 'UNKNOWN_COMPONENT_TYPE') return;
+        events.add('nested start');
+        processor.processMessages([
+          {
+            'version': 'v0.9',
+            'updateDataModel': {
+              'surfaceId': 's',
+              'path': '/flag',
+              'value': true,
+            },
+          },
+          update('s', [
+            {'id': 'root', 'component': 'Text', 'text': _maybeFail()},
+          ]),
+        ]);
+        events.add('nested end');
+      });
+
+      processor.processMessages([
+        update('s', [
+          {'id': 'root', 'component': 'Bogus'},
+        ]),
+      ]);
+
+      expect(events, [
+        'error UNKNOWN_COMPONENT_TYPE',
+        'nested start',
+        'nested end',
+        'error EXPRESSION_ERROR',
+      ]);
+    });
+
+    test(
+        'the processor and surface listeners see the same reports in the '
+        'same order, warnings included', () {
+      processor.model.onSurfaceCreated.subscribe((surface) {
+        surface.onError.subscribe((error) => events.add('surface error'));
+        surface.onWarning.subscribe((warning) => events.add('surface warning'));
+        final resolver = NodeResolver<ComponentApi>(surface);
+        addTearDown(resolver.dispose);
+      });
+
+      processor.processMessages([
+        create('s'),
+        update('s', [
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['a', 'b', 'c'],
+          },
+          {'id': 'a', 'component': 'Bogus'},
+          {
+            'id': 'b',
+            'component': 'Text',
+            'text': {'path': '/missing'},
+          },
+          {'id': 'c', 'component': 'OtherBogus'},
+        ]),
+      ]);
+
+      expect(events, [
+        'surface error',
+        'error UNKNOWN_COMPONENT_TYPE',
+        'surface warning',
+        'warning MISSING_DATA_BINDING',
+        'surface error',
+        'error UNKNOWN_COMPONENT_TYPE',
+      ]);
     });
   });
 }

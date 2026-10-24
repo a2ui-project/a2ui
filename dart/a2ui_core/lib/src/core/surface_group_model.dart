@@ -125,3 +125,8 @@ class SurfaceGroupModel<T extends ComponentApi> {
     _onWarning.dispose();
   }
 }
+
+/// Runs [body] as one message applied to [group]'s surfaces: their errors
+/// and warnings queued while it runs are delivered when it returns or throws.
+R runInMessageScope<R>(SurfaceGroupModel group, R Function() body) =>
+    group._channel.runMessage(body);

@@ -370,7 +370,7 @@ void processorContractTests() {
     ]) {
       test(
           'accepts an unmarked structural ${state.jsonValue} reference and '
-          'reports it through the node', () async {
+          'reports it through the node', () {
         // Graph validation classifies references from catalog markers only, so
         // an unmarked structural template is invisible to it and the batch is
         // applied. The resolver does recognize the template, so the problem
@@ -415,7 +415,6 @@ void processorContractTests() {
         expect(fixture.surface.componentsModel.all, isNotEmpty);
         final ComponentNode root = fixture.resolver.rootNode.value!;
         expect(child(root, 'children', 0).state, state);
-        await Future<void>.delayed(Duration.zero);
         expect(
           errors,
           state == NodeState.cyclic ? ['CYCLIC_REFERENCE'] : <String>[],
