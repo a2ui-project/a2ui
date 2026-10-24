@@ -136,7 +136,6 @@ const SKIP_TEST_NAMES = new Set([
   'T9_listener_disposing_resolver_gets_remaining_items',
   'T10_errors_and_warnings_arrive_in_discovery_order',
   'X1_delete_surface_before_delivery_drops_evaluation_items',
-  'X2_detach_and_readd_delivers_once',
   'X3_standalone_surface_moves_pending_items_on_add_surface',
   'X4_unheard_error_logged_and_unheard_warning_not_printed',
   'L1_unmounted_surface_evaluates_no_function',
