@@ -1,4 +1,4 @@
-## Unreleased
+## 0.0.2
 
 - Added `Skill`, `SkillSet`, and `SkillGenerator` to generate `SKILL.md` packages from inference formats and component catalogs.
 - The Express compiler keeps a map literal as written, quoted keys or not, when one of its keys shares a name with an Express construct (`variable`, `path`, `call`, `check`, `skipped`); before, such a map was read as a variable reference, data binding, function call or check, and lost its data ([#3410](https://github.com/a2ui-project/a2ui/issues/3410)). A `_` anywhere but in place of an argument now throws `ExpressValidationError`.
