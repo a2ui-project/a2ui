@@ -16,8 +16,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter_example/chat_app.dart';
 import 'package:a2ui_flutter_example/chat_session.dart';
+// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_client.dart';
@@ -338,50 +341,72 @@ void main() {
     expect(find.text('Hello again.'), findsOneWidget);
   });
 
-  testWidgets('sends later turns after a message fails to process', (
+  testWidgets('sends a message that fails to process back to the model', (
     tester,
   ) async {
-    String picker(List<String> options) => block([
-      {
-        'version': 'v1.0',
-        'updateComponents': {
-          'surfaceId': 's',
-          'components': [
-            {
-              'id': 'root',
-              'component': 'ChoicePicker',
-              'options': [
-                for (final String option in options)
-                  {'label': option, 'value': option},
-              ],
-              'value': {'@path': '/choice'},
-            },
-          ],
-        },
-      },
-    ]);
     final client = FakeClient([
       [
-        block([createSurface('s')]),
-        picker(['a', 'b', 'c']),
+        block([
+          createSurface('s'),
+          {
+            'version': 'v1.0',
+            'updateComponents': {
+              'surfaceId': 's',
+              'components': [
+                {
+                  'id': 'root',
+                  'component': 'TextField',
+                  'label': 'Name',
+                  'value': {'@path': '/name'},
+                },
+              ],
+            },
+          },
+        ]),
       ],
       [
-        picker(['a', 'b', 'c', 'd']),
+        block([updateDataModel('s', 'Ada', path: '/name/first')]),
       ],
-      ['Done.'],
+      ['Sorry.'],
       ['Done.'],
     ]);
     final session = ChatSession(client: client);
     addTearDown(session.dispose);
     await tester.pumpWidget(ChatApp(session: session));
 
-    for (final request in ['One.', 'Two.', 'Three.']) {
-      unawaited(session.send(request));
-      await tester.pump();
-    }
+    unawaited(session.send('Ask my name.'));
+    await tester.pump();
+    // The agent SDK does not see the text the user types, so it accepts an
+    // update of /name/first that the renderer cannot apply to a string.
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(A2uiSurface),
+        matching: find.byType(TextField),
+      ),
+      'Ada',
+    );
+    unawaited(session.send('Store my first name.'));
+    await tester.pump();
+    unawaited(session.send('Thanks.'));
+    await tester.pump();
 
-    expect(client.requests.last.last.text, 'Three.');
-    expect(find.text('Done.'), findsWidgets);
+    expect(errorsOf(session), [contains('/name/first')]);
+    expect(client.requests, hasLength(4));
+    expect(jsonDecode(client.requests[2].last.text), {
+      'a2ui': {
+        'messages': [
+          {
+            'version': 'v1.0',
+            'error': allOf(
+              containsPair('surfaceId', 's'),
+              containsPair('message', contains('/name/first')),
+            ),
+          },
+        ],
+      },
+    });
+    expect(client.requests[3].last.text, startsWith('Thanks.'));
+    expect(find.text('Done.'), findsOneWidget);
   });
 
   testWidgets('sends the renderer data model after a typed turn', (
