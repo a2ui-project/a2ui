@@ -156,7 +156,7 @@ void main() {
       return errors;
     }
 
-    test('a failed observer does not consume an undelivered diagnostic',
+    test('a failed observer neither loses a diagnostic nor repeats it',
         () async {
       final List<Object?> listenerErrors = collectListenerErrors();
       var shouldThrow = true;
@@ -173,7 +173,7 @@ void main() {
       });
       expect(listenerErrors, [isA<StateError>()]);
       await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 0);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
       expect(resolver.activeNodeCount, 2);
       final ComponentModel root = surface.componentsModel.get('root')!;
       root.properties = {'children': <String>[]};
@@ -190,8 +190,7 @@ void main() {
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
     });
 
-    test('discarding queued reports preserves already delivered scopes',
-        () async {
+    test('a failed update delivers what it found once', () async {
       _add(surface, 'known', 'Bogus');
       _add(surface, 'later', 'Bogus');
       _add(surface, 'root', 'Column', {
@@ -215,7 +214,8 @@ void main() {
       expect(listenerErrors, [isA<StateError>()]);
       final ComponentModel root = surface.componentsModel.get('root')!;
       await Future<void>.delayed(Duration.zero);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      expect(errors.last.message, contains("Component 'later'"));
       root.properties = {'children': <String>[]};
       root.properties = {
         'children': ['known', 'later'],

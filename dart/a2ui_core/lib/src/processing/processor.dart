@@ -315,7 +315,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// reach their listeners once that message has been applied, before the
   /// next message and before an exception from it propagates. When this is
   /// called from such a listener, they are delivered after that listener
-  /// returns.
+  /// returns. When it is called from a `NodeResolver` constructor, update or
+  /// dispose, or from a catalog function, they are delivered a microtask
+  /// later.
   ///
   /// Throws [A2uiValidationError] for a payload of any other shape, an
   /// envelope that is not a well-formed message of the version it declares, a

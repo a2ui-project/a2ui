@@ -736,8 +736,8 @@ void _commitBoundaryTests() {
 
     for (final disposeBeforeFallback in [false, true]) {
       final outcome = disposeBeforeFallback
-          ? 'is canceled on disposal'
-          : 'uses one fallback microtask';
+          ? 'is still delivered after disposal'
+          : 'is delivered a microtask later';
       test(
           'unchanged-null expression error '
           '$outcome', () async {
@@ -753,7 +753,9 @@ void _commitBoundaryTests() {
         surface.onError.subscribe((_) {
           errors++;
           _expectLiveTree(resolver);
-          expect(_text(resolver.rootNode.peek()!), isNull);
+          if (!resolver.disposed) {
+            expect(_text(resolver.rootNode.peek()!), isNull);
+          }
         });
         _add(surface, 'root', 'Text', {'text': _expression()});
         await Future<void>.delayed(Duration.zero);
@@ -761,17 +763,13 @@ void _commitBoundaryTests() {
 
         surface.dataModel.set('/tick', 1);
         expect(function.calls, 2);
-        expect(
-          errors,
-          1,
-          reason: 'unchanged output has no resolver update to drain the error',
-        );
+        expect(errors, 1, reason: 'delivery waits for a microtask');
         if (disposeBeforeFallback) resolver.dispose();
         await Future<void>.delayed(Duration.zero);
 
-        expect(errors, disposeBeforeFallback ? 1 : 2);
+        expect(errors, 2);
         await Future<void>.delayed(Duration.zero);
-        expect(errors, disposeBeforeFallback ? 1 : 2);
+        expect(errors, 2);
       });
     }
   });

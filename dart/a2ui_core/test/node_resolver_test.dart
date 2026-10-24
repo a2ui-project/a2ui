@@ -644,7 +644,7 @@ void unresolvedReferenceTests() {
       expect(warnings, isEmpty);
     });
 
-    test('warning listeners see the published root and may dispose it', () {
+    test('warning listeners may dispose the resolver while it resolves', () {
       final TestSetup fixture = nestedSetup();
       var warnings = 0;
       final StreamSubscription<LogRecord> subscription =
@@ -654,8 +654,6 @@ void unresolvedReferenceTests() {
           return;
         }
         warnings++;
-        expect(fixture.resolver.rootNode.value, isNotNull);
-        expect(fixture.resolver.activeNodeCount, 1);
         fixture.resolver.dispose();
       });
       addTearDown(subscription.cancel);
