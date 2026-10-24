@@ -16,10 +16,10 @@
   "dependencies": {
     "@a2ui/lit": "^0.10.0",
     "@a2ui/markdown-it": "*",
-    "@a2ui/web_core": "^0.10.0",
+    "@a2ui/web_core": "^0.10.2",
     "@lit-labs/signals": "^0.3.0",
     "@lit/context": "^1.1.6",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "lit": "^3.3.3",
     "zod": "^3.25.76"
   },
