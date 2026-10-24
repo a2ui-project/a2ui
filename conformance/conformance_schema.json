@@ -11,7 +11,7 @@
       {"$ref": "#/$defs/CoreSyntaxTest"},
       {"$ref": "#/$defs/FromCatalogTest"},
       {"$ref": "#/$defs/SkillSetTest"},
-      {"$ref": "#/$defs/FromFormatMatchesSnippetTest"},
+      {"$ref": "#/$defs/MonolithicSkillEqualsPromptSnippetTest"},
       {"$ref": "#/$defs/TransformCatalogTest"},
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
@@ -61,7 +61,6 @@
             "fix_payload",
             "from_catalog",
             "from_format",
-            "from_format_matches_snippet",
             "from_json",
             "generate_prompt",
             "generate_prompt_snippet",
@@ -74,6 +73,7 @@
             "is_a2ui_part",
             "load",
             "load_catalog",
+            "monolithic_skill_equals_prompt_snippet",
             "parse_chunk",
             "parse_expression_template",
             "parse_full",
@@ -864,12 +864,12 @@
       },
       "required": ["action", "args", "expected_skills"]
     },
-    "FromFormatMatchesSnippetTest": {
+    "MonolithicSkillEqualsPromptSnippetTest": {
       "type": "object",
       "description": "Builds one format from the listed catalogs and checks that its monolithic skill's body equals its prompt snippet.",
       "properties": {
         "action": {
-          "const": "from_format_matches_snippet"
+          "const": "monolithic_skill_equals_prompt_snippet"
         },
         "args": {
           "type": "object",
