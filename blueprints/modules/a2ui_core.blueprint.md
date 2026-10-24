@@ -466,6 +466,10 @@ export interface MessageProcessorOptions {
   outboundListener?: OutboundMessageListener;
   /** Timeout applied to outbound agent calls that do not specify their own. */
   defaultTimeoutSeconds?: number;
+  /** Receives renderer errors delivered through `model.onError`. */
+  onError?: ErrorListener;
+  /** Receives renderer warnings delivered through `model.onWarning`. */
+  onWarning?: WarningListener;
 }
 
 class MessageProcessor<T extends ComponentApi> {
@@ -1109,6 +1113,7 @@ Surface lifecycle is observed through `SurfaceGroupModel`'s event sources. There
 ```typescript
 class SurfaceGroupModel<T extends ComponentApi> {
   addSurface(surface: SurfaceModel<T>): void;
+  detachSurface(id: string): SurfaceModel<T> | undefined;
   deleteSurface(id: string): void;
   getSurface(id: string): SurfaceModel<T> | undefined;
 
@@ -1116,6 +1121,10 @@ class SurfaceGroupModel<T extends ComponentApi> {
   readonly onSurfaceDeleted: EventSource<string>;
   /** Re-emits every constituent surface's actions. */
   readonly onAction: EventSource<A2uiRendererAction>;
+  /** Delivers every constituent surface's errors from the group problem queue. */
+  readonly onError: EventSource<A2uiRendererError>;
+  /** Delivers every constituent surface's warnings from the group problem queue. */
+  readonly onWarning: EventSource<A2uiWarning>;
 }
 
 /**
@@ -1135,7 +1144,23 @@ interface A2uiRendererAction {
   catalogId?: string;
 }
 
+interface A2uiRendererError {
+  code: string;
+  surfaceId?: string;
+  message: string;
+  functionCallId?: string;
+  details?: unknown;
+}
+
+interface A2uiWarning {
+  code: string;
+  message: string;
+  path?: string;
+}
+
 type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
+type ErrorListener = (error: A2uiRendererError) => void;
+type WarningListener = (warning: A2uiWarning) => void;
 
 class SurfaceModel<T extends ComponentApi> {
   readonly id: string;
@@ -1174,12 +1199,20 @@ class SurfaceModel<T extends ComponentApi> {
   readonly sendDataModel: boolean;
 
   readonly onAction: EventSource<A2uiRendererAction>;
+  readonly onError: EventSource<A2uiRendererError>;
+  readonly onWarning: EventSource<A2uiWarning>;
+  /** Adapter hook that fires after a drain pass has delivered this surface's queued reports. */
+  readonly onReportsDelivered?: EventSource<void>;
   /**
    * Dispatches an action from this surface.
    * @param payload The raw action event from the component.
    * @param sourceComponentId The ID of the component that triggered the action.
    */
   dispatchAction(payload: Record<string, any>, sourceComponentId: string): Promise<void>;
+  /** Enqueues an error report for delivery on this surface's problem channel. */
+  dispatchError(error: A2uiRendererError): Promise<void>;
+  /** Enqueues a warning report for delivery on this surface's problem channel. */
+  dispatchWarning(warning: A2uiWarning): Promise<void>;
 }
 ```
 
@@ -1342,7 +1375,7 @@ This depends on `catalogId` surviving deserialization. If the `FunctionCall` mod
 
 _Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"@path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
 
-_Expression errors are dispatched, not thrown._ A failure while evaluating a bound expression (unknown function, bad arguments) dispatches an `EXPRESSION_ERROR` to the surface and yields an undefined value for that binding. A call whose catalog can't be resolved dispatches a `CATALOG_ERROR` instead: the expression may be fine, and the function may exist in a catalog the surface doesn't have, so the agent needs to tell the two apart. Throwing out of the resolution pass aborts the whole tree, so one malformed binding blanks an otherwise renderable surface. The RPC path is different: it returns a structured error response, since there is a caller waiting on a result.
+_Expression errors are dispatched, not thrown._ A failure while evaluating a bound expression (unknown function, bad arguments) dispatches an `EXPRESSION_ERROR` to the surface's queue and yields an undefined value for that binding. A call whose catalog can't be resolved dispatches a `CATALOG_ERROR` to the surface's queue instead: the expression may be fine, and the function may exist in a catalog the surface doesn't have, so the agent needs to tell the two apart. Throwing out of the resolution pass aborts the whole tree, so one malformed binding blanks an otherwise renderable surface. The RPC path is different: it returns a structured error response, since there is a caller waiting on a result.
 
 _Out-of-scope `@index`._ `@index` outside any repeater scope raises `A2uiValidationError`. Defaulting it to `0` invents a value the payload never supplied and produces a plausible-looking wrong render instead of an error.
 
@@ -1443,6 +1476,20 @@ export class A2uiExpressionError extends A2uiError {
 **Inheritance must match across implementations.** `A2uiIntegrityError` and `A2uiRecursionError` both derive from `A2uiValidationError`, because both report a payload the SDK refused to accept, and a caller that catches `A2uiValidationError` expects to have caught all of them. Parenting them directly on `A2uiError` in one language and on `A2uiValidationError` in another makes the same conformance case pass in one SDK and fail in the other.
 
 **`expect_error.category` in `conformance/conformance_schema.json` names these classes** without the `A2ui` prefix. Add a category alongside the first suite that asserts it.
+
+---
+
+### H. Problem reporting
+
+Problems found while resolving or interacting with a surface are delivered through a queued channel on `SurfaceGroupModel`. The rules below (`P1` to `P7`) govern what counts as a problem, how reports are queued, and when listeners run.
+
+- **P1. Problem.** A problem is a defect in agent-supplied content or in a catalog implementation that prevented the renderer from doing what the agent asked. A failed `CheckRule` is component state (`isValid` and `validationErrors`), not a problem, and is never dispatched to `onError` or `onWarning`. A cancelled agent call is normal lifecycle, not a problem. Missing data at a bound path and a missing child reference in a streaming surface are not errors (`MISSING_DATA_BINDING` is a warning).
+- **P2. Report payload.** Each SDK has one error payload type (`A2uiRendererError`) and one warning payload type (`A2uiWarning`) for problems found while rendering. An error report carries `code`, `surfaceId` (when known), `message`, and optional `functionCallId` and `details`. A warning report carries `code`, `message`, and optional `path`.
+- **P3. Channel and lifetime.** `SurfaceGroupModel` owns one FIFO queue of error and warning items for its surfaces. `SurfaceModel.dispatchError` and `SurfaceModel.dispatchWarning` enqueue into the group's queue and resolve once the item is queued. `NodeResolver` reports straight to its surface and owns no queue of its own, so disposing a resolver drops nothing. `deleteSurface` and `SurfaceGroupModel.dispose` drop that surface's undelivered evaluation-time items and ignore later dispatches on that surface. `detachSurface` moves the surface's undelivered items to a holding queue on the surface that does not drain while detached, and `addSurface` moves a standalone or detached surface's pending items into the group's queue and schedules a drain. Disposing a standalone or detached surface drops its pending items.
+- **P4. Drain points.** The queue drains only at two points: at the end of each message in `processMessages` (in a `finally` block around applying the message, so items from earlier messages are delivered even if a later message in the payload throws), and in a microtask scheduled when an item is queued outside `processMessages`. A `processMessages` call reached from resolver work, a catalog function, or that processor's listener is exempt from draining at message end and leaves its queued items for the outer drain or a scheduled microtask.
+- **P5. Resolution guard.** `NodeResolver` construction, tree update, and `dispose`, and a catalog function's `execute` call run under a resolution guard. A catalog function that returns a signal runs its body when the result is read, outside the guard. While the guard or a drain is active, no drain starts. A problem found while that processor's listener runs is delivered after that listener returns.
+- **P6. Drain and platform log.** A drain pulls queued items in FIFO discovery order. For each item, the surface's `onError` or `onWarning` listeners run first, then the group's. Each listener call is isolated so a listener that throws or rejects does not stop delivery to remaining listeners or delivery of later items. An error that no surface or group listener receives is written to the platform log. A warning that no listener receives is not printed. When an SDK exposes `SurfaceModel.onReportsDelivered`, it fires after a drain pass has delivered that surface's items.
+- **P7. Registration.** `MessageProcessor` accepts `onError` and `onWarning` listeners at construction and subscribes them to `model.onError` and `model.onWarning` before the first message is processed. They receive every problem delivered for any surface in the processor's group, including problems delivered after a view has unmounted.
 
 ---
 
