@@ -22,19 +22,15 @@ import 'surface_scope.dart';
 
 /// Renders a [SurfaceModel] as widgets.
 ///
-/// While mounted, the widget renders the root node of [surface]'s
-/// [NodeResolver]. Until the root component arrives, and in place of a child
-/// that has not arrived, it shows a small progress indicator.
-///
-/// The first widget to show a surface creates its resolver, every widget that
-/// shows the surface later shares it, and the resolver is disposed with the
-/// surface. The surface stays resolved, and its bindings keep evaluating,
-/// while no widget shows it. Creating the resolver delivers the surface's
-/// pending diagnostics to [SurfaceModel.onError] synchronously, so a listener
-/// can run during that first widget's build.
+/// While mounted, the widget owns a [NodeResolver] over [surface] and renders
+/// the resolver's root node. Until the root component arrives, and in place
+/// of a child that has not arrived, it shows a small progress indicator.
+/// Building the resolver delivers the surface's pending diagnostics to
+/// [SurfaceModel.onError] synchronously, so a listener can run during this
+/// widget's build. Each mounted widget reports those diagnostics again.
 ///
 /// The surface belongs to the caller. Remove this widget when the surface is
-/// deleted. Until then it shows the progress indicator.
+/// deleted.
 class A2uiSurface extends StatefulWidget {
   const A2uiSurface({super.key, required this.surface});
 
@@ -53,41 +49,18 @@ class A2uiSurface extends StatefulWidget {
   State<A2uiSurface> createState() => _A2uiSurfaceState();
 }
 
-/// The resolver of each surface that a widget has shown.
-final Expando<NodeResolver<ComponentImplementation>> _resolvers = Expando(
-  'surface resolver',
-);
-
-NodeResolver<ComponentImplementation> _resolverOf(
-  SurfaceModel<ComponentImplementation> surface,
-) {
-  final NodeResolver<ComponentImplementation>? existing = _resolvers[surface];
-  if (existing != null) return existing;
-  // Creating the resolver delivers diagnostics, and a listener may dispose
-  // the surface before the constructor returns.
-  var surfaceDisposed = false;
-  NodeResolver<ComponentImplementation>? created;
-  surface.onDisposed.subscribe((_) {
-    surfaceDisposed = true;
-    created?.dispose();
-  });
-  final NodeResolver<ComponentImplementation> resolver = created =
-      NodeResolver<ComponentImplementation>(surface);
-  if (surfaceDisposed) resolver.dispose();
-  return _resolvers[surface] = resolver;
-}
-
 class _A2uiSurfaceState extends State<A2uiSurface> with SignalState {
   late NodeResolver<ComponentImplementation> _resolver;
   late void Function() _unsubscribe;
 
   void _attach() {
-    _resolver = _resolverOf(widget.surface);
+    _resolver = NodeResolver<ComponentImplementation>(widget.surface);
     _unsubscribe = listenAfterFirst(_resolver.rootNode, (_) => signalChanged());
   }
 
   void _detach() {
     _unsubscribe();
+    _resolver.dispose();
   }
 
   @override
