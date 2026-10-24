@@ -84,7 +84,7 @@ Usage Examples:
     ```
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 import inspect
 import logging
 from typing import (
@@ -273,7 +273,13 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                 if callable(a2ui_catalogs)
                 else self._to_catalog_list(a2ui_catalogs)
             )
-            self._a2ui_examples = a2ui_examples
+            # A collection is read once here, so a generator or a set given
+            # directly is not exhausted by the first request.
+            self._a2ui_examples: A2uiExamplesValue | A2uiExamplesProvider = (
+                a2ui_examples
+                if callable(a2ui_examples)
+                else self._to_examples(a2ui_examples)
+            )
             self._format_factory: InferenceFormatFactory = (
                 inference_format_factory
                 if inference_format_factory is not None
@@ -333,20 +339,51 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             Raises:
                 TypeError: If the examples are of another type.
             """
-            examples: Any
-            if callable(self._a2ui_examples):
-                examples = self._a2ui_examples(ctx)
-                if inspect.isawaitable(examples):
-                    examples = await examples
-            else:
-                examples = self._a2ui_examples
+            if not callable(self._a2ui_examples):
+                return self._a2ui_examples
+            examples = self._a2ui_examples(ctx)
+            if inspect.isawaitable(examples):
+                examples = await examples
+            return self._to_examples(examples)
+
+        def _to_examples(self, examples: Any) -> A2uiExamplesValue:
+            """Checks examples and returns them as a string, turns, or None.
+
+            Args:
+                examples: The examples given to the tool or returned by its
+                  provider.
+
+            Returns:
+                The string as it is, the example turns as a list of lists in
+                their original order, or None when there are no examples.
+
+            Raises:
+                TypeError: If the examples are bytes, a single message or turn
+                  in place of a sequence of turns, or of another type.
+            """
             if examples is None or isinstance(examples, str):
                 return examples
-            if isinstance(examples, Sequence) and not isinstance(examples, bytes):
-                return examples
+            if self._is_iterable_collection(examples):
+                turns: list[list[AgentToRendererMessage]] = []
+                for turn in examples:
+                    if not self._is_iterable_collection(turn):
+                        raise TypeError(
+                            f"Tool {self.TOOL_NAME} expects each example turn to"
+                            f" be a sequence of messages, got {type(turn).__name__}."
+                        )
+                    turns.append(list(turn))
+                return turns or None
             raise TypeError(
                 f"Tool {self.TOOL_NAME} expects examples as a string, a sequence"
                 f" of example turns, or None, got {type(examples).__name__}."
+            )
+
+        @staticmethod
+        def _is_iterable_collection(value: Any) -> bool:
+            """Whether a value is a collection of items, not a single item."""
+            # A message model iterates over its fields, so it is checked first.
+            return isinstance(value, Iterable) and not isinstance(
+                value, (str, bytes, Mapping, AgentToRendererMessage)
             )
 
         async def _resolve_processor(

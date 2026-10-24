@@ -14,11 +14,15 @@
 
 """Tests for the A2uiEventConverter class."""
 
+import gc
 from unittest.mock import MagicMock, patch
+
+from google.genai import types as genai_types
 
 from a2ui.adk.a2a import A2uiEventConverter, A2uiPartConverter
 from a2ui.core import Catalog
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats.direct_json import DirectJsonParser
 
 
 def test_event_converter_injects_catalog():
@@ -247,3 +251,20 @@ def test_event_converter_streams_partial_events_via_response_stream():
         assert [p.root.text for p in parts_final if hasattr(p.root, "text")] == [
             "<a2ui"
         ]
+
+
+def test_event_converter_does_not_keep_abandoned_streams_alive():
+    converter = A2uiEventConverter()
+    stream = DirectJsonParser([BasicCatalog("0.9")]).open_stream()
+    event = MagicMock()
+    event.partial = True
+
+    part_converter = converter._make_stream_part_converter(
+        event=event, stream=stream, base_converter=MagicMock()
+    )
+    part_converter(genai_types.Part(text="<a2ui-json>["))
+    assert stream in converter._active_streams
+
+    del part_converter, stream
+    gc.collect()
+    assert len(converter._active_streams) == 0

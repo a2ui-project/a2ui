@@ -295,8 +295,41 @@ async def test_send_tool_resolve_examples():
 async def test_send_tool_resolve_examples_keeps_turns_and_none():
     turns = [to_message_models([_create(), _update({"text": "Hello"})])]
     ctx = MagicMock(spec=ReadonlyContext)
-    assert await _Tool([_BASIC], turns)._resolve_a2ui_examples(ctx) is turns
+    assert await _Tool([_BASIC], turns)._resolve_a2ui_examples(ctx) == turns
     assert await _Tool([_BASIC], None)._resolve_a2ui_examples(ctx) is None
+    assert await _Tool([_BASIC], [])._resolve_a2ui_examples(ctx) is None
+
+
+@pytest.mark.asyncio
+async def test_send_tool_examples_from_a_generator_are_reusable():
+    turn = to_message_models([_create(), _update({"text": "Hello"})])
+    tool = _Tool([_BASIC], (t for t in [turn]))
+    ctx = MagicMock(spec=ReadonlyContext)
+    assert await tool._resolve_a2ui_examples(ctx) == [turn]
+    assert await tool._resolve_a2ui_examples(ctx) == [turn]
+
+
+@pytest.mark.asyncio
+async def test_send_tool_examples_from_a_provider_may_be_any_iterable():
+    turn = to_message_models([_create(), _update({"text": "Hello"})])
+    tool = _Tool([_BASIC], lambda _ctx: (tuple(t) for t in [turn]))
+    examples = await tool._resolve_a2ui_examples(MagicMock(spec=ReadonlyContext))
+    assert examples == [turn]
+
+
+@pytest.mark.parametrize(
+    "not_turns",
+    [
+        b"examples",
+        to_message_models([_create()])[0],
+        to_message_models([_create()]),
+        _create(),
+    ],
+    ids=["bytes", "message", "one_turn", "mapping"],
+)
+def test_send_tool_init_rejects_examples_that_are_not_turns(not_turns):
+    with pytest.raises(TypeError, match="expects"):
+        _Tool([_BASIC], not_turns)
 
 
 @pytest.mark.asyncio

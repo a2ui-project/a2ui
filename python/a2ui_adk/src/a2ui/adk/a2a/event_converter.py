@@ -38,6 +38,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 import logging
 from typing import TYPE_CHECKING, Any
+import weakref
 
 from a2a import types as a2a_types
 from google.adk.a2a.converters import part_converter
@@ -90,7 +91,10 @@ class A2uiEventConverter:
         self._stream_key = stream_key
         self._cached_converter_key: tuple[Any, ...] | None = None
         self._cached_part_converter: A2uiPartConverter | None = None
-        self._active_stream_ids: set[int] = set()
+        # The streams fed a partial event and not yet closed. Held weakly, so a
+        # stream abandoned mid-response is not kept alive, and by object rather
+        # than by id(), which a later stream could reuse.
+        self._active_streams: weakref.WeakSet[ResponseStream] = weakref.WeakSet()
 
     def _get_part_converter(
         self,
@@ -184,14 +188,13 @@ class A2uiEventConverter:
         base_converter: A2uiPartConverter,
     ) -> "GenAIPartToA2APartConverter":
         is_partial = getattr(event, "partial", None) is True
-        stream_id = id(stream)
         flushed_final = False
 
         def _convert_part(part: genai_types.Part) -> list[a2a_types.Part]:
             nonlocal flushed_final
             if part.text is not None:
                 if is_partial:
-                    self._active_stream_ids.add(stream_id)
+                    self._active_streams.add(stream)
                     try:
                         return to_a2a_parts(
                             stream.feed(part.text),
@@ -200,8 +203,8 @@ class A2uiEventConverter:
                     except Exception as e:
                         logger.warning("Failed to stream A2UI chunk: %s", e)
                         return []
-                if stream_id in self._active_stream_ids:
-                    self._active_stream_ids.discard(stream_id)
+                if stream in self._active_streams:
+                    self._active_streams.discard(stream)
                     flushed_final = True
                     try:
                         return to_a2a_parts(
