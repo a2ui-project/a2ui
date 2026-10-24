@@ -32,6 +32,12 @@
 - Exported `checkDuplicateComponentIds`, which throws `A2uiIntegrityError`
   when a batch of components names the same id twice, or names an id of an
   earlier batch of the same message.
+- Fixed: `PayloadValidator` checks the string formats `json_schema_builder`
+  validates (`date`, `time`, `date-time`, `email`, `ipv4`, `ipv6`). A catalog
+  property that declares one of these formats is now enforced; previously the
+  format was ignored. A literal `min` or `max` on the basic catalog's
+  `DateTimeInput` now validates; previously it matched all three branches of
+  the `oneOf` that tells them apart and was always rejected.
 
 ## 0.3.0
 

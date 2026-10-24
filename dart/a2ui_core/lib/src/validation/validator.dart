@@ -308,7 +308,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     _throwOnErrors(
       Schema.fromMap(
         _withoutEnvelopeRequirements(schema.value, envelopeKeys, target),
-      ).validateSync(target),
+      ).validateSync(target, strictFormat: true),
       "Component '$id' does not match the '$type' schema in catalog "
       "'${catalog.id}'",
     );
@@ -330,7 +330,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         );
       }
       _throwOnErrors(
-        _resolvedEnvelopeSchemas[key]!.validateSync(value),
+        _resolvedEnvelopeSchemas[key]!.validateSync(value, strictFormat: true),
         "Component '$id' has an invalid '$key'",
         path: '/$key',
       );
@@ -453,7 +453,10 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
-    final List<ValidationError> errors = schema.validateSync(args);
+    final List<ValidationError> errors = schema.validateSync(
+      args,
+      strictFormat: true,
+    );
     if (errors.isNotEmpty) {
       throw A2uiValidationError(
         "${where}Call to '$name' does not match the argument schema in "
@@ -476,7 +479,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     if (schema == null || theme == null) return;
 
     _throwOnErrors(
-      schema.validateSync(theme),
+      schema.validateSync(theme, strictFormat: true),
       "Theme does not match the theme schema in catalog '${catalog.id}'",
     );
   }
