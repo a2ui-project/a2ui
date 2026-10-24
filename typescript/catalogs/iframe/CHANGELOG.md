@@ -10,3 +10,5 @@
   render their content in the sandbox proxy and connect it to the surface through `WebAppFrameBridge`,
   plus `SandboxedFrameElement` and `ComponentContextFrameHost` for catalogs that add their own
   sandboxed frame components. `@a2ui/web_core` and `lit` become peer dependencies. [#2798](https://github.com/a2ui-project/a2ui/pull/2798)
+- Add the `srcdoc-tip-calculator.json` catalog example, with an end-to-end test under
+  `tests/examples/` that runs it through the real sandbox proxy. [#3008](https://github.com/a2ui-project/a2ui/pull/3008)
