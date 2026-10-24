@@ -25,7 +25,6 @@ import json
 import re
 from typing import Any, Literal
 
-from a2ui.constants import EXAMPLES_HEADING
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
@@ -691,21 +690,3 @@ class ExpressPromptGenerator(PromptGenerator):
             result,
             flags=re.DOTALL,
         )
-
-    def generate(self) -> str:
-        """Assembles the prompt snippet for A2UI Express."""
-        parts: list[str] = []
-
-        rules = self.generate_base_rules()
-        if rules:
-            parts.append(rules)
-
-        catalog_inst = self.generate_catalog_instructions(include_schema=True)
-        if catalog_inst:
-            parts.append(catalog_inst)
-
-        examples = self.generate_examples()
-        if examples:
-            parts.append(f"{EXAMPLES_HEADING}{examples}")
-
-        return "\n\n".join(parts)

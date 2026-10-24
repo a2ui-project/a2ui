@@ -21,7 +21,6 @@ from .decompiler import AtomDecompiler
 from .format import AtomFormat
 from .format import AtomFormatFactory
 from .parser import AtomParser
-from .prompt_generator import AtomPromptGenerator
 from .sexpr import parse_sexpr
 
 __all__ = [
@@ -30,6 +29,5 @@ __all__ = [
     "AtomFormat",
     "AtomFormatFactory",
     "AtomParser",
-    "AtomPromptGenerator",
     "parse_sexpr",
 ]
