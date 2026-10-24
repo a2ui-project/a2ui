@@ -28,9 +28,10 @@ fill it in and press its button.
 
 1. The app advertises the basic catalog. `A2uiGenerator` builds the matching
    direct JSON prompt, after the app's own instructions.
-2. The model's reply streams through the direct JSON `Parser.parseChunk`.
-   Text shows in the chat, and messages go to the app's `MessageProcessor`,
-   so a surface renders while the model writes it.
+2. The model's reply streams through a `ResponseStream` that the agent SDK
+   opens for each reply, against one `RendererState` kept for the
+   conversation. Text shows in the chat, and messages go to the app's
+   `MessageProcessor`, so a surface renders while the model writes it.
 3. Each surface renders in the chat in an `A2uiSurface`, with the Markdown
    in its Text rendered by `flutter_markdown_plus`.
 4. An event action on a surface goes back to the model as the next user turn:

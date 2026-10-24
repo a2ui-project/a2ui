@@ -120,6 +120,10 @@ class ChatSession extends ChangeNotifier {
         ], version: A2uiProtocolVersion.v1_0),
       );
 
+  /// The surfaces the model's replies have created, as the agent SDK checks
+  /// each reply against them.
+  late final RendererState _state = _agent.createState();
+
   /// [appInstructions] and the agent SDK's prompt snippet for the catalogs
   /// the renderer supports.
   late final String systemPrompt = '$appInstructions\n${_agent.promptSnippet}';
@@ -172,7 +176,7 @@ class ChatSession extends ChangeNotifier {
     if (_disposed) return;
     _turns.add((fromUser: true, text: userTurn));
     _reported.clear();
-    Parser? parser = _format.createFormat(_agent.activeCatalogs).createParser();
+    ResponseStream? stream = _agent.openStream(state: _state);
     final reply = StringBuffer();
     var complete = true;
     _modelText = null;
@@ -183,7 +187,7 @@ class ChatSession extends ChangeNotifier {
       while (await chunks.moveNext()) {
         if (_disposed) break;
         reply.write(chunks.current);
-        parser = _read(parser, chunks.current);
+        stream = _read(stream, (s) => s.feed(chunks.current));
         _notify();
       }
     } on Object catch (error) {
@@ -192,6 +196,7 @@ class ChatSession extends ChangeNotifier {
     }
     _reading = null;
     if (_disposed) return;
+    if (complete) _read(stream, (s) => s.close());
     if (reply.isEmpty) {
       _turns.removeLast();
       if (complete) {
@@ -202,13 +207,16 @@ class ChatSession extends ChangeNotifier {
     }
   }
 
-  /// Shows the text and processes the messages [parser] reads from [chunk],
-  /// and returns [parser], or null once it rejects a block. That failure is
-  /// reported, and the rest of the reply is not read.
-  Parser? _read(Parser? parser, String chunk) {
-    if (parser == null) return null;
+  /// Shows the text and processes the messages that [read] gets from
+  /// [stream], and returns [stream], or null once it rejects part of the
+  /// reply. That failure is reported, and the rest of the reply is not read.
+  ResponseStream? _read(
+    ResponseStream? stream,
+    List<ResponsePart> Function(ResponseStream stream) read,
+  ) {
+    if (stream == null) return null;
     try {
-      for (final ResponsePart part in parser.parseChunk(chunk)) {
+      for (final ResponsePart part in read(stream)) {
         switch (part) {
           case TextPart(:final String text):
             _showText(text);
@@ -216,7 +224,7 @@ class ChatSession extends ChangeNotifier {
             a2ui.forEach(_process);
         }
       }
-      return parser;
+      return stream;
     } on Object catch (error) {
       _reportFailure(error, '');
       return null;
@@ -370,6 +378,7 @@ class ChatSession extends ChangeNotifier {
     _disposed = true;
     unawaited(_reading?.cancel());
     processor.dispose();
+    _state.dispose();
     super.dispose();
   }
 }

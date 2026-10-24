@@ -73,9 +73,8 @@ void main() {
     expect(client.requests[1].last.text, contains('a2uiRendererDataModel'));
   });
 
-  testWidgets('sends a processing error to the model as an error message', (
-    tester,
-  ) async {
+  testWidgets('sends an update to a missing surface back to the model as an '
+      'error message', (tester) async {
     final client = FakeClient([
       [
         '<a2ui-json>[{"version": "v1.0", "updateComponents": '
@@ -100,8 +99,8 @@ void main() {
             'version': 'v1.0',
             'error': {
               'code': 'INTEGRITY_ERROR',
-              'surfaceId': 'missing',
-              'message': isA<String>(),
+              'surfaceId': '',
+              'message': contains('missing'),
             },
           },
         ],
