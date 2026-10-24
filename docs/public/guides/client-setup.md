@@ -183,5 +183,5 @@ See `try...catch` blocks in `#sendMessage` in [samples/client/lit/shell/app.ts](
 - **[Quickstart](../quickstart.md)**: Try the demo application
 - **[Theming & Styling](theming.md)**: Customize the look and feel
 - **[Defining Your Own Catalog](defining-your-own-catalog.md)**: Extend the component catalog
-- **[Agent Development](agent-development.md)**: Build agents that generate A2UI
+- **[Agent Development](../integrations/agent-development.md)**: Build agents that generate A2UI
 - **[Reference Documentation](../reference/messages.md)**: Deep dive into the protocol

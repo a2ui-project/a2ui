@@ -84,13 +84,13 @@ This repository contains:
 
     [:octicons-arrow-right-24: Run the demo](quickstart.md)
 
-- :material-react:{ .lg .middle } **[Use A2UI with Any Agent Framework & Harness](guides/a2ui-with-any-agent-framework.md)**
+- :material-robot-outline:{ .lg .middle } **[Agent Integrations](integrations/index.md)**
 
     ***
 
-    Scaffold an AG-UI app or harness for your agent framework, then enable A2UI rendering in the client surface.
+    Add A2UI to an agent built with ADK, Genkit, or any AG-UI framework through CopilotKit.
 
-    [:octicons-arrow-right-24: Use with any agent](guides/a2ui-with-any-agent-framework.md)
+    [:octicons-arrow-right-24: Choose an integration](integrations/index.md)
 
 - :material-palette-outline:{ .lg .middle } **[A2UI Composer](https://a2ui-project.github.io/composer/)**
 
