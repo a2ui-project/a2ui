@@ -123,7 +123,25 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 /**
  * Transition skip list containing specific test case names to skip.
  */
-const SKIP_TEST_NAMES = new Set();
+const SKIP_TEST_NAMES = new Set([
+  // Skipped until the web_core layer 1 problem reporting port lands
+  // (tracked by the web_core layer 1 problem reporting issue).
+  'T1_resolve_defers_delivery',
+  'T2_dispose_defers_delivery',
+  'T3_data_write_and_action_defer_delivery',
+  'T4_update_then_delete_delivers_before_return',
+  'T5_nested_process_messages_in_listener_delivers_after_return',
+  'T6_throwing_listener_does_not_stop_next_item',
+  'T7_catalog_function_process_messages_during_resolve_defers',
+  'T8_resolve_and_dispose_at_once_delivers',
+  'T9_listener_disposing_resolver_gets_remaining_items',
+  'T10_errors_and_warnings_arrive_in_discovery_order',
+  'X1_delete_surface_before_delivery_drops_evaluation_items',
+  'X2_detach_and_readd_delivers_once',
+  'X3_standalone_surface_moves_pending_items_on_add_surface',
+  'X4_unheard_error_logged_and_unheard_warning_not_printed',
+  'L1_unmounted_surface_evaluates_no_function',
+]);
 
 /**
  * Cases that web_core's behaviour does not satisfy, keyed by suite path and
