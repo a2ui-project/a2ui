@@ -147,6 +147,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(s)));
       expect(tester.takeException(), isNull);
       await tester.pump();
+      await tester.pump();
 
       expect(find.text('errors: 1'), findsOneWidget);
       expect(find.text('Unknown component type "Bogus"'), findsOneWidget);

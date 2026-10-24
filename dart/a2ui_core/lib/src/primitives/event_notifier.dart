@@ -83,3 +83,9 @@ class EventNotifier<T> implements EventSource<T> {
     _subscriptions.clear();
   }
 }
+
+/// The listeners subscribed to [notifier], in subscription order.
+List<void Function(T event)> listenersOf<T>(EventNotifier<T> notifier) => [
+      for (final _CallbackSubscription<T> sub in notifier._subscriptions)
+        if (sub._listener case final listener?) listener,
+    ];
