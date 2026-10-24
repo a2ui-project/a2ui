@@ -313,6 +313,58 @@ describe('MessageProcessor', () => {
     assert.strictEqual(crossRef.components.get('CustomText'), customText);
     assert.throws(() => customText.schema, A2uiCatalogError);
   });
+
+  describe('addCatalog', () => {
+    const messages = [
+      {
+        version: 'v1.0' as const,
+        createSurface: {surfaceId: 's1', catalogId: 'conformance/cross_ref'},
+      },
+      {
+        version: 'v1.0' as const,
+        updateComponents: {
+          surfaceId: 's1',
+          components: [{id: 'root', component: 'CustomText', badge: 'NEW', text: 'Revenue'}],
+        },
+      },
+    ];
+
+    it('links the catalogs it holds to an added peer', () => {
+      const processor = new MessageProcessor(
+        rendererCatalogs([loadFixture('cross_ref_catalog_v1_0.json')]),
+      );
+
+      processor.addCatalog(rendererCatalogs([loadFixture('simplified_catalog_v1_0.json')])[0]);
+      processor.processMessages(messages);
+
+      assert.ok(processor.getSurface('s1')!.componentsModel.get('root'));
+    });
+
+    it('links an added catalog to the peers it holds', () => {
+      const processor = new MessageProcessor(
+        rendererCatalogs([loadFixture('simplified_catalog_v1_0.json')]),
+      );
+
+      processor.addCatalog(rendererCatalogs([loadFixture('cross_ref_catalog_v1_0.json')])[0]);
+      processor.processMessages(messages);
+
+      assert.ok(processor.getSurface('s1')!.componentsModel.get('root'));
+    });
+
+    it('does not change the catalog it is given', () => {
+      const crossRef = loadFixture('cross_ref_catalog_v1_0.json');
+      const customText = crossRef.components.get('CustomText')!;
+      const processor = new MessageProcessor(
+        rendererCatalogs([loadFixture('simplified_catalog_v1_0.json')]),
+      );
+
+      processor.addCatalog(rendererCatalogs([crossRef])[0]);
+
+      assert.deepStrictEqual(crossRef.peerCatalogs, []);
+      assert.strictEqual(crossRef.components.get('CustomText'), customText);
+      assert.throws(() => customText.schema, A2uiCatalogError);
+    });
+  });
 });
 
 describe('unresolvable cross-catalog references', () => {

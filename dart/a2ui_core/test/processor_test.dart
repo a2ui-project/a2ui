@@ -156,6 +156,65 @@ void main() {
     });
   });
 
+  group('MessageProcessor.addCatalog', () {
+    Catalog<ComponentApi, FunctionImplementation> catalogNamed(String id) =>
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: id,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: const [],
+        );
+
+    late MessageProcessor<ComponentApi> processor;
+
+    setUp(() {
+      processor = MessageProcessor<ComponentApi>(
+        catalogs: [catalogNamed('cat1')],
+      );
+      addTearDown(processor.dispose);
+    });
+
+    void createSurface(String catalogId) => processor.processMessages(
+          AgentToRendererMessagePayload([
+            CreateSurfaceMessage(
+              version: 'v1.0',
+              surfaceId: 's1',
+              catalogId: catalogId,
+            ),
+          ]),
+        );
+
+    test('resolves a later createSurface naming the added catalog', () {
+      expect(() => createSurface('late'), throwsA(isA<A2uiCatalogError>()));
+
+      processor.addCatalog(catalogNamed('late'));
+      createSurface('late');
+
+      expect(processor.model.getSurface('s1')!.defaultCatalog!.id, 'late');
+    });
+
+    test('rejects a catalog whose id the processor already holds', () {
+      expect(
+        () => processor.addCatalog(catalogNamed('cat1')),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('lists the added catalog in the renderer capabilities', () {
+      processor.addCatalog(catalogNamed('late'));
+
+      final Map<String, Object?> json = processor
+          .getRendererCapabilities(
+            const CapabilitiesOptions(versions: [A2uiProtocolVersion.v1_0]),
+          )
+          .toJson();
+
+      expect(
+        (json['v1.0']! as Map<String, Object?>)['supportedCatalogIds'],
+        ['cat1', 'late'],
+      );
+    });
+  });
+
   group('MessageProcessor', () {
     late TestCatalog catalog;
     late MessageProcessor processor;

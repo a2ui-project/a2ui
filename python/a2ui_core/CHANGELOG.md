@@ -1,5 +1,12 @@
 ## Unreleased
 
+- Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
+  processor after it is built. The processor links the new catalog and the
+  catalogs it holds to one another, as the constructor does, and leaves the
+  catalog passed in unchanged. `createSurface` messages, renderer function
+  calls and `get_renderer_capabilities` see the catalog from then on; surfaces
+  created before the call keep the catalogs they were created with. A catalog
+  whose ID the processor already holds is rejected with `A2uiCatalogError`.
 - Schema validation never fetches a `$ref` over the network. A cross-catalog
   `$ref` whose JSON Pointer passes through an array, such as
   `<peer>#/components/Button/allOf/1/properties/action`, now resolves against

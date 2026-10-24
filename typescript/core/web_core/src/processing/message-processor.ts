@@ -210,6 +210,27 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   /**
+   * Adds a catalog to the ones this processor holds.
+   *
+   * The processor links the new catalog and the catalogs it holds to each
+   * other, as the constructor does (see `linkCatalogs`); the catalog passed in
+   * is not changed. `createSurface` messages, renderer function calls and
+   * `getRendererCapabilities` see the catalog from this call on. Surfaces
+   * created before the call keep the catalogs they were created with.
+   *
+   * @param catalog The catalog to add.
+   * @throws {A2uiCatalogError} If the processor already holds a catalog with
+   *     the same id.
+   */
+  addCatalog(catalog: Catalog<any>): void {
+    if (this.catalogs.some(c => c.id === catalog.id)) {
+      throw new A2uiCatalogError(`Catalog already registered: ${catalog.id}`);
+    }
+    // The RPC handler holds this same array, so it is updated in place.
+    this.catalogs.splice(0, this.catalogs.length, ...linkCatalogs([...this.catalogs, catalog]));
+  }
+
+  /**
    * Invokes a remote function on the server agent using an options bag.
    *
    * @param surfaceId The ID of the surface requesting execution.
