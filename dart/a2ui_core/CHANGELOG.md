@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Breaking:** Removed cross-catalog `$ref` resolution across peer
+  catalogs ([#3232](https://github.com/a2ui-project/a2ui/issues/3232),
+  [#3575](https://github.com/a2ui-project/a2ui/pull/3575)). A catalog's
+  schemas resolve only against its own document and `common_types.json`
+  again:
+  - Removed `Catalog.withPeerCatalogs`, `Catalog.peerCatalogs` and
+    `linkCatalogs`.
+  - Removed the `peers` argument of `resolveSchemaRefs` and the fourth `peers`
+    argument of `inlineLocalRefs`.
+  - `MessageProcessor` no longer links copies of the catalogs passed to it;
+    `MessageProcessor.catalogs` holds the catalogs as given.
+  - `Catalog.fromJson` throws `A2uiCatalogError` for a v1.0 catalog holding a
+    `$ref` to a document other than `common_types.json` or the catalog itself
+    (`catalog.json`), such as `basic_catalog.json#/components/Text`, and never
+    fetches it. Copy the referenced definitions into the catalog's own
+    `$defs` instead.
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several
