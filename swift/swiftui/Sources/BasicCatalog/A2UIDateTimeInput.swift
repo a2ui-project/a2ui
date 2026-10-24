@@ -55,12 +55,12 @@ public struct A2UIDateTimeInput: View {
 
   private var minDate: Date? {
     guard let minStr = node.string(for: "min"), !minStr.isEmpty else { return nil }
-    return parseISO8601(minStr)
+    return DateTimeInputValue(parsing: minStr)?.date
   }
 
   private var maxDate: Date? {
     guard let maxStr = node.string(for: "max"), !maxStr.isEmpty else { return nil }
-    return parseISO8601(maxStr)
+    return DateTimeInputValue(parsing: maxStr)?.date
   }
 
   private var displayedComponents: DatePickerComponents {
@@ -76,15 +76,23 @@ public struct A2UIDateTimeInput: View {
   private var dateBinding: Binding<Date> {
     Binding(
       get: {
-        if let dateStr = node.string(for: "value"), let parsed = parseISO8601(dateStr) {
-          return parsed
+        if let dateStr = node.string(for: "value"),
+          let parsed = DateTimeInputValue(parsing: dateStr)
+        {
+          return parsed.date
         }
         return internalDate
       },
       set: { newDate in
         internalDate = newDate
         if let dataBinding = node.dataBinding(for: "value") as DataBinding<String>? {
-          dataBinding.set(formatISO8601(newDate))
+          let value = DateTimeInputValue.format(
+            newDate,
+            enableDate: enableDate,
+            enableTime: enableTime,
+            like: node.string(for: "value")
+          )
+          dataBinding.set(value)
         }
       }
     )
@@ -158,68 +166,6 @@ public struct A2UIDateTimeInput: View {
       )
       .labelsHidden()
       .accessibilityIdentifier("A2UIDateTimeInput_Picker_\(node.id)")
-    }
-  }
-
-  private func parseISO8601(_ string: String) -> Date? {
-    guard !string.isEmpty else { return nil }
-
-    let fractionalDateFormatter = ISO8601DateFormatter()
-    fractionalDateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = fractionalDateFormatter.date(from: string) {
-      return date
-    }
-
-    let standardDateFormatter = ISO8601DateFormatter()
-    standardDateFormatter.formatOptions = [.withInternetDateTime]
-    if let date = standardDateFormatter.date(from: string) {
-      return date
-    }
-
-    let dateOnlyFormatter = ISO8601DateFormatter()
-    dateOnlyFormatter.formatOptions = [.withFullDate]
-    dateOnlyFormatter.timeZone = TimeZone.current
-    if let date = dateOnlyFormatter.date(from: string) {
-      return date
-    }
-
-    let fallbackDateFormatter = DateFormatter()
-    fallbackDateFormatter.locale = Locale(identifier: "en_US_POSIX")
-    fallbackDateFormatter.timeZone = TimeZone.current
-
-    let formats = [
-      "yyyy-MM-dd'T'HH:mm:ss",
-      "yyyy-MM-dd",
-      "HH:mm:ss",
-      "HH:mm",
-    ]
-    for format in formats {
-      fallbackDateFormatter.dateFormat = format
-      if let date = fallbackDateFormatter.date(from: string) {
-        return date
-      }
-    }
-
-    return nil
-  }
-
-  private func formatISO8601(_ date: Date) -> String {
-    if enableDate && enableTime {
-      let formatter = ISO8601DateFormatter()
-      formatter.formatOptions = [.withInternetDateTime]
-      return formatter.string(from: date)
-    } else if enableTime && !enableDate {
-      let dateFormatter = DateFormatter()
-      dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-      dateFormatter.timeZone = TimeZone.current
-      dateFormatter.dateFormat = "HH:mm:ss"
-      return dateFormatter.string(from: date)
-    } else {
-      let dateFormatter = DateFormatter()
-      dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-      dateFormatter.timeZone = TimeZone.current
-      dateFormatter.dateFormat = "yyyy-MM-dd"
-      return dateFormatter.string(from: date)
     }
   }
 }
