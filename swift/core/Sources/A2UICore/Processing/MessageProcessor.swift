@@ -45,6 +45,8 @@ public final class MessageProcessor: ObservableObject {
   private let adapterFactory: VersionAdapterFactory
   private var activeRPCTasks: [String: Task<Void, Never>] = [:]
   private var payloadValidators: [ValidatorCacheKey: PayloadValidator] = [:]
+  /// What the last graph check of each surface found, by surface id.
+  private var graphBounds: [String: ComponentGraphBound] = [:]
 
   /// Creates a new message processor with an array of catalogs.
   ///
@@ -797,6 +799,7 @@ public final class MessageProcessor: ObservableObject {
     guard surfaceGroupModel.surfacesMap[op.surfaceID] != nil else {
       return
     }
+    graphBounds[op.surfaceID] = nil
     surfaceGroupModel.removeSurface(id: op.surfaceID)
   }
 
@@ -891,20 +894,6 @@ public final class MessageProcessor: ObservableObject {
     }
 
     if !components.isEmpty {
-      var allComponentsMap: [String: [String: JSONValue]] = [:]
-      for existing in surface.componentsModel.components.values {
-        var dict: [String: JSONValue] = [
-          "id": .string(existing.id),
-          "component": .string(existing.type),
-        ]
-        if let catID = existing.catalogID {
-          dict["catalogId"] = .string(catID)
-        }
-        for (k, v) in existing.properties {
-          dict[k] = v
-        }
-        allComponentsMap[existing.id] = dict
-      }
       var batchIDs: Set<String> = []
       for comp in components {
         guard let id = comp["id"]?.stringValue else { continue }
@@ -912,18 +901,108 @@ public final class MessageProcessor: ObservableObject {
           throw A2UIIntegrityError("Duplicate component ID: \(id)")
         }
         batchIDs.insert(id)
-        allComponentsMap[id] = comp
       }
-      let allComponents = Array(allComponentsMap.values)
+      try validateComponentGraph(components, on: surface, config: effectiveConfig)
+    }
+  }
 
-      try GraphTopologyValidator.validate(
-        components: allComponents,
+  /// Checks the component graph of `surface` with `components` applied.
+  ///
+  /// When the config allows dangling references and a missing root, the graph check finds only
+  /// self-references, cycles, chains deeper than the depth limit and composition violations. The
+  /// surface passed it before the batch, so the batch is checked against what it changes, through
+  /// the surface's ``ComponentGraphBound``, and the cost of a batch grows with the batch rather
+  /// than the surface. The bound is used only while the surface components are at the
+  /// ``SurfaceComponentsModel/revision`` it recorded, so a change made to them outside the
+  /// processor is checked again. When the bound cannot show the batch passes, or under any other
+  /// config, the whole surface is checked, so an error is that of the whole-surface check.
+  private func validateComponentGraph(
+    _ components: [[String: JSONValue]],
+    on surface: SurfaceViewModel,
+    config: ValidationConfig
+  ) throws {
+    let held = surface.componentsModel.components
+    let catalogs = surface.catalogs
+    let defaultCatalogID = surface.defaultCatalogID
+    let checksBatch = config.allowDanglingReferences && config.allowMissingRoot
+    var batch: [String: [String: JSONValue]] = [:]
+    for comp in components {
+      guard let id = comp["id"]?.stringValue else { continue }
+      batch[id] = comp
+    }
+
+    if checksBatch, let bound = graphBounds[surface.surfaceID], bound.surface === surface,
+      bound.revision == surface.componentsModel.revision,
+      bound.admits(
+        batch: batch.mapValues { componentReferences($0, on: surface) },
+        limit: GraphTopologyValidator.maxGlobalDepth,
+        held: { held[$0] != nil }
+      ),
+      bound.compositionHolds(
+        batch: batch.keys,
         rootID: "root",
-        config: effectiveConfig,
-        catalogs: surface.catalogs,
-        defaultCatalogID: surface.defaultCatalogID
+        catalogs: catalogs,
+        defaultCatalogID: defaultCatalogID,
+        typeOf: { id in
+          if let comp = batch[id] {
+            guard let type = comp["component"]?.stringValue else { return nil }
+            return (type, comp["catalogId"]?.stringValue ?? defaultCatalogID)
+          }
+          return held[id].map { ($0.type, $0.catalogID ?? defaultCatalogID) }
+        }
+      )
+    {
+      bound.revision = nil
+      return
+    }
+    graphBounds[surface.surfaceID] = nil
+
+    var allComponentsMap: [String: [String: JSONValue]] = [:]
+    for existing in held.values {
+      var dict: [String: JSONValue] = [
+        "id": .string(existing.id),
+        "component": .string(existing.type),
+      ]
+      if let catID = existing.catalogID {
+        dict["catalogId"] = .string(catID)
+      }
+      for (k, v) in existing.properties {
+        dict[k] = v
+      }
+      allComponentsMap[existing.id] = dict
+    }
+    allComponentsMap.merge(batch) { _, new in new }
+
+    try GraphTopologyValidator.validate(
+      components: Array(allComponentsMap.values),
+      rootID: "root",
+      config: config,
+      catalogs: catalogs,
+      defaultCatalogID: defaultCatalogID
+    )
+    if checksBatch {
+      graphBounds[surface.surfaceID] = ComponentGraphBound(
+        surface: surface,
+        graph: allComponentsMap.mapValues { componentReferences($0, on: surface) }
       )
     }
+  }
+
+  /// The ids of the components that `component` references, read through the schema of its
+  /// type as ``GraphTopologyValidator`` reads them.
+  private func componentReferences(
+    _ component: [String: JSONValue],
+    on surface: SurfaceViewModel
+  ) -> [String] {
+    guard let type = component["component"]?.stringValue else { return [] }
+    let schema = GraphTopologyValidator.lookupComponentAPI(
+      type: type,
+      catalogID: component["catalogId"]?.stringValue ?? surface.defaultCatalogID,
+      catalogs: surface.catalogs,
+      defaultCatalogID: surface.defaultCatalogID
+    )?.schema.jsonValue
+    return GraphTopologyValidator.extractReferences(from: component, schema: schema)
+      .map(\.referenceID)
   }
 
   /// Resolves the catalog of every v1.0 function call nested in a component's properties.
@@ -1124,6 +1203,12 @@ public final class MessageProcessor: ObservableObject {
     if !removedIDs.isEmpty || !addedComponents.isEmpty {
       surface.componentsModel.applyBatch(removing: removedIDs, adding: addedComponents)
     }
+    // The graph check left the bound describing the surface with this batch applied.
+    if let bound = graphBounds[surface.surfaceID], bound.surface === surface,
+      bound.revision == nil
+    {
+      bound.revision = surface.componentsModel.revision
+    }
   }
 
   private func findCatalog(
@@ -1152,6 +1237,7 @@ public final class MessageProcessor: ObservableObject {
     }
     activeRPCTasks.removeAll()
     rpcHandler.disposeAllPendingCalls()
+    graphBounds.removeAll()
     for surfaceID in Array(surfaceGroupModel.surfacesMap.keys) {
       surfaceGroupModel.removeSurface(id: surfaceID)
     }
