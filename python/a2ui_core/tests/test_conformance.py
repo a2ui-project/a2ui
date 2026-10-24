@@ -600,9 +600,6 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
     if not action:
         pytest.fail(f"Test case '{test_id}' missing required 'action' field.")
 
-    if rel_path == "core/problems.yaml":
-        pytest.skip(UNRUNNABLE_SUITES[rel_path])
-
     if action == "from_json":
         validate_from_json_case(case)
     elif action == "validation_schema":
@@ -641,6 +638,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
     elif action == "parse_expression_template":
         validate_parse_expression_template_case(case)
     elif action == "resolve_nodes" and rel_path == "core/node_resolution.yaml":
+        pytest.skip(UNRUNNABLE_SUITES[rel_path])
+    elif action == "report_problems" and rel_path == "core/problems.yaml":
         pytest.skip(UNRUNNABLE_SUITES[rel_path])
     elif action == "evaluate_function":
         validate_evaluate_function_case(case)

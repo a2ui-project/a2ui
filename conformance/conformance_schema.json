@@ -44,13 +44,10 @@
           "type": "string",
           "enum": [
             "accessibility_check",
-            "add_surface",
             "agent_to_renderer_schema",
-            "await_delivery",
             "catalog_schema",
             "common_types_schema",
             "compile",
-            "construct_resolver",
             "convert_event",
             "core_syntax",
             "create_a2ui_part",
@@ -58,9 +55,7 @@
             "create_processor",
             "data_model",
             "decompile",
-            "detach_surface",
             "dispatch_action",
-            "dispose_resolver",
             "evaluate_function",
             "execute_tool",
             "export_to_directory",
@@ -76,7 +71,6 @@
             "handle_rpc",
             "has_format_content",
             "has_parts",
-            "invoke_action",
             "is_a2ui_part",
             "load",
             "load_catalog",
@@ -89,6 +83,7 @@
             "provide_catalog",
             "prune",
             "render",
+            "report_problems",
             "resolve_catalogs",
             "resolve_path",
             "round_trip",
@@ -252,7 +247,7 @@
             "type": "string",
             "enum": ["processor", "surface", "first", "second"]
           },
-          "description": "Listeners subscribed for a problem reporting case, in subscription order. Defaults to [\"processor\"]."
+          "description": "Listeners subscribed for a problem reporting case, in subscription order. Defaults to [\"processor\"]. `processor`, `first` and `second` subscribe to the group. `surface` subscribes to each surface."
         },
         "throwOnFirstReport": {
           "type": "boolean",
@@ -261,13 +256,6 @@
         "disposeResolverOnFirstReport": {
           "type": "string",
           "description": "Surface identifier whose active resolver is disposed when a listener receives the first report."
-        },
-        "expect_reports": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ExpectReport"
-          },
-          "description": "Problem reports delivered since the start of the case or the previous `expect_reports` assertion, in delivery order."
         }
       },
       "allOf": [
@@ -547,7 +535,7 @@
         "reenterMessages": {
           "type": "array",
           "items": {"type": "object"},
-          "description": "Messages passed to processMessages when the reenter catalog function runs during this step."
+          "description": "Messages that the next call of the `reenter` catalog function passes to processMessages, once. Read on `construct_resolver` steps."
         },
         "path": {
           "type": "string",

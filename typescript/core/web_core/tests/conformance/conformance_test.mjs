@@ -124,8 +124,7 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
  * Transition skip list containing specific test case names to skip.
  */
 const SKIP_TEST_NAMES = new Set([
-  // Skipped until the web_core layer 1 problem reporting port lands
-  // (tracked by the web_core layer 1 problem reporting issue).
+  // Skipped until web_core implements problem reporting.
   'T1_resolve_defers_delivery',
   'T2_dispose_defers_delivery',
   'T3_data_write_and_action_defer_delivery',
