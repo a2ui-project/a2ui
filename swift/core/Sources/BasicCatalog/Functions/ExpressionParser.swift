@@ -311,7 +311,7 @@ public struct ExpressionParser: Sendable {
   private func scanPathOrIdentifier(_ scanner: inout Scanner) -> String {
     let start = scanner.pos
     while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "/" || c == "." || c == "_" || c == "-" {
+      if Self.isIdentifierCharacter(c) || c == "/" || c == "." || c == "-" {
         _ = scanner.advance(by: 1)
       } else {
         break
@@ -323,7 +323,7 @@ public struct ExpressionParser: Sendable {
   private func scanIdentifier(_ scanner: inout Scanner) -> String {
     let start = scanner.pos
     while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "_" {
+      if Self.isIdentifierCharacter(c) {
         _ = scanner.advance(by: 1)
       } else {
         break
@@ -433,6 +433,12 @@ public struct ExpressionParser: Sendable {
     return c >= "0" && c <= "9"
   }
 
+  /// Whether every scalar of `c` is in UAX #31 `XID_Continue`, which includes `_`. Matches the
+  /// other engines, unlike `Character.isLetter` or `isNumber`, which also accept `½` or `²`.
+  private static func isIdentifierCharacter(_ c: Character) -> Bool {
+    c.unicodeScalars.allSatisfy { $0.properties.isXIDContinue }
+  }
+
   // MARK: - Nested Scanner
 
   private struct Scanner {
@@ -477,7 +483,7 @@ public struct ExpressionParser: Sendable {
     mutating func matchesKeyword(_ keyword: String) -> Bool {
       if matches(keyword) {
         if let nextChar = peek(offset: keyword.count) {
-          if nextChar.isLetter || nextChar.isNumber || nextChar == "_" {
+          if ExpressionParser.isIdentifierCharacter(nextChar) {
             return false
           }
         }
