@@ -123,7 +123,9 @@ def test_converter_class_convert_function_call_ignores():
     function_call = genai_types.FunctionCall(
         name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
         args={
-            SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: "{}"
+            SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_PAYLOAD_ARG_NAME: (
+                "{}"
+            )
         },
     )
     part = genai_types.Part(function_call=function_call)
@@ -428,10 +430,13 @@ def test_converter_infers_version_from_catalog_when_omitted():
 
 
 def test_converter_accepts_processor_and_canvas_state():
+    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
     from a2ui.processor import A2uiRequestProcessor
 
     catalog = BasicCatalog(ProtocolVersion.V0_9)
-    processor = A2uiRequestProcessor([catalog])
+    processor = A2uiRequestProcessor(
+        [catalog], format_factory=DirectJsonFormatFactory()
+    )
     state = processor.create_state()
     converter = A2uiPartConverter(processor=processor, state=state)
 

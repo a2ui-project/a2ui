@@ -339,6 +339,8 @@ class RizzchartsAgent:
                     a2ui_catalogs=self._a2ui_catalogs_provider,
                     a2ui_enabled=self._a2ui_enabled_provider,
                     a2ui_examples=self._a2ui_examples_provider,
+                    # The processors write Direct JSON; the tool reads the same.
+                    inference_format_factory=DirectJsonFormatFactory(),
                 ),
             ],
             planner=BuiltInPlanner(

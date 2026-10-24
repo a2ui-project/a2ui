@@ -186,10 +186,13 @@ def test_event_converter_reuses_part_converter_and_reads_processor_and_state():
 def test_event_converter_streams_partial_events_via_response_stream():
     from google.genai import types as genai_types
     from a2ui.core.schema import ProtocolVersion
+    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
     from a2ui.processor import A2uiRequestProcessor
 
     catalog = BasicCatalog(ProtocolVersion.V0_9)
-    processor = A2uiRequestProcessor([catalog])
+    processor = A2uiRequestProcessor(
+        [catalog], format_factory=DirectJsonFormatFactory()
+    )
     state = processor.create_state()
     stream = processor.open_stream(state=state)
     invocation_context_mock = MagicMock()

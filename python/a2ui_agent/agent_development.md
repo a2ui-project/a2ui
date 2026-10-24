@@ -548,16 +548,20 @@ ui_toolset = SendA2uiToClientToolset(
 
 #### 2c. Runtime Validation
 
-When the LLM calls the UI tool, the toolset uses the dynamic catalogs to:
+When the LLM calls the UI tool, the toolset uses the dynamic catalogs and its
+inference format (Express by default; pass `inference_format_factory=` to
+change it) to:
 
-1. **Generate Instructions**: Inject the specific schema and examples into the
-   LLM's system prompt for that turn (skipping any section already present in
-   the agent's system instruction).
-2. **Parse and Fix Payloads**: Parse and fix the LLM's generated JSON using the
-   parser and payload-fixer.
-3. **Validate Payloads**: Validate the LLM's generated JSON against the active
+1. **Generate Instructions**: Add the format's rules, the catalogs and the
+   examples, written by the format's prompt generator, to the LLM's system
+   prompt for that turn. A section the agent's system instruction already
+   holds, such as when it includes `processor.prompt_snippet`, is not added
+   again.
+2. **Compile Payloads**: Compile the tool's `a2ui_payload` argument into A2UI
+   messages with the format's parser.
+3. **Validate Payloads**: Validate the messages against the active
    `RendererState` when provided (for Canvas UIs), or with
-   `a2ui.utils.validate_payload` when stateless.
+   `a2ui.utils.validate_payload` when stateless, and return them as A2UI JSON.
 
 ### 3. Multiple Version Support
 
