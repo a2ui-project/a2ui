@@ -33,21 +33,27 @@ cases_adk_extensions = get_conformance_cases("extensions/adk/adk_extensions.yaml
     ids=[c[0] for c in cases_adk_extensions],
 )
 def test_adk_extensions_conformance(name, test_case):
-    from a2ui.adk import SendA2uiToClientToolset
-    from a2ui.core import Catalog
     from unittest.mock import MagicMock, patch
+
+    from a2ui.adk import SendA2uiToClientToolset
+    from a2ui.core.basic_catalog import BasicCatalog
+    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 
     action = test_case["action"]
     args = test_case.get("args", {})
 
     if action == "execute_tool":
+        tool_cls = SendA2uiToClientToolset._SendA2uiJsonToClientTool
         a2ui_json_str = args.get("a2uiJson")
-        tool_args = {"a2ui_json": a2ui_json_str} if a2ui_json_str else args
+        tool_args = (
+            {tool_cls.A2UI_PAYLOAD_ARG_NAME: a2ui_json_str} if a2ui_json_str else args
+        )
 
-        catalog_mock = MagicMock(spec=Catalog)
-
-        tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
-            [catalog_mock], "examples"
+        # The shared cases write the payload in Direct JSON.
+        tool = tool_cls(
+            [BasicCatalog("0.8")],
+            "examples",
+            inference_format_factory=DirectJsonFormatFactory(),
         )
 
         tool_context_mock = MagicMock()

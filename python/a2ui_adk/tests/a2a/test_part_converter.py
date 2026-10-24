@@ -123,7 +123,9 @@ def test_converter_class_convert_function_call_ignores():
     function_call = genai_types.FunctionCall(
         name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
         args={
-            SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: "{}"
+            SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_PAYLOAD_ARG_NAME: (
+                "{}"
+            )
         },
     )
     part = genai_types.Part(function_call=function_call)
@@ -402,3 +404,73 @@ def test_converter_uses_direct_json_parser_by_default(monkeypatch):
     )
     parts_json = json_converter.convert(part_json)
     assert len(parts_json) == 1
+
+
+def test_converter_infers_version_from_catalog_when_omitted():
+    catalog = BasicCatalog(ProtocolVersion.V1_0)
+    converter = A2uiPartConverter([catalog])
+
+    valid_a2ui = {
+        "version": "v1.0",
+        "createSurface": {"surfaceId": "main", "catalogId": catalog.catalog_id},
+    }
+    function_response = genai_types.FunctionResponse(
+        name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
+        response={
+            SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: [
+                valid_a2ui
+            ]
+        },
+    )
+    part = genai_types.Part(function_response=function_response)
+
+    a2a_parts = converter.convert(part)
+    assert len(a2a_parts) == 1
+    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V1_0)
+
+
+def test_converter_accepts_processor_and_canvas_state():
+    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+    from a2ui.processor import A2uiRequestProcessor
+
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
+    processor = A2uiRequestProcessor(
+        [catalog], format_factory=DirectJsonFormatFactory()
+    )
+    state = processor.create_state()
+    converter = A2uiPartConverter(processor=processor, state=state)
+
+    turn1 = [
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": "main",
+                "catalogId": catalog.catalog_id,
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [{"id": "root", "component": "Text", "text": "Turn 1"}],
+            },
+        },
+    ]
+    parts1 = converter.convert(
+        genai_types.Part(text=f"{A2UI_OPEN_TAG}\n{json.dumps(turn1)}\n{A2UI_CLOSE_TAG}")
+    )
+    assert len(parts1) == 2
+
+    # Turn 2 updates the surface created in Turn 1 via the shared Canvas state
+    turn2 = [{
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "main",
+            "components": [{"id": "root", "component": "Text", "text": "Turn 2"}],
+        },
+    }]
+    parts2 = converter.convert(
+        genai_types.Part(text=f"{A2UI_OPEN_TAG}\n{json.dumps(turn2)}\n{A2UI_CLOSE_TAG}")
+    )
+    assert len(parts2) == 1
+    assert parts2[0] == create_a2ui_part(turn2[0], version=ProtocolVersion.V0_9)

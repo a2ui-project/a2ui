@@ -1,10 +1,38 @@
 ## Unreleased
 
-- **BREAKING**: `A2uiPartConverter` checks text-based A2UI as a response that
-  shows new UI, so a response that updates a surface it does not create is
+- **BREAKING CHANGE**: `SendA2uiToClientToolset` reads the tool call in an
+  inference format, Express by default, instead of always reading JSON. Its new
+  `inference_format_factory` argument picks the format; pass
+  `DirectJsonFormatFactory()` to keep reading Direct JSON. The tool's argument
+  is renamed from `a2ui_json` to `a2ui_payload`, and the prompt the toolset
+  adds comes from the format's prompt generator. The tool compiles the payload
+  with the format's parser, no longer with `parse_and_fix`, validates it, and
+  still returns A2UI JSON messages for the part converter.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- **BREAKING CHANGE**: `A2uiPartConverter` checks text-based A2UI as a response
+  that shows new UI, so a response that updates a surface it does not create is
   rejected and logged instead of converted. Tool-based A2UI from
-  `SendA2uiToClientToolset` is still checked with `validate_payload`, which
-  assumes such a surface exists.
+  `SendA2uiToClientToolset` without a renderer state is still checked with
+  `validate_payload`, which assumes such a surface exists.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `SendA2uiToClientToolset` accepts example turns (such as
+  `processor.examples`), which the format's prompt generator writes in the
+  format's syntax, a markdown string, or `None`. It skips each prompt section
+  (rules, catalogs, examples) that the agent's system instruction already
+  holds, such as when the instruction includes `processor.prompt_snippet`. An
+  optional `a2ui_state` (`RendererState` or `A2uiStateProvider`) checks and
+  applies tool payloads against a Canvas state. `get_part_converter` reads
+  text-based A2UI with the toolset's format.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `A2uiPartConverter` accepts an optional `processor` (`A2uiRequestProcessor`)
+  and `state` (`RendererState`), and infers `version` from the active catalogs'
+  `protocol_version` when `version` is omitted.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `A2uiEventConverter` reads `system:a2ui_processor`, `system:a2ui_state`, and
+  `system:a2ui_stream` from session state in addition to `system:a2ui_catalogs`,
+  reuses `A2uiPartConverter` across events, and supports incremental streaming
+  via `ResponseStream` on partial ADK events.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 
 ## 0.1.0 (2026-10-17)
 
