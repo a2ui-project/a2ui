@@ -14,7 +14,7 @@ description: >-
 Before editing a `CHANGELOG.md` file, check which language directory the modified package belongs to:
 
 - **Dart / Flutter packages (`dart/*/CHANGELOG.md`)**:
-  - Load and follow [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md), which defines Dart-specific `Breaking:` annotations, `## Unreleased` consolidation rules, and `pubspec.yaml` versioning conventions.
+  - Load and follow [`dart/versioning-and-releases.md`](../coding-principles/subskills/dart/versioning-and-releases.md), which defines Dart-specific `Breaking:` annotations, `## Unreleased` consolidation rules, and `pubspec.yaml` versioning conventions.
 - **Python packages (`python/*/CHANGELOG.md`)**:
   - Follow the core rules below for `## Unreleased` entries during feature or bugfix PRs. When cutting a Python package release, load [`a2ui-release-python`](../a2ui-release-python/SKILL.md).
 - **TypeScript / Web packages (`typescript/*/*/CHANGELOG.md`)**:
@@ -24,10 +24,10 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
 
 ## Core Rules
 
-1. **Never Remove Existing Entries or Version Headers (Only Add)**:
+1. **Preserve Unrelated Entries and All Version Headers**:
 
    > [!CAUTION]
-   > **Preserve All Existing Entries**: NEVER delete, overwrite, or clear existing items under `## Unreleased` or under past release sections. Other merged branches, concurrent PRs, or foundational commits have their own entries under `## Unreleased`. Only append or prepend your new entry, keeping all existing entries intact.
+   > **Preserve Unrelated Entries**: NEVER delete, overwrite, or clear unrelated items under `## Unreleased` or any items under past release sections. Other merged branches, concurrent PRs, or foundational commits have their own entries under `## Unreleased`. However, read the entire `## Unreleased` section before adding your entry: if your PR supersedes, renames, or modifies a change introduced earlier in the same `## Unreleased` cycle, update or merge that unreleased entry so `## Unreleased` describes the net changes since the last published release rather than a chronological log of contradicting pull requests. When merging, keep every PR link the merged entries carried (for example `[#123](...), [#456](...)`) so each change stays traceable to its pull request.
 
    > [!CAUTION]
    > **Preserve All Version Headers**: NEVER delete a `## <version>` heading (for example `## 0.10.6`). Removing one moves every entry beneath it into the section above, so released changes reappear as unreleased and that version's history is lost. This most often happens while resolving a merge conflict at the top of the file, or when inserting an entry overwrites the lines that follow `## Unreleased`. After any conflict resolution, re-read the top of the file and confirm the version headers are still present and in descending order.
@@ -45,15 +45,15 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
      - Dependency changes affecting consumers (e.g. optional peer dependencies).
      - Breaking changes (marked prominently with `**BREAKING CHANGE**:`).
    - **DO NOT Document**:
-     - Internal implementation details (e.g. private helper functions, internal variable renames, micro-optimizations).
-     - Changes strictly confined to unit tests, integration tests, mock data, sample/explorer applications, or internal scripts.
+     - Internal implementation details, classes, algorithms, data structures, or mechanics (e.g. private helper functions, internal variable renames, internal state/undo-log mechanics, micro-optimizations, or narrations of how the previous implementation worked).
+     - Changes strictly confined to unit tests, integration tests, conformance suite filenames, benchmark numbers, mock data, sample/explorer applications, or internal scripts.
      - Pure refactorings that preserve identical public API behavior and types.
 
-4. **Clearly Annotate BREAKING CHANGE Entries**:
+4. **Clearly Annotate and Group BREAKING CHANGE Entries First**:
 
    > [!IMPORTANT]
-   > **Mandatory `**BREAKING CHANGE**:` Annotation**:
-   > Annotate entries with `**BREAKING CHANGE**:` whenever there is:
+   > **Mandatory `**BREAKING CHANGE**:` Annotation and Ordering**:
+   > Place all `**BREAKING CHANGE**:` entries at the **top** of the `## Unreleased` section, with non-breaking additions and fixes below them. Annotate entries with `**BREAKING CHANGE**:` whenever there is:
    >
    > 1. **Public API Surface Change**: Any removal, rename, or incompatible signature/type change in the public API surface of the library or package (e.g., exported functions, classes, interfaces, component schemas, properties, signatures, or public types).
    > 2. **Meaningful Behavioral Change**: Any meaningful change in behavior that is not purely an internal refactor (e.g., changes to default property values, alterations to DOM tree structure or class names, changes to CSS custom properties or styling inheritance contracts that consumers depend on, modifications to validation rules, or changes to event dispatch semantics).
@@ -61,8 +61,8 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
    > Provide a concise explanation of what changed, why, and a recommended migration note so consumers can upgrade cleanly.
 
 5. **Be Concise and Complete**:
+   - Keep each entry to one or two sentences stating _what_ changed and _how_ callers should update their code. Do not narrate why the previous implementation worked the way it did.
    - Prefix version-specific changes with the target protocol version (e.g. `(v0_9)` or `(v0_8)`) when working within multi-version renderers or packages.
-   - State _what_ changed and _how_ it affects the consumer.
    - If a breaking change is introduced, provide a brief migration note.
 
 6. **Always End Entries with a Link to the PR**:
@@ -89,10 +89,8 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
 
 - (v0_9) Support universal Web Components in the v0.9 renderer:
   - Add `UniversalBasicCatalog`, `NativeBasicCatalog`, and `BasicCatalogBase` supporting both universal Web Components from `@a2ui/web_core` and native Angular `@Component` implementations.
-  - Add `toWebComponent` adapter to convert custom Angular `@Component` implementations into W3C Custom Elements with dynamic DI injector forwarding and reconnection handling.
-  - Update `ComponentHostComponent` to dynamically mount either universal Web Components or native Angular components based on catalog definitions.
-  - Update `SurfaceComponent` with pure computed surface ID derivation and reactive surface registration via constructor `effect()`.
-  - Add standalone helper `provideA2Ui` configuration function and `A2UI_USE_UNIVERSAL_COMPONENTS` injection token for Angular applications. [#2273](https://github.com/a2ui-project/a2ui/pull/2273)
+  - Add `toWebComponent` adapter to convert custom Angular `@Component` implementations into W3C Custom Elements.
+  - Add standalone `provideA2Ui` configuration helper and `A2UI_USE_UNIVERSAL_COMPONENTS` injection token for Angular applications. [#2273](https://github.com/a2ui-project/a2ui/pull/2273)
 ```
 
 ### Breaking Changes (Public API Surface & Meaningful Behavioral Changes)
@@ -109,7 +107,7 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
 ## Step-by-Step Workflow
 
 1. **Identify Affected Packages**:
-   Find the `CHANGELOG.md` in the root of each published package modified in the PR (e.g. `typescript/core/web_core/CHANGELOG.md`, `typescript/renderers/angular/CHANGELOG.md`, `typescript/renderers/lit/CHANGELOG.md`, `typescript/renderers/react/CHANGELOG.md`, `dart/a2ui_core/CHANGELOG.md`). If modifying a Dart package under `dart/`, follow [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md).
+   Find the `CHANGELOG.md` in the root of each published package modified in the PR (e.g. `typescript/core/web_core/CHANGELOG.md`, `typescript/renderers/angular/CHANGELOG.md`, `typescript/renderers/lit/CHANGELOG.md`, `typescript/renderers/react/CHANGELOG.md`, `dart/a2ui_core/CHANGELOG.md`). If modifying a Dart package under `dart/`, follow [`dart/versioning-and-releases.md`](../coding-principles/subskills/dart/versioning-and-releases.md).
 
 2. **Retrieve Current PR Number**:
 
@@ -127,15 +125,15 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
    Determine whether the diff introduces a public API change or a meaningful change in behavior that requires a `**BREAKING CHANGE**:` annotation (or `Breaking:` for Dart packages). For TypeScript packages, see [Inspecting TypeScript Public API (AST Approach)](../coding-principles/subskills/typescript/references/inspecting-typescript-public-api.md).
 
 4. **Add or Update the `## Unreleased` Entry**:
-   Draft concise, complete descriptions following the core rules above, and append `[#<pr-number>](https://github.com/a2ui-project/a2ui/pull/<pr-number>)`.
+   Draft concise, complete descriptions following the core rules above, placing `**BREAKING CHANGE**:` entries at the top of `## Unreleased` and non-breaking entries below them, and append `[#<pr-number>](https://github.com/a2ui-project/a2ui/pull/<pr-number>)`.
 
-5. **Verify Nothing Was Removed**:
+5. **Verify No Unrelated Entries or Version Headers Were Removed**:
 
    ```bash
-   git diff main -- '**/CHANGELOG.md' | grep '^-[^-]'
+   git diff main -- '**/CHANGELOG.md' | grep '^-' | grep -v '^---'
    ```
 
-   The only acceptable output is a revision to an entry added in the current PR. Any deleted version header or pre-existing entry must be restored immediately.
+   The only acceptable output is a revision or consolidation of an `## Unreleased` entry modified or superseded by the current PR. Any deleted version header or unrelated pre-existing entry must be restored immediately.
 
 6. **Format the Repository**:
    ```bash

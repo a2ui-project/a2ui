@@ -18,7 +18,7 @@
  * @fileoverview Custom AST visitor and error listener for A2UI Express DSL.
  *
  * Ported from Python's visitor.py. Traverses the ANTLR parse tree to construct
- * JSON-identical AST nodes and collects syntax errors.
+ * AST nodes tagged by `kind` and collects syntax errors.
  */
 
 import {
@@ -32,6 +32,7 @@ import {
   type Token,
 } from 'antlr4ng';
 
+import {ExpressParseError} from './errors.js';
 import {ExpressLexer} from './generated/ExpressLexer.js';
 import {
   type ArgContext,
@@ -60,63 +61,100 @@ import {ExpressVisitor} from './generated/ExpressVisitor.js';
 export type ExpressPrimitiveValue = string | number | boolean | null;
 
 /**
- * A dynamic data model path value (e.g. `$/user/name` -> `{path: "/user/name"}`).
+ * A dynamic data model path (e.g. `$/user/name` -> `{kind: 'path', path: '/user/name'}`).
  */
-export interface ExpressPathValue {
+export interface ExpressPathNode {
+  kind: 'path';
   path: string;
 }
 
 /**
- * A validation check rule expression (e.g. `?required` -> `{check: "required", args: []}`).
+ * A validation check rule expression (e.g. `?required` ->
+ * `{kind: 'check', name: 'required', args: []}`).
  */
-export interface ExpressCheckValue {
-  check: string;
+export interface ExpressCheckNode {
+  kind: 'check';
+  name: string;
   args: ExpressValue[];
 }
 
 /**
- * A variable reference (e.g. `title` -> `{variable: "title"}`).
+ * A variable reference (e.g. `title` -> `{kind: 'variable', name: 'title'}`).
  */
-export interface ExpressVariableValue {
-  variable: string;
+export interface ExpressVariableNode {
+  kind: 'variable';
+  name: string;
 }
 
 /**
- * The special skip placeholder `_` in argument positions (`{skipped: true}`).
+ * The special skip placeholder `_` in argument positions.
  */
-export interface ExpressSkippedValue {
-  skipped: true;
+export interface ExpressSkippedNode {
+  kind: 'skipped';
 }
 
 /**
  * A function or component invocation (e.g. `Text("hello", variant="bold")`).
- * Note: `kwargs` is omitted when empty, matching Python ExpressAstVisitor.
  */
-export interface ExpressCallValue {
-  call: string;
+export interface ExpressCallNode {
+  kind: 'call';
+  name: string;
   args: ExpressValue[];
-  kwargs?: Record<string, ExpressValue>;
+  kwargs: Record<string, ExpressValue>;
 }
 
 /**
  * A dictionary/map literal (e.g. `{a: 1, "b": 2}`).
+ *
+ * Map literals are wrapped rather than represented as plain objects so that
+ * their keys, whatever they are, can never be mistaken for another node.
  */
-export type ExpressMapValue = {
-  [key: string]: ExpressValue;
-};
+export interface ExpressMapNode {
+  kind: 'map';
+  entries: Record<string, ExpressValue>;
+}
+
+/**
+ * Discriminated union of every non-primitive, non-array AST node.
+ */
+export type ExpressNode =
+  | ExpressPathNode
+  | ExpressCheckNode
+  | ExpressVariableNode
+  | ExpressSkippedNode
+  | ExpressCallNode
+  | ExpressMapNode;
 
 /**
  * Recursive type representing any expression value produced by the Express visitor.
  */
-export type ExpressValue =
-  | ExpressPrimitiveValue
-  | ExpressValue[]
-  | ExpressPathValue
-  | ExpressCheckValue
-  | ExpressVariableValue
-  | ExpressSkippedValue
-  | ExpressCallValue
-  | ExpressMapValue;
+export type ExpressValue = ExpressPrimitiveValue | ExpressValue[] | ExpressNode;
+
+/**
+ * Checks whether a value is an AST node of the given kind.
+ */
+export function isExpressNode<K extends ExpressNode['kind']>(
+  val: unknown,
+  kind: K,
+): val is Extract<ExpressNode, {kind: K}> {
+  return (
+    typeof val === 'object' &&
+    val !== null &&
+    !Array.isArray(val) &&
+    (val as {kind?: unknown}).kind === kind
+  );
+}
+
+/**
+ * Sets `key` on `target` as an own, enumerable property.
+ *
+ * Unlike `target[key] = value`, this stores a key such as `__proto__` as data
+ * rather than changing the object's prototype, so a map literal keeps every
+ * key it is written with.
+ */
+export function setOwnEntry<T>(target: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(target, key, {value, enumerable: true, writable: true, configurable: true});
+}
 
 /**
  * Variable or data path assignment statement (e.g. `root = Column(...)` or `$/a/b = "c"`).
@@ -163,6 +201,26 @@ function isArgKeyword(val: unknown): val is ExpressArgKeyword {
 
 function isArgPositional(val: unknown): val is ExpressArgPositional {
   return typeof val === 'object' && val !== null && (val as ExpressArgPositional).type === 'pos';
+}
+
+/**
+ * Reads the text of a `NUMBER` token as a number.
+ *
+ * The token grammar is a JSON number with an optional leading `+` (`42`, `-1`,
+ * `.5`, `1.`, `2.5E+3`), which `Number()` reads as is. Integers beyond
+ * ±(2^53 − 1) lose precision, as they do in JSON.
+ *
+ * @param text The matched token text.
+ * @returns The value of the literal.
+ * @throws {ExpressParseError} When the value is outside the double range (such
+ *   as `1e999`), so that every SDK rejects the same literals.
+ */
+export function parseNumberLiteral(text: string): number {
+  const value = Number(text);
+  if (!Number.isFinite(value)) {
+    throw new ExpressParseError(`Number literal ${text} is out of range.`);
+  }
+  return value;
 }
 
 /**
@@ -278,14 +336,14 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
     return ctx.expression().map(expr => this.visit(expr) as ExpressValue);
   };
 
-  override visitMap = (ctx: MapContext): ExpressMapValue => {
+  override visitMap = (ctx: MapContext): ExpressMapNode => {
     // map : '{' (map_entry (',' map_entry)*)? ','? '}' ;
-    const res: ExpressMapValue = {};
+    const entries: Record<string, ExpressValue> = {};
     for (const entry of ctx.map_entry()) {
       const [k, v] = this.visit(entry) as [string, ExpressValue];
-      res[k] = v;
+      setOwnEntry(entries, k, v);
     }
-    return res;
+    return {kind: 'map', entries};
   };
 
   override visitMap_entry = (ctx: Map_entryContext): [string, ExpressValue] => {
@@ -300,20 +358,20 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
     return [k, v];
   };
 
-  override visitPath = (ctx: PathContext): ExpressPathValue => {
+  override visitPath = (ctx: PathContext): ExpressPathNode => {
     // path : PATH ;
     const text = ctx.PATH()!.getText();
-    return {path: text.slice(1)};
+    return {kind: 'path', path: text.slice(1)};
   };
 
-  override visitCheck = (ctx: CheckContext): ExpressCheckValue => {
+  override visitCheck = (ctx: CheckContext): ExpressCheckNode => {
     // check : CHECK ('(' (expression (',' expression)*)? ','? ')')? ;
     const name = ctx.CHECK()!.getText().slice(1);
     const args: ExpressValue[] = [];
     for (const expr of ctx.expression()) {
       args.push(this.visit(expr) as ExpressValue);
     }
-    return {check: name, args};
+    return {kind: 'check', name, args};
   };
 
   override visitArg = (ctx: ArgContext): ExpressArgIntermediate => {
@@ -335,18 +393,16 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
     return [k, v];
   };
 
-  override visitCall = (ctx: CallContext): ExpressCallValue => {
+  override visitCall = (ctx: CallContext): ExpressCallNode => {
     // call : identifier '(' (arg (',' arg)*)? ','? ')' ;
     const name = ctx.identifier()!.getText();
     const args: ExpressValue[] = [];
     const kwargs: Record<string, ExpressValue> = {};
-    let hasKwargs = false;
 
     for (const argCtx of ctx.arg()) {
       const res = this.visit(argCtx);
       if (isArgKeyword(res)) {
-        kwargs[res.key] = res.value;
-        hasKwargs = true;
+        setOwnEntry(kwargs, res.key, res.value);
       } else if (isArgPositional(res)) {
         args.push(res.value);
       } else {
@@ -355,20 +411,16 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
       }
     }
 
-    const node: ExpressCallValue = {call: name, args};
-    if (hasKwargs) {
-      node.kwargs = kwargs;
-    }
-    return node;
+    return {kind: 'call', name, args, kwargs};
   };
 
-  override visitVariable = (ctx: VariableContext): ExpressVariableValue | ExpressSkippedValue => {
+  override visitVariable = (ctx: VariableContext): ExpressVariableNode | ExpressSkippedNode => {
     // variable : '_' | identifier ;
     if (ctx.identifier()) {
       const name = ctx.identifier()!.getText();
-      return {variable: name};
+      return {kind: 'variable', name};
     }
-    return {skipped: true};
+    return {kind: 'skipped'};
   };
 
   override visitLiteral = (ctx: LiteralContext): ExpressPrimitiveValue => {
@@ -377,8 +429,7 @@ export class ExpressAstVisitor extends ExpressVisitor<unknown> {
       return this.visit(ctx.string()!) as string;
     }
     if (ctx.NUMBER()) {
-      const val = ctx.NUMBER()!.getText();
-      return Number(val);
+      return parseNumberLiteral(ctx.NUMBER()!.getText());
     }
     if (ctx.BOOLEAN()) {
       return ctx.BOOLEAN()!.getText() === 'true';
