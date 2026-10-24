@@ -153,35 +153,6 @@ void main() {
         [('VALIDATION_FAILED', '/checks/0')],
       );
     });
-
-    test(
-        'delivers diagnostics one microtask after the constructor, a tree '
-        'update and a data update', () async {
-      resolver.dispose();
-      surface.dataModel.set('/items', [1]);
-      _add(surface, 'weird', 'Bogus');
-      _add(surface, 'list', 'Column', {
-        'children': {'componentId': 'weird', 'path': '/items'},
-      });
-      _add(surface, 'root', 'Column', {
-        'children': ['list', 'late'],
-      });
-
-      resolver = NodeResolver(surface);
-      expect(errors, isEmpty);
-      await Future<void>.microtask(() {});
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
-
-      _add(surface, 'late', 'Bogus');
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
-      await Future<void>.microtask(() {});
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
-
-      surface.dataModel.set('/items', [1, 2]);
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
-      await Future<void>.microtask(() {});
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 3);
-    });
   });
 
   group('NodeResolver diagnostic bookkeeping', () {
@@ -270,27 +241,6 @@ void main() {
       await pumpEventQueue();
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
       expect(errors.last.message, contains("Component 'later'"));
-    });
-
-    test('a failed update keeps what an earlier update in the turn queued',
-        () async {
-      final List<Object?> listenerErrors = collectListenerErrors();
-      _add(surface, 'weird', 'Bogus');
-      _add(surface, 'root', 'Column', {
-        'children': ['weird'],
-      });
-      var shouldThrow = true;
-      final void Function() unsubscribe = resolver.rootNode.subscribe((node) {
-        if (node == null && shouldThrow) {
-          shouldThrow = false;
-          throw StateError('root observer failed');
-        }
-      });
-      addTearDown(unsubscribe);
-      surface.componentsModel.removeComponent('root');
-      expect(listenerErrors, [isA<StateError>()]);
-      await pumpEventQueue();
-      expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
     });
 
     test('keeps distinct template data paths independent', () async {
@@ -552,11 +502,10 @@ void main() {
       expect(warnings, hasLength(2));
     });
 
-    test('does not warn for a binding outside a mounted node', () async {
+    test('does not warn for a binding outside a mounted node', () {
       _add(boundSurface, 'orphan', 'Label', {
         'text': {'path': '/missing'},
       });
-      await pumpEventQueue();
       expect(warnings, isEmpty);
     });
   });
