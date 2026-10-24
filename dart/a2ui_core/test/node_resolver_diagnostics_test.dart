@@ -92,8 +92,11 @@ void main() {
         });
         await pumpEventQueue();
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        await pumpEventQueue();
         expect(children(), hasLength(2));
+        await pumpEventQueue();
         expect(children()[0], isNot(same(children()[1])));
+        await pumpEventQueue();
         expect(
           children().map((node) => node.state),
           everyElement(NodeState.unknownType),
@@ -189,9 +192,11 @@ void main() {
       _add(surface, 'root', 'Column', {
         'children': ['weird'],
       });
+      await pumpEventQueue();
       expect(listenerErrors, [isA<StateError>()]);
       await pumpEventQueue();
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 0);
+      await pumpEventQueue();
       expect(resolver.activeNodeCount, 2);
       final ComponentModel root = surface.componentsModel.get('root')!;
       root.properties = {'children': <String>[]};
@@ -200,6 +205,7 @@ void main() {
       };
       await pumpEventQueue();
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+      await pumpEventQueue();
       expect(children().single.state, NodeState.unknownType);
       root.properties = {
         'children': ['weird', 'weird'],
@@ -230,6 +236,7 @@ void main() {
       _add(surface, 'root', 'Column', {
         'children': ['known', 'later'],
       });
+      await pumpEventQueue();
       expect(listenerErrors, [isA<StateError>()]);
       final ComponentModel root = surface.componentsModel.get('root')!;
       await pumpEventQueue();
@@ -240,6 +247,7 @@ void main() {
       };
       await pumpEventQueue();
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      await pumpEventQueue();
       expect(errors.last.message, contains("Component 'later'"));
     });
 
@@ -251,6 +259,7 @@ void main() {
       });
       await pumpEventQueue();
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+      await pumpEventQueue();
       expect(children().map((node) => node.dataPath), ['/items/0', '/items/1']);
       surface.dataModel.set('/items', [1, 2, 3]);
       await pumpEventQueue();
@@ -275,6 +284,7 @@ void main() {
         surface.componentsModel.get('other')!.properties = {'child': 'card'};
         await pumpEventQueue();
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
+        await pumpEventQueue();
         expect(reports('CYCLIC_REFERENCE'), 1);
       },
     );
@@ -290,6 +300,7 @@ void main() {
       surface.componentsModel.get('root')!.properties = {
         'children': <String>[],
       };
+      await pumpEventQueue();
       expect(resolver.activeNodeCount, 1);
       surface.componentsModel.get('root')!.properties = {
         'children': ['weird', 'weird', 'weird'],
@@ -326,6 +337,7 @@ void main() {
         surface.componentsModel.get('root')!.properties = {
           'children': ['weird'],
         };
+        await pumpEventQueue();
         expect(children().single.state, NodeState.resolved);
         surface.defaultCatalog!.components.remove('Bogus');
         // Removing and restoring only the edge forces a fresh catalog lookup.
@@ -335,6 +347,7 @@ void main() {
         surface.componentsModel.get('root')!.properties = {
           'children': ['weird'],
         };
+        await pumpEventQueue();
         expect(children().single.state, NodeState.unknownType);
         await pumpEventQueue();
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
@@ -354,7 +367,9 @@ void main() {
         surface.componentsModel.get('root')!.properties = {
           'children': ['root', 'root'],
         };
+        await pumpEventQueue();
         expect(original.disposed, isTrue);
+        await pumpEventQueue();
         expect(
           children().map((node) => node.state),
           everyElement(NodeState.cyclic),
@@ -386,12 +401,14 @@ void main() {
       surface.componentsModel.removeComponent('root');
       await pumpEventQueue();
       expect(reports('CYCLIC_REFERENCE'), 2);
+      await pumpEventQueue();
       expect(children().single.state, NodeState.cyclic);
       surface.componentsModel.get('root')!.properties = {
         'children': ['root', 'root'],
       };
       await pumpEventQueue();
       expect(reports('CYCLIC_REFERENCE'), 2);
+      await pumpEventQueue();
       expect(resolver.activeNodeCount, 3);
     });
 
@@ -414,13 +431,18 @@ void main() {
         surface.componentsModel.removeComponent('weird');
         await pumpEventQueue();
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 2);
+        await pumpEventQueue();
         expect(previous.map((node) => node.disposed), everyElement(isTrue));
+        await pumpEventQueue();
         expect(children().map((node) => node.type), everyElement('OtherBogus'));
+        await pumpEventQueue();
         expect(
           children().map((node) => node.state),
           everyElement(NodeState.unknownType),
         );
+        await pumpEventQueue();
         expect(children().map((node) => node.disposed), everyElement(isFalse));
+        await pumpEventQueue();
         expect(resolver.activeNodeCount, 3);
       },
     );
@@ -491,7 +513,9 @@ void main() {
           ('MISSING_DATA_BINDING', '/other')
         ],
       );
+      await pumpEventQueue();
       expect(warnings.first.surfaceId, 'bound');
+      await pumpEventQueue();
       expect(rootsAtWarning, everyElement(isNotNull));
 
       // Rebuilding a binding to the same missing path does not warn again.
