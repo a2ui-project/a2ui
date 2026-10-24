@@ -6,34 +6,64 @@ See the [video](https://github.com/user-attachments/assets/2a406115-3a17-4bea-80
 
 ## Prerequisites
 
-- [nodejs](https://nodejs.org/en)
+- [Node.js](https://nodejs.org/en)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- Python — see `requires-python` in the agent's [pyproject.toml](../../../agent/adk/restaurant_finder/pyproject.toml)
+- A [Gemini API key](https://aistudio.google.com/apikey) (`GEMINI_API_KEY`)
 
 ## Running
 
-### Run agent
-
-1. **Install and build dependencies:**
-   From the repository root, install dependencies and build all packages:
+1. **Install dependencies:**
+   From the repository root, install dependencies:
 
    ```bash
    yarn install
-   yarn build:all
    ```
 
-2. **Run this sample:**
+2. **Set your Gemini API key:**
+   Either export `GEMINI_API_KEY` in your shell or create a `.env` file in the [Restaurant Finder Agent](../../../agent/adk/restaurant_finder/) directory:
 
    ```bash
-   cd samples/client/lit/shell
+   export GEMINI_API_KEY="your_gemini_api_key_here"
    ```
 
-3. **Run the servers:**
-   - Run the [Restaurant Finder Agent](../../../agent/adk/restaurant_finder/) (Default): `yarn demo:restaurant`
-   - Run the dev server: `yarn dev`
+   Or via `.env`:
+
+   ```bash
+   cp samples/agent/adk/restaurant_finder/.env.example samples/agent/adk/restaurant_finder/.env
+   # Edit samples/agent/adk/restaurant_finder/.env and set GEMINI_API_KEY (do not commit .env)
+   ```
+
+3. **Start the agent and dev server:**
+
+   **Option A — Single command (from `samples/client/lit`):**
+   Builds the Lit renderer and runs both the Lit shell dev server and the Restaurant Finder agent concurrently:
+
+   ```bash
+   cd samples/client/lit
+   yarn demo:restaurant
+   ```
+
+   **Option B — Separate terminals (from `samples/client/lit/shell`):**
+   Build all packages first (`yarn build:all` from the repository root), then run the agent and dev server in two separate terminals from `samples/client/lit/shell`:
+
+   - **Terminal 1 — Run the [Restaurant Finder Agent](../../../agent/adk/restaurant_finder/) (port `10002`):**
+
+     ```bash
+     cd samples/client/lit/shell
+     yarn demo:restaurant
+     ```
+
+   - **Terminal 2 — Run the Vite dev server (port `5173`):**
+
+     ```bash
+     cd samples/client/lit/shell
+     yarn dev
+     ```
 
 ### Open UI
 
-Follow the link in console output of the last command above.
+Open http://localhost:5173 in your browser (or follow the URL printed in the console output).
 
 ## Security Notice
 
