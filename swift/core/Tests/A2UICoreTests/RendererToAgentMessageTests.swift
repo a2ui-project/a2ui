@@ -507,6 +507,47 @@ struct RendererToAgentMessageTests {
     }
   }
 
+  @Test func functionResponsesTreatExplicitNullErrorAsAbsent() throws {
+    let decoder = makeVersionedDecoder(.v10)
+    let valueJSON = Data(#"{"functionCallId": "c1", "value": 1, "error": null}"#.utf8)
+    let rendererValue = try decoder.decode(RendererFunctionResponseMessage.self, from: valueJSON)
+    #expect(rendererValue.value == .number(1))
+    #expect(rendererValue.error == nil)
+    let agentValue = try decoder.decode(AgentFunctionResponseMessage.self, from: valueJSON)
+    #expect(agentValue.value == .number(1))
+    #expect(agentValue.error == nil)
+
+    // A null value is still a value.
+    let nullValueJSON = Data(#"{"functionCallId": "c1", "value": null, "error": null}"#.utf8)
+    let rendererNull = try decoder.decode(
+      RendererFunctionResponseMessage.self, from: nullValueJSON)
+    #expect(rendererNull.value == .null)
+    #expect(rendererNull.error == nil)
+    let agentNull = try decoder.decode(AgentFunctionResponseMessage.self, from: nullValueJSON)
+    #expect(agentNull.value == .null)
+    #expect(agentNull.error == nil)
+
+    // A null error alone carries neither a value nor an error.
+    let nullErrorJSON = Data(#"{"functionCallId": "c1", "error": null}"#.utf8)
+    #expect(throws: DecodingError.self) {
+      try decoder.decode(RendererFunctionResponseMessage.self, from: nullErrorJSON)
+    }
+    #expect(throws: DecodingError.self) {
+      try decoder.decode(AgentFunctionResponseMessage.self, from: nullErrorJSON)
+    }
+
+    // An error with a null value still carries both.
+    let errorAndNullValueJSON = Data(
+      #"{"functionCallId": "c1", "value": null, "error": {"code": "ERR", "message": "fail"}}"#
+        .utf8)
+    #expect(throws: DecodingError.self) {
+      try decoder.decode(RendererFunctionResponseMessage.self, from: errorAndNullValueJSON)
+    }
+    #expect(throws: DecodingError.self) {
+      try decoder.decode(AgentFunctionResponseMessage.self, from: errorAndNullValueJSON)
+    }
+  }
+
   @Test func functionResponsesEncodeExactlyOneOfValueOrError() throws {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .sortedKeys
