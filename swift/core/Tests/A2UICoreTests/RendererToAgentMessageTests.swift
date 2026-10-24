@@ -363,6 +363,39 @@ struct RendererToAgentMessageTests {
     }
   }
 
+  @Test func encodeCallAgentFunctionUsesAtCallWithoutReturnType() throws {
+    let message = RendererToAgentMessage.callAgentFunction(
+      CallAgentFunctionMessage(
+        surfaceID: "main",
+        functionCallID: "call_1",
+        callFunction: CallFunctionPayload(
+          call: "fetchData",
+          catalogID: "custom",
+          args: ["query": .string("weather")],
+          returnType: "string"
+        ),
+        version: .v10
+      )
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+
+    let json = try #require(String(data: try encoder.encode(message), encoding: .utf8))
+
+    #expect(
+      json == """
+        {"callAgentFunction":{"callFunction":{"@call":"fetchData","args":{"query":"weather"},\
+        "catalogId":"custom"},"functionCallId":"call_1","surfaceId":"main"},"version":"v1.0"}
+        """
+    )
+    let decoded = try JSONDecoder().decode(RendererToAgentMessage.self, from: Data(json.utf8))
+    guard case .callAgentFunction(let call) = decoded else {
+      Issue.record("Expected .callAgentFunction")
+      return
+    }
+    #expect(call.callFunction.call == "fetchData")
+  }
+
   @Test func decodeRendererFunctionResponse() throws {
     let json = try #require(
       """

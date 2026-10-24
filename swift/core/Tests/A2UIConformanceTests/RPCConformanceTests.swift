@@ -176,22 +176,44 @@ struct RPCConformanceTests {
       {
         let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
         let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
-        let call = outboundCall["callFunction"]?["call"]?.stringValue ?? ""
-        let catID = outboundCall["callFunction"]?["catalogId"]?.stringValue
-
-        let callTask = Task {
-          try await rpcHandler.callAgentFunction(
-            surfaceID: surfaceID,
-            functionName: call,
-            catalogID: catID,
-            functionCallID: fnCallID,
-            version: .v10,
-            timeoutSeconds: 5.0,
-            sendOutbound: { _ in }
-          )
+        let expectedCallFunction = try #require(outboundCall["callFunction"]?.objectValue)
+        let call = try #require(expectedCallFunction["@call"]?.stringValue)
+        let catID = expectedCallFunction["catalogId"]?.stringValue
+        let args: [String: JSONValue]? = expectedCallFunction["args"]?.objectValue.map {
+          Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
         }
 
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // `callAgentFunction` registers the pending call before it sends the outbound
+        // message, so once the message arrives the response can be routed.
+        var callTask: Task<JSONValue, any Error>!
+        let outbound = await withCheckedContinuation { continuation in
+          callTask = Task {
+            try await rpcHandler.callAgentFunction(
+              surfaceID: surfaceID,
+              functionName: call,
+              catalogID: catID,
+              functionCallID: fnCallID,
+              args: args,
+              version: .v10,
+              timeoutSeconds: 5.0,
+              sendOutbound: { continuation.resume(returning: $0) }
+            )
+          }
+        }
+
+        // The outbound message must be the v1.0 callAgentFunction the case describes.
+        let outboundJSON = try JSONDecoder().decode(
+          JSONValue.self, from: JSONEncoder().encode(outbound))
+        let sentCall = try #require(outboundJSON["callAgentFunction"])
+        #expect(sentCall["surfaceId"]?.stringValue == surfaceID)
+        #expect(
+          sentCall["functionCallId"]?.stringValue
+            == testCase.expect?["correlatedCallId"]?.stringValue)
+        let sentCallFunction = try #require(sentCall["callFunction"]?.objectValue)
+        #expect(Set(sentCallFunction.keys) == Set(expectedCallFunction.keys))
+        for (key, value) in expectedCallFunction {
+          #expect(sentCallFunction[key] == value, "callFunction.\(key)")
+        }
 
         // Parse inbound response and route
         let respData = try JSONEncoder().encode(inboundResponse)
