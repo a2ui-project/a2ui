@@ -38,11 +38,6 @@ import threading
 import traceback
 from typing import Any, IO
 
-from a2ui.core import (
-    MessageProcessor,
-    MessageProcessorOptions,
-    STRICT_VALIDATION,
-)
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats import (
     AtomFormat,
@@ -50,8 +45,9 @@ from a2ui.inference_formats import (
     ElementalFormat,
     ExpressFormat,
     to_message_dicts,
+    to_message_models,
 )
-from a2ui.parser import A2uiPart, TextPart
+from a2ui.parser import A2uiPart, Parser, RawA2uiPart, ResponsePart, TextPart
 from a2ui.processor import CatalogConfig
 
 from .base import DEFAULT_PARSE_TIMEOUT_SEC, AgentSdkBridge, validate_sdk_format
@@ -100,8 +96,9 @@ def parse_and_validate_in_process(
 ) -> dict[str, Any]:
     """Parses an LLM response in the current Python process.
 
-    When `validate` is True, the compiled messages are also run through a strict
-    `MessageProcessor`.
+    When `validate` is True, the parser checks the messages against a new
+    renderer state, so they must form complete surfaces. Otherwise the blocks
+    are only compiled.
     """
     catalog_config = CatalogConfig.from_path(
         resolved_catalog_path, protocol_version=version
@@ -112,7 +109,6 @@ def parse_and_validate_in_process(
         catalog_config,
         surface_id=surface_id,
     )
-    catalogs = getattr(strategy, "catalogs", [catalog_config.transformed_catalog])
     parser = strategy.create_parser()
 
     if require_complete_tags and not parser.has_format_content(
@@ -124,7 +120,9 @@ def parse_and_validate_in_process(
             )
         raise ValueError("A2UI tags '<a2ui>' and '</a2ui>' not found in response.")
 
-    parts = parser.parse_response(completion)
+    parts = (
+        parser.parse_response(completion) if validate else _compile(parser, completion)
+    )
     compiled_jsons: list[dict[str, Any]] = []
     serialized_parts: list[dict[str, Any]] = []
     for p in parts:
@@ -142,12 +140,19 @@ def parse_and_validate_in_process(
             f"No compiled A2UI {format_name} user interface found in parsed parts."
         )
 
-    if validate:
-        MessageProcessor(
-            list(catalogs),
-            options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-        ).process_messages(compiled_jsons)
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
+
+
+def _compile(parser: Parser, completion: str) -> list[ResponsePart]:
+    """Splits a response and compiles its blocks without checking them."""
+    parts: list[ResponsePart] = []
+    for raw in parser.unwrap(completion):
+        if isinstance(raw.part, TextPart):
+            parts.append(raw.part)
+        elif isinstance(raw.part, RawA2uiPart):
+            messages = parser.compile(raw.part.a2ui_raw, is_final=raw.is_final)
+            parts.append(A2uiPart(a2ui=to_message_models(messages)))
+    return parts
 
 
 def _worker_main() -> None:

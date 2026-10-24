@@ -206,6 +206,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['core_syntax', 'the Express inference format is implemented in the agent SDK'],
   ['from_catalog', 'the Express inference format is implemented in the agent SDK'],
   ['skill_set', 'skill generation is implemented in the agent SDK'],
+  ['export_to_directory', 'skill generation is implemented in the agent SDK'],
   ['process_chunk', 'web_core has no streaming inference parser'],
   ['parse_full', 'web_core has no inference-format parser'],
   ['fix_payload', 'web_core has no payload fixer'],
