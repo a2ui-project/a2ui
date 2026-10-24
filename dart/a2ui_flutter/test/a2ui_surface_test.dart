@@ -156,7 +156,7 @@ void main() {
 }
 
 /// A host that counts its surface's errors and defers the resulting
-/// `setState`, since an error can arrive while the surface builds.
+/// `setState` to the end of the next frame.
 class _ErrorCountingHost extends StatefulWidget {
   const _ErrorCountingHost(this.surface);
 
