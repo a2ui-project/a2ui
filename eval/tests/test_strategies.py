@@ -901,4 +901,3 @@ async def test_compile_express_with_real_python_runner() -> None:
 def test_format_solver_chain_length(format_name: str) -> None:
     assert len(format_solver(format_name, "1.0")) == 3
     assert len(format_solver(format_name, "1.0", max_validation_retries=1)) == 3
-
