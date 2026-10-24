@@ -412,8 +412,10 @@ void processorContractTests() {
           },
         ]);
 
+        await pumpEventQueue();
         expect(fixture.surface.componentsModel.all, isNotEmpty);
         final ComponentNode root = fixture.resolver.rootNode.value!;
+        await pumpEventQueue();
         expect(child(root, 'children', 0).state, state);
         await pumpEventQueue();
         expect(
@@ -619,6 +621,7 @@ void unresolvedReferenceTests() {
       add(first.surface, 'root', 'Nested', payload);
       await pumpEventQueue();
       expect(warnings, hasLength(1));
+      await pumpEventQueue();
       expect(warnings.single.message, contains('groups[].children'));
       first.surface.componentsModel.get('root')!.properties = payload;
       first.surface.componentsModel.get('root')!.properties = {
@@ -632,6 +635,7 @@ void unresolvedReferenceTests() {
       };
       await pumpEventQueue();
       expect(warnings, hasLength(2));
+      await pumpEventQueue();
       expect(warnings.last.message, contains('otherGroups[].children'));
 
       final TestSetup second = nestedSetup();
@@ -675,8 +679,11 @@ void unresolvedReferenceTests() {
       });
       await pumpEventQueue();
       expect(warnings, 1);
+      await pumpEventQueue();
       expect(fixture.resolver.disposed, isTrue);
+      await pumpEventQueue();
       expect(fixture.resolver.activeNodeCount, 0);
+      await pumpEventQueue();
       expect(fixture.resolver.rootNode.value, isNull);
     });
   });
@@ -1053,15 +1060,18 @@ void materializationFailureTests() {
       });
       final ComponentNode root = fixture.resolver.rootNode.value!;
       final ComponentNode first = child(root, 'children', 0);
+      await pumpEventQueue();
       expect(first.state, NodeState.cyclic);
       await pumpEventQueue();
       expect(errors, ['CYCLIC_REFERENCE']);
+      await pumpEventQueue();
       expect(fixture.resolver.activeNodeCount, 2);
 
       fixture.surface.componentsModel.get('root')!.properties = {
         'children': ['root', 'root', 'leaf'],
       };
       expectSwallowed(listenerErrors, isA<TypeError>());
+      await pumpEventQueue();
       expect(fixture.resolver.activeNodeCount, 2);
       await pumpEventQueue();
       expect(errors, ['CYCLIC_REFERENCE']);
@@ -1069,8 +1079,11 @@ void materializationFailureTests() {
       fixture.surface.componentsModel.get('root')!.properties = {
         'children': ['root', 'root'],
       };
+      await pumpEventQueue();
       expect(identical(child(root, 'children', 0), first), isTrue);
+      await pumpEventQueue();
       expect(child(root, 'children', 1).state, NodeState.cyclic);
+      await pumpEventQueue();
       expect(fixture.resolver.activeNodeCount, 3);
       await pumpEventQueue();
       expect(
@@ -2089,11 +2102,15 @@ void main() {
       final ComponentNode a = child(root, 'child');
       final ComponentNode b = child(a, 'child');
       final ComponentNode backReference = child(b, 'child');
+      await pumpEventQueue();
       expect(backReference.type, placeholderType);
+      await pumpEventQueue();
       expect(backReference.state, NodeState.cyclic);
+      await pumpEventQueue();
       expect(backReference.componentId, 'a');
       await pumpEventQueue();
       expect(errors.any((e) => e.code == 'CYCLIC_REFERENCE'), isTrue);
+      await pumpEventQueue();
       expect(resolver.activeNodeCount, lessThanOrEqualTo(5));
       resolver.dispose();
     });
@@ -2113,11 +2130,15 @@ void main() {
       });
 
       final ComponentNode root = resolver.rootNode.value!;
+      await pumpEventQueue();
       expect(bound(root, 'text'), isNull);
       await pumpEventQueue();
       expect(errors, hasLength(1));
+      await pumpEventQueue();
       expect(errors[0].code, 'EXPRESSION_ERROR');
+      await pumpEventQueue();
       expect(errors[0].surfaceId, 'surf-1');
+      await pumpEventQueue();
       expect(errors[0].message, contains('Function not found'));
       resolver.dispose();
     });
@@ -2172,7 +2193,9 @@ void main() {
       add(surface, 'root', 'Card', {'child': 'late'});
       final ComponentNode root = resolver.rootNode.value!;
       final ComponentNode pendingNode = child(root, 'child');
+      await pumpEventQueue();
       expect(pendingNode.state, NodeState.pending);
+      await pumpEventQueue();
       expect(pendingNode.type, placeholderType);
       await pumpEventQueue();
       expect(errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE'), isEmpty);
@@ -2180,11 +2203,17 @@ void main() {
       add(surface, 'late', 'Bogus', {});
 
       final ComponentNode unknown = child(root, 'child');
+      await pumpEventQueue();
       expect(identical(unknown, pendingNode), isFalse);
+      await pumpEventQueue();
       expect(pendingNode.disposed, isTrue);
+      await pumpEventQueue();
       expect(unknown.type, 'Bogus');
+      await pumpEventQueue();
       expect(unknown.state, NodeState.unknownType);
+      await pumpEventQueue();
       expect(unknown.isPlaceholder, isTrue);
+      await pumpEventQueue();
       expect(unknown.toJson(), {
         'id': 'late',
         'type': 'Bogus',
@@ -2197,6 +2226,7 @@ void main() {
       );
 
       surface.componentsModel.get('root')!.properties = {'child': 'late'};
+      await pumpEventQueue();
       expect(identical(child(root, 'child'), unknown), isTrue);
       await pumpEventQueue();
       expect(
