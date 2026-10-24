@@ -67,6 +67,23 @@ describe('ExpressCompiler', () => {
       ]);
     });
 
+    it('advances a positional numeric argument to the next numeric property', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(compiler.compile('-- SQL comment\nroot = Column([t], 2)\nt = Text("Hello")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            components: [
+              {id: 'root', component: 'Column', children: ['t'], weight: 2},
+              {id: 't', component: 'Text', text: 'Hello'},
+            ],
+          },
+        },
+      ]);
+    });
+
     it('compiles a Card whose child is declared on its own line', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('root = Card(t)\nt = Text("Card body")')).toEqual([
@@ -331,6 +348,69 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(() => compiler.compile('root = Text(', 'default_surface', false)).toThrow(
         ExpressUndefinedRootError,
       );
+    });
+  });
+
+  describe('Map literals', () => {
+    const literalMapCatalog = loadConformanceCatalog('literal_map_catalog_v1_0.json');
+
+    it('keeps a __proto__ key as data without changing the prototype', () => {
+      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('root = Probe({"__proto__": {polluted: true}, count: 6})'),
+      ) as Array<{payload: Record<string, unknown>}>;
+
+      expect(Object.getPrototypeOf(root.payload)).toBe(Object.prototype);
+      expect(Object.keys(root.payload)).toEqual(['__proto__', 'count']);
+      expect(Object.getOwnPropertyDescriptor(root.payload, '__proto__')?.value).toEqual({
+        polluted: true,
+      });
+      expect((root.payload as {polluted?: unknown}).polluted).toBeUndefined();
+      expect(({} as {polluted?: unknown}).polluted).toBeUndefined();
+    });
+
+    it('keeps a __proto__ key in an Event context as data', () => {
+      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('root = Probe({e: Event("go", {"__proto__": {polluted: true}, n: 1})})'),
+      ) as Array<{payload: {e: {event: {context: Record<string, unknown>}}}}>;
+      const context = root.payload.e.event.context;
+
+      expect(Object.getPrototypeOf(context)).toBe(Object.prototype);
+      expect(Object.keys(context)).toEqual(['__proto__', 'n']);
+      expect((context as {polluted?: unknown}).polluted).toBeUndefined();
+    });
+
+    it('rejects a __proto__ keyword argument as an unknown property', () => {
+      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      expect(() => compiler.compile('root = Probe(payload={a: 1}, __proto__={b: 2})')).toThrow(
+        ExpressUnknownPropertyError,
+      );
+    });
+
+    it('keeps a variable named __proto__ as a variable without changing the prototype', () => {
+      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('__proto__ = {a: 1}\nroot = Probe(__proto__)'),
+      ) as Array<{payload: Record<string, unknown>}>;
+
+      expect(root.payload).toEqual({a: 1});
+    });
+
+    it('does not resolve a name inherited from Object.prototype as a variable', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(createSurfaceComponents(compiler.compile('root = Text(toString)'))).toEqual([
+        {id: 'root', component: 'Text', text: 'toString'},
+      ]);
+    });
+
+    it('does not bind checks to a map literal shaped like a data binding', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('root = TextField("L", {"@path": "/x"}, ?required)'),
+      ) as Array<{checks: Array<{condition: {args: Record<string, unknown>}}>}>;
+
+      expect(root.checks[0].condition.args).toEqual({});
     });
   });
 
@@ -631,7 +711,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = compiler.compile(
         'surface("s1", sendDataModel=true)\n' +
           'root = Card(child_var)\n' +
-          'child_var = Text("Hello", id="custom-child-id")\n' +
+          'child_var = Text("Hello", id="true")\n' +
           'surface("s1", update=true)\n' +
           'root = Text("Updated root")\n' +
           'openUrl("https://example.com", functionCallId="custom-call-1")\n' +
@@ -645,8 +725,8 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
             catalogId: simplifiedCatalog.id,
             sendDataModel: true,
             components: [
-              {id: 'root', component: 'Card', child: 'custom-child-id'},
-              {id: 'custom-child-id', component: 'Text', text: 'Hello'},
+              {id: 'root', component: 'Card', child: 'true'},
+              {id: 'true', component: 'Text', text: 'Hello'},
             ],
           },
         },
@@ -675,6 +755,9 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           },
         },
       ]);
+      expect(() =>
+        compiler.compile('root = Card(child_var)\nchild_var = Text("Hello", id="custom-child-id")'),
+      ).toThrow("Component id 'custom-child-id' on 'Text' is not a valid UAX 31 identifier.");
     });
 
     it('determines createSurface vs updateComponents from compiled component id="root"', () => {

@@ -123,7 +123,23 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 /**
  * Transition skip list containing specific test case names to skip.
  */
-const SKIP_TEST_NAMES = new Set();
+const SKIP_TEST_NAMES = new Set([
+  // Skipped until web_core implements problem reporting.
+  'T1_resolve_defers_delivery',
+  'T2_dispose_defers_delivery',
+  'T3_data_write_and_action_defer_delivery',
+  'T4_update_then_delete_delivers_before_return',
+  'T5_nested_process_messages_in_listener_delivers_after_return',
+  'T6_throwing_listener_does_not_stop_next_item',
+  'T7_catalog_function_process_messages_during_resolve_defers',
+  'T8_resolve_and_dispose_at_once_delivers',
+  'T9_listener_disposing_resolver_gets_remaining_items',
+  'T10_errors_and_warnings_arrive_in_discovery_order',
+  'X1_delete_surface_before_delivery_drops_evaluation_items',
+  'X3_standalone_surface_moves_pending_items_on_add_surface',
+  'X4_unheard_error_logged_and_unheard_warning_not_printed',
+  'L1_unmounted_surface_evaluates_no_function',
+]);
 
 /**
  * Cases that web_core's behaviour does not satisfy, keyed by suite path and
@@ -206,10 +222,12 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['core_syntax', 'the Express inference format is implemented in the agent SDK'],
   ['from_catalog', 'the Express inference format is implemented in the agent SDK'],
   ['skill_set', 'skill generation is implemented in the agent SDK'],
+  ['export_to_directory', 'skill generation is implemented in the agent SDK'],
   ['process_chunk', 'web_core has no streaming inference parser'],
   ['parse_full', 'web_core has no inference-format parser'],
   ['fix_payload', 'web_core has no payload fixer'],
   ['has_parts', 'web_core has no inference-format parser'],
+  ['has_format_content', 'web_core has no inference-format parser'],
   ['generate_prompt', 'web_core has no prompt generator'],
   ['load_catalog', 'these cases exercise A2uiSchemaManager, which is agent-side only'],
   ['compile', 'web_core has no inference-format compiler'],

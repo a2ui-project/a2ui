@@ -14,6 +14,8 @@
 
 import 'dart:async';
 
+import 'package:meta/meta.dart';
+
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/semver.dart';
@@ -22,6 +24,7 @@ import 'common.dart';
 import 'component_model.dart';
 import 'data_model.dart';
 import 'messages.dart';
+import 'problem_channel.dart';
 
 /// A non-fatal condition on a surface, emitted on [SurfaceModel.onWarning].
 class A2uiWarning {
@@ -97,17 +100,27 @@ class SurfaceModel<T extends ComponentApi> {
   final AgentFunctionCaller? callAgentFunction;
 
   final _onAction = EventNotifier<A2uiRendererAction>();
-  final _onError = EventNotifier<A2uiRendererError>();
-  final _onWarning = EventNotifier<A2uiWarning>();
+  final _problems = SurfaceProblems();
 
   /// Fires whenever an action is dispatched from this surface.
   EventSource<A2uiRendererAction> get onAction => _onAction;
 
   /// Fires whenever an error occurs on this surface.
-  EventSource<A2uiRendererError> get onError => _onError;
+  ///
+  /// Errors arrive in the order they were dispatched, at the end of the
+  /// `MessageProcessor` message that found them, or a microtask after the
+  /// [dispatchError] call that queued them.
+  EventSource<A2uiRendererError> get onError => _problems.onError;
 
   /// Fires whenever a non-fatal warning occurs on this surface.
-  EventSource<A2uiWarning> get onWarning => _onWarning;
+  ///
+  /// Warnings arrive in the same order and at the same moments as [onError]
+  /// errors, interleaved with them.
+  EventSource<A2uiWarning> get onWarning => _problems.onWarning;
+
+  /// Fires after this surface's errors and warnings have been handed to their
+  /// listeners, once per delivery that included any of them.
+  EventSource<void> get onReportsDelivered => _problems.onReportsDelivered;
 
   /// Creates a surface whose items resolve against [defaultCatalog] or, when
   /// they name one, against a catalog in [availableCatalogs].
@@ -284,14 +297,19 @@ class SurfaceModel<T extends ComponentApi> {
     // dispatched here.
   }
 
-  /// Dispatches an error from this surface.
+  /// Queues [error] for [onError] and completes once it is queued.
+  ///
+  /// Does nothing after [dispose].
   Future<void> dispatchError(A2uiRendererError error) async {
-    _onError.emit(error);
+    _problems.dispatchError(error);
   }
 
-  /// Emits [warning] on [onWarning], stamped with this surface's id.
+  /// Queues [warning] for [onWarning], stamped with this surface's id, and
+  /// completes once it is queued.
+  ///
+  /// Does nothing after [dispose].
   Future<void> dispatchWarning(A2uiWarning warning) async {
-    _onWarning.emit(
+    _problems.dispatchWarning(
       A2uiWarning(
         code: warning.code,
         message: warning.message,
@@ -301,15 +319,21 @@ class SurfaceModel<T extends ComponentApi> {
     );
   }
 
-  /// Disposes of the surface and its resources.
+  /// Disposes of the surface and its resources, dropping the errors and
+  /// warnings it has queued but not delivered.
   void dispose() {
     dataModel.dispose();
     componentsModel.dispose();
     _onAction.dispose();
-    _onError.dispose();
-    _onWarning.dispose();
+    _problems.dispose();
   }
 }
+
+/// Makes [surface] queue its errors and warnings into [channel], moving the
+/// ones it has not delivered there in order.
+@internal
+void attachProblemChannel(SurfaceModel surface, ProblemChannel channel) =>
+    surface._problems.attach(channel);
 
 /// Copies maps and lists, so an action listener cannot reach the component or
 /// data model the payload was resolved from.

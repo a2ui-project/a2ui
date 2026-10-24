@@ -147,6 +147,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(s)));
       expect(tester.takeException(), isNull);
       await tester.pump();
+      await tester.pump();
 
       expect(find.text('errors: 1'), findsOneWidget);
       expect(find.text('Unknown component type "Bogus"'), findsOneWidget);
@@ -155,7 +156,7 @@ void main() {
 }
 
 /// A host that counts its surface's errors and defers the resulting
-/// `setState`, since an error can arrive while the surface builds.
+/// `setState` to the end of the next frame.
 class _ErrorCountingHost extends StatefulWidget {
   const _ErrorCountingHost(this.surface);
 

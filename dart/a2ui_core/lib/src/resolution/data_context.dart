@@ -20,6 +20,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/data_model.dart';
+import '../core/problem_channel.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
@@ -704,7 +705,9 @@ class DataContext {
       );
     }
     final String? catalogId = atLeastV10 ? call.catalogId : null;
-    if (catalogId == null) return _invoke(name, args, this);
+    if (catalogId == null) {
+      return ProblemChannel.guardResolution(() => _invoke(name, args, this));
+    }
     final CatalogInvokerResolver? invokerForCatalog = _invokerForCatalog;
     if (invokerForCatalog == null) {
       throw A2uiCatalogResolutionError(
@@ -714,7 +717,9 @@ class DataContext {
         functionName: name,
       );
     }
-    return invokerForCatalog(catalogId)(name, args, this);
+    return ProblemChannel.guardResolution(
+      () => invokerForCatalog(catalogId)(name, args, this),
+    );
   }
 
   /// The agent caller, when this context may fall back to it: only from

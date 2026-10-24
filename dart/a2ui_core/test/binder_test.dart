@@ -570,7 +570,8 @@ void main() {
       customSurface.dispose();
     });
 
-    test('reports validation error for non-map rule entries in checks', () {
+    test('reports validation error for non-map rule entries in checks',
+        () async {
       final errors = <A2uiRendererError>[];
       surface.onError.subscribe(errors.add);
       surface.dataModel.set('/valid', false);
@@ -590,6 +591,7 @@ void main() {
 
       final context = ComponentContext(surface, comp);
       final binder = GenericBinder(context, TestTextFieldApi().schema);
+      await Future<void>.delayed(Duration.zero);
 
       expect(errors, hasLength(2));
       expect(errors[0].code, 'VALIDATION_FAILED');

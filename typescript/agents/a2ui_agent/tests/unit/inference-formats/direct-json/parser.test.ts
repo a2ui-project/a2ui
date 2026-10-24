@@ -15,15 +15,25 @@
  */
 
 import {describe, it, expect} from 'vitest';
-import {DirectJsonParser} from '../../../../src/inference-formats/direct-json/parser.js';
-import {DirectJsonStreamProcessorImpl} from '../../../../src/inference-formats/direct-json/streaming.js';
-import {DirectJsonFormatFactory} from '../../../../src/inference-formats/direct-json/format.js';
+
 import {Catalog} from '../../../../src/internal/web-core.js';
+import {
+  A2uiCatalogError,
+  A2uiValidationError,
+  DirectJsonFormat,
+  DirectJsonFormatFactory,
+  DirectJsonParser,
+  ParseError,
+} from '../../../../src/index.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {ParseError, A2uiCatalogError, A2uiValidationError} from '../../../../src/errors.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
 const customCatalogV10 = new Catalog('https://a2ui.org/catalogs/custom', 'v1.0', [], []);
+
+/** Compiles one block and checks its messages against a new renderer state. */
+function check(parser: DirectJsonParser, payload: string): unknown {
+  return parser.parseResponse(payload, {wrapped: false});
+}
 
 describe('DirectJsonParser', () => {
   it('hasFormatContent requires a closed block only when complete is set', () => {
@@ -51,17 +61,16 @@ describe('DirectJsonParser', () => {
     expect(parts[2]).toEqual({type: 'text', text: 'Text after', isFinal: true});
   });
 
-  it('unwraps an unterminated block as not final', () => {
+  it('unwraps a block still open at the end as a block that is not final', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\n<a2ui-json>\n[{"action": "test"}]';
-    const parts = parser.unwrap(content);
-    expect(parts).toEqual([
+    expect(parser.unwrap(content)).toEqual([
       {type: 'text', text: 'Text before', isFinal: true},
       {type: 'a2ui', a2uiRaw: '[{"action": "test"}]', isFinal: false},
     ]);
   });
 
-  it('throws ParseError on empty JSON part', () => {
+  it('unwraps an empty block as an empty raw part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\n<a2ui-json>\n</a2ui-json>';
     expect(parser.unwrap(content)).toEqual([
@@ -69,23 +78,24 @@ describe('DirectJsonParser', () => {
       {type: 'a2ui', a2uiRaw: '', isFinal: true},
     ]);
     expect(() => parser.parseResponse(content)).toThrow(ParseError);
-    expect(() => parser.compile('')).toThrow(ParseError);
   });
 
-  it('unwraps conversational text without tags to a single text part', () => {
+  it('unwraps a response without tags as one text part', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     const content = 'Text before\nNo tags here';
-    expect(parser.unwrap(content)).toEqual([
-      {type: 'text', text: 'Text before\nNo tags here', isFinal: true},
-    ]);
-    expect(parser.parseResponse(content)).toEqual([
-      {type: 'text', text: 'Text before\nNo tags here'},
-    ]);
+    expect(parser.unwrap(content)).toEqual([{type: 'text', text: content, isFinal: true}]);
+    expect(parser.parseResponse(content)).toEqual([{type: 'text', text: content}]);
   });
 
-  it('unwraps empty content to an empty array', () => {
+  it('unwraps an empty response as no parts', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
     expect(parser.unwrap('')).toEqual([]);
+  });
+
+  it('throws ParseError on an empty block or one that is not JSON', () => {
+    const parser = new DirectJsonParser([basicCatalogV10]);
+    expect(() => parser.compile('')).toThrow(ParseError);
+    expect(() => parser.compile('not json')).toThrow(ParseError);
   });
 
   it('compiles raw format content', () => {
@@ -105,20 +115,17 @@ describe('DirectJsonParser', () => {
     ]);
   });
 
-  it('parseChunk throws without a stream processor', () => {
-    const parser = new DirectJsonParser([basicCatalogV10]);
-    expect(() => parser.parseChunk('<a2ui-json>')).toThrow(
-      'DirectJsonParser was constructed without a stream processor, so streaming is unavailable.',
-    );
+  it('supports streaming', () => {
+    expect(new DirectJsonParser([basicCatalogV10]).supportsStreaming).toBe(true);
   });
 
-  it('supportsStreaming is false without a stream processor and true with one', () => {
-    const parserWithout = new DirectJsonParser([basicCatalogV10]);
-    expect(parserWithout.supportsStreaming).toBe(false);
-
-    const streamProcessor = new DirectJsonStreamProcessorImpl([basicCatalogV10]);
-    const parserWith = new DirectJsonParser([basicCatalogV10], streamProcessor);
-    expect(parserWith.supportsStreaming).toBe(true);
+  it('gives the format its progressive keys', () => {
+    const format = new DirectJsonFormat([basicCatalogV10], undefined, {progressiveKeys: ['label']});
+    expect([...format.createParser().progressiveKeys]).toEqual(['label']);
+    expect([...new DirectJsonFormat([basicCatalogV10]).createParser().progressiveKeys]).toEqual([
+      'text',
+    ]);
+    expect([...new DirectJsonParser([basicCatalogV10]).progressiveKeys]).toEqual([]);
   });
 
   it('DirectJsonFormatFactory creates format with supportsStreaming true', () => {
@@ -162,9 +169,9 @@ describe('DirectJsonParser', () => {
           new Catalog('https://a2ui.org/catalogs/custom', version, [], []),
         ];
         expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
-        const formatParser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
-        expect(formatParser).toBeInstanceOf(DirectJsonParser);
-        expect((formatParser as DirectJsonParser).catalogs).toEqual(catalogs);
+        expect(
+          new DirectJsonFormatFactory().createFormat(catalogs).createParser().catalogs,
+        ).toEqual(catalogs);
       },
     );
 
@@ -174,50 +181,53 @@ describe('DirectJsonParser', () => {
         new Catalog('https://a2ui.org/catalogs/custom', 'v0.9.1', [], []),
       ];
       expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
-      const formatParser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
-      expect(formatParser).toBeInstanceOf(DirectJsonParser);
-      expect((formatParser as DirectJsonParser).catalogs).toEqual(catalogs);
+      expect(new DirectJsonFormatFactory().createFormat(catalogs).createParser().catalogs).toEqual(
+        catalogs,
+      );
     });
 
     it('throws A2uiValidationError on missing version', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
-      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(/Message 0 states no version/);
+      expect(() => check(parser, payload)).toThrow(A2uiValidationError);
+      expect(() => check(parser, payload)).toThrow(/Message 0 states no version/);
     });
 
     it('throws A2uiValidationError on mismatched version', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"version": "v0.9", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
-      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(/Message 0 states version 'v0\.9'/);
+      expect(() => check(parser, payload)).toThrow(A2uiValidationError);
+      expect(() => check(parser, payload)).toThrow(/Message 0 states version 'v0\.9'/);
     });
 
     it('throws A2uiValidationError on unknown component', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "1", "components": [{"id": "root", "component": "UnknownWidget"}]}}]`;
-      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(/UnknownWidget/);
+      expect(() => check(parser, payload)).toThrow(A2uiValidationError);
+      expect(() => check(parser, payload)).toThrow(/UnknownWidget/);
     });
 
     it('throws A2uiValidationError on unknown component property', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "1", "components": [{"id": "root", "component": "Text", "text": "hello", "unknownProp": 1}]}}]`;
-      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(/unknownProp/);
+      expect(() => check(parser, payload)).toThrow(A2uiValidationError);
+      expect(() => check(parser, payload)).toThrow(/unknownProp/);
     });
 
     it('throws A2uiValidationError on unknown catalogId', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "unknown-catalog"}}]`;
-      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
-      expect(() => parser.compile(payload)).toThrow(/unknown-catalog/);
+      expect(() => check(parser, payload)).toThrow(A2uiValidationError);
+      expect(() => check(parser, payload)).toThrow(/unknown-catalog/);
     });
 
-    it('compile(raw, false) skips schema validation', () => {
+    it('compile only translates the block', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "unknown"}}]`;
-      expect(() => parser.compile(payload, false)).not.toThrow();
+      expect(parser.compile(payload)).toEqual([
+        {version: '1.0', createSurface: {surfaceId: '1', catalogId: 'unknown'}},
+      ]);
+      expect(() => check(parser, payload)).toThrow(A2uiValidationError);
     });
   });
 });

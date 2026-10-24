@@ -29,14 +29,14 @@ export 'src/core/component_model.dart';
 export 'src/core/data_model.dart';
 export 'src/core/messages.dart';
 export 'src/core/renderer_capabilities.dart';
-export 'src/core/surface_group_model.dart';
-export 'src/core/surface_model.dart';
+export 'src/core/surface_group_model.dart' hide runInMessageScope;
+export 'src/core/surface_model.dart' hide attachProblemChannel;
 export 'src/core/validation_result.dart';
 export 'src/expressions/expression_parser.dart';
 export 'src/primitives/cancellation.dart';
 export 'src/primitives/errors.dart';
 // Event notifications for discrete lifecycle events.
-export 'src/primitives/event_notifier.dart';
+export 'src/primitives/event_notifier.dart' hide listenersOf;
 // Protocol versions and version compatibility.
 export 'src/primitives/protocol_version.dart';
 // Reactivity (re-exports preact_signals primitives).

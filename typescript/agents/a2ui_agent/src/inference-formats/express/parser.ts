@@ -86,7 +86,7 @@ export class ExpressParser extends Parser {
       A2UI_INFERENCE_OPEN_TAG,
       A2UI_INFERENCE_CLOSE_TAG,
       new Set(["'", '"']),
-      new Set(['#']),
+      new Set(['#', '//', '--']),
     );
     this.decompiler = new ExpressDecompiler(this.catalogs, this.version);
   }

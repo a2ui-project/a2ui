@@ -644,7 +644,7 @@ void unresolvedReferenceTests() {
       expect(warnings, isEmpty);
     });
 
-    test('warning listeners see the published root and may dispose it', () {
+    test('warning listeners may dispose the resolver while it resolves', () {
       final TestSetup fixture = nestedSetup();
       var warnings = 0;
       final StreamSubscription<LogRecord> subscription =
@@ -654,8 +654,6 @@ void unresolvedReferenceTests() {
           return;
         }
         warnings++;
-        expect(fixture.resolver.rootNode.value, isNotNull);
-        expect(fixture.resolver.activeNodeCount, 1);
         fixture.resolver.dispose();
       });
       addTearDown(subscription.cancel);
@@ -1035,7 +1033,7 @@ void materializationFailureTests() {
 
     test(
         'disposing an aborted cyclic sibling keeps the retained '
-        "placeholder's diagnostic reservation", () {
+        "placeholder's diagnostic reservation", () async {
       final TestSetup fixture = setupWithPoisonedLeaf();
       final List<LogRecord> listenerErrors = collectListenerErrors();
       final errors = <String>[];
@@ -1046,6 +1044,7 @@ void materializationFailureTests() {
       final ComponentNode root = fixture.resolver.rootNode.value!;
       final ComponentNode first = child(root, 'children', 0);
       expect(first.state, NodeState.cyclic);
+      await Future<void>.delayed(Duration.zero);
       expect(errors, ['CYCLIC_REFERENCE']);
       expect(fixture.resolver.activeNodeCount, 2);
 
@@ -1054,6 +1053,7 @@ void materializationFailureTests() {
       };
       expectSwallowed(listenerErrors, isA<TypeError>());
       expect(fixture.resolver.activeNodeCount, 2);
+      await Future<void>.delayed(Duration.zero);
       expect(errors, ['CYCLIC_REFERENCE']);
 
       fixture.surface.componentsModel.get('root')!.properties = {
@@ -1062,6 +1062,7 @@ void materializationFailureTests() {
       expect(identical(child(root, 'children', 0), first), isTrue);
       expect(child(root, 'children', 1).state, NodeState.cyclic);
       expect(fixture.resolver.activeNodeCount, 3);
+      await Future<void>.delayed(Duration.zero);
       expect(
         errors,
         ['CYCLIC_REFERENCE'],
@@ -1480,6 +1481,7 @@ void main() {
           resolver.dispose();
           surface.dispose();
         });
+        surface.onError.subscribe((_) {});
         final id = state == NodeState.cyclic ? 'root' : 'a';
         if (state == NodeState.resolved) {
           add(surface, id, 'Text', {'text': 'dup'});
@@ -1532,6 +1534,7 @@ void main() {
         resolver.dispose();
         surface.dispose();
       });
+      surface.onError.subscribe((_) {});
       add(surface, 'root', 'Column', {
         'children': ['a', 'a'],
       });
@@ -2061,7 +2064,8 @@ void main() {
   });
 
   group('NodeResolver malformed and unusual payloads', () {
-    test('renders cyclic references as placeholders instead of recursing', () {
+    test('renders cyclic references as placeholders instead of recursing',
+        () async {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
         surface: SurfaceModel<ComponentApi> surface,
@@ -2080,6 +2084,7 @@ void main() {
       expect(backReference.type, placeholderType);
       expect(backReference.state, NodeState.cyclic);
       expect(backReference.componentId, 'a');
+      await Future<void>.delayed(Duration.zero);
       expect(errors.any((e) => e.code == 'CYCLIC_REFERENCE'), isTrue);
       expect(resolver.activeNodeCount, lessThanOrEqualTo(5));
       resolver.dispose();
@@ -2087,7 +2092,7 @@ void main() {
 
     test(
         'resolves a call to an unknown function to null and dispatches an '
-        'expression error instead of throwing', () {
+        'expression error instead of throwing', () async {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
         surface: SurfaceModel<ComponentApi> surface,
@@ -2101,6 +2106,7 @@ void main() {
 
       final ComponentNode root = resolver.rootNode.value!;
       expect(bound(root, 'text'), isNull);
+      await Future<void>.delayed(Duration.zero);
       expect(errors, hasLength(1));
       expect(errors[0].code, 'EXPRESSION_ERROR');
       expect(errors[0].surfaceId, 'surf-1');
@@ -2114,6 +2120,7 @@ void main() {
         surface: SurfaceModel<ComponentApi> surface,
         resolver: NodeResolver<ComponentApi> resolver,
       ) = setup();
+      surface.onError.subscribe((_) {});
       add(surface, 'root', 'Card', {'child': 'root'});
       final ComponentNode root = resolver.rootNode.value!;
       expect(child(root, 'child').type, placeholderType);
@@ -2147,7 +2154,7 @@ void main() {
 
     test(
         'replaces a pending placeholder with an unknown-type placeholder '
-        'when the definition arrives with an uncataloged type', () {
+        'when the definition arrives with an uncataloged type', () async {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
         surface: SurfaceModel<ComponentApi> surface,
@@ -2160,6 +2167,7 @@ void main() {
       final ComponentNode pendingNode = child(root, 'child');
       expect(pendingNode.state, NodeState.pending);
       expect(pendingNode.type, placeholderType);
+      await Future<void>.delayed(Duration.zero);
       expect(errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE'), isEmpty);
 
       add(surface, 'late', 'Bogus', {});
@@ -2175,6 +2183,7 @@ void main() {
         'type': 'Bogus',
         'state': 'unknown-type',
       });
+      await Future<void>.delayed(Duration.zero);
       expect(
         errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE'),
         hasLength(1),
@@ -2182,6 +2191,7 @@ void main() {
 
       surface.componentsModel.get('root')!.properties = {'child': 'late'};
       expect(identical(child(root, 'child'), unknown), isTrue);
+      await Future<void>.delayed(Duration.zero);
       expect(
         errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE'),
         hasLength(1),

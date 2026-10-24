@@ -31,7 +31,7 @@ Packaging follows this model: the package root exports the version-agnostic `Sur
 
 An adapter integrates with the Core SDK at two primary boundaries:
 
-1. **`SurfaceModel`**: The adapter's root entrypoint (`Surface`) takes `SurfaceModel` directly as its sole input. The `SurfaceModel` encapsulates incoming message processing, the live component hierarchy, the surface's catalogs (`defaultCatalog` and `availableCatalogs`), the data model, and the event channels (`onAction`, `onError`, `onWarning`).
+1. **`SurfaceModel`**: The adapter's root entrypoint (`Surface`) takes `SurfaceModel` directly as its sole input. The `SurfaceModel` encapsulates incoming message processing, the live component hierarchy, the surface's catalogs (`defaultCatalog` and `availableCatalogs`), the data model, and the surface's event channels. The surface exposes `onAction`, `onError` and `onWarning`. Hosts listen for errors and warnings once on the processor (`processor.model`).
 2. **The Node API (`NodeResolver` and `ComponentNode`)**: The adapter initializes a `NodeResolver` on the `SurfaceModel`. It never queries raw component dictionaries or evaluates JSON pointers directly. Instead, it observes the living tree of `ComponentNode` instances produced by `NodeResolver`.
 
 ```mermaid
@@ -104,7 +104,7 @@ Web adapters that share element implementations across frameworks follow the [un
 
 The adapter consumes `NodeResolver`, `ComponentNode`, `ResolvedBinding`, `WritableBinding`, and `NodeAction` as defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md). Core resolves bindings, child references, actions, and normalized check properties (`isValid`, `validationErrors`, `validationResults`) onto `node.props` before the adapter sees them, and stores envelope `metadata` on `ComponentModel.metadata` (which views ignore unless forwarding it to developer tooling).
 
-On the adapter side, two cross-cutting rules apply when rendering nodes:
+On the adapter side, three cross-cutting rules apply when rendering nodes:
 
 ### Actions, user activation, and asynchronous bindings
 
@@ -112,9 +112,19 @@ A `NodeAction` resolves its payload when invoked. For an `event` payload, Core d
 
 - invoke the `NodeAction` synchronously inside the native gesture handler, with no debounce, defer, or re-dispatch through an asynchronous scheduler;
 - do not inspect, cache, or pre-resolve the action payload;
-- may show a pending state while a returned future is unsettled. Failures reach the agent through the surface's error channel; the view needs no error handling of its own.
+- may show a pending state while a returned future is unsettled. Failures reach the processor's error listener through the surface's queue, so the view needs no error handling of its own.
 
 When a dynamic value or check depends on a function that runs asynchronously, a view treats a binding whose value is not yet available like any other empty value and re-renders when `node.props` emits.
+
+### Problem reporting
+
+Problem delivery follows rules `P1` to `P7` of the [Core SDK blueprint](a2ui_core.blueprint.md#h-problem-reporting). On the adapter side, five rules (`F1` to `F5`) apply:
+
+- **F1. One processor listener and no error parameter on views.** Hosts subscribe to errors and warnings once on the processor (`MessageProcessor` construction or `processor.model.onError` and `onWarning`) before the first message. Neither `Surface` nor any component view accepts an error or warning callback.
+- **F2. No adapter-level problem reports.** Core and `NodeResolver` enqueue problems on the surface's channel. The node dispatcher and placeholder views render `pending`, `unknown-type`, and `cyclic` states visually and never dispatch reports of their own.
+- **F3. Listeners update framework state directly.** Core never calls a listener inside `NodeResolver` construction, update or disposal, or inside a catalog function's `execute` call. A host listener may update framework state directly, without a post-frame or next-tick callback. A host that calls `processMessages` from a view's build gets listener calls inside that build.
+- **F4. Adapter scheduling after delivery.** In a framework where a deferred callback runs only on the next frame (such as Flutter), a mounted `Surface` view subscribes to `surface.onReportsDelivered` and requests a frame after each delivery pass. A listener that defers its state update while no `Surface` is mounted schedules its own frame.
+- **F5. Resolve only while mounted.** A `Surface` view creates its `NodeResolver` when mounted and disposes it when unmounted, maintaining one resolver per mounted view. Unmounted surfaces hold no active resolver.
 
 ### Accessibility
 
@@ -403,21 +413,22 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 
 ### Required Adapter Test Suite
 
-| Test Area                      | Assertion                                                                                                                                                                                                                   |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Tree Hierarchy**             | Loading a surface payload builds a native view tree exactly matching the `ComponentNode` graph, with children in declared order.                                                                                            |
-| **Single-message surface**     | A `createSurface` at v1.0 or later carrying `components` and `dataModel` renders without a following `updateComponents`.                                                                                                    |
-| **Progressive Arrival**        | When a component is referenced before its definition arrives, the adapter renders a placeholder, then upgrades to the real component in place without remounting the parent.                                                |
-| **Dynamic Repeaters (`List`)** | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings. A template item that reads `@index` shows its position.                                       |
-| **Two-Way Binding**            | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                                                                            |
-| **Action Execution**           | Triggering native events (clicks, taps) executes the action closure. An `event` action dispatches the client event with correctly scoped context; a `functionCall` action runs the function locally and dispatches nothing. |
-| **User activation**            | A `functionCall` action on an activation-gated function (`openUrl`) runs when fired from a native gesture and is refused when fired without one.                                                                            |
-| **Multiple catalogs**          | A surface whose root and one descendant come from two different catalogs renders both, and each implementation receives props shaped by its own catalog's schema.                                                           |
-| **Validation results**         | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.        |
-| **Accessibility**              | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                               |
-| **Theme ignored**              | A `createSurface` at v1.0 or later that carries a `theme` object renders exactly as one without it.                                                                                                                         |
-| **Fallback States**            | Unknown component types and cyclic references render visual diagnostics without crashing, and the adapter reports nothing itself.                                                                                           |
-| **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                           |
+| Test Area                         | Assertion                                                                                                                                                                                                                   |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tree Hierarchy**                | Loading a surface payload builds a native view tree exactly matching the `ComponentNode` graph, with children in declared order.                                                                                            |
+| **Single-message surface**        | A `createSurface` at v1.0 or later carrying `components` and `dataModel` renders without a following `updateComponents`.                                                                                                    |
+| **Progressive Arrival**           | When a component is referenced before its definition arrives, the adapter renders a placeholder, then upgrades to the real component in place without remounting the parent.                                                |
+| **Dynamic Repeaters (`List`)**    | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings. A template item that reads `@index` shows its position.                                       |
+| **Two-Way Binding**               | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                                                                            |
+| **Action Execution**              | Triggering native events (clicks, taps) executes the action closure. An `event` action dispatches the client event with correctly scoped context; a `functionCall` action runs the function locally and dispatches nothing. |
+| **User activation**               | A `functionCall` action on an activation-gated function (`openUrl`) runs when fired from a native gesture and is refused when fired without one.                                                                            |
+| **Multiple catalogs**             | A surface whose root and one descendant come from two different catalogs renders both, and each implementation receives props shaped by its own catalog's schema.                                                           |
+| **Validation results**            | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.        |
+| **Accessibility**                 | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                               |
+| **Theme ignored**                 | A `createSurface` at v1.0 or later that carries a `theme` object renders exactly as one without it.                                                                                                                         |
+| **Fallback States**               | Unknown component types and cyclic references render visual diagnostics without crashing, and the adapter reports nothing itself.                                                                                           |
+| **Problem listener state update** | An error listener registered on the processor updates host view state directly when a surface with a problem builds for the first time, without throwing a build-time state error.                                          |
+| **Teardown & Cleanup**            | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                           |
 
 ---
 

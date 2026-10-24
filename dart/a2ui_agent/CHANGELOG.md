@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
+  `ExpressParser.unwrap` remove the backticks left at the edges of a block when
+  a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
+  `` `<a2ui-json>` ... `</a2ui-json>` ``) and drop text made of nothing but
+  backticks. In one-shot unwrapping (`unwrap` and `parseResponse`), they also
+  recover at most one block closed with a closing tag when the model opened the
+  block with a Markdown code fence or omitted the opening tag;
+  `DirectJsonParser.hasFormatContent` and `ExpressParser.hasFormatContent`
+  delegate to `unwrap` and count recovered blocks as complete format blocks.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
+- Express `IDENTIFIER` and `CHECK` tokens now follow UAX 31
+  (`[\p{XID_Start}_] [\p{XID_Continue}]*`) rather than ASCII-only letters,
+  digits, and underscores. In `ExpressDecompiler`, non-identifier component ids
+  before protocol v1.0 (such as `title-heading`) and reserved-word component
+  ids in any version (`true`, `false`, `null`, `_`) are written with a derived
+  variable name and `id="..."` so they round-trip through `ExpressCompiler`;
+  from v1.0 onward, component ids that are not valid UAX 31 identifiers throw
+  `A2uiValidationError`.
+- Express number literals follow the grammar of the core `${...}` expression
+  parsers: an optional sign, digits with an optional fraction (`.5`, `1.`) and
+  an optional exponent (`1e6`, `2.5E-7`). A literal outside the double range
+  (`1e999`) throws `A2uiParseError`. `ExpressDecompiler` now writes doubles
+  that need exponent notation (`1e-7`, `1e+21`) instead of throwing, and
+  throws `A2uiValidationError` only for non-finite values
+  ([#3019](https://github.com/a2ui-project/a2ui/issues/3019)).
 - Requires the next release of `a2ui_core`, which adds
   `SurfaceComponentsModel.insertComponent`, `insertComponents`,
   `saveReferenceFields` and `restoreReferenceFields` and
@@ -10,6 +43,9 @@
   publishes this version raises the `a2ui_core` constraint to `^0.3.1` along
   with that `a2ui_core` release; until then the workspace resolves
   `a2ui_core` from this repository.
+- Breaking: `A2uiGenerator.inferenceFormatFactory` and
+  `A2uiRequestProcessor.formatFactory` default to `ExpressFormatFactory`
+  instead of `DirectJsonFormatFactory`.
 - The Express compiler throws `A2uiValidationError` for a check on a
   component whose schema declares no `checks`, such as
   `Text("hi", ?required($/name))`, rather than writing `checks` onto it.
@@ -217,6 +253,9 @@
   emitted only once its JSON object closes, as v1.0 requires, and progressive
   keys heal only values outside components. It is false by default, which keeps
   the v0.9 behavior of healing a component while it streams.
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`. A streamed response used to throw a
+  `JsonUnsupportedObjectError` for it.
 - The Direct JSON message reader and the Express decompiler continue to
   reject a `createSurface` message without a `catalogId` with
   `A2uiValidationError`. The check moved into the agent SDK now that

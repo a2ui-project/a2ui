@@ -49,16 +49,20 @@ final surfaces = ValueNotifier<List<SurfaceModel<ComponentImplementation>>>(
 
 void sendToAgent(RendererToAgentMessage message) => send(
   RendererToAgentMessagePayload.of(message).toJson(),
-  metadata: {'a2uiClientDataModel': ?processor.getRendererDataModel()},
+  metadata: {
+    'a2uiClientDataModel': ?processor.getRendererDataModel(
+      version: A2uiProtocolVersion.v0_9,
+    ),
+  },
 );
 
 processor.model.onAction.subscribe(
   (action) => sendToAgent(ActionMessage(version: version, action: action)),
 );
+processor.model.onError.subscribe(
+  (error) => sendToAgent(ErrorMessage(version: version, error: error)),
+);
 processor.model.onSurfaceCreated.subscribe((surface) {
-  surface.onError.subscribe(
-    (error) => sendToAgent(ErrorMessage(version: version, error: error)),
-  );
   surfaces.value = [...surfaces.value, surface];
 });
 processor.model.onSurfaceDeleted.subscribe((id) {
@@ -70,12 +74,7 @@ processor.model.onSurfaceDeleted.subscribe((id) {
 
 void onAgentMessages(Object? json) {
   try {
-    processor.processMessages(
-      AgentToRendererMessagePayload.fromJson(
-        json,
-        protocolVersion: A2uiProtocolVersion.v0_9,
-      ),
-    );
+    processor.processMessages(json);
   } on A2uiError catch (error) {
     log('${error.code}: ${error.message}');
   }
@@ -98,12 +97,15 @@ processor.model.dispose();
 
 - The basic components are Material widgets. Render surfaces under a
   `MaterialApp` and inside a `Material`, such as a `Scaffold` body.
-- Send `processor.getRendererDataModel()` as `a2uiClientDataModel` in the
-  transport metadata of each message to the agent, when it is not null.
+- Send `processor.getRendererDataModel(version: ...)` as
+  `a2uiClientDataModel` in the transport metadata of each message to the
+  agent, when it is not null.
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
-- An `onError` listener can run while an `A2uiSurface` builds, so a
-  `setState` it causes must wait for the next frame.
+- Error listeners may call `setState` directly. A listener that defers its
+  update to a later frame must also schedule that frame. Do not call
+  `processMessages` from a build method, since its listeners run before it
+  returns.
 - On macOS, network images and media need the
   `com.apple.security.network.client` entitlement.
 
@@ -228,6 +230,13 @@ Not supported yet:
 whenever it resolves, not only on a tap, so with a callback the agent can open
 an `http`, `https`, `mailto` or `tel` URL without the user acting. Pass one
 only for an agent you trust.
+
+## Example
+
+[example_v0_9](example_v0_9) is a chat app in which a Gemini model, prompted
+through `a2ui_agent`, answers with v0.9 surfaces, and each event action and
+error on them goes back to the model. [e2e_test_v0_9](e2e_test_v0_9) runs it
+against the live model.
 
 ## Gallery
 

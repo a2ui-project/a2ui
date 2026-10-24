@@ -161,6 +161,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// [outboundListener] receives every message the RPC layer sends to the
   /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
   /// for an answer; see [RpcHandler].
+  ///
+  /// [onAction], [onError] and [onWarning] are subscribed to the events of
+  /// the same name on [model], which carry those of every surface.
   MessageProcessor({
     required List<Catalog<T, FunctionImplementation>> catalogs,
     this.defaultVersion,
@@ -168,6 +171,8 @@ class MessageProcessor<T extends ComponentApi> {
     this.commonTypesSchema,
     VersionAdapterRegistry? adapterRegistry,
     void Function(A2uiRendererAction)? onAction,
+    void Function(A2uiRendererError)? onError,
+    void Function(A2uiWarning)? onWarning,
     OutboundMessageListener? outboundListener,
     Duration defaultTimeout = const Duration(seconds: 30),
   })  : catalogs = linkCatalogs(catalogs),
@@ -185,6 +190,12 @@ class MessageProcessor<T extends ComponentApi> {
     }
     if (onAction != null) {
       model.onAction.subscribe(onAction);
+    }
+    if (onError != null) {
+      model.onError.subscribe(onError);
+    }
+    if (onWarning != null) {
+      model.onWarning.subscribe(onWarning);
     }
   }
 
@@ -300,6 +311,19 @@ class MessageProcessor<T extends ComponentApi> {
   /// [ValidationConfig.allowDanglingReferences], or both in one message, or
   /// no config.
   ///
+  /// Errors and warnings that surfaces report while a message is applied
+  /// reach their listeners once that message has been applied, before the
+  /// next message and before an exception from it propagates. When this is
+  /// called from such a listener, they are delivered after that listener
+  /// returns. When it is called from a `NodeResolver` constructor, update or
+  /// dispose, or from a catalog function, they are delivered a microtask
+  /// later. A catalog function that returns a signal runs its body when the
+  /// result is read, so a call from that body during a data write delivers
+  /// its reports inside the write. When it is called from a widget's build,
+  /// the listeners run inside that build. A listener that deletes a surface
+  /// or processes more messages changes what the later messages of the same
+  /// payload see.
+  ///
   /// Throws [A2uiValidationError] for a payload of any other shape, an
   /// envelope that is not a well-formed message of the version it declares, a
   /// version no adapter in [adapterRegistry] serves, a component that does not
@@ -320,10 +344,12 @@ class MessageProcessor<T extends ComponentApi> {
       for (final Object? item in _itemsOf(payload)) _route(item),
     ];
     for (final message in routed) {
-      for (final Future<void>? work in _apply(message, isUserActivated)) {
-        // Never fails: handleCallRendererFunction answers errors instead.
-        if (work != null) unawaited(work);
-      }
+      runInMessageScope(model, () {
+        for (final Future<void>? work in _apply(message, isUserActivated)) {
+          // Never fails: handleCallRendererFunction answers errors instead.
+          if (work != null) unawaited(work);
+        }
+      });
     }
   }
 
@@ -342,7 +368,11 @@ class MessageProcessor<T extends ComponentApi> {
       for (final Object? item in _itemsOf(payload)) _route(item),
     ];
     for (final message in routed) {
-      for (final Future<void>? work in _apply(message, isUserActivated)) {
+      final List<Future<void>?> works = runInMessageScope(
+        model,
+        () => _apply(message, isUserActivated),
+      );
+      for (final work in works) {
         if (work != null) await work;
       }
     }

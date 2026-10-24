@@ -57,8 +57,14 @@ const String _oneCatalogPerSurface =
     'v0.9 names one catalog per surface, so the case runs as written in v1.0 '
     'only.';
 
-/// Cases that state what v0.9 cannot, so they run as written in v1.0 only,
-/// with the reason for each.
+const String _reservedPlainKeys =
+    'v0.9 reserves the plain path and call keys for data bindings and '
+    'function calls, so a map literal that uses them runs as written in v1.0 '
+    'only.';
+
+/// Cases that state what v0.9 cannot, or that are already written against a
+/// v0.9 catalog, so they run in [SuiteVersion.v1_0] (as written) only, with
+/// the reason for each.
 const Map<String, String> _v1OnlyCases = {
   'test_compile_express_surface_targeting_names_a_catalog':
       _oneCatalogPerSurface,
@@ -66,6 +72,31 @@ const Map<String, String> _v1OnlyCases = {
   'test_decompile_express_event_action_with_nested_context':
       'A v0.9 DynamicValue holds no map, so a map in an event\'s context runs '
       'as written in v1.0 only.',
+  'test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable':
+      'Already written against a v0.9 catalog to test pre-v1.0 component id '
+      'derivation, so it runs as written without lowering.',
+  'test_decompile_express_non_identifier_id_from_v1_0_is_a_validation_error':
+      'Before v1.0, component ids that are not UAX 31 identifiers are derived '
+      'into variables rather than rejected.',
+  'test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error':
+      'Before v1.0, component ids need not be UAX 31 identifiers.',
+  'test_compile_express_map_literal_keeps_keys_named_like_express_constructs':
+      _reservedPlainKeys,
+  'test_compile_express_map_literal_keeps_quoted_keys_named_like_constructs':
+      _reservedPlainKeys,
+  'test_compile_express_map_literals_in_function_arguments_keep_their_keys':
+      _reservedPlainKeys,
+  'test_decompile_express_map_with_keys_named_like_express_constructs':
+      _reservedPlainKeys,
+  'test_decompile_express_map_with_plain_call_and_args_keys':
+      _reservedPlainKeys,
+  'test_decompile_express_map_with_a_binding_key_beside_other_keys':
+      'Lowered to v0.9, the @path key becomes the plain path key, which '
+      'v0.9 reserves for data bindings, so the case runs as written in v1.0 '
+      'only.',
+  'test_compile_express_map_with_call_like_keys_still_rejects_bindings':
+      'Lowered to v0.9, this SDK does not reject a binding nested in a '
+      'free-form object property.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.
@@ -130,6 +161,11 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
     case 'wrap':
       return format.createParser().wrap(
         rawParts(testCase['parts']! as List<Object?>),
+      );
+    case 'has_format_content':
+      return format.createParser().hasFormatContent(
+        input!,
+        complete: args['complete'] as bool? ?? false,
       );
     case 'unwrap':
       return [
