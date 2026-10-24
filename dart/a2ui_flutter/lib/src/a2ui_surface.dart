@@ -29,7 +29,9 @@ import 'surface_scope.dart';
 /// The first widget to show a surface creates its resolver, every widget that
 /// shows the surface later shares it, and the resolver is disposed with the
 /// surface. The surface stays resolved, and its bindings keep evaluating,
-/// while no widget shows it.
+/// while no widget shows it. Creating the resolver delivers the surface's
+/// pending diagnostics to [SurfaceModel.onError] synchronously, so a listener
+/// can run during that first widget's build.
 ///
 /// The surface belongs to the caller. Remove this widget when the surface is
 /// deleted. Until then it shows the progress indicator.
@@ -61,8 +63,17 @@ NodeResolver<ComponentImplementation> _resolverOf(
 ) {
   final NodeResolver<ComponentImplementation>? existing = _resolvers[surface];
   if (existing != null) return existing;
-  final resolver = NodeResolver<ComponentImplementation>(surface);
-  surface.onDisposed.subscribe((_) => resolver.dispose());
+  // Creating the resolver delivers diagnostics, and a listener may dispose
+  // the surface before the constructor returns.
+  var surfaceDisposed = false;
+  NodeResolver<ComponentImplementation>? created;
+  surface.onDisposed.subscribe((_) {
+    surfaceDisposed = true;
+    created?.dispose();
+  });
+  final NodeResolver<ComponentImplementation> resolver = created =
+      NodeResolver<ComponentImplementation>(surface);
+  if (surfaceDisposed) resolver.dispose();
   return _resolvers[surface] = resolver;
 }
 
