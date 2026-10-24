@@ -14,29 +14,26 @@
  * limitations under the License.
  */
 
-import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/web_core/v1_0';
+import {
+  DynamicStringSchema,
+  DynamicValueSchema,
+  createFunctionImplementation,
+  type FunctionImplementation,
+} from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
 
 import {mapTextValue} from './regex_support.js';
-import {withSettledArgs} from './settle_args.js';
 
-/**
- * Function API definition for `split`.
- *
- * Both arguments are `z.unknown()` because either may arrive as the pending Promise of a nested
- * asynchronous call.
- */
+/** Function API definition for `split`. */
 export const SplitApi = {
   name: 'split' as const,
   returnType: 'any' as const,
   schema: z.object({
     // Quoted to prevent Google Closure Compiler property renaming.
-    'value': z.unknown().describe('The string or array of strings to split.'),
-    'separator': z
-      .unknown()
-      .describe(
-        'The delimiter string to split on. An empty string splits into individual characters (Unicode code points).',
-      ),
+    'value': DynamicValueSchema.describe('The string or array of strings to split.'),
+    'separator': DynamicStringSchema.describe(
+      'The delimiter string to split on. An empty string splits into individual characters (Unicode code points).',
+    ),
   }),
   description: 'Splits a string into an array of substrings using a literal separator.',
 };
@@ -49,11 +46,10 @@ export const SplitApi = {
  */
 export const SplitImplementation: FunctionImplementation = createFunctionImplementation(
   SplitApi,
-  args =>
-    withSettledArgs(args, settled => {
-      const separator = String(settled['separator'] ?? '');
-      return mapTextValue(settled['value'], item =>
-        separator === '' ? Array.from(item) : item.split(separator),
-      );
-    }),
+  args => {
+    const separator = String(args['separator']);
+    return mapTextValue(args['value'], item =>
+      separator === '' ? Array.from(item) : item.split(separator),
+    );
+  },
 );

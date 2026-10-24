@@ -59,9 +59,18 @@ describe('jmespath', () => {
     assert.strictEqual(call({expression: 'entry.size', data: {entry: {}}}), null);
   });
 
-  it('reads null when no document is supplied', () => {
-    assert.strictEqual(call({expression: 'anything'}), null);
-    assert.strictEqual(call({expression: '@', data: null}), null);
+  it('rejects a missing or null document, which the schema does not accept', () => {
+    for (const args of [{expression: 'anything'}, {expression: '@', data: null}]) {
+      assert.throws(
+        () => call(args),
+        (error: unknown) => {
+          assert.ok(error instanceof A2uiExpressionError);
+          assert.strictEqual(error.expression, 'jmespath');
+          assert.ok(error.message.startsWith("Validation failed for function 'jmespath'"));
+          return true;
+        },
+      );
+    }
   });
 
   it('does not evaluate directives found inside the data', () => {
@@ -114,12 +123,13 @@ describe('jmespath', () => {
   ];
 
   for (const [label, expression] of nonStringExpressions) {
-    it(`throws naming the type when the expression is ${label}`, () => {
+    it(`rejects a ${label} expression at validation`, () => {
       assert.throws(
         () => call({expression, data: {}}),
         (error: unknown) => {
           assert.ok(error instanceof A2uiExpressionError);
-          assert.strictEqual(error.message, `jmespath expects a string expression, got ${label}.`);
+          assert.strictEqual(error.expression, 'jmespath');
+          assert.ok(error.message.startsWith("Validation failed for function 'jmespath'"));
           return true;
         },
       );

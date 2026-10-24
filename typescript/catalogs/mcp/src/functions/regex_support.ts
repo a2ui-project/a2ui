@@ -74,8 +74,8 @@ export function compileSafeRegex(source: string, functionName: string, flags = '
 /**
  * Applies `fn` to `value` as text, or to each element of an array `value`.
  *
- * `null` and `undefined` read as the empty string; any other non-string is converted with
- * `String`.
+ * A `null` or `undefined` element of an array reads as the empty string; any other non-string is
+ * converted with `String`.
  */
 export function mapTextValue<T>(value: unknown, fn: (item: string) => T): T | T[] {
   const asText = (item: unknown) => String(item ?? '');

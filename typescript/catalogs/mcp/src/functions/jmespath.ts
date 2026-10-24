@@ -16,28 +16,27 @@
 
 import {
   A2uiExpressionError,
+  DynamicStringSchema,
+  DynamicValueSchema,
   createFunctionImplementation,
   type FunctionImplementation,
 } from '@a2ui/web_core/v1_0';
 import {search} from 'jmespath';
 import {z} from 'zod';
 
-import {withSettledArgs} from './settle_args.js';
-
 /**
  * Function API definition for `jmespath`, using standard JMESPath syntax
  * (https://jmespath.org).
- *
- * Both arguments are `z.unknown()` because either may arrive as the pending Promise of a nested
- * asynchronous call; the expression type is checked once it has settled.
  */
 export const JmespathApi = {
   name: 'jmespath' as const,
   returnType: 'any' as const,
   schema: z.object({
     // Quoted to prevent Google Closure Compiler property renaming.
-    'expression': z.unknown().describe('A standard JMESPath expression evaluated against `data`.'),
-    'data': z.unknown().describe('The input data to evaluate the expression against.'),
+    'expression': DynamicStringSchema.describe(
+      'A standard JMESPath expression evaluated against `data`.',
+    ),
+    'data': DynamicValueSchema.describe('The input data to evaluate the expression against.'),
   }),
   description: 'Evaluates a JMESPath expression against input data.',
 };
@@ -46,29 +45,20 @@ export const JmespathApi = {
  * Evaluates a JMESPath expression against `data` and returns the result, or `null` when the
  * expression selects nothing.
  *
- * @throws A2uiExpressionError if `expression` is not a string or does not parse.
+ * @throws A2uiExpressionError if `expression` does not parse.
  */
 export const JmespathImplementation: FunctionImplementation = createFunctionImplementation(
   JmespathApi,
-  args =>
-    withSettledArgs(args, settled => {
-      const expression = settled['expression'];
-      if (typeof expression !== 'string') {
-        const kind =
-          expression === null ? 'null' : Array.isArray(expression) ? 'array' : typeof expression;
-        throw new A2uiExpressionError(
-          `jmespath expects a string expression, got ${kind}.`,
-          'jmespath',
-        );
-      }
-      try {
-        return search(settled['data'] ?? null, expression);
-      } catch (error) {
-        throw new A2uiExpressionError(
-          `${error instanceof Error ? error.message : String(error)} in JMESPath expression: ${expression}`,
-          'jmespath',
-          error,
-        );
-      }
-    }),
+  args => {
+    const expression = String(args['expression']);
+    try {
+      return search(args['data'], expression);
+    } catch (error) {
+      throw new A2uiExpressionError(
+        `${error instanceof Error ? error.message : String(error)} in JMESPath expression: ${expression}`,
+        'jmespath',
+        error,
+      );
+    }
+  },
 );

@@ -825,14 +825,9 @@ describe('callMcpTool', () => {
         const shape = (api.schema as z.ZodObject<Record<string, z.ZodTypeAny>>).shape;
         const fields = Object.keys(shape);
         assert.deepStrictEqual(Object.keys(args.properties), fields, `${api.name} arguments`);
-        // A `z.unknown()` argument accepts `undefined` at runtime (a binding to a missing path
-        // resolves to it), which is a different matter from a payload leaving the argument out:
-        // the published schema still requires it.
-        const isOptional = (schema: z.ZodTypeAny) =>
-          schema.isOptional() && !(schema instanceof z.ZodUnknown);
         assert.deepStrictEqual(
           args.required,
-          fields.filter(field => !isOptional(shape[field])),
+          fields.filter(field => !shape[field].isOptional()),
           `${api.name} required arguments`,
         );
         assert.strictEqual(args.additionalProperties, false);

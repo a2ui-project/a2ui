@@ -127,6 +127,85 @@ describe('Catalog Types', () => {
     assert.ok(defs);
     assert.ok(defs.DynamicString);
   });
+
+  describe('invoker with pending arguments', () => {
+    const upper = createFunctionImplementation(
+      {name: 'upper', returnType: 'string', schema: z.object({'value': z.string()})},
+      args => args.value.toUpperCase(),
+    );
+    const catalog = new Catalog('test-cat', '1.0', [], [upper]);
+
+    it('runs synchronously when every argument is settled', () => {
+      assert.strictEqual(catalog.invoker('upper', {value: 'abc'}, {} as any), 'ABC');
+    });
+
+    it('awaits a pending argument before validating against a z.string() schema', async () => {
+      const result = catalog.invoker('upper', {value: Promise.resolve('abc')}, {} as any);
+      assert.strictEqual(typeof (result as Promise<unknown>).then, 'function');
+      assert.strictEqual(await result, 'ABC');
+    });
+
+    it('rejects with the validation error once a pending argument settles to the wrong type', async () => {
+      await assert.rejects(
+        catalog.invoker('upper', {value: Promise.resolve(42)}, {} as any) as Promise<unknown>,
+        (err: any) =>
+          err instanceof A2uiExpressionError &&
+          err.message.includes('Validation failed') &&
+          err.expression === 'upper',
+      );
+    });
+
+    it('propagates the rejection of a pending argument', async () => {
+      const failure = new Error('inner failure');
+      await assert.rejects(
+        catalog.invoker('upper', {value: Promise.reject(failure)}, {} as any) as Promise<unknown>,
+        failure,
+      );
+    });
+
+    it('resolves to undefined when aborted before the arguments settle', async () => {
+      const abortController = new AbortController();
+      let executed = false;
+      const spy = createFunctionImplementation(
+        {name: 'spy', returnType: 'string', schema: z.object({'value': z.string()})},
+        () => {
+          executed = true;
+          return 'ran';
+        },
+      );
+      const spyCatalog = new Catalog('test-cat', '1.0', [], [spy]);
+      const result = spyCatalog.invoker(
+        'spy',
+        {value: Promise.resolve('abc')},
+        {} as any,
+        abortController.signal,
+      );
+      abortController.abort();
+      assert.strictEqual(await result, undefined);
+      assert.strictEqual(executed, false);
+    });
+
+    it('enforces user activation synchronously, before awaiting any argument', () => {
+      const guarded = createFunctionImplementation(
+        {
+          name: 'guarded',
+          returnType: 'string',
+          schema: z.object({'value': z.string()}),
+          requiresUserActivation: true,
+        },
+        () => 'ran',
+      );
+      const guardedCatalog = new Catalog('test-cat', '1.0', [], [guarded]);
+      assert.throws(
+        () =>
+          guardedCatalog.invoker('guarded', {value: Promise.resolve('abc')}, {
+            isPassiveEvaluation: true,
+          } as any),
+        (err: any) =>
+          err instanceof A2uiExpressionError && err.message.includes('requires user activation'),
+      );
+    });
+  });
 });
 
 describe('InferredComponentApiSchemaType', () => {

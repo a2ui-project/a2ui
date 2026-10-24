@@ -14,32 +14,31 @@
  * limitations under the License.
  */
 
-import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/web_core/v1_0';
+import {
+  DynamicStringSchema,
+  DynamicValueSchema,
+  createFunctionImplementation,
+  type FunctionImplementation,
+} from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
 
 import {compileSafeRegex, mapTextValue} from './regex_support.js';
-import {withSettledArgs} from './settle_args.js';
 
-/**
- * Function API definition for `regexReplace`.
- *
- * The arguments are `z.unknown()` because any of them may arrive as the pending Promise of a
- * nested asynchronous call.
- */
+/** Function API definition for `regexReplace`. */
 export const RegexReplaceApi = {
   name: 'regexReplace' as const,
   returnType: 'any' as const,
   schema: z.object({
     // Quoted to prevent Google Closure Compiler property renaming.
-    'value': z.unknown().describe('The string or array of strings to perform replacements on.'),
-    'pattern': z
-      .unknown()
-      .describe('A JavaScript regular expression matching substrings to replace.'),
-    'replacement': z
-      .unknown()
-      .describe(
-        'Literal replacement string. Capture group references like $1 are treated as literal text.',
-      ),
+    'value': DynamicValueSchema.describe(
+      'The string or array of strings to perform replacements on.',
+    ),
+    'pattern': DynamicStringSchema.describe(
+      'A JavaScript regular expression matching substrings to replace.',
+    ),
+    'replacement': DynamicStringSchema.describe(
+      'Literal replacement string. Capture group references like $1 are treated as literal text.',
+    ),
   }),
   description: 'Replaces all regular expression matches with literal replacement text.',
 };
@@ -52,15 +51,14 @@ export const RegexReplaceApi = {
  */
 export const RegexReplaceImplementation: FunctionImplementation = createFunctionImplementation(
   RegexReplaceApi,
-  args =>
-    withSettledArgs(args, settled => {
-      const compiled = compileSafeRegex(String(settled['pattern'] ?? ''), 'regexReplace', 'g');
-      const replacement = String(settled['replacement'] ?? '');
-      return mapTextValue(settled['value'], item => {
-        // The instance is cached and global, so a previous call may have left `lastIndex` set.
-        compiled.lastIndex = 0;
-        // A replacer function inserts the replacement as is, without `$` substitutions.
-        return item.replace(compiled, () => replacement);
-      });
-    }),
+  args => {
+    const compiled = compileSafeRegex(String(args['pattern']), 'regexReplace', 'g');
+    const replacement = String(args['replacement']);
+    return mapTextValue(args['value'], item => {
+      // The instance is cached and global, so a previous call may have left `lastIndex` set.
+      compiled.lastIndex = 0;
+      // A replacer function inserts the replacement as is, without `$` substitutions.
+      return item.replace(compiled, () => replacement);
+    });
+  },
 );

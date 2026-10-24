@@ -16,29 +16,21 @@
 
 import {
   A2uiExpressionError,
+  DynamicValueSchema,
   createFunctionImplementation,
   type FunctionImplementation,
 } from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
 
-import {withSettledArgs} from './settle_args.js';
-
-/**
- * Function API definition for `updateDataModel`.
- *
- * The `updates` are `z.unknown()` because they may arrive as the pending Promise of a nested
- * asynchronous call; the shape is checked once it has settled.
- */
+/** Function API definition for `updateDataModel`. */
 export const UpdateDataModelApi = {
   name: 'updateDataModel' as const,
   returnType: 'any' as const,
   schema: z.object({
     // Quoted to prevent Google Closure Compiler property renaming.
-    'updates': z
-      .unknown()
-      .describe(
-        'An object mapping data model paths to the values to write (e.g., {"/entries": [...], "/title": "Home"}). Paths starting with "/" are absolute; relative paths resolve against the current data context.',
-      ),
+    'updates': DynamicValueSchema.describe(
+      'An object mapping data model paths to the values to write (e.g., {"/entries": [...], "/title": "Home"}). Paths starting with "/" are absolute; relative paths resolve against the current data context.',
+    ),
   }),
   description: 'Writes key-value pairs to the surface data model.',
 };
@@ -74,37 +66,33 @@ function validateUpdatePath(path: string): void {
 /**
  * Writes each path-value pair of `updates` to the surface data model.
  *
- * `null` or `undefined` updates write nothing. Objects and arrays are cloned before they are
- * stored, so later writes through the data model cannot alter a cached tool result. Every key is
- * checked before anything is written, so an invalid key leaves the data model unchanged.
+ * Objects and arrays are cloned before they are stored, so later writes through the data model
+ * cannot alter a cached tool result. Every key is checked before anything is written, so an
+ * invalid key leaves the data model unchanged.
  *
  * @throws A2uiExpressionError if `updates` is a primitive or an array, or if a key is empty or
  *     contains a `__proto__`, `constructor` or `prototype` segment.
  */
 export const UpdateDataModelImplementation: FunctionImplementation = createFunctionImplementation(
   UpdateDataModelApi,
-  (args, context) =>
-    withSettledArgs(args, settled => {
-      const updates = settled['updates'];
-      if (updates === null || updates === undefined) {
-        return;
-      }
-      if (Array.isArray(updates) || typeof updates !== 'object') {
-        const kind = Array.isArray(updates) ? 'array' : typeof updates;
-        throw new A2uiExpressionError(
-          `updateDataModel expects an object of data model paths, got ${kind}.`,
-          'updateDataModel',
-        );
-      }
-      const entries = Object.entries(updates as Record<string, unknown>);
-      for (const [path] of entries) {
-        validateUpdatePath(path);
-      }
-      for (const [path, value] of entries) {
-        context.set(
-          path,
-          typeof value === 'object' && value !== null ? structuredClone(value) : value,
-        );
-      }
-    }),
+  (args, context) => {
+    const updates: unknown = args['updates'];
+    if (Array.isArray(updates) || typeof updates !== 'object' || updates === null) {
+      const kind = Array.isArray(updates) ? 'array' : updates === null ? 'null' : typeof updates;
+      throw new A2uiExpressionError(
+        `updateDataModel expects an object of data model paths, got ${kind}.`,
+        'updateDataModel',
+      );
+    }
+    const entries = Object.entries(updates as Record<string, unknown>);
+    for (const [path] of entries) {
+      validateUpdatePath(path);
+    }
+    for (const [path, value] of entries) {
+      context.set(
+        path,
+        typeof value === 'object' && value !== null ? structuredClone(value) : value,
+      );
+    }
+  },
 );

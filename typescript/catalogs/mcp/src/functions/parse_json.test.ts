@@ -53,13 +53,13 @@ describe('parseJson', () => {
   ];
 
   for (const [label, value] of nonStrings) {
-    it(`throws naming the type when the value is ${label}`, () => {
+    it(`rejects a ${label} value at validation`, () => {
       assert.throws(
         () => call({value}),
         (error: unknown) => {
           assert.ok(error instanceof A2uiExpressionError);
           assert.strictEqual(error.expression, 'parseJson');
-          assert.strictEqual(error.message, `parseJson expects a string, got ${label}.`);
+          assert.ok(error.message.startsWith("Validation failed for function 'parseJson'"));
           return true;
         },
       );
