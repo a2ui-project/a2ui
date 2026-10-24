@@ -5,10 +5,11 @@ following the
 [framework adapter blueprint](../../../blueprints/modules/a2ui_framework_adapter.blueprint.md).
 The left column lists the basic catalog examples of the selected version:
 [v0.9](../../../specification/v0_9/catalogs/basic/examples) or
-[v1.0](../../../catalogs/basic/v1/examples). The center column shows the selected example's surfaces above its messages,
-each message marked processed or pending. The right column shows each
-surface's data model as it changes, above a log of the actions the surfaces
-send and the errors the surfaces and the message processor report.
+[v1.0](../../../catalogs/basic/v1/examples). The center column shows the
+selected example's surfaces above its messages, each message marked
+processed or pending. The right column shows each surface's data model as it
+changes, above a log of the actions the surfaces send and the errors the
+surfaces and the message processor report.
 
 ## Running
 

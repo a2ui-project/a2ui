@@ -69,7 +69,11 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(run.log, isEmpty, reason: example.fileName);
+      expect(
+        run.log,
+        isEmpty,
+        reason: '${example.version.jsonValue}/${example.fileName}',
+      );
       await tester.pumpWidget(const SizedBox());
       run.dispose();
     }
