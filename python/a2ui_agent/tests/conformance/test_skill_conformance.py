@@ -143,7 +143,7 @@ class TestSkillConformance(unittest.TestCase):
                         expected_content = gf.read()
                     self.assertEqual(skill_obj.to_markdown(), expected_content)
 
-                elif action == "from_format_matches_snippet":
+                elif action == "monolithic_skill_equals_prompt_snippet":
                     skill_obj = generator.generate_skill()
                     snippet = fmt.prompt_generator.generate()
                     self.assertEqual(skill_obj.content, snippet + "\n")
