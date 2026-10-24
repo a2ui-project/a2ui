@@ -51,30 +51,28 @@ def extract_accuracy(log_data: dict[str, Any]) -> float:
 
 
 def extract_run_labels(log_data: dict[str, Any]) -> dict[str, str | None]:
-    """Extracts the SDK, protocol version and strategy of an eval log.
+    """Extracts the protocol version and strategy of an eval log.
 
     The values come from the task metadata, falling back to the task arguments.
-    Logs written before multi-SDK support have no SDK entry and ran on Python.
 
     Args:
         log_data: Dictionary containing parsed evaluation log data.
 
     Returns:
-        A dictionary with 'sdk', 'version' and 'strategy' keys. A value is None
+        A dictionary with 'version' and 'strategy' keys. A value is None
         when the log does not record it.
     """
     eval_spec = log_data.get("eval", {}) or {}
     task_args = eval_spec.get("task_args", {}) or {}
     metadata = eval_spec.get("metadata", {}) or {}
     return {
-        "sdk": metadata.get("sdk") or task_args.get("sdk") or "python",
         "version": metadata.get("version"),
         "strategy": metadata.get("strategy") or task_args.get("strategy"),
     }
 
 
 def format_run_label(log_data: dict[str, Any]) -> str:
-    """Formats a short label such as 'sdk=ts, version=1.0, strategy=direct'."""
+    """Formats a short label such as 'version=1.0, strategy=direct'."""
     labels = extract_run_labels(log_data)
     return ", ".join(f"{key}={value}" for key, value in labels.items() if value)
 
@@ -87,7 +85,9 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
     """
     samples = log_data.get("samples", [])
     print("\n=== Evaluation Results Summary ===")
-    print(f"Run: {format_run_label(log_data)}")
+    run_label = format_run_label(log_data)
+    if run_label:
+        print(f"Run: {run_label}")
 
     # Group by dataset
     datasets: dict[str, list[dict[str, Any]]] = {}
@@ -189,13 +189,18 @@ def generate_markdown_summary(
     task_name = eval_spec.get("task", "Unknown Task")
     model_name = eval_spec.get("model", "Unknown Model")
     labels = extract_run_labels(log_data)
+    run_label = format_run_label(log_data)
 
     status_str = "PASS" if accuracy_percentage >= threshold else "FAIL"
 
     lines = []
-    lines.append(f"### Evaluation Summary: {task_name} ({format_run_label(log_data)})")
+    heading = (
+        f"### Evaluation Summary: {task_name} ({run_label})"
+        if run_label
+        else f"### Evaluation Summary: {task_name}"
+    )
+    lines.append(heading)
     lines.append(f"- **Status**: {status_str}")
-    lines.append(f"- **SDK**: `{labels['sdk']}`")
     if labels["version"]:
         lines.append(f"- **Protocol Version**: `{labels['version']}`")
     if labels["strategy"]:

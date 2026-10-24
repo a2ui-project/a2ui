@@ -28,26 +28,26 @@ from inspect_ai.model import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
-from ..bridges import (
+from ..runner import (
     DEFAULT_PARSE_TIMEOUT_SEC,
-    get_sdk_bridge,
-    validate_sdk_format,
+    generate_prompt,
+    parse_and_validate,
+    validate_format,
 )
 from ..shared.utils import GIT_ROOT, measured_generate
 
 
 @solver
-def format_system_prompt(format_name: str, version: str, sdk: str = "python") -> Solver:
-    """Injects system prompt instructions using the selected format strategy and SDK."""
-    validate_sdk_format(sdk, format_name)
+def format_system_prompt(format_name: str, version: str) -> Solver:
+    """Injects system prompt instructions using the selected format strategy."""
+    validate_format(format_name)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        bridge = get_sdk_bridge(sdk)
         generated_snippet = await asyncio.to_thread(
-            bridge.generate_prompt,
+            generate_prompt,
             format_name,
             version,
             resolved_catalog_path,
@@ -97,11 +97,9 @@ def format_system_prompt(format_name: str, version: str, sdk: str = "python") ->
 
 
 @solver
-def compile_format_payload(
-    format_name: str, version: str, sdk: str = "python"
-) -> Solver:
+def compile_format_payload(format_name: str, version: str) -> Solver:
     """Solver to compile format-specific output back to standard A2UI JSON."""
-    validate_sdk_format(sdk, format_name)
+    validate_format(format_name)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         if not state.output or not state.output.completion:
@@ -126,10 +124,9 @@ def compile_format_payload(
             if found_id in allowed_surface_ids:
                 surface_id = found_id
 
-        bridge = get_sdk_bridge(sdk)
         try:
             res_dict = await asyncio.to_thread(
-                bridge.parse_and_validate,
+                parse_and_validate,
                 format_name,
                 version,
                 resolved_catalog_path,
@@ -187,13 +184,13 @@ def compile_format_payload(
     return solve
 
 
-def format_solver(format_name: str, version: str, sdk: str = "python") -> list[Solver]:
+def format_solver(format_name: str, version: str) -> list[Solver]:
     """Assembles the solver chain for the specified evaluation strategy."""
-    validate_sdk_format(sdk, format_name)
+    validate_format(format_name)
     chain = [
-        format_system_prompt(format_name, version, sdk=sdk),
+        format_system_prompt(format_name, version),
         measured_generate(),
     ]
     if format_name != "direct_json":
-        chain.append(compile_format_payload(format_name, version, sdk=sdk))
+        chain.append(compile_format_payload(format_name, version))
     return chain
