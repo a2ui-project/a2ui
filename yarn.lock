@@ -348,6 +348,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/react-explorer@workspace:typescript/renderers/react/a2ui_explorer"
   dependencies:
+    "@a2ui/catalog-mcp": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
     "@a2ui/web_core": "workspace:*"
