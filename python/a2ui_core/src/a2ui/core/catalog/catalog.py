@@ -153,11 +153,14 @@ def _query_json_pointer(doc: Mapping[str, Any], pointer: str) -> Any:
     curr: Any = doc
     for p in parts:
         p = re.sub(r"~([01])", lambda m: "/" if m.group(1) == "1" else "~", p)
-        if isinstance(curr, (dict, Mapping)):
-            if p in curr:
-                curr = curr[p]
-            else:
+        if isinstance(curr, Mapping):
+            if p not in curr:
                 return None
+            curr = curr[p]
+        elif isinstance(curr, list) and re.fullmatch(r"0|[1-9][0-9]*", p):
+            if int(p) >= len(curr):
+                return None
+            curr = curr[int(p)]
         else:
             return None
     return curr
