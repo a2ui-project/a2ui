@@ -126,8 +126,7 @@ class _NodeRecord<T extends ComponentApi> {
 /// Diagnostics are queued while the resolver works and delivered in a
 /// microtask, never synchronously from the constructor or a tree update, so
 /// listeners on the surface's error and warning channels do not run inside
-/// the caller's frame. Each flush delivers every queued error before any
-/// warning. Disposal drops diagnostics that are not yet delivered.
+/// the caller's frame. Disposal drops diagnostics that are not yet delivered.
 class NodeResolver<T extends ComponentApi> {
   final SurfaceModel<T> _surface;
 
