@@ -1,153 +1,52 @@
-# Triage for PRs and issues
+# Triage instructions
 
-See go/a2ui-triage-internal for internal information.
+For background on triage goals, label definitions, and how the triage bot works, see [docs/internal/triage_explainer.md](../internal/triage_explainer.md). For Google-internal information, see go/a2ui-triage-internal.
 
-## Goals
+## First-line triage (daily)
 
-Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
+Open the list of issues that are [not first-line-handled][not-first-line-handled] and do the following for each issue:
 
-1. External PRs are addressed
-2. Issues are prioritized and addressed
-3. Number of branches is observable
+- If the issue is urgent (`P0`), add the [`P0`][p0] label, assign an owner, and notify the team chat.
+- Add the [`status: first-line-handled`][first-line-handled] label.
 
-## Invariant we want to keep
+## Second-line triage (weekly)
 
-This section describes goals at a high level. See concrete steps in the section [Triage responsibilities](#triage-responsibilities).
+Process all open items in the [`status: needs-triage`][needs-triage] queue until the list is empty:
 
-1. **Issues** priority (aligned with other teams in Dash):
-    - **P0**: very urgent, and it should be assigned
-    - **P1**: actively being worked on, and it should be assigned
-    - **P2**: is expected to be converted to P1 within three months, as part of regular planning process
-    - **P3**: not planned, but may become a priority
-    - **P4**: we do not plan to invest in this issue
+- Use the [AI triage skill](../../.agents/skills/a2ui-issue-triage/SKILL.md) to help analyze issues, reproduce simple bugs, and draft replies in a local browser UI, or triage items directly on GitHub.
+- Use the [standard replies](triage-templates.md) for common issue and pull request cases.
+- Assign a priority label to each unprioritized issue:
+    - [`P0`][p0]: very urgent (must also be assigned and announced in team chat).
+    - [`P1`][p1]: actively being worked on (must also be assigned).
+    - [`P2`][p2]: expected to convert to `P1` within three months during regular planning.
+    - [`P3`][p3]: not planned right now, but may become a priority later.
+    - [`P4`][p4]: no plan to invest in this issue (leave the issue open; do not close it).
+- Assign an owner to any `P0` or `P1` issue that lacks an assignee.
+- Reply to unanswered comments from external contributors on issues and pull requests.
+- Follow up on stale assigned issues (`P0` inactive for > 1 day, `P1` for > 30 days) using the [stale issue replies](triage-templates.md).
+- Add the [`status: waiting-for-author-response`][waiting-for-author-response] label when you ask an author for more information or conflict resolution.
+- Assign an item to a team member who will finish triaging it, and add the [`status: assigned-for-triage`][assigned-for-triage] label (the assignee removes the label when done; if the label remains after 14 days, the bot flags the item again).
+- Triage external pull requests in the queue:
+    - Review or route the PR if the change is obviously needed, or if it links to a `P0`–`P3` issue in its description that is either assigned to the author or labeled [`type: contributions-welcome`][contributions-welcome].
+    - Close the PR using the matching [PR template](triage-templates.md#pull-requests) if it targets a `P4` issue, lacks a linked issue for a complex change, targets an issue not assigned to the author, or is outside project scope.
+- Escalate items that require team input (and hand off any unfinished discussions to the next triager):
+    1. Add the [`status: needs-team-input`][needs-team-input] label.
+    2. Post a message in the team chat with suggested options or questions.
+    3. Drive the discussion to resolution and apply the decision.
+    4. Remove the `status: needs-team-input` label.
+- Optionally remove the `status: needs-triage` label manually as you finish each item (the triage bot also removes it automatically once the underlying condition is resolved, and will re-apply it if an item still matches a rule).
+- Check for [unlabeled and unprioritized issues][unlabeled] that may have fallen through the cracks (missing `P0`–`P4` and missing `status: needs-triage`, `status: needs-team-input`, and `status: waiting-for-author-response`), and triage any that appear.
 
-2. **PRs**: We will review PRs from external contributors if at least one of the following is true:
-    - the PR contributes to a **P0-P3** issue (PRs for P4 issues will not be reviewed)
-    - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description) or has label `type: contributions-welcome`
-    - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
-
-The relevant issue should be linked in the PR description.
-
-## GitHub labels used in triage
-
-1. Priority labels: [P0][p0], [P1][p1], [P2][p2], [P3][p3], [P4][p4]
-2. [status: needs-team-input][needs-team-input]
-3. [status: needs-triage][needs-triage-label]
-4. [status: first-line-handled][first-line-handled]
-5. [size: small][size-small]
-6. [type: contributions-welcome][contributions-welcome]
-7. [status: waiting-for-author-response][waiting-for-author-response]
-8. [status: assigned-for-triage][assigned-for-triage]
-
-See [all github labels](https://github.com/a2ui-project/a2ui/labels).
-
+[not-first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc
+[needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
+[unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 [p0]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP0
 [p1]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP1
 [p2]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP2
 [p3]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP3
 [p4]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP4
 [needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-team-input%22
-[needs-triage-label]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22
 [first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20first-line-handled%22
-[size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22
 [contributions-welcome]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22type%3A%20contributions-welcome%22
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
-
-Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies. The bot also reads `status: assigned-for-triage`, which is applied and removed manually, and flags items that carry it without an assignee or for more than 14 days.
-
-### How the automated triage bot works
-
-The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open item against the rules below, in order. An item that matches a rule is flagged: it gets `status: needs-triage`. Otherwise the label is removed.
-
-1. **Triage assignments**: An issue or PR with `status: assigned-for-triage` is flagged if it has no assignee, or if the label was added more than 14 days ago. Otherwise it is not flagged, because the assignee is triaging it. The 14 days count from the most recent time the label was added, so removing and re-adding the label restarts them. The rules below do not apply to these items.
-2. **Waiting on author**: An item with `status: waiting-for-author-response` is not flagged. The bot removes this label once an external contributor posts a comment, review or review comment after the label was added.
-3. **Assigned issues**: Flagged only if a P0 or P1 issue is stale, meaning it has had no human activity for:
-    - `P0`: more than 1 day
-    - `P1`: more than 30 days
-4. **Unassigned issues**: Flagged if any of the following apply:
-    - **No priority**: The issue has no priority label (`P0`–`P4`).
-    - **High priority**: The issue is `P0` or `P1`, which must have an assignee.
-    - **Unanswered external comment**: The latest human comment is from an external contributor.
-5. **Pull requests**: Flagged if opened by an external contributor and no maintainer has responded to the author's latest contribution. Maintainer-authored PRs are not flagged.
-6. **Transparency**: The automation prints to the console what items are flagged or unflagged and why. This can be used to track triage progress.
-
-Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
-
-The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
-
-## Triage responsibilities
-
-### First line triage (daily)
-
-For each issue that is [not first-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc):
-
-- If it is P0, add label `P0` and notify team chat
-- Add label `status: first-line-handled`
-
-### Second line triage (weekly)
-
-Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [the triage bot](#how-the-automated-triage-bot-works), disappears. Do at least one of the following:
-
-- Set priority (P0-P4)
-    - Be sure to assign P0/P1 issues to someone.
-- Answer external comments
-- Add `status: waiting-for-author-response` when you need more information from the author
-- Assign the item to a team member who will finish the triage, and add `status: assigned-for-triage`. The assignee removes the label when done. If the label is still there after 14 days, the bot flags the item again.
-
-You can remove the `needs-triage` label manually to speed up the process, but if the item still matches a rule, the label will come back because the label will be re-applied by the triage bot.
-
-For items where you need input from the team, follow this process (passing any remaining follow-up to the next gardener if still in progress):
-
-1. add the `status: needs-team-input` label
-2. post a message to the team chat, suggesting options and/or asking for input
-3. drive the discussion to resolution
-4. remove the label `status: needs-team-input`
-
-Use [standard replies](triage-templates.md) that are provided for standard cases.
-
-Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (without P0-P4 label and _haven't_ had `status: needs-triage`, `status: needs-team-input` or `status: waiting-for-author-response` added to them). If you find such issues, follow the `status: needs-triage` workflow above (This is just to check for issues which somehow fall through the cracks).
-
-When weekly triage is complete, the [`needs-triage`][needs-triage] list should ideally be empty.
-
-[needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
-[unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
-
-## AI assistance
-
-Use [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md) to get agent help with triage.
-
-It forks multiple subagents (one for each issue) to try and reproduce the issue if it is something that can be easily reproduced. It won't attempt to repro something that takes a lot of setup.
-
-It will then display a web UI in a local browser with the list of issues to triage, suggested responses (which you can edit) and a UI to apply suggestions to GitHub.
-
-## Frequently asked questions
-
-### Why do we allow branches on the repo and thus create work for maintainers?
-
-Eval and e2e tests cannot be executed on pre-submit for PRs from forks, because they require an API key that is visible only on the original repo.
-
-We want evals and e2e's to run on pre-submit at least for team members.
-
-Watching branches is not big extra toil for triage process, because:
-
-1. If we forbid branches, the work will not disappear, it will just move to the fork
-2. It is easy to cleanup branches because ownership is clear
-3. As team members know it is part of triage to clean them up, they are more careful managing their branches
-
-### Why do we need P4? Why not just close the issue?
-
-We need the label P4, because:
-
-1. Just closing the issue will not give a clear searchable sign why it is closed
-2. External developers can reopen issue, but cannot change label
-
-It is better not to close P4, because:
-
-1. As we have label P4 anyway, closing the issue is an extra step.
-2. If P4 is open, it is a sign that this feature request is still:
-    1. not implemented
-    2. seems to be valuable
-    3. considered P4
-
-    which adds clarity and makes it harder to push for prioritization.
