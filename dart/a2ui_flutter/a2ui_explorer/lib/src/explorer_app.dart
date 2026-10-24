@@ -326,9 +326,12 @@ class _DataModelViewState extends State<_DataModelView> {
   @override
   void initState() {
     super.initState();
-    _subscription = widget.surface.dataModel.subscribe<Object?>('/', (_) {
-      if (mounted) setState(() {});
-    });
+    _subscription = widget.surface.dataModel.subscribe<Object?>(
+      '/',
+      (_) => runOutsideBuild(() {
+        if (mounted) setState(() {});
+      }),
+    );
   }
 
   @override
