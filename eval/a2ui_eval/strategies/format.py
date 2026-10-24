@@ -17,10 +17,9 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, field
 import json
 import re
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from inspect_ai.model import (
@@ -32,14 +31,14 @@ from inspect_ai.model import (
 )
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
-from ..bridges import (
+from ..runner import (
     DEFAULT_PARSE_TIMEOUT_SEC,
-    BridgeOptions,
-    bridge_options_from_metadata,
-    get_sdk_bridge,
-    validate_sdk_format,
+    RunnerOptions,
+    generate_prompt,
+    parse_and_validate,
+    runner_options_from_metadata,
+    validate_format,
 )
-from ..replay import CompletionReplayStore, prompt_sha256
 from ..shared.utils import GIT_ROOT, measured_generate
 
 _SURFACE_ID_PATTERN = re.compile(
@@ -56,18 +55,6 @@ _INFERENCE_METADATA_KEYS = (
 )
 
 
-def _first_system_prompt(messages: list[Any]) -> str:
-    """Returns the text of the first system message in the conversation, if any."""
-    for message in messages:
-        if message.role == "system":
-            return str(message.text)
-    return ""
-
-
-def _sample_name(state: TaskState) -> str:
-    return str(state.metadata.get("name") or state.sample_id)
-
-
 def _set_completion(state: TaskState, content: str) -> None:
     """Replaces the state's output with a single assistant completion."""
     model = state.output.model if state.output else str(state.model)
@@ -78,18 +65,17 @@ def _set_completion(state: TaskState, content: str) -> None:
 
 
 @solver
-def format_system_prompt(format_name: str, version: str, sdk: str = "python") -> Solver:
-    """Injects system prompt instructions using the selected format strategy and SDK."""
-    validate_sdk_format(sdk, format_name)
+def format_system_prompt(format_name: str, version: str) -> Solver:
+    """Injects system prompt instructions using the selected format strategy."""
+    validate_format(format_name)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
-        options = bridge_options_from_metadata(state.metadata, resolved_catalog_path)
+        options = runner_options_from_metadata(state.metadata, resolved_catalog_path)
 
-        bridge = get_sdk_bridge(sdk)
         generated_snippet = await asyncio.to_thread(
-            bridge.generate_prompt,
+            generate_prompt,
             format_name,
             version,
             resolved_catalog_path,
@@ -150,84 +136,14 @@ async def _generate_accumulating(
     return state
 
 
-@solver
-def generate_or_replay(
-    replay_path: str | None = None,
-    record_path: str | None = None,
-    strategy_name: str = "direct",
-    version: str = "",
-) -> Solver:
-    """Generates a completion, or replays one recorded by an earlier run.
-
-    With `replay_path`, the completion keyed by
-    `(sample name, strategy_name, version)` is loaded from the JSONL store and
-    no model call is made; a missing recording raises `ValueError`. Otherwise
-    the model is called through `measured_generate`, and with `record_path`
-    the completion is appended to that JSONL store together with the SHA-256
-    of the system prompt that produced it.
-    """
-    replay_store = (
-        CompletionReplayStore.load(Path(replay_path), must_exist=True)
-        if replay_path
-        else None
-    )
-    record_store = CompletionReplayStore(Path(record_path)) if record_path else None
-    measured = measured_generate()
-
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        sample_name = _sample_name(state)
-        if replay_store is not None:
-            _replay_completion(state, replay_store, sample_name, strategy_name, version)
-            return state
-
-        state = await measured(state, generate)
-        if record_store is not None and state.output and state.output.completion:
-            record_store.record(
-                sample_name=sample_name,
-                strategy=strategy_name,
-                version=version,
-                completion=state.output.completion,
-                prompt_sha256=prompt_sha256(_first_system_prompt(state.messages)),
-            )
-        return state
-
-    return solve
-
-
-def _replay_completion(
-    state: TaskState,
-    store: CompletionReplayStore,
-    sample_name: str,
-    strategy_name: str,
-    version: str,
-) -> None:
-    """Installs a recorded completion as the state's output."""
-    recorded = store.lookup(sample_name, strategy_name, version)
-    if recorded is None:
-        raise ValueError(
-            f"No recorded completion for sample {sample_name!r} (strategy"
-            f" {strategy_name!r}, version {version!r}) in {store.path}"
-        )
-    state.output = ModelOutput.from_content(
-        model=str(state.model), content=recorded.completion
-    )
-    state.messages.append(ChatMessageAssistant(content=recorded.completion))
-    state.metadata["inference_duration_seconds"] = 0.0
-    state.metadata["replayed"] = True
-    state.metadata["replay_prompt_matches"] = recorded.prompt_sha256 == prompt_sha256(
-        _first_system_prompt(state.messages)
-    )
-
-
 @dataclass
 class _CompileContext:
     """Per-sample inputs shared by every compile attempt."""
 
-    bridge: Any
     format_name: str
     version: str
     resolved_catalog_path: str
-    options: BridgeOptions
+    options: RunnerOptions
     allowed_surface_ids: list[str]
 
 
@@ -278,7 +194,7 @@ async def _attempt_compile(ctx: _CompileContext, completion: str) -> _CompileRes
     surface_id = _find_surface_id(completion, ctx.allowed_surface_ids)
     try:
         res_dict = await asyncio.to_thread(
-            ctx.bridge.parse_and_validate,
+            parse_and_validate,
             ctx.format_name,
             ctx.version,
             ctx.resolved_catalog_path,
@@ -304,7 +220,6 @@ def _retry_prompt(error: str) -> str:
 def compile_format_payload(
     format_name: str,
     version: str,
-    sdk: str = "python",
     max_validation_retries: int = 0,
 ) -> Solver:
     """Compiles format-specific output back to standard A2UI JSON.
@@ -312,20 +227,18 @@ def compile_format_payload(
     On success the compiled messages are stored in
     `state.metadata["compiled_messages"]` so the scorer does not parse the
     completion again. With `max_validation_retries > 0`, a failed attempt
-    sends the validation error back to the model and retries, unless the
-    completion was replayed. `pass_at_1`, `pass_at_k` and
-    `validation_retries_used` are recorded in the metadata.
+    sends the validation error back to the model and retries. `pass_at_1`,
+    `pass_at_k` and `validation_retries_used` are recorded in the metadata.
 
     Args:
         format_name: The name of the format to compile from.
         version: The target A2UI protocol version.
-        sdk: The target SDK.
         max_validation_retries: Maximum number of validation retries.
 
     Returns:
         A Solver step that compiles and validates the format payload.
     """
-    validate_sdk_format(sdk, format_name)
+    validate_format(format_name)
     measured = measured_generate()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -334,11 +247,10 @@ def compile_format_payload(
 
         resolved_catalog_path = str(GIT_ROOT / state.metadata["catalog"])
         ctx = _CompileContext(
-            bridge=get_sdk_bridge(sdk),
             format_name=format_name,
             version=version,
             resolved_catalog_path=resolved_catalog_path,
-            options=bridge_options_from_metadata(state.metadata, resolved_catalog_path),
+            options=runner_options_from_metadata(state.metadata, resolved_catalog_path),
             allowed_surface_ids=state.metadata.get("allowed_surface_ids", ["main"]),
         )
 
@@ -347,8 +259,7 @@ def compile_format_payload(
         state.metadata["pass_at_1"] = result.ok
 
         retries_used = 0
-        can_retry = max_validation_retries > 0 and not state.metadata.get("replayed")
-        while not result.ok and can_retry and retries_used < max_validation_retries:
+        while not result.ok and retries_used < max_validation_retries:
             retries_used += 1
             state.messages.append(
                 ChatMessageUser(content=_retry_prompt(result.error or ""))
@@ -383,40 +294,25 @@ def _apply_compile_result(
     )
 
 
-def _default_strategy_name(format_name: str) -> str:
-    """The replay-store strategy key for a format: `direct` for Direct JSON."""
-    return "direct" if format_name == "direct_json" else format_name
-
-
 def format_solver(
     format_name: str,
     version: str,
-    sdk: str = "python",
     *,
     max_validation_retries: int = 0,
-    replay_path: str | None = None,
-    record_path: str | None = None,
-    strategy_name: str | None = None,
 ) -> list[Solver]:
     """Assembles the solver chain for the specified evaluation strategy.
 
-    The chain is prompt injection, generation (or replay), then compilation.
-    Compilation runs for every format, including Direct JSON, so the scorer can
-    reuse `compiled_messages` and the retry loop applies uniformly.
+    The chain is prompt injection, generation, then compilation. Compilation
+    runs for every format, including Direct JSON, so the scorer can reuse
+    `compiled_messages` and the retry loop applies uniformly.
     """
-    validate_sdk_format(sdk, format_name)
+    validate_format(format_name)
     return [
-        format_system_prompt(format_name, version, sdk=sdk),
-        generate_or_replay(
-            replay_path=replay_path,
-            record_path=record_path,
-            strategy_name=strategy_name or _default_strategy_name(format_name),
-            version=version,
-        ),
+        format_system_prompt(format_name, version),
+        measured_generate(),
         compile_format_payload(
             format_name,
             version,
-            sdk=sdk,
             max_validation_retries=max_validation_retries,
         ),
     ]

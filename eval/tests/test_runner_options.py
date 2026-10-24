@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for `BridgeOptions` handling in the Python SDK bridge.
+"""Tests for `RunnerOptions` handling in the Python evaluation runner.
 
 These run against the real Python SDK and make no model calls.
 """
@@ -27,11 +27,13 @@ from typing import Any
 
 import pytest
 
-from a2ui_eval.bridges import BridgeOptions, CatalogSpec
-from a2ui_eval.bridges.python_bridge import (
-    PythonSdkBridge,
+from a2ui_eval.runner import (
+    CatalogSpec,
+    RunnerOptions,
     build_catalogs_and_examples,
+    generate_prompt,
     get_python_strategy,
+    parse_and_validate,
     parse_and_validate_in_process,
 )
 from a2ui_eval.shared.utils import GIT_ROOT
@@ -85,13 +87,12 @@ def example_file_fixture(tmp_path: Path) -> str:
 
 @pytest.mark.parametrize("format_name", ["direct_json", "express"])
 def test_pruning_removes_component_from_prompt(format_name: str) -> None:
-    bridge = PythonSdkBridge()
-    full = bridge.generate_prompt(format_name, "1.0", V10_CATALOG)
-    pruned = bridge.generate_prompt(
+    full = generate_prompt(format_name, "1.0", V10_CATALOG)
+    pruned = generate_prompt(
         format_name,
         "1.0",
         V10_CATALOG,
-        options=BridgeOptions(
+        options=RunnerOptions(
             catalogs=(
                 CatalogSpec(path=V10_CATALOG, allowed_components=("Text", "Column")),
             )
@@ -115,13 +116,12 @@ def test_function_pruning_removes_function_from_catalog() -> None:
 
 @pytest.mark.parametrize("format_name", ["direct_json", "express"])
 def test_allowed_messages_changes_prompt(format_name: str) -> None:
-    bridge = PythonSdkBridge()
-    default = bridge.generate_prompt(format_name, "1.0", V10_CATALOG)
-    restricted = bridge.generate_prompt(
+    default = generate_prompt(format_name, "1.0", V10_CATALOG)
+    restricted = generate_prompt(
         format_name,
         "1.0",
         V10_CATALOG,
-        options=BridgeOptions(allowed_messages=("updateDataModel",)),
+        options=RunnerOptions(allowed_messages=("updateDataModel",)),
     )
     assert restricted != default
     if format_name == "direct_json":
@@ -130,12 +130,11 @@ def test_allowed_messages_changes_prompt(format_name: str) -> None:
 
 @pytest.mark.parametrize("format_name", ["direct_json", "express"])
 def test_example_file_appears_in_prompt(format_name: str, example_file: str) -> None:
-    bridge = PythonSdkBridge()
-    prompt = bridge.generate_prompt(
+    prompt = generate_prompt(
         format_name,
         "1.0",
         V10_CATALOG,
-        options=BridgeOptions(
+        options=RunnerOptions(
             catalogs=(CatalogSpec(path=V10_CATALOG, examples=(example_file,)),)
         ),
     )
@@ -173,12 +172,11 @@ def test_no_options_gives_single_catalog_and_no_examples() -> None:
 
 
 def test_multi_catalog_prompt_names_both_catalogs() -> None:
-    bridge = PythonSdkBridge()
-    prompt = bridge.generate_prompt(
+    prompt = generate_prompt(
         "direct_json",
         "1.0",
         V10_CATALOG,
-        options=BridgeOptions(
+        options=RunnerOptions(
             catalogs=(CatalogSpec(path=V10_CATALOG), CatalogSpec(path=MCP_CATALOG))
         ),
     )
@@ -294,33 +292,38 @@ def test_worker_request_carries_options_dict_only_when_given() -> None:
             request = json.loads(line)
             print(json.dumps({"result": {"compiled_jsons": [], "parts": [request]}}), flush=True)
         """)
-    bridge = PythonSdkBridge(worker_command=[sys.executable, "-c", script])
-    options = BridgeOptions(
+    worker_cmd = [sys.executable, "-c", script]
+    options = RunnerOptions(
         catalogs=(CatalogSpec(path=V10_CATALOG, allowed_components=("Text",)),),
         allowed_messages=("updateDataModel",),
         initial_renderer_state=INITIAL_STATE,
         stream_chunk_size=7,
     )
 
-    def request_for(opts: BridgeOptions | None) -> dict[str, Any]:
-        return bridge.parse_and_validate(
-            "direct_json", "1.0", V10_CATALOG, "main", "text", options=opts
+    def request_for(opts: RunnerOptions | None) -> dict[str, Any]:
+        return parse_and_validate(
+            "direct_json",
+            "1.0",
+            V10_CATALOG,
+            "main",
+            "text",
+            options=opts,
+            worker_command=worker_cmd,
         )["parts"][0]
 
     assert "options" not in request_for(None)
     sent = request_for(options)["options"]
     assert sent == json.loads(json.dumps(options.to_dict()))
-    assert BridgeOptions.from_dict(sent) == options
+    assert RunnerOptions.from_dict(sent) == options
 
 
 def test_worker_round_trip_carries_options() -> None:
-    bridge = PythonSdkBridge()
-    options = BridgeOptions(
+    options = RunnerOptions(
         catalogs=(CatalogSpec(path=V10_CATALOG, allowed_components=("Text",)),),
         initial_renderer_state=INITIAL_STATE,
         stream_chunk_size=5,
     )
-    result = bridge.parse_and_validate(
+    result = parse_and_validate(
         "direct_json",
         "1.0",
         V10_CATALOG,
@@ -332,13 +335,16 @@ def test_worker_round_trip_carries_options() -> None:
 
     # Without the seeded state the same turn must fail in the worker too.
     with pytest.raises(ValueError, match="Surface not found"):
-        bridge.parse_and_validate(
-            "direct_json", "1.0", V10_CATALOG, "main", _update_data_model_completion()
+        parse_and_validate(
+            "direct_json",
+            "1.0",
+            V10_CATALOG,
+            "main",
+            _update_data_model_completion(),
         )
 
 
 def test_worker_round_trip_applies_pruning() -> None:
-    bridge = PythonSdkBridge()
     button_turn = [
         INITIAL_STATE[0],
         {
@@ -358,17 +364,17 @@ def test_worker_round_trip_applies_pruning() -> None:
         },
     ]
     completion = f"<a2ui-json>{json.dumps(button_turn)}</a2ui-json>"
-    assert bridge.parse_and_validate(
-        "direct_json", "1.0", V10_CATALOG, "main", completion
-    )["compiled_jsons"]
+    assert parse_and_validate("direct_json", "1.0", V10_CATALOG, "main", completion)[
+        "compiled_jsons"
+    ]
     with pytest.raises(ValueError):
-        bridge.parse_and_validate(
+        parse_and_validate(
             "direct_json",
             "1.0",
             V10_CATALOG,
             "main",
             completion,
-            options=BridgeOptions(
+            options=RunnerOptions(
                 catalogs=(CatalogSpec(path=V10_CATALOG, allowed_components=("Text",)),)
             ),
         )

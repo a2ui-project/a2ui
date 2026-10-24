@@ -27,8 +27,8 @@ from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
 
-from a2ui_eval.bridges import normalize_sdk_name, validate_sdk_version
 from a2ui_eval.dataset import load_a2ui_dataset
+from a2ui_eval.runner import validate_version
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 from a2ui_eval.strategies import get_solver
 
@@ -55,20 +55,14 @@ def split_dataset_names(dataset: str | Sequence[str] | None) -> list[str]:
     return [name.strip() for name in raw if name.strip()]
 
 
-def _check_task_inputs(
-    sdk: str, version: str, dataset: str | Sequence[str] | None
-) -> str:
-    """Validates the SDK, protocol version and datasets of a task.
-
-    Returns:
-        The normalized SDK name.
+def _check_task_inputs(version: str, dataset: str | Sequence[str] | None) -> None:
+    """Validates the protocol version and datasets of a task.
 
     Raises:
-        ValueError: If the SDK does not support the version, or a requested
+        ValueError: If the protocol version is unsupported, or a requested
             dataset is pinned to a different protocol version.
     """
-    norm_sdk = normalize_sdk_name(sdk)
-    validate_sdk_version(norm_sdk, version)
+    validate_version(version)
     conflicting = [
         name
         for name in split_dataset_names(dataset)
@@ -79,7 +73,6 @@ def _check_task_inputs(
             f"Dataset(s) {', '.join(conflicting)} cannot be evaluated with"
             f" protocol version {version}."
         )
-    return norm_sdk
 
 
 @scorer(metrics=[])
@@ -132,13 +125,10 @@ def build_task(
     grading_model: str,
     strategy: str,
     dataset: str | Sequence[str] | None,
-    sdk: str,
     tags: str | Sequence[str] | None = None,
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
-    replay_completions: str | None = None,
-    record_completions: str | None = None,
 ) -> Task:
     """Builds the evaluation task for one protocol version.
 
@@ -148,16 +138,12 @@ def build_task(
         grading_model: The model used for LLM-as-a-judge grading.
         strategy: The evaluation strategy (a key of `STRATEGIES`).
         dataset: Dataset name(s) to evaluate, or None for all of them.
-        sdk: The Agent SDK implementation to evaluate.
         tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
-        replay_completions: JSONL store of recorded completions to replay
-            instead of calling the model.
-        record_completions: JSONL store to append each model completion to.
     """
-    norm_sdk = _check_task_inputs(sdk, active_version, dataset)
+    _check_task_inputs(active_version, dataset)
     format_name = (
         strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
     )
@@ -173,22 +159,17 @@ def build_task(
         format_name=format_name,
         tags=tags,
     )
-    version_tag = active_version.replace(".", "_")
 
     return Task(
-        name=f"a2ui_v{version_tag}_eval_{norm_sdk}" if norm_sdk != "python" else None,
         dataset=dataset_obj,
         solver=get_solver(
             strategy,
             version=active_version,
-            sdk=norm_sdk,
             max_validation_retries=max_validation_retries,
             subagent_format=subagent_format,
-            replay_path=replay_completions,
-            record_path=record_completions,
         ),
         scorer=[
-            a2ui_scorer(version=active_version, sdk=norm_sdk),
+            a2ui_scorer(version=active_version),
             measured_model_graded_qa(
                 model=grading_model,
                 instructions=GRADER_INSTRUCTIONS,
@@ -196,14 +177,12 @@ def build_task(
             ),
         ],
         metadata={
-            "sdk": norm_sdk,
             "strategy": strategy,
             "version": active_version,
             "subagent_format": subagent_format,
             "max_validation_retries": max_validation_retries,
             "no_judge": no_judge,
             "tags": tags,
-            "replayed": replay_completions is not None,
         },
     )
 
@@ -214,13 +193,10 @@ def a2ui_v0_9_1_eval(
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "direct",
     dataset: str | Sequence[str] | None = None,
-    sdk: str = "python",
     tags: str | Sequence[str] | None = None,
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
-    replay_completions: str | None = None,
-    record_completions: str | None = None,
 ) -> Task:
     """Evaluation task for A2UI v0.9.1 protocol generation.
 
@@ -229,13 +205,10 @@ def a2ui_v0_9_1_eval(
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'direct').
         dataset: Specific dataset name or list of dataset names.
-        sdk: The Agent SDK implementation to evaluate ('python', 'ts', or 'dart').
         tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
-        replay_completions: JSONL store of recorded completions to replay.
-        record_completions: JSONL store to append each model completion to.
 
     Returns:
         An Inspect Task object configured for A2UI v0.9.1 evaluation.
@@ -248,13 +221,10 @@ def a2ui_v0_9_1_eval(
         grading_model=grading_model,
         strategy=strategy,
         dataset=dataset,
-        sdk=sdk,
         tags=tags,
         no_judge=no_judge,
         max_validation_retries=max_validation_retries,
         subagent_format=subagent_format,
-        replay_completions=replay_completions,
-        record_completions=record_completions,
     )
 
 
@@ -264,13 +234,10 @@ def a2ui_v1_0_eval(
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "express",
     dataset: str | Sequence[str] | None = None,
-    sdk: str = "python",
     tags: str | Sequence[str] | None = None,
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
-    replay_completions: str | None = None,
-    record_completions: str | None = None,
 ) -> Task:
     """Evaluation task for A2UI v1.0 protocol generation.
 
@@ -279,13 +246,10 @@ def a2ui_v1_0_eval(
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'express').
         dataset: Specific dataset name or list of dataset names.
-        sdk: The Agent SDK implementation to evaluate ('python', 'ts', or 'dart').
         tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
-        replay_completions: JSONL store of recorded completions to replay.
-        record_completions: JSONL store to append each model completion to.
 
     Returns:
         An Inspect Task object configured for A2UI v1.0 evaluation.
@@ -298,11 +262,8 @@ def a2ui_v1_0_eval(
         grading_model=grading_model,
         strategy=strategy,
         dataset=dataset,
-        sdk=sdk,
         tags=tags,
         no_judge=no_judge,
         max_validation_retries=max_validation_retries,
         subagent_format=subagent_format,
-        replay_completions=replay_completions,
-        record_completions=record_completions,
     )

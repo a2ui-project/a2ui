@@ -1,5 +1,32 @@
 ## Unreleased
 
+- The Express compiler keeps a map literal as written, quoted keys or not, when
+  one of its keys shares a name with an Express construct (`variable`, `path`,
+  `call`, `check`, `skipped`); before, such a map was read as a variable
+  reference, data binding, function call or check, and lost its data
+  ([#3410](https://github.com/a2ui-project/a2ui/issues/3410)). In v1.0 and
+  later, only `@path` marks a data binding when the compiler checks a property
+  that does not admit one, so a plain `path` key is data. A `_` anywhere but in
+  place of an argument now raises `ExpressValidationError`.
+- The Express compiler finds a data binding inside a map literal given to a
+  property that does not admit one even when the map has keys named `event`,
+  `functionCall` or `@call`, and raises `ExpressForbiddenDatabindingError`.
+- A map literal with a `catalogId` key among the arguments of an Express check
+  holds the check's options: any other key in it, or two such maps naming
+  different catalogs, raises `ExpressValidationError`. Before, only a map with
+  a single `catalogId` string was read as options, and any other was passed to
+  the check as an argument. A null `catalogId` in such a map raises
+  `ExpressValidationError` rather than being ignored.
+- Only a `$path` given to an Express component's `value`, directly or through
+  variables, is passed to the component's checks. A map literal shaped like a
+  data binding is data and is not.
+- An Express variable whose value refers back to it, directly or through other
+  variables, raises `ExpressValidationError` rather than `RecursionError`.
+- The Express decompiler reads only the binding and function call keys of the
+  catalogs' version, so in v1.0 an object with a plain `path` or `call` key is
+  written as a map literal rather than as a data binding or function call. An
+  object with the binding key beside other keys, or an `event` or
+  `functionCall` key whose value is not an object, is also data.
 - Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
   `a2ui.constants`, the message metadata key under which the v1.0 A2A
   extension sends the renderer capabilities. v0.8 and v0.9 use

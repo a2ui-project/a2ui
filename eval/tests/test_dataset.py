@@ -21,13 +21,13 @@ import jsonschema
 import pytest
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool, ChatMessageUser
 
-from a2ui_eval.bridges import (
-    BridgeOptions,
-    CatalogSpec,
-    Stage2Assertions,
-    bridge_options_from_metadata,
-)
 from a2ui_eval.dataset import load_a2ui_dataset
+from a2ui_eval.runner import (
+    CatalogSpec,
+    RunnerOptions,
+    Stage2Assertions,
+    runner_options_from_metadata,
+)
 from a2ui_eval.shared.utils import GIT_ROOT
 
 
@@ -351,15 +351,15 @@ def test_tags_filter_keeps_matching_samples_only(tmp_path: Path) -> None:
     ]
 
 
-def test_bridge_options_from_metadata_defaults_to_resolved_catalog() -> None:
-    options = bridge_options_from_metadata({}, "/abs/catalog.json")
-    assert options == BridgeOptions(catalogs=(CatalogSpec(path="/abs/catalog.json"),))
+def test_runner_options_from_metadata_defaults_to_resolved_catalog() -> None:
+    options = runner_options_from_metadata({}, "/abs/catalog.json")
+    assert options == RunnerOptions(catalogs=(CatalogSpec(path="/abs/catalog.json"),))
     assert options.allowed_messages is None
     assert options.initial_renderer_state is None
     assert options.stream_chunk_size is None
 
 
-def test_bridge_options_from_metadata_resolves_relative_paths(
+def test_runner_options_from_metadata_resolves_relative_paths(
     tmp_path: Path,
 ) -> None:
     metadata = {
@@ -378,7 +378,7 @@ def test_bridge_options_from_metadata_resolves_relative_paths(
         "stream_chunk_size": 32,
     }
 
-    options = bridge_options_from_metadata(metadata, "/unused.json", repo_root=tmp_path)
+    options = runner_options_from_metadata(metadata, "/unused.json", repo_root=tmp_path)
 
     assert options.catalogs == (
         CatalogSpec(
@@ -395,8 +395,8 @@ def test_bridge_options_from_metadata_resolves_relative_paths(
     assert options.stream_chunk_size == 32
 
 
-def test_bridge_options_round_trip_through_dict() -> None:
-    options = BridgeOptions(
+def test_runner_options_round_trip_through_dict() -> None:
+    options = RunnerOptions(
         catalogs=(
             CatalogSpec(path="/a.json", allowed_components=("Text",)),
             CatalogSpec(path="/b.json", catalog_id="b", examples=("/e.json",)),
@@ -408,9 +408,9 @@ def test_bridge_options_round_trip_through_dict() -> None:
 
     as_dict = options.to_dict()
     assert json.loads(json.dumps(as_dict)) == json.loads(options.cache_key())
-    assert BridgeOptions.from_dict(json.loads(json.dumps(as_dict))) == options
-    assert BridgeOptions.from_dict(None) == BridgeOptions()
-    assert options.cache_key() != BridgeOptions().cache_key()
+    assert RunnerOptions.from_dict(json.loads(json.dumps(as_dict))) == options
+    assert RunnerOptions.from_dict(None) == RunnerOptions()
+    assert options.cache_key() != RunnerOptions().cache_key()
 
 
 def test_stage2_assertions_from_mapping() -> None:

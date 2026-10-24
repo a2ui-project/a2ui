@@ -20,12 +20,11 @@ from typing import Any, Callable
 
 from inspect_ai.solver import Solver
 
-from ..bridges import normalize_sdk_name, validate_sdk_strategy
+from ..runner import validate_strategy
 from .format import (
     compile_format_payload,
     format_solver,
     format_system_prompt,
-    generate_or_replay,
 )
 from .skill_mode import read_a2ui_skill, skill_mode_strategy
 from .subagent_tool import (
@@ -36,48 +35,38 @@ from .subagent_tool import (
 )
 
 # Keyword options every strategy factory accepts. `get_solver` forwards them
-# from the task; a factory ignores the ones it has no use for. `get_solver`
-# rejects `replay_path` and `record_path` outside `REPLAYABLE_STRATEGIES`.
+# from the task; a factory ignores the ones it has no use for.
 STRATEGY_OPTION_KEYS: tuple[str, ...] = (
     "max_validation_retries",
     "subagent_format",
-    "replay_path",
-    "record_path",
 )
 
 
 def _format_strategy(format_name: str) -> Callable[..., list[Solver]]:
     """Builds the factory for a strategy that is one inference format."""
 
-    def build(version: str, sdk: str = "python", **options: Any) -> list[Solver]:
+    def build(version: str, **options: Any) -> list[Solver]:
         return format_solver(
             format_name,
             version,
-            sdk=sdk,
             max_validation_retries=options.get("max_validation_retries", 0),
-            replay_path=options.get("replay_path"),
-            record_path=options.get("record_path"),
         )
 
     return build
 
 
-def _subagent_strategy(
-    version: str, sdk: str = "python", **options: Any
-) -> list[Solver]:
+def _subagent_strategy(version: str, **options: Any) -> list[Solver]:
     return subagent_tool_strategy(
         version,
-        sdk=sdk,
         subagent_format=options.get("subagent_format") or "direct_json",
         max_validation_retries=options.get("max_validation_retries", 0),
     )
 
 
-def _skill_mode(version: str, sdk: str = "python", **options: Any) -> list[Solver]:
+def _skill_mode(version: str, **options: Any) -> list[Solver]:
     return skill_mode_strategy(
         "express",
         version,
-        sdk=sdk,
         max_validation_retries=options.get("max_validation_retries", 0),
     )
 
@@ -91,52 +80,32 @@ STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
     "atom": _format_strategy("atom"),
 }
 
-# Strategies that can record or replay completions. Each one is a single
-# inference format whose solver chain runs `generate_or_replay`, so a stored
-# completion can stand in for the model. `subagent_tool` and `skill_mode` run
-# tool-calling loops, which one stored completion cannot reproduce.
-REPLAYABLE_STRATEGIES: tuple[str, ...] = ("direct", "express", "elemental", "atom")
 
-
-def get_solver(
-    strategy: str, version: str, sdk: str = "python", **options: Any
-) -> list[Solver]:
-    """Returns the solver chain for the specified evaluation strategy and SDK.
+def get_solver(strategy: str, version: str, **options: Any) -> list[Solver]:
+    """Returns the solver chain for the specified evaluation strategy.
 
     Args:
         strategy: A key of `STRATEGIES`.
         version: The protocol version the solvers target.
-        sdk: The Agent SDK whose bridge generates prompts and validates output.
-        **options: Any of `STRATEGY_OPTION_KEYS`: `max_validation_retries`,
-            `subagent_format`, `replay_path` and `record_path`.
+        **options: Any of `STRATEGY_OPTION_KEYS`: `max_validation_retries` and
+            `subagent_format`.
 
     Raises:
-        ValueError: If the strategy is unknown, the SDK does not support it,
-            an option name is not recognized, or `replay_path` or
-            `record_path` is set for a strategy outside
-            `REPLAYABLE_STRATEGIES`.
+        ValueError: If the strategy is unknown or an option name is not
+            recognized.
     """
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown evaluation strategy: {strategy}")
     unknown = sorted(set(options) - set(STRATEGY_OPTION_KEYS))
     if unknown:
         raise ValueError(f"Unknown strategy option(s): {', '.join(unknown)}")
-    if strategy not in REPLAYABLE_STRATEGIES and (
-        options.get("replay_path") or options.get("record_path")
-    ):
-        raise ValueError(
-            f"Strategy '{strategy}' cannot record or replay completions."
-            f" Supported strategies: {', '.join(REPLAYABLE_STRATEGIES)}."
-        )
 
-    norm_sdk = normalize_sdk_name(sdk)
-    validate_sdk_strategy(norm_sdk, strategy)
-    return STRATEGIES[strategy](version, sdk=norm_sdk, **options)
+    validate_strategy(strategy)
+    return STRATEGIES[strategy](version, **options)
 
 
 __all__ = [
     "PAYLOAD_STORE_KEY",
-    "REPLAYABLE_STRATEGIES",
     "STRATEGIES",
     "STRATEGY_OPTION_KEYS",
     "a2ui_specialist",
@@ -144,7 +113,6 @@ __all__ = [
     "extract_subagent_payload",
     "format_solver",
     "format_system_prompt",
-    "generate_or_replay",
     "get_solver",
     "read_a2ui_skill",
     "skill_mode_strategy",

@@ -23,7 +23,7 @@ The interaction flow begins with loading a dataset sample. Each sample names one
 
 ### **Integration with A2UI Python SDK**
 
-To ensure consistency between the evaluation framework and the actual agent implementation, the framework integrates the A2UI Python SDK. This reduces duplication of logic and leverages the SDK's robust parsing and validation capabilities.
+To ensure consistency between the evaluation framework and the actual agent implementation, the framework integrates the A2UI Python SDK. Cross-SDK parity for prompt generation and LLM output parsing is verified deterministically by the repository's conformance suite (`conformance/`), so evaluation runs execute against the Python SDK.
 
 | SDK Component     | Role in Evaluation                                                                           | Benefit                                                                                                          |
 | :---------------- | :------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
@@ -32,40 +32,24 @@ To ensure consistency between the evaluation framework and the actual agent impl
 | `Parser`          | Unwraps and compiles A2UI blocks (`unwrap`, `compile`) and checks streaming (`open_stream`). | Extracts and compiles payloads across Direct JSON, Express, Elemental, and Atom formats.                         |
 | `RendererState`   | Applies seed and compiled messages (`apply`) and validates surface trees (`check_topology`). | Centralizes Stage 1 schema and topology validation, matching runtime state checks across SDKs.                   |
 
-### **Evaluating Other Agent SDKs**
+### **Isolated Validation Runner (`a2ui_eval/runner.py`)**
 
-The same tasks can run against the TypeScript and Dart Agent SDKs. Each SDK has a bridge in `a2ui_eval/bridges/` that implements the `AgentSdkBridge` interface: `generate_prompt` builds the format prompt and `parse_and_validate` parses a completion and, by default, runs strict validation. The TypeScript and Dart bridges call a small runner script (`ts_runner.mjs`, `dart_runner.dart`) in a child process. The model, the dataset and the LLM judge do not change between SDKs, so scores differ only where the SDKs differ.
-
-`base.py` lists the strategies, inference formats and protocol versions each SDK supports. `main.py` and `tasks.py` check a run against these lists before any model call. Every bridge uses the same parse timeout, `DEFAULT_PARSE_TIMEOUT_SEC`.
+`a2ui_eval/runner.py` exposes `generate_prompt` to build format prompts and `parse_and_validate` to parse and validate model completions in a pooled Python worker process, isolating the harness from runaway regexes or parser loops under `DEFAULT_PARSE_TIMEOUT_SEC`.
 
 All format strategies (`direct`, `express`, `elemental`, and `atom`), `skill_mode`, and the `subagent_tool` specialist call `parse_and_validate` with `validate=True` during solver execution. The solver stores the validated messages in `state.metadata["compiled_messages"]`, and the Stage 1 scorer reuses them instead of parsing again.
 
-### **Bridge Options: One Contract for Three Runners**
+### **Runner Options**
 
-A sample can ask for more than a single, unpruned catalog. `bridges/base.py` defines `BridgeOptions`, a frozen dataclass that carries everything the inference layer needs beyond the format and version:
+A sample can ask for more than a single, unpruned catalog. `runner.py` defines `RunnerOptions`, a frozen dataclass that carries everything the inference layer needs beyond the format and version:
 
 - `catalogs`: an ordered tuple of `CatalogSpec`. Each spec holds the catalog `path` and an optional `catalog_id` for documents that state none. `allowed_components` and `allowed_functions` prune the catalog. `examples` lists the few-shot example files for that catalog. The first catalog is the default.
 - `allowed_messages`: the message types the model may write, or `None` for all of them.
 - `initial_renderer_state`: messages applied to a fresh renderer state before the model's turn is validated, so a turn can update an existing surface.
-- `stream_chunk_size`: when set, the bridge also feeds the completion through the format's streaming parser in slices of this size. It fails if the streamed parse disagrees with the whole-text parse.
+- `stream_chunk_size`: when set, the runner also feeds the completion through the format's streaming parser in slices of this size. It fails if the streamed parse disagrees with the whole-text parse.
 
-`bridge_options_from_metadata` builds these options from the sample metadata that `load_a2ui_dataset` writes (`catalog_specs`, `allowed_messages`, `initial_state`, `stream_chunk_size`) and resolves every path against the repository root.
+`runner_options_from_metadata` builds these options from the sample metadata that `load_a2ui_dataset` writes (`catalog_specs`, `allowed_messages`, `initial_state`, `stream_chunk_size`) and resolves every path against the repository root.
 
-`generate_prompt` and `parse_and_validate` on every bridge accept `options`. The Python bridge applies them in process. The TypeScript and Dart bridges serialize them with `to_dict()` and send them to `ts_runner.mjs` or `dart_runner.dart`. Each runner rebuilds the same catalog transformers, example turns and renderer state in its own SDK. `cache_key()` gives a deterministic string so prompt caches can key on the options.
-
-Example payload files must be complete wire messages, with `version`, `surfaceId` and `catalogId`. The Python runner fills in missing fields through the SDK's example normalizer. The TypeScript and Dart runners load the file as is, so an incomplete file produces different prompts across SDKs.
-
-### **Completion Replay Across SDKs**
-
-Every SDK builds the same prompt for the same sample. A completion produced for the Python SDK is therefore also a valid input for the TypeScript and Dart bridges. `a2ui_eval/replay.py` uses this to cut inference cost by two thirds when all three SDKs are evaluated.
-
-`CompletionReplayStore` is an append-only JSONL file of `RecordedCompletion` records, keyed by `(sample_name, strategy, version)`. Each record also stores the SHA-256 of the system prompt that produced it. A later record with the same key replaces the earlier one on lookup. `CompletionReplayStore.from_eval_log` builds the same store in memory from an Inspect `.eval` log, taking the strategy and version from the log's task arguments. Each sample contributes the first completion the model generated, skipping assistant turns from the sample's input history and ignoring validation retries.
-
-`generate_or_replay` in `strategies/format.py` is the solver that reads and writes the store. With a replay path it installs the recorded completion as the model output and makes no model call; a missing recording raises `ValueError`.
-
-Without a replay path it calls the model through `measured_generate` and, when a record path is given, appends the completion. A replayed sample is marked `replayed=True` in its metadata, with `replay_prompt_matches` showing whether the current prompt still hashes to the recorded one. Validation retries are disabled for replayed samples because the model is not available to answer them.
-
-Only the single-format strategies in `REPLAYABLE_STRATEGIES` run `generate_or_replay`. `get_solver` rejects a replay or record path for `subagent_tool` and `skill_mode`, because one stored completion cannot reproduce their tool-calling loops.
+`generate_prompt` and `parse_and_validate` accept `options`. `generate_prompt` applies them in process, and `parse_and_validate` serializes them with `to_dict()` across the worker pipe. `cache_key()` gives a deterministic string so prompt caches can key on the options.
 
 ### **Validation Retries and Pass@K**
 
@@ -163,7 +147,7 @@ Evaluating an A2UI response requires more than checking that the output is valid
 
 ### **Stage 1: Structural & Schema Validation (Programmatic)**
 
-The target SDK bridge parses the completion and runs strict validation against the active catalogs, with the sample's `BridgeOptions` applied. When a format solver has already compiled the payload, the scorer reuses `state.metadata["compiled_messages"]` instead of parsing the completion again. A solver failure (a timeout or a parse error recorded by the solver) is scored as a Stage 1 failure. The result is binary: the payload is either a valid set of A2UI messages or it is not.
+The Python evaluation runner parses the completion and runs strict validation against the active catalogs, with the sample's `RunnerOptions` applied. When a format solver has already compiled the payload, the scorer reuses `state.metadata["compiled_messages"]` instead of parsing the completion again. A solver failure (a timeout or a parse error recorded by the solver) is scored as a Stage 1 failure. The result is binary: the payload is either a valid set of A2UI messages or it is not.
 
 ### **Stage 2: Deterministic Assertions**
 
@@ -213,9 +197,9 @@ The framework maintains a "Golden Set" of approximately 200 evaluation samples t
 
 The A2UI evaluation framework is integrated into the development process using a tiered approach to manage costs and resources.
 
-- Smoke tier (PR trigger): samples tagged `smoke` run on every pull request through `bin/run_ci_evals.py --tier smoke`. The script forwards `--record-completions` and `--replay-completions`, so one Python run can supply the completions for the TypeScript and Dart runs.
+- Smoke tier: samples tagged `smoke` can be run for fast feedback through `bin/run_ci_evals.py --tier smoke`.
 - Nightly benchmark: the full suite runs every 24 hours to detect "silent drift" in model performance.
-- Cost control: Stage 1 and 2 reject invalid payloads before any judge call. `--no-judge` removes the judge for structural runs. Replay removes repeated inference across SDKs.
+- Cost control: Stage 1 and 2 reject invalid payloads before any judge call. `--no-judge` removes the judge for structural runs.
 
 By implementing these strategies, the A2UI project ensures that its evaluation data remains resistant to model memorization while providing a transparent and accessible framework for contributors to measure model performance accurately across the LLM landscape.
 **References**

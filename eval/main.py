@@ -17,27 +17,21 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import os
-from pathlib import Path
 import sys
-from collections.abc import Callable, Collection
 from typing import Any
 
 from inspect_ai import Task, eval_set
 from inspect_ai.dataset import MemoryDataset
 
-from a2ui_eval.bridges import (
-    SDK_DEFAULT_STRATEGIES,
-    SDK_SUPPORTED_STRATEGIES,
-    SDK_SUPPORTED_VERSIONS,
-    get_sdk_bridge,
+from a2ui_eval.runner import (
+    DEFAULT_STRATEGIES,
     normalize_protocol_version,
-    normalize_sdk_name,
-    validate_sdk_strategy,
-    validate_sdk_version,
+    validate_strategy,
+    validate_version,
 )
-from a2ui_eval.replay import CompletionReplayStore
-from a2ui_eval.strategies import REPLAYABLE_STRATEGIES, STRATEGIES
+from a2ui_eval.strategies import STRATEGIES
 from tasks import (
     a2ui_v0_9_1_eval,
     a2ui_v1_0_eval,
@@ -135,27 +129,6 @@ def resolve_model_name(model_name: str) -> str:
     return stripped
 
 
-def _parse_sdks(raw_sdk: list[str] | None, raw_sdks: str | None) -> list[str]:
-    """Parses and normalizes SDK CLI arguments into a deduplicated list."""
-    combined: list[str] = []
-    if raw_sdk:
-        combined.extend(raw_sdk)
-    if raw_sdks:
-        combined.append(raw_sdks)
-    if not combined:
-        return ["python"]
-
-    selected: list[str] = []
-    for item in combined:
-        for part in item.split(","):
-            cleaned = part.strip()
-            if cleaned:
-                norm = normalize_sdk_name(cleaned)
-                if norm not in selected:
-                    selected.append(norm)
-    return selected or ["python"]
-
-
 def _task_function(version: str) -> Callable[..., Task]:
     """Returns the Inspect task function for a protocol version."""
     # Looked up at call time so that tests can patch the task functions.
@@ -171,29 +144,21 @@ def default_protocol_version(strategy: str) -> str:
     return "0.9.1" if strategy == "subagent_tool" else "1.0"
 
 
-def _version_key(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split("."))
-
-
 def plan_protocol_versions(
     strategy: str,
     version: str,
     datasets: list[str],
-    supported_versions: Collection[str] | None = None,
 ) -> list[tuple[str, list[str]]]:
     """Groups the requested datasets by the protocol version they run under.
 
     Datasets pinned to a version (e.g. 'core_v1_0') run under that version.
-    Other datasets run under `version`. When `version` is 'auto', they run
-    under the strategy's default version, or under the newest version in
-    `supported_versions` if the SDK does not support the default.
+    Other datasets run under `version`, or under the strategy's default version
+    when `version` is 'auto'.
 
     Args:
         strategy: The evaluation strategy name.
         version: The '--version' argument ('0.9.1', '1.0' or 'auto').
         datasets: The requested dataset names. Empty means all datasets.
-        supported_versions: The protocol versions the target SDK supports.
-            None means every version.
 
     Returns:
         A list of (protocol version, dataset names) pairs, one per task to run.
@@ -202,12 +167,7 @@ def plan_protocol_versions(
     Raises:
         ValueError: If an explicit version conflicts with a requested dataset.
     """
-    if version != "auto":
-        fallback = version
-    else:
-        fallback = default_protocol_version(strategy)
-        if supported_versions and fallback not in supported_versions:
-            fallback = max(supported_versions, key=_version_key)
+    fallback = default_protocol_version(strategy) if version == "auto" else version
     if not datasets:
         return [(fallback, [])]
 
@@ -229,16 +189,6 @@ def _parse_version_arg(value: str) -> str:
     return cleaned if cleaned == "auto" else normalize_protocol_version(cleaned)
 
 
-def _default_strategies(sdks: Collection[str]) -> list[str]:
-    """The union of every SDK's default (production) strategies, in order."""
-    selected: list[str] = []
-    for sdk in sdks:
-        for strat in SDK_DEFAULT_STRATEGIES[sdk]:
-            if strat not in selected:
-                selected.append(strat)
-    return selected
-
-
 def _split_strategy_args(raw: list[str]) -> list[str]:
     """Flattens repeated or comma-separated `--strategies` values."""
     selected: list[str] = []
@@ -250,19 +200,17 @@ def _split_strategy_args(raw: list[str]) -> list[str]:
     return selected
 
 
-def parse_strategies(
-    raw: list[str] | None, sdks: Collection[str]
-) -> tuple[list[str], bool]:
-    """Returns the strategies to run and whether they were given explicitly.
+def parse_strategies(raw: list[str] | None) -> list[str]:
+    """Returns the strategies to run.
 
-    Without `--strategies`, each SDK runs its `SDK_DEFAULT_STRATEGIES` (the
-    production formats); experimental strategies must be named explicitly.
+    Without `--strategies`, returns `DEFAULT_STRATEGIES` (the production
+    formats); experimental strategies must be named explicitly.
 
     Raises:
-        ValueError: If a named strategy is unknown or unsupported by an SDK.
+        ValueError: If a named strategy is unknown.
     """
     if not raw:
-        return _default_strategies(sdks), False
+        return list(DEFAULT_STRATEGIES)
     selected = _split_strategy_args(raw)
     for strat in selected:
         if strat not in STRATEGIES:
@@ -270,40 +218,8 @@ def parse_strategies(
                 f"Unknown evaluation strategy: {strat}. Valid choices:"
                 f" {', '.join(STRATEGIES.keys())}"
             )
-        for sdk in sdks:
-            validate_sdk_strategy(sdk, strat)
-    return selected, True
-
-
-def replayable_strategies(strategies: list[str], *, explicit: bool) -> list[str]:
-    """Returns the strategies that can record or replay completions.
-
-    Used when `--record-completions` or `--replay-completions` is set. Only
-    `REPLAYABLE_STRATEGIES` can do either. Unsupported default strategies are
-    skipped with a note, so the rest of the defaults still run.
-
-    Args:
-        strategies: The strategies returned by `parse_strategies`.
-        explicit: Whether the strategies were named in `--strategies`.
-
-    Raises:
-        ValueError: If `explicit` is True and a strategy cannot record or
-            replay completions.
-    """
-    unsupported = [s for s in strategies if s not in REPLAYABLE_STRATEGIES]
-    if not unsupported:
-        return list(strategies)
-    if explicit:
-        raise ValueError(
-            "Cannot record or replay completions for strategies:"
-            f" {', '.join(unsupported)}. Supported strategies:"
-            f" {', '.join(REPLAYABLE_STRATEGIES)}."
-        )
-    print(
-        "Note: skipping strategies that cannot record or replay completions:"
-        f" {', '.join(unsupported)}."
-    )
-    return [s for s in strategies if s in REPLAYABLE_STRATEGIES]
+        validate_strategy(strat)
+    return selected
 
 
 def resolve_runtime_settings(args: argparse.Namespace) -> dict[str, Any]:
@@ -322,28 +238,6 @@ def resolve_runtime_settings(args: argparse.Namespace) -> dict[str, Any]:
     if args.no_judge:
         profile["no_judge"] = True
     return profile
-
-
-def resolve_replay_path(replay_completions: str | None, log_dir: str) -> str | None:
-    """Returns a JSONL replay store path, converting an `.eval` log if needed."""
-    if not replay_completions:
-        return None
-    source = Path(replay_completions)
-    if source.suffix != ".eval":
-        return str(source)
-    target = Path(log_dir) / f"{source.stem}.replay.jsonl"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.unlink(missing_ok=True)
-    store = CompletionReplayStore(target)
-    for rec in CompletionReplayStore.from_eval_log(source).records():
-        store.record(
-            rec.sample_name,
-            rec.strategy,
-            rec.version,
-            rec.completion,
-            rec.prompt_sha256,
-        )
-    return str(target)
 
 
 def main() -> None:
@@ -501,37 +395,6 @@ def main() -> None:
         help="Alias for --tags with one tag, e.g. 'smoke'.",
     )
     parser.add_argument(
-        "--record-completions",
-        type=str,
-        default=None,
-        help="JSONL file to append every model completion to, for later replay.",
-    )
-    parser.add_argument(
-        "--replay-completions",
-        type=str,
-        default=None,
-        help=(
-            "JSONL file (or Inspect .eval log) of recorded completions to"
-            " replay instead of calling the model."
-        ),
-    )
-    parser.add_argument(
-        "--sdk",
-        type=str,
-        action="append",
-        help=(
-            "Agent SDK implementation to evaluate (choices: python, ts, dart)."
-            " Can be comma-separated or specified multiple times. Defaults to"
-            " 'python'."
-        ),
-    )
-    parser.add_argument(
-        "--sdks",
-        type=str,
-        default=None,
-        help="Comma-separated list of Agent SDKs to evaluate (e.g. 'python,ts,dart').",
-    )
-    parser.add_argument(
         "--version",
         type=_parse_version_arg,
         choices=[*PROTOCOL_VERSIONS, "auto"],
@@ -540,8 +403,7 @@ def main() -> None:
             "Protocol version to evaluate ('0.9.1', '1.0', or 'auto'). With"
             " 'auto' (the default), datasets with a version suffix such as"
             " 'core_v1_0' run under that version, and other datasets run under"
-            " 1.0, or 0.9.1 for the subagent_tool strategy (falling back to the"
-            " newest version the SDK supports)."
+            " 1.0, or 0.9.1 for the subagent_tool strategy."
         ),
     )
     parser.add_argument(
@@ -580,53 +442,31 @@ def main() -> None:
     # Resolve dataset filters
     selected_datasets = split_dataset_names(args.datasets or args.dataset)
 
-    # Parse and validate SDKs
-    selected_sdks = _parse_sdks(args.sdk, args.sdks)
-
     # Parse and validate strategies
-    selected_strategies, explicit_strategies = parse_strategies(
-        args.strategies, selected_sdks
-    )
-    if args.record_completions or args.replay_completions:
-        selected_strategies = replayable_strategies(
-            selected_strategies, explicit=explicit_strategies
-        )
+    selected_strategies = parse_strategies(args.strategies)
     runtime = resolve_runtime_settings(args)
     tags = args.tags or args.tier
 
-    # Plan every task and validate SDK/version support before any SDK build
-    # or model call, so an unsupported combination fails fast.
-    task_plan: list[tuple[str, str, str, list[str]]] = []
-    for sdk in selected_sdks:
-        sdk_strategies = (
-            selected_strategies
-            if explicit_strategies
-            else [s for s in SDK_DEFAULT_STRATEGIES[sdk] if s in selected_strategies]
-        )
-        for strat in sdk_strategies:
-            for task_version, task_datasets in plan_protocol_versions(
-                strat,
-                args.version,
-                selected_datasets,
-                SDK_SUPPORTED_VERSIONS[sdk],
-            ):
-                validate_sdk_version(sdk, task_version)
-                task_plan.append((sdk, strat, task_version, task_datasets))
-
-    replay_path = resolve_replay_path(args.replay_completions, args.log_dir)
-    for sdk in selected_sdks:
-        get_sdk_bridge(sdk).prepare()
+    # Plan every task and validate version support before any model call, so
+    # an unsupported combination fails fast.
+    task_plan: list[tuple[str, str, list[str]]] = []
+    for strat in selected_strategies:
+        for task_version, task_datasets in plan_protocol_versions(
+            strat,
+            args.version,
+            selected_datasets,
+        ):
+            validate_version(task_version)
+            task_plan.append((strat, task_version, task_datasets))
 
     tasks = []
-    for sdk, strat, task_version, task_datasets in task_plan:
+    for strat, task_version, task_datasets in task_plan:
         task_func = _task_function(task_version)
         task_kwargs: dict[str, Any] = {
             "strategy": strat,
             "grading_model": grading_model,
             "dataset": ",".join(task_datasets) or None,
         }
-        if sdk != "python":
-            task_kwargs["sdk"] = sdk
         if tags:
             task_kwargs["tags"] = tags
         if runtime["no_judge"]:
@@ -635,10 +475,6 @@ def main() -> None:
             task_kwargs["max_validation_retries"] = args.max_validation_retries
         if args.subagent_format != "direct_json":
             task_kwargs["subagent_format"] = args.subagent_format
-        if replay_path:
-            task_kwargs["replay_completions"] = replay_path
-        if args.record_completions:
-            task_kwargs["record_completions"] = args.record_completions
 
         task_obj = task_func(**task_kwargs)
         if args.prompt and getattr(task_obj, "dataset", None) is not None:
@@ -681,10 +517,7 @@ def main() -> None:
         eval_set_kwargs["max_tasks"] = args.max_tasks
     eval_set_kwargs["max_samples"] = runtime["max_samples"]
 
-    print(
-        f"Starting evaluation for SDKs {selected_sdks} and strategies"
-        f" {selected_strategies}..."
-    )
+    print(f"Starting evaluation for strategies {selected_strategies}...")
     success, _ = eval_set(**eval_set_kwargs)
     if not success:
         print("Evaluation returned failure status!")

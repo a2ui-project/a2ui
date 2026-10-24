@@ -5,7 +5,7 @@ An eval checks that a prompt or conversation history produces a UI payload that 
 
 ## Design
 
-For the evaluation architecture, the three-stage scoring funnel, replay, and secret management, see [DESIGN.md](DESIGN.md).
+For the evaluation architecture, the three-stage scoring funnel, and secret management, see [DESIGN.md](DESIGN.md).
 
 ## Contributing Use Cases & Datasets
 
@@ -81,12 +81,16 @@ uv run main.py --dataset multi_turn_conversation_dataset
 uv run main.py --datasets core_v0_9_1,multi_turn_conversation_dataset
 ```
 
-By default `main.py` runs the production strategies: `direct`, `subagent_tool` and `express`. The experimental Python formats `elemental` and `atom`, and the `skill_mode` strategy, run only when you name them:
+By default `main.py` runs the production strategies: `direct`, `subagent_tool` and `express`. The experimental formats `elemental` and `atom`, and the `skill_mode` strategy, run only when you name them:
 
 ```bash
 uv run main.py --dataset multi_turn_conversation_dataset --strategies direct,express,elemental
 uv run main.py --strategies skill_mode
 ```
+
+The `subagent_tool` strategy gives the outer model one tool, `a2ui_specialist`, and a second model call writes the payload. `--subagent-format {direct_json,express}` picks the format the specialist writes in (default `direct_json`).
+
+The `skill_mode` strategy does not put the A2UI prompt in the system message. It lists the available skills (`a2ui-core` plus one per catalog) and gives the model a `read_a2ui_skill` tool to load them. The skills the model read are recorded as `skills_read` in the sample metadata.
 
 For a quick 2-sample validation using `gemini-3.1-flash-lite`:
 
@@ -108,11 +112,11 @@ The individual flags are `--max-samples N` (concurrent samples), `--max-connecti
 
 ### The smoke tier
 
-Samples carry free-form `tags`. `--tags a,b` keeps only the samples that carry at least one of the listed tags. `--tier NAME` is an alias for `--tags NAME`. The curated subset that CI runs on every pull request is tagged `smoke`:
+Samples carry free-form `tags`. `--tags a,b` keeps only the samples that carry at least one of the listed tags. `--tier NAME` is an alias for `--tags NAME`. The curated subset for fast checks is tagged `smoke`:
 
 ```bash
 uv run main.py --tier smoke
-uv run main.py --tags smoke,stateful --sdk ts
+uv run main.py --tags smoke,stateful
 ```
 
 `bin/run_ci_evals.py` forwards `--tier` and `--tags` to `main.py`.
@@ -124,7 +128,7 @@ By default a sample gets one attempt. With `--max-validation-retries N`, a compl
 - `pass_at_1`: the first completion validated.
 - `pass_at_k`: some completion within the retry budget validated.
 
-`validation_retries_used` records how many retries a sample needed. The `subagent_tool` strategy records the same information for the specialist call as `subagent_pass_at_1` and `subagent_validation_retries_used`. Retries never run on replayed completions. The default is `0`, so CI reports Pass@1 unless `run_ci_evals.py` is given `--max-validation-retries`.
+`validation_retries_used` records how many retries a sample needed. The `subagent_tool` strategy records the same information for the specialist call as `subagent_pass_at_1` and `subagent_validation_retries_used`. The default is `0`, so CI reports Pass@1 unless `run_ci_evals.py` is given `--max-validation-retries`.
 
 ```bash
 uv run main.py --strategies express --max-validation-retries 2
@@ -138,81 +142,11 @@ uv run main.py --strategies express --max-validation-retries 2
 uv run main.py --model ollama/gemma4:e4b --strategies express --no-judge
 ```
 
-### Recording completions once and replaying them
-
-The Python, TypeScript and Dart SDKs all run the same prompts, so evaluating all three normally costs three model calls per sample. Instead, record the completions from one run and replay them against the other SDKs:
-
-```bash
-# One model call per sample, recorded to a JSONL file
-uv run main.py --sdk python --strategies direct,express --record-completions logs/completions.jsonl
-
-# No model calls: the TS and Dart bridges parse and validate the recorded text
-uv run main.py --sdk ts --strategies direct,express --replay-completions logs/completions.jsonl
-uv run main.py --sdk dart --strategies direct,express --replay-completions logs/completions.jsonl
-```
-
-`--replay-completions` also accepts an Inspect `.eval` log from an earlier run, so you do not need to have planned ahead. Recordings are keyed by sample name, strategy and protocol version. A missing recording is an error, not a silent model call.
-
-Only the single-format strategies (`direct`, `express`, `elemental` and `atom`) can record or replay completions. `subagent_tool` and `skill_mode` run tool-calling loops that one stored completion cannot reproduce. Without `--strategies`, either flag leaves `subagent_tool` out of the defaults and prints a note. Naming `subagent_tool` or `skill_mode` in `--strategies` is an error.
-
-A replayed sample is marked `replayed: true` in its metadata. `replay_prompt_matches` tells you whether the system prompt still matches the one that produced the recording. `run_ci_evals.py` forwards `--record-completions` and `--replay-completions`.
-
-### Evaluating the TypeScript and Dart Agent SDKs
-
-By default, evals run against the Python Agent SDK (`python/a2ui_agent`). The same evals can also run against the TypeScript SDK (`typescript/a2ui_agent`) and the Dart SDK (`dart/a2ui_agent`). The selected SDK generates the format prompt and parses and validates the model output. The model and the judge are the same for every SDK, so scores can be compared across SDKs.
-
-```bash
-# Evaluate one SDK (python, ts or dart; the default is python)
-uv run main.py --sdk ts --strategies direct,express
-uv run main.py --sdk dart --strategies direct,express
-
-# Evaluate several SDKs in one run
-uv run main.py --sdks python,ts,dart --strategies direct,express
-```
-
-`--sdk` can be repeated or given a comma-separated list. `--sdks` takes a comma-separated list. Each SDK gets its own Inspect task, named with an `_<sdk>` suffix for TypeScript and Dart (for example `a2ui_v1_0_eval_ts`).
-
-Not every SDK supports every strategy or inference format. When `--strategies` is omitted, `main.py` runs `direct`, `subagent_tool` and `express` for the selected SDK. `main.py` rejects an unsupported combination before it starts any model calls. CI runs the same three strategies for every SDK, so the experimental Python formats (`elemental`, `atom`) and `skill_mode` don't gate CI.
-
-| SDK      | Strategies                                                              | Inference formats                             | Protocol versions |
-| :------- | :---------------------------------------------------------------------- | :-------------------------------------------- | :---------------- |
-| `python` | `direct`, `subagent_tool`, `express`, `elemental`, `atom`, `skill_mode` | `direct_json`, `express`, `elemental`, `atom` | 0.9.1, 1.0        |
-| `ts`     | `direct`, `subagent_tool`, `express`                                    | `direct_json`, `express`                      | 0.9.1, 1.0        |
-| `dart`   | `direct`, `subagent_tool`, `express`                                    | `direct_json`, `express`                      | 0.9.1             |
-
-The `subagent_tool` strategy gives the outer model one tool, `a2ui_specialist`, and a second model call writes the payload. `--subagent-format {direct_json,express}` picks the format the specialist writes in (default `direct_json`).
-
-The `skill_mode` strategy does not put the A2UI prompt in the system message. It lists the available skills (`a2ui-core` plus one per catalog) and gives the model a `read_a2ui_skill` tool to load them. The skills the model read are recorded as `skills_read` in the sample metadata. This strategy builds its skills with the Python SDK's `SkillGenerator`, so it runs only with `--sdk python`.
-
-#### TypeScript prerequisites
-
-- Node.js 22 and Yarn on your `PATH` (`corepack enable` provides Yarn).
-- On the first run, the bridge runs `yarn install` from the repository root if the workspace packages are not linked yet. Every run then builds `@a2ui/agent` so that local edits to the TypeScript sources are picked up. The build is skipped when nothing changed. The first run can take a few minutes.
-
-To prepare the workspace ahead of time, run from the repository root:
-
-```bash
-yarn install
-yarn workspace @a2ui/web_core build && yarn workspace @a2ui/agent build
-```
-
-#### Dart prerequisites
-
-- A Flutter SDK on your `PATH`. The repository root is a Dart workspace that includes Flutter packages, so a standalone Dart SDK cannot resolve its dependencies. The Dart version bundled with Flutter must be 3.10 or newer. CI uses the Flutter beta channel.
-- Run `flutter pub get` once from the repository root. The bridge reads the root `.dart_tool/package_config.json`.
-
-```bash
-# From the repository root
-flutter pub get
-```
-
-On the first run, the bridge compiles its Dart runner to a native executable and caches it. It recompiles when the runner or the sources of `dart/a2ui_agent` or `dart/a2ui_core` change.
-
 ### Choosing the Protocol Version
 
 `--version` selects the A2UI protocol version: `0.9.1`, `1.0` or `auto` (the default). A leading `v`, as in `v1.0`, is also accepted.
 
-With `auto`, a dataset whose name ends in a version suffix runs under that version: `core_v0_9_1` runs under 0.9.1 and `core_v1_0` under 1.0. Datasets without a suffix run under 1.0, except with the `subagent_tool` strategy, which runs under 0.9.1. If the SDK does not support that version, they run under the newest version the SDK supports. When `--datasets` lists datasets for both versions, each version gets its own task.
+With `auto`, a dataset whose name ends in a version suffix runs under that version: `core_v0_9_1` runs under 0.9.1 and `core_v1_0` under 1.0. Datasets without a suffix run under 1.0, except with the `subagent_tool` strategy, which runs under 0.9.1. When `--datasets` lists datasets for both versions, each version gets its own task.
 
 ```bash
 # Run every dataset that supports v0.9.1
@@ -224,7 +158,7 @@ uv run main.py --datasets core_v0_9_1,core_v1_0 --strategies direct
 
 An explicit `--version` that conflicts with a requested dataset is an error. For example, `--version 0.9.1 --dataset core_v1_0` fails instead of running an empty dataset.
 
-The eval report (`bin/report_evals.py`) shows the SDK, protocol version and strategy of each run.
+The eval report (`bin/report_evals.py`) shows the protocol version and strategy of each run.
 
 ### Running Other Model Providers
 
@@ -307,7 +241,7 @@ uv run main.py --model gemma-e2b --strategies express --dataset core_v1_0 --limi
 
 Scoring is a gated funnel. A sample must pass each stage to reach the next:
 
-1. Stage 1, schema validation. The target SDK parses the completion and runs strict validation against the active catalogs. When the solver already compiled the payload, the scorer reuses `metadata["compiled_messages"]` instead of parsing again.
+1. Stage 1, schema validation. The Python evaluation runner parses the completion and runs strict validation against the active catalogs. When the solver already compiled the payload, the scorer reuses `metadata["compiled_messages"]` instead of parsing again.
 2. Stage 2, deterministic assertions. The sample's `assertions` block is checked against the compiled messages. A sample without `assertions` passes this stage.
 3. Stage 3, LLM judge. `measured_model_graded_qa` asks the grading model for a grade of `C` (correct), `P` (partial) or `I` (incorrect) against the sample's `target`. The judge is skipped when Stage 1 or 2 failed (grade `I`) or when `--no-judge` is set (grade `C`).
 
@@ -324,11 +258,11 @@ Each sample in `datasets/*.yaml` is a YAML object. Beyond `name`, `description`,
 | `examples`          | Paths of JSON files holding few-shot example payloads for the single `catalog`. Inside `catalogs[]`, `examples` applies to that catalog.                     |
 | `allowed_messages`  | Message types the model may write: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`. Omit to allow all.                               |
 | `initial_state`     | A2UI messages applied to a fresh renderer state before the model's turn is validated, so the turn can update an existing surface.                            |
-| `stream_chunk_size` | When set, the bridge also feeds the completion through the format's streaming parser in slices of this many characters and fails on a mismatch.              |
+| `stream_chunk_size` | When set, the runner also feeds the completion through the format's streaming parser in slices of this many characters and fails on a mismatch.              |
 | `tags`              | Free-form tags for `--tags` and `--tier`, such as `smoke`, `multi_catalog`, `pruned` or `stateful`.                                                          |
 | `assertions`        | Stage 2 checks: `required_components`, `forbidden_components`, `required_bindings`, `required_actions`, `message_types`, `catalog_ids`.                      |
 
-`allowed_components` and `allowed_functions` prune the catalog before the prompt is built, so the model sees only the listed names. Example payload files must be complete wire messages with `version`, `surfaceId` and `catalogId`. The Python runner fills in missing fields. The TypeScript and Dart runners do not, so an incomplete file passes on one SDK and fails on the others.
+`allowed_components` and `allowed_functions` prune the catalog before the prompt is built, so the model sees only the listed names. Example payload files hold wire messages with `version`, `surfaceId` and `catalogId`.
 
 ## Importing a real trace
 

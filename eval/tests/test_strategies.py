@@ -30,20 +30,20 @@ from inspect_ai.model import (
 from inspect_ai.solver import TaskState
 from inspect_ai.util import store
 
-from a2ui_eval.bridges import (
+from a2ui_eval.runner import (
     DEFAULT_PARSE_TIMEOUT_SEC,
-    BridgeOptions,
+    RunnerOptions,
     get_python_strategy,
     parse_and_validate_in_process,
 )
 from a2ui_eval.shared.utils import GIT_ROOT
 from a2ui_eval.strategies import (
     PAYLOAD_STORE_KEY,
-    REPLAYABLE_STRATEGIES,
     STRATEGIES,
     a2ui_specialist,
     compile_format_payload,
     extract_subagent_payload,
+    format_solver,
     format_system_prompt,
     get_solver,
     subagent_tool_strategy,
@@ -147,8 +147,8 @@ def test_subagent_tool_solver() -> None:
     assert len(solvers) == 5
 
 
-class _FakeBridge:
-    """Fake SDK bridge that records prompt and parse_and_validate calls.
+class _FakeRunner:
+    """Fake runner that records `generate_prompt` and `parse_and_validate` calls.
 
     `fail_first` makes the first `parse_and_validate` call raise, to exercise
     the specialist's validation retry.
@@ -157,7 +157,7 @@ class _FakeBridge:
     def __init__(self, fail_first: int = 0) -> None:
         self.parse_calls: list[dict[str, Any]] = []
         self.prompt_calls: list[dict[str, Any]] = []
-        self.options_seen: list[BridgeOptions | None] = []
+        self.options_seen: list[RunnerOptions | None] = []
         self._failures_left = fail_first
 
     def generate_prompt(
@@ -167,7 +167,7 @@ class _FakeBridge:
         resolved_catalog_path: str,
         surface_id: str = "main",
         *,
-        options: BridgeOptions | None = None,
+        options: RunnerOptions | None = None,
     ) -> str:
         self.prompt_calls.append({
             "format_name": format_name,
@@ -187,7 +187,7 @@ class _FakeBridge:
         require_complete_tags: bool = False,
         *,
         validate: bool = True,
-        options: BridgeOptions | None = None,
+        options: RunnerOptions | None = None,
     ) -> dict[str, Any]:
         self.parse_calls.append({
             "format_name": format_name,
@@ -224,22 +224,27 @@ def _specialist_meta(**extra: Any) -> dict[str, Any]:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("sdk", ["python", "ts", "dart"])
-async def test_a2ui_specialist_default_is_direct_json(sdk: str) -> None:
+async def test_a2ui_specialist_default_is_direct_json() -> None:
     """By default the specialist writes Direct JSON for 0.9.1 and validates it."""
-    bridge = _FakeBridge()
+    runner = _FakeRunner()
     meta = _specialist_meta()
 
     with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
-    ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=_FakeModel()):
-        result = await a2ui_specialist(sdk=sdk)(input="Build a card")
+        "a2ui_eval.strategies.subagent_tool.generate_prompt",
+        side_effect=runner.generate_prompt,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.get_model", return_value=_FakeModel()
+    ):
+        result = str(await a2ui_specialist()(input="Build a card"))
 
     assert result.startswith("Success")
     assert store().get(PAYLOAD_STORE_KEY) is not None
-    assert bridge.prompt_calls[0]["format_name"] == "direct_json"
-    assert bridge.prompt_calls[0]["version"] == "0.9.1"
-    assert bridge.parse_calls == [{
+    assert runner.prompt_calls[0]["format_name"] == "direct_json"
+    assert runner.prompt_calls[0]["version"] == "0.9.1"
+    assert runner.parse_calls == [{
         "format_name": "direct_json",
         "timeout_sec": DEFAULT_PARSE_TIMEOUT_SEC,
         "require_complete_tags": True,
@@ -253,7 +258,7 @@ async def test_a2ui_specialist_default_is_direct_json(sdk: str) -> None:
 @pytest.mark.asyncio
 async def test_a2ui_specialist_express_uses_version_and_options() -> None:
     """An Express specialist prompts and validates with the sample's options."""
-    bridge = _FakeBridge()
+    runner = _FakeRunner()
     meta = _specialist_meta(
         catalog=str(V1_CATALOG),
         allowed_messages=["updateComponents"],
@@ -262,59 +267,79 @@ async def test_a2ui_specialist_express_uses_version_and_options() -> None:
     model = _FakeModel(['<a2ui>root = Text("hi")</a2ui>'])
 
     with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
-    ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=model):
-        result = await a2ui_specialist(subagent_format="express", version="1.0")(
-            input="Build a card"
+        "a2ui_eval.strategies.subagent_tool.generate_prompt",
+        side_effect=runner.generate_prompt,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.get_model", return_value=model
+    ):
+        result = str(
+            await a2ui_specialist(subagent_format="express", version="1.0")(
+                input="Build a card"
+            )
         )
 
     assert result.startswith("Success")
-    assert bridge.prompt_calls == [{
+    assert runner.prompt_calls == [{
         "format_name": "express",
         "version": "1.0",
-        "options": bridge.options_seen[0],
+        "options": runner.options_seen[0],
     }]
-    options = bridge.options_seen[0]
+    options = runner.options_seen[0]
     assert options is not None
     assert options.catalogs[0].path == str(V1_CATALOG)
     assert options.allowed_messages == ("updateComponents",)
-    assert bridge.parse_calls[0]["format_name"] == "express"
-    assert bridge.parse_calls[0]["validate"] is True
+    assert runner.parse_calls[0]["format_name"] == "express"
+    assert runner.parse_calls[0]["validate"] is True
     assert meta["compiled_messages"] == [{"version": "v0.9"}]
-    # The specialist sees the sample's role text, then the bridge prompt.
     assert model.calls[0][0].content.endswith("PROMPT")
 
 
 @pytest.mark.asyncio
 async def test_a2ui_specialist_prefers_sample_version() -> None:
     """Without an explicit version the specialist uses the sample's version."""
-    bridge = _FakeBridge()
+    runner = _FakeRunner()
     _specialist_meta(version="1.0")
     with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
-    ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=_FakeModel()):
+        "a2ui_eval.strategies.subagent_tool.generate_prompt",
+        side_effect=runner.generate_prompt,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.get_model", return_value=_FakeModel()
+    ):
         await a2ui_specialist()(input="Build a card")
-    assert bridge.prompt_calls[0]["version"] == "1.0"
+    assert runner.prompt_calls[0]["version"] == "1.0"
 
 
 @pytest.mark.asyncio
 async def test_a2ui_specialist_retries_after_validation_error() -> None:
     """A rejected answer goes back to the specialist with the error, once."""
-    bridge = _FakeBridge(fail_first=1)
+    runner = _FakeRunner(fail_first=1)
     meta = _specialist_meta()
     model = _FakeModel(["<a2ui-json>bad</a2ui-json>", "<a2ui-json>[]</a2ui-json>"])
 
     with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
-    ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=model):
-        result = await a2ui_specialist(max_validation_retries=1)(input="Build a card")
+        "a2ui_eval.strategies.subagent_tool.generate_prompt",
+        side_effect=runner.generate_prompt,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.get_model", return_value=model
+    ):
+        result = str(
+            await a2ui_specialist(max_validation_retries=1)(input="Build a card")
+        )
 
     assert result.startswith("Success")
-    assert len(bridge.parse_calls) == 2
+    assert len(runner.parse_calls) == 2
     assert meta["compiled_messages"] == [{"version": "v0.9"}]
     assert meta["subagent_pass_at_1"] is False
     assert meta["subagent_validation_retries_used"] == 1
-    # Second attempt: system, user, rejected assistant answer, error feedback.
     second_call = model.calls[1]
     assert [m.role for m in second_call] == ["system", "user", "assistant", "user"]
     assert "Unknown component 'Widget'" in second_call[-1].content
@@ -322,19 +347,25 @@ async def test_a2ui_specialist_retries_after_validation_error() -> None:
 
 @pytest.mark.asyncio
 async def test_a2ui_specialist_gives_up_when_retries_run_out() -> None:
-    bridge = _FakeBridge(fail_first=5)
+    runner = _FakeRunner(fail_first=5)
     meta = _specialist_meta()
     with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
+        "a2ui_eval.strategies.subagent_tool.generate_prompt",
+        side_effect=runner.generate_prompt,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.parse_and_validate",
+        side_effect=runner.parse_and_validate,
     ), patch(
         "a2ui_eval.strategies.subagent_tool.get_model",
         return_value=_FakeModel(["x", "y"]),
     ):
-        result = await a2ui_specialist(max_validation_retries=1)(input="Build a card")
+        result = str(
+            await a2ui_specialist(max_validation_retries=1)(input="Build a card")
+        )
 
     assert result.startswith("Error")
     assert "Unknown component 'Widget'" in result
-    assert len(bridge.parse_calls) == 2
+    assert len(runner.parse_calls) == 2
     assert "compiled_messages" not in meta
     assert meta["subagent_pass_at_1"] is False
     assert meta["subagent_validation_retries_used"] == 1
@@ -342,28 +373,28 @@ async def test_a2ui_specialist_gives_up_when_retries_run_out() -> None:
 
 @pytest.mark.asyncio
 async def test_a2ui_specialist_non_validation_error_records_zero_retries() -> None:
-    bridge = _FakeBridge()
+    runner = _FakeRunner()
     meta = _specialist_meta()
 
-    class _TimeoutBridge(_FakeBridge):
-
-        def parse_and_validate(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-            raise TimeoutError("Bridge timed out")
-
     with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge",
-        return_value=_TimeoutBridge(),
+        "a2ui_eval.strategies.subagent_tool.generate_prompt",
+        side_effect=runner.generate_prompt,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.parse_and_validate",
+        side_effect=TimeoutError("Runner timed out"),
     ), patch(
         "a2ui_eval.strategies.subagent_tool.get_model",
         return_value=_FakeModel(["<a2ui-json>[]</a2ui-json>"]),
     ):
-        result = await a2ui_specialist(max_validation_retries=2)(input="Build a card")
+        result = str(
+            await a2ui_specialist(max_validation_retries=2)(input="Build a card")
+        )
 
     assert result.startswith("Error")
-    assert "Bridge timed out" in result
+    assert "Runner timed out" in result
     assert meta["subagent_pass_at_1"] is False
     assert meta["subagent_validation_retries_used"] == 0
-    assert len(bridge.parse_calls) == 0
+    assert len(runner.parse_calls) == 0
 
 
 def test_specialist_system_prompt_supports_v2_and_legacy_keys() -> None:
@@ -434,7 +465,7 @@ def test_subagent_tool_strategy_signature() -> None:
     )
     assert len(solvers) == 5
     with pytest.raises(ValueError):
-        subagent_tool_strategy(sdk="python", subagent_format="not_a_format")
+        subagent_tool_strategy(subagent_format="not_a_format")
 
 
 SKILL_META = {
@@ -459,7 +490,6 @@ async def test_skill_mode_system_prompt_lists_skills_without_catalog() -> None:
     assert "## Domain Instructions" in prompt
     assert "You are a research bot." in prompt
     assert "Custom UI generator" in prompt
-    # The catalog signatures live in the skill, not in the system prompt.
     assert "Button(" in skills["a2ui-basic"]
     assert "Button(" not in prompt
     assert "A2UI Express DSL Output Contract" in skills["a2ui-core"]
@@ -471,19 +501,18 @@ async def test_skill_mode_system_prompt_lists_skills_without_catalog() -> None:
 async def test_read_a2ui_skill_returns_text_or_error() -> None:
     state = _state(dict(SKILL_META))
     state = await skill_mode_system_prompt("express", "1.0")(state, dummy_generate)
-    # Outside an eval run the sample store and the tool store are separate.
     store().set(SKILLS_STORE_KEY, state.store.get(SKILLS_STORE_KEY))
     store().set(SKILLS_READ_STORE_KEY, [])
     skill_tool = read_a2ui_skill()
 
-    core = await skill_tool(skill_name="a2ui-core")
+    core = str(await skill_tool(skill_name="a2ui-core"))
     assert "A2UI Express DSL Output Contract" in core
-    basic = await skill_tool(skill_name="a2ui-basic")
+    basic = str(await skill_tool(skill_name="a2ui-basic"))
     assert "Button(" in basic
-    again = await skill_tool(skill_name="a2ui-core")
+    again = str(await skill_tool(skill_name="a2ui-core"))
     assert again == core
 
-    error = await skill_tool(skill_name="a2ui-nope")
+    error = str(await skill_tool(skill_name="a2ui-nope"))
     assert error.startswith("Error: unknown skill 'a2ui-nope'")
     assert "`a2ui-core`" in error and "`a2ui-basic`" in error
     assert store().get(SKILLS_READ_STORE_KEY) == ["a2ui-core", "a2ui-basic"]
@@ -533,24 +562,19 @@ def test_elemental_solver() -> None:
     assert len(solvers) == 3
 
 
-@pytest.mark.parametrize("option", ["replay_path", "record_path"])
-@pytest.mark.parametrize("strategy", ["subagent_tool", "skill_mode"])
-def test_get_solver_rejects_recording_for_tool_strategies(
-    strategy: str, option: str
-) -> None:
-    with pytest.raises(ValueError, match=f"'{strategy}' cannot record or replay"):
-        get_solver(strategy, "1.0", **{option: "completions.jsonl"})
-
-
-@pytest.mark.parametrize("strategy", REPLAYABLE_STRATEGIES)
-def test_get_solver_accepts_recording_for_format_strategies(
-    strategy: str, tmp_path: Path
-) -> None:
-    replay = tmp_path / "recorded.jsonl"
-    replay.write_text("")
-    assert len(get_solver(strategy, "1.0", replay_path=str(replay))) == 3
-    record = tmp_path / "completions.jsonl"
-    assert len(get_solver(strategy, "1.0", record_path=str(record))) == 3
+def test_get_solver_accepts_retries_and_subagent_format() -> None:
+    assert len(get_solver("express", "1.0", max_validation_retries=2)) == 3
+    assert (
+        len(
+            get_solver(
+                "subagent_tool",
+                "1.0",
+                max_validation_retries=1,
+                subagent_format="express",
+            )
+        )
+        == 5
+    )
 
 
 @pytest.mark.asyncio
@@ -561,7 +585,6 @@ async def test_a2ui_express_solvers() -> None:
     assert state.messages[0].role == "system"
     assert "A2UI Express DSL Output Contract" in state.messages[0].content
 
-    # The compile solver keeps the text around the sentinel tags.
     compile_solver = compile_format_payload("express", version="1.0")
     _set_completion(
         state,
@@ -613,16 +636,19 @@ async def test_a2ui_atom_solvers() -> None:
 
 @pytest.mark.asyncio
 async def test_compile_format_payload_uses_default_timeout() -> None:
-    bridge = _FakeBridge()
-    compile_solver = compile_format_payload("express", version="1.0", sdk="ts")
+    runner = _FakeRunner()
+    compile_solver = compile_format_payload("express", version="1.0")
     state = _state(
         {"catalog": str(V1_CATALOG)}, completion='<a2ui>root = Text("x")</a2ui>'
     )
-    with patch("a2ui_eval.strategies.format.get_sdk_bridge", return_value=bridge):
+    with patch(
+        "a2ui_eval.strategies.format.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ):
         await compile_solver(state, dummy_generate)
-    assert len(bridge.parse_calls) == 1
-    assert bridge.parse_calls[0]["timeout_sec"] == DEFAULT_PARSE_TIMEOUT_SEC
-    assert bridge.parse_calls[0]["validate"] is True
+    assert len(runner.parse_calls) == 1
+    assert runner.parse_calls[0]["timeout_sec"] == DEFAULT_PARSE_TIMEOUT_SEC
+    assert runner.parse_calls[0]["validate"] is True
 
 
 def test_get_python_strategy_rejects_unknown_format() -> None:
@@ -673,17 +699,206 @@ async def test_compile_format_payload_empty_output_and_error_recovery() -> None:
     assert "Compilation/validation failed:" in res_error.output.completion
 
 
-@pytest.mark.asyncio
-@pytest.mark.sdk_toolchain
-@pytest.mark.parametrize("sdk", ["ts", "dart"])
-async def test_format_solvers_multi_sdk(sdk: str) -> None:
-    prompt_solver = format_system_prompt("express", version="0.9.1", sdk=sdk)
-    state = await prompt_solver(_state({"catalog": str(V091_CATALOG)}), dummy_generate)
-    assert len(state.messages) == 1
-    assert "<a2ui>" in state.messages[0].content
+EXPRESS_OK = '<a2ui>\nroot = Text("Hello")\n</a2ui>'
+DIRECT_OK = (
+    '<a2ui-json>\n[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
+    ' "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}]'
+    "\n</a2ui-json>"
+)
 
-    compile_solver = compile_format_payload("express", version="0.9.1", sdk=sdk)
-    _set_completion(state, 'Intro\n<a2ui>\nroot = Text("Multi SDK")\n</a2ui>\nOutro')
-    state = await compile_solver(state, dummy_generate)
+
+class _ScriptedGenerate:
+    """A `generate` stand-in that returns scripted completions in order."""
+
+    def __init__(self, completions: list[str]) -> None:
+        self.completions = list(completions)
+        self.calls: list[list[Any]] = []
+
+    async def __call__(self, state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
+        self.calls.append(list(state.messages))
+        completion = self.completions.pop(0)
+        state.output = ModelOutput.from_content("mock/model", completion)
+        state.messages.append(ChatMessageAssistant(content=completion))
+        return state
+
+
+class _ScriptedRunner:
+    """Fake runner whose `parse_and_validate` outcomes are scripted."""
+
+    def __init__(self, outcomes: list[Exception | None]) -> None:
+        self.outcomes = list(outcomes)
+        self.parse_calls: list[dict[str, Any]] = []
+
+    def parse_and_validate(
+        self,
+        format_name: str,
+        version: str,
+        resolved_catalog_path: str,
+        surface_id: str,
+        completion: str,
+        timeout_sec: float = DEFAULT_PARSE_TIMEOUT_SEC,
+        require_complete_tags: bool = False,
+        *,
+        validate: bool = True,
+        options: RunnerOptions | None = None,
+    ) -> dict[str, Any]:
+        self.parse_calls.append({
+            "format_name": format_name,
+            "completion": completion,
+            "options": options,
+        })
+        outcome = self.outcomes.pop(0)
+        if outcome is not None:
+            raise outcome
+        return {"compiled_jsons": [{"version": "v1.0"}], "parts": []}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "format_name,completion",
+    [("direct_json", DIRECT_OK), ("express", EXPRESS_OK)],
+)
+async def test_compile_success_sets_compiled_messages(
+    format_name: str, completion: str
+) -> None:
+    runner = _ScriptedRunner([None])
+    solver = compile_format_payload(format_name, version="1.0")
+    state = _state({"catalog": str(V1_CATALOG)}, completion=completion)
+
+    with patch(
+        "a2ui_eval.strategies.format.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ):
+        state = await solver(state, _ScriptedGenerate([]))
+
+    assert state.metadata["compiled_messages"] == [{"version": "v1.0"}]
+    assert state.metadata["pass_at_1"] is True
+    assert state.metadata["pass_at_k"] is True
+    assert state.metadata["validation_retries_used"] == 0
     assert "<a2ui-json>" in state.output.completion
+    assert runner.parse_calls[0]["format_name"] == format_name
+    assert isinstance(runner.parse_calls[0]["options"], RunnerOptions)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "format_name,bad,good",
+    [
+        ("direct_json", "<a2ui-json>[]</a2ui-json>", DIRECT_OK),
+        ("express", "bad", EXPRESS_OK),
+    ],
+)
+async def test_compile_retry_recovers(format_name: str, bad: str, good: str) -> None:
+    runner = _ScriptedRunner([ValueError("missing root"), None])
+    generate = _ScriptedGenerate([good])
+    solver = compile_format_payload(
+        format_name, version="1.0", max_validation_retries=1
+    )
+    state = _state(
+        {"catalog": str(V1_CATALOG), "inference_duration_seconds": 1.5}, completion=bad
+    )
+
+    with patch(
+        "a2ui_eval.strategies.format.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ):
+        state = await solver(state, generate)
+
+    assert state.metadata["pass_at_1"] is False
+    assert state.metadata["pass_at_k"] is True
+    assert state.metadata["validation_retries_used"] == 1
+    assert state.metadata["compiled_messages"] == [{"version": "v1.0"}]
+    assert "<a2ui-json>" in state.output.completion
+    assert "Compilation/validation failed" not in state.output.completion
+    assert len(generate.calls) == 1
+    retry_message = generate.calls[0][-1]
+    assert retry_message.role == "user"
+    assert "missing root" in retry_message.text
+    assert [c["completion"] for c in runner.parse_calls] == [bad, good]
+    assert state.metadata["inference_duration_seconds"] >= 1.5
+
+
+@pytest.mark.asyncio
+async def test_compile_retries_exhausted_fails() -> None:
+    runner = _ScriptedRunner([ValueError("e1"), ValueError("e2"), ValueError("e3")])
+    generate = _ScriptedGenerate(["try2", "try3"])
+    solver = compile_format_payload("express", version="1.0", max_validation_retries=2)
+    state = _state({"catalog": str(V1_CATALOG)}, completion="try1")
+
+    with patch(
+        "a2ui_eval.strategies.format.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ):
+        state = await solver(state, generate)
+
+    assert state.metadata["pass_at_1"] is False
+    assert state.metadata["pass_at_k"] is False
+    assert state.metadata["validation_retries_used"] == 2
+    assert "compiled_messages" not in state.metadata
+    assert state.output.completion.startswith("Compilation/validation failed: e3")
+    assert "Raw output:\ntry3" in state.output.completion
+    assert len(generate.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_compile_retry_handles_none_output() -> None:
+    runner = _ScriptedRunner([ValueError("e1"), ValueError("e2")])
+
+    async def null_output_generate(
+        state: TaskState, *args: Any, **kwargs: Any
+    ) -> TaskState:
+        state.output = None  # type: ignore[assignment]
+        return state
+
+    solver = compile_format_payload("express", version="1.0", max_validation_retries=1)
+    state = _state({"catalog": str(V1_CATALOG)}, completion="try1")
+
+    with patch(
+        "a2ui_eval.strategies.format.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ):
+        state = await solver(state, null_output_generate)  # type: ignore[arg-type]
+
+    assert state.metadata["pass_at_1"] is False
+    assert state.metadata["pass_at_k"] is False
+    assert state.metadata["validation_retries_used"] == 1
+    assert state.output.completion.startswith("Compilation/validation failed: e2")
+
+
+@pytest.mark.asyncio
+async def test_compile_without_retries_fails_once() -> None:
+    runner = _ScriptedRunner([ValueError("e1")])
+    generate = _ScriptedGenerate(["unused"])
+    solver = compile_format_payload("direct_json", version="1.0")
+    state = _state({"catalog": str(V1_CATALOG)}, completion="bad")
+
+    with patch(
+        "a2ui_eval.strategies.format.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ):
+        state = await solver(state, generate)
+
+    assert generate.calls == []
+    assert state.metadata["pass_at_1"] is False
+    assert state.metadata["pass_at_k"] is False
+    assert state.metadata["validation_retries_used"] == 0
+    assert "Compilation/validation failed: e1" in state.output.completion
+
+
+@pytest.mark.asyncio
+async def test_compile_express_with_real_python_runner() -> None:
+    """End to end with the real Python runner: compiled_messages holds the payload."""
+    solver = compile_format_payload("express", version="1.0")
+    state = _state({"catalog": str(V1_CATALOG)}, completion=EXPRESS_OK)
+    state = await solver(state, _ScriptedGenerate([]))
+    assert state.metadata["pass_at_1"] is True
+    compiled = state.metadata["compiled_messages"]
+    assert isinstance(compiled, list) and compiled
     assert '"component": "Text"' in state.output.completion
+
+
+@pytest.mark.parametrize("format_name", ["direct_json", "express"])
+def test_format_solver_chain_length(format_name: str) -> None:
+    assert len(format_solver(format_name, "1.0")) == 3
+    assert len(format_solver(format_name, "1.0", max_validation_retries=1)) == 3
+

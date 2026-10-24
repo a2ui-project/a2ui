@@ -13,7 +13,7 @@ For full architecture and setup details, consult:
 
 - `eval/CONTRIBUTING_USE_CASES.md`: The contributor guide for evaluation use cases, with field definitions, context rules, the `assertions` reference, example file requirements, and the unencrypted multi-turn example.
 - `eval/README.md`: Evaluation quickstart, Transcrypt setup, and CLI flags.
-- `eval/DESIGN.md`: Architecture, the three-stage scoring funnel, replay, and encryption-at-rest design.
+- `eval/DESIGN.md`: Architecture, the three-stage scoring funnel, and encryption-at-rest design.
 - `eval/datasets/dataset_schema.json`: Formal JSON Schema defining required fields and structural rules for evaluation data points.
 
 ---
@@ -72,7 +72,7 @@ For a complete unencrypted reference example of a multi-turn conversation with s
 - Use `catalogs` instead of `catalog` when the sample needs several catalogs, a pruned catalog (`allowed_components`, `allowed_functions`), or per-catalog `examples`.
 - Use `initial_state` plus `allowed_messages` for a sample where the model must update an existing surface instead of creating one.
 - Set `stream_chunk_size` when the sample should also verify the format's streaming parser.
-- Any `examples` file must hold complete wire messages with `version`, `surfaceId` and `catalogId`. The TypeScript and Dart runners do not fill in missing fields.
+- Any `examples` file should hold complete wire messages with `version`, `surfaceId` and `catalogId`.
 
 ### 4. Tag the sample
 

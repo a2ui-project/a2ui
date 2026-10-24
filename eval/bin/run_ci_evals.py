@@ -77,10 +77,6 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
         cmd.extend(["--dataset", args.dataset])
     if getattr(args, "datasets", None):
         cmd.extend(["--datasets", args.datasets])
-    if getattr(args, "sdk", None):
-        cmd.extend(["--sdk", args.sdk])
-    if getattr(args, "sdks", None):
-        cmd.extend(["--sdks", args.sdks])
     if getattr(args, "strategies", None):
         cmd.extend(["--strategies", args.strategies])
     if getattr(args, "version", None):
@@ -90,8 +86,6 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
     for flag, attr in (
         ("--tier", "tier"),
         ("--tags", "tags"),
-        ("--record-completions", "record_completions"),
-        ("--replay-completions", "replay_completions"),
     ):
         value = getattr(args, attr, None)
         if value:
@@ -147,18 +141,6 @@ def main() -> None:
         help="Model used for grading. Default is google/gemini-3.6-flash.",
     )
     parser.add_argument(
-        "--sdk",
-        type=str,
-        default=None,
-        help="Evaluate a specific Agent SDK (python, ts, dart).",
-    )
-    parser.add_argument(
-        "--sdks",
-        type=str,
-        default=None,
-        help="Comma-separated list of Agent SDKs to evaluate (e.g. 'python,ts,dart').",
-    )
-    parser.add_argument(
         "--strategies",
         type=str,
         default=None,
@@ -192,21 +174,6 @@ def main() -> None:
         type=int,
         default=0,
         help="Validation self-retries per sample (reports Pass@1 and Pass@K).",
-    )
-    parser.add_argument(
-        "--record-completions",
-        type=str,
-        default=None,
-        help="JSONL file to append every model completion to.",
-    )
-    parser.add_argument(
-        "--replay-completions",
-        type=str,
-        default=None,
-        help=(
-            "JSONL file or .eval log of completions to replay instead of calling the"
-            " model."
-        ),
     )
     args = parser.parse_args()
 

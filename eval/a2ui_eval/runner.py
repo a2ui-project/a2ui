@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Python Agent SDK bridge implementation.
+"""Python Agent SDK prompt generation and payload validation runner.
 
 Parsing and validation run in long-lived worker processes so that a runaway
 parse can be killed without taking down the evaluation. A worker is a plain
@@ -20,14 +20,15 @@ parse can be killed without taking down the evaluation. A worker is a plain
 not re-import the evaluation's `__main__` module, so it starts in well under a
 second, and it is reused across calls until it times out or dies.
 
-This module must not import `inspect_ai` or the TypeScript/Dart bridges: the
-worker imports it, and anything it pulls in adds to worker start-up time.
+This module must not import `inspect_ai`: the worker imports it, and anything
+it pulls in adds to worker start-up time.
 """
 
 from __future__ import annotations
 
 import collections
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass
 import json
 import os
 from pathlib import Path
@@ -65,24 +66,264 @@ from a2ui.parser import (
 from a2ui.processor import CatalogConfig
 from a2ui.utils import RendererState
 
-from .base import (
-    DEFAULT_PARSE_TIMEOUT_SEC,
-    AgentSdkBridge,
-    BridgeOptions,
-    validate_sdk_format,
-    validate_sdk_version,
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_EVAL_ROOT = str(Path(__file__).resolve().parents[1])
+
+SUPPORTED_STRATEGIES: tuple[str, ...] = (
+    "direct",
+    "subagent_tool",
+    "express",
+    "skill_mode",
+    "elemental",
+    "atom",
 )
+
+# Strategies run when none are named on the command line: the production
+# formats only. The experimental `elemental` and `atom` strategies and
+# `skill_mode` stay supported but must be requested explicitly.
+DEFAULT_STRATEGIES: tuple[str, ...] = ("direct", "subagent_tool", "express")
+
+SUPPORTED_FORMATS: frozenset[str] = frozenset({
+    "direct_json",
+    "express",
+    "elemental",
+    "atom",
+})
+
+SUPPORTED_VERSIONS: frozenset[str] = frozenset({"0.9.1", "1.0"})
+
+# Hard-kill budget, in seconds, for a single parse-and-validate call.
+DEFAULT_PARSE_TIMEOUT_SEC: float = 15.0
 
 _WORKER_STARTUP_TIMEOUT_SEC = 120.0
 _STDERR_TAIL_CHARS = 8192
-_EVAL_ROOT = str(Path(__file__).resolve().parents[2])
-_WORKER_SOURCE = (
-    "from a2ui_eval.bridges.python_bridge import _worker_main; _worker_main()"
-)
+_WORKER_SOURCE = "from a2ui_eval.runner import _worker_main; _worker_main()"
 
-# The dictionary form of `BridgeOptions`, as it crosses the worker's JSON pipe.
+# The dictionary form of `RunnerOptions`, as it crosses the worker's JSON pipe.
 OptionsDict = dict[str, Any]
 Examples = list[list[AgentToRendererMessage]]
+
+
+def validate_strategy(strategy: str) -> None:
+    """Checks that the given strategy is supported."""
+    if strategy not in SUPPORTED_STRATEGIES:
+        valid = ", ".join(sorted(SUPPORTED_STRATEGIES))
+        raise ValueError(
+            f"Strategy '{strategy}' is not supported. Supported strategies: {valid}"
+        )
+
+
+def validate_format(format_name: str) -> None:
+    """Checks that the given inference format is supported."""
+    if format_name not in SUPPORTED_FORMATS:
+        valid = ", ".join(sorted(SUPPORTED_FORMATS))
+        raise ValueError(
+            f"Inference format '{format_name}' is not supported."
+            f" Supported formats: {valid}"
+        )
+
+
+def normalize_protocol_version(version: str) -> str:
+    """Normalizes a protocol version string (e.g. 'v0.9.1' -> '0.9.1')."""
+    cleaned = version.strip().lower()
+    if cleaned.startswith("v"):
+        cleaned = cleaned[1:]
+    return cleaned
+
+
+def validate_version(version: str) -> str:
+    """Checks that the protocol version is supported.
+
+    Args:
+        version: The protocol version, with or without a 'v' prefix.
+
+    Returns:
+        The normalized protocol version (e.g. '0.9.1').
+
+    Raises:
+        ValueError: If the protocol version is not supported.
+    """
+    norm_version = normalize_protocol_version(version)
+    if norm_version not in SUPPORTED_VERSIONS:
+        valid = ", ".join(sorted(SUPPORTED_VERSIONS))
+        raise ValueError(
+            f"Protocol version '{version}' is not supported."
+            f" Supported versions: {valid}"
+        )
+    return norm_version
+
+
+def _tuple_or_none(values: Sequence[str] | None) -> tuple[str, ...] | None:
+    return None if values is None else tuple(str(v) for v in values)
+
+
+def _resolve_repo_path(path: str, repo_root: Path) -> str:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return str(candidate)
+    return str((repo_root / candidate).resolve())
+
+
+@dataclass(frozen=True)
+class CatalogSpec:
+    """One catalog given to the runner, with pruning and few-shot examples.
+
+    Attributes:
+        path: Absolute path to the catalog JSON document.
+        catalog_id: Catalog id to use when the document states none.
+        allowed_components: Component names to keep, or None to keep them all.
+        allowed_functions: Function names to keep, or None to keep them all.
+        examples: Absolute paths to JSON files holding few-shot example payloads
+            (a list of agent-to-renderer messages) for this catalog.
+    """
+
+    path: str
+    catalog_id: str | None = None
+    allowed_components: tuple[str, ...] | None = None
+    allowed_functions: tuple[str, ...] | None = None
+    examples: tuple[str, ...] = ()
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> CatalogSpec:
+        """Builds a spec from its `to_dict` form (or a dataset `catalogs` entry)."""
+        return cls(
+            path=str(data["path"]),
+            catalog_id=data.get("catalog_id"),
+            allowed_components=_tuple_or_none(data.get("allowed_components")),
+            allowed_functions=_tuple_or_none(data.get("allowed_functions")),
+            examples=tuple(str(e) for e in data.get("examples") or ()),
+        )
+
+
+@dataclass(frozen=True)
+class RunnerOptions:
+    """Inference-layer options for prompt generation and payload validation.
+
+    Attributes:
+        catalogs: The active catalogs, in order. The first is the default.
+        allowed_messages: Message types the model may write (for example
+            `updateDataModel`), or None to allow all of them.
+        initial_renderer_state: Messages applied to a fresh renderer state
+            before the model's turn is validated, so a turn can update an
+            existing surface.
+        stream_chunk_size: When set, the runner also feeds the completion
+            through the format's streaming parser in slices of this many
+            characters and fails if the streamed parse disagrees.
+    """
+
+    catalogs: tuple[CatalogSpec, ...] = ()
+    allowed_messages: tuple[str, ...] | None = None
+    initial_renderer_state: tuple[dict[str, Any], ...] | None = None
+    stream_chunk_size: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Returns a JSON-serializable form, for sending to a worker process."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> RunnerOptions:
+        """Rebuilds options from their `to_dict` form; None gives the defaults."""
+        if not data:
+            return cls()
+        state = data.get("initial_renderer_state")
+        return cls(
+            catalogs=tuple(
+                CatalogSpec.from_dict(c) for c in data.get("catalogs") or ()
+            ),
+            allowed_messages=_tuple_or_none(data.get("allowed_messages")),
+            initial_renderer_state=(
+                None if state is None else tuple(dict(m) for m in state)
+            ),
+            stream_chunk_size=data.get("stream_chunk_size"),
+        )
+
+    def cache_key(self) -> str:
+        """A deterministic string identifying these options, for prompt caches."""
+        return json.dumps(self.to_dict(), sort_keys=True, default=str)
+
+
+@dataclass(frozen=True)
+class Stage2Assertions:
+    """Deterministic checks on compiled A2UI messages, run before the LLM judge.
+
+    Each field lists names that must (or must not) appear in the compiled
+    payload. An empty field is not checked.
+
+    Attributes:
+        required_components: Component types that must appear at least once.
+        forbidden_components: Component types that must not appear.
+        required_bindings: Data model paths that must be bound or written.
+        required_actions: Action event or function call names that must appear.
+        message_types: The only message types the payload may contain.
+        catalog_ids: Catalog identifiers that must be referenced.
+    """
+
+    required_components: tuple[str, ...] = ()
+    forbidden_components: tuple[str, ...] = ()
+    required_bindings: tuple[str, ...] = ()
+    required_actions: tuple[str, ...] = ()
+    message_types: tuple[str, ...] = ()
+    catalog_ids: tuple[str, ...] = ()
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any] | None) -> Stage2Assertions:
+        """Builds assertions from a dataset `assertions` block; None gives none."""
+        if not data:
+            return cls()
+        return cls(**{
+            f.name: tuple(str(v) for v in data.get(f.name) or ())
+            for f in cls.__dataclass_fields__.values()
+        })
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether no field asserts anything."""
+        return not any(getattr(self, f) for f in self.__dataclass_fields__)
+
+
+def runner_options_from_metadata(
+    metadata: Mapping[str, Any],
+    resolved_catalog_path: str,
+    repo_root: Path | None = None,
+) -> RunnerOptions:
+    """Builds the runner options a sample asks for from its metadata.
+
+    Args:
+        metadata: The sample metadata written by `load_a2ui_dataset`. Reads
+            `catalog_specs`, `allowed_messages`, `initial_state` and
+            `stream_chunk_size`; every key is optional.
+        resolved_catalog_path: The absolute catalog path used when the sample
+            names no `catalog_specs`.
+        repo_root: Root against which relative catalog and example paths are
+            resolved. Defaults to the repository root.
+
+    Returns:
+        Options whose catalog and example paths are absolute.
+    """
+    root = repo_root or _REPO_ROOT
+    specs: list[CatalogSpec] = []
+    for raw in metadata.get("catalog_specs") or ():
+        spec = CatalogSpec.from_dict(raw)
+        specs.append(
+            CatalogSpec(
+                path=_resolve_repo_path(spec.path, root),
+                catalog_id=spec.catalog_id,
+                allowed_components=spec.allowed_components,
+                allowed_functions=spec.allowed_functions,
+                examples=tuple(_resolve_repo_path(e, root) for e in spec.examples),
+            )
+        )
+    if not specs:
+        specs.append(CatalogSpec(path=resolved_catalog_path))
+    initial_state = metadata.get("initial_state")
+    return RunnerOptions(
+        catalogs=tuple(specs),
+        allowed_messages=_tuple_or_none(metadata.get("allowed_messages")),
+        initial_renderer_state=(
+            None if initial_state is None else tuple(dict(m) for m in initial_state)
+        ),
+        stream_chunk_size=metadata.get("stream_chunk_size"),
+    )
 
 
 def _catalog_transformers(spec: Mapping[str, Any]) -> list[CatalogTransformer]:
@@ -148,7 +389,7 @@ def build_catalogs_and_examples(
     Args:
         resolved_catalog_path: The catalog used when `options` names none.
         version: The protocol version the catalogs must target.
-        options: The `to_dict` form of a `BridgeOptions`, or None.
+        options: The `to_dict` form of a `RunnerOptions`, or None.
 
     Returns:
         The pruned catalogs in order, and the example turns (one list of
@@ -583,82 +824,83 @@ def _get_default_pool() -> _WorkerPool:
         return _default_pool
 
 
-class PythonSdkBridge(AgentSdkBridge):
-    """Bridge for the Python A2UI Agent SDK (python/a2ui_agent).
+def generate_prompt(
+    format_name: str,
+    version: str,
+    resolved_catalog_path: str,
+    surface_id: str = "main",
+    *,
+    options: RunnerOptions | None = None,
+) -> str:
+    """Generates the format-specific and catalog-specific system prompt snippet.
 
     Args:
-        worker_command: Command that starts a worker process. Defaults to a
-            `python -c` interpreter serving `_worker_main`, shared by every
-            bridge that uses the default. A custom command gets its own pool.
+        format_name: The inference format (e.g. 'express').
+        version: The protocol version (e.g. '0.9.1' or '1.0').
+        resolved_catalog_path: Absolute path to the catalog JSON file, used
+            when `options` names no catalogs.
+        surface_id: The default surface ID for formats that need one.
+        options: Multi-catalog, pruning, example and message-type options.
+            None means a single unpruned catalog with no examples.
+
+    Returns:
+        The generated system prompt snippet.
     """
+    validate_format(format_name)
+    norm_version = validate_version(version)
+    opts = options.to_dict() if options is not None else None
+    catalogs, examples = build_catalogs_and_examples(
+        resolved_catalog_path, norm_version, opts
+    )
+    strategy = get_python_strategy(
+        format_name,
+        norm_version,
+        catalogs,
+        surface_id=surface_id,
+        examples=examples,
+        allowed_messages=options.allowed_messages if options else None,
+    )
+    return strategy.prompt_generator.generate()
 
-    sdk_name = "python"
 
-    def __init__(self, worker_command: Sequence[str] | None = None) -> None:
-        self._pool = _WorkerPool(worker_command) if worker_command else None
+def parse_and_validate(
+    format_name: str,
+    version: str,
+    resolved_catalog_path: str,
+    surface_id: str,
+    completion: str,
+    timeout_sec: float = DEFAULT_PARSE_TIMEOUT_SEC,
+    require_complete_tags: bool = False,
+    *,
+    validate: bool = True,
+    options: RunnerOptions | None = None,
+    pool: _WorkerPool | None = None,
+    worker_command: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Parses, and optionally validates, in a worker process.
 
-    def generate_prompt(
-        self,
-        format_name: str,
-        version: str,
-        resolved_catalog_path: str,
-        surface_id: str = "main",
-        *,
-        options: BridgeOptions | None = None,
-    ) -> str:
-        validate_sdk_format(self.sdk_name, format_name)
-        norm_version = validate_sdk_version(self.sdk_name, version)
-        opts = options.to_dict() if options is not None else None
-        catalogs, examples = build_catalogs_and_examples(
-            resolved_catalog_path, norm_version, opts
-        )
-        strategy = get_python_strategy(
-            format_name,
-            norm_version,
-            catalogs,
-            surface_id=surface_id,
-            examples=examples,
-            allowed_messages=options.allowed_messages if options else None,
-        )
-        return strategy.prompt_generator.generate()
-
-    def parse_and_validate(
-        self,
-        format_name: str,
-        version: str,
-        resolved_catalog_path: str,
-        surface_id: str,
-        completion: str,
-        timeout_sec: float = DEFAULT_PARSE_TIMEOUT_SEC,
-        require_complete_tags: bool = False,
-        *,
-        validate: bool = True,
-        options: BridgeOptions | None = None,
-    ) -> dict[str, Any]:
-        """Parses, and optionally validates, in a worker process.
-
-        A `timeout_sec` of zero or less selects `DEFAULT_PARSE_TIMEOUT_SEC`, as
-        the other SDK bridges do. On timeout the worker is killed and a
-        `TimeoutError` is raised. Parse and validation failures, and a worker
-        that dies mid-call, raise `ValueError`. `options`, when given, travel
-        to the worker in their `to_dict` form under the `options` key.
-        """
-        validate_sdk_format(self.sdk_name, format_name)
-        norm_version = validate_sdk_version(self.sdk_name, version)
-        pool = self._pool or _get_default_pool()
-        request: dict[str, Any] = {
-            "format_name": format_name,
-            "version": norm_version,
-            "resolved_catalog_path": os.path.abspath(resolved_catalog_path),
-            "surface_id": surface_id,
-            "completion": completion,
-            "require_complete_tags": require_complete_tags,
-            "validate": validate,
-        }
-        # The key is only sent when set, so the worker sees the same request
-        # it always did when no options are in play.
-        if options is not None:
-            request["options"] = options.to_dict()
-        return pool.run(
-            request, timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC
-        )
+    A `timeout_sec` of zero or less selects `DEFAULT_PARSE_TIMEOUT_SEC`. On
+    timeout the worker is killed and a `TimeoutError` is raised. Parse and
+    validation failures, and a worker that dies mid-call, raise `ValueError`.
+    `options`, when given, travel to the worker in their `to_dict` form under
+    the `options` key.
+    """
+    validate_format(format_name)
+    norm_version = validate_version(version)
+    active_pool = pool or (
+        _WorkerPool(worker_command) if worker_command else _get_default_pool()
+    )
+    request: dict[str, Any] = {
+        "format_name": format_name,
+        "version": norm_version,
+        "resolved_catalog_path": os.path.abspath(resolved_catalog_path),
+        "surface_id": surface_id,
+        "completion": completion,
+        "require_complete_tags": require_complete_tags,
+        "validate": validate,
+    }
+    if options is not None:
+        request["options"] = options.to_dict()
+    return active_pool.run(
+        request, timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC
+    )

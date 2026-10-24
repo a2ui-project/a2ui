@@ -32,12 +32,11 @@ from inspect_ai.solver import Generate, Solver, TaskState, solver, use_tools
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
-from ..bridges import (
-    bridge_options_from_metadata,
+from ..runner import (
     build_catalogs_and_examples,
     get_python_strategy,
-    normalize_sdk_name,
-    validate_sdk_format,
+    runner_options_from_metadata,
+    validate_format,
 )
 from ..shared.utils import GIT_ROOT, measured_generate
 from .format import compile_format_payload
@@ -66,8 +65,8 @@ def build_skills(
     Returns:
         Skill name to `(description, markdown)`, with `a2ui-core` first.
     """
-    options = bridge_options_from_metadata(metadata, resolved_catalog_path)
-    # The same loader the Python bridge uses, so pruning and few-shot examples
+    options = runner_options_from_metadata(metadata, resolved_catalog_path)
+    # The same loader the Python runner uses, so pruning and few-shot examples
     # shape the skills exactly as they shape the monolithic prompt.
     catalogs, examples = build_catalogs_and_examples(
         resolved_catalog_path, version, options.to_dict()
@@ -203,7 +202,6 @@ def record_skills_read() -> Solver:
 def skill_mode_strategy(
     format_name: str = "express",
     version: str = "1.0",
-    sdk: str = "python",
     max_validation_retries: int = 0,
 ) -> list[Solver]:
     """Returns the solver chain for the 'skill_mode' evaluation strategy.
@@ -211,15 +209,12 @@ def skill_mode_strategy(
     Args:
         format_name: The inference format the model answers in.
         version: The protocol version.
-        sdk: The agent SDK whose bridge compiles and validates the answer. The
-            skills themselves always come from the Python SDK's generator.
         max_validation_retries: Self-retry budget for the compile step.
 
     Returns:
         The list of solvers for the `skill_mode` strategy.
     """
-    norm_sdk = normalize_sdk_name(sdk)
-    validate_sdk_format(norm_sdk, format_name)
+    validate_format(format_name)
     return [
         skill_mode_system_prompt(format_name, version),
         use_tools([read_a2ui_skill()]),
@@ -228,7 +223,6 @@ def skill_mode_strategy(
         compile_format_payload(
             format_name,
             version,
-            sdk=norm_sdk,
             max_validation_retries=max_validation_retries,
         ),
     ]

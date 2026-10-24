@@ -16,8 +16,8 @@
 
 The outer agent sees one tool, `a2ui_specialist`, and must delegate UI
 requests to it. The specialist is a second model call with the full A2UI
-prompt for `subagent_format`; its answer is parsed and validated by the SDK
-bridge, retried up to `max_validation_retries` times with the validation error
+prompt for `subagent_format`; its answer is parsed and validated by the Python
+runner, retried up to `max_validation_retries` times with the validation error
 fed back, and the compiled messages are handed back to the outer agent.
 """
 
@@ -48,14 +48,13 @@ from inspect_ai.solver import (
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
-from ..bridges import (
+from ..runner import (
     DEFAULT_PARSE_TIMEOUT_SEC,
-    AgentSdkBridge,
-    BridgeOptions,
-    bridge_options_from_metadata,
-    get_sdk_bridge,
-    normalize_sdk_name,
-    validate_sdk_format,
+    RunnerOptions,
+    generate_prompt,
+    parse_and_validate,
+    runner_options_from_metadata,
+    validate_format,
 )
 from ..shared.utils import GIT_ROOT, measured_generate
 
@@ -112,7 +111,7 @@ def _environment_notes(subagent_format: str) -> str:
 def _specialist_system_prompt(
     sample_meta: Mapping[str, Any], snippet: str, subagent_format: str
 ) -> str:
-    """Builds the specialist's system prompt around the bridge's prompt snippet.
+    """Builds the specialist's system prompt around the runner's prompt snippet.
 
     The snippet is preceded by the sample's role and workflow and by the
     environment notes, and the result is wrapped in the sample's domain
@@ -156,7 +155,6 @@ def _retry_message(error: Exception, subagent_format: str) -> str:
 
 async def _ask_specialist(
     model: Model,
-    bridge: AgentSdkBridge,
     messages: list[ChatMessage],
     parse_args: dict[str, Any],
     max_validation_retries: int,
@@ -165,11 +163,10 @@ async def _ask_specialist(
 
     Args:
         model: The specialist model.
-        bridge: The SDK bridge that parses and validates the answer.
         messages: The specialist conversation; rejected answers and the error
             feedback are appended to it in place.
-        parse_args: Keyword arguments for `bridge.parse_and_validate`, minus
-            the completion.
+        parse_args: Keyword arguments for `parse_and_validate`, minus the
+            completion.
         max_validation_retries: How many extra attempts a rejected answer gets.
 
     Returns:
@@ -184,7 +181,7 @@ async def _ask_specialist(
         completion = output.completion or ""
         try:
             res_dict = await asyncio.to_thread(
-                bridge.parse_and_validate, **parse_args, completion=completion
+                parse_and_validate, **parse_args, completion=completion
             )
             return list(res_dict.get("compiled_jsons", [])), retries_used
         except ValueError as e:
@@ -203,7 +200,6 @@ async def _ask_specialist(
 def a2ui_specialist(
     subagent_format: str = "direct_json",
     version: str | None = None,
-    sdk: str = "python",
     max_validation_retries: int = 0,
 ) -> Tool:
     """The UI-generation tool the outer agent delegates to.
@@ -213,13 +209,10 @@ def a2ui_specialist(
             `direct_json` or `express`.
         version: The protocol version. None uses the sample's `version`
             metadata, then `0.9.1`.
-        sdk: The agent SDK whose bridge generates the prompt and validates
-            the answer.
         max_validation_retries: How many times a rejected answer is sent back
             to the specialist with the validation error.
     """
-    norm_sdk = normalize_sdk_name(sdk)
-    validate_sdk_format(norm_sdk, subagent_format)
+    validate_format(subagent_format)
 
     async def execute(input: str) -> str:  # pylint: disable=redefined-builtin
         """Generates strictly compliant A2UI JSON payloads. Call this tool when the user requests a UI layout.
@@ -233,14 +226,13 @@ def a2ui_specialist(
             raise ValueError("Catalog path is missing from the store.")
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
         effective_version = version or sample_meta.get("version") or DEFAULT_VERSION
-        options: BridgeOptions = bridge_options_from_metadata(
+        options: RunnerOptions = runner_options_from_metadata(
             sample_meta, resolved_catalog_path
         )
         allowed_surface_ids = sample_meta.get("allowed_surface_ids") or ["main"]
 
-        bridge = get_sdk_bridge(norm_sdk)
         generated_snippet = await asyncio.to_thread(
-            bridge.generate_prompt,
+            generate_prompt,
             subagent_format,
             effective_version,
             resolved_catalog_path,
@@ -267,7 +259,7 @@ def a2ui_specialist(
 
         try:
             compiled, retries_used = await _ask_specialist(
-                get_model(), bridge, messages, parse_args, max_validation_retries
+                get_model(), messages, parse_args, max_validation_retries
             )
         except ValueError as e:
             sample_meta["subagent_pass_at_1"] = False
@@ -337,7 +329,6 @@ def extract_subagent_payload() -> Solver:
 
 def subagent_tool_strategy(
     version: str | None = None,
-    sdk: str = "python",
     subagent_format: str = "direct_json",
     max_validation_retries: int = 0,
 ) -> list[Solver]:
@@ -346,7 +337,6 @@ def subagent_tool_strategy(
     Args:
         version: The protocol version the specialist targets. None uses each
             sample's `version` metadata, then `0.9.1`.
-        sdk: The agent SDK whose bridge drives the specialist.
         subagent_format: The inference format the specialist writes in,
             `direct_json` or `express`.
         max_validation_retries: How many times a rejected specialist answer is
@@ -355,20 +345,17 @@ def subagent_tool_strategy(
     Returns:
         The list of solvers for the `subagent_tool` strategy.
     """
-    norm_sdk = normalize_sdk_name(sdk)
-    validate_sdk_format(norm_sdk, subagent_format)
+    validate_format(subagent_format)
     return [
         system_message(
             "You are a helpful assistant. To fulfill UI requests, you MUST"
             " delegate to the `a2ui_specialist` tool."
         ),
-        # Tools cannot access TaskState directly, so we must bridge the metadata into the store
         push_metadata_to_store(),
         use_tools([
             a2ui_specialist(
                 subagent_format=subagent_format,
                 version=version,
-                sdk=norm_sdk,
                 max_validation_retries=max_validation_retries,
             )
         ]),

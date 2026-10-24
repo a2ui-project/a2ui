@@ -16,7 +16,7 @@
 
 Scoring runs in three stages, in the order the scorers are listed on the task:
 
-1. `a2ui_scorer` compiles and validates the payload with the target Agent SDK
+1. `a2ui_scorer` compiles and validates the payload with the Python Agent SDK
    (Stage 1) and then checks the dataset's deterministic `assertions` against
    the compiled messages (Stage 2). It records the combined verdict in
    `state.metadata["a2ui_stage12_passed"]`.
@@ -46,14 +46,12 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState
 
-from .bridges import (
+from .runner import (
     DEFAULT_PARSE_TIMEOUT_SEC,
-    AgentSdkBridge,
-    BridgeOptions,
+    RunnerOptions,
     Stage2Assertions,
-    bridge_options_from_metadata,
-    get_sdk_bridge,
-    normalize_sdk_name,
+    parse_and_validate,
+    runner_options_from_metadata,
 )
 from .shared.utils import GIT_ROOT
 
@@ -294,11 +292,10 @@ def evaluate_stage2_assertions(
 
 
 async def _compiled_answer_or_none(
-    bridge: AgentSdkBridge,
     version: str,
     resolved_catalog_path: str,
     completion: str,
-    options: BridgeOptions | None = None,
+    options: RunnerOptions | None = None,
 ) -> str | None:
     """Parses a completion without validation and returns its JSON messages.
 
@@ -307,7 +304,7 @@ async def _compiled_answer_or_none(
     """
     try:
         res_dict = await asyncio.to_thread(
-            bridge.parse_and_validate,
+            parse_and_validate,
             "direct_json",
             version,
             resolved_catalog_path,
@@ -329,21 +326,19 @@ async def _stage1_messages(
     answer_text: str,
     resolved_catalog_path: str,
     version: str,
-    sdk: str,
 ) -> list[dict[str, Any]] | Score:
     """Runs Stage 1 and returns the compiled messages, or the failing Score.
 
     Reuses `state.metadata["compiled_messages"]` when a solver already
-    validated the payload, so the bridge is not called twice.
+    validated the payload, so the runner is not called twice.
     """
     compiled = state.metadata.get("compiled_messages")
     if compiled:
         return list(compiled)
-    options = bridge_options_from_metadata(state.metadata, resolved_catalog_path)
-    bridge = get_sdk_bridge(sdk)
+    options = runner_options_from_metadata(state.metadata, resolved_catalog_path)
     try:
         res_dict = await asyncio.to_thread(
-            bridge.parse_and_validate,
+            parse_and_validate,
             "direct_json",
             version,
             resolved_catalog_path,
@@ -360,7 +355,7 @@ async def _stage1_messages(
             None
             if isinstance(e, TimeoutError)
             else await _compiled_answer_or_none(
-                bridge, version, resolved_catalog_path, answer_text, options
+                version, resolved_catalog_path, answer_text, options
             )
         )
         return _stage12_score(
@@ -394,11 +389,11 @@ def _solver_failure_score(state: TaskState) -> Score | None:
 
 
 @scorer(metrics=[accuracy()])
-def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
-    """Scorer for A2UI evaluation using the target Agent SDK.
+def a2ui_scorer(version: str) -> Scorer:
+    """Scorer for A2UI evaluation using the Python Agent SDK.
 
-    Stage 1 compiles and validates the `<a2ui-json>` payload with the SDK
-    bridge, unless a solver already did so and left the result in
+    Stage 1 compiles and validates the `<a2ui-json>` payload with the Python
+    runner, unless a solver already did so and left the result in
     `state.metadata["compiled_messages"]`. Stage 2 then checks the sample's
     `assertions` against the compiled messages. The verdict is stored in
     `state.metadata["a2ui_stage12_passed"]` so the judge scorer can skip
@@ -406,12 +401,10 @@ def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
 
     Args:
         version: The schema version to load (e.g. '0.9.1' or '1.0').
-        sdk: The Agent SDK implementation to use ('python', 'ts', or 'dart').
 
     Returns:
         An Inspect Scorer that validates the response against the schema and integrity rules.
     """
-    norm_sdk = normalize_sdk_name(sdk)
 
     async def score(
         state: TaskState, target: Target
@@ -423,7 +416,7 @@ def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
         resolved_catalog_path = str(GIT_ROOT / state.metadata["catalog"])
         answer_text = state.output.completion or ""
         messages = await _stage1_messages(
-            state, answer_text, resolved_catalog_path, version, norm_sdk
+            state, answer_text, resolved_catalog_path, version
         )
         if isinstance(messages, Score):
             return messages

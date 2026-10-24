@@ -120,7 +120,7 @@ Inference-layer fields:
 - `examples` (array of paths): Files holding few-shot example payloads for the single `catalog`. Inside a `catalogs[]` entry, `examples` applies to that catalog.
 - `allowed_messages` (array): The message types the model may write, from `createSurface`, `updateComponents`, `updateDataModel` and `deleteSurface`. Omit to allow all of them.
 - `initial_state` (array of A2UI messages): Applied to a fresh renderer state before the model's turn is validated. Use it for scenarios where the model must update an existing surface rather than create one.
-- `stream_chunk_size` (integer, at least 1): When set, the bridge also feeds the completion through the format's streaming parser in slices of this many characters. It fails if the two parses disagree.
+- `stream_chunk_size` (integer, at least 1): When set, the runner also feeds the completion through the format's streaming parser in slices of this many characters. It fails if the two parses disagree.
 - `assertions` (object): Deterministic Stage 2 checks, described next.
 
 ## Writing `assertions`
@@ -150,11 +150,7 @@ Every key is optional, and an empty list asserts nothing. Keep the lists short. 
 
 ## Example payload files
 
-The `examples` fields point at JSON files that hold few-shot example payloads, shown to the model in the prompt. Each file holds a JSON array of messages, or an object with a `messages` array. Every message must be a complete wire message with `version`, `surfaceId` and `catalogId` set.
-
-This matters because the three SDK runners treat the files differently. The Python runner fills in a missing `version` or `catalogId` from the sample. The TypeScript and Dart runners load the file as it is.
-
-An incomplete example therefore produces a different prompt on each SDK and makes cross-SDK scores incomparable. Write the complete message once and you avoid the problem.
+The `examples` fields point at JSON files that hold few-shot example payloads, shown to the model in the prompt. Each file holds a JSON array of messages, or an object with a `messages` array. Every message should be a complete wire message with `version`, `surfaceId` and `catalogId` set.
 
 Example files are plain JSON and are not encrypted. Do not put anything in them that you would not put in a public README.
 
