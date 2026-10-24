@@ -19,6 +19,7 @@ import Foundation
 import JSONSchema
 import OrderedCollections
 import OrderedJSON
+import Testing
 import Yams
 
 private final class ExtendedStackResultBox<T>: @unchecked Sendable {
@@ -744,6 +745,103 @@ public struct ConformanceExpectError: Sendable {
 }
 
 extension ConformanceTestHelper {
+  /// Runs a `validate` case that renders components on a surface: processes each step's payload,
+  /// checks the errors a step expects, and compares the resolved properties of the expected
+  /// components.
+  @MainActor
+  public static func runValidateCase(_ testCase: ConformanceTestCase) throws {
+    let processor = MessageProcessor(
+      catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
+      validationConfig: ValidationConfig(targetVersion: "v1.0")
+    )
+    // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
+    // rather than being thrown out of `processMessages`.
+    var capturedErrors: [RendererError] = []
+    processor.outboundListener = { message in
+      MainActor.assumeIsolated {
+        if case .error(let error) = message {
+          capturedErrors.append(error)
+        }
+      }
+    }
+
+    for (stepIndex, step) in testCase.steps.enumerated() {
+      guard let payload = step.payload else {
+        continue
+      }
+      capturedErrors.removeAll()
+
+      let isFinalStep = stepIndex == testCase.steps.count - 1
+      if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
+        var errorMessages: [String] = []
+        do {
+          try processor.processMessages(payload)
+        } catch {
+          let message = (error as? (any A2UIError))?.message ?? error.localizedDescription
+          errorMessages.append(message)
+        }
+        for error in capturedErrors {
+          switch error {
+          case .validationFailed(let validationError):
+            errorMessages.append(validationError.message)
+          case .generic(let genericError):
+            errorMessages.append(genericError.message)
+          }
+        }
+        #expect(
+          !errorMessages.isEmpty,
+          "\(testCase.name): expected an error at step \(stepIndex)"
+        )
+        if let expectedMessage = expectedError.message {
+          #expect(
+            errorMessages.contains { $0.localizedCaseInsensitiveContains(expectedMessage) },
+            "\(testCase.name): messages \(errorMessages) do not contain '\(expectedMessage)'"
+          )
+        }
+        continue
+      }
+
+      try processor.processMessages(payload)
+      #expect(
+        capturedErrors.isEmpty,
+        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors)"
+      )
+
+      let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue ?? [:]
+      for (surfaceID, expectedSurface) in expectedSurfaces {
+        let surface = try #require(
+          processor.surfaceGroupModel[surfaceID],
+          "\(testCase.name): expected surface '\(surfaceID)'"
+        )
+        let expectedComponents = expectedSurface["components"]?.objectValue ?? [:]
+        for (componentID, expectedComponent) in expectedComponents {
+          let node = try #require(
+            surface.findNode(id: componentID),
+            "\(testCase.name): expected resolved node '\(componentID)'"
+          )
+          for (property, expectedValue) in expectedComponent.objectValue ?? [:]
+          where property != "component" {
+            let binding = try #require(
+              node.properties[property] as? DataBinding<String>,
+              "\(testCase.name): '\(componentID).\(property)' is not a string binding"
+            )
+            // A `Text` renders a boolean or integer result as its JSON text.
+            let expectedText: String? =
+              switch expectedValue {
+              case .boolean(let boolean): String(boolean)
+              case .integer(let integer): String(integer)
+              default: expectedValue.stringValue
+              }
+            #expect(
+              binding.value == expectedText,
+              "\(testCase.name): '\(componentID).\(property)' is '\(binding.value)'"
+            )
+          }
+        }
+      }
+    }
+  }
+
   public static func parsePayload(_ payload: JSONValue) throws -> [AgentToRendererMessage] {
     let data = try JSONEncoder().encode(payload)
     let decoder = JSONDecoder()

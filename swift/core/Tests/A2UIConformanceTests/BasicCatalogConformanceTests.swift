@@ -35,8 +35,44 @@ private final class ConformanceMockFunctionHandler: FunctionHandler {
   }
 }
 
+/// Evaluates function calls through a surface's catalog resolution and records the errors that
+/// the surface would report, so a case can tell which error a call raised.
+@MainActor
+private final class SurfaceFunctionErrorRecorder: FunctionHandler {
+  private let surface: SurfaceViewModel
+  private(set) var errors: [any Error] = []
+
+  init(surface: SurfaceViewModel) {
+    self.surface = surface
+  }
+
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    surface.function(named: name, catalogID: catalogID)
+  }
+
+  func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
+    try surface.validateFunctionCatalog(id: catalogID, functionName: functionName)
+  }
+
+  func handleFunctionError(_ error: any Error, functionName: String) {
+    errors.append(error)
+  }
+}
+
 @MainActor
 struct BasicCatalogConformanceTests {
+  /// `validate` cases whose output depends on the host locale until #3144 is fixed.
+  private static let hostLocaleDependent: Set<String> = [
+    "test_function_format_currency_locale_and_symbol",
+    "test_function_pluralize_categories",
+  ]
+
+  /// Surface cases that fail because of a known gap in the Swift SDK, with the reason.
+  private static let knownSurfaceGaps: [String: Comment] = [
+    "test_evaluate_function_v09_ignores_call_catalog_id":
+      "Before v1.0, a call's catalogId is looked up instead of ignored (#3550)"
+  ]
+
   private let functionHandler = ConformanceMockFunctionHandler()
   /// Handlers holding each protocol version's Basic Catalog functions. Stored here because
   /// `DataContext` keeps its function handler weakly.
@@ -81,24 +117,45 @@ struct BasicCatalogConformanceTests {
     let cases = (rawYAML as? [[String: Any]]) ?? []
     #expect(!cases.isEmpty, "core/functions.yaml should hold test cases")
 
+    var executed = 0
     for testCase in cases {
-      guard let action = testCase["action"] as? String, action == "evaluate_function" else {
+      guard let name = testCase["name"] as? String,
+        let action = testCase["action"] as? String
+      else {
+        Issue.record("core/functions.yaml holds a case without a name or an action")
         continue
       }
 
-      // A case with a `surface` block evaluates the function as a call on a surface, so it
-      // checks catalog resolution. This harness invokes implementations directly and cannot
-      // describe it.
+      switch action {
+      case "validate":
+        executed += 1
+        try runValidateCase(testCase, name: name)
+        continue
+      case "evaluate_function":
+        executed += 1
+      default:
+        Issue.record("\(name): unsupported action \(action)")
+        continue
+      }
+
+      // A case with a `surface` block evaluates the function as a call on a surface, so the
+      // call goes through catalog resolution.
       if testCase["surface"] != nil {
+        if let knownGap = Self.knownSurfaceGaps[name] {
+          try withKnownIssue(knownGap) {
+            try runSurfaceCase(testCase, name: name)
+          }
+        } else {
+          try runSurfaceCase(testCase, name: name)
+        }
         continue
       }
 
       // Validators return booleans in v0.9 and ValidationResult objects in v1.0, so
       // each case runs against the functions of the protocol version it is pinned to.
       // Unpinned cases run against v0.9.
-      guard let name = testCase["name"] as? String,
-        let funcName = testCase["function"] as? String
-      else {
+      guard let funcName = testCase["function"] as? String else {
+        Issue.record("\(name): case names no function")
         continue
       }
 
@@ -162,6 +219,114 @@ struct BasicCatalogConformanceTests {
         }
       }
     }
+
+    #expect(executed == cases.count, "All cases in core/functions.yaml should be executed")
+  }
+
+  /// Runs a `validate` case, which renders basic catalog components that call a function.
+  private func runValidateCase(_ rawCase: [String: Any], name: String) throws {
+    let testCase = try #require(
+      ConformanceTestHelper.parseTestCases(from: [rawCase]).first,
+      "\(name): case could not be parsed"
+    )
+    guard Self.hostLocaleDependent.contains(name) else {
+      try ConformanceTestHelper.runValidateCase(testCase)
+      return
+    }
+    // Only a locale mismatch is known. Raw directive JSON (`{"@call":…}`) in the output is a
+    // real evaluation failure and must still fail the test.
+    try withKnownIssue("#3144: formatting uses the host locale", isIntermittent: true) {
+      try ConformanceTestHelper.runValidateCase(testCase)
+    } matching: { issue in
+      !String(describing: issue).contains("{\"")
+    }
+  }
+
+  /// Runs an `evaluate_function` case with a `surface` block: evaluates
+  /// `{"@call": function, "catalogId": catalogId, "args": args}` (`call` before v1.0) through
+  /// the data context of a surface built as `conformance/README.md` describes.
+  private func runSurfaceCase(_ testCase: [String: Any], name: String) throws {
+    let rawVersion = try #require(
+      testCase["protocolVersion"] as? String,
+      "\(name): surface case names no protocolVersion"
+    )
+    let version = try #require(
+      A2UIProtocolVersion(lenientRawValue: rawVersion),
+      "\(name): unsupported protocol version \(rawVersion)"
+    )
+
+    // The surface's available catalogs are those of `catalogPaths` built for its version.
+    var catalogs: [String: AnyCatalog] = [:]
+    for path in (testCase["catalogPaths"] as? [String]) ?? [] {
+      let catalog = try Self.surfaceCatalog(path: path)
+      if catalog.isAtLeastV10 == version.isAtLeastV10 {
+        catalogs[catalog.id] = catalog
+      }
+    }
+    let surfaceBlock = (testCase["surface"] as? [String: Any]) ?? [:]
+    let surface = SurfaceViewModel(
+      surfaceID: "conformance",
+      catalogs: catalogs,
+      defaultCatalogID: surfaceBlock["catalogId"] as? String,
+      protocolVersion: version
+    )
+    let recorder = SurfaceFunctionErrorRecorder(surface: surface)
+    let context = DataContext(
+      dataModel: surface.dataModel,
+      path: "/",
+      functionHandler: recorder,
+      protocolVersion: version
+    )
+
+    var call: [String: Any] = [
+      version.isAtLeastV10 ? "@call" : "call": testCase["function"] ?? NSNull(),
+      "args": testCase["args"] ?? [String: Any](),
+    ]
+    call["catalogId"] = testCase["catalogId"]
+    let result = context.resolveDynamicValue(ConformanceTestHelper.toJSONValue(call))
+
+    // The surface reports a failed call to its function handler and resolves it to null, so
+    // the first error reported counts as raised.
+    if let expectError = testCase["expectError"] as? [String: Any] {
+      guard let error = recorder.errors.first else {
+        Issue.record("\(name): expected an error but got \(result)")
+        return
+      }
+      if expectError["category"] as? String == "CatalogError" {
+        #expect(error is A2UICatalogError, "\(name): expected a catalog error, got \(error)")
+      }
+      if let expectedMessage = expectError["message"] as? String {
+        let message = (error as? any A2UIError)?.message ?? String(describing: error)
+        #expect(
+          message.localizedCaseInsensitiveContains(expectedMessage),
+          "\(name): message '\(message)' does not contain '\(expectedMessage)'"
+        )
+      }
+      return
+    }
+
+    #expect(recorder.errors.isEmpty, "\(name): unexpected errors \(recorder.errors)")
+    if let expectedRaw = testCase["expect"] {
+      let expected = ConformanceTestHelper.toJSONValue(expectedRaw)
+      #expect(result == expected, "\(name): got \(result), expected \(expected)")
+    }
+  }
+
+  /// Builds the catalog that a `catalogPaths` entry stands for: this SDK's basic catalog for a
+  /// published basic catalog document, so its functions run, and otherwise the functions the
+  /// document declares.
+  private static func surfaceCatalog(path: String) throws -> AnyCatalog {
+    var document = try ConformanceTestHelper.loadRepositoryJSON(path: path).objectValue ?? [:]
+    let catalogID = document["catalogId"]?.stringValue
+    if let basic = BasicCatalog.allCatalogs.first(where: { $0.id == catalogID }) {
+      return basic
+    }
+    // `buildCatalog` gives a document with a `$schema` the basic catalog functions as well.
+    document["$schema"] = nil
+    return ConformanceTestHelper.buildCatalog(
+      catalogSchema: .object(document),
+      commonTypes: try ConformanceTestHelper.commonTypesSchema(forCatalogPath: path)
+    )
   }
 
   @Test func indexFunctionConformance() throws {
