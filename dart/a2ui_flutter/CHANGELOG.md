@@ -18,7 +18,6 @@
 
 ## Unreleased
 
-- An `onError` listener may call `setState` directly.
 - `A2uiSurface` widgets that show the same surface share one resolver, from
   the first widget until the surface is disposed, so remounting a surface or
   showing it twice does not repeat its diagnostics. The surface stays resolved
