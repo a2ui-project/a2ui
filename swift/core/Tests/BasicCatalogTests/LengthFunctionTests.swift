@@ -52,9 +52,32 @@ struct LengthFunctionTests {
     #expect(result == .boolean(true))
   }
 
-  @Test func evaluatesToFalseWhenValueIsMissing() throws {
+  @Test func evaluatesToFalseWhenMissingValueIsShorterThanMin() throws {
     let result = try function.evaluate(arguments: ["min": .number(3)], context: context)
     #expect(result == .boolean(false))
+  }
+
+  @Test func evaluatesToTrueWhenMissingValueIsWithinMax() throws {
+    let result = try function.evaluate(arguments: ["max": .number(10)], context: context)
+    #expect(result == .boolean(true))
+  }
+
+  @Test func evaluatesToTrueWhenNullValueIsWithinMax() throws {
+    let result = try function.evaluate(
+      arguments: ["value": .null, "max": .number(10)], context: context)
+    #expect(result == .boolean(true))
+  }
+
+  @Test func evaluatesToFalseWhenNullValueIsShorterThanMin() throws {
+    let result = try function.evaluate(
+      arguments: ["value": .null, "min": .number(1)], context: context)
+    #expect(result == .boolean(false))
+  }
+
+  @Test func returnsValidResultWhenNullValueIsWithinMax() throws {
+    let result = try LengthFunction(returnValidationResult: true).evaluate(
+      arguments: ["value": .null, "max": .number(10)], context: context)
+    #expect(result == .object(["valid": .boolean(true)]))
   }
 
   @Test func evaluatesToFalseWhenValueIsNotAString() throws {

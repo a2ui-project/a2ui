@@ -45,17 +45,16 @@ public final class LengthFunction: FunctionImplementation, Sendable {
   }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    // A missing or null value, such as a binding to a field with no data yet, has length 0.
     let count: Int
-    if let value = arguments["value"] {
-      switch value {
-      case .string(let str):
-        count = str.count
-      case .array(let arr):
-        count = arr.count
-      default:
-        return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
-      }
-    } else {
+    switch arguments["value"] ?? .null {
+    case .string(let str):
+      count = str.count
+    case .array(let arr):
+      count = arr.count
+    case .null:
+      count = 0
+    default:
       return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
     }
 
