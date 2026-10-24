@@ -1,3 +1,5 @@
+## Unreleased
+
 ## 0.0.2
 
 - Added `Skill`, `SkillSet`, and `SkillGenerator` to generate `SKILL.md` packages from inference formats and component catalogs.
