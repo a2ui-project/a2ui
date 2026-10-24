@@ -19,6 +19,9 @@ import {A2uiMcpApp} from './components/mcp_app.js';
 import {CallMcpToolImplementation} from './functions/callMcpTool.js';
 import {JmespathImplementation} from './functions/jmespath.js';
 import {ParseJsonImplementation} from './functions/parse_json.js';
+import {RegexCaptureImplementation} from './functions/regex_capture.js';
+import {RegexReplaceImplementation} from './functions/regex_replace.js';
+import {SplitImplementation} from './functions/split.js';
 import {UpdateDataModelImplementation} from './functions/update_data_model.js';
 
 /** Identifier of the A2UI MCP catalog schema (`catalogs/mcp/v1/catalog.json`). */
@@ -26,8 +29,9 @@ export const MCP_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/mcp/
 
 /**
  * The MCP catalog: the `McpApp` component, `callMcpTool`, and the data functions that turn a
- * tool result into data model updates (`parseJson`, `jmespath`, `updateDataModel`), ready to
- * hand to a `MessageProcessor`. `callMcpTool` runs once the host has called
+ * tool result into data model updates (`parseJson`, `jmespath`, `updateDataModel` for JSON;
+ * `split`, `regexCapture`, `regexReplace` for text), ready to hand to a `MessageProcessor`.
+ * `callMcpTool` runs once the host has called
  * `configureMcpCatalog({getMcpClientForTool, processor})`.
  *
  * Register it next to the other catalogs of the host; a component or function call of a surface
@@ -42,5 +46,8 @@ export const mcpCatalog = new Catalog<WebComponentImplementation>(
     ParseJsonImplementation,
     JmespathImplementation,
     UpdateDataModelImplementation,
+    SplitImplementation,
+    RegexCaptureImplementation,
+    RegexReplaceImplementation,
   ],
 );

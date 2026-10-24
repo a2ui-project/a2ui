@@ -2,7 +2,7 @@
 
 > **Experimental.** This package is under active development. Its API and the catalog schema may change between releases without notice.
 
-The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools, shape what they return, and render [MCP Apps](https://github.com/modelcontextprotocol/ext-apps). It defines the `callMcpTool` function, the `parseJson`, `jmespath` and `updateDataModel` data functions, and the `McpApp` component, allowing agents to emit declarative payloads whose controls and bindings interact with MCP servers directly.
+The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools, shape what they return, and render [MCP Apps](https://github.com/modelcontextprotocol/ext-apps). It defines the `callMcpTool` function, six data functions that shape tool results, and the `McpApp` component, allowing agents to emit declarative payloads whose controls and bindings interact with MCP servers directly.
 
 ## Overview
 
@@ -11,7 +11,7 @@ A2UI separates UI layout from backend logic through catalogs. This catalog provi
 - The host supplies one hook, `getMcpClientForTool(toolName)`. The catalog uses the returned client for tool execution, UI resource reads, and tool discovery.
 - Tool results are processed automatically. The catalog fetches and caches UI resources referenced by results, then applies any A2UI messages embedded in the result content.
 - Tool arguments support data bindings, allowing form state to pass directly into tool calls.
-- Three data functions, `parseJson`, `jmespath` and `updateDataModel`, turn the text a headless tool returns into data model updates, so a payload can render the output of a tool that knows nothing about A2UI.
+- Six data functions turn what a headless tool returns into data model updates, so a payload can render the output of a tool that knows nothing about A2UI: `parseJson`, `jmespath` and `updateDataModel` for JSON, `split`, `regexCapture` and `regexReplace` for plain text.
 - The `McpApp` component embeds MCP Apps in a sandboxed double-iframe and connects them to the host through `AppBridge`.
 - The catalog works with any A2UI web renderer built on `MessageProcessor`.
 
@@ -31,15 +31,20 @@ Tools are addressed by name only. A2UI payloads never name a server, because mul
 
 The function returns the raw MCP `CallToolResult`. It throws an `A2uiExpressionError` if the client cannot be resolved, the call returns no result, or the result has `isError: true`.
 
-Three data functions turn that result into data model updates (see [Shape a headless tool result](#shape-a-headless-tool-result)):
+Six data functions turn that result into data model updates (see [Shape a headless tool result](#shape-a-headless-tool-result)):
 
-| Function          | Arguments                                         | Returns                                                                                          |
-| :---------------- | :------------------------------------------------ | :----------------------------------------------------------------------------------------------- |
-| `parseJson`       | `value: DynamicString`                            | The value encoded by the JSON string `value`.                                                    |
-| `jmespath`        | `expression: DynamicString`, `data: DynamicValue` | The result of evaluating the JMESPath `expression` against `data`, or `null` for missing fields. |
-| `updateDataModel` | `updates: DynamicValue`                           | Nothing. Writes each key-value pair in `updates` to the surface data model.                      |
+| Function          | Arguments                                                                     | Returns                                                                                          |
+| :---------------- | :---------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| `parseJson`       | `value: DynamicString`                                                        | The value encoded by the JSON string `value`.                                                    |
+| `jmespath`        | `expression: DynamicString`, `data: DynamicValue`                             | The result of evaluating the JMESPath `expression` against `data`, or `null` for missing fields. |
+| `updateDataModel` | `updates: DynamicValue`                                                       | Nothing. Writes each key-value pair in `updates` to the surface data model.                      |
+| `split`           | `value: DynamicValue`, `separator: DynamicString`                             | Substrings of `value` split by the literal `separator` (or Unicode code points if it is empty).  |
+| `regexCapture`    | `value: DynamicValue`, `pattern: DynamicString`                               | Capture groups from the first match of `pattern`, or `null` if there is no match.                |
+| `regexReplace`    | `value: DynamicValue`, `pattern: DynamicString`, `replacement: DynamicString` | `value` with every match of `pattern` replaced by the literal `replacement` text.                |
 
-Every argument is required. `parseJson` throws an `A2uiExpressionError` for a non-string or malformed `value`, `jmespath` for an expression that does not parse, and `updateDataModel` for `updates` that are neither an object nor `null` or `undefined` (which write nothing), and for a key that is empty or contains a `__proto__`, `constructor` or `prototype` segment. `updateDataModel` checks every key before it writes anything, so a rejected key leaves the data model unchanged. For `updateDataModel`, keys starting with `/` are absolute paths and relative keys resolve against the calling data context, such as the current row of a template list. None of the functions evaluates `@path` or `@call` objects found inside its data: a tool result is data, not an expression.
+Every argument is required. `parseJson` throws an `A2uiExpressionError` for a non-string or malformed `value`, `jmespath` for an expression that does not parse, and `updateDataModel` for `updates` that are neither an object nor `null` or `undefined` (which write nothing), and for a key that is empty or contains a `__proto__`, `constructor` or `prototype` segment. `updateDataModel` checks every key before it writes anything, so a rejected key leaves the data model unchanged. For `updateDataModel`, keys starting with `/` are absolute paths and relative keys resolve against the calling data context, such as the current row of a template list. `split`, `regexCapture` and `regexReplace` take a string or an array of strings in `value` and map over an array; `null` reads as the empty string, and so does a capture group that did not participate in the match. None of the functions evaluates `@path` or `@call` objects found inside its data: a tool result is data, not an expression.
+
+Patterns are JavaScript regular expressions, checked with `isSafeRegex` from `@a2ui/web_core` (the check behind the basic catalog's `regex` function) before they are compiled, so a pattern that allows catastrophic backtracking is rejected with an `A2uiExpressionError`, as is one that is not valid JavaScript syntax. Lookarounds and backreferences are accepted when the check passes. RE2 syntax does not carry over: the `(?i)` inline flag is rejected, and `\pL` or `[[:alpha:]]` compile as JavaScript reads them rather than as Unicode or POSIX classes. `regexReplace` inserts `replacement` as written, so `$1` and `$$` stay literal.
 
 ## Installation
 
@@ -103,7 +108,7 @@ const processor = new MessageProcessor(
 configureMcpCatalog({getMcpClientForTool: () => client, processor});
 ```
 
-A host that only wants some of the functions registers the `*Implementation` exports it needs (`CallMcpToolImplementation`, `ParseJsonImplementation`, `JmespathImplementation`, `UpdateDataModelImplementation`) in a catalog of its own instead of `mcpCatalog`.
+A host that only wants some of the functions registers the `*Implementation` exports it needs (`CallMcpToolImplementation`, `ParseJsonImplementation`, `JmespathImplementation`, `UpdateDataModelImplementation`, `SplitImplementation`, `RegexCaptureImplementation`, `RegexReplaceImplementation`) in a catalog of its own instead of `mcpCatalog`.
 
 For multi-server setups, keep a registry of which server advertises each tool, usually built from `listTools()` at connection time, and resolve it in the same hook:
 
@@ -221,6 +226,35 @@ Most MCP tools return plain `content` blocks rather than A2UI resources. The dat
 ```
 
 `callMcpTool` is asynchronous, so its result reaches the enclosing `jmespath` as a pending Promise. The data functions await pending arguments themselves and return a Promise in turn, which is why the action resolves to a Promise a host can await; with settled arguments they run synchronously, so a binding that uses them stays reactive.
+
+A tool that answers in plain text goes through `split` and `regexCapture` instead of `parseJson`. [mcp-text-tool-result.json](../../../catalogs/mcp/v1/examples/mcp-text-tool-result.json) lists a directory whose tool prints one `[DIR] name` or `[FILE] name` line per entry:
+
+```json
+{
+  "@call": "jmespath",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+  "args": {
+    "expression": "{\"/entries\": [?@ != null].{kind: [0], name: [1]}}",
+    "data": {
+      "@call": "regexCapture",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+      "args": {
+        "pattern": "^\\[(DIR|FILE)\\] (.+)$",
+        "value": {
+          "@call": "split",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+          "args": {
+            "separator": "\n",
+            "value": {"...": "jmespath(content[0].text) over callMcpTool(list_directory)"}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+`regexCapture` maps over the lines `split` produced and yields `null` for a line that does not match, such as a header, which the `[?@ != null]` filter drops. The same example binds the heading to `regexReplace` over the directory path; with no pending argument the function runs synchronously, so the heading follows the path like any other binding.
 
 ## The `McpApp` component
 
@@ -375,6 +409,10 @@ The component owns its bridge: `McpAppBridge` (`src/components/mcp_app_bridge.ts
 | `src/functions/parse_json.ts`          | `parseJson`                                                                                                                                                                          |
 | `src/functions/jmespath.ts`            | `jmespath`                                                                                                                                                                           |
 | `src/functions/update_data_model.ts`   | `updateDataModel`                                                                                                                                                                    |
+| `src/functions/split.ts`               | `split`                                                                                                                                                                              |
+| `src/functions/regex_capture.ts`       | `regexCapture`                                                                                                                                                                       |
+| `src/functions/regex_replace.ts`       | `regexReplace`                                                                                                                                                                       |
+| `src/functions/regex_support.ts`       | `compileSafeRegex`, the cached `RegExp` compilation behind `isSafeRegex`, and `mapTextValue`, the string-or-array mapping of the text functions                                      |
 | `src/functions/settle_args.ts`         | `withSettledArgs`: awaits the pending arguments of a data function, such as the result of a nested `callMcpTool`                                                                     |
 | `src/dynamic-values.ts`                | Resolution of dynamic values nested in literal containers                                                                                                                            |
 | `src/components/mcp_app.ts`            | The `McpApp` universal component and its API                                                                                                                                         |

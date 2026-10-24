@@ -41,13 +41,18 @@ The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. 
 
 Most MCP tools return plain `content` blocks rather than A2UI resources, so a surface needs to read the text of a `CallToolResult`, decode it, pick the fields it wants and write them to the data model. The v1 catalog declares these functions for that:
 
-| Function          | Arguments            | Returns                                                                                          |
-| :---------------- | :------------------- | :----------------------------------------------------------------------------------------------- |
-| `parseJson`       | `value`              | The value encoded by the JSON string `value`.                                                    |
-| `jmespath`        | `expression`, `data` | The result of evaluating the JMESPath `expression` against `data`, or `null` for missing fields. |
-| `updateDataModel` | `updates`            | Nothing. Writes each key-value pair in `updates` to the surface data model.                      |
+| Function          | Arguments                         | Returns                                                                                          |
+| :---------------- | :-------------------------------- | :----------------------------------------------------------------------------------------------- |
+| `parseJson`       | `value`                           | The value encoded by the JSON string `value`.                                                    |
+| `jmespath`        | `expression`, `data`              | The result of evaluating the JMESPath `expression` against `data`, or `null` for missing fields. |
+| `updateDataModel` | `updates`                         | Nothing. Writes each key-value pair in `updates` to the surface data model.                      |
+| `split`           | `value`, `separator`              | Substrings of `value` split by the literal `separator` (or characters if `separator` is empty).  |
+| `regexCapture`    | `value`, `pattern`                | Capture groups from the first match of `pattern`, or `null` if there is no match.                |
+| `regexReplace`    | `value`, `pattern`, `replacement` | `value` with every match of `pattern` replaced by the literal `replacement` text.                |
 
-Every argument is required. `value` and `expression` are `DynamicString`; `data` and `updates` are `DynamicValue`, so each can be a literal, a `@path` binding or a nested `@call`. For `updateDataModel`, keys starting with `/` are absolute paths, while relative keys resolve against the calling data context (such as the current row scope inside a template list).
+Every argument is required. `value` of `parseJson`, `expression`, `separator`, `pattern` and `replacement` are `DynamicString`; `data`, `updates` and the `value` of the three text functions are `DynamicValue`, so each can be a literal, a `@path` binding or a nested `@call`. `split`, `regexCapture` and `regexReplace` accept either a single string or an array of strings in `value`, applying the operation element by element when given an array, and read `null` as the empty string. For `updateDataModel`, keys starting with `/` are absolute paths, while relative keys resolve against the calling data context (such as the current row scope inside a template list).
+
+Patterns are JavaScript regular expressions, compiled without flags (`regexReplace` adds `g`) after a check for catastrophic backtracking; a pattern that fails the check, or is not valid JavaScript syntax, raises an `A2uiExpressionError`. Lookarounds and backreferences are accepted when the check passes. RE2 syntax does not carry over: the `(?i)` inline flag is rejected, and `\pL` or `[[:alpha:]]` compile as JavaScript reads them (a literal `p` followed by `L`, a character class followed by a literal `]`) rather than as Unicode or POSIX classes. To test whether a string matches a pattern, use the basic catalog's `regex` function.
 
 A surface is usually created on the basic catalog, so each call selects the MCP catalog with its own `catalogId`. The button of [mcp-json-tool-result.json](v1/examples/mcp-json-tool-result.json) chains the functions this way:
 
@@ -88,7 +93,7 @@ A surface is usually created on the basic catalog, so each call selects the MCP 
 }
 ```
 
-The inner `jmespath` reads the text block out of the `CallToolResult`, `parseJson` decodes it, the outer `jmespath` builds the `{path: value}` object, and `updateDataModel` writes it. The functions do not evaluate `@path` or `@call` objects found inside tool output: a tool result is data, not an expression.
+The inner `jmespath` reads the text block out of the `CallToolResult`, `parseJson` decodes it, the outer `jmespath` builds the `{path: value}` object, and `updateDataModel` writes it. A tool that returns lines of text instead of JSON goes through `split` and `regexCapture` in place of `parseJson`, as [mcp-text-tool-result.json](v1/examples/mcp-text-tool-result.json) does with a directory listing: `split` on `"\n"`, `regexCapture` with `^\[(DIR|FILE)\] (.+)$`, then `jmespath` with `{"/entries": [?@ != null].{kind: [0], name: [1]}}` to drop the lines that did not match. The functions do not evaluate `@path` or `@call` objects found inside tool output: a tool result is data, not an expression.
 
 ### McpApp component
 
@@ -110,6 +115,7 @@ The [v1/examples](v1/examples/) directory holds A2UI message sequences that vali
 
 - [mcp-app-3d-geometry.json](v1/examples/mcp-app-3d-geometry.json) renders a 3D Holographic Geometry Studio `McpApp`: a 60fps canvas renderer that A2UI components alone cannot express. It showcases two-way `data.paths` binding (the sibling `TextField` preset and the app's camera telemetry), `ui/update-model-context` publishing the camera pose and preset to `/scene3d/modelContext`, `tools/call` (`capture_3d_snapshot`), and `ui/notifications/host-context-changed` (`containerDimensions`) driving a responsive canvas; `tests/examples/mcp_app_3d_geometry.test.ts` of the TypeScript package runs it end to end.
 - [mcp-json-tool-result.json](v1/examples/mcp-json-tool-result.json) loads the open issues of a repository from a headless `list_issues` tool: a button chains `callMcpTool`, `jmespath`, `parseJson` and `updateDataModel` to fill a template list from the JSON in the tool's text block; `src/catalog.test.ts` of the TypeScript package runs the button action against a mock client.
+- [mcp-text-tool-result.json](v1/examples/mcp-text-tool-result.json) lists a directory through a headless `list_directory` tool that answers in plain text: a button chains `callMcpTool`, `jmespath`, `split`, `regexCapture` and `updateDataModel` to turn `[DIR] name` and `[FILE] name` lines into rows, and the heading binds `regexReplace` to the directory path; `src/catalog.test.ts` runs both against a mock client.
 
 ## Implementations
 
