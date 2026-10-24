@@ -504,6 +504,9 @@ void _checkComponents(
     for (final Map<String, Object?> entry in expected) entry['id'],
   };
 
+  // This check reads the tree, not the reports resolving it finds.
+  final Subscription reports = surface.onError.subscribe((_) {});
+  addTearDown(reports.unsubscribe);
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(resolver.dispose);
   final nodes = <String, ComponentNode<ComponentApi>>{};

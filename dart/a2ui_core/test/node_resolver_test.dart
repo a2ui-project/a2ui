@@ -1481,6 +1481,7 @@ void main() {
           resolver.dispose();
           surface.dispose();
         });
+        surface.onError.subscribe((_) {});
         final id = state == NodeState.cyclic ? 'root' : 'a';
         if (state == NodeState.resolved) {
           add(surface, id, 'Text', {'text': 'dup'});
@@ -1533,6 +1534,7 @@ void main() {
         resolver.dispose();
         surface.dispose();
       });
+      surface.onError.subscribe((_) {});
       add(surface, 'root', 'Column', {
         'children': ['a', 'a'],
       });
@@ -2118,6 +2120,7 @@ void main() {
         surface: SurfaceModel<ComponentApi> surface,
         resolver: NodeResolver<ComponentApi> resolver,
       ) = setup();
+      surface.onError.subscribe((_) {});
       add(surface, 'root', 'Card', {'child': 'root'});
       final ComponentNode root = resolver.rootNode.value!;
       expect(child(root, 'child').type, placeholderType);

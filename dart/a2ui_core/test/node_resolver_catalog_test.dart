@@ -330,6 +330,7 @@ void main() {
     });
 
     test('does not find a component in the default catalog by another', () {
+      surface.onError.subscribe((_) {});
       process([
         {'id': 'root', 'component': 'Chart', 'title': 'Sales'},
       ]);
