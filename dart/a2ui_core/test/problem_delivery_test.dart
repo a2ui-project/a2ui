@@ -286,6 +286,23 @@ void main() {
       expect(groupErrors, isEmpty);
     });
 
+    test('disposing a standalone surface drops its queued reports', () async {
+      final SurfaceModel<ComponentApi> surface = _surface();
+      final printed = <String>[];
+      await runZoned(
+        () async {
+          unawaited(surface.dispatchError(error('surf', 'QUEUED')));
+          surface.dispose();
+          await _microtask();
+        },
+        zoneSpecification: ZoneSpecification(
+          print: (_, __, ___, line) => printed.add(line),
+        ),
+      );
+
+      expect(printed, isEmpty);
+    });
+
     test('addSurface moves a standalone surface pending reports to the group',
         () async {
       final SurfaceModel<ComponentApi> surface = _surface();
@@ -706,6 +723,20 @@ void main() {
       };
 
       surface.dataModel.set('/tick', 1);
+      expect(events, isEmpty);
+
+      await _microtask();
+      expect(events, ['t UNKNOWN_COMPONENT_TYPE']);
+    });
+
+    test(
+        'processMessages called while a resolver disposes delivers after '
+        'dispose returns', () async {
+      _add(processor.model.getSurface('s')!, 'root', 'Text', {'text': 'ok'});
+      final NodeResolver<ComponentApi> resolver = resolve();
+      resolver.rootNode.peek()!.onDestroyed.subscribe((_) => breakOther());
+
+      resolver.dispose();
       expect(events, isEmpty);
 
       await _microtask();
