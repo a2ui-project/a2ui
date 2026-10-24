@@ -1,0 +1,131 @@
+{
+  "name": "MCP JSON tool result",
+  "description": "Reads the JSON a headless MCP tool returns in its text content and writes the rows it needs into the data model. The button chains the catalog's data functions, each selecting the MCP catalog with its own catalogId: callMcpTool runs the tool, jmespath picks content[0].text out of the CallToolResult, parseJson decodes it, a second jmespath shapes the issues into rows, and updateDataModel writes them to /issues for the list below.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-mcp-json-tool-result",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-mcp-json-tool-result",
+        "value": {
+          "repository": "a2ui-project/a2ui",
+          "issues": []
+        }
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-mcp-json-tool-result",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["heading", "repository_field", "load_button", "issue_list"],
+            "align": "stretch"
+          },
+          {
+            "id": "heading",
+            "component": "Text",
+            "text": "### Open issues"
+          },
+          {
+            "id": "repository_field",
+            "component": "TextField",
+            "label": "Repository",
+            "value": {
+              "@path": "/repository"
+            }
+          },
+          {
+            "id": "load_button",
+            "component": "Button",
+            "child": "load_button_label",
+            "variant": "primary",
+            "action": {
+              "functionCall": {
+                "@call": "updateDataModel",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                "args": {
+                  "updates": {
+                    "@call": "jmespath",
+                    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                    "args": {
+                      "expression": "{\"/issues\": [?state == 'open'].{number: to_string(number), title: title}}",
+                      "data": {
+                        "@call": "parseJson",
+                        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                        "args": {
+                          "value": {
+                            "@call": "jmespath",
+                            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                            "args": {
+                              "expression": "content[0].text",
+                              "data": {
+                                "@call": "callMcpTool",
+                                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+                                "args": {
+                                  "name": "list_issues",
+                                  "arguments": {
+                                    "repository": {
+                                      "@path": "/repository"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "id": "load_button_label",
+            "component": "Text",
+            "text": "Load issues"
+          },
+          {
+            "id": "issue_list",
+            "component": "Column",
+            "children": {
+              "componentId": "issue_row",
+              "path": "/issues"
+            }
+          },
+          {
+            "id": "issue_row",
+            "component": "Row",
+            "children": ["issue_number", "issue_title"],
+            "align": "center"
+          },
+          {
+            "id": "issue_number",
+            "component": "Text",
+            "text": {
+              "@path": "number"
+            },
+            "weight": 1
+          },
+          {
+            "id": "issue_title",
+            "component": "Text",
+            "text": {
+              "@path": "title"
+            },
+            "weight": 5
+          }
+        ]
+      }
+    }
+  ]
+}

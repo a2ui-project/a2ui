@@ -114,18 +114,21 @@
  * A2UI at all is not a failure: it contributes nothing and the call proceeds.
  */
 
+// The argument schemas come from the v1.0 entry point: its `DynamicValue` accepts both the v1.0
+// `@path`/`@call` directives and the v0.9 `path`/`call` ones, so a v1.0 payload binding a tool
+// argument validates when the surface is processed. The message types stay the v0.9 ones, which
+// describe every payload a tool result may carry.
+import type {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
 import {
   A2uiExpressionError,
   DynamicStringSchema,
   DynamicValueSchema,
   createFunctionImplementation,
-  type A2uiMessage,
-  type CreateSurfaceMessage,
   type DataContext,
   type FunctionCall,
   type FunctionImplementation,
   type MessageProcessor,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core/v1_0';
 import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';

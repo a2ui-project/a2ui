@@ -73,6 +73,14 @@
     selfContained: true
     matchesBuiltinCatalog: true
 
+- name: test_v10_published_mcp_catalog_is_self_contained
+  description: Tests that the published v1 MCP catalog, whose functions take DynamicString and DynamicValue arguments from common_types.json, loads with fromJson into a catalog whose every $ref resolves within the resolved catalog schema.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/mcp/v1/catalog.json"
+  expect:
+    selfContained: true
+
 # ------------------------------------------------------------------------------
 # 1b. Custom catalogs
 # ------------------------------------------------------------------------------
@@ -774,6 +782,12 @@
   action: round_trip
   protocolVersion: "v0.9"
   catalogPath: "catalogs/mcp/catalog.json"
+
+- name: test_v10_mcp_catalog_round_trip
+  description: Tests that the published v1 MCP catalog round-trips with its McpApp component, its functions, their common_types.json references and its $defs unions intact.
+  action: round_trip
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/mcp/v1/catalog.json"
 
 - name: test_v10_custom_catalog_round_trip_function_metadata
   description: Tests that function descriptions, return types, allowedCallers and requiresUserActivation round-trip in the v1.0 function shape. The basic catalogs declare no allowedCallers.
