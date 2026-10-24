@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Layer 1 problem reporting conformance suite: delivery timing (T1 to T10),
-# channel lifetime (X1 to X4), and lazy evaluation on unmounted surfaces (L1).
+# Problem reporting conformance suite: delivery timing (T1 to T10), channel
+# lifetime (X1 to X4), and lazy evaluation on unmounted surfaces (L1). See
+# problems.md for the catalog, steps and assertions.
 #
-# The web_core and Swift runners skip these cases by name until their Layer 1
-# ports (slices 5 and 7) land.
+# The web_core runner skips these cases by name, and the Swift runner does not
+# load this suite, until each SDK implements problem reporting.
 #
 # Per-SDK applicability and mappings:
 #   * `T6_throwing_listener_does_not_stop_next_item` may be listed as not
@@ -34,7 +35,7 @@
     No listener runs before NodeResolver construction returns, and one has run
     after delivery.
   protocolVersion: "v0.9"
-  action: construct_resolver
+  action: report_problems
   steps:
     - op: process_messages
       messages:
@@ -62,7 +63,7 @@
     No listener runs before resolver disposal returns when node destruction
     triggers a problem, and one has run after delivery.
   protocolVersion: "v0.9"
-  action: dispose_resolver
+  action: report_problems
   steps:
     - op: process_messages
       messages:
@@ -113,7 +114,7 @@
     No listener runs before a data write or an action invocation returns, and
     one has run after delivery for each.
   protocolVersion: "v0.9"
-  action: invoke_action
+  action: report_problems
   steps:
     - op: process_messages
       messages:
@@ -145,7 +146,13 @@
                 component: "Button"
                 action:
                   event:
-                    name: ""
+                    name: "go"
+                    context:
+                      v:
+                        call: "maybeFail"
+                        args:
+                          flag: true
+                        returnType: "string"
     - op: construct_resolver
       surfaceId: "s"
     - op: await_delivery
@@ -166,7 +173,7 @@
       expect_reports: []
     - op: await_delivery
       expect_reports:
-        - code: "INVALID_ACTION"
+        - code: "EXPRESSION_ERROR"
           surfaceId: "s"
 
 - name: T4_update_then_delete_delivers_before_return
@@ -174,7 +181,7 @@
     On a surface with a mounted resolver, a bad update followed by
     deleteSurface in one payload delivers before processMessages returns.
   protocolVersion: "v0.9"
-  action: process_messages
+  action: report_problems
   steps:
     - op: process_messages
       messages:
@@ -214,7 +221,7 @@
     listener returns, never re-entering a listener while the first call is on
     the stack.
   protocolVersion: "v0.9"
-  action: process_messages
+  action: report_problems
   steps:
     - op: process_messages
       messages:
@@ -270,7 +277,7 @@
     A listener that throws on the first report does not stop delivery to a
     second listener or delivery of the next item.
   protocolVersion: "v0.9"
-  action: await_delivery
+  action: report_problems
   listeners: ["first", "second"]
   throwOnFirstReport: true
   steps:
@@ -314,7 +321,7 @@
     A catalog function that calls processMessages during NodeResolver
     construction delivers after the constructor returns.
   protocolVersion: "v0.9"
-  action: construct_resolver
+  action: report_problems
   steps:
     - op: process_messages
       messages:
@@ -373,7 +380,7 @@
     A resolver constructed and disposed in the same turn still delivers its
     queued reports.
   protocolVersion: "v0.9"
-  action: construct_resolver
+  action: report_problems
   steps:
     - op: process_messages
       messages:
@@ -401,7 +408,7 @@
     A listener that disposes the resolver on the first report still receives
     the remaining queued items.
   protocolVersion: "v0.9"
-  action: dispose_resolver
+  action: report_problems
   disposeResolverOnFirstReport: "s"
   steps:
     - op: process_messages
@@ -436,7 +443,7 @@
     Surface and processor listeners receive errors and warnings in discovery
     order (error, warning, error).
   protocolVersion: "v0.9"
-  action: process_messages
+  action: report_problems
   listeners: ["surface", "processor"]
   steps:
     - op: process_messages
@@ -504,7 +511,7 @@
     deleteSurface before delivery drops that surface's undelivered
     evaluation-time items while preserving other surfaces' items.
   protocolVersion: "v0.9"
-  action: await_delivery
+  action: report_problems
   steps:
     - op: process_messages
       messages:
@@ -549,7 +556,7 @@
     A detached surface holds its queued reports until re-added to the group,
     and then delivers them once.
   protocolVersion: "v0.9"
-  action: detach_surface
+  action: report_problems
   listeners: ["surface", "processor"]
   steps:
     - op: process_messages
@@ -559,21 +566,37 @@
             surfaceId: "s"
             catalogId: "problem-delivery-test"
         - version: "v0.9"
+          updateDataModel:
+            surfaceId: "s"
+            path: "/flag"
+            value: false
+        - version: "v0.9"
           updateComponents:
             surfaceId: "s"
             components:
               - id: "root"
+                component: "Column"
+                children: ["a", "b"]
+              - id: "a"
                 component: "Bogus"
+              - id: "b"
+                component: "Text"
+                text:
+                  call: "maybeFail"
+                  args:
+                    flag:
+                      path: "/flag"
+                  returnType: "string"
     - op: construct_resolver
       surfaceId: "s"
-      disposeImmediately: true
       expect_reports: []
     - op: detach_surface
       surfaceId: "s"
       expect_reports: []
-    - op: construct_resolver
+    - op: set
       surfaceId: "s"
-      disposeImmediately: true
+      path: "/flag"
+      value: true
       expect_reports: []
     - op: await_delivery
       expect_reports: []
@@ -589,10 +612,10 @@
           code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "s"
         - listener: "surface"
-          code: "UNKNOWN_COMPONENT_TYPE"
+          code: "EXPRESSION_ERROR"
           surfaceId: "s"
         - listener: "processor"
-          code: "UNKNOWN_COMPONENT_TYPE"
+          code: "EXPRESSION_ERROR"
           surfaceId: "s"
     - op: await_delivery
       expect_reports: []
@@ -602,7 +625,7 @@
     A standalone surface that queues a report before addSurface moves its
     pending items to the group's queue when added.
   protocolVersion: "v0.9"
-  action: add_surface
+  action: report_problems
   listeners: ["surface", "processor"]
   steps:
     - op: construct_resolver
@@ -630,7 +653,7 @@
     With no error or warning listener registered, an unheard error goes to the
     platform log and an unheard warning is not printed.
   protocolVersion: "v0.9"
-  action: await_delivery
+  action: report_problems
   listeners: []
   steps:
     - op: process_messages
@@ -666,7 +689,7 @@
     A surface with no mounted resolver evaluates no catalog function when
     messages and data updates are processed.
   protocolVersion: "v0.9"
-  action: process_messages
+  action: report_problems
   steps:
     - op: process_messages
       messages:

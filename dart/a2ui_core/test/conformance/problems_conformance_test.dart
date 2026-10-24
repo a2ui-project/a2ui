@@ -296,8 +296,7 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
         case 'set':
           final surfaceId = step['surfaceId']! as String;
           final path = step['path']! as String;
-          processor.model
-              .getSurface(surfaceId)!
+          (processor.model.getSurface(surfaceId) ?? heldSurfaces[surfaceId]!)
               .dataModel
               .set(path, step['value']);
         case 'invoke_action':
