@@ -660,6 +660,36 @@
     format: "yyyy-MM-dd"
   expect: ""
 
+- name: test_evaluate_function_format_date_utc_time
+  description: Verifies formatDate renders the time fields of a UTC timestamp as written, whatever the host time zone.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-09-04T23:30:00Z"
+    format: "yyyy-MM-dd HH:mm"
+  expect: "2026-09-04 23:30"
+
+- name: test_evaluate_function_format_date_without_offset
+  description: Verifies formatDate reads a timestamp without an offset as written (as UTC), never as host-local time.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-09-04T23:30:00"
+    format: "yyyy-MM-dd HH:mm"
+  expect: "2026-09-04 23:30"
+
+# Pinned to v1.0 because the Python v0.9 catalog converts a timestamp with an offset to UTC
+# before it expands the tokens; web_core, Dart and Python v1.0 keep the written offset.
+- name: test_evaluate_function_format_date_keeps_written_offset
+  description: Verifies formatDate renders a timestamp with an offset in that offset, so the written wall-clock date and time are kept.
+  protocolVersion: "v1.0"
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-09-04T23:30:00-05:00"
+    format: "yyyy-MM-dd HH:mm"
+  expect: "2026-09-04 23:30"
+
 # --- FormatStringFunction (D18, D28) ---
 - name: test_evaluate_function_format_string_basic
   description: Verifies formatString evaluates static template string.

@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import A2UICore
+import BasicCatalog
 import Foundation
+import JSONSchema
 import Testing
-
-@testable import BasicCatalog
 
 @MainActor
 private final class MockFunctionHandler: FunctionHandler {
@@ -25,6 +25,8 @@ private final class MockFunctionHandler: FunctionHandler {
   }
 }
 
+/// Every expectation is a literal string, so these tests pass or fail the same way whatever the
+/// host time zone (try `TZ=America/Los_Angeles swift test` and `TZ=Asia/Tokyo swift test`).
 @MainActor
 struct FormatDateFunctionTests {
 
@@ -32,12 +34,9 @@ struct FormatDateFunctionTests {
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
 
-  // Helper to generate expected strings based on current locale
-  func expectedFormat(date: Date, format: String) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = format
-    formatter.locale = Locale.current
-    return formatter.string(from: date)
+  private func format(_ value: JSONValue, _ pattern: String) throws -> JSONValue {
+    try function.evaluate(
+      arguments: ["value": value, "format": .string(pattern)], context: context)
   }
 
   // MARK: - Initialization
@@ -50,61 +49,107 @@ struct FormatDateFunctionTests {
   // MARK: - Evaluation
 
   @Test func formatsISO8601String() throws {
-    let isoString = "2026-01-16T14:30:00Z"
-    let date = try #require(ISO8601DateFormatter().date(from: isoString))
-    let format = "MMM dd, yyyy"
-    let expected = expectedFormat(date: date, format: format)
-
-    let result = try function.evaluate(
-      arguments: ["value": .string(isoString), "format": .string(format)], context: context)
-    #expect(result == .string(expected))
+    #expect(try format(.string("2026-01-16T14:30:00Z"), "MMM dd, yyyy") == .string("Jan 16, 2026"))
   }
 
-  @Test func formatsMillisecondsNumber() throws {
-    let msSince1970: Double = 1_768_573_800_000  // Jan 16 2026
-    let date = Date(timeIntervalSince1970: msSince1970 / 1000.0)
-    let format = "yyyy-MM-dd"
-    let expected = expectedFormat(date: date, format: format)
-
-    let result = try function.evaluate(
-      arguments: ["value": .number(msSince1970), "format": .string(format)], context: context)
-    #expect(result == .string(expected))
+  @Test func formatsMillisecondsNumberInUTC() throws {
+    #expect(
+      try format(.number(1_768_573_800_000), "yyyy-MM-dd HH:mm") == .string("2026-01-16 14:30"))
   }
 
-  @Test func formatsSecondsNumber() throws {
-    let secondsSince1970: Double = 1_768_573_800  // Jan 16 2026
-    let date = Date(timeIntervalSince1970: secondsSince1970)
-    let format = "HH:mm"
-    let expected = expectedFormat(date: date, format: format)
-
-    let result = try function.evaluate(
-      arguments: ["value": .number(secondsSince1970), "format": .string(format)], context: context)
-    #expect(result == .string(expected))
+  @Test func formatsSecondsNumberInUTC() throws {
+    #expect(try format(.number(1_768_573_800), "HH:mm") == .string("14:30"))
   }
 
-  @Test func formatsNumericStringMilliseconds() throws {
-    let msString = "1768573800000"
-    let date = Date(timeIntervalSince1970: 1_768_573_800)
-    let format = "MMM dd"
-    let expected = expectedFormat(date: date, format: format)
-
-    let result = try function.evaluate(
-      arguments: ["value": .string(msString), "format": .string(format)], context: context)
-    #expect(result == .string(expected))
+  @Test func formatsNumericStringMillisecondsInUTC() throws {
+    #expect(try format(.string("1768573800000"), "MMM dd HH:mm") == .string("Jan 16 14:30"))
   }
 
-  @Test func formatsFallbackYYYYMMDDString() throws {
-    let dateString = "2026-01-16"
-    let fallbackFormatter = DateFormatter()
-    fallbackFormatter.dateFormat = "yyyy-MM-dd"
-    let date = try #require(fallbackFormatter.date(from: dateString))
+  @Test func formatsDateOnlyStringAsWritten() throws {
+    #expect(try format(.string("2026-01-16"), "MMMM d") == .string("January 16"))
+    #expect(try format(.string("2026-01-16"), "ISO") == .string("2026-01-16T00:00:00.000Z"))
+  }
 
-    let format = "MMMM d"
-    let expected = expectedFormat(date: date, format: format)
+  // MARK: - Written wall-clock time
 
-    let result = try function.evaluate(
-      arguments: ["value": .string(dateString), "format": .string(format)], context: context)
-    #expect(result == .string(expected))
+  @Test func keepsWallClockTimeOfNegativeOffset() throws {
+    let value = JSONValue.string("2026-09-04T23:30:00-05:00")
+    #expect(try format(value, "yyyy-MM-dd HH:mm") == .string("2026-09-04 23:30"))
+    #expect(try format(value, "EEEE h:mm a") == .string("Friday 11:30 PM"))
+  }
+
+  @Test func keepsWallClockTimeOfPositiveOffset() throws {
+    let value = JSONValue.string("2026-09-05T06:15:00+09:00")
+    #expect(try format(value, "yyyy-MM-dd HH:mm") == .string("2026-09-05 06:15"))
+    #expect(try format(value, "EEEE") == .string("Saturday"))
+  }
+
+  @Test func keepsWallClockTimeOfUTCTimestamp() throws {
+    #expect(
+      try format(.string("2026-09-04T23:30:00Z"), "yyyy-MM-dd HH:mm") == .string("2026-09-04 23:30")
+    )
+  }
+
+  @Test func keepsWallClockTimeOfFractionalTimestamp() throws {
+    let value = JSONValue.string("2026-09-04T23:30:15.250+02:00")
+    #expect(try format(value, "HH:mm:ss") == .string("23:30:15"))
+    #expect(try format(value, "ISO") == .string("2026-09-04T21:30:15.250Z"))
+  }
+
+  @Test func readsTimestampWithoutOffsetAsWritten() throws {
+    let value = JSONValue.string("2026-09-04T23:30:00")
+    #expect(try format(value, "yyyy-MM-dd HH:mm") == .string("2026-09-04 23:30"))
+    #expect(try format(value, "ISO") == .string("2026-09-04T23:30:00.000Z"))
+    #expect(try format(.string("2026-09-04T23:30"), "HH:mm") == .string("23:30"))
+  }
+
+  @Test func acceptsSpaceSeparatorAndCompactOffset() throws {
+    let value = JSONValue.string("2026-09-04 23:30:00+0530")
+    #expect(try format(value, "yyyy-MM-dd HH:mm") == .string("2026-09-04 23:30"))
+    #expect(try format(value, "ISO") == .string("2026-09-04T18:00:00.000Z"))
+  }
+
+  @Test func acceptsLowercaseTimeSeparatorAndUTCDesignator() throws {
+    let value = JSONValue.string("2026-09-04t23:30:00-05:00")
+    #expect(try format(value, "yyyy-MM-dd HH:mm") == .string("2026-09-04 23:30"))
+    #expect(try format(value, "ISO") == .string("2026-09-05T04:30:00.000Z"))
+    #expect(try format(.string("2026-09-04t23:30"), "HH:mm") == .string("23:30"))
+    #expect(
+      try format(.string("2026-09-04t23:30:00z"), "ISO") == .string("2026-09-04T23:30:00.000Z"))
+  }
+
+  @Test func isoPatternEmitsUTCInstant() throws {
+    #expect(
+      try format(.string("2026-09-04T23:30:00-05:00"), "ISO") == .string("2026-09-05T04:30:00.000Z")
+    )
+  }
+
+  @Test func returnsEmptyStringForFieldsThatDoNotExist() throws {
+    #expect(try format(.string("2026-02-30T10:00:00Z"), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("2026-13-01"), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("2026-09-04T24:30:00"), "yyyy-MM-dd") == .string(""))
+  }
+
+  @Test func returnsEmptyStringForNonFiniteEpoch() throws {
+    #expect(try format(.number(.nan), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(.infinity), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(-.infinity), "ISO") == .string(""))
+    #expect(try format(.string("NaN"), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("inf"), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("-Infinity"), "ISO") == .string(""))
+  }
+
+  @Test func returnsEmptyStringForEpochOutOfRange() throws {
+    #expect(try format(.number(1e300), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(8_640_000_000_000_001), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(-8_640_000_000_001), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("1e300"), "ISO") == .string(""))
+  }
+
+  @Test func formatsEpochAtEndOfRange() throws {
+    #expect(
+      try format(.number(8_640_000_000_000_000), "yyyy-MM-dd HH:mm")
+        == .string("275760-09-13 00:00"))
   }
 
   @Test func returnsEmptyStringWhenFormatIsMissing() throws {
