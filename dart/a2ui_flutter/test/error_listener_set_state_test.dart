@@ -46,7 +46,7 @@ void main() {
     final SurfaceModel<ComponentImplementation> surface = processor.model
         .getSurface('s')!;
 
-    await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(surface)));
+    await tester.pumpWidget(MaterialApp(home: _ExampleRun(surface)));
     expect(tester.takeException(), isNull);
     await tester.pump();
 
@@ -79,7 +79,7 @@ void main() {
         }),
       );
 
-      await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(surface)));
+      await tester.pumpWidget(MaterialApp(home: _ExampleRun(surface)));
       expect(tester.takeException(), isNull);
       await tester.pump();
 
@@ -90,16 +90,16 @@ void main() {
 }
 
 /// Counts its surface's errors with a plain `setState`, as an app would.
-class _ErrorCountingHost extends StatefulWidget {
-  const _ErrorCountingHost(this.surface);
+class _ExampleRun extends StatefulWidget {
+  const _ExampleRun(this.surface);
 
   final SurfaceModel<ComponentImplementation> surface;
 
   @override
-  State<_ErrorCountingHost> createState() => _ErrorCountingHostState();
+  State<_ExampleRun> createState() => _ExampleRunState();
 }
 
-class _ErrorCountingHostState extends State<_ErrorCountingHost> {
+class _ExampleRunState extends State<_ExampleRun> {
   int _errors = 0;
   late final Subscription _subscription;
 
