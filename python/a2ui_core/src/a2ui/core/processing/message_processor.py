@@ -368,6 +368,41 @@ class MessageProcessor:
             result["theme"] = theme
         return result
 
+    @classmethod
+    def _generate_inline_catalog(cls, catalog: Any) -> dict[str, Any] | None:
+        """Generates a v1.0 inline catalog from the catalog's `to_json` document.
+
+        The document gets the `catalogId` and the bare semantic version
+        `protocolVersion` (`1.0`, not `v1.0`) that `catalog_definition.json`
+        expects, even when the source document did not declare them, since an
+        undeclared `protocolVersion` reads as `0.9`. Matches web_core.
+
+        Returns:
+            The inline catalog, or None if the catalog has no `to_json`.
+        """
+        to_json = getattr(catalog, "to_json", None)
+        if not callable(to_json):
+            return None
+        document = to_json()
+        catalog_id = getattr(catalog, "catalog_id", None)
+        if catalog_id is not None and not callable(catalog_id):
+            document["catalogId"] = catalog_id
+        version = document.get("protocolVersion")
+        if not isinstance(version, str):
+            version = None
+            raw_version = getattr(catalog, "protocol_version", None)
+            if raw_version is not None and not callable(raw_version):
+                try:
+                    version = to_protocol_version(raw_version).value
+                except (TypeError, ValueError):
+                    version = str(raw_version)
+        if version is not None:
+            version = version.strip()
+            if version[:1] in ("v", "V") and version[1:2].isdigit():
+                version = version[1:]
+            document["protocolVersion"] = version
+        return document
+
     def get_renderer_capabilities(
         self,
         options: CapabilitiesOptions,
@@ -408,9 +443,9 @@ class MessageProcessor:
                 inline_catalogs: list[dict[str, Any]] = []
                 for c in self.catalogs:
                     if is_at_least_version(ver_str, ProtocolVersion.V1_0):
-                        to_json = getattr(c, "to_json", None)
-                        if callable(to_json):
-                            inline_catalogs.append(to_json())
+                        inline = self._generate_inline_catalog(c)
+                        if inline is not None:
+                            inline_catalogs.append(inline)
                     else:
                         inline_catalogs.append(
                             self._generate_legacy_inline_catalog(c, envelope_ref)

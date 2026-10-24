@@ -469,6 +469,57 @@ struct MessageProcessorTests {
       functionsV10?["openUrl"]?["required"] == .array([.string("@call"), .string("args")]))
   }
 
+  @Test func getRendererCapabilitiesWrapsComponentEnvelopeOnlyBeforeV10() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "label": { "type": "string" }
+          },
+          "required": ["label"]
+        }
+        """
+    )
+    let catalogV091 = Catalog(
+      id: "cat-v091",
+      protocolVersion: .v091,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let catalogV10 = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let processor = MessageProcessor(catalogs: [catalogV091, catalogV10])
+    let caps = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        versions: [.v091, .v10],
+        includeInlineCatalogs: true,
+        componentEnvelopeRef: "custom.json#/$defs/Envelope"
+      )
+    )
+
+    let buttonV091 = try #require(
+      caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first?["components"]?["Button"]
+    )
+    #expect(buttonV091["allOf/0/$ref"]?.stringValue == "custom.json#/$defs/Envelope")
+
+    let inlineCatalogV10 = try #require(caps["v1.0"]?["inlineCatalogs"]?.arrayValue?.first)
+    let buttonV10 = try #require(inlineCatalogV10["components"]?["Button"])
+    let expectedButtonV10: JSONValue = .object([
+      "type": .string("object"),
+      "properties": .object([
+        "component": .object(["const": .string("Button")]),
+        "label": .object(["type": .string("string")]),
+      ]),
+      "required": .array([.string("component"), .string("label")]),
+    ])
+    #expect(buttonV10 == expectedButtonV10)
+    // `@index` is a system function every v1.0 catalog provides; catalogs must not declare it.
+    #expect(inlineCatalogV10["functions"] == nil)
+  }
+
   // MARK: - RPC DataContext, Outbound Transport & Lifecycle
 
   @Test func callRendererFunctionResolvesArgsAgainstActiveSurfaceDataModel() async throws {

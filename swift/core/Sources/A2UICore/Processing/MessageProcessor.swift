@@ -170,7 +170,11 @@ public final class MessageProcessor: ObservableObject {
     /// If true, full definitions of all catalogs will be included as inline catalogs.
     public var includeInlineCatalogs: Bool
 
-    /// Optional JSON Schema `$ref` used as the base envelope for inline component schemas.
+    /// Optional JSON Schema `$ref` used as the base envelope for inline component schemas
+    /// before v1.0. Defaults to `common_types.json#/$defs/ComponentCommon`.
+    ///
+    /// v1.0 inline catalogs ignore it: v1.0 composes `ComponentCommon` in the message envelope,
+    /// so catalog components must not wrap it again.
     public var componentEnvelopeRef: String?
 
     /// Creates a capabilities option instance with explicit protocol versions.
@@ -178,7 +182,8 @@ public final class MessageProcessor: ObservableObject {
     /// - Parameters:
     ///   - versions: Protocol versions to generate capabilities for (must not be empty).
     ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
-    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes.
+    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes before
+    ///     v1.0.
     public init(
       versions: [A2UIProtocolVersion],
       includeInlineCatalogs: Bool = false,
@@ -194,7 +199,8 @@ public final class MessageProcessor: ObservableObject {
     /// - Parameters:
     ///   - protocolVersion: The `A2UIProtocolVersion` enum case.
     ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
-    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes.
+    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes before
+    ///     v1.0.
     public init(
       protocolVersion: A2UIProtocolVersion,
       includeInlineCatalogs: Bool = false,
@@ -277,15 +283,26 @@ public final class MessageProcessor: ObservableObject {
         }
       }
 
-      let componentSchema: JSONValue = .object([
-        "allOf": .array([
-          .object(["$ref": .string(envelopeRef)]),
-          .object([
-            "properties": .object(properties),
-            "required": .array(required),
-          ]),
+      // v1.0 composes ComponentCommon in the message envelope (`agent_to_renderer.json`), so
+      // its catalog components are plain schemas. Before v1.0, each component carries it.
+      let componentSchema: JSONValue
+      if version.isAtLeastV10 {
+        componentSchema = .object([
+          "type": .string("object"),
+          "properties": .object(properties),
+          "required": .array(required),
         ])
-      ])
+      } else {
+        componentSchema = .object([
+          "allOf": .array([
+            .object(["$ref": .string(envelopeRef)]),
+            .object([
+              "properties": .object(properties),
+              "required": .array(required),
+            ]),
+          ])
+        ])
+      }
       componentsDictionary[name] = componentSchema
     }
 
@@ -305,7 +322,9 @@ public final class MessageProcessor: ObservableObject {
     if !catalog.functions.isEmpty {
       if version.isAtLeastV10 {
         var functionsDict: OrderedDictionary<String, JSONValue> = [:]
-        for key in catalog.functions.keys.sorted() {
+        // The `@` namespace is reserved for system functions such as `@index`, which every
+        // v1.0 catalog provides and no catalog may declare.
+        for key in catalog.functions.keys.sorted() where !key.hasPrefix("@") {
           guard let functionImplementation = catalog.functions[key] else { continue }
           let functionAPI = functionImplementation.api
           let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
@@ -343,7 +362,9 @@ public final class MessageProcessor: ObservableObject {
           functionDefinition["required"] = .array(requiredFields)
           functionsDict[functionAPI.name] = .object(functionDefinition)
         }
-        catalogDictionary["functions"] = .object(functionsDict)
+        if !functionsDict.isEmpty {
+          catalogDictionary["functions"] = .object(functionsDict)
+        }
       } else {
         var functionsArray: [JSONValue] = []
         for key in catalog.functions.keys.sorted() {

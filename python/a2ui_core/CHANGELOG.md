@@ -35,6 +35,11 @@
   item naming a missing component as a dangling reference, and error paths
   read `name[i]` instead of `name.[i]`.
 
+- `MessageProcessor.get_renderer_capabilities` now gives each v1.0 inline
+  catalog its `catalogId` and the bare `protocolVersion` (`1.0`), as web_core
+  does, also when the catalog document does not declare them. An inline catalog
+  without `protocolVersion` reads as `0.9` (#3061).
+
 ## 0.4.0 (2026-10-17)
 
 - Catalogs can reference components, property schemas and functions in peer
