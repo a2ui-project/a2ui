@@ -118,8 +118,10 @@
 
 import {
   A2uiExpressionError,
+  DataBindingSchema,
   DynamicStringSchema,
   DynamicValueSchema,
+  FunctionCallSchema,
   createFunctionImplementation,
   type A2uiMessage,
   type CreateSurfaceMessage,
@@ -163,11 +165,17 @@ export const CallMcpToolApi = {
   returnType: 'any' as const,
   schema: z.object({
     name: DynamicStringSchema.describe('The name of the MCP tool to execute.'),
+    // A payload may also build the whole argument object with a function call
+    // or a data binding, which the data context resolves before the call runs.
+    // That is how a payload passes an argument literally named `path`, which
+    // written inline would read as a data binding.
     arguments: z
-      .record(DynamicValueSchema)
+      .union([z.record(DynamicValueSchema), FunctionCallSchema, DataBindingSchema])
       .optional()
       .default({})
-      .describe('The arguments to pass to the MCP tool.'),
+      .describe(
+        'The arguments to pass to the MCP tool. Either an object of dynamic values, or a function call or data binding that evaluates to that object.',
+      ),
   }),
   description: 'Invokes a tool on a connected Model Context Protocol (MCP) server.',
 };

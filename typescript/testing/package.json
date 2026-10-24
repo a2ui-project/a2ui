@@ -1,0 +1,83 @@
+{
+  "name": "@a2ui/testing",
+  "version": "0.0.1-alpha.1",
+  "description": "(experimental) Renderer-agnostic test harness for A2UI surfaces: drive a payload by component id and data path, and assert on data model, resolved props, and dispatched actions.",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/testing",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "testing",
+    "ai",
+    "agent",
+    "ui"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "wireit",
+    "clean": "rm -rf dist .wireit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "../core/web_core:build"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/"
+      ]
+    },
+    "test": {
+      "command": "node --import tsx --test 'src/**/*.test.ts'",
+      "dependencies": [
+        "../core/web_core:build"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json"
+      ],
+      "output": []
+    }
+  },
+  "dependencies": {
+    "@a2ui/web_core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2",
+    "zod": "^3.25.76"
+  }
+}

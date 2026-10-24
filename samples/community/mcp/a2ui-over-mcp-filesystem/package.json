@@ -8,7 +8,9 @@
     "dev:web": "yarn workspace a2ui-over-mcp-filesystem-client run dev",
     "build": "yarn workspace a2ui-over-mcp-filesystem-client run build",
     "preview": "yarn workspace a2ui-over-mcp-filesystem-client run preview",
-    "test": "yarn workspace a2ui-over-mcp-filesystem-client run test",
+    "test": "yarn run test:surface && yarn run test:client",
+    "test:surface": "vitest run --config vitest.config.ts",
+    "test:client": "yarn workspace a2ui-over-mcp-filesystem-client run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "echo \"Workspace has no lint configuration.\"",
@@ -17,6 +19,7 @@
   "devDependencies": {
     "@modelcontextprotocol/server-filesystem": "^2026.8.31",
     "concurrently": "^10.0.3",
-    "mcp-proxy": "6.7.16"
+    "mcp-proxy": "6.7.16",
+    "vitest": "^4.1.8"
   }
 }

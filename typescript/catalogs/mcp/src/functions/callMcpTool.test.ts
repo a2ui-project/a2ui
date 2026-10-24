@@ -212,6 +212,60 @@ describe('callMcpTool', () => {
       });
     });
 
+    it('accepts a function call or binding that builds the whole argument object', () => {
+      // A payload cannot write an argument literally named `path` inline, since
+      // {path: "~"} reads as a data binding. It builds the object instead.
+      const call = {call: 'jmespath', args: {expression: '{path: @}', data: '~'}};
+      const parsed = CallMcpToolApi.schema.parse({name: 'ls', arguments: call});
+      // FunctionCallSchema fills in a default returnType; the call itself is kept.
+      assert.deepStrictEqual(
+        {...(parsed.arguments as Record<string, unknown>), returnType: undefined},
+        {...call, returnType: undefined},
+      );
+      const binding = {path: '/toolArgs'};
+      assert.deepStrictEqual(CallMcpToolApi.schema.parse({name: 'ls', arguments: binding}), {
+        name: 'ls',
+        arguments: binding,
+      });
+    });
+
+    it('lets the processor accept a payload whose arguments are a function call', () => {
+      const client = createFakeClient();
+      const catalog = catalogFor(client);
+      const processor = new MessageProcessor<any>([catalog]);
+
+      // Payload validation checks raw function arguments against the schema,
+      // so this is the shape a sample payload ships rather than a resolved one.
+      processor.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: catalog.id}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {
+                id: 'root',
+                component: 'Button',
+                child: 'label',
+                action: {
+                  functionCall: {
+                    call: 'callMcpTool',
+                    args: {
+                      name: 'ls',
+                      arguments: {call: 'jmespath', args: {expression: '{path: @}', data: '~'}},
+                    },
+                  },
+                },
+              },
+              {id: 'label', component: 'Text', text: 'List'},
+            ],
+          },
+        },
+      ] as any);
+
+      assert.ok(processor.model.getSurface('s')!.componentsModel.get('root'));
+    });
+
     it('drops a server argument, since servers are resolved by the host', () => {
       const parsed = CallMcpToolApi.schema.parse({
         name: 'fetch_weather',

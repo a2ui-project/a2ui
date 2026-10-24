@@ -29,6 +29,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    },
     "./catalog.json": "./dist/catalog.json"
   },
   "files": [
@@ -92,6 +96,7 @@
       "command": "tsc -b --pretty",
       "dependencies": [
         "../../../typescript/core/web_core:build",
+        "../../testing:build",
         "copy-catalog",
         "copy-shared"
       ],
@@ -139,13 +144,13 @@
       "output": []
     },
     "test:node": {
-      "command": "node --import tsx --test \"src/functions/**/*.test.ts\" src/dynamic-values.test.ts",
+      "command": "node --import tsx --test \"src/functions/**/*.test.ts\" \"src/testing/**/*.test.ts\" src/dynamic-values.test.ts",
       "dependencies": [
         "build:tsc"
       ],
       "files": [
         "src/**/*.ts",
-        "src/catalog.json"
+        "src/**/*.json"
       ],
       "output": []
     },
@@ -176,6 +181,7 @@
       "command": "eslint .",
       "dependencies": [
         "../../../typescript/core/web_core:build",
+        "../../testing:build",
         "build:tsc"
       ],
       "files": [
@@ -203,10 +209,17 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
+    "@a2ui/testing": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "lit": "^3.3.3"
   },
+  "peerDependenciesMeta": {
+    "@a2ui/testing": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@a2ui/testing": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@types/jasmine": "^6.0.0",
     "@types/node": "^25.9.3",

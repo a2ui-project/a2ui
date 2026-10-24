@@ -164,6 +164,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp"
   dependencies:
+    "@a2ui/testing": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
@@ -185,8 +186,12 @@ __metadata:
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
   peerDependencies:
+    "@a2ui/testing": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     lit: ^3.3.3
+  peerDependenciesMeta:
+    "@a2ui/testing":
+      optional: true
   languageName: unknown
   linkType: soft
 
@@ -498,6 +503,21 @@ __metadata:
   dependencies:
     ajv-cli: "npm:^5.0.0"
     ajv-formats: "npm:^3.0.1"
+  languageName: unknown
+  linkType: soft
+
+"@a2ui/testing@workspace:*, @a2ui/testing@workspace:typescript/testing":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/testing@workspace:typescript/testing"
+  dependencies:
+    "@a2ui/web_core": "workspace:*"
+    "@types/node": "npm:^25.9.3"
+    eslint: "npm:^10.4.1"
+    prettier: "npm:^3.8.4"
+    tsx: "npm:^4.22.4"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+    zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
 
