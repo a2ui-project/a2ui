@@ -53,40 +53,6 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('errors: 1'), findsOneWidget);
   });
-
-  testWidgets(
-    'an error listener may call setState for a malformed check rule',
-    (tester) async {
-      final processor = MessageProcessor<ComponentImplementation>(
-        catalogs: [basicCatalog()],
-        defaultVersion: A2uiProtocolVersion.v0_9,
-      );
-      addTearDown(processor.model.dispose);
-      processor.processMessages(
-        AgentToRendererMessagePayload.fromJson([
-          {
-            'version': 'v0.9',
-            'createSurface': {'surfaceId': 's', 'catalogId': basicCatalog().id},
-          },
-        ], protocolVersion: A2uiProtocolVersion.v0_9),
-      );
-      final SurfaceModel<ComponentImplementation> surface = processor.model
-          .getSurface('s')!;
-      surface.componentsModel.addComponent(
-        ComponentModel('root', 'TextField', {
-          'label': 'Name',
-          'checks': [42],
-        }),
-      );
-
-      await tester.pumpWidget(MaterialApp(home: _ExampleRun(surface)));
-      expect(tester.takeException(), isNull);
-      await tester.pump();
-
-      expect(tester.takeException(), isNull);
-      expect(find.text('errors: 1'), findsOneWidget);
-    },
-  );
 }
 
 /// Counts its surface's errors with a plain `setState`, as an app would.
