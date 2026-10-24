@@ -31,7 +31,7 @@ Packaging follows this model: the package root exports the version-agnostic `Sur
 
 An adapter integrates with the Core SDK at two primary boundaries:
 
-1. **`SurfaceModel`**: The adapter's root entrypoint (`Surface`) takes `SurfaceModel` directly as its sole input. The `SurfaceModel` encapsulates incoming message processing, the live component hierarchy, the surface's catalogs (`defaultCatalog` and `availableCatalogs`), the data model, and the surface's event channels. Hosts listen for actions, errors, and warnings once on the processor (`processor.model`).
+1. **`SurfaceModel`**: The adapter's root entrypoint (`Surface`) takes `SurfaceModel` directly as its sole input. The `SurfaceModel` encapsulates incoming message processing, the live component hierarchy, the surface's catalogs (`defaultCatalog` and `availableCatalogs`), the data model, and the surface's event channels. The surface exposes `onAction`, `onError` and `onWarning`. Hosts listen for errors and warnings once on the processor (`processor.model`).
 2. **The Node API (`NodeResolver` and `ComponentNode`)**: The adapter initializes a `NodeResolver` on the `SurfaceModel`. It never queries raw component dictionaries or evaluates JSON pointers directly. Instead, it observes the living tree of `ComponentNode` instances produced by `NodeResolver`.
 
 ```mermaid
@@ -122,9 +122,9 @@ Problem delivery follows rules `P1` to `P7` of the [Core SDK blueprint](a2ui_cor
 
 - **F1. One processor listener and no error parameter on views.** Hosts subscribe to errors and warnings once on the processor (`MessageProcessor` construction or `processor.model.onError` and `onWarning`) before the first message. Neither `Surface` nor any component view accepts an error or warning callback.
 - **F2. No adapter-level problem reports.** Core and `NodeResolver` enqueue problems on the surface's channel. The node dispatcher and placeholder views render `pending`, `unknown-type`, and `cyclic` states visually and never dispatch reports of their own.
-- **F3. Listeners update framework state directly.** Because Core delivers reports only at message boundaries in `processMessages` or in a microtask outside `NodeResolver` construction, update, and disposal, a host listener called outside a build may update framework state directly without wrapping the update in a post-frame or next-tick callback. Calling `processMessages` from inside a view's build runs listeners during that build, so hosts must not call `processMessages` from a build method.
-- **F4. Adapter scheduling after delivery.** In frameworks where a microtask state update after a frame requires an explicit frame request (such as Flutter), a mounted `Surface` view subscribes to `surface.onReportsDelivered` and requests a frame after each delivery pass. A listener that defers its own state update schedules its own frame.
-- **F5. Resolve only while mounted.** A `Surface` view creates its `NodeResolver` (or holds a resolution lease) when mounted and disposes it when unmounted, maintaining one resolver per mounted view. Unmounted surfaces hold no active resolver.
+- **F3. Listeners update framework state directly.** Core never calls a listener inside `NodeResolver` construction, update or disposal, or inside a catalog function's `execute` call. A host listener may update framework state directly, without a post-frame or next-tick callback. A host that calls `processMessages` from a view's build gets listener calls inside that build.
+- **F4. Adapter scheduling after delivery.** In a framework where a deferred callback runs only on the next frame (such as Flutter), a mounted `Surface` view subscribes to `surface.onReportsDelivered` and requests a frame after each delivery pass. A listener that defers its state update while no `Surface` is mounted schedules its own frame.
+- **F5. Resolve only while mounted.** A `Surface` view creates its `NodeResolver` when mounted and disposes it when unmounted, maintaining one resolver per mounted view. Unmounted surfaces hold no active resolver.
 
 ### Accessibility
 
