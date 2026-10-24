@@ -29,6 +29,7 @@ typescript/renderers/angular/a2ui_explorer/src/app/generated/**
 typescript/renderers/lit/a2ui_explorer/src/generated/**
 typescript/renderers/react/a2ui_explorer/src/generated/**
 typescript/agents/a2ui_agent/src/inference-formats/express/generated/**
+typescript/renderers/*/a2ui_explorer/public/a2ui-sandbox/**
 typescript/catalogs/mcp/tests/fixtures/generated/**
 .next
 **/.next
