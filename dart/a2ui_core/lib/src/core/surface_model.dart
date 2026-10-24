@@ -14,6 +14,8 @@
 
 import 'dart:async';
 
+import 'package:meta/meta.dart';
+
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/semver.dart';
@@ -329,6 +331,7 @@ class SurfaceModel<T extends ComponentApi> {
 
 /// Makes [surface] queue its errors and warnings into [channel], moving the
 /// ones it has not delivered there in order.
+@internal
 void attachProblemChannel(SurfaceModel surface, ProblemChannel channel) =>
     surface._problems.attach(channel);
 

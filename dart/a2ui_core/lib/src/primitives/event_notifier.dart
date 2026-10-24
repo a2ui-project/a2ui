@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 
 final Logger _logger = Logger('a2ui.EventNotifier');
 
@@ -85,6 +86,7 @@ class EventNotifier<T> implements EventSource<T> {
 }
 
 /// The listeners subscribed to [notifier], in subscription order.
+@internal
 List<void Function(T event)> listenersOf<T>(EventNotifier<T> notifier) => [
       for (final _CallbackSubscription<T> sub in notifier._subscriptions)
         if (sub._listener case final listener?) listener,

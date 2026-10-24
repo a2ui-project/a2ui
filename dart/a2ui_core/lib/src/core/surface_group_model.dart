@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:meta/meta.dart';
+
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import 'catalog.dart';
@@ -128,5 +130,6 @@ class SurfaceGroupModel<T extends ComponentApi> {
 
 /// Runs [body] as one message applied to [group]'s surfaces: their errors
 /// and warnings queued while it runs are delivered when it returns or throws.
+@internal
 R runInMessageScope<R>(SurfaceGroupModel group, R Function() body) =>
     group._channel.runMessage(body);
