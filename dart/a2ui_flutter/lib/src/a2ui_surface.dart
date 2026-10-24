@@ -26,8 +26,8 @@ import 'surface_scope.dart';
 /// While mounted, the widget owns a [NodeResolver] over [surface] and renders
 /// the resolver's root node. Until the root component arrives, and in place
 /// of a child that has not arrived, it shows a small progress indicator.
-/// Diagnostics found while it builds reach the surface's error and warning
-/// listeners after that build, never during it, so a listener may call
+/// Diagnostics found while it builds reach error and warning listeners after
+/// that build, never during it, so a listener may call
 /// `setState`. A frame is requested after they are delivered. Each mounted
 /// widget reports those diagnostics again.
 ///

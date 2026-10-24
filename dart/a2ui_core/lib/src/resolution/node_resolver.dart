@@ -114,8 +114,8 @@ class _NodeRecord<T extends ComponentApi> {
 /// deduplicated.
 ///
 /// Diagnostics go to the surface's error and warning queue as they are found.
-/// They are delivered after the constructor, update or [dispose] that found
-/// them returns, and disposing the resolver drops none of them.
+/// They are delivered after the resolver call or data write that found them
+/// returns, and disposing the resolver drops none of them.
 class NodeResolver<T extends ComponentApi> {
   final SurfaceModel<T> _surface;
 

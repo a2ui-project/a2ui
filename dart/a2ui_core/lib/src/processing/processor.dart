@@ -317,7 +317,12 @@ class MessageProcessor<T extends ComponentApi> {
   /// called from such a listener, they are delivered after that listener
   /// returns. When it is called from a `NodeResolver` constructor, update or
   /// dispose, or from a catalog function, they are delivered a microtask
-  /// later.
+  /// later. A catalog function that returns a signal runs its body when the
+  /// result is read, so a call from that body during a data write delivers
+  /// its reports inside the write. When it is called from a widget's build,
+  /// the listeners run inside that build. A listener that deletes a surface
+  /// or processes more messages changes what the later messages of the same
+  /// payload see.
   ///
   /// Throws [A2uiValidationError] for a payload of any other shape, an
   /// envelope that is not a well-formed message of the version it declares, a

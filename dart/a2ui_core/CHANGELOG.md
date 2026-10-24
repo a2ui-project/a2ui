@@ -5,7 +5,9 @@
 - **Breaking:** `SurfaceModel.dispatchError` and `dispatchWarning` queue the
   report and complete once it is queued. Listeners run at the end of the
   `processMessages` message that found it, or a microtask after the call
-  that queued it, never inside that call.
+  that queued it, never inside that call. A catalog function that returns a
+  signal runs its body when its result is read, so a `processMessages` call
+  from that body during a data write is delivered inside the write.
 - **Breaking:** `NodeResolver` neither delivers nor drops diagnostics.
   Disposing a resolver no longer cancels the ones it found.
 - **Breaking:** Code that reads errors right after `NodeResolver()`,
@@ -18,6 +20,10 @@
   that no listener receives is logged at `FINE`.
 - **Breaking:** A surface deleted in the same turn it was built drops the
   reports that build found and had not delivered.
+- **Breaking:** A `NodeResolver` update that throws delivers the diagnostics
+  it found and keeps their codes reserved, where it used to drop them so
+  that a retry reported them again. The warning about a nested unresolved
+  `ChildList` is logged when it is found, before the root is published.
 - Added `onError` and `onWarning` to `MessageProcessor`, beside `onAction`,
   and `SurfaceGroupModel.onError` and `onWarning`, which receive every
   surface's errors and warnings, after the surface's own listeners.
