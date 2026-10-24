@@ -22,7 +22,7 @@ public protocol OpenURLHandler: AnyObject, Sendable {
   func open(_ url: URL)
 }
 
-/// Opens a URL using a registered handler, ensuring it has an `http` or `https` scheme.
+/// Opens a URL using a registered handler, ensuring it has an `http`, `https`, `mailto`, or `tel` scheme.
 public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable {
   public let api: FunctionAPI
   public weak var handler: (any OpenURLHandler)?
@@ -61,7 +61,7 @@ public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable 
 
   /// Evaluates the openUrl function by resolving the URL and invoking the handler.
   ///
-  /// The resolved URL is checked against a strict allowlist of schemes (`http` and `https`)
+  /// The resolved URL is checked against a strict allowlist of schemes (`http`, `https`, `mailto`, and `tel`)
   /// to prevent security issues such as XSS via `javascript:` or `data:`.
   ///
   /// - Parameters:

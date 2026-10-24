@@ -686,6 +686,38 @@
     url: "https://example.com"
   expect: null
 
+- name: test_evaluate_function_open_url_valid_mailto
+  description: Verifies openUrl accepts valid mailto scheme (D30).
+  action: evaluate_function
+  function: openUrl
+  args:
+    url: "mailto:someone@example.com"
+  expect: null
+
+- name: test_evaluate_function_open_url_valid_mailto_uppercase
+  description: Verifies openUrl accepts valid mailto scheme in uppercase (D30).
+  action: evaluate_function
+  function: openUrl
+  args:
+    url: "MAILTO:someone@example.com"
+  expect: null
+
+- name: test_evaluate_function_open_url_valid_tel
+  description: Verifies openUrl accepts valid tel scheme (D30).
+  action: evaluate_function
+  function: openUrl
+  args:
+    url: "tel:+15555550100"
+  expect: null
+
+- name: test_evaluate_function_open_url_valid_tel_uppercase
+  description: Verifies openUrl accepts valid tel scheme in uppercase (D30).
+  action: evaluate_function
+  function: openUrl
+  args:
+    url: "TEL:+15555550100"
+  expect: null
+
 - name: test_evaluate_function_open_url_disallowed_scheme
   description: Verifies openUrl rejects disallowed URL scheme (D30).
   action: evaluate_function

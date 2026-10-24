@@ -569,6 +569,10 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
         const validCases = [
           {input: 'https://example.com', expected: 'https://example.com/'},
           {input: 'http://example.com/path', expected: 'http://example.com/path'},
+          {input: 'mailto:someone@example.com', expected: 'mailto:someone@example.com'},
+          {input: 'MAILTO:someone@example.com', expected: 'mailto:someone@example.com'},
+          {input: 'tel:+15555550100', expected: 'tel:+15555550100'},
+          {input: 'TEL:+15555550100', expected: 'tel:+15555550100'},
           {input: '/relative-path', expected: 'https://example.com/relative-path'},
           {input: 'relative/nested/path', expected: 'https://example.com/sub/relative/nested/path'},
           {input: '../parent-path', expected: 'https://example.com/parent-path'},
