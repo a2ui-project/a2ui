@@ -472,7 +472,7 @@ void main() {
     Object? textOf(ComponentNode node) =>
         (node.props.peek()['text']! as ResolvedBinding<Object?>).value;
 
-    test('nested template lists expose the index of each level', () async {
+    test('nested template lists expose the index of each level', () {
       surface.dataModel.set('/rows', [
         {
           'cells': ['a', 'b'],
@@ -520,7 +520,6 @@ void main() {
           [0],
         ],
       );
-      await pumpEventQueue();
       expect(errors, isEmpty);
     });
 
@@ -541,12 +540,11 @@ void main() {
       );
     });
 
-    test('@index at the root is reported and resolves to null', () async {
+    test('@index at the root is reported and resolves to null', () {
       add('root', 'Text', {
         'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
       expect(textOf(resolver.rootNode.value!), isNull);
-      await pumpEventQueue();
       expect(errors.single.code, 'EXPRESSION_ERROR');
       expect(
         errors.single.message,

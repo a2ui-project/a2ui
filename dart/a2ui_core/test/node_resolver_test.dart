@@ -370,7 +370,7 @@ void processorContractTests() {
     ]) {
       test(
           'accepts an unmarked structural ${state.jsonValue} reference and '
-          'reports it through the node', () async {
+          'reports it through the node', () {
         // Graph validation classifies references from catalog markers only, so
         // an unmarked structural template is invisible to it and the batch is
         // applied. The resolver does recognize the template, so the problem
@@ -415,7 +415,6 @@ void processorContractTests() {
         expect(fixture.surface.componentsModel.all, isNotEmpty);
         final ComponentNode root = fixture.resolver.rootNode.value!;
         expect(child(root, 'children', 0).state, state);
-        await pumpEventQueue();
         expect(
           errors,
           state == NodeState.cyclic ? ['CYCLIC_REFERENCE'] : <String>[],
@@ -606,8 +605,7 @@ void unresolvedReferenceTests() {
       });
     });
 
-    test('warns once per resolver and property path, not per array index',
-        () async {
+    test('warns once per resolver and property path, not per array index', () {
       final List<LogRecord> warnings = collectWarnings();
       final TestSetup first = nestedSetup();
       final group = <String, Object?>{
@@ -617,42 +615,36 @@ void unresolvedReferenceTests() {
         'groups': [group, group],
       };
       add(first.surface, 'root', 'Nested', payload);
-      await pumpEventQueue();
       expect(warnings, hasLength(1));
       expect(warnings.single.message, contains('groups[].children'));
       first.surface.componentsModel.get('root')!.properties = payload;
       first.surface.componentsModel.get('root')!.properties = {
         'groups': [group, group, group],
       };
-      await pumpEventQueue();
       expect(warnings, hasLength(1));
       first.surface.componentsModel.get('root')!.properties = {
         ...payload,
         'otherGroups': [group],
       };
-      await pumpEventQueue();
       expect(warnings, hasLength(2));
       expect(warnings.last.message, contains('otherGroups[].children'));
 
       final TestSetup second = nestedSetup();
       add(second.surface, 'root', 'Nested', payload);
-      await pumpEventQueue();
       expect(warnings, hasLength(3));
     });
 
-    test('does not warn for child references materialized as nodes', () async {
+    test('does not warn for child references materialized as nodes', () {
       final List<LogRecord> warnings = collectWarnings();
       final TestSetup fixture = nestedSetup();
       add(fixture.surface, 'root', 'Column', {
         'children': ['a', 'b'],
       });
       expect(fixture.resolver.activeNodeCount, 3);
-      await pumpEventQueue();
       expect(warnings, isEmpty);
     });
 
-    test('warning listeners see the published root and may dispose it',
-        () async {
+    test('warning listeners see the published root and may dispose it', () {
       final TestSetup fixture = nestedSetup();
       var warnings = 0;
       final StreamSubscription<LogRecord> subscription =
@@ -674,7 +666,6 @@ void unresolvedReferenceTests() {
           },
         ],
       });
-      await pumpEventQueue();
       expect(warnings, 1);
       expect(fixture.resolver.disposed, isTrue);
       expect(fixture.resolver.activeNodeCount, 0);
@@ -1044,7 +1035,7 @@ void materializationFailureTests() {
 
     test(
         'disposing an aborted cyclic sibling keeps the retained '
-        "placeholder's diagnostic reservation", () async {
+        "placeholder's diagnostic reservation", () {
       final TestSetup fixture = setupWithPoisonedLeaf();
       final List<LogRecord> listenerErrors = collectListenerErrors();
       final errors = <String>[];
@@ -1055,7 +1046,6 @@ void materializationFailureTests() {
       final ComponentNode root = fixture.resolver.rootNode.value!;
       final ComponentNode first = child(root, 'children', 0);
       expect(first.state, NodeState.cyclic);
-      await pumpEventQueue();
       expect(errors, ['CYCLIC_REFERENCE']);
       expect(fixture.resolver.activeNodeCount, 2);
 
@@ -1064,7 +1054,6 @@ void materializationFailureTests() {
       };
       expectSwallowed(listenerErrors, isA<TypeError>());
       expect(fixture.resolver.activeNodeCount, 2);
-      await pumpEventQueue();
       expect(errors, ['CYCLIC_REFERENCE']);
 
       fixture.surface.componentsModel.get('root')!.properties = {
@@ -1073,7 +1062,6 @@ void materializationFailureTests() {
       expect(identical(child(root, 'children', 0), first), isTrue);
       expect(child(root, 'children', 1).state, NodeState.cyclic);
       expect(fixture.resolver.activeNodeCount, 3);
-      await pumpEventQueue();
       expect(
         errors,
         ['CYCLIC_REFERENCE'],
@@ -2073,8 +2061,7 @@ void main() {
   });
 
   group('NodeResolver malformed and unusual payloads', () {
-    test('renders cyclic references as placeholders instead of recursing',
-        () async {
+    test('renders cyclic references as placeholders instead of recursing', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
         surface: SurfaceModel<ComponentApi> surface,
@@ -2093,7 +2080,6 @@ void main() {
       expect(backReference.type, placeholderType);
       expect(backReference.state, NodeState.cyclic);
       expect(backReference.componentId, 'a');
-      await pumpEventQueue();
       expect(errors.any((e) => e.code == 'CYCLIC_REFERENCE'), isTrue);
       expect(resolver.activeNodeCount, lessThanOrEqualTo(5));
       resolver.dispose();
@@ -2101,7 +2087,7 @@ void main() {
 
     test(
         'resolves a call to an unknown function to null and dispatches an '
-        'expression error instead of throwing', () async {
+        'expression error instead of throwing', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
         surface: SurfaceModel<ComponentApi> surface,
@@ -2115,7 +2101,6 @@ void main() {
 
       final ComponentNode root = resolver.rootNode.value!;
       expect(bound(root, 'text'), isNull);
-      await pumpEventQueue();
       expect(errors, hasLength(1));
       expect(errors[0].code, 'EXPRESSION_ERROR');
       expect(errors[0].surfaceId, 'surf-1');
@@ -2162,7 +2147,7 @@ void main() {
 
     test(
         'replaces a pending placeholder with an unknown-type placeholder '
-        'when the definition arrives with an uncataloged type', () async {
+        'when the definition arrives with an uncataloged type', () {
       final (
         catalog: Catalog<ComponentApi, FunctionImplementation> catalog,
         surface: SurfaceModel<ComponentApi> surface,
@@ -2175,7 +2160,6 @@ void main() {
       final ComponentNode pendingNode = child(root, 'child');
       expect(pendingNode.state, NodeState.pending);
       expect(pendingNode.type, placeholderType);
-      await pumpEventQueue();
       expect(errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE'), isEmpty);
 
       add(surface, 'late', 'Bogus', {});
@@ -2191,7 +2175,6 @@ void main() {
         'type': 'Bogus',
         'state': 'unknown-type',
       });
-      await pumpEventQueue();
       expect(
         errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE'),
         hasLength(1),
@@ -2199,7 +2182,6 @@ void main() {
 
       surface.componentsModel.get('root')!.properties = {'child': 'late'};
       expect(identical(child(root, 'child'), unknown), isTrue);
-      await pumpEventQueue();
       expect(
         errors.where((e) => e.code == 'UNKNOWN_COMPONENT_TYPE'),
         hasLength(1),
