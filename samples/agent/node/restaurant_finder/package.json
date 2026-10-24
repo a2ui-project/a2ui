@@ -23,7 +23,7 @@
       ]
     },
     "start": {
-      "command": "node dist/src/index.js",
+      "command": "node --env-file-if-exists=.env --env-file-if-exists=../../../.env dist/src/index.js",
       "service": true,
       "dependencies": [
         "build"
