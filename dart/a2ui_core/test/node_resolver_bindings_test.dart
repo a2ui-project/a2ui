@@ -472,7 +472,7 @@ void main() {
     Object? textOf(ComponentNode node) =>
         (node.props.peek()['text']! as ResolvedBinding<Object?>).value;
 
-    test('nested template lists expose the index of each level', () async {
+    test('nested template lists expose the index of each level', () {
       surface.dataModel.set('/rows', [
         {
           'cells': ['a', 'b'],
@@ -520,7 +520,6 @@ void main() {
           [0],
         ],
       );
-      await pumpEventQueue();
       expect(errors, isEmpty);
     });
 
