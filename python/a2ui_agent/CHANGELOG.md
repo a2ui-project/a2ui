@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
+  the `v0.9.1` entry, and falls back to the `v0.9` entry when there is none. It
+  read only `v0.9`, so it rejected the `v0.9.1` entry that web_core and the
+  Python core renderer write for v0.9.1.
 - **BREAKING**: `Skill` and `SkillSet` raise `A2uiValidationError` (a `ValueError`) for a `filename` that is absolute or has an empty, `.` or `..` segment, which they used to accept; the check runs on construction, on assignment, and in `SkillSet.add`. `SkillSet.export_to_directory` now removes only the directory that holds each skill file (for example `src/skills/nested` for `src/skills/nested/SKILL.md`) instead of the first path segment (`src`), removes a symlink or file at that path instead of following it, and raises before touching anything when a skill directory's parent is a symlink out of the output directory.
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,

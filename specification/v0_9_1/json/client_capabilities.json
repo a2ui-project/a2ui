@@ -5,9 +5,9 @@
   "description": "A schema for the a2uiClientCapabilities object, which is sent from the client to the server as part of the A2A metadata to describe the client's UI rendering capabilities.",
   "type": "object",
   "properties": {
-    "v0.9": {
+    "v0.9.1": {
       "type": "object",
-      "description": "The capabilities structure for version 0.9 of the A2UI protocol.",
+      "description": "The capabilities structure for version 0.9.1 of the A2UI protocol.",
       "properties": {
         "supportedCatalogIds": {
           "type": "array",
@@ -23,7 +23,7 @@
       "required": ["supportedCatalogIds"]
     }
   },
-  "required": ["v0.9"],
+  "required": ["v0.9.1"],
   "$defs": {
     "FunctionDefinition": {
       "type": "object",
