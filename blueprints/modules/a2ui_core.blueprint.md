@@ -1147,6 +1147,7 @@ interface A2uiRendererAction {
 interface A2uiRendererError {
   code: string;
   surfaceId?: string;
+  path?: string;
   message: string;
   functionCallId?: string;
   details?: unknown;
@@ -1154,13 +1155,14 @@ interface A2uiRendererError {
 
 interface A2uiWarning {
   code: string;
+  surfaceId?: string;
   message: string;
   path?: string;
 }
 
 type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
-type ErrorListener = (error: A2uiRendererError) => void;
-type WarningListener = (warning: A2uiWarning) => void;
+type ErrorListener = (error: A2uiRendererError) => void | Promise<void>;
+type WarningListener = (warning: A2uiWarning) => void | Promise<void>;
 
 class SurfaceModel<T extends ComponentApi> {
   readonly id: string;
@@ -1483,13 +1485,13 @@ export class A2uiExpressionError extends A2uiError {
 
 Problems found while resolving or interacting with a surface are delivered through a queued channel on `SurfaceGroupModel`. The rules below (`P1` to `P7`) govern what counts as a problem, how reports are queued, and when listeners run.
 
-- **P1. Problem.** A problem is a defect in agent-supplied content or in a catalog implementation that prevented the renderer from doing what the agent asked. A failed `CheckRule` is component state (`isValid` and `validationErrors`), not a problem, and is never dispatched to `onError` or `onWarning`. A cancelled agent call is normal lifecycle, not a problem. Missing data at a bound path and a missing child reference in a streaming surface are not errors (`MISSING_DATA_BINDING` is a warning).
-- **P2. Report payload.** Each SDK has one error payload type (`A2uiRendererError`) and one warning payload type (`A2uiWarning`) for problems found while rendering. An error report carries `code`, `surfaceId` (when known), `message`, and optional `functionCallId` and `details`. A warning report carries `code`, `message`, and optional `path`.
-- **P3. Channel and lifetime.** `SurfaceGroupModel` owns one FIFO queue of error and warning items for its surfaces. `SurfaceModel.dispatchError` and `SurfaceModel.dispatchWarning` enqueue into the group's queue and resolve once the item is queued. `NodeResolver` reports straight to its surface and owns no queue of its own, so disposing a resolver drops nothing. `deleteSurface` and `SurfaceGroupModel.dispose` drop that surface's undelivered evaluation-time items and ignore later dispatches on that surface. `detachSurface` moves the surface's undelivered items to a holding queue on the surface that does not drain while detached, and `addSurface` moves a standalone or detached surface's pending items into the group's queue and schedules a drain. Disposing a standalone or detached surface drops its pending items.
-- **P4. Drain points.** The queue drains only at two points: at the end of each message in `processMessages` (in a `finally` block around applying the message, so items from earlier messages are delivered even if a later message in the payload throws), and in a microtask scheduled when an item is queued outside `processMessages`. A `processMessages` call reached from resolver work, a catalog function, or that processor's listener is exempt from draining at message end and leaves its queued items for the outer drain or a scheduled microtask.
-- **P5. Resolution guard.** `NodeResolver` construction, tree update, and `dispose`, and a catalog function's `execute` call run under a resolution guard. A catalog function that returns a signal runs its body when the result is read, outside the guard. While the guard or a drain is active, no drain starts. A problem found while that processor's listener runs is delivered after that listener returns.
-- **P6. Drain and platform log.** A drain pulls queued items in FIFO discovery order. For each item, the surface's `onError` or `onWarning` listeners run first, then the group's. Each listener call is isolated so a listener that throws or rejects does not stop delivery to remaining listeners or delivery of later items. An error that no surface or group listener receives is written to the platform log. A warning that no listener receives is not printed. When an SDK exposes `SurfaceModel.onReportsDelivered`, it fires after a drain pass has delivered that surface's items.
-- **P7. Registration.** `MessageProcessor` accepts `onError` and `onWarning` listeners at construction and subscribes them to `model.onError` and `model.onWarning` before the first message is processed. They receive every problem delivered for any surface in the processor's group, including problems delivered after a view has unmounted.
+- **P1. Problem.** A problem is a defect in agent output that the client finds, or a failure while running that output. A problem in a message keeps its existing path out of `processMessages` and does not enter the queue. A failed `CheckRule` is component state (`isValid`, `validationErrors` and `validationResults`), not a problem, and is never dispatched to `onError` or `onWarning`. A cancelled agent call is normal lifecycle, not a problem. Host API misuse keeps throwing. An exception from app-supplied component code, and a view or catalog bug outside agent output, are not problems. Missing data at a bound path and a missing child reference in a streaming surface are not errors (`MISSING_DATA_BINDING` is a warning).
+- **P2. Report payload.** Each SDK has one error payload type (`A2uiRendererError`) and one warning payload type (`A2uiWarning`) for problems found while rendering. An error report carries `code`, `surfaceId` (when known), `message`, and optional `path`, `functionCallId` and `details`. A warning report carries `code`, `surfaceId` (when known), `message`, and optional `path`.
+- **P3. Channel and lifetime.** `SurfaceGroupModel` owns one FIFO queue of error and warning items for its surfaces. `SurfaceModel.dispatchError` and `SurfaceModel.dispatchWarning` enqueue into the group's queue and resolve once the item is queued. A surface outside any group (a standalone surface) queues and delivers on a queue of its own. `NodeResolver` reports straight to its surface and owns no queue. Disposing a resolver drops nothing. `deleteSurface` and `SurfaceGroupModel.dispose` drop that surface's undelivered items and ignore later dispatches on that surface. `detachSurface` moves the surface's undelivered items to a holding queue on the surface that does not drain while detached. `addSurface` moves a standalone or detached surface's pending items into the group's queue and schedules a drain. Disposing a standalone or detached surface drops its pending items.
+- **P4. Drain points.** The queue drains only at two points: at the end of each message that `processMessages` or `processMessagesAsync` applies, including a message that throws, and in a microtask scheduled when an item is queued outside a message. A `processMessages` call reached from resolver work, a catalog function, or that processor's listener is exempt from draining at message end and leaves its queued items for the outer drain or a scheduled microtask.
+- **P5. Resolution guard.** `NodeResolver` construction, tree update, and `dispose`, and a catalog function's `execute` call run under a resolution guard. A catalog function that returns a signal runs its body when the result is read, outside the guard. While the guard is active, no drain starts. While a processor's queue drains, no other drain of that queue starts, and a problem found while one of that processor's listeners runs is delivered after that listener returns.
+- **P6. Drain and platform log.** A drain pulls queued items in FIFO discovery order. For each item, the surface's `onError` or `onWarning` listeners run first, then the group's, each over a copy of the listener list. Each listener call is isolated, so a listener that throws or rejects does not stop delivery to remaining listeners or delivery of later items. Its exception is reported as an uncaught error (the current zone's handler in Dart, `console.error` on the web), not swallowed. An error that no surface or group listener receives is written to the platform log. A warning that no listener receives is not printed. When an SDK exposes `SurfaceModel.onReportsDelivered`, it fires after a drain pass has delivered that surface's items. Subscribing to it does not count as receiving an item.
+- **P7. Registration.** `MessageProcessor` accepts `onError` and `onWarning` listeners at construction and subscribes them to `model.onError` and `model.onWarning` before the first message is processed. They receive every problem delivered for any surface in the processor's group, including problems delivered after a view has unmounted. `SurfaceModel.onError` and `onWarning` stay as the per-surface view of the same queue.
 
 ---
 
