@@ -540,15 +540,12 @@ void main() {
       );
     });
 
-    test('@index at the root is reported and resolves to null', () async {
+    test('@index at the root is reported and resolves to null', () {
       add('root', 'Text', {
         'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
-      await pumpEventQueue();
       expect(textOf(resolver.rootNode.value!), isNull);
-      await pumpEventQueue();
       expect(errors.single.code, 'EXPRESSION_ERROR');
-      await pumpEventQueue();
       expect(
         errors.single.message,
         '@index function can only be evaluated inside a collection template '
