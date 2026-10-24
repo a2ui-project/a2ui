@@ -22,6 +22,7 @@ export * from './functions/validation_functions.js';
 export * from '../catalog/index.js';
 export * from '../state/index.js';
 export * from '../processing/index.js';
+export type {ErrorMessage} from '../processing/index.js';
 export * from '../resolution/index.js';
 export type {ResolvedChildRef} from '../resolution/index.js';
 export * from '../reactivity/index.js';
