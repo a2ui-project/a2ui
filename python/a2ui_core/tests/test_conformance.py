@@ -95,6 +95,9 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
     "core/node_resolution.yaml": "The Python core has no node resolution layer.",
+    "core/problems.yaml": (
+        "The Python core has no node resolution layer or renderer problem queue."
+    ),
 }
 
 # Actions that time an operation rather than check what it returns. Their cases
@@ -596,6 +599,9 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
     action = case.get("action")
     if not action:
         pytest.fail(f"Test case '{test_id}' missing required 'action' field.")
+
+    if rel_path == "core/problems.yaml":
+        pytest.skip(UNRUNNABLE_SUITES[rel_path])
 
     if action == "from_json":
         validate_from_json_case(case)
