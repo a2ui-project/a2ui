@@ -19,14 +19,9 @@
 # The web_core runner skips these cases by name, and the Swift runner does not
 # load this suite, until each SDK implements problem reporting.
 #
-# Per-SDK applicability and mappings:
-#   * `T6_throwing_listener_does_not_stop_next_item` may be listed as not
-#     applicable by the Swift runner, because Swift listeners cannot throw.
-#   * `await_delivery` waits for the next microtask drain of the problem
-#     channel: `Future<void>.microtask(() {})` in Dart, a `queueMicrotask` turn
-#     in TypeScript `web_core`, and the package-level `awaitDelivery() async`
-#     helper that awaits the channel's scheduled drain task (not `Task.yield()`)
-#     in Swift.
+# Step mappings:
+#   * `await_delivery` waits for the next drain of the problem channel:
+#     `Future<void>.microtask(() {})` in Dart. Each port defines its own.
 #   * `expect_reports` asserts the reports delivered since the start of the
 #     case or the previous `expect_reports` assertion, in delivery order.
 
