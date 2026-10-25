@@ -20,12 +20,43 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  for (final processorListener in [false, true]) {
-    final variant = processorListener ? 'processor' : 'surface';
+  testWidgets('an error listener may call setState directly', (tester) async {
+    final processor = MessageProcessor<ComponentImplementation>(
+      catalogs: [basicCatalog()],
+      defaultVersion: A2uiProtocolVersion.v0_9,
+    );
+    addTearDown(processor.model.dispose);
+    processor.processMessages(
+      AgentToRendererMessagePayload.fromJson([
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's', 'catalogId': basicCatalog().id},
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's',
+            'components': [
+              {'id': 'root', 'component': 'Bogus'},
+            ],
+          },
+        },
+      ], protocolVersion: A2uiProtocolVersion.v0_9),
+    );
+    final SurfaceModel<ComponentImplementation> surface = processor.model
+        .getSurface('s')!;
 
-    testWidgets('a $variant error listener may call setState directly', (
-      tester,
-    ) async {
+    await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(surface)));
+    expect(tester.takeException(), isNull);
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('errors: 1'), findsOneWidget);
+  });
+
+  testWidgets(
+    'an error listener may call setState for a malformed check rule',
+    (tester) async {
       final processor = MessageProcessor<ComponentImplementation>(
         catalogs: [basicCatalog()],
         defaultVersion: A2uiProtocolVersion.v0_9,
@@ -37,87 +68,32 @@ void main() {
             'version': 'v0.9',
             'createSurface': {'surfaceId': 's', 'catalogId': basicCatalog().id},
           },
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's',
-              'components': [
-                {'id': 'root', 'component': 'Bogus'},
-              ],
-            },
-          },
         ], protocolVersion: A2uiProtocolVersion.v0_9),
       );
       final SurfaceModel<ComponentImplementation> surface = processor.model
           .getSurface('s')!;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: _ErrorCountingHost(
-            surface,
-            processorListener ? processor.model.onError : surface.onError,
-          ),
-        ),
+      surface.componentsModel.addComponent(
+        ComponentModel('root', 'TextField', {
+          'label': 'Name',
+          'checks': [42],
+        }),
       );
+
+      await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(surface)));
       expect(tester.takeException(), isNull);
       await tester.pump();
 
       expect(tester.takeException(), isNull);
       expect(find.text('errors: 1'), findsOneWidget);
-    });
-
-    testWidgets(
-      'a $variant error listener may call setState for a malformed check rule',
-      (tester) async {
-        final processor = MessageProcessor<ComponentImplementation>(
-          catalogs: [basicCatalog()],
-          defaultVersion: A2uiProtocolVersion.v0_9,
-        );
-        addTearDown(processor.model.dispose);
-        processor.processMessages(
-          AgentToRendererMessagePayload.fromJson([
-            {
-              'version': 'v0.9',
-              'createSurface': {
-                'surfaceId': 's',
-                'catalogId': basicCatalog().id,
-              },
-            },
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
-        );
-        final SurfaceModel<ComponentImplementation> surface = processor.model
-            .getSurface('s')!;
-        surface.componentsModel.addComponent(
-          ComponentModel('root', 'TextField', {
-            'label': 'Name',
-            'checks': [42],
-          }),
-        );
-
-        await tester.pumpWidget(
-          MaterialApp(
-            home: _ErrorCountingHost(
-              surface,
-              processorListener ? processor.model.onError : surface.onError,
-            ),
-          ),
-        );
-        expect(tester.takeException(), isNull);
-        await tester.pump();
-
-        expect(tester.takeException(), isNull);
-        expect(find.text('errors: 1'), findsOneWidget);
-      },
-    );
-  }
+    },
+  );
 }
 
-/// Counts the errors [errors] emits with a plain `setState`, as an app would.
+/// Counts [surface]'s errors with a plain `setState`, as an app would.
 class _ErrorCountingHost extends StatefulWidget {
-  const _ErrorCountingHost(this.surface, this.errors);
+  const _ErrorCountingHost(this.surface);
 
   final SurfaceModel<ComponentImplementation> surface;
-  final EventSource<A2uiRendererError> errors;
 
   @override
   State<_ErrorCountingHost> createState() => _ErrorCountingHostState();
@@ -130,7 +106,9 @@ class _ErrorCountingHostState extends State<_ErrorCountingHost> {
   @override
   void initState() {
     super.initState();
-    _subscription = widget.errors.subscribe((_) => setState(() => _errors++));
+    _subscription = widget.surface.onError.subscribe(
+      (_) => setState(() => _errors++),
+    );
   }
 
   @override

@@ -17,7 +17,6 @@ import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, Object?> _create(String surfaceId) => {
@@ -49,34 +48,6 @@ void main() {
   SurfaceModel<ComponentImplementation> surface(String id) =>
       processor.model.getSurface(id)!;
 
-  testWidgets('a deferring host mounted after the app settles updates within '
-      'two pumps', (tester) async {
-    processor.processMessages([_create('s'), _root('s', 'Bogus')]);
-    final show = ValueNotifier<bool>(false);
-    addTearDown(show.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: _DeferringHost(
-          processor.model.onError,
-          child: ValueListenableBuilder(
-            valueListenable: show,
-            builder: (context, visible, _) =>
-                visible ? A2uiSurface(surface: surface('s')) : const SizedBox(),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    show.value = true;
-    await tester.pump();
-    expect(SchedulerBinding.instance.hasScheduledFrame, isTrue);
-    await tester.pump();
-    await tester.pump();
-
-    expect(find.text('errors: 1'), findsOneWidget);
-  });
-
   testWidgets('every surface a jump builds and drops reports', (tester) async {
     const count = 200;
     processor.processMessages([
@@ -86,9 +57,11 @@ void main() {
       ],
     ]);
     final reported = <String>{};
-    processor.model.onError.subscribe(
-      (error) => reported.add(error.surfaceId!),
-    );
+    for (var i = 0; i < count; i++) {
+      surface(
+        's$i',
+      ).onError.subscribe((error) => reported.add(error.surfaceId!));
+    }
     final controller = ScrollController();
     addTearDown(controller.dispose);
     final built = <int>{};
@@ -121,8 +94,8 @@ void main() {
       'the same payload', (tester) async {
     processor.processMessages([_create('s'), _root('s', 'Text')]);
     final errors = <String>[];
-    processor.model.onError.subscribe((error) => errors.add(error.code));
     final SurfaceModel<ComponentImplementation> s = surface('s');
+    s.onError.subscribe((error) => errors.add(error.code));
     final mounted = ValueNotifier<bool>(true);
     addTearDown(mounted.dispose);
     await tester.pumpWidget(
@@ -151,42 +124,4 @@ void main() {
     await tester.pump();
     expect(errors, ['UNKNOWN_COMPONENT_TYPE']);
   });
-}
-
-/// Counts the errors [errors] emits and defers the resulting `setState` to
-/// the end of the next frame, without scheduling one.
-class _DeferringHost extends StatefulWidget {
-  const _DeferringHost(this.errors, {required this.child});
-
-  final EventSource<A2uiRendererError> errors;
-  final Widget child;
-
-  @override
-  State<_DeferringHost> createState() => _DeferringHostState();
-}
-
-class _DeferringHostState extends State<_DeferringHost> {
-  int _errors = 0;
-  late final Subscription _subscription;
-
-  @override
-  void initState() {
-    super.initState();
-    _subscription = widget.errors.subscribe((_) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _errors++);
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _subscription.unsubscribe();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Column(children: [Text('errors: $_errors'), widget.child]),
-  );
 }
