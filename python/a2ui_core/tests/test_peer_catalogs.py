@@ -18,9 +18,12 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 from typing import Any
+import urllib.request
 
 import pytest
+import referencing.exceptions
 
 from a2ui.core import (
     A2uiValidationError,
@@ -31,6 +34,7 @@ from a2ui.core import (
     link_catalogs,
 )
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.validation import SchemaValidator
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 _CATALOGS = os.path.join(_REPO_ROOT, "conformance", "test_data", "catalogs")
@@ -272,3 +276,114 @@ def test_peer_local_defs_with_the_referencing_catalogs_names_resolve_in_the_peer
     assert "weight" in props
     assert "peerOnly" in props
     assert props["tone"]["enum"] == ["loud", "quiet"]
+
+
+@pytest.fixture
+def no_network(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Records and refuses every outbound connection the test attempts."""
+    attempts: list[str] = []
+
+    def refuse(target: Any, *args: Any, **kwargs: Any) -> Any:
+        attempts.append(repr(getattr(target, "full_url", target)))
+        raise AssertionError(f"unexpected network access: {target!r}")
+
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(socket.socket, "connect", lambda self, address: refuse(address))
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    return attempts
+
+
+_RUNE_ACTION = {"event": {"name": "tap"}}
+
+
+def _rune_catalog(action_ref: str) -> CatalogApi:
+    return _catalog(
+        "https://example.com/catalogs/arcana/v1/catalog.json",
+        {
+            "Rune": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "properties": {
+                            "component": {"const": "Rune"},
+                            "action": {"$ref": action_ref},
+                        },
+                        "required": ["component", "action"],
+                    },
+                ],
+            }
+        },
+    )
+
+
+def test_peer_ref_through_an_array_resolves_without_network(
+    no_network: list[str],
+) -> None:
+    basic = BasicCatalog("v1.0")
+    rune = _rune_catalog(
+        f"{basic.catalog_id}#/components/Button/allOf/1/properties/action"
+    )
+    validator = PayloadValidator(link_catalogs([basic, rune])[1])
+
+    validator.validate_component(
+        {"id": "r", "component": "Rune", "action": _RUNE_ACTION}
+    )
+    with pytest.raises(A2uiValidationError):
+        validator.validate_component({"id": "r", "component": "Rune", "action": 7})
+    assert no_network == []
+
+
+def test_peer_ref_pointer_unescapes_tilde_and_slash() -> None:
+    peer = _catalog(
+        "peer",
+        {"Badge": _badge("tone", {"$ref": "#/$defs/a~1b~0c"})},
+        defs={"a/b~c": {"type": "string", "enum": ["ok"]}},
+    )
+    referencing = _catalog(
+        "referencing",
+        {"Badge": _badge("tag", {"$ref": "peer#/$defs/a~1b~0c"})},
+    ).with_peer_catalogs([peer])
+
+    assert _props(referencing, "Badge")["tag"] == {"type": "string", "enum": ["ok"]}
+
+
+def test_ref_to_an_unheld_catalog_is_an_error_without_network(
+    no_network: list[str],
+) -> None:
+    basic = BasicCatalog("v1.0")
+    rune = _rune_catalog(
+        "https://unheld.example.com/catalog.json#/components/Button/properties/action"
+    )
+    validator = PayloadValidator(link_catalogs([basic, rune])[1])
+
+    with pytest.raises(A2uiValidationError, match="unheld.example.com"):
+        validator.validate_component(
+            {"id": "r", "component": "Rune", "action": _RUNE_ACTION}
+        )
+    assert no_network == []
+
+
+def test_meta_schema_ref_resolves_without_network(no_network: list[str]) -> None:
+    """The bundled JSON Schema meta-schemas stay resolvable without the network."""
+    validator = SchemaValidator(
+        {"$ref": "https://json-schema.org/draft/2020-12/schema"}
+    )
+    assert validator.is_valid({"type": "string"})
+    assert not validator.is_valid({"type": 12})
+    assert no_network == []
+
+
+def test_evolve_keeps_no_retrieval_registry(no_network: list[str]) -> None:
+    """A subschema with its own $schema is evolved without losing the registry."""
+    validator = SchemaValidator({
+        "properties": {
+            "x": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$ref": "https://example.com/not-held.json",
+            }
+        }
+    })
+    with pytest.raises(referencing.exceptions.Unresolvable, match="not-held.json"):
+        list(validator.iter_errors({"x": 1}))
+    assert no_network == []

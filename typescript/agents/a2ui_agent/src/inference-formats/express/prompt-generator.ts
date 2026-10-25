@@ -54,7 +54,7 @@ The host compiler will compile your A2UI Express output into the correct JSON en
    - Numbers: write as integers or decimals, e.g., 42
    - Booleans: write true or false
    - Null values: write null
-   - Dates & Times: Values for date-time properties must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
+   - Dates & Times: Values for date-time inputs (e.g. in DateTimeInput) must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
 
 4. Lists: represent as arrays, e.g., [child1, child2].
 
@@ -76,18 +76,52 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 11. Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
     _template($/path/to/list, itemTemplate)
     And define the template component variable on another line, utilizing relative path references prefixed with $:
-    itemTemplate = ComponentA($url)
+    itemTemplate = Image($url)
 
 12. To delete a user interface surface, output the standalone \`deleteSurface(surfaceId)\` command (no variable assignment):
     deleteSurface("dashboard-surface-1")
 
 13. Static properties: Arguments annotated with '(static)' in the signatures below MUST be defined as literal values or arrays inline. You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
 
-14. Required actions: Action parameters (or parameters annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
+14. Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
 
 15. Surface targeting: Output \`surface(surfaceId)\` to specify or target a user interface surface:
     surface("dashboard-surface-1")
     root = ComponentA(...)`;
+
+/**
+ * Rule 15's example line. `generateBaseRules` replaces its placeholder name with a
+ * component the active catalogs define, as Python's `_ROOT_EXAMPLE_LINE` does.
+ */
+const ROOT_EXAMPLE_LINE = 'root = ComponentA(...)';
+
+/**
+ * Picks the component that rule 15's `root = ...(...)` example names.
+ *
+ * The name is read from the catalogs, so the example never shows a component the model
+ * can't use. It is the first component that holds a single child reference, as a container
+ * such as a card does, or else the first component.
+ *
+ * @returns The component name, or undefined if the catalogs define no component.
+ */
+function exampleRootComponent(catalogs: readonly CatalogApi[]): string | undefined {
+  for (const catalog of catalogs) {
+    for (const name of catalog.components.keys()) {
+      const refs = Object.hasOwn(catalog.componentRefMap, name)
+        ? catalog.componentRefMap[name]
+        : undefined;
+      if (refs !== undefined && refs.singleRefs.size > 0) {
+        return name;
+      }
+    }
+  }
+  for (const catalog of catalogs) {
+    for (const name of catalog.components.keys()) {
+      return name;
+    }
+  }
+  return undefined;
+}
 
 /** The message types a fenced JSON example may contain to be rewritten as Express. */
 const TRANSLATABLE_MESSAGE_TYPES = [
@@ -313,9 +347,9 @@ export class ExpressPromptGenerator extends PromptGenerator {
   /**
    * Returns the core syntax contract and grammar rules for A2UI Express.
    *
-   * Verbatim matches `EXPRESS_RULES` (and express_base_rules.txt) when no allowlist of
-   * message types was given. Otherwise, filters out envelope-specific instructions
-   * accordingly.
+   * Matches `EXPRESS_RULES` (and express_base_rules.txt) when no allowlist of message
+   * types was given, except that rule 15's `root = ...(...)` example names a component of
+   * the active catalogs. Otherwise, also filters out envelope-specific instructions.
    */
   generateBaseRules(): string {
     const allowedMessages = this.allowedMessages;
@@ -355,6 +389,11 @@ export class ExpressPromptGenerator extends PromptGenerator {
           );
         }
       }
+    }
+
+    const rootComponent = exampleRootComponent(this.catalogs);
+    if (rootComponent !== undefined) {
+      rules = rules.replace(ROOT_EXAMPLE_LINE, `root = ${rootComponent}(...)`);
     }
 
     const lines = [rules];
