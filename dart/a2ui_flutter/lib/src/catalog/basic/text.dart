@@ -91,7 +91,7 @@ final List<(RegExp, int?)> _markers = [
 
 /// [markdown] with the [_markers] removed.
 String _withoutMarkers(String markdown) {
-  String text = markdown;
+  var text = markdown;
   for (final (RegExp marker, int? kept) in _markers) {
     text = text.replaceAllMapped(marker, (m) => kept == null ? '' : m[kept]!);
   }
