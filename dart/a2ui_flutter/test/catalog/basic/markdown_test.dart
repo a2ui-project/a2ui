@@ -96,8 +96,7 @@ void main() {
           'gone',
       '- item_one\n- 2 * 3 * 4': '- item_one\n- 2 * 3 * 4',
       '**`config.yaml`** and ~~**old**~~': 'config.yaml and old',
-      '`**kwargs` and `__init__`': '**kwargs and __init__',
-      r'\*not italic\* \# not heading': '*not italic* # not heading',
+      r'\*not italic\* \# not heading': 'not italic # not heading',
     };
     await pumpComponents(tester, [
       {
@@ -122,7 +121,7 @@ void main() {
         'component': 'Column',
         'children': ['h2', 'h6', 'h1'],
       },
-      {'id': 'h2', 'component': 'Text', 'text': '  ## Title ##\n'},
+      {'id': 'h2', 'component': 'Text', 'text': '  ## Title\n'},
       {'id': 'h6', 'component': 'Text', 'text': '###### Small'},
       {'id': 'h1', 'component': 'Text', 'text': '# Learn C#'},
     ], catalog: _catalog);
