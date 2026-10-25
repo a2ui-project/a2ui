@@ -4,14 +4,8 @@
 
 - `argumentErrors`, the argument check of `Catalog.invoke` and of a
   `callRendererFunction`, checks a `ValidationResult` argument as its JSON
-  object instead of throwing `StateError`. On a catalog for v1.0 or later, a
-  validation result may also stand for its `valid` boolean, as a
-  DynamicBoolean coerces one: a `ValidationResult`, or an object with a
-  boolean `valid`, such as one from the data model. `and`, `or` and `not` over
-  v1.0 validation rules now run instead of failing with `EXPRESSION_ERROR`.
-  The function still receives each argument as it was resolved, and the v1.0
-  `formatNumber` and `formatCurrency` read a validation result given as
-  `grouping` by its validity, as `and`, `or` and `not` read their operands.
+  object instead of throwing `StateError`, and on a catalog for v1.0 or later
+  as its validity, so `and`, `or` and `not` over validation rules run.
 - A component's `accessibility.hidden` resolves as a dynamic value, as its
   `label` and `description` do, so it reaches `node.props` as a binding to
   its value, and a `hidden` bound to a data path follows the data.
