@@ -27,15 +27,15 @@ This module is internal to a2ui-core and is not re-exported by any facade.
 from __future__ import annotations
 
 import inspect
-from typing import Any, Final, NamedTuple, TypeGuard, get_args, get_origin
+from typing import Annotated, Any, Final, NamedTuple, TypeGuard, get_args, get_origin
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from ..common.semver import is_at_least_version
 from ..exceptions import A2uiCatalogError
 from ..schema import ProtocolVersion
 from ..schema._dynamic_types import clean_schema_node
-from ..schema._json_schema import CATALOG_DEF_MARKER
+from ..schema._json_schema import CATALOG_DEF_MARKER, CatalogDef
 from ..schema.common_types_schema import get_common_types_symbols
 
 _REF_TEMPLATE: Final[str] = "#/$defs/{model}"
@@ -124,22 +124,82 @@ def _find_referenced_type_aliases(tp: Any, visited: set[Any] | None = None) -> s
     return aliases
 
 
-def _extract_catalog_defs(node: Any, catalog_defs: dict[str, Any]) -> Any:
+def _find_catalog_def_schemas(
+    tp: Any,
+    found: dict[str, dict[str, Any]],
+    visited: set[Any] | None = None,
+) -> None:
+    """Collects canonical JSON schemas for `Annotated[..., CatalogDef(name)]` types."""
+    if visited is None:
+        visited = set()
+    if isinstance(tp, CatalogDef):
+        if tp.name not in found:
+            schema = tp.canonical_schema(ref_template=_REF_TEMPLATE)
+            if schema is not None:
+                found[tp.name] = schema
+        return
+    try:
+        if tp in visited:
+            return
+        visited.add(tp)
+    except TypeError:
+        pass
+    origin = get_origin(tp)
+    if origin is Annotated:
+        for arg in get_args(tp):
+            _find_catalog_def_schemas(arg, found, visited)
+        return
+    if _is_model(tp):
+        for field in tp.model_fields.values():
+            _find_catalog_def_schemas(field.annotation, found, visited)
+            for meta in field.metadata:
+                _find_catalog_def_schemas(meta, found, visited)
+        return
+    alias_val = getattr(tp, "__value__", None)
+    if alias_val is not None:
+        _find_catalog_def_schemas(alias_val, found, visited)
+    if origin is not None:
+        for arg in get_args(tp):
+            _find_catalog_def_schemas(arg, found, visited)
+
+
+def _extract_catalog_defs(
+    node: Any,
+    catalog_defs: dict[str, Any],
+    canonical_defs: dict[str, dict[str, Any]] | None = None,
+) -> Any:
     """Replaces nodes marked with `CATALOG_DEF_MARKER` by `#/$defs/<name>` refs."""
     if isinstance(node, list):
-        return [_extract_catalog_defs(item, catalog_defs) for item in node]
+        return [
+            _extract_catalog_defs(item, catalog_defs, canonical_defs) for item in node
+        ]
     if not isinstance(node, dict):
         return node
     def_name = node.get(CATALOG_DEF_MARKER)
     if isinstance(def_name, str) and def_name:
+        canonical = canonical_defs.get(def_name) if canonical_defs else None
+        base_def = (
+            canonical
+            if canonical is not None
+            else {k: v for k, v in node.items() if k != CATALOG_DEF_MARKER}
+        )
         cleaned_def = {
-            k: _extract_catalog_defs(v, catalog_defs)
-            for k, v in node.items()
+            k: _extract_catalog_defs(v, catalog_defs, canonical_defs)
+            for k, v in base_def.items()
             if k != CATALOG_DEF_MARKER
         }
         catalog_defs.setdefault(def_name, cleaned_def)
-        return {"$ref": f"#/$defs/{def_name}"}
-    return {k: _extract_catalog_defs(v, catalog_defs) for k, v in node.items()}
+        ref_node: dict[str, Any] = {"$ref": f"#/$defs/{def_name}"}
+        for key in ("description", "default"):
+            if key in node and node[key] != cleaned_def.get(key):
+                ref_node[key] = _extract_catalog_defs(
+                    node[key], catalog_defs, canonical_defs
+                )
+        return ref_node
+    return {
+        k: _extract_catalog_defs(v, catalog_defs, canonical_defs)
+        for k, v in node.items()
+    }
 
 
 def _object_schema(
@@ -154,7 +214,9 @@ def _object_schema(
     """
     flat = model.model_json_schema(ref_template=_REF_TEMPLATE)
     if catalog_defs is not None:
-        flat = _extract_catalog_defs(flat, catalog_defs)
+        canonical_defs: dict[str, dict[str, Any]] = {}
+        _find_catalog_def_schemas(model, canonical_defs)
+        flat = _extract_catalog_defs(flat, catalog_defs, canonical_defs)
     aliases = [model.model_fields[name].alias or name for name in _own_fields(model)]
     properties = {alias: flat["properties"][alias] for alias in aliases}
     required = [name for name in flat.get("required", []) if name in properties]

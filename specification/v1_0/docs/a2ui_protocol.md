@@ -575,14 +575,9 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - Custom leaf definitions (such as design system tokens, value unions, or shared object option schemas) MAY be declared under `"$defs"` at the catalog root alongside `anyComponent` and `anyFunction`.
    - Component schemas MUST NOT be defined inside `"$defs"` (including inside `allOf` wrappers); all UI components must be declared at the top level under `"components"`.
 3. **Restricted `$ref` Targets:**
-<<<<<<< HEAD
-   - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
-   - External `$ref` targets, other than references to peer catalogs (below), MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
-=======
    - Component properties and leaf definitions MAY reference catalog-scoped leaf definitions using `#/$defs/<TypeName>` (where `<TypeName>` is not `anyComponent` or `anyFunction`).
    - Component schemas inside `anyComponent` and function schemas inside `anyFunction` reference top-level components and functions (e.g., `#/components/Text`, `#/functions/required`).
-   - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
->>>>>>> 285cb5ddd (feat(spec): relax 1.0 catalog schema rules to permit design tokens, leaf $defs, and metadata extensions)
+   - External `$ref` targets, other than references to peer catalogs (below), MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
      - `Child`
      - `ChildList`

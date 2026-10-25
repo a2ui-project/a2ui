@@ -2108,7 +2108,7 @@ def generate_catalog_definition(
             "description": defs_prop.get("description", ""),
             "properties": defs_prop.get("properties", {}),
             "required": defs_prop.get("required", []),
-            "additionalProperties": defs_prop.get("additionalProperties", True),
+            "additionalProperties": bool(defs_prop.get("additionalProperties", True)),
         }
         blocks.append(
             codegen.compile_object_def(

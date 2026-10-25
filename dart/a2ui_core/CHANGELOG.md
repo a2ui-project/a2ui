@@ -3,10 +3,12 @@
 ## Unreleased
 
 - (v1_0) Factored `weight` in the v1.0 basic catalog into `#/$defs/Weight`.
-  `Catalog.resolvedComponentSchemas` inlines catalog-local `$defs` references
-  and `catalogDefRef` markers so in-memory component schemas remain
+  Component schemas in `BasicCatalog.v1_0`, `Catalog.fromJson` (for leaf
+  catalog `$defs`), and `Catalog.resolvedComponentSchemas` inline catalog-local
+  `$defs` with `catalogDefRef` markers so in-memory component schemas remain
   self-contained, while `Catalog.toJson()` and `Catalog.validationSchema`
-  restore `#/$defs/...` references ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
+  restore `#/$defs/...` references
+  ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several

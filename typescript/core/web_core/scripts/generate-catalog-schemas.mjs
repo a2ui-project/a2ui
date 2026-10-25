@@ -597,19 +597,61 @@ function defModelName(name) {
   return name === 'theme' ? 'ThemeDefSchema' : `${name}Schema`;
 }
 
+function collectLocalDefRefs(node, out = new Set()) {
+  if (!node || typeof node !== 'object') return out;
+  if (Array.isArray(node)) {
+    for (const item of node) collectLocalDefRefs(item, out);
+    return out;
+  }
+  if (typeof node.$ref === 'string' && node.$ref.startsWith('#/$defs/')) {
+    out.add(node.$ref.slice('#/$defs/'.length).split('/')[0]);
+  }
+  for (const val of Object.values(node)) collectLocalDefRefs(val, out);
+  return out;
+}
+
+function topologicalSortDefNames(names, catalogDefs) {
+  const nameSet = new Set(names);
+  const visited = new Set();
+  const visiting = new Set();
+  const sorted = [];
+  const visit = name => {
+    if (visited.has(name) || visiting.has(name) || !nameSet.has(name)) return;
+    visiting.add(name);
+    for (const dep of collectLocalDefRefs(catalogDefs[name])) {
+      if (dep !== name) visit(dep);
+    }
+    visiting.delete(name);
+    visited.add(name);
+    sorted.push(name);
+  };
+  for (const name of names) visit(name);
+  return sorted;
+}
+
 /**
  * Generates a catalog definition's model: a `specDef()`-named Zod object.
  */
 function generateDefModel(name, schema, ctx) {
+  let effectiveSchema = schema;
+  if (Array.isArray(schema.allOf) && (schema.type === 'object' || schema.properties)) {
+    const flattened = flattenSchema(schema, ctx.catalogDefs, ctx.commonDefs);
+    effectiveSchema = {
+      ...schema,
+      type: 'object',
+      properties: flattened.properties,
+      ...(flattened.required.length > 0 ? {required: flattened.required} : {}),
+    };
+  }
   let code;
   let prediction;
-  if (schema.type === 'object') {
-    const node = generateObjectNode(schema, ctx, '    ');
-    ({code, prediction} = withModifiers(node.code, node.prediction, schema));
+  if (effectiveSchema.type === 'object') {
+    const node = generateObjectNode(effectiveSchema, ctx, '    ');
+    ({code, prediction} = withModifiers(node.code, node.prediction, effectiveSchema));
   } else {
-    ({code, prediction} = generateNode(schema, ctx));
+    ({code, prediction} = generateNode(effectiveSchema, ctx));
   }
-  const annotation = annotationFor(schema, prediction);
+  const annotation = annotationFor(effectiveSchema, prediction);
   const extra = annotation ? `, ${literal(annotation)}` : '';
   return `export const ${defModelName(name)} = specDef('${name}', ${code}${extra});\n\n`;
 }
@@ -714,10 +756,27 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
 
   let defsCode = '';
   if (reproduce) {
+    // Expand referencedCatalogDefs transitively across local $defs.
+    const queue = [...referencedCatalogDefs, ...mixinDefs];
+    while (queue.length > 0) {
+      const current = queue.pop();
+      for (const dep of collectLocalDefRefs(catalogDefs[current])) {
+        if (catalogDefs[dep] && !mixinDefs.has(dep) && !referencedCatalogDefs.has(dep)) {
+          referencedCatalogDefs.add(dep);
+          queue.push(dep);
+        }
+      }
+    }
     let mixinDefsCode = '';
-    for (const name of mixinDefs) mixinDefsCode += generateDefModel(name, catalogDefs[name], ctx);
-    for (const name of referencedCatalogDefs) {
-      if (!mixinDefs.has(name)) defsCode += generateDefModel(name, catalogDefs[name], ctx);
+    for (const name of topologicalSortDefNames([...mixinDefs], catalogDefs)) {
+      mixinDefsCode += generateDefModel(name, catalogDefs[name], ctx);
+    }
+    const leafDefNames = topologicalSortDefNames(
+      [...referencedCatalogDefs].filter(name => !mixinDefs.has(name)),
+      catalogDefs,
+    );
+    for (const name of leafDefNames) {
+      defsCode += generateDefModel(name, catalogDefs[name], ctx);
     }
     defsCode += mixinDefsCode;
     if (catalogDefs.theme) defsCode += generateDefModel('theme', catalogDefs.theme, ctx);

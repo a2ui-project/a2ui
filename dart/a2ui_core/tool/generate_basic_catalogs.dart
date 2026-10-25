@@ -135,6 +135,10 @@ Future<String> format(String source) async {
   }
   final String formatted = file.readAsStringSync();
   scratch.deleteSync(recursive: true);
+  final dartToolDir = Directory('.dart_tool');
+  if (dartToolDir.existsSync() && dartToolDir.listSync().isEmpty) {
+    dartToolDir.deleteSync();
+  }
   return formatted;
 }
 

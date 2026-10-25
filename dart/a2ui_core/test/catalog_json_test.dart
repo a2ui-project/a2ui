@@ -1457,9 +1457,19 @@ void main() {
     });
 
     test(
-        'inlines catalog definitions in resolvedComponentSchemas and restores catalogDefRef markers',
+        'inlines catalog definitions in component schemas and resolvedComponentSchemas and restores catalogDefRef markers',
         () {
       final v10 = BasicCatalog.v1_0();
+      final textInMemory =
+          v10.components['Text']!.schema.value['properties']! as Map;
+      expect(textInMemory['weight'], {
+        'type': 'number',
+        'description': "The relative weight of this component within a Row or "
+            "Column. This is similar to the CSS 'flex-grow' property. Note: "
+            'this may ONLY be set when the component is a direct descendant '
+            'of a Row or Column.',
+        'catalogDefRef': r'#/$defs/Weight',
+      });
       final textResolved = v10
           .resolvedComponentSchema('Text')!
           .value['properties']! as Map<String, Object?>;
@@ -1470,6 +1480,19 @@ void main() {
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
       });
+
+      final roundTripped = Catalog.fromJson(v10.toJson());
+      final rtTextInMemory =
+          roundTripped.components['Text']!.schema.value['properties']! as Map;
+      expect(rtTextInMemory['weight'], {
+        'type': 'number',
+        'description': "The relative weight of this component within a Row or "
+            "Column. This is similar to the CSS 'flex-grow' property. Note: "
+            'this may ONLY be set when the component is a direct descendant '
+            'of a Row or Column.',
+        'catalogDefRef': r'#/$defs/Weight',
+      });
+      expect(roundTripped.toJson(), equals(v10.toJson()));
 
       final custom = Catalog<ComponentApi, FunctionApi>(
         id: 'https://example.com/catalog-def-marker',
@@ -1491,6 +1514,12 @@ void main() {
                   'type': 'number',
                   'catalogDefRef': r'#/$defs/Weight',
                 },
+                'overriddenWeight': {
+                  'type': 'number',
+                  'description': 'Box-specific weight.',
+                  'default': 1,
+                  'catalogDefRef': r'#/$defs/Weight',
+                },
               },
               'required': ['component'],
             }),
@@ -1501,12 +1530,25 @@ void main() {
       final boxResolved = custom
           .resolvedComponentSchema('Box')!
           .value['properties']! as Map<String, Object?>;
-      expect(boxResolved['weight'], {'type': 'number'});
+      expect(boxResolved['weight'], {
+        'type': 'number',
+        'description': 'Custom weight definition.',
+      });
+      expect(boxResolved['overriddenWeight'], {
+        'type': 'number',
+        'description': 'Box-specific weight.',
+        'default': 1,
+      });
 
       final Map<String, Object?> doc = custom.toJson();
       final boxDocProps =
           ((doc['components']! as Map)['Box']! as Map)['properties']! as Map;
       expect(boxDocProps['weight'], {r'$ref': r'#/$defs/Weight'});
+      expect(boxDocProps['overriddenWeight'], {
+        r'$ref': r'#/$defs/Weight',
+        'description': 'Box-specific weight.',
+        'default': 1,
+      });
       expect((doc[r'$defs']! as Map)['Weight'], {
         'type': 'number',
         'description': 'Custom weight definition.',
@@ -1516,6 +1558,11 @@ void main() {
       final boxValProps =
           ((val['components']! as Map)['Box']! as Map)['properties']! as Map;
       expect(boxValProps['weight'], {r'$ref': r'#/$defs/Weight'});
+      expect(boxValProps['overriddenWeight'], {
+        r'$ref': r'#/$defs/Weight',
+        'description': 'Box-specific weight.',
+        'default': 1,
+      });
       expect((val[r'$defs']! as Map)['Weight'], {
         'type': 'number',
         'description': 'Custom weight definition.',

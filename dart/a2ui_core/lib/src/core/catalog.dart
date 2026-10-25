@@ -683,6 +683,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       json['components'],
       rawId,
       allowedComponents,
+      defs,
     );
     final Object? rawFunctions = json['functions'];
     final List<FunctionApi> functions = _parseFunctions(
@@ -935,12 +936,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// The components of a document's `components` map, each with its
   /// definition as written, except `allowedParents` and `allowedChildren`,
-  /// which become fields.
+  /// which become fields, and leaf `#/$defs/<Name>` property references,
+  /// which are inlined with a `catalogDefRef` marker.
   static List<ComponentApi> _parseComponents(
     Object? raw,
     String catalogId,
-    Set<String>? allowed,
-  ) {
+    Set<String>? allowed, [
+    Map<String, Object?> defs = const {},
+  ]) {
     if (raw == null) return const [];
     if (raw is! Map) {
       throw A2uiCatalogError(
@@ -968,13 +971,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
       final Object? parents = compVal['allowedParents'];
       final Object? children = compVal['allowedChildren'];
+      final rawSchema = <String, Object?>{
+        for (final MapEntry<Object?, Object?> property in compVal.entries)
+          if (property.key != 'allowedParents' &&
+              property.key != 'allowedChildren')
+            property.key! as String: property.value,
+      };
       final Map<String, Object?> schema = _markRead(
-        _frozenCopy({
-          for (final MapEntry<Object?, Object?> property in compVal.entries)
-            if (property.key != 'allowedParents' &&
-                property.key != 'allowedChildren')
-              property.key: property.value,
-        })! as Map<String, Object?>,
+        _frozenCopy(_inlineLeafCatalogDefs(rawSchema, defs))!
+            as Map<String, Object?>,
       );
       components.add(
         ComponentApi(
@@ -1324,6 +1329,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
     // Keywords other than those merged here, such as `type`, closure
     // keywords, `anyOf` or the schema's own `$defs`, are kept as written.
+    final bool isReadSchema = _readSchemas[compMap] ?? false;
     const merged = {'allOf', 'properties', 'required', 'description'};
     final cleanSchema = <String, Object?>{
       for (final MapEntry<String, Object?> entry in compMap.entries)
@@ -1333,6 +1339,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         for (final MapEntry<String, Object?> entry in orderedProperties.entries)
           entry.key: _normalizePropertyRefs(
             inlineLocalRefs(entry.value, rootDoc, null, peerDocs),
+            isReadSchema: isReadSchema,
+            definitions: definitions,
           ),
       },
       if (requiredSet.isNotEmpty) 'required': requiredSet.toList()..sort(),
@@ -1345,6 +1353,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           entry.key: _normalizePropertyRefs(
             _keepAuthoredDefRefs(entry.value, rootDoc, peerDocs),
             stripCatalogDefMarker: false,
+            isReadSchema: isReadSchema,
+            definitions: definitions,
           ),
       },
     );
@@ -1361,9 +1371,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Object? node,
     Map<String, Object?> root, [
     List<Map<String, Object?>> peers = const [],
+    Set<String>? expanding,
   ]) {
     final Object? defs = root[r'$defs'];
-    if (defs is! Map) return inlineLocalRefs(node, root, null, peers);
+    if (defs is! Map) return inlineLocalRefs(node, root, expanding, peers);
     final Set<String> authored = {
       for (final Object? name in defs.keys)
         if (name is String &&
@@ -1371,26 +1382,61 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             !isCommonTypeDef(name))
           name,
     };
-    if (authored.isEmpty) return inlineLocalRefs(node, root, null, peers);
+    if (authored.isEmpty) return inlineLocalRefs(node, root, expanding, peers);
+    final Set<String> visited = expanding ?? <String>{};
 
-    Object? visit(Object? node) {
-      if (node is List) return [for (final Object? item in node) visit(item)];
-      if (node is! Map) return node;
-      final Object? ref = node[r'$ref'];
+    Object? visit(Object? current) {
+      if (current is List)
+        return [for (final Object? item in current) visit(item)];
+      if (current is! Map) return current;
+      final Object? ref = current[r'$ref'];
       if (ref is String && ref.startsWith('#/')) {
+        final String defName = ref.startsWith(r'#/$defs/')
+            ? ref
+                .substring(8)
+                .split('/')
+                .first
+                .replaceAll('~1', '/')
+                .replaceAll('~0', '~')
+            : '';
         final bool keep = ref.startsWith(r'#/$defs/') &&
-            authored.contains(ref.substring(8).split('/').first);
-        if (!keep) return inlineLocalRefs(node, root, null, peers);
+            (authored.contains(defName) || isCommonTypeDef(defName));
+        if (!keep) {
+          final String key = localRefVisitKey(root, ref);
+          if (visited.contains(key)) return current;
+          final Object? target = followJsonPointer(root, ref.substring(1));
+          if (target is! Map) {
+            if (ref.startsWith(r'#/$defs/')) return current;
+            throw A2uiCatalogError("Unresolvable schema reference: '$ref'");
+          }
+          final Object? resolved = _keepAuthoredDefRefs(
+            target,
+            root,
+            peers,
+            {...visited, key},
+          );
+          if (resolved is! Map) return current;
+          return <String, Object?>{
+            ...resolved.cast<String, Object?>(),
+            for (final MapEntry<Object?, Object?> entry in current.entries)
+              if (entry.key != r'$ref')
+                entry.key! as String: visit(entry.value),
+          };
+        }
       } else if (ref is String &&
           !ref.startsWith('#/') &&
           ref.contains('#/') &&
           peers.isNotEmpty) {
-        return inlineLocalRefs(node, root, null, peers);
+        return inlineLocalRefs(current, root, visited, peers);
       }
-      return <String, Object?>{
-        for (final MapEntry<Object?, Object?> entry in node.entries)
+      final result = <String, Object?>{
+        for (final MapEntry<Object?, Object?> entry in current.entries)
           entry.key! as String: visit(entry.value),
       };
+      if (_inlinedCatalogDefNodes[current] ?? false) {
+        _inlinedCatalogDefNodes[result] = true;
+      }
+      return result;
     }
 
     return visit(node);
@@ -1662,6 +1708,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   static Object? _normalizePropertyRefs(
     Object? node, {
     bool stripCatalogDefMarker = true,
+    bool isReadSchema = false,
+    Map<String, Object?> definitions = const {},
+    bool isPropertiesMap = false,
   }) {
     if (node is List) {
       return [
@@ -1669,24 +1718,44 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           _normalizePropertyRefs(
             item,
             stripCatalogDefMarker: stripCatalogDefMarker,
+            isReadSchema: isReadSchema,
+            definitions: definitions,
           ),
       ];
     }
     if (node is! Map) return node;
 
-    final map = Map<String, Object?>.from(
+    final bool isCatalogDefNode = !isPropertiesMap &&
+        node['catalogDefRef'] is String &&
+        (!isReadSchema || (_inlinedCatalogDefNodes[node] ?? false));
+
+    var map = Map<String, Object?>.from(
       node is Map<String, Object?> ? node : node.cast<String, Object?>(),
     );
 
-    if (stripCatalogDefMarker) {
-      map.remove('catalogDefRef');
+    if (isCatalogDefNode) {
+      final targetRef = map['catalogDefRef']! as String;
+      final Map<String, Object?>? targetDef =
+          _lookupDefInMap(targetRef, definitions);
+      if (targetDef != null) {
+        map = <String, Object?>{
+          for (final MapEntry<String, Object?> entry in targetDef.entries)
+            if (entry.key != r'$ref') entry.key: _deepCopyValue(entry.value),
+          ...map,
+        };
+      }
+      if (stripCatalogDefMarker) {
+        map.remove('catalogDefRef');
+      }
     }
 
-    final String? fragment = _commonTypesFragment(map[r'$ref']);
-    if (fragment != null) {
-      final target = 'common_types.json#/\$defs/$fragment';
-      map['commonTypesRef'] = target;
-      map[r'$ref'] = target;
+    if (!isPropertiesMap) {
+      final String? fragment = _commonTypesFragment(map[r'$ref']);
+      if (fragment != null) {
+        final target = 'common_types.json#/\$defs/$fragment';
+        map['commonTypesRef'] = target;
+        map[r'$ref'] = target;
+      }
     }
 
     final newEntries = <String, Object?>{};
@@ -1694,9 +1763,29 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       newEntries[entry.key] = _normalizePropertyRefs(
         entry.value,
         stripCatalogDefMarker: stripCatalogDefMarker,
+        isReadSchema: isReadSchema,
+        definitions: definitions,
+        isPropertiesMap: !isPropertiesMap && entry.key == 'properties',
       );
     }
+    if (isCatalogDefNode &&
+        !stripCatalogDefMarker &&
+        (_inlinedCatalogDefNodes[node] ?? false)) {
+      _inlinedCatalogDefNodes[newEntries] = true;
+    }
     return newEntries;
+  }
+
+  static Map<String, Object?>? _lookupDefInMap(
+    String ref,
+    Map<String, Object?> defs,
+  ) {
+    if (!ref.startsWith(r'#/$defs/')) return null;
+    final String tail = ref.substring(8);
+    if (tail.contains('/')) return null;
+    final String defName = tail.replaceAll('~1', '/').replaceAll('~0', '~');
+    final Object? target = defs[defName];
+    return target is Map ? target.cast<String, Object?>() : null;
   }
 
   /// The `$defs` pointer fragment of [ref] when it names a common type.
@@ -1951,11 +2040,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   }
 
   /// A copy of the schema [node] as the catalog document writes it: as it
-  /// is when [Catalog.fromJson] read it, whatever keys it holds, and with
-  /// [_unbundleMarkers] applied when it was defined in code.
-  static Object? _asWritten(Object? node) =>
+  /// is when [Catalog.fromJson] read it (with inlined leaf `$defs` restored
+  /// to `#/$defs/...`), and with [_unbundleMarkers] applied when it was
+  /// defined in code.
+  Object? _asWritten(Object? node) =>
       node is Map && (_readSchemas[node] ?? false)
-          ? _deepCopyValue(node)
+          ? _unbundleInlinedCatalogDefs(node)
           : _unbundleMarkers(node);
 
   /// Marks the schemas [Catalog.fromJson] read from a document, which
@@ -1963,10 +2053,114 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// another catalog.
   static final Expando<bool> _readSchemas = Expando('read schemas');
 
+  /// Marks property subschemas into which [Catalog.fromJson] inlined a leaf
+  /// `#/$defs/<Name>` definition.
+  static final Expando<bool> _inlinedCatalogDefNodes =
+      Expando('inlined catalogDefRef nodes');
+
   /// [schema], a frozen schema read from a document, marked as read.
   static Map<String, Object?> _markRead(Map<String, Object?> schema) {
     _readSchemas[schema] = true;
     return schema;
+  }
+
+  /// Inlines leaf `#/$defs/<Name>` property references from [defs] into [node],
+  /// marking each inlined map with `catalogDefRef` and [_inlinedCatalogDefNodes].
+  static Object? _inlineLeafCatalogDefs(
+    Object? node,
+    Map<String, Object?> defs, [
+    Set<String>? visited,
+    bool isPropertiesMap = false,
+    bool underProperty = false,
+  ]) {
+    if (node is List) {
+      return [
+        for (final Object? item in node)
+          _inlineLeafCatalogDefs(item, defs, visited, false, underProperty),
+      ];
+    }
+    if (node is! Map) return node;
+    if (!isPropertiesMap && underProperty) {
+      final Object? rawRef = node[r'$ref'];
+      if (rawRef is String &&
+          rawRef.startsWith(r'#/$defs/') &&
+          node.keys.every(
+            (Object? k) => k == r'$ref' || _annotationKeywords.contains(k),
+          )) {
+        final String tail = rawRef.substring(8);
+        if (!tail.contains('/')) {
+          final String defName =
+              tail.replaceAll('~1', '/').replaceAll('~0', '~');
+          if (defs.containsKey(defName) &&
+              !_builtDefNames.contains(defName) &&
+              !isCommonTypeDef(defName) &&
+              !(visited?.contains(defName) ?? false)) {
+            final Object? target = defs[defName];
+            if (target is Map && !target.containsKey('catalogDefRef')) {
+              final Set<String> nextVisited = {...?visited, defName};
+              final Object? resolvedTarget = _inlineLeafCatalogDefs(
+                target,
+                defs,
+                nextVisited,
+                false,
+                true,
+              );
+              if (resolvedTarget is Map &&
+                  !resolvedTarget.containsKey(r'$ref')) {
+                final inlined = <String, Object?>{
+                  ...resolvedTarget.cast<String, Object?>(),
+                  for (final MapEntry<Object?, Object?> entry in node.entries)
+                    if (entry.key != r'$ref')
+                      entry.key! as String: _deepCopyValue(entry.value),
+                  'catalogDefRef': rawRef,
+                };
+                _inlinedCatalogDefNodes[inlined] = true;
+                return inlined;
+              }
+            }
+          }
+        }
+      }
+    }
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in node.entries)
+        entry.key! as String: _inlineLeafCatalogDefs(
+          entry.value,
+          defs,
+          visited,
+          !isPropertiesMap && entry.key == 'properties',
+          underProperty || isPropertiesMap,
+        ),
+    };
+  }
+
+  /// Restores only nodes marked in [_inlinedCatalogDefNodes] back to `$ref`
+  /// for schemas read by [Catalog.fromJson].
+  Object? _unbundleInlinedCatalogDefs(Object? node) {
+    if (node is List) {
+      return [
+        for (final Object? item in node) _unbundleInlinedCatalogDefs(item),
+      ];
+    }
+    if (node is! Map) return node;
+    if ((_inlinedCatalogDefNodes[node] ?? false) &&
+        node['catalogDefRef'] is String) {
+      final catalogDefMarker = node['catalogDefRef']! as String;
+      final Map<String, Object?>? targetDef =
+          _lookupDefInMap(catalogDefMarker, definitions);
+      return <String, Object?>{
+        r'$ref': catalogDefMarker,
+        for (final MapEntry<Object?, Object?> entry in node.entries)
+          if (_annotationKeywords.contains(entry.key) &&
+              (targetDef == null ||
+                  !_jsonEquals(entry.value, targetDef[entry.key])))
+            entry.key! as String: _deepCopyValue(entry.value),
+      };
+    }
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in node.entries)
+        entry.key! as String: _unbundleInlinedCatalogDefs(entry.value),
+    };
   }
 
   /// [node] as a catalog document writes it: a copy in which each schema
@@ -1975,32 +2169,41 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// schema's annotations, and each schema marked with a `catalogDefRef`
   /// becomes a local `#/$defs/...` reference. Everything else is copied as it
   /// is.
-  static Object? _unbundleMarkers(Object? node) {
+  Object? _unbundleMarkers(Object? node, {bool isPropertiesMap = false}) {
     if (node is List) {
       return [for (final Object? item in node) _unbundleMarkers(item)];
     }
     if (node is! Map) return node;
-    final Object? marker = node['commonTypesRef'];
-    if (marker is String) {
-      return <String, Object?>{
-        r'$ref': _externalRef(marker),
-        for (final MapEntry<Object?, Object?> entry in node.entries)
-          if (_annotationKeywords.contains(entry.key))
-            entry.key! as String: _deepCopyValue(entry.value),
-      };
-    }
-    final Object? catalogDefMarker = node['catalogDefRef'];
-    if (catalogDefMarker is String) {
-      return <String, Object?>{
-        r'$ref': catalogDefMarker,
-        for (final MapEntry<Object?, Object?> entry in node.entries)
-          if (_annotationKeywords.contains(entry.key))
-            entry.key! as String: _deepCopyValue(entry.value),
-      };
+    if (!isPropertiesMap) {
+      final Object? marker = node['commonTypesRef'];
+      if (marker is String) {
+        return <String, Object?>{
+          r'$ref': _externalRef(marker),
+          for (final MapEntry<Object?, Object?> entry in node.entries)
+            if (_annotationKeywords.contains(entry.key))
+              entry.key! as String: _deepCopyValue(entry.value),
+        };
+      }
+      final Object? catalogDefMarker = node['catalogDefRef'];
+      if (catalogDefMarker is String) {
+        final Map<String, Object?>? targetDef =
+            _lookupDefInMap(catalogDefMarker, definitions);
+        return <String, Object?>{
+          r'$ref': catalogDefMarker,
+          for (final MapEntry<Object?, Object?> entry in node.entries)
+            if (_annotationKeywords.contains(entry.key) &&
+                (targetDef == null ||
+                    !_jsonEquals(entry.value, targetDef[entry.key])))
+              entry.key! as String: _deepCopyValue(entry.value),
+        };
+      }
     }
     return <String, Object?>{
       for (final MapEntry<Object?, Object?> entry in node.entries)
-        entry.key! as String: _unbundleMarkers(entry.value),
+        entry.key! as String: _unbundleMarkers(
+          entry.value,
+          isPropertiesMap: !isPropertiesMap && entry.key == 'properties',
+        ),
     };
   }
 
@@ -2143,7 +2346,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           defs[refName] = _deepCopyValue(standardDefs[refName]);
         } else if (authoredDefs.containsKey(refName) &&
             !builtDefs.contains(refName)) {
-          final Object? copy = _deepCopyValue(authoredDefs[refName]);
+          final Object? copy = _deepCopyValue(
+            _keepAuthoredDefRefs(
+              authoredDefs[refName],
+              _document,
+              peerDocuments,
+            ),
+          );
           _restoreRefs(copy);
           defs[refName] = copy;
         }
@@ -2249,7 +2458,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       final Object? ref = node[r'$ref'];
       if (ref is String && ref.startsWith(r'#/$defs/')) {
         // Deep pointers (`#/$defs/X/oneOf/0`) still depend on `X`.
-        result.add(ref.substring(8).split('/').first);
+        result.add(
+          ref
+              .substring(8)
+              .split('/')
+              .first
+              .replaceAll('~1', '/')
+              .replaceAll('~0', '~'),
+        );
       }
       for (final Object? value in node.values) {
         _collectReferencedDefs(value, result);
@@ -2312,9 +2528,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   Map<String, Object?> _serializeComponent(String name, ComponentApi comp) {
     final _FlatComponent flat = _flatOf(comp);
     final Map<String, Object?> raw = flat.schema.value;
+    final bool isReadSchema = _readSchemas[comp.schema.value] ?? false;
     final properties =
         _deepCopyValue(flat.propertiesWithDefRefs)! as Map<String, Object?>;
-    _restoreRefs(properties);
+    _restoreRefs(properties, isReadSchema: isReadSchema, isPropertiesMap: true);
     properties
       ..remove('id')
       ..remove('component');
@@ -2362,36 +2579,53 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// of the definition it names, from the common types for
   /// [protocolVersion]. This includes references that are already local,
   /// `#/$defs/<name>` where `<name>` is a standard definition.
-  void _restoreRefs(Object? node) {
+  void _restoreRefs(
+    Object? node, {
+    bool isReadSchema = false,
+    bool isPropertiesMap = false,
+  }) {
     if (node is List) {
       for (final Object? item in node) {
-        _restoreRefs(item);
+        _restoreRefs(item, isReadSchema: isReadSchema);
       }
     } else if (node is Map) {
       final Map<dynamic, dynamic> map = node;
-      if (map['commonTypesRef'] is String) {
-        final target = map['commonTypesRef'] as String;
-        map.removeWhere((k, _) => !_annotationKeywords.contains(k));
-        _localizeRef(
-          map,
-          _commonTypesFragment(target) ?? target.split('/').last,
+      if (!isPropertiesMap) {
+        if (map['commonTypesRef'] is String) {
+          final target = map['commonTypesRef'] as String;
+          map.removeWhere((k, _) => !_annotationKeywords.contains(k));
+          _localizeRef(
+            map,
+            _commonTypesFragment(target) ?? target.split('/').last,
+          );
+          return;
+        }
+        if (map['catalogDefRef'] is String &&
+            (!isReadSchema || (_inlinedCatalogDefNodes[map] ?? false))) {
+          final target = map['catalogDefRef'] as String;
+          final Map<String, Object?>? targetDef =
+              _lookupDefInMap(target, definitions);
+          map.removeWhere(
+            (k, v) =>
+                !_annotationKeywords.contains(k) ||
+                (targetDef != null && _jsonEquals(v, targetDef[k])),
+          );
+          map[r'$ref'] = target;
+          return;
+        }
+        final Object? ref = map[r'$ref'];
+        final String? fragment = _commonTypesFragment(ref);
+        if (fragment != null &&
+            _standardDefs.containsKey(fragment.split('/').first)) {
+          _localizeRef(map, fragment);
+        }
+      }
+      for (final MapEntry<dynamic, dynamic> entry in map.entries) {
+        _restoreRefs(
+          entry.value,
+          isReadSchema: isReadSchema,
+          isPropertiesMap: !isPropertiesMap && entry.key == 'properties',
         );
-        return;
-      }
-      if (map['catalogDefRef'] is String) {
-        final target = map['catalogDefRef'] as String;
-        map.removeWhere((k, _) => !_annotationKeywords.contains(k));
-        map[r'$ref'] = target;
-        return;
-      }
-      final Object? ref = map[r'$ref'];
-      final String? fragment = _commonTypesFragment(ref);
-      if (fragment != null &&
-          _standardDefs.containsKey(fragment.split('/').first)) {
-        _localizeRef(map, fragment);
-      }
-      for (final Object? val in map.values) {
-        _restoreRefs(val);
       }
     }
   }
@@ -2594,10 +2828,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   static Object? _deepCopyValue(Object? value) {
     if (value is Map) {
-      return {
+      final copy = <String, Object?>{
         for (final MapEntry<Object?, Object?> entry in value.entries)
           entry.key! as String: _deepCopyValue(entry.value),
       };
+      if (_inlinedCatalogDefNodes[value] ?? false) {
+        _inlinedCatalogDefNodes[copy] = true;
+      }
+      return copy;
     }
     if (value is List) {
       return [for (final Object? item in value) _deepCopyValue(item)];
@@ -2720,10 +2958,14 @@ final class _DocumentLayout {
 /// A deep copy of the JSON [value] whose maps and lists are unmodifiable.
 Object? _frozenCopy(Object? value) {
   if (value is Map) {
-    return Map<String, Object?>.unmodifiable({
+    final frozen = Map<String, Object?>.unmodifiable({
       for (final MapEntry<Object?, Object?> entry in value.entries)
         entry.key! as String: _frozenCopy(entry.value),
     });
+    if (Catalog._inlinedCatalogDefNodes[value] ?? false) {
+      Catalog._inlinedCatalogDefNodes[frozen] = true;
+    }
+    return frozen;
   }
   if (value is List) {
     return List<Object?>.unmodifiable([

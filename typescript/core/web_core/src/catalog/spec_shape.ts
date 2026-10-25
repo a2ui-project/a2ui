@@ -296,11 +296,21 @@ export function schemaRequiresArgs(
  * Returns the annotations of a schema and of the wrappers around its core
  * (`optional`, `default`, refinements), the outer ones winning.
  */
-function collectAnnotation(schema: z.ZodTypeAny | undefined): SpecAnnotation {
+function collectAnnotation(
+  schema: z.ZodTypeAny | undefined,
+  stopAt?: z.ZodTypeAny,
+): SpecAnnotation {
   const chain: SpecAnnotation[] = [];
+  const stopAnnotation = stopAt ? getSpecAnnotation(stopAt) : undefined;
   let node: z.ZodTypeAny | undefined = schema;
   while (node && typeof node === 'object' && '_def' in node) {
     const annotation = getSpecAnnotation(node);
+    if (
+      stopAt !== undefined &&
+      (node === stopAt || (annotation && annotation === stopAnnotation))
+    ) {
+      break;
+    }
     if (annotation) chain.push(annotation);
     const next = innerSchema(node);
     if (!next) break;
@@ -533,6 +543,8 @@ export class SpecShaper {
     const annotation = collectAnnotation(schema);
     const description = schemaDescription(schema);
     const defaultValue = schemaDefault(schema);
+    let effectiveAnnotation = annotation;
+    let effectiveDefault = defaultValue;
     let core: JsonObject;
     let ownDescription = description;
     if (
@@ -543,8 +555,11 @@ export class SpecShaper {
     ) {
       catalogDefs.set(annotation.defName, annotation.defModel);
       core = {$ref: `#/$defs/${annotation.defName}`};
+      effectiveAnnotation = collectAnnotation(schema, annotation.defModel);
       const defDesc = schemaDescription(annotation.defModel);
       ownDescription = description !== defDesc ? description : undefined;
+      const defDefault = schemaDefault(annotation.defModel);
+      effectiveDefault = defaultValue !== defDefault ? defaultValue : undefined;
     } else if (description !== undefined && description.startsWith('REF:')) {
       const content = description.substring(4);
       const pipe = content.indexOf('|');
@@ -554,12 +569,12 @@ export class SpecShaper {
     } else {
       core = this.coreJson(coreSchema(schema), annotation, catalogDefs);
     }
-    if (annotation.keywords) Object.assign(core, copyJson(annotation.keywords));
-    const result: JsonObject = annotation.allOf
-      ? {allOf: [core, ...annotation.allOf.map(s => copyJson(s))]}
+    if (effectiveAnnotation.keywords) Object.assign(core, copyJson(effectiveAnnotation.keywords));
+    const result: JsonObject = effectiveAnnotation.allOf
+      ? {allOf: [core, ...effectiveAnnotation.allOf.map(s => copyJson(s))]}
       : core;
     if (ownDescription) result['description'] = ownDescription;
-    if (defaultValue !== undefined) result['default'] = defaultValue;
+    if (effectiveDefault !== undefined) result['default'] = effectiveDefault;
     return result;
   }
 
@@ -657,7 +672,14 @@ export class SpecShaper {
         // keywords accept the same values.
         const options = def['options'] as Iterable<z.ZodTypeAny>;
         const branches = [...options].map(option => this.toJson(option, catalogDefs));
-        const resolve = (ref: string) => this.resolveStandardRef(ref);
+        const resolve = (ref: string) => {
+          if (ref.startsWith('#/$defs/') && catalogDefs !== undefined) {
+            const defName = ref.substring('#/$defs/'.length);
+            const defModel = catalogDefs.get(defName);
+            if (defModel !== undefined) return this.defSchema(defModel, catalogDefs);
+          }
+          return this.resolveStandardRef(ref);
+        };
         const disjoint = branches.every((branch, i) =>
           branches.slice(i + 1).every(other => provablyDisjoint(branch, other, resolve)),
         );

@@ -25,10 +25,11 @@ This module is internal to a2ui-core and is not re-exported by any facade.
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+import copy
+import sys
 from typing import Annotated, Any, Final
 
 from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, TypeAdapter
@@ -252,6 +253,26 @@ class CatalogDef:
 
     def __init__(self, name: str) -> None:
         self.name = name
+        self._canonical: dict[str, Any] | None = None
+        frame = sys._getframe(1)
+        self._locals: dict[str, Any] = frame.f_locals
+        self._globals: dict[str, Any] = frame.f_globals
+
+    def canonical_schema(
+        self, ref_template: str = "#/$defs/{model}"
+    ) -> dict[str, Any] | None:
+        if self._canonical is not None:
+            return copy.deepcopy(self._canonical)
+        alias_tp = self._locals.get(self.name)
+        if alias_tp is None:
+            alias_tp = self._globals.get(self.name)
+        if alias_tp is None:
+            return None
+        raw = TypeAdapter(alias_tp).json_schema(ref_template=ref_template)
+        self._canonical = {
+            k: v for k, v in raw.items() if k not in (CATALOG_DEF_MARKER, "$defs")
+        }
+        return copy.deepcopy(self._canonical)
 
     def __get_pydantic_json_schema__(
         self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler

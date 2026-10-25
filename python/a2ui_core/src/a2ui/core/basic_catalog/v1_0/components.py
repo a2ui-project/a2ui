@@ -44,19 +44,6 @@ from ...catalog.components import ModelComponentApi
 from ...schema._json_schema import CatalogDef, SpecAllOf
 
 
-Weight = Annotated[
-    float,
-    Field(
-        description=(
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
-        )
-    ),
-    CatalogDef("Weight"),
-]
-
-
 class SvgPath(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     svg_path: DynamicString = Field(..., alias="svgPath")
@@ -74,6 +61,19 @@ class OptionItem(StrictBaseModel):
         ..., description="The text to display for this option."
     )
     value: str = Field(..., description="The stable value associated with this option.")
+
+
+Weight = Annotated[
+    float,
+    Field(
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        )
+    ),
+    CatalogDef("Weight"),
+]
 
 
 class TextComponent(ComponentCommon):

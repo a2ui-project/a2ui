@@ -24,6 +24,7 @@ from utils import (
     get_base_common_symbols,
     to_pascal_case,
     to_snake_case,
+    topological_sort_defs,
     version_to_underscore,
 )
 
@@ -97,7 +98,9 @@ def generate_basic_catalog_components(
         ),
     ]
 
-    for def_name, def_spec in custom_leaf_defs.items():
+    leaf_def_blocks = []
+    for def_name in topological_sort_defs(custom_leaf_defs):
+        def_spec = custom_leaf_defs[def_name]
         py_sym = codegen.local_def_symbols[def_name]
         base_py_type = codegen.map_json_type_to_python(def_name, def_spec)
         field_kwargs: list[str] = []
@@ -114,7 +117,7 @@ def generate_basic_catalog_components(
         if field_kwargs:
             annotations.append(f"Field({', '.join(field_kwargs)})")
         annotations.append(f"CatalogDef({python_literal(def_name)})")
-        comp_blocks.append(
+        leaf_def_blocks.append(
             f"{py_sym} = Annotated[{base_py_type}, {', '.join(annotations)}]"
         )
         names.append(py_sym)
@@ -230,6 +233,7 @@ def generate_basic_catalog_components(
             codegen.name_context = iname.removesuffix("Item")
             comp_blocks.append(codegen.compile_object_def(iname, ispec))
 
+    comp_blocks.extend(leaf_def_blocks)
     comp_blocks.extend(component_defs)
     names.extend(inline_names)
     names.extend(comp_names)

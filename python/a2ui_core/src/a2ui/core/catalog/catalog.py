@@ -43,6 +43,7 @@ from ..exceptions import A2uiCatalogError
 from ..schema import ProtocolVersion
 from ..schema._dynamic_types import clean_schema_node
 from ..schema._json_schema import (
+    CATALOG_DEF_MARKER,
     INLINE_DEF_MARKER,
     SPEC_TITLE_KEY,
     inline_marked_defs,
@@ -510,6 +511,9 @@ def _collect_defs_refs(node: Any, refs: set[str]) -> None:
         ):
             target_def = node["$ref"][len("#/$defs/") :].split("/")[0]
             refs.add(target_def)
+        marker = node.get(CATALOG_DEF_MARKER)
+        if isinstance(marker, str) and marker:
+            refs.add(marker)
         for v in node.values():
             _collect_defs_refs(v, refs)
     elif isinstance(node, list):
@@ -652,12 +656,134 @@ def _local_def_refs(node: Any) -> set[str]:
         name = _local_def_name(node.get("$ref"))
         if name is not None:
             refs.add(name)
+        marker = node.get(CATALOG_DEF_MARKER)
+        if isinstance(marker, str) and marker:
+            refs.add(marker)
         for value in node.values():
             refs |= _local_def_refs(value)
     elif isinstance(node, list):
         for item in node:
             refs |= _local_def_refs(item)
     return refs
+
+
+def _inline_leaf_catalog_defs(
+    node: Any,
+    defs: Mapping[str, Any],
+    visited: set[str] | None = None,
+    *,
+    is_properties_map: bool = False,
+    under_property: bool = False,
+) -> Any:
+    """Inlines leaf `#/$defs/<name>` property references with `CATALOG_DEF_MARKER`."""
+    if isinstance(node, list):
+        return [
+            _inline_leaf_catalog_defs(
+                item,
+                defs,
+                visited,
+                under_property=under_property,
+            )
+            for item in node
+        ]
+    if not isinstance(node, dict):
+        return node
+    if not is_properties_map and under_property:
+        raw_ref = node.get("$ref")
+        if (
+            isinstance(raw_ref, str)
+            and raw_ref.startswith("#/$defs/")
+            and set(node.keys()) <= {"$ref", "description", "default"}
+        ):
+            tail = raw_ref[len("#/$defs/") :]
+            if (
+                "/" not in tail
+                and tail in defs
+                and tail not in _UNION_DEFS
+                and tail != "theme"
+                and tail not in PRESERVED_TYPE_REFS
+                and (visited is None or tail not in visited)
+            ):
+                target = defs.get(tail)
+                if isinstance(target, Mapping) and CATALOG_DEF_MARKER not in target:
+                    next_visited = {*(visited or ()), tail}
+                    resolved_target = _inline_leaf_catalog_defs(
+                        dict(target),
+                        defs,
+                        next_visited,
+                        under_property=True,
+                    )
+                    if (
+                        isinstance(resolved_target, dict)
+                        and "$ref" not in resolved_target
+                    ):
+                        inlined = copy.deepcopy(resolved_target)
+                        for key, val in node.items():
+                            if key != "$ref":
+                                inlined[key] = copy.deepcopy(val)
+                        inlined[CATALOG_DEF_MARKER] = tail
+                        return inlined
+    return {
+        k: _inline_leaf_catalog_defs(
+            v,
+            defs,
+            visited,
+            is_properties_map=(not is_properties_map and k == "properties"),
+            under_property=(under_property or is_properties_map),
+        )
+        for k, v in node.items()
+    }
+
+
+def _restore_catalog_def_refs(
+    node: Any,
+    defs: Mapping[str, Any],
+    *,
+    is_properties_map: bool = False,
+) -> Any:
+    """Restores inlined `CATALOG_DEF_MARKER` nodes back to `#/$defs/<name>` refs."""
+    if isinstance(node, list):
+        return [_restore_catalog_def_refs(item, defs) for item in node]
+    if not isinstance(node, dict):
+        return node
+    if not is_properties_map:
+        def_name = node.get(CATALOG_DEF_MARKER)
+        if isinstance(def_name, str) and def_name:
+            target = defs.get(def_name)
+            target_map = target if isinstance(target, Mapping) else {}
+            ref_node: dict[str, Any] = {"$ref": f"#/$defs/{def_name}"}
+            for key in ("description", "default"):
+                if key in node and node[key] != target_map.get(key):
+                    ref_node[key] = copy.deepcopy(node[key])
+            return ref_node
+    return {
+        k: _restore_catalog_def_refs(
+            v,
+            defs,
+            is_properties_map=(not is_properties_map and k == "properties"),
+        )
+        for k, v in node.items()
+    }
+
+
+def _strip_catalog_def_markers(
+    node: Any,
+    *,
+    is_properties_map: bool = False,
+) -> Any:
+    """Removes internal `CATALOG_DEF_MARKER` keys from a resolved schema."""
+    if isinstance(node, list):
+        return [_strip_catalog_def_markers(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    return {
+        k: _strip_catalog_def_markers(
+            v,
+            is_properties_map=(not is_properties_map and k == "properties"),
+        )
+        for k, v in node.items()
+        if is_properties_map or k != CATALOG_DEF_MARKER
+    }
 
 
 def _reachable_defs(roots: Sequence[Any], defs: Mapping[str, Any]) -> set[str]:
@@ -1556,7 +1682,11 @@ class Catalog(Generic[TComponent, TFunction]):
         if authored_theme and self.theme_location == "$defs":
             own_defs["theme"] = self.theme_schema
         authored_components = {
-            name: comp.schema
+            name: (
+                comp.schema
+                if inline_local_defs
+                else _restore_catalog_def_refs(comp.schema, own_defs)
+            )
             for name, comp in self.components.items()
             if _is_authored_component(comp)
         }
@@ -1576,7 +1706,7 @@ class Catalog(Generic[TComponent, TFunction]):
         )
 
         def resolve(node: Any) -> Any:
-            return copy.deepcopy(
+            resolved_node = copy.deepcopy(
                 _normalize_external_schema_refs(
                     inline_local_refs(
                         _normalize_external_schema_refs(node, peers),
@@ -1587,12 +1717,22 @@ class Catalog(Generic[TComponent, TFunction]):
                     peers,
                 )
             )
+            return (
+                _strip_catalog_def_markers(resolved_node)
+                if inline_local_defs
+                else resolved_node
+            )
 
         components: dict[str, Any] = {}
         for name, comp in self.components.items():
-            components[name] = (
-                resolve(comp.schema) if name in authored_components else comp.schema
-            )
+            if name in authored_components:
+                components[name] = resolve(authored_components[name])
+            else:
+                components[name] = (
+                    _strip_catalog_def_markers(copy.deepcopy(comp.schema))
+                    if inline_local_defs
+                    else comp.schema
+                )
         functions: dict[str, Any] = {}
         for name, fn in self.functions.items():
             functions[name] = (
@@ -2345,7 +2485,8 @@ class Catalog(Generic[TComponent, TFunction]):
         self, component: ComponentApi, common_names: set[str]
     ) -> dict[str, Any]:
         """Returns the document entry of a component whose schema is authored."""
-        schema = component.schema if isinstance(component.schema, dict) else {}
+        raw_schema = component.schema if isinstance(component.schema, dict) else {}
+        schema = _restore_catalog_def_refs(raw_schema, self.defs)
         entry = (
             copy.deepcopy(schema)
             if getattr(component, "from_document", False)
@@ -2634,10 +2775,11 @@ class Catalog(Generic[TComponent, TFunction]):
                         )
 
             if not permitted_names or name in permitted_names:
+                inlined_schema = _inline_leaf_catalog_defs(dict(schema), defs_map)
                 components.append(
                     ComponentApi(
                         name,
-                        dict(schema),
+                        inlined_schema,
                         allowed_parents=schema.get("allowedParents"),
                         allowed_children=schema.get("allowedChildren"),
                         from_document=True,

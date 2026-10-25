@@ -249,26 +249,45 @@ function generateCatalogDefinition({pureCommonNames, helperNames}) {
     }
 
     if (name === 'LeafDefinition') {
-      // json-schema-to-zod loses array "contains" and emits z.object({'allOf': z.array(z.any())})
-      // inside "not", which rejects any allOf rather than only allOf containing a component.const.
+      // json-schema-to-zod drops required: ['const'] on an object without properties
+      // and loses array "contains" inside "not".
+      code = code.replace(
+        /z\.object\(\{\s*["']component["']:\s*z\.record\(z\.string\(\),\s*z\.any\(\)\)\s*\}\)/,
+        "z.object({'component': z.object({'const': z.any()})})",
+      );
       code = code.replace(
         /z\.object\(\{\s*["']allOf["']:\s*z\.array\(z\.any\(\)\)\s*\}\)/,
         `z.object({
           'allOf': z.array(z.any()).refine(
             arr =>
               arr.some(
-                (item: any) =>
-                  item &&
-                  typeof item === 'object' &&
-                  item.properties &&
-                  typeof item.properties === 'object' &&
-                  item.properties.component &&
-                  typeof item.properties.component === 'object' &&
-                  'const' in item.properties.component,
+                item =>
+                  Boolean(
+                    item &&
+                      typeof item === 'object' &&
+                      'properties' in item &&
+                      item.properties &&
+                      typeof item.properties === 'object' &&
+                      'component' in item.properties &&
+                      item.properties.component &&
+                      typeof item.properties.component === 'object' &&
+                      'const' in item.properties.component,
+                  ),
               ),
             'Contains component schema',
           ),
         })`,
+      );
+    }
+
+    if (name === 'ComponentDefinition') {
+      // json-schema-to-zod ignores root-level "not" when combined with allOf/properties.
+      code = code.replace(
+        '.describe("Describes a component\'s validation schema and composition constraints.")',
+        `.refine(
+          val => !('anyOf' in val) && !('oneOf' in val),
+          'ComponentDefinition must not have root-level anyOf or oneOf.',
+        ).describe("Describes a component's validation schema and composition constraints.")`,
       );
     }
 

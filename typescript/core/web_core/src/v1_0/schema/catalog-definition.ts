@@ -94,7 +94,7 @@ export const LeafDefinitionSchema = z
           !z
             .union([
               z.object({
-                'properties': z.object({'component': z.record(z.string(), z.any())}),
+                'properties': z.object({'component': z.object({'const': z.any()})}),
                 'type': z.any().optional(),
               }),
               z.object({
@@ -102,15 +102,18 @@ export const LeafDefinitionSchema = z
                   .array(z.any())
                   .refine(
                     arr =>
-                      arr.some(
-                        (item: any) =>
+                      arr.some(item =>
+                        Boolean(
                           item &&
                           typeof item === 'object' &&
+                          'properties' in item &&
                           item.properties &&
                           typeof item.properties === 'object' &&
+                          'component' in item.properties &&
                           item.properties.component &&
                           typeof item.properties.component === 'object' &&
                           'const' in item.properties.component,
+                        ),
                       ),
                     'Contains component schema',
                   ),
@@ -161,6 +164,10 @@ export const ComponentDefinitionSchema = z
           .optional(),
       }),
     ),
+  )
+  .refine(
+    val => !('anyOf' in val) && !('oneOf' in val),
+    'ComponentDefinition must not have root-level anyOf or oneOf.',
   )
   .describe("Describes a component's validation schema and composition constraints.");
 export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>;

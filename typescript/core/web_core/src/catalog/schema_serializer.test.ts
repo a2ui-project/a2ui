@@ -1261,4 +1261,45 @@ describe('built-in basic catalogs', () => {
       }
     });
   }
+
+  it('preserves specDef references across .describe(), avoids leaking def metadata, and resolves union disjointness', () => {
+    const ColorToken = specDef('ColorToken', z.enum(['primary', 'secondary']).default('primary'), {
+      keywords: {title: 'ColorToken'},
+    });
+    const ColorValue = specDef('ColorValue', z.union([ColorToken, z.number()]));
+    const BoxComponent: ComponentApi = {
+      name: 'Box',
+      schema: spec(
+        z
+          .object({
+            id: z.string(),
+            component: z.literal('Box'),
+            color: ColorValue.describe('Override color description').optional(),
+            token: ColorToken.optional(),
+          })
+          .strict(),
+        {mixins: []},
+      ),
+    };
+    const cat = new Catalog('https://example.com/cat', '1.0', [BoxComponent], []);
+    const doc = cat.toJson();
+    const defs = doc.$defs as Record<string, any>;
+    assert.deepStrictEqual(defs.ColorToken, {
+      type: 'string',
+      enum: ['primary', 'secondary'],
+      title: 'ColorToken',
+      default: 'primary',
+    });
+    assert.deepStrictEqual(defs.ColorValue, {
+      oneOf: [{$ref: '#/$defs/ColorToken'}, {type: 'number'}],
+    });
+    const boxProps = (doc.components as Record<string, any>).Box.properties;
+    assert.deepStrictEqual(boxProps.color, {
+      $ref: '#/$defs/ColorValue',
+      description: 'Override color description',
+    });
+    assert.deepStrictEqual(boxProps.token, {
+      $ref: '#/$defs/ColorToken',
+    });
+  });
 });
