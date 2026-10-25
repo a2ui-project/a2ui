@@ -89,6 +89,12 @@ class ChatEntry {
 /// errors the renderer meets, go back to it as the next user turn.
 class ChatSession extends ChangeNotifier {
   ChatSession({required this.client}) {
+    processor = MessageProcessor(
+      catalogs: [_catalog],
+      defaultVersion: A2uiProtocolVersion.v1_0,
+      validationConfig: ValidationConfig.relaxed,
+      outboundListener: _sendMessage,
+    );
     processor.model.onSurfaceCreated.subscribe(_addSurface);
     processor.model.onSurfaceDeleted.subscribe(_removeSurface);
     processor.model.onAction.subscribe(_sendAction);
@@ -97,12 +103,9 @@ class ChatSession extends ChangeNotifier {
   final LlmClient client;
 
   /// The renderer's message processor, with the checks that a half-streamed
-  /// surface would fail turned off.
-  final MessageProcessor<ComponentImplementation> processor = MessageProcessor(
-    catalogs: [_catalog],
-    defaultVersion: A2uiProtocolVersion.v1_0,
-    validationConfig: ValidationConfig.relaxed,
-  );
+  /// surface would fail turned off. Its calls of the model's functions, and
+  /// its responses to the model's calls, go to the model as the next turn.
+  late final MessageProcessor<ComponentImplementation> processor;
 
   static final String _version = A2uiProtocolVersion.v1_0.jsonValue;
 
@@ -277,11 +280,13 @@ class ChatSession extends ChangeNotifier {
     _notify();
   }
 
-  void _sendAction(A2uiRendererAction action) {
+  void _sendAction(A2uiRendererAction action) =>
+      _sendMessage(ActionMessage(version: _version, action: action));
+
+  /// Sends [message] to the model as the next turn.
+  void _sendMessage(RendererToAgentMessage message) {
     _errorTurns = 0;
-    final String turn = _clientTurn([
-      ActionMessage(version: _version, action: action),
-    ]);
+    final String turn = _clientTurn([message]);
     unawaited(_enqueue(() => _runTurn(turn)));
   }
 
@@ -301,6 +306,10 @@ class ChatSession extends ChangeNotifier {
               'action ${action.name}',
             ErrorMessage(:final A2uiRendererError error) =>
               'error ${error.code}',
+            CallAgentFunctionMessage(:final String functionCallId) =>
+              'function call $functionCallId',
+            RendererFunctionResponseMessage(:final response) =>
+              'function response ${response.functionCallId}',
             _ => message.runtimeType.toString(),
           },
       ].join(', '),

@@ -112,6 +112,56 @@ void main() {
     expect(find.text('Sorry, that surface does not exist.'), findsOneWidget);
   });
 
+  testWidgets('sends an agent function call and takes its response from '
+      'the reply', (tester) async {
+    final client = ControlledClient();
+    final session = ChatSession(client: client);
+    addTearDown(session.dispose);
+    await tester.pumpWidget(ChatApp(session: session));
+
+    unawaited(session.send('Make a surface.'));
+    await tester.pump();
+    client.reply.add(block([createSurface('s')]));
+    await client.reply.close();
+    await tester.pump();
+
+    final Future<Object?> result = session.processor.callAgentFunction(
+      's',
+      FunctionCall(call: 'lookup', args: {'key': 'k'}),
+    );
+    await tester.pump();
+
+    expect(client.requests, hasLength(2));
+    final sent = jsonDecode(client.requests[1].last.text) as Map;
+    final messages = (sent['a2ui'] as Map)['messages'] as List;
+    final call = (messages.single as Map)['callAgentFunction'] as Map;
+    expect(call, {
+      'surfaceId': 's',
+      'functionCallId': isA<String>(),
+      'callFunction': {
+        '@call': 'lookup',
+        'args': {'key': 'k'},
+      },
+    });
+
+    client.reply.add(
+      block([
+        {
+          'version': 'v1.0',
+          'agentFunctionResponse': {
+            'functionCallId': call['functionCallId'],
+            'value': 42,
+          },
+        },
+      ]),
+    );
+    await client.reply.close();
+    await tester.pump();
+
+    expect(await result, 42);
+    expect(errorsOf(session), isEmpty);
+  });
+
   testWidgets('reports an error again when the reply to it repeats it', (
     tester,
   ) async {
