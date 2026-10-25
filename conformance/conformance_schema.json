@@ -245,9 +245,9 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["processor", "surface", "first", "second"]
+            "enum": ["surface", "first", "second"]
           },
-          "description": "Listeners subscribed for a problem reporting case, in subscription order. Defaults to [\"processor\"]. `processor`, `first` and `second` subscribe to the group. `surface` subscribes to each surface."
+          "description": "Listeners subscribed to each surface's `onError` and `onWarning` for a problem reporting case, in subscription order. Defaults to [\"surface\"]."
         },
         "throwOnFirstReport": {
           "type": "boolean",
@@ -483,7 +483,6 @@
         "op": {
           "type": "string",
           "enum": [
-            "add_surface",
             "await_delivery",
             "construct_resolver",
             "delete",
@@ -508,14 +507,6 @@
         "property": {
           "type": "string",
           "description": "Target property name on a resolved node."
-        },
-        "standalone": {
-          "type": "boolean",
-          "description": "Whether construct_resolver builds its surface outside the processor's group before add_surface attaches it."
-        },
-        "components": {
-          "$ref": "#/$defs/NodeResolutionComponents",
-          "description": "Components added to a standalone surface before resolving it."
         },
         "disposeImmediately": {
           "type": "boolean",
@@ -581,16 +572,6 @@
             "$ref": "#/$defs/ExpectReport"
           },
           "description": "Problem reports delivered since the start of the case or the previous `expect_reports` assertion, in delivery order."
-        },
-        "expectLogged": {
-          "type": "array",
-          "items": {"type": "string"},
-          "description": "Substrings that must appear in the platform log output after this step."
-        },
-        "expectNotLogged": {
-          "type": "array",
-          "items": {"type": "string"},
-          "description": "Substrings that must not appear in the platform log output after this step."
         },
         "expectFunctionCalls": {
           "type": "integer",
@@ -1776,7 +1757,7 @@
         },
         "listener": {
           "type": "string",
-          "enum": ["processor", "surface", "first", "second"],
+          "enum": ["surface", "first", "second"],
           "description": "Which listener received this report when a case subscribes multiple listeners."
         }
       },
