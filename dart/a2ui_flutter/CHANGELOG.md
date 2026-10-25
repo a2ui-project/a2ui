@@ -18,16 +18,7 @@
 
 ## Unreleased
 
-- `A2uiSurface` no longer delivers diagnostics during its build. Errors and
-  warnings found while it builds reach their listeners after the build, so a
-  listener may call `setState` directly, and the widget requests a frame
-  after they are delivered. A listener that defers its update to a later
-  frame must also schedule that frame. A surface deleted in the same turn
-  its `A2uiSurface` was built drops the diagnostics that build found and
-  had not delivered.
-- Requires the next release of `a2ui_core`, which adds
-  `SurfaceModel.onReportsDelivered` and `SurfaceGroupModel.onError`, which
-  the README uses. The release that publishes this version raises the
-  constraint.
+- Error and warning listeners no longer run while an `A2uiSurface` builds, so
+  they may call `setState` directly instead of deferring it to the next frame.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
 - Initial version.

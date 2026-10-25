@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import 'component_implementation.dart';
@@ -27,9 +26,8 @@ import 'surface_scope.dart';
 /// the resolver's root node. Until the root component arrives, and in place
 /// of a child that has not arrived, it shows a small progress indicator.
 /// Diagnostics found while it builds reach error and warning listeners after
-/// that build, never during it, so a listener may call
-/// `setState`. A frame is requested after they are delivered. Each mounted
-/// widget reports those diagnostics again.
+/// that build, never during it, so a listener may call `setState`. Each
+/// mounted widget reports those diagnostics again.
 ///
 /// The surface belongs to the caller. Remove this widget when the surface is
 /// deleted.
@@ -54,24 +52,16 @@ class A2uiSurface extends StatefulWidget {
 class _A2uiSurfaceState extends State<A2uiSurface> with SignalState {
   late NodeResolver<ComponentImplementation> _resolver;
   late void Function() _unsubscribe;
-  late Subscription _reportsDelivered;
 
   void _attach() {
     _resolver = NodeResolver<ComponentImplementation>(widget.surface);
     _unsubscribe = listenAfterFirst(_resolver.rootNode, (_) => signalChanged());
-    _reportsDelivered = widget.surface.onReportsDelivered.subscribe(
-      _requestFrame,
-    );
   }
 
   void _detach() {
     _unsubscribe();
-    _reportsDelivered.unsubscribe();
     _resolver.dispose();
   }
-
-  static void _requestFrame(void _) =>
-      SchedulerBinding.instance.ensureVisualUpdate();
 
   @override
   void initState() {

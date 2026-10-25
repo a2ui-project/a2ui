@@ -113,9 +113,8 @@ class _NodeRecord<T extends ComponentApi> {
 /// removing a cyclic edge rearms its diagnostics. Expression errors are not
 /// deduplicated.
 ///
-/// Diagnostics go to the surface's error and warning queue as they are found.
-/// They are delivered after the resolver call or data write that found them
-/// returns, and disposing the resolver drops none of them.
+/// Diagnostics are dispatched on the surface as they are found, so disposing
+/// the resolver drops none of them.
 class NodeResolver<T extends ComponentApi> {
   final SurfaceModel<T> _surface;
 

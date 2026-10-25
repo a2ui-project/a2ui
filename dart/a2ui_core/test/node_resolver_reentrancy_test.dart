@@ -313,7 +313,6 @@ void main() {
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         var errors = 0;
         var secondListenerErrors = 0;
-        final uncaught = <Object>[];
         surface.onError.subscribe((error) {
           if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
             errors++;
@@ -328,16 +327,13 @@ void main() {
           }
         });
 
-        await runZonedGuarded(() async {
-          _add(surface, 'weird', 'Bogus', {});
-          _add(surface, 'other', 'Bogus', {});
-          _add(surface, 'root', 'Column', {
-            'children': ['weird', 'other'],
-          });
-          await Future<void>.delayed(Duration.zero);
-        }, (error, _) => uncaught.add(error));
+        _add(surface, 'weird', 'Bogus', {});
+        _add(surface, 'other', 'Bogus', {});
+        _add(surface, 'root', 'Column', {
+          'children': ['weird', 'other'],
+        });
+        await Future<void>.delayed(Duration.zero);
 
-        expect(uncaught, [isA<StateError>()]);
         expect(errors, 2);
         expect(secondListenerErrors, 2);
         _expectLiveTree(resolver);

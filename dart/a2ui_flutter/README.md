@@ -49,20 +49,16 @@ final surfaces = ValueNotifier<List<SurfaceModel<ComponentImplementation>>>(
 
 void sendToAgent(RendererToAgentMessage message) => send(
   RendererToAgentMessagePayload.of(message).toJson(),
-  metadata: {
-    'a2uiClientDataModel': ?processor.getRendererDataModel(
-      version: A2uiProtocolVersion.v0_9,
-    ),
-  },
+  metadata: {'a2uiClientDataModel': ?processor.getRendererDataModel()},
 );
 
 processor.model.onAction.subscribe(
   (action) => sendToAgent(ActionMessage(version: version, action: action)),
 );
-processor.model.onError.subscribe(
-  (error) => sendToAgent(ErrorMessage(version: version, error: error)),
-);
 processor.model.onSurfaceCreated.subscribe((surface) {
+  surface.onError.subscribe(
+    (error) => sendToAgent(ErrorMessage(version: version, error: error)),
+  );
   surfaces.value = [...surfaces.value, surface];
 });
 processor.model.onSurfaceDeleted.subscribe((id) {
@@ -74,7 +70,12 @@ processor.model.onSurfaceDeleted.subscribe((id) {
 
 void onAgentMessages(Object? json) {
   try {
-    processor.processMessages(json);
+    processor.processMessages(
+      AgentToRendererMessagePayload.fromJson(
+        json,
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      ),
+    );
   } on A2uiError catch (error) {
     log('${error.code}: ${error.message}');
   }
@@ -97,15 +98,11 @@ processor.model.dispose();
 
 - The basic components are Material widgets. Render surfaces under a
   `MaterialApp` and inside a `Material`, such as a `Scaffold` body.
-- Send `processor.getRendererDataModel(version: ...)` as
-  `a2uiClientDataModel` in the transport metadata of each message to the
-  agent, when it is not null.
+- Send `processor.getRendererDataModel()` as `a2uiClientDataModel` in the
+  transport metadata of each message to the agent, when it is not null.
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
-- Error listeners may call `setState` directly. A listener that defers its
-  update to a later frame must also schedule that frame. Do not call
-  `processMessages` from a build method, since its listeners run before it
-  returns.
+- Error listeners may call `setState` directly.
 - On macOS, network images and media need the
   `com.apple.security.network.client` entitlement.
 

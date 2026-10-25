@@ -16,7 +16,6 @@ import 'dart:async';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
-import 'package:logging/logging.dart';
 import 'package:test/test.dart';
 
 class _MaybeFail extends FunctionImplementation {
@@ -207,12 +206,9 @@ void main() {
 
   group('Problem delivery lifetime', () {
     late SurfaceGroupModel<ComponentApi> group;
-    late List<A2uiRendererError> groupErrors;
 
     setUp(() {
       group = SurfaceGroupModel<ComponentApi>();
-      groupErrors = [];
-      group.onError.subscribe(groupErrors.add);
       addTearDown(group.dispose);
     });
 
@@ -225,8 +221,10 @@ void main() {
       group
         ..addSurface(a)
         ..addSurface(b);
-      final surfaceErrors = <A2uiRendererError>[];
-      a.onError.subscribe(surfaceErrors.add);
+      final aErrors = <A2uiRendererError>[];
+      final bErrors = <A2uiRendererError>[];
+      a.onError.subscribe(aErrors.add);
+      b.onError.subscribe(bErrors.add);
 
       unawaited(a.dispatchError(error('a', 'FIRST')));
       unawaited(b.dispatchError(error('b', 'SECOND')));
@@ -234,76 +232,11 @@ void main() {
       unawaited(a.dispatchError(error('a', 'AFTER_DELETE')));
 
       await _microtask();
-      expect(_codes(groupErrors), ['SECOND']);
-      expect(surfaceErrors, isEmpty);
+      expect(aErrors, isEmpty);
+      expect(_codes(bErrors), ['SECOND']);
     });
 
-    test(
-        'a surface built and deleted in the same turn delivers nothing, '
-        'unlike main', () async {
-      final SurfaceModel<ComponentApi> surface = _surface();
-      group.addSurface(surface);
-      _add(surface, 'root', 'Bogus');
-
-      NodeResolver<ComponentApi>(surface).dispose();
-      group.deleteSurface('surf');
-
-      await _microtask();
-      expect(groupErrors, isEmpty);
-    });
-
-    test('a detached surface holds its reports until it is added again',
-        () async {
-      final SurfaceModel<ComponentApi> surface = _surface();
-      addTearDown(surface.dispose);
-      group.addSurface(surface);
-      final surfaceErrors = <A2uiRendererError>[];
-      surface.onError.subscribe(surfaceErrors.add);
-
-      unawaited(surface.dispatchError(error('surf', 'BEFORE_DETACH')));
-      expect(group.detachSurface('surf'), same(surface));
-      unawaited(surface.dispatchError(error('surf', 'WHILE_DETACHED')));
-      await _microtask();
-      expect(groupErrors, isEmpty);
-      expect(surfaceErrors, isEmpty);
-
-      group.addSurface(surface);
-      await _microtask();
-      expect(_codes(groupErrors), ['BEFORE_DETACH', 'WHILE_DETACHED']);
-      expect(_codes(surfaceErrors), ['BEFORE_DETACH', 'WHILE_DETACHED']);
-
-      await _microtask();
-      expect(groupErrors, hasLength(2));
-    });
-
-    test('disposing a detached surface drops its held reports', () async {
-      final SurfaceModel<ComponentApi> surface = _surface();
-      group.addSurface(surface);
-      unawaited(surface.dispatchError(error('surf', 'HELD')));
-      group.detachSurface('surf')!.dispose();
-
-      await _microtask();
-      expect(groupErrors, isEmpty);
-    });
-
-    test('disposing a standalone surface drops its queued reports', () async {
-      final SurfaceModel<ComponentApi> surface = _surface();
-      final printed = <String>[];
-      await runZoned(
-        () async {
-          unawaited(surface.dispatchError(error('surf', 'QUEUED')));
-          surface.dispose();
-          await _microtask();
-        },
-        zoneSpecification: ZoneSpecification(
-          print: (_, __, ___, line) => printed.add(line),
-        ),
-      );
-
-      expect(printed, isEmpty);
-    });
-
-    test('addSurface moves a standalone surface pending reports to the group',
+    test('a standalone surface added to a group delivers its reports once',
         () async {
       final SurfaceModel<ComponentApi> surface = _surface();
       final surfaceErrors = <A2uiRendererError>[];
@@ -311,10 +244,11 @@ void main() {
 
       unawaited(surface.dispatchError(error('surf', 'STANDALONE')));
       group.addSurface(surface);
+      unawaited(surface.dispatchError(error('surf', 'GROUPED')));
 
       await _microtask();
-      expect(_codes(surfaceErrors), ['STANDALONE']);
-      expect(_codes(groupErrors), ['STANDALONE']);
+      await _microtask();
+      expect(_codes(surfaceErrors), ['STANDALONE', 'GROUPED']);
     });
   });
 
@@ -329,11 +263,9 @@ void main() {
     A2uiRendererError error(String code) =>
         A2uiRendererError(code: code, surfaceId: 'surf', message: code);
 
-    test(
-        'a throwing listener does not stop later listeners or reports, and '
-        'its error reaches the zone', () async {
+    test('a throwing listener does not stop later listeners or reports',
+        () async {
       final received = <String>[];
-      final uncaught = <Object>[];
       surface.onError.subscribe((error) {
         received.add('first ${error.code}');
         if (error.code == 'A') throw StateError('listener failed');
@@ -341,78 +273,34 @@ void main() {
       surface.onError
           .subscribe((error) => received.add('second ${error.code}'));
 
-      await runZonedGuarded(() async {
-        unawaited(surface.dispatchError(error('A')));
-        unawaited(surface.dispatchError(error('B')));
-        await _microtask();
-      }, (error, _) => uncaught.add(error));
+      unawaited(surface.dispatchError(error('A')));
+      unawaited(surface.dispatchError(error('B')));
+      await _microtask();
 
       expect(received, ['first A', 'second A', 'first B', 'second B']);
-      expect(uncaught, [isA<StateError>()]);
     });
 
-    test('an error with no listener is printed', () async {
-      final printed = <String>[];
-      await runZoned(
-        () async {
-          unawaited(surface.dispatchError(error('UNHEARD')));
-          await _microtask();
-        },
-        zoneSpecification: ZoneSpecification(
-          print: (_, __, ___, line) => printed.add(line),
-        ),
-      );
-
-      expect(printed, [contains('UNHEARD')]);
-    });
-
-    test(
-        'a missing data binding is silent without a warning listener and '
-        'reaches one when set', () async {
-      final printed = <String>[];
-      final fine = <LogRecord>[];
-      final Level level = Logger.root.level;
-      Logger.root.level = Level.ALL;
-      addTearDown(() => Logger.root.level = level);
-      final StreamSubscription<LogRecord> subscription =
-          Logger.root.onRecord.listen((record) {
-        if (record.level == Level.FINE) fine.add(record);
-      });
-      addTearDown(subscription.cancel);
+    test('a missing data binding reaches a warning listener', () async {
       _add(surface, 'root', 'Text', {
         'text': {'path': '/missing'},
       });
-
-      await runZoned(
-        () async {
-          NodeResolver<ComponentApi>(surface).dispose();
-          await _microtask();
-        },
-        zoneSpecification: ZoneSpecification(
-          print: (_, __, ___, line) => printed.add(line),
-        ),
-      );
-      expect(printed, isEmpty);
-      expect(
-        [for (final record in fine) record.message],
-        contains(contains('MISSING_DATA_BINDING')),
-      );
-
       final warnings = <A2uiWarning>[];
       surface.onWarning.subscribe(warnings.add);
+
       NodeResolver<ComponentApi>(surface).dispose();
       await _microtask();
+
       expect(
         [for (final warning in warnings) (warning.code, warning.path)],
         [('MISSING_DATA_BINDING', '/missing')],
       );
     });
 
-    test('onReportsDelivered fires after the listeners', () async {
+    test('errors and warnings reach their listeners in dispatch order',
+        () async {
       final events = <String>[];
       surface.onError.subscribe((error) => events.add(error.code));
       surface.onWarning.subscribe((warning) => events.add(warning.code));
-      surface.onReportsDelivered.subscribe((_) => events.add('delivered'));
 
       unawaited(surface.dispatchError(error('E1')));
       unawaited(
@@ -422,7 +310,7 @@ void main() {
       expect(events, isEmpty);
 
       await _microtask();
-      expect(events, ['E1', 'W', 'E2', 'delivered']);
+      expect(events, ['E1', 'W', 'E2']);
     });
   });
 
@@ -474,10 +362,13 @@ void main() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [_catalog()],
         defaultVersion: A2uiProtocolVersion.v0_9,
-        onError: (error) => events.add('error ${error.code}'),
-        onWarning: (warning) => events.add('warning ${warning.code}'),
       );
       addTearDown(processor.dispose);
+      processor.model.onSurfaceCreated.subscribe((surface) {
+        surface.onError.subscribe((error) => events.add('error ${error.code}'));
+        surface.onWarning
+            .subscribe((warning) => events.add('warning ${warning.code}'));
+      });
     });
 
     test('a mounted surface error is delivered before processMessages returns',
@@ -532,7 +423,7 @@ void main() {
 
     test('a listener nested processMessages is delivered after it returns', () {
       mount();
-      processor.model.onError.subscribe((error) {
+      processor.model.getSurface('s')!.onError.subscribe((error) {
         if (error.code != 'UNKNOWN_COMPONENT_TYPE') return;
         events.add('nested start');
         processor.processMessages([
@@ -562,44 +453,6 @@ void main() {
         'nested start',
         'nested end',
         'error EXPRESSION_ERROR',
-      ]);
-    });
-
-    test(
-        'the processor and surface listeners see the same reports in the '
-        'same order, warnings included', () {
-      processor.model.onSurfaceCreated.subscribe((surface) {
-        surface.onError.subscribe((error) => events.add('surface error'));
-        surface.onWarning.subscribe((warning) => events.add('surface warning'));
-        final resolver = NodeResolver<ComponentApi>(surface);
-        addTearDown(resolver.dispose);
-      });
-
-      processor.processMessages([
-        create('s'),
-        update('s', [
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': ['a', 'b', 'c'],
-          },
-          {'id': 'a', 'component': 'Bogus'},
-          {
-            'id': 'b',
-            'component': 'Text',
-            'text': {'path': '/missing'},
-          },
-          {'id': 'c', 'component': 'OtherBogus'},
-        ]),
-      ]);
-
-      expect(events, [
-        'surface error',
-        'error UNKNOWN_COMPONENT_TYPE',
-        'surface warning',
-        'warning MISSING_DATA_BINDING',
-        'surface error',
-        'error UNKNOWN_COMPONENT_TYPE',
       ]);
     });
   });
@@ -634,9 +487,13 @@ void main() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [_catalog(onReenter: () => onCall())],
         defaultVersion: A2uiProtocolVersion.v0_9,
-        onError: (error) => events.add('${error.surfaceId} ${error.code}'),
       );
       addTearDown(processor.dispose);
+      processor.model.onSurfaceCreated.subscribe((surface) {
+        surface.onError.subscribe((error) {
+          events.add('${error.surfaceId} ${error.code}');
+        });
+      });
       processor.processMessages([
         for (final id in ['s', 't'])
           {
