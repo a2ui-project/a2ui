@@ -220,62 +220,6 @@ void main() {
     expect(find.text('Fixed the amount.'), findsOneWidget);
   });
 
-  testWidgets('sends an error whose details are not JSON', (tester) async {
-    final client = FakeClient([
-      [
-        block([
-          createSurface('s'),
-          updateDataModel('s', {'name': 'abc', 'pattern': '('}),
-          {
-            'version': 'v0.9',
-            'updateComponents': {
-              'surfaceId': 's',
-              'components': [
-                {
-                  'id': 'root',
-                  'component': 'Text',
-                  'text': {
-                    'call': 'formatString',
-                    'args': {
-                      'value':
-                          r'${regex(value: ${/name}, pattern: ${/pattern})}',
-                    },
-                    'returnType': 'string',
-                  },
-                },
-              ],
-            },
-          },
-        ]),
-      ],
-      ['Fixed the pattern.'],
-    ]);
-    final session = ChatSession(client: client);
-    addTearDown(session.dispose);
-    await tester.pumpWidget(ChatApp(session: session));
-
-    unawaited(session.send('Check my name.'));
-    await tester.pump();
-    await tester.pump();
-
-    expect(errorsOf(session), [startsWith('EXPRESSION_ERROR on "s"')]);
-    expect(client.requests, hasLength(2));
-    expect(jsonDecode(client.requests[1].last.text), {
-      'a2ui': {
-        'messages': [
-          {
-            'version': 'v0.9',
-            'error': allOf(
-              containsPair('code', 'EXPRESSION_ERROR'),
-              containsPair('surfaceId', 's'),
-            ),
-          },
-        ],
-      },
-    });
-    expect(find.text('Fixed the pattern.'), findsOneWidget);
-  });
-
   testWidgets('shows an error for a reply with no output', (tester) async {
     final client = FakeClient([
       [],

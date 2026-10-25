@@ -348,24 +348,10 @@ class ChatSession extends ChangeNotifier {
     );
   }
 
-  /// Shows [reported] and sends it to the model once the current turn ends,
-  /// with what its `details` hold that is not JSON written as strings.
+  /// Shows [error] and sends it to the model once the current turn ends.
   ///
   /// An error already reported since the current turn started is ignored.
-  void _report(A2uiRendererError reported) {
-    final error = reported.details == null
-        ? reported
-        : A2uiRendererError(
-            code: reported.code,
-            surfaceId: reported.surfaceId,
-            message: reported.message,
-            path: reported.path,
-            functionCallId: reported.functionCallId,
-            details: jsonDecode(
-              jsonEncode(reported.details, toEncodable: (value) => '$value'),
-            ),
-            additionalProperties: reported.additionalProperties,
-          );
+  void _report(A2uiRendererError error) {
     if (!_reported.add(jsonEncode(error))) return;
     _addEntry(
       ChatEntryKind.error,
