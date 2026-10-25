@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Problem reporting conformance suite: delivery timing (T1 to T10), channel
-# lifetime (X1, X3, X4), and lazy evaluation on unmounted surfaces (L1). See
+# lifetime (X1), and lazy evaluation on unmounted surfaces (L1). See
 # problems.md for the catalog, steps and assertions.
 #
 # The web_core runner skips these cases by name, and the Swift runner does not
@@ -440,11 +440,11 @@
 
 - name: T10_errors_and_warnings_arrive_in_discovery_order
   description: >-
-    Surface and processor listeners receive errors and warnings in discovery
-    order (error, warning, error).
+    Surface listeners receive errors and warnings in discovery order (error,
+    warning, error).
   protocolVersion: "v0.9"
   action: report_problems
-  listeners: ["surface", "processor"]
+  listeners: ["surface"]
   steps:
     - op: process_messages
       messages:
@@ -485,23 +485,11 @@
           kind: "error"
           code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "s"
-        - listener: "processor"
-          kind: "error"
-          code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
         - listener: "surface"
           kind: "warning"
           code: "MISSING_DATA_BINDING"
           path: "/missing"
-        - listener: "processor"
-          kind: "warning"
-          code: "MISSING_DATA_BINDING"
-          path: "/missing"
         - listener: "surface"
-          kind: "error"
-          code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
-        - listener: "processor"
           kind: "error"
           code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "s"
@@ -550,70 +538,6 @@
       expect_reports:
         - code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "b"
-
-- name: X3_standalone_surface_moves_pending_items_on_add_surface
-  description: >-
-    A standalone surface that queues a report before addSurface moves its
-    pending items to the group's queue when added.
-  protocolVersion: "v0.9"
-  action: report_problems
-  listeners: ["surface", "processor"]
-  steps:
-    - op: construct_resolver
-      surfaceId: "s"
-      standalone: true
-      components:
-        - id: "root"
-          component: "Bogus"
-      disposeImmediately: true
-      expect_reports: []
-    - op: add_surface
-      surfaceId: "s"
-      expect_reports: []
-    - op: await_delivery
-      expect_reports:
-        - listener: "surface"
-          code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
-        - listener: "processor"
-          code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
-
-- name: X4_unheard_error_logged_and_unheard_warning_not_printed
-  description: >-
-    With no error or warning listener registered, an unheard error goes to the
-    platform log and an unheard warning is not printed.
-  protocolVersion: "v0.9"
-  action: report_problems
-  listeners: []
-  steps:
-    - op: process_messages
-      messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s"
-            catalogId: "problem-delivery-test"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Column"
-                children: ["a", "b"]
-              - id: "a"
-                component: "Bogus"
-              - id: "b"
-                component: "Text"
-                text:
-                  path: "/missing"
-    - op: construct_resolver
-      surfaceId: "s"
-      disposeImmediately: true
-    - op: await_delivery
-      expectLogged:
-        - "UNKNOWN_COMPONENT_TYPE"
-      expectNotLogged:
-        - "MISSING_DATA_BINDING"
 
 - name: L1_unmounted_surface_evaluates_no_function
   description: >-

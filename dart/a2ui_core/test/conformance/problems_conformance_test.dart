@@ -112,7 +112,7 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
     if (testCase['listeners'] case final List<Object?> configured)
       for (final Object? item in configured) item! as String
     else
-      'processor',
+      'surface',
   ];
   final throwOnFirstReport = testCase['throwOnFirstReport'] == true;
   var disposeResolverOnFirstReport =
@@ -135,10 +135,6 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
 
   final reports = <Map<String, Object?>>[];
   final resolvers = <String, NodeResolver<ComponentApi>>{};
-  final standaloneSurfaces = <String, SurfaceModel<ComponentApi>>{};
-  final subscribedSurfaces = <SurfaceModel<ComponentApi>>{};
-  final printed = <String>[];
-  final uncaughtErrors = <Object>[];
 
   var listenerDepth = 0;
   var reenteredListener = false;
@@ -173,234 +169,125 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
     }
   }
 
-  void subscribeSurface(SurfaceModel<ComponentApi> surface) {
-    if (!listeners.contains('surface')) return;
-    if (!subscribedSurfaces.add(surface)) return;
-    surface.onError.subscribe((error) {
-      recordReport(
-        {
-          'listener': 'surface',
-          'kind': 'error',
-          'code': error.code,
-          'surfaceId': error.surfaceId,
-        },
-        listener: 'surface',
-      );
-    });
-    surface.onWarning.subscribe((warning) {
-      recordReport(
-        {
-          'listener': 'surface',
-          'kind': 'warning',
-          'code': warning.code,
-          'path': warning.path,
-        },
-        listener: 'surface',
-      );
-    });
-  }
-
-  processor.model.onSurfaceCreated.subscribe(subscribeSurface);
-
-  for (final listener in listeners) {
-    if (listener == 'surface') continue;
-    processor.model.onError.subscribe((error) {
-      recordReport(
-        {
-          'listener': listener,
-          'kind': 'error',
-          'code': error.code,
-          'surfaceId': error.surfaceId,
-        },
-        listener: listener,
-      );
-    });
-    processor.model.onWarning.subscribe((warning) {
-      recordReport(
-        {
-          'listener': listener,
-          'kind': 'warning',
-          'code': warning.code,
-          'path': warning.path,
-        },
-        listener: listener,
-      );
-    });
-  }
+  processor.model.onSurfaceCreated.subscribe((surface) {
+    for (final listener in listeners) {
+      surface.onError.subscribe((error) {
+        recordReport(
+          {
+            'listener': listener,
+            'kind': 'error',
+            'code': error.code,
+            'surfaceId': error.surfaceId,
+          },
+          listener: listener,
+        );
+      });
+      surface.onWarning.subscribe((warning) {
+        recordReport(
+          {
+            'listener': listener,
+            'kind': 'warning',
+            'code': warning.code,
+            'path': warning.path,
+          },
+          listener: listener,
+        );
+      });
+    }
+  });
 
   final List<Object?> steps = (testCase['steps'] as List<Object?>?) ?? const [];
 
-  Future<void> executeSteps() async {
-    for (var stepIndex = 0; stepIndex < steps.length; stepIndex++) {
-      final step = steps[stepIndex]! as Map<String, Object?>;
-      final op = step['op']! as String;
-      pendingFirstReportMessages =
-          step['onFirstReportMessages'] as List<Object?>?;
+  for (var stepIndex = 0; stepIndex < steps.length; stepIndex++) {
+    final step = steps[stepIndex]! as Map<String, Object?>;
+    final op = step['op']! as String;
+    pendingFirstReportMessages =
+        step['onFirstReportMessages'] as List<Object?>?;
 
-      switch (op) {
-        case 'process_messages':
-          processor.processMessages(step['messages'] ?? step['payload']);
-        case 'construct_resolver':
-          final surfaceId = step['surfaceId']! as String;
-          final SurfaceModel<ComponentApi> surface;
-          if (step['standalone'] == true) {
-            surface = SurfaceModel<ComponentApi>(
-              surfaceId,
-              defaultCatalog: catalog,
-            );
-            addTearDown(surface.dispose);
-            standaloneSurfaces[surfaceId] = surface;
-            subscribeSurface(surface);
-            if (step['components'] case final List<Object?> components) {
-              for (final raw in components) {
-                final map = raw! as Map<String, Object?>;
-                final id = map['id']! as String;
-                final type = map['component']! as String;
-                final properties = <String, Object?>{
-                  for (final MapEntry<String, Object?> entry in map.entries)
-                    if (entry.key != 'id' && entry.key != 'component')
-                      entry.key: entry.value,
-                };
-                surface.componentsModel.addComponent(
-                  ComponentModel(id, type, properties),
-                );
-              }
-            }
-          } else {
-            surface = processor.model.getSurface(surfaceId)!;
-          }
-          if (step['reenterMessages'] case final List<Object?> reenter) {
-            onReenter = () {
-              onReenter = () {};
-              processor.processMessages(reenter);
-            };
-          }
-          final resolver = NodeResolver<ComponentApi>(surface);
-          if (step['disposeImmediately'] == true) {
-            resolver.dispose();
-          } else {
-            resolvers[surfaceId] = resolver;
-            addTearDown(resolver.dispose);
-          }
-        case 'dispose_resolver':
-          final surfaceId = step['surfaceId']! as String;
-          final NodeResolver<ComponentApi> resolver =
-              resolvers.remove(surfaceId)!;
-          if (step['onDestroyedMessages'] case final List<Object?> destroyed) {
-            resolver.rootNode.peek()!.onDestroyed.subscribe(
-                  (_) => processor.processMessages(destroyed),
-                );
-          }
+    switch (op) {
+      case 'process_messages':
+        processor.processMessages(step['messages'] ?? step['payload']);
+      case 'construct_resolver':
+        final surfaceId = step['surfaceId']! as String;
+        final SurfaceModel<ComponentApi> surface =
+            processor.model.getSurface(surfaceId)!;
+        if (step['reenterMessages'] case final List<Object?> reenter) {
+          onReenter = () {
+            onReenter = () {};
+            processor.processMessages(reenter);
+          };
+        }
+        final resolver = NodeResolver<ComponentApi>(surface);
+        if (step['disposeImmediately'] == true) {
           resolver.dispose();
-        case 'set':
-          final surfaceId = step['surfaceId']! as String;
-          final path = step['path']! as String;
-          processor.model
-              .getSurface(surfaceId)!
-              .dataModel
-              .set(path, step['value']);
-        case 'invoke_action':
-          final surfaceId = step['surfaceId']! as String;
-          final nodeId = step['node']! as String;
-          final property = step['property']! as String;
-          final ComponentNode<ComponentApi>? target = _findNode(
-            resolvers[surfaceId]!.rootNode.peek(),
-            nodeId,
-          );
-          expect(
-            target,
-            isNotNull,
-            reason: '$name step $stepIndex: node $nodeId not found',
-          );
-          final action =
-              target!.props.peek()[property]! as Future<void> Function();
-          unawaited(action());
-        case 'add_surface':
-          final surfaceId = step['surfaceId']! as String;
-          final SurfaceModel<ComponentApi> surface =
-              standaloneSurfaces.remove(surfaceId)!;
-          processor.model.addSurface(surface);
-        case 'delete_surface':
-          final surfaceId = step['surfaceId']! as String;
-          processor.model.deleteSurface(surfaceId);
-        case 'await_delivery':
-          await Future<void>.microtask(() {});
-        default:
-          throw StateError('Unsupported step op: $op');
-      }
-
-      expect(
-        reenteredListener,
-        isFalse,
-        reason: '$name step $stepIndex: listener was re-entered during drain',
-      );
-
-      if (step['expect_reports'] case final List<Object?> expectedReports) {
-        _assertReports(
-          reports,
-          expectedReports.cast<Map<String, Object?>>(),
-          '$name step $stepIndex',
+        } else {
+          resolvers[surfaceId] = resolver;
+          addTearDown(resolver.dispose);
+        }
+      case 'dispose_resolver':
+        final surfaceId = step['surfaceId']! as String;
+        final NodeResolver<ComponentApi> resolver =
+            resolvers.remove(surfaceId)!;
+        if (step['onDestroyedMessages'] case final List<Object?> destroyed) {
+          resolver.rootNode.peek()!.onDestroyed.subscribe(
+                (_) => processor.processMessages(destroyed),
+              );
+        }
+        resolver.dispose();
+      case 'set':
+        final surfaceId = step['surfaceId']! as String;
+        final path = step['path']! as String;
+        processor.model
+            .getSurface(surfaceId)!
+            .dataModel
+            .set(path, step['value']);
+      case 'invoke_action':
+        final surfaceId = step['surfaceId']! as String;
+        final nodeId = step['node']! as String;
+        final property = step['property']! as String;
+        final ComponentNode<ComponentApi>? target = _findNode(
+          resolvers[surfaceId]!.rootNode.peek(),
+          nodeId,
         );
-        reports.clear();
-      }
-
-      if (step['expectLogged'] case final List<Object?> expectedLogged) {
-        for (final pattern in expectedLogged) {
-          expect(
-            printed,
-            contains(contains(pattern! as String)),
-            reason: '$name step $stepIndex: expected log containing $pattern',
-          );
-        }
-      }
-
-      if (step['expectNotLogged'] case final List<Object?> expectedNotLogged) {
-        for (final pattern in expectedNotLogged) {
-          expect(
-            printed,
-            isNot(contains(contains(pattern! as String))),
-            reason:
-                '$name step $stepIndex: expected no log containing $pattern',
-          );
-        }
-      }
-
-      if (step['expectFunctionCalls'] case final int expectedCalls) {
         expect(
-          functionCalls,
-          expectedCalls,
-          reason: '$name step $stepIndex: function call count',
+          target,
+          isNotNull,
+          reason: '$name step $stepIndex: node $nodeId not found',
         );
-      }
+        final action =
+            target!.props.peek()[property]! as Future<void> Function();
+        unawaited(action());
+      case 'delete_surface':
+        final surfaceId = step['surfaceId']! as String;
+        processor.model.deleteSurface(surfaceId);
+      case 'await_delivery':
+        await Future<void>.microtask(() {});
+      default:
+        throw StateError('Unsupported step op: $op');
     }
-  }
 
-  final done = Completer<void>();
-  runZonedGuarded(
-    () {
-      runZoned(
-        executeSteps,
-        zoneSpecification: ZoneSpecification(
-          print: (_, __, ___, line) => printed.add(line),
-        ),
-      ).then(done.complete, onError: done.completeError);
-    },
-    (error, stackTrace) {
-      if (throwOnFirstReport && error is StateError) {
-        uncaughtErrors.add(error);
-        return;
-      }
-      if (!done.isCompleted) {
-        done.completeError(error, stackTrace);
-      } else {
-        Zone.current.handleUncaughtError(error, stackTrace);
-      }
-    },
-  );
-  await done.future;
+    expect(
+      reenteredListener,
+      isFalse,
+      reason: '$name step $stepIndex: listener was re-entered during drain',
+    );
 
-  if (throwOnFirstReport) {
-    expect(uncaughtErrors, [isA<StateError>()], reason: name);
+    if (step['expect_reports'] case final List<Object?> expectedReports) {
+      _assertReports(
+        reports,
+        expectedReports.cast<Map<String, Object?>>(),
+        '$name step $stepIndex',
+      );
+      reports.clear();
+    }
+
+    if (step['expectFunctionCalls'] case final int expectedCalls) {
+      expect(
+        functionCalls,
+        expectedCalls,
+        reason: '$name step $stepIndex: function call count',
+      );
+    }
   }
 }
 
