@@ -810,22 +810,6 @@ void main() {
         );
       });
 
-      test('in an object position as it is', () {
-        final Catalog<ComponentApi, FunctionImplementation> catalog =
-            catalogWith({
-          'status': Schema.object(
-            properties: {'valid': Schema.boolean(), 'note': Schema.string()},
-          ),
-        });
-        final args = <String, dynamic>{
-          'value': {
-            'status': {'valid': true, 'note': 'checked'},
-          },
-        };
-
-        expect(catalog.invoke('echo', args, context), args['value']);
-      });
-
       test('in a catalog before v1.0 as its JSON object', () {
         expect(
           () => catalogWith(

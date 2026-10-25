@@ -1193,26 +1193,19 @@ extension CatalogInvokerExtension
   /// match. Null arguments are left unchecked, as in [invoke], and a
   /// [ValidationResult] is checked as its JSON object.
   ///
-  /// In a catalog for v1.0 or later, a validation result may also stand for
-  /// its validity, as a DynamicBoolean coerces one: the arguments match when
-  /// they do with every [ValidationResult], and every object with a boolean
-  /// `valid`, replaced by that boolean, or else with none replaced. When both
-  /// fail, the errors are those with none replaced.
+  /// In a catalog for v1.0 or later, a [ValidationResult], or an object with
+  /// a boolean `valid`, is checked as that boolean instead, as a
+  /// DynamicBoolean coerces one.
   List<ValidationError> argumentErrors(
     FunctionImplementation fn,
     Map<String, dynamic> args,
   ) {
     final A2uiProtocolVersion? version = protocolVersion;
-    if (version != null && version.isAtLeast(A2uiProtocolVersion.v1_0)) {
-      final List<ValidationError> errors = _errorsOf(fn, {
-        for (final MapEntry<String, dynamic> entry in args.entries)
-          entry.key: _checkable(entry.value, validity: true),
-      });
-      if (errors.isEmpty) return errors;
-    }
+    final bool validity =
+        version != null && version.isAtLeast(A2uiProtocolVersion.v1_0);
     return _errorsOf(fn, {
       for (final MapEntry<String, dynamic> entry in args.entries)
-        entry.key: _checkable(entry.value, validity: false),
+        entry.key: _checkable(entry.value, validity: validity),
     });
   }
 
