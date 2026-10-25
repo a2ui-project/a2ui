@@ -36,7 +36,7 @@ export 'src/expressions/expression_parser.dart';
 export 'src/primitives/cancellation.dart';
 export 'src/primitives/errors.dart';
 // Event notifications for discrete lifecycle events.
-export 'src/primitives/event_notifier.dart' hide listenersOf;
+export 'src/primitives/event_notifier.dart';
 // Protocol versions and version compatibility.
 export 'src/primitives/protocol_version.dart';
 // Reactivity (re-exports preact_signals primitives).

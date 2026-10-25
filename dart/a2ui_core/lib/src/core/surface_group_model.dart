@@ -29,10 +29,7 @@ class SurfaceGroupModel<T extends ComponentApi> {
   final _onSurfaceCreated = EventNotifier<SurfaceModel<T>>();
   final _onSurfaceDeleted = EventNotifier<String>();
   final _onAction = EventNotifier<A2uiRendererAction>();
-  final _onError = EventNotifier<A2uiRendererError>();
-  final _onWarning = EventNotifier<A2uiWarning>();
-  late final _channel =
-      ProblemChannel(onError: _onError, onWarning: _onWarning);
+  final _channel = ProblemChannel();
 
   /// Fires when a new surface is added.
   EventSource<SurfaceModel<T>> get onSurfaceCreated => _onSurfaceCreated;
@@ -43,18 +40,7 @@ class SurfaceGroupModel<T extends ComponentApi> {
   /// Fires when an action is dispatched from ANY surface in the group.
   EventSource<A2uiRendererAction> get onAction => _onAction;
 
-  /// Fires for every error from every surface in the group, after that
-  /// surface's own [SurfaceModel.onError] listeners and in the same order.
-  EventSource<A2uiRendererError> get onError => _onError;
-
-  /// Fires for every warning from every surface in the group, after that
-  /// surface's own [SurfaceModel.onWarning] listeners and in the same order.
-  EventSource<A2uiWarning> get onWarning => _onWarning;
-
   /// Adds a surface to the group.
-  ///
-  /// Errors and warnings the surface queued and has not delivered are
-  /// delivered through the group, in order.
   ///
   /// Throws [A2uiStateError] when the group already holds a surface with the
   /// same id.
@@ -72,8 +58,7 @@ class SurfaceGroupModel<T extends ComponentApi> {
     _onSurfaceCreated.emit(surface);
   }
 
-  /// Removes a surface from the group by its ID and disposes of it, dropping
-  /// the errors and warnings it queued and has not delivered.
+  /// Removes a surface from the group by its ID.
   void deleteSurface(String id) {
     final SurfaceModel<T>? surface = _remove(id);
     if (surface != null) {
@@ -90,16 +75,9 @@ class SurfaceGroupModel<T extends ComponentApi> {
   /// [onAction]. The caller then owns the surface. It can put the same object
   /// back with [addSurface], which fires [onSurfaceCreated], as when a
   /// deletion is undone, or must dispose of it.
-  ///
-  /// The surface's undelivered errors and warnings, and any it reports while
-  /// detached, are held until [addSurface] delivers them or disposal drops
-  /// them.
   SurfaceModel<T>? detachSurface(String id) {
     final SurfaceModel<T>? surface = _remove(id);
-    if (surface != null) {
-      attachProblemChannel(surface, ProblemChannel.holding());
-      _onSurfaceDeleted.emit(id);
-    }
+    if (surface != null) _onSurfaceDeleted.emit(id);
     return surface;
   }
 
@@ -123,8 +101,6 @@ class SurfaceGroupModel<T extends ComponentApi> {
     _onSurfaceCreated.dispose();
     _onSurfaceDeleted.dispose();
     _onAction.dispose();
-    _onError.dispose();
-    _onWarning.dispose();
   }
 }
 
