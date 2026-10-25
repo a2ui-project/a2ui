@@ -67,7 +67,7 @@ def custom_catalog_v10():
                     "properties": {
                         "id": {"type": "string"},
                         "component": {"const": "CustomCard"},
-                        "child": {"type": "string"},
+                        "child": {"$ref": "common_types.json#/$defs/ComponentId"},
                     },
                     "required": ["id", "component", "child"],
                 },

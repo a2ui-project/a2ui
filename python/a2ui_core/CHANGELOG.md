@@ -1,5 +1,13 @@
 ## Unreleased
 
+- From v0.9, a component its catalog declares with no `ComponentId` or
+  `ChildList` property has no child references. Previously any of its string
+  properties that named a component on the surface, such as an `Icon` named
+  `mail` inside the `Row` whose id is `mail`, was read as one, so a valid
+  surface could fail topology checks as a cycle. A property declared as a plain
+  string is read as text, as the protocol's catalog rules require. v0.8
+  catalogs, and components a catalog does not declare, still infer references
+  from property names and values.
 - Schema validation never fetches a `$ref` over the network. A cross-catalog
   `$ref` whose JSON Pointer passes through an array, such as
   `<peer>#/components/Button/allOf/1/properties/action`, now resolves against

@@ -687,6 +687,21 @@ def test_surface_components_model_child_references():
     assert scm.get_child_ids("c1") == []
 
 
+@pytest.mark.parametrize("version", ["0.9", "1.0"])
+def test_surface_components_model_leaf_prop_naming_a_component_is_not_a_child(
+    version,
+):
+    # From v0.9 the catalog declares every child with a $ref; Icon declares none.
+    cat = BasicCatalog(version)
+    scm = SurfaceComponentsModel(default_catalog=cat)
+    scm.add_component(ComponentModel("root", "Row", cat, {"children": ["mail"]}))
+    scm.add_component(ComponentModel("mail", "Row", cat, {"children": ["mail_icon"]}))
+    scm.add_component(ComponentModel("mail_icon", "Icon", cat, {"name": "mail"}))
+
+    assert scm.get_child_references("mail_icon") == []
+    scm.validate_topology()
+
+
 def test_surface_components_model_cycle_detection_ignores_orphans():
     cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
