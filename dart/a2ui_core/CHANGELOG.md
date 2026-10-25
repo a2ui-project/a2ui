@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `regex` with an invalid pattern puts the parse message in the error's
+  `details` instead of the `FormatException` object, so the error encodes as
+  JSON.
 - **Breaking:** Errors and warnings reach their listeners after the call that
   found them returns: at the end of each message that `processMessages`
   applies, or a microtask after any other call. Disposing the `NodeResolver`
