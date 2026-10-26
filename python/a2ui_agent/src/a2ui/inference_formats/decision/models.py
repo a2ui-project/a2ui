@@ -80,6 +80,17 @@ class QuestionKind(_WireEnum):
     SCORE = "score"
 
 
+class VarietyMode(_WireEnum):
+    """How the layout planner samples choices from question distributions.
+
+    `ARGMAX` picks the highest-probability option deterministically.
+    `NEAR_TOP` samples among options within `variety_margin` of the top.
+    """
+
+    ARGMAX = "argmax"
+    NEAR_TOP = "near_top"
+
+
 class SemanticType(_WireEnum):
     """Semantic classification of a payload pointer's value.
 
@@ -737,6 +748,30 @@ class LayoutBrief:
         return [f"{s.role}:{','.join(s.pointers)}" for s in self.sections]
 
 
+@dataclass(frozen=True)
+class AuthoredCopy:
+    """Optional authored copy supplied by the model in the decision block.
+
+    Attributes:
+        title: Optional title string for the surface.
+        summary: Optional one-line summary string for the surface.
+    """
+
+    title: str | None = None
+    summary: str | None = None
+
+    def __post_init__(self) -> None:
+        title = self.title.strip() if self.title else None
+        summary = self.summary.strip() if self.summary else None
+        object.__setattr__(self, "title", title or None)
+        object.__setattr__(self, "summary", summary or None)
+
+    @property
+    def has_content(self) -> bool:
+        """Whether any copy string is present."""
+        return bool(self.title or self.summary)
+
+
 def _validate_unit_interval(name: str, value: float) -> None:
     """Validates that a threshold or margin parameter lies in [0.0, 1.0]."""
     if not (0.0 <= value <= 1.0):
@@ -771,6 +806,10 @@ class SynthesisConfig:
     """
     use_archetypes: bool = True
     """When False, synthesis skips the archetype planner and uses the flat path."""
+    variety: VarietyMode = VarietyMode.ARGMAX
+    """How choices are sampled from question distributions (ARGMAX or NEAR_TOP)."""
+    variety_margin: float = 0.15
+    """In NEAR_TOP mode, options within this margin of top probability are sampled."""
 
     def __post_init__(self) -> None:
         _validate_unit_interval(
@@ -781,6 +820,10 @@ class SynthesisConfig:
         )
         _validate_unit_interval("abstain_threshold", self.abstain_threshold)
         _validate_unit_interval("entropy_switch_margin", self.entropy_switch_margin)
+        if not (0.0 < self.variety_margin <= 1.0):
+            raise ValueError(
+                f"variety_margin must be in (0.0, 1.0], got {self.variety_margin}."
+            )
         if self.mutable_confidence_threshold < self.template_confidence_threshold:
             raise ValueError(
                 "mutable_confidence_threshold must be >= template_confidence_threshold."
@@ -848,9 +891,12 @@ class SynthesisOutput:
     """Wall-clock milliseconds spent waiting on the decision model backend."""
     decision_calls: int = 0
     """Number of backend `predict` or `answer` calls made during synthesis."""
+    decision_answers: tuple[DecisionAnswer, ...] = ()
+    """The batch answers that produced the layout plan, in question order."""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "trace", tuple(self.trace))
+        object.__setattr__(self, "decision_answers", tuple(self.decision_answers))
 
     def to_express(
         self,

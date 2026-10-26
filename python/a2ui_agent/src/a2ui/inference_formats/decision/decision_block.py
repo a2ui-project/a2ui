@@ -38,6 +38,8 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "fallback_dsl": ("fallbackDsl", "fallback_dsl"),
     "layout": ("layout",),
     "mutable_paths": ("mutablePaths", "mutable_paths"),
+    "title": ("title",),
+    "summary": ("summary",),
 }
 
 
@@ -115,13 +117,16 @@ class DecisionBlock:
     fallback_dsl: str | None = None
     layout: tuple[str, ...] = ()
     mutable_paths: tuple[str, ...] = ()
+    title: str | None = None
+    summary: str | None = None
 
     @classmethod
     def from_mapping(cls, source: Mapping[str, Any]) -> DecisionBlock:
         """Reads a block from a parsed JSON object.
 
         Accepts the camelCase wire names (`surfaceId`, `template`,
-        `fallbackDsl`, `layout`, `mutablePaths`) and their snake_case spellings.
+        `fallbackDsl`, `layout`, `mutablePaths`, `title`, `summary`) and their
+        snake_case spellings.
 
         Raises:
             ValueError: If `intent` is missing or blank, or `payload` is a
@@ -146,7 +151,8 @@ class DecisionBlock:
                     f"Decision block field '{_FIELD_ALIASES[key][0]}' must be a"
                     f" string, got {type(value).__name__}."
                 )
-            return value or None
+            stripped = value.strip()
+            return stripped or None
 
         layout = _parse_layout_items(_first_present(source, _FIELD_ALIASES["layout"]))
         mutable_paths = _parse_mutable_paths(
@@ -160,6 +166,8 @@ class DecisionBlock:
             fallback_dsl=_optional_str("fallback_dsl"),
             layout=layout,
             mutable_paths=mutable_paths,
+            title=_optional_str("title"),
+            summary=_optional_str("summary"),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -175,6 +183,10 @@ class DecisionBlock:
             out["layout"] = list(self.layout)
         if self.mutable_paths:
             out["mutablePaths"] = list(self.mutable_paths)
+        if self.title is not None:
+            out["title"] = self.title
+        if self.summary is not None:
+            out["summary"] = self.summary
         return out
 
 

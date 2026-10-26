@@ -48,6 +48,7 @@ from .layout_planner import LayoutPlanner, PlannerState
 from .models import (
     BRIEF_ITEM_PATTERN,
     MAX_BRIEF_SECTIONS,
+    AuthoredCopy,
     BlockBindings,
     BriefSection,
     CalibrationPoint,
@@ -79,6 +80,7 @@ from .models import (
     SynthesisConfig,
     SynthesisOutput,
     SynthesisStage,
+    VarietyMode,
     coerce_decision_payload,
 )
 from .parser import DecisionParser
@@ -120,6 +122,7 @@ __all__ = [
     "DECISION_RULES",
     "MAX_BRIEF_SECTIONS",
     "ArchetypeGrammar",
+    "AuthoredCopy",
     "BatchingDecisionBackend",
     "BlockBindings",
     "BlockSpec",
@@ -187,6 +190,7 @@ __all__ = [
     "SynthesisStage",
     "SynthesizerLike",
     "TemplateRegistry",
+    "VarietyMode",
     "answer_from_distribution",
     "calibrate_thresholds",
     "classify_array_field",

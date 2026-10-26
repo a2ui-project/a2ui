@@ -35,7 +35,7 @@ from a2ui.parser import (
 )
 
 from .decision_block import DecisionBlock, decision_block_from_messages
-from .models import SynthesisStage
+from .models import SynthesisOutput, SynthesisStage
 from .prompt_generator import DecisionPromptGenerator
 from .synthesizer import DecisionSynthesizer
 
@@ -103,7 +103,7 @@ class DecisionParser(Parser):
         )
         return lexer.tokenize(content)
 
-    def _read_blocks(self, format_content: str) -> list[DecisionBlock]:
+    def read_blocks(self, format_content: str) -> list[DecisionBlock]:
         """Parses the JSON body of a block into one or more decision blocks."""
         try:
             parsed: Any = parse_and_fix(format_content)
@@ -132,6 +132,65 @@ class DecisionParser(Parser):
                 ) from exc
         return blocks
 
+    _read_blocks = read_blocks
+
+    async def synthesize_blocks(
+        self, format_content: str, *, default_surface_id: str | None = None
+    ) -> list[SynthesisOutput]:
+        """Synthesizes `SynthesisOutput`s for every decision block in `format_content`.
+
+        Raises:
+            A2uiCompilationParseError: If the block is not valid JSON.
+            A2uiCompilationValidationError: If a block lacks required fields or
+                the synthesizer rejects it.
+            A2uiCompilationError: If the decision model abstains and no
+                fallback produced any messages.
+        """
+        blocks = self.read_blocks(format_content)
+        outputs: list[SynthesisOutput] = []
+        base_surface_id = (
+            default_surface_id if default_surface_id is not None else self.surface_id
+        )
+        for idx, block in enumerate(blocks, start=1):
+            default_id = (
+                base_surface_id if len(blocks) == 1 else f"{base_surface_id}_{idx}"
+            )
+            target_surface_id = block.surface_id or default_id
+            try:
+                output = await self._synthesizer.synthesize(
+                    block.intent,
+                    block.payload,
+                    surface_id=target_surface_id,
+                    mutable_paths=block.mutable_paths,
+                    template_id=block.template_id,
+                    fallback_dsl=block.fallback_dsl,
+                    layout=block.layout or None,
+                    title=block.title,
+                    summary=block.summary,
+                )
+            except A2uiError:
+                raise
+            except (TypeError, ValueError) as exc:
+                raise A2uiCompilationValidationError(
+                    message=str(exc), raw_content=format_content
+                ) from exc
+            if not output.messages:
+                raise A2uiCompilationError(
+                    message=(
+                        "The decision model abstained"
+                        f" (confidence {output.confidence:.2f}) and no fallback"
+                        " produced messages."
+                    ),
+                    raw_content=format_content,
+                    help_message=(
+                        "Add a 'fallbackDsl' field, name a 'template', or enable"
+                        " fallback_card on the synthesizer."
+                    ),
+                )
+            assert output.stage in SynthesisStage
+            outputs.append(output)
+        return outputs
+
     def compile(
         self, format_content: str, *, is_final: bool = True
     ) -> list[AgentToRendererMessage]:
@@ -144,8 +203,9 @@ class DecisionParser(Parser):
             A2uiCompilationError: If the decision model abstains and no
                 fallback produced any messages.
         """
+        del is_final
         messages_by_surface: dict[str, list[AgentToRendererMessage]] = {}
-        blocks = self._read_blocks(format_content)
+        blocks = self.read_blocks(format_content)
         for idx, block in enumerate(blocks, start=1):
             default_id = (
                 self.surface_id if len(blocks) == 1 else f"{self.surface_id}_{idx}"
@@ -160,6 +220,8 @@ class DecisionParser(Parser):
                     template_id=block.template_id,
                     fallback_dsl=block.fallback_dsl,
                     layout=block.layout or None,
+                    title=block.title,
+                    summary=block.summary,
                 )
             except A2uiError:
                 raise

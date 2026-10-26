@@ -1149,6 +1149,8 @@ async def test_input_family_promotes_mutable_pointers_and_scalar_child_list_is_s
     assert login_out.stage == SynthesisStage.ARCHETYPE
     assert login_out.layout_plan is not None
     assert login_out.layout_plan.archetype == "form"
+    assert len(login_out.decision_answers) > 0
+    assert login_out.decision_answers[0].question_id == "family"
     validate_payload([basic], login_out.messages)
 
     # Scalar-only payload with a CHILD_LIST container (Column) emits static [item_id],
@@ -1170,3 +1172,48 @@ async def test_input_family_promotes_mutable_pointers_and_scalar_child_list_is_s
     assert col_comps[0]["component"] == "Column"
     assert col_comps[0]["children"] == ["item_1"]
     assert col_comps[1]["text"] == {"path": "/title"}
+
+
+@pytest.mark.asyncio
+async def test_parser_read_blocks_and_synthesize_blocks() -> None:
+    import json
+    from a2ui.core.basic_catalog import BasicCatalog
+    from a2ui.inference_formats.decision import DecisionBlock, DecisionParser
+    from tests.decision.layout_fixtures import ScriptedAnswers
+
+    basic = BasicCatalog("v1.0")
+    sa = ScriptedAnswers(
+        answers={
+            "family": ("input", 0.92),
+            "stakes": 1.0,
+            "urgency": 0.3,
+            "archetype:input": ("form", 0.88),
+            "gate:prose": 0.10,
+            "gate:form": 0.98,
+            "gate:actions": 0.95,
+            "instance:form.control:/email": ("shortText", 0.95),
+            "instance:form.required:/email": 0.99,
+            "instance:actions.primary:/actions": ("Submit", 0.98),
+        }
+    )
+    synth = DecisionSynthesizer([basic], sa.backend())
+    parser = DecisionParser(synthesizer=synth)
+
+    content = json.dumps({
+        "intent": "Enter email",
+        "payload": {"email": "user@example.com", "actions": ["Submit"]},
+        "title": "Email Signup",
+        "summary": "Join our newsletter",
+    })
+    blocks = parser.read_blocks(content)
+    assert len(blocks) == 1
+    assert isinstance(blocks[0], DecisionBlock)
+    assert blocks[0].intent == "Enter email"
+    assert blocks[0].title == "Email Signup"
+    assert blocks[0].summary == "Join our newsletter"
+
+    outputs = await parser.synthesize_blocks(content)
+    assert len(outputs) == 1
+    assert outputs[0].stage == SynthesisStage.ARCHETYPE
+    assert len(outputs[0].decision_answers) > 0
+    assert len(outputs[0].messages) > 0

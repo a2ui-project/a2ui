@@ -46,6 +46,7 @@ from .catalog_graph import CatalogDecisionGraph
 from .layout_lint import lint_components
 from .layout_planner import LayoutPlanner, PlannerState
 from .models import (
+    AuthoredCopy,
     ComponentNodeSpec,
     ComponentSlot,
     DecisionAnswer,
@@ -741,6 +742,9 @@ class DecisionSynthesizer:
         template_id: str | None = None,
         fallback_dsl: str | None = None,
         layout: LayoutBrief | Sequence[str] | None = None,
+        title: str | None = None,
+        summary: str | None = None,
+        variety_seed: int | None = None,
     ) -> SynthesisOutput:
         """Synthesizes validated A2UI messages without mutating the template registry.
 
@@ -758,6 +762,9 @@ class DecisionSynthesizer:
             fallback_dsl: A2UI Express rendered when the model abstains.
             layout: Optional `LayoutBrief` (or `'role:key,key'` string sequence)
                 pinning roles to payload pointers.
+            title: Optional authored surface title string placed into headings.
+            summary: Optional authored surface summary or caption string.
+            variety_seed: Optional integer seed for reproducible near-top sampling.
 
         Returns:
             The synthesis result. When the model abstains and a fallback
@@ -777,6 +784,11 @@ class DecisionSynthesizer:
         )
         data = _as_data_model(payload)
         brief = _coerce_layout_brief(layout, self.archetypes)
+        copy = (
+            AuthoredCopy(title=title, summary=summary)
+            if (title is not None or summary is not None)
+            else None
+        )
 
         if template_id is not None:
             return self._render_named_template(template_id, data, target_surface_id)
@@ -810,6 +822,8 @@ class DecisionSynthesizer:
                 has_mutable=has_mutable,
                 config=active_config,
                 layout=brief,
+                copy=copy,
+                variety_seed=variety_seed,
             )
         finally:
             _DECISION_CALL_TIMINGS.reset(token)
@@ -1111,6 +1125,8 @@ class DecisionSynthesizer:
         *,
         brief: LayoutBrief | None,
         config: SynthesisConfig,
+        copy: AuthoredCopy | None = None,
+        variety_seed: int | None = None,
     ) -> tuple[PlanOutcome, PlannerState]:
         """Builds a speculative batch, calls `backend.answer` (with at most one re-ask), and reads the plan."""
         planner = (
@@ -1118,7 +1134,9 @@ class DecisionSynthesizer:
             if config == self.config
             else LayoutPlanner(self.archetypes, config, capabilities=self.patterns)
         )
-        batch, state = planner.build_batch(intent, pointers, brief=brief, payload=data)
+        batch, state = planner.build_batch(
+            intent, pointers, brief=brief, payload=data, copy=copy
+        )
         answers = await self._backend_answer(batch)
         outcome = planner.read(state, answers)
         if outcome.plan is None:
@@ -1233,6 +1251,7 @@ class DecisionSynthesizer:
                 entropy=entropy,
                 layout_plan=plan,
                 trace=tuple(trace),
+                decision_answers=tuple(state.answers_by_id.values()),
             )
         messages = self._build_validated_messages(target_surface_id, components, data)
         root_comp = (
@@ -1255,6 +1274,7 @@ class DecisionSynthesizer:
             },
             layout_plan=plan,
             trace=tuple(trace),
+            decision_answers=tuple(state.answers_by_id.values()),
         )
 
     def _family_chose_input(self, state: PlannerState, config: SynthesisConfig) -> bool:
@@ -1292,6 +1312,8 @@ class DecisionSynthesizer:
         target_surface_id: str,
         brief: LayoutBrief | None,
         config: SynthesisConfig,
+        copy: AuthoredCopy | None = None,
+        variety_seed: int | None = None,
     ) -> tuple[SynthesisOutput | None, tuple[DecisionRecord, ...]]:
         """Attempts archetype-planned synthesis, returning `(output, trace)`."""
         active_pointers: Sequence[PointerSummary] = pointers
@@ -1319,6 +1341,8 @@ class DecisionSynthesizer:
                 active_pointers,
                 brief=brief,
                 config=config,
+                copy=copy,
+                variety_seed=variety_seed,
             )
             if (
                 outcome.reason == "no_family"
@@ -1335,6 +1359,8 @@ class DecisionSynthesizer:
                         promoted,
                         brief=brief,
                         config=config,
+                        copy=copy,
+                        variety_seed=variety_seed,
                     )
             trace = list(state.trace)
             if outcome.reason == "action_gate":
@@ -1347,6 +1373,7 @@ class DecisionSynthesizer:
                         confidence=conf,
                         entropy=entropy,
                         trace=tuple(trace),
+                        decision_answers=tuple(state.answers_by_id.values()),
                     ),
                     tuple(trace),
                 )
@@ -1382,6 +1409,8 @@ class DecisionSynthesizer:
         has_mutable: bool,
         config: SynthesisConfig,
         layout: LayoutBrief | None = None,
+        copy: AuthoredCopy | None = None,
+        variety_seed: int | None = None,
     ) -> SynthesisOutput:
         """Executes Stage 2 catalog-guided synthesis or Stage 3 abstain fallback."""
         arch_trace: tuple[DecisionRecord, ...] = ()
@@ -1393,6 +1422,8 @@ class DecisionSynthesizer:
                 target_surface_id=target_surface_id,
                 brief=layout,
                 config=config,
+                copy=copy,
+                variety_seed=variety_seed,
             )
             if arch_out is not None:
                 return arch_out

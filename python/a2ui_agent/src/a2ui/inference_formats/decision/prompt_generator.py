@@ -80,6 +80,12 @@ one JSON object (or a JSON array of such objects, one per surface).
    `["/email", "/password", "/rememberMe"]`) for fields in `payload` that the
    user edits in a form or settings screen.
 
+8. `title` (optional, string): An optional title for the surface. When supplied,
+   the grammar places it into the page heading or banner without rewriting.
+
+9. `summary` (optional, string): An optional one-line summary or caption for the
+   surface. When supplied, the grammar places it into supporting prose without rewriting.
+
 ## Example
 
 {A2UI_INFERENCE_OPEN_TAG}

@@ -37,6 +37,7 @@ from .archetypes import (
     SlotSpec,
 )
 from .models import (
+    AuthoredCopy,
     BlockBindings,
     DecisionAnswer,
     DecisionBatch,
@@ -169,6 +170,7 @@ class PlannerState:
     page_claimed_pointers: set[str] = field(default_factory=set)
     action_gate_blocked: bool = False
     required_block_missing: bool = False
+    copy: AuthoredCopy | None = None
 
 
 def _humanize_key(key: str) -> str:
@@ -1816,6 +1818,7 @@ class LayoutPlanner:
         eligible: Sequence[LayoutArchetype] | None = None,
         brief: LayoutBrief | None = None,
         payload: Mapping[str, Any] | None = None,
+        copy: AuthoredCopy | None = None,
     ) -> tuple[DecisionBatch, PlannerState]:
         """Builds a speculative `DecisionBatch` and `PlannerState` for one surface.
 
@@ -1827,6 +1830,8 @@ class LayoutPlanner:
             brief: Optional `LayoutBrief` pinning roles to pointers.
             payload: The payload itself, used to read action labels and
                 option values; questions degrade to key-derived text without it.
+            copy: Optional authored title and summary strings supplied in the
+                decision block.
         """
         norm_pointers = _normalize_pointers(pointers)
         elig = (
@@ -1843,6 +1848,7 @@ class LayoutPlanner:
             brief=brief,
             batch=DecisionBatch(shared_context={}, questions=()),
             payload=dict(payload) if payload is not None else {},
+            copy=copy,
         )
         questions: list[DecisionQuestion] = []
         self._append_job_questions(questions, state)
