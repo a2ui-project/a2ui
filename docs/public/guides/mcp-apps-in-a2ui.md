@@ -1,330 +1,129 @@
-# MCP Apps Integration in A2UI Surfaces
+# MCP Apps in A2UI
 
-This guide explains how **Model Context Protocol (MCP) Applications** are integrated and displayed within the **A2UI** surface, along with the security model and testing guidelines.
+**[Model Context Protocol (MCP) Apps](https://github.com/modelcontextprotocol/ext-apps)** let MCP servers deliver interactive HTML user interfaces, such as a 3D canvas or a drag-and-drop Kanban board, alongside their tools. A2UI runs these third-party applications inside an isolated sandbox on the surface while synchronizing state and tool calls with sibling A2UI components and your agent.
 
-> NOTE: Looking for the core A2UI-over-MCP protocol? See [A2UI over MCP](a2ui_over_mcp.md) for how to return A2UI JSON payloads from MCP tool calls.
+This guide explains how `McpApp` isolates untrusted HTML inside a double-iframe sandbox and how JSON-RPC messages synchronize state and tool calls across the widget, the surface, and your agent. It also walks through running the multi-service sample applications locally.
 
-## Overview
+!!! tip "Looking for package setup?"
 
-The Model Context Protocol (MCP) allows MCP servers to deliver rich, interactive HTML-based user interfaces to hosts. A2UI provides a secure environment to run these third-party applications.
+    To install `@a2ui/catalog-mcp`, invoke MCP tools with `callMcpTool`, or add `McpApp` to your own web app, start with the [MCP catalog](mcp-catalog.md) guide. If you are building an MCP server that returns A2UI JSON layouts instead of HTML widgets, see [A2UI over MCP](a2ui_over_mcp.md).
 
-![MCP Calculator demo — loading the app, opening the calculator, and chatting with the agent](../assets/mcp-apps-calculator-demo.gif)
+![MCP calculator demo showing the host loading the app, opening the calculator, and chatting with the agent](../assets/mcp-apps-calculator-demo.gif)
 
-## Double-Iframe Isolation Pattern
+---
 
-To run untrusted third-party code securely, A2UI utilizes a **double-iframe** isolation pattern. This approach isolates raw DOM injection from the main application while maintaining a structured JSON-RPC channel.
+## Double-iframe isolation
 
-### Security Rationale
+To run untrusted third-party HTML and JavaScript safely inside your web app, `@a2ui/catalog-mcp` isolates every `McpApp` instance inside two nested iframes connected by a validated JSON-RPC `postMessage` relay.
 
-Standard single-iframe sandboxing with `allow-scripts` is often bypassed if combined with `allow-same-origin`, which defeats the containerization. Any iframe with `allow-scripts` and `allow-same-origin` can escape its sandbox by programmatically interacting with its parent DOM or removing its own sandbox attribute.
+### Why a single iframe is not enough
 
-To prevent this, A2UI strictly excludes `allow-same-origin` for the inner iframe where the third-party application runs.
+A single iframe with both `allow-scripts` and `allow-same-origin` shares your application's origin. Any script running inside that frame can reach `window.parent.document`, read host cookies or web storage, or remove its own `sandbox` attribute.
 
-### The Architecture
+To prevent container escapes, the innermost iframe where the third-party HTML runs never receives `allow-same-origin`. The browser assigns it a unique opaque origin (`null`), blocking access to the host DOM and host storage.
 
-1.  **[Sandbox Proxy (`sandbox.html`)](../../../samples/community/client/shared/mcp_apps_inner_iframe/sandbox.html)**: An intermediate `iframe` served from the same origin. It isolates raw DOM injection from the main app while maintaining a structured JSON-RPC channel.
-    - Permissions: **Do not sandbox** in the host template (e.g., [`mcp-app.ts`](../../../samples/community/client/lit/mcp-apps-in-a2ui-sample/mcp-app.ts) or [`mcp-apps-component.ts`](../../../samples/community/client/lit/mcp-apps-in-a2ui-sample/ui/custom-components/mcp-apps-component.ts)).
-    - Host origin validation: Validates that messages come from the expected host origin.
-2.  **Embedded App (Inner Iframe)**: The innermost `iframe`. Injected dynamically via `srcdoc` with restricted permissions.
-    - Permissions: `sandbox="allow-scripts allow-forms allow-popups allow-modals"` (**MUST NOT** include `allow-same-origin`, `allow-top-navigation`, or `allow-top-navigation-by-user-activation`).
-    - Isolation: Removes access to `localStorage`, `sessionStorage`, `IndexedDB`, and cookies due to unique origin.
-    - Top-level window hijacking defense: Omitting `allow-top-navigation` and `allow-top-navigation-by-user-activation` prevents embedded scripts from executing frame-busting attacks (such as `window.top.location = "..."`) to redirect the host window away.
-    - Hyperlink exfiltration defense: Omitting `allow-popups` and capturing link navigations prevents untrusted content from exfiltrating data via clickjacking into spawned windows.
+### Outer proxy and inner frame
 
-### Physical Iframe Nesting
+Each `McpApp` instance sets up two frames:
+
+1. The outer frame loads `sandbox.html` from `/a2ui-sandbox/` on your app's origin (or from a separate sandbox origin configured with `configureMcpCatalog({sandbox: {baseUrl}})`). The host element does not sandbox this outer frame; instead, `sandbox.html` checks that incoming messages come from the expected parent window and origin, configures the inner frame, and relays JSON-RPC messages between the two sides. When `sandbox.html` is hosted on a separate origin, it runs a startup self-test verifying that it cannot reach `window.top`; on the same origin, `@a2ui/catalog-mcp` disables that check automatically.
+2. The inner frame renders the untrusted `htmlContent` via `srcdoc` with `sandbox="allow-scripts"` only. Omitting `allow-same-origin` isolates cookies and storage, omitting `allow-top-navigation` and `allow-top-navigation-by-user-activation` stops frame-busting redirects (`window.top.location = "..."`), and omitting `allow-popups`, `allow-forms`, and `allow-modals` blocks unprompted windows, form submissions, and modal dialogs. Before injecting `srcdoc`, the outer proxy applies any Content Security Policy domain allowlists from `csp` (`_meta.ui.csp`) and browser capability flags from `permissions` (`_meta.ui.permissions`, such as `camera`, `microphone`, `geolocation`, and `clipboard-write`).
+
+The physical frame hierarchy looks like this:
 
 ```mermaid
 flowchart TD
-    subgraph "Host Application"
-        A[A2UI Page] --> B["Host Component e.g., McpApp"]
+    subgraph HostApp ["Host Web Application"]
+        A["A2UI surface"] --> B["McpApp (a2ui-mcp-app)"]
     end
-    subgraph "Sandbox Proxy"
-        B -->|Message Relay| C[iframe sandbox.html]
+    subgraph OuterProxy ["Outer Sandbox Proxy"]
+        B <-->|"Origin-checked postMessage"| C["iframe /a2ui-sandbox/sandbox.html"]
     end
-    subgraph "Embedded App"
-        C -->|Dynamic Injection| D[inner iframe untrusted content]
+    subgraph InnerFrame ["Embedded MCP App"]
+        C <-->|"JSON-RPC 2.0 relay"| D["iframe srcdoc (opaque origin, sandbox='allow-scripts')"]
     end
 ```
 
-### End-to-End Architecture & Lifecycle Flow
+To serve `/a2ui-sandbox/` in your bundler and configure `McpApp` properties on a surface, see [Embedding interactive MCP Apps](mcp-catalog.md#embedding-interactive-mcp-apps) in the MCP catalog guide. For the two-phase startup handshake (`ui/notifications/sandbox-proxy-ready`, `ui/notifications/sandbox-resource-ready`, and `ui/initialize`) and full JSON-RPC schemas, see the [MCP App component specification](../../../catalogs/mcp/v1/mcp_app_specification.md).
 
-The complete cycle—including layout tree hierarchy, completely separated backend actors (the Proxy Agent and the MCP Server), and how isolated third-party widgets interact reactively with their native siblings (e.g., the Pong game's scoreboard)—is detailed below:
+---
+
+## How embedded apps communicate with the surface and agent
+
+Once the sandbox finishes initializing, `McpApp` communicates with the embedded app over JSON-RPC 2.0 using `@modelcontextprotocol/ext-apps/app-bridge` plus A2UI v1.0 extensions for local data binding and catalog functions. State updates and tool calls can complete directly in the browser or flow through your backend agent:
 
 ```mermaid
-graph TD
-    %% 1. Top Tier (Strict vertical hierarchy)
-    MCPServer["MCP App Server<br/>(Hosts widget resources & core tools)"]
+flowchart TD
+    MCPServer["MCP Server<br/>(Tools and ui:// HTML resources)"]
+    Agent["AI Agent<br/>(Streams A2UI v1.0 messages)"]
 
-    %% 2. Middle-Top Tier
-    Agent["AI Agent<br/>(A2UI Backend Coordinator)"]
-
-    %% 3. Subgraph for Host layout tree (Bottom Tier)
-    subgraph HostApp ["Host Application"]
+    subgraph HostApp ["Host Web Application"]
         direction TB
-        Shell["A2UI Rendering Engine & State Manager<br/>(Orchestrates native layout & state bindings)"]
+        Processor["MessageProcessor and Surface Data Model"]
 
-        subgraph LayoutTree ["A2UI Component Tree"]
-            McpComponent["McpApp Component<br/>(Sandboxed HTML/JS Widget)"]
-            SiblingComponent["Other A2UI Components<br/>(e.g., PongScoreBoard)"]
+        subgraph SurfaceTree ["A2UI Surface"]
+            McpComponent["McpApp Component<br/>(Double-iframe HTML widget)"]
+            Siblings["Sibling A2UI Components<br/>(Text, Button, TextField, and more)"]
         end
 
-        Shell <-->|"1. Initialize postMessage Event Bridge"| McpComponent
-        Shell -.->|"5. Reactive State Update<br/>(e.g., Render updated score)"| SiblingComponent
+        McpComponent <-->|"1. Two-way data.paths sync<br/>and allowedFunctions"| Processor
+        Processor <-->|"Reactive @path and @call bindings"| Siblings
     end
 
-    %% Vertical Channel connecting Top to Middle-Top
-    MCPServer ==>|"MCP Protocol (SSE / Stdio)"| Agent
-
-    %% Unidirectional Data Cycle (Flowing vertically through the center)
-    McpComponent ==>|"2. Tool Action Request<br/>(e.g., score_update)"| Shell
-    Shell ==>|"3. Action Delegation (A2UI Protocol)"| Agent
-    Agent ==>|"4. State Mutation & Sync (dataModelUpdate)"| Shell
-
-    %% Style Sibling Relationship
-    McpComponent -.->|"No Direct Access (Strictly Isolated)"| SiblingComponent
+    McpComponent ==>|"2. Direct tools/call<br/>(via getMcpClientForTool)"| MCPServer
+    Siblings ==>|"callMcpTool"| MCPServer
+    Processor ==>|"3. a2ui.mcpAppMessage and modelContext"| Agent
+    Agent <==>|"MCP tool calls"| MCPServer
+    Agent ==>|"4. updateDataModel or updateComponents"| Processor
 ```
 
-#### How the Sibling Update Loop Works:
+An embedded app interacts with the surrounding surface and backend through four channels:
 
-1. **Initialize postMessage Event Bridge (1)**: The host shell instantiates the double-iframe sandbox and establishes a secure message relay bridge with the `McpApp` component.
-2. **Tool Action Request (2)**: When a user interacts with the sandboxed app (e.g., scores a point in the Pong game), the app triggers a tool action by posting a message over the postMessage bridge.
-3. **Action Delegation (3)**: The host layout engine intercepts the action and delegates its execution to the `AI Proxy Agent` over the A2UI/A2A protocol. The agent optionally coordinates with the `MCP App Server` using the standard MCP Protocol (SSE / Stdio) if external calculation or resources are required.
-4. **State Mutation & Sync (4)**: The agent processes the action, mutates the master session state, and pushes a `dataModelUpdate` back to the host state manager.
-5. **Reactive State Update (5)**: The host updates its local store, triggering a reactive update on sibling A2UI components (such as native scoreboards or displays) bound to that state path. Direct communication between the sandboxed component and native sibling elements is strictly blocked to maintain containerization security.
+1. Two-way local data binding (`data.paths`). When a bound path in the surface data model changes (from a sibling input, a client function, or an `updateDataModel` message from the agent), `McpApp` pushes `ui/notifications/data-model-update` to the embedded app (plus standard `ui/notifications/tool-input` and `ui/notifications/tool-result` notifications when `toolInput` or `toolResult` are bound). When the embedded app emits `ui/notifications/data-model-change`, `McpApp` writes the new value to the bound path so sibling A2UI components update in the browser without waiting for an agent turn.
+2. Direct MCP tool execution (`tools/call`). When the embedded app requests a tool listed in `allowedTools` and the host has registered `getMcpClientForTool` via `configureMcpCatalog`, `McpApp` calls the MCP server directly and returns the `CallToolResult` to the app. If no browser MCP client is configured, `McpApp` dispatches an A2UI action named after the tool so a backend proxy agent can execute it instead. Unlisted tool names are rejected with a JSON-RPC error.
+3. Local catalog function calls (`ui/requests/function-call`). When `allowedFunctions` maps A2UI catalog function names to JSON Schemas for their arguments, the embedded app can validate arguments and invoke those functions locally on the surface.
+4. Agent context and follow-up turns (`ui/update-model-context` and `ui/message`). Calling `ui/update-model-context` inside the app writes the widget's active selection or filter state to the bound `modelContext` path in the surface data model, where your host can attach it to the next user turn. Calling `ui/message` dispatches an `a2ui.mcpAppMessage` action so the host can forward a prompt or event from the widget to the agent, which can then mutate state and stream `updateDataModel` or `updateComponents` back to the surface.
 
-## Usage / Code Example
+### Sandbox constraints for MCP App authors
 
-The MCP Apps component typically resolves to a `custom` node in the A2UI catalog. Here is how a developer might use it in their code.
+Because the inner iframe runs with `sandbox="allow-scripts"` on an opaque `null` origin, keep these constraints in mind when building or debugging an MCP App:
 
-### 1. Register within the Catalog
-
-You must register the component in your catalog application. For example, in Angular:
-
-```typescript
-import {Catalog} from '@a2ui/web_core/v0_9';
-import {z} from 'zod';
-import {McpApp} from './mcp-app';
-import {Button} from './button';
-import {Snackbar} from './snackbar';
-
-const McpAppSchema = z.object({
-  content: z.union([z.string(), z.object({id: z.string()})]).optional(),
-  allowedTools: z.array(z.string()).optional(),
-  title: z.string().optional(),
-});
-
-export const DEMO_CATALOG = new Catalog(
-  'my_app.org/some_catalog.json',
-  'v0.9',
-  [
-    {name: 'McpApp', component: McpApp, schema: McpAppSchema},
-    {
-      name: 'Button',
-      component: Button,
-      schema: z.object({
-        label: z.string(),
-        action: z.any().optional(),
-      }),
-    },
-    {
-      name: 'Snackbar',
-      component: Snackbar,
-      schema: z.object({
-        message: z.string(),
-        durationMs: z.number().default(3000),
-      }),
-    },
-  ]
-);
-```
-
-### 2. Usage in A2UI Message
-
-In the Host or Agent context, send an A2UI message that translates to this custom node.
-
-```json
-{
-  "type": "custom",
-  "name": "McpApp",
-  "properties": {
-    "content": "<h1>Hello, World!</h1>",
-    "title": "My MCP App"
-  }
-}
-```
-
-If the content is complex or requires encoding, you can pass a URL-encoded string:
-
-```json
-{
-  "type": "custom",
-  "name": "McpApp",
-  "properties": {
-    "content": "url_encoded:%3Ch1%3EHello%2C%20World!%3C%2Fh1%3E",
-    "title": "My MCP App"
-  }
-}
-```
-
-## Communication Protocol
-
-Communication between the Host and the embedded inner iframe is facilitated via a structured JSON-RPC channel over `postMessage`.
-
-- **Events**: The Host Component listens for a `SANDBOX_PROXY_READY_METHOD` message from the proxy.
-- **Bridging**: An `AppBridge` handles message relaying. Developers (specifically the MCP App Developer inside the untrusted iframe) can call tools on the MCP server using `bridge.callTool()`.
-- **The Host**: Resolves callbacks (e.g., specific resizing, Tool results).
-
-### Limitations
-
-Because `allow-same-origin` is strictly omitted for the innermost iframe, the following conditions apply:
-
-- The MCP app **cannot** use `localStorage`, `sessionStorage`, `IndexedDB`, or cookies. Each application runs with a unique origin.
-- Direct DOM manipulation by the parent is blocked. All interactions must proceed via message passing.
-
-## Prerequisites
-
-To run the samples, ensure you have the following installed:
-
-- **Python 3.10+** — Required for the agent and MCP server backends
-- **[uv](https://docs.astral.sh/uv/)** — Fast Python package manager (used to run all Python samples)
-- **Node.js 18+** and **Yarn** — Required for building and running the sample client apps within this monorepo workspace.
-- **A `GEMINI_API_KEY`** — Required by all ADK-based agents. Get one from [Google AI Studio](https://aistudio.google.com/apikey)
-
-> [!NOTE]
-> **Package Manager Usage:** Running the built-in sample applications within the A2UI repository requires Yarn as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
-
-> ⚠️ **Environment variable setup**: You can either export `GEMINI_API_KEY` in your shell or create a `.env` file in each agent directory. The agents use `dotenv` to load `.env` files automatically.
->
-> ```bash
-> # Option 1: Export in shell
-> export GEMINI_API_KEY="your-api-key-here"
->
-> # Option 2: Create .env file in the agent directory
-> echo 'GEMINI_API_KEY=your-api-key-here' > .env
-> ```
-
-## Samples
-
-There are three samples demonstrating MCP Apps integration. All live under `samples/community/`. Sample 1 and Sample 2 predate protocol v1.0 (Sample 1 uses A2UI v0.8 and Sample 2 uses A2UI v0.9) and each defines its own MCP App component rather than using the `McpApp` component from the [v1.0 MCP catalog](../../../catalogs/mcp/README.md#v1-catalog-protocol-v10). Sample 3 uses protocol v1.0 and the `McpApp` component from `@a2ui/catalog-mcp`. Each sample requires running **multiple terminals** — one for each backend service and one for the client.
+1. Browser storage APIs (`localStorage`, `sessionStorage`, `IndexedDB`, and cookies) throw security errors inside an opaque origin. Store state on the MCP server via `tools/call` or synchronize it with the host surface via `data.paths`.
+2. Direct parent DOM access (`window.parent.document` or `window.top`) is blocked by the browser. Request container height updates with `ui/notifications/size-changed`, and open external `http:` or `https:` URLs in a new tab with `ui/open-link`.
+3. External network requests, images, fonts, and subframes inside `srcdoc` are blocked by default unless the MCP resource declares the required domains under `_meta.ui.csp` (`connectDomains`, `resourceDomains`, `frameDomains`, `baseUriDomains`).
 
 ---
 
-### Sample 1: MCP App Standalone Sample (Lit Client & ADK Agent)
+## Running the sample applications
 
-This sample verifies the sandbox with a Lit-based client and an ADK-based A2A agent.
+The repository includes runnable multi-process samples under `samples/community/`. Start with the A2UI v1.0 Kanban board showcase, which uses `@a2ui/catalog-mcp` directly. Two earlier pre-v1.0 samples are available in the collapsible section below it.
 
-#### Step 1: Start the Agent
+### Prerequisites
 
-In a separate terminal, navigate to the agent directory and start the agent:
+To run the sample applications from a clone of the A2UI repository, install the following tools:
 
-```bash
-# Run from the repository root
-cd samples/community/agent/adk/mcp-apps-in-a2ui-sample
-uv run agent.py
-```
+1. Python 3.10 or later for the agent and Python MCP server backends.
+2. [`uv`](https://docs.astral.sh/uv/) to install dependencies and launch the Python processes.
+3. Node.js 18 or later with Corepack enabled (`corepack enable`) so `yarn` uses the monorepo's configured Yarn workspace manager. In your own standalone projects outside this repository, you can use any Node package manager (such as `npm` or `pnpm`).
+4. A `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey), exported in your shell or saved in a `.env` file inside the agent directory (`echo 'GEMINI_API_KEY=your-api-key' > .env`). The Kanban board showcase can also run without an API key by setting `KANBAN_AGENT=scripted`.
 
-The agent will run on `http://localhost:8000`.
+### Kanban board showcase (v1.0)
 
-#### Step 2: Start the Client
+The Kanban showcase ([`samples/community/mcp/a2ui-kanban/`](../../../samples/community/mcp/a2ui-kanban/README.md)) pairs a Streamable HTTP MCP server (`http://localhost:8788/mcp`) serving a drag-and-drop board app (`ui://kanban/board`), a Python ADK and A2A agent (`http://localhost:10007`), and a Lit chat host (`http://localhost:5173`) built on `basicCatalog` and `mcpCatalog`.
 
-In a new terminal, navigate to the client directory and start the dev server (requires building the Lit renderer first):
+It exercises five interaction paths across the host, the sandboxed widget, the MCP server, and the agent:
 
-```bash
-# Run from the repository root
-cd samples/community/client/lit/mcp-apps-in-a2ui-sample
-yarn install
-yarn dev
-```
+1. Agent to `McpApp`: asking the agent to move or create tasks invokes MCP server tools and streams an `updateDataModel` message writing `/kanban/board`, which `McpApp` forwards to the iframe via `ui/notifications/data-model-update`.
+2. Agent reading `McpApp` state: selecting a card or filtering by assignee calls `ui/update-model-context`, writing `/kanban/modelContext` and `/kanban/selection` so the agent can answer questions about the selected card on the next turn.
+3. `McpApp` to sibling A2UI components: dragging a card across columns sends `ui/notifications/data-model-change` for `board`, updating `/kanban/board` locally and recomputing the sibling `Text` column and WIP badges (bound with `@call: transformData`) before any agent turn runs.
+4. `McpApp` to agent: dropping a card (`tools/call` plus `ui/message`) or clicking "Ask agent to split" (`ui/message`) dispatches an `a2ui.mcpAppMessage` action that the chat host forwards to the agent.
+5. Sibling A2UI controls to MCP server: entering a title and assignee in the Quick-Add Task Bar and clicking "Add task" chains `callMcpTool("create_task")`, `transformData`, and `updateDataModel` in the browser, updating both the `McpApp` board and the sibling badges with zero agent turns.
 
-The client starts at `http://localhost:5173/`.
+Run the showcase across three terminals from the repository root.
 
-#### Step 3: Open in Browser
+#### 1. Build workspace packages and start the MCP server
 
-Open your browser and navigate to `http://localhost:5173/`. You should see the A2UI interface loading the MCP App.
-
-**What to expect**: A page loading the MCP App in a sandboxed iframe. Clicking the "Call Agent Tool" button inside the iframe will trigger an action that is handled by the agent.
-
----
-
-### Sample 2: MCP Apps (Calculator + Pong) (Angular Client + MCP Server + Proxy Agent)
-
-This sample verifies the sandbox with an Angular-based client, an MCP Proxy Agent, and a remote MCP Server. It requires **three** backend processes.
-
-#### Step 1: Start the MCP Server (Calculator)
-
-```bash
-cd samples/community/mcp/mcp-apps-calculator/
-uv run .
-```
-
-The MCP server starts on `http://localhost:8000` (or another port if 8000 is occupied, e.g. `uv run . --port 8001`) using SSE transport.
-
-#### Step 2: Start the MCP Apps Proxy Agent
-
-In a **new terminal**:
-
-```bash
-cd samples/community/agent/adk/mcp_app_proxy/
-export GEMINI_API_KEY="your-key"  # or use a .env file
-uv run .
-```
-
-The proxy agent starts on `http://localhost:10006` by default.
-
-#### Step 3: Build and Start the Angular Client
-
-First, build the renderer packages by running `yarn build:all` at the **repository root directory**:
-
-```bash
-# Run at repository root
-yarn build:all
-```
-
-Then, in a **new terminal**, navigate to the client directory, install local dependencies, and start the app (which automatically bundles the sandbox iframe proxy and starts the development server):
-
-```bash
-# Navigate to the client directory
-cd samples/community/client/angular/
-
-# Install local dependencies
-yarn install
-
-# Start the app and bundle sandbox
-yarn start mcp_calculator
-```
-
-> ⚠️ **`yarn build:all` is required**: `yarn build:all` compiles the A2UI renderer packages that the Angular app depends on. Running `yarn start mcp_calculator` automatically bundles the sandbox proxy into the Angular project's public assets before starting the server.
-
-The client starts at `http://localhost:4200/`.
-
-#### Step 4: Open in Browser
-
-Navigate to:
-
-```
-http://localhost:4200/?disable_security_self_test=true
-```
-
-**What to expect**: A set of smart chips to load calculator app or pong app will be rendered. Both apps run in their own sandboxed iframes.
-
-|                                                 Calculator App                                                 |                                 Pong App                                  |
-| :------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------: |
-| ![An animated GIF of the calculator app being used to perform multiplications.](../assets/calculator_demo.gif) | ![An animated GIF of the pong app being played.](../assets/pong_demo.gif) |
-
----
-
-### Sample 3: Kanban Board Showcase (Lit Chat Host + Python Agent + Node MCP Server)
-
-This sample ([`samples/community/mcp/a2ui-kanban/`](../../../samples/community/mcp/a2ui-kanban/README.md)) demonstrates bidirectional communication between an agent, a sandboxed MCP App built with `@modelcontextprotocol/ext-apps`, and sibling A2UI components using `@a2ui/catalog-mcp`:
-
-- **Agent → MCP App**: The agent invokes MCP server tools (`move_task`, `create_task`) and emits an `updateDataModel` message writing `/kanban/board`, which `McpApp` pushes to the board app as `ui/notifications/data-model-update`.
-- **Agent reads MCP App state**: Selecting a card or filtering by assignee in the board app sends `ui/update-model-context`, which `McpApp` writes into the surface data model sent with the next user turn.
-- **MCP App → sibling A2UI components**: Dragging a card sends `ui/notifications/data-model-change` for `board`, updating `/kanban/board` and recomputing the sibling `Text` counters (`/kanban/summary/*`) client-side without an agent turn.
-- **MCP App → Agent**: Dropping a card (`tools/call` + `ui/message`) or clicking "Ask agent to split" (`ui/message`) dispatches an `a2ui.mcpAppMessage` action that the chat host forwards to the agent.
-
-#### Step 1: Build Monorepo Packages and Start the MCP Server
-
-From the repository root, build `@a2ui/catalog-mcp` and `@a2ui/lit`, install the community workspace dependencies, and start the Kanban MCP server on `http://localhost:8788/mcp`:
+Build `@a2ui/catalog-mcp` and `@a2ui/lit`, install the `samples/community` workspace dependencies, and start the Kanban MCP server on `http://localhost:8788/mcp`:
 
 ```bash
 yarn install
@@ -339,52 +138,108 @@ yarn build
 yarn start
 ```
 
-#### Step 2: Start the Kanban Agent
+#### 2. Start the Kanban agent
 
-In a **new terminal**, start the Python A2A agent on `http://localhost:10007` (use `KANBAN_AGENT=scripted` to run the deterministic walkthrough without a Gemini API key):
+In a second terminal, start the Python A2A agent on `http://localhost:10007` (or set `KANBAN_AGENT=scripted` to try the deterministic walkthrough without a Gemini API key):
 
 ```bash
 cd samples/community/mcp/a2ui-kanban/agent
-export GEMINI_API_KEY="your-key"  # or export KANBAN_AGENT=scripted
+export GEMINI_API_KEY="your-api-key"  # or: export KANBAN_AGENT=scripted
 uv run .
 ```
 
-#### Step 3: Start the Lit Chat Host
+#### 3. Start the Lit chat host
 
-In a **new terminal**:
+In a third terminal, start the Vite dev server on `http://localhost:5173`:
 
 ```bash
 cd samples/community/mcp/a2ui-kanban/client
 yarn dev
 ```
 
-Open `http://localhost:5173/` and click **"Show me the sprint board"** to load the board surface.
+Open `http://localhost:5173/` in your browser and click **"Show me the sprint board"**. You can also open the collapsible Protocol Debug Inspector on the right side of the page to inspect live A2UI messages, `postMessage` JSON-RPC frames between the host and `McpApp`, browser-to-MCP HTTP calls, and `/kanban` data model writes.
+
+??? note "Legacy pre-v1.0 samples"
+
+    The two samples below predate A2UI v1.0 and `@a2ui/catalog-mcp` (the Calculator and Pong sample uses protocol v0.9 and the standalone Lit sample uses protocol v0.8). Each defines its own sample-local custom component rather than importing `McpApp` from `@a2ui/catalog-mcp`.
+
+    #### Calculator and Pong (Angular v0.9 + proxy agent + MCP server)
+
+    This sample runs an SSE Calculator MCP server, a Python ADK proxy agent, and an Angular client hosting calculator and Pong widgets in separate sandboxed iframes:
+
+    1. Start the Calculator MCP server on `http://localhost:8000` (pass `--port 8001` if port `8000` is in use):
+
+        ```bash
+        cd samples/community/mcp/mcp-apps-calculator/
+        uv run .
+        ```
+
+    2. In a second terminal, start the MCP proxy agent on `http://localhost:10006`:
+
+        ```bash
+        cd samples/community/agent/adk/mcp_app_proxy/
+        export GEMINI_API_KEY="your-api-key"
+        uv run .
+        ```
+
+    3. Build the monorepo renderer packages from the repository root, then install and start the Angular client on `http://localhost:4200` (which bundles the sample's sandbox proxy before serving):
+
+        ```bash
+        yarn build:all
+        cd samples/community/client/angular/
+        yarn install
+        yarn start mcp_calculator
+        ```
+
+    4. Open `http://localhost:4200/?disable_security_self_test=true` in your browser. Because this pre-v1.0 sample serves its proxy iframe on the same `localhost` origin without `@a2ui/catalog-mcp`'s automatic origin check, pass `?disable_security_self_test=true` in the URL to skip the cross-origin self-test during local development:
+
+        | Calculator App | Pong App |
+        | :------------: | :------: |
+        | ![Animated GIF of the calculator app performing multiplications.](../assets/calculator_demo.gif) | ![Animated GIF of the Pong app updating a sibling A2UI scoreboard.](../assets/pong_demo.gif) |
+
+    #### Standalone Lit MCP App sample (Lit v0.8 + ADK agent)
+
+    This minimal two-process sample pairs an ADK agent with a Lit client to test button actions inside a sandboxed iframe:
+
+    1. Start the ADK agent on `http://localhost:8000`:
+
+        ```bash
+        cd samples/community/agent/adk/mcp-apps-in-a2ui-sample
+        export GEMINI_API_KEY="your-api-key"
+        uv run agent.py
+        ```
+
+    2. In a second terminal, install dependencies and start the Lit client on `http://localhost:5173`:
+
+        ```bash
+        cd samples/community/client/lit/mcp-apps-in-a2ui-sample
+        yarn install
+        yarn dev
+        ```
+
+    3. Open `http://localhost:5173/` and click **"Call Agent Tool"** inside the iframe to send a tool action through the host to the agent.
 
 ---
 
-## URL Options for Testing
+## Troubleshooting the samples
 
-For testing purposes, you can opt-out of the security self-test by using specific URL query parameters.
+If a sample fails to build or load, check these common issues:
 
-### `disable_security_self_test=true`
+| Symptom                                                           | Fix                                                                                                                                              |
+| :---------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY environment variable not set`                     | Export `GEMINI_API_KEY` in that terminal, add a `.env` file in the agent directory, or set `KANBAN_AGENT=scripted` for the Kanban agent.         |
+| Kanban client fails to compile `@a2ui/catalog-mcp` or `@a2ui/lit` | Run `yarn install`, `yarn workspace @a2ui/catalog-mcp run build`, and `yarn workspace @a2ui/lit run build` from the repository root first.       |
+| Port `8788` or `10007` is already in use on Kanban                | Start the service on another port and pass `?mcp_url=http://localhost:<port>/mcp&agent_url=http://localhost:<port>` to `http://localhost:5173/`. |
+| Angular client shows a blank page or missing renderer imports     | Run `yarn build:all` at the repository root before running `yarn start mcp_calculator` in `samples/community/client/angular/`.                   |
+| `ng serve` not found in the Angular sample                        | Run `yarn install` inside `samples/community/client/angular/` to install `@angular/cli`.                                                         |
+| `"URL with hostname not allowed"` in Angular                      | Open `http://localhost:4200/` rather than `0.0.0.0` (Angular's dev server restricts allowed hosts by default).                                   |
+| Security self-test error in the legacy Angular sample             | Append `?disable_security_self_test=true` to `http://localhost:4200/`.                                                                           |
 
-This query parameter allows you to bypass the security self-test that verifies iframe isolation. This is useful for debugging and testing environments where the double-iframe setup may not pass strict origin checks (e.g., `localhost` development).
+---
 
-Example usage:
+## Next steps
 
-```
-http://localhost:4200/?disable_security_self_test=true
-```
-
-## Troubleshooting
-
-| Problem                                           | Solution                                                                                         |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `GEMINI_API_KEY environment variable not set`     | Export the key or add a `.env` file in the agent directory                                       |
-| Python version error on `restaurant_finder` agent | Install Python 3.13+ (required by that sample's `pyproject.toml`)                                |
-| `yarn build:renderer` fails                       | Make sure you ran `yarn install` first in `samples/client/lit/`                                  |
-| Angular client shows blank page                   | Ensure you ran `yarn build:sandbox` before `yarn start`                                          |
-| MCP app iframe doesn't load                       | Check that both the MCP server (port 8000) and proxy agent (port 10006) are running              |
-| `ng serve` not found                              | Run `yarn install` to install dev dependencies including `@angular/cli`                          |
-| "URL with hostname not allowed"                   | Angular 21 restricts allowed hosts. Use `localhost` (the default) — do not pass `--host 0.0.0.0` |
-| Security self-test fails in dev                   | Add `?disable_security_self_test=true` to the URL                                                |
+1. Install and configure `@a2ui/catalog-mcp` in your own application in the [MCP catalog](mcp-catalog.md) guide.
+2. Review the full handshake lifecycle, JSON-RPC message schemas, and cycle-prevention rules in the [MCP App component specification](../../../catalogs/mcp/v1/mcp_app_specification.md).
+3. Build an MCP server that returns reusable A2UI component layouts in [A2UI over MCP](a2ui_over_mcp.md).
+4. Render A2UI surfaces inside an MCP App in [A2UI in MCP Apps](a2ui-in-mcp-apps.md).

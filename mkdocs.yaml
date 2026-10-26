@@ -62,8 +62,9 @@ nav:
       - Authoring Custom Components (Framework-Specific): guides/authoring-components.md
       - Theming & Styling: guides/theming.md
       - A2UI + MCP:
-          - A2UI over MCP: guides/a2ui_over_mcp.md
+          - MCP Catalog: guides/mcp-catalog.md
           - MCP Apps in A2UI: guides/mcp-apps-in-a2ui.md
+          - A2UI over MCP: guides/a2ui_over_mcp.md
           - A2UI in MCP Apps: guides/a2ui-in-mcp-apps.md
   - Reference:
       - Component Gallery: reference/components.md

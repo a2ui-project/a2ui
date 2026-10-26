@@ -115,3 +115,5 @@ The [v1/examples](v1/examples/) directory holds A2UI message sequences that vali
 | Language   | Package                                               |
 | :--------- | :---------------------------------------------------- |
 | TypeScript | [`@a2ui/catalog-mcp`](../../typescript/catalogs/mcp/) |
+
+The [MCP catalog guide](../../docs/public/guides/mcp-catalog.md) covers installing the package, serving the sandbox proxy that `McpApp` loads, and registering the catalog with a web renderer.
