@@ -23,17 +23,17 @@ void main() {
   testWidgets('an error listener may call setState directly', (tester) async {
     final processor = MessageProcessor<ComponentImplementation>(
       catalogs: [basicCatalog()],
-      defaultVersion: A2uiProtocolVersion.v0_9,
+      defaultVersion: A2uiProtocolVersion.v1_0,
     );
     addTearDown(processor.model.dispose);
     processor.processMessages(
       AgentToRendererMessagePayload.fromJson([
         {
-          'version': 'v0.9',
+          'version': 'v1.0',
           'createSurface': {'surfaceId': 's', 'catalogId': basicCatalog().id},
         },
         {
-          'version': 'v0.9',
+          'version': 'v1.0',
           'updateComponents': {
             'surfaceId': 's',
             'components': [
@@ -41,7 +41,7 @@ void main() {
             ],
           },
         },
-      ], protocolVersion: A2uiProtocolVersion.v0_9),
+      ], protocolVersion: A2uiProtocolVersion.v1_0),
     );
     final SurfaceModel<ComponentImplementation> surface = processor.model
         .getSurface('s')!;
@@ -59,16 +59,16 @@ void main() {
     (tester) async {
       final processor = MessageProcessor<ComponentImplementation>(
         catalogs: [basicCatalog()],
-        defaultVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v1_0,
       );
       addTearDown(processor.model.dispose);
       processor.processMessages(
         AgentToRendererMessagePayload.fromJson([
           {
-            'version': 'v0.9',
+            'version': 'v1.0',
             'createSurface': {'surfaceId': 's', 'catalogId': basicCatalog().id},
           },
-        ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ], protocolVersion: A2uiProtocolVersion.v1_0),
       );
       final SurfaceModel<ComponentImplementation> surface = processor.model
           .getSurface('s')!;

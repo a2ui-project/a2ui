@@ -20,12 +20,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, Object?> _create(String surfaceId) => {
-  'version': 'v0.9',
+  'version': 'v1.0',
   'createSurface': {'surfaceId': surfaceId, 'catalogId': basicCatalog().id},
 };
 
 Map<String, Object?> _root(String surfaceId, String type) => {
-  'version': 'v0.9',
+  'version': 'v1.0',
   'updateComponents': {
     'surfaceId': surfaceId,
     'components': [
@@ -40,7 +40,7 @@ void main() {
   setUp(() {
     processor = MessageProcessor<ComponentImplementation>(
       catalogs: [basicCatalog()],
-      defaultVersion: A2uiProtocolVersion.v0_9,
+      defaultVersion: A2uiProtocolVersion.v1_0,
     );
     addTearDown(processor.model.dispose);
   });
