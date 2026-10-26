@@ -230,6 +230,8 @@ def test_dataset_protocol_version() -> None:
 @pytest.mark.parametrize(
     ("version", "expected"),
     [
+        ("0.9", "0.9"),
+        ("v0.9", "0.9"),
         ("0.9.1", "0.9.1"),
         ("v0.9.1", "0.9.1"),
         (" V1.0 ", "1.0"),
@@ -239,7 +241,7 @@ def test_validate_version_normalizes(version: str, expected: str) -> None:
     assert validate_version(version) == expected
 
 
-@pytest.mark.parametrize("version", ["0.8", "0.9", "2.0", ""])
+@pytest.mark.parametrize("version", ["0.8", "2.0", ""])
 def test_validate_version_rejects_unsupported(version: str) -> None:
     with pytest.raises(ValueError, match="is not supported"):
         validate_version(version)

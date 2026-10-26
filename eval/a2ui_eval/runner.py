@@ -63,7 +63,7 @@ SUPPORTED_FORMATS: frozenset[str] = frozenset(
 )
 
 # Protocol versions supported for prompt generation and validation.
-SUPPORTED_VERSIONS: frozenset[str] = frozenset({"0.9.1", "1.0"})
+SUPPORTED_VERSIONS: frozenset[str] = frozenset({"0.9", "0.9.1", "1.0"})
 
 # Hard-kill budget, in seconds, for a single parse-and-validate call.
 DEFAULT_PARSE_TIMEOUT_SEC: float = 15.0
