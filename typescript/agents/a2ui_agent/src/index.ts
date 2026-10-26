@@ -128,3 +128,15 @@ export {
 // Facades
 export {A2uiGenerator} from './processor/generator.js';
 export {type A2uiRequestProcessorOptions, A2uiRequestProcessor} from './processor/processor.js';
+
+// Skill generator
+export {
+  type GenerateCatalogSkillOptions,
+  type GenerateCoreSkillOptions,
+  type GenerateSkillOptions,
+  type GenerateSkillSetOptions,
+  type SkillOptions,
+  Skill,
+  SkillGenerator,
+  SkillSet,
+} from './skill/index.js';
