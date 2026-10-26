@@ -110,6 +110,7 @@ pyink-use-majority-quotes = true
 extend-exclude = '''(?x)(
   /generated/
   | python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
+  | python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/
 )'''
 pyink-annotation-pragmas = [
   "noqa",
@@ -153,3 +154,9 @@ module = [
 ]
 follow_imports = "skip"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "a2ui.builder.v1_0.catalogs.*",
+]
+disable_error_code = ["call-arg"]
