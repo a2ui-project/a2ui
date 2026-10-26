@@ -414,6 +414,16 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
             {"event": {"name": "reply", "userMessage": "Now"}},
         )
 
+    def test_event_context_keeps_a_function_call_a_plain_call(self):
+        root = self._root(
+            'root = Links([{label: "Go", action: Event("go",'
+            ' {label: concat("a", "b")})}])'
+        )
+        self.assertEqual(
+            root["items"][0]["action"]["event"]["context"]["label"],
+            {"@call": "concat", "args": {"a": "a", "b": "b"}},
+        )
+
     def test_event_user_message_binding_with_positional_context(self):
         root = self._root(
             'root = Links([{label: "Reply", action: Event("reply", {threadId: "t1"},'

@@ -1401,13 +1401,16 @@ class ExpressCompiler:
         val: CallNode,
         raw_symbols: dict[str, Any],
         ctx: _CompileContext,
-        is_action: bool,
     ) -> dict[str, Any]:
         """Compiles the reserved `Event(name, context?, userMessage=?, context=?)` signature.
 
         `userMessage` is a v1.0 Action field. It is rejected when targeting an
         earlier protocol version, and so is any other keyword the signature does
         not define, rather than being dropped from the compiled action.
+
+        The event's name, message and context entries are `DynamicValue`s, not
+        actions, so a function call among them stays a plain call whatever slot
+        the event itself sits in.
 
         Raises:
             ExpressValidationError: If there are more than two positional
@@ -1433,9 +1436,7 @@ class ExpressCompiler:
             raise ExpressDuplicateParamError("Event", "context")
 
         compiled_event_name = (
-            self._compile_value(fn_args[0], raw_symbols, ctx, is_action)
-            if fn_args
-            else ""
+            self._compile_value(fn_args[0], raw_symbols, ctx) if fn_args else ""
         )
         event_dict: dict[str, Any] = {"name": compiled_event_name}
 
@@ -1446,7 +1447,7 @@ class ExpressCompiler:
                     f" target version {ctx.version} has no userMessage field."
                 )
             user_message = self._compile_value(
-                fn_kwargs["userMessage"], raw_symbols, ctx, is_action
+                fn_kwargs["userMessage"], raw_symbols, ctx
             )
             if not isinstance(user_message, str) and not (
                 isinstance(user_message, dict) and ctx.path_key in user_message
@@ -1464,7 +1465,7 @@ class ExpressCompiler:
         else:
             return {"event": event_dict}
 
-        raw_context = self._compile_value(context_node, raw_symbols, ctx, is_action)
+        raw_context = self._compile_value(context_node, raw_symbols, ctx)
         # A context written in the DSL is kept even when it is empty.
         compiled_context: dict[str, Any] = {}
         if isinstance(raw_context, dict):
@@ -1620,7 +1621,7 @@ class ExpressCompiler:
             return {"path": template_path, "componentId": comp_id_val}
 
         if fn_name == "Event":
-            return self._compile_event_call(val, raw_symbols, ctx, is_action)
+            return self._compile_event_call(val, raw_symbols, ctx)
 
         call_cat_id = raw_kwargs.pop("catalogId", None)
         if self._defines_component(fn_name, call_cat_id):
