@@ -512,21 +512,6 @@
           "type": "boolean",
           "description": "Whether construct_resolver disposes the resolver immediately in the same turn before delivery."
         },
-        "onFirstReportMessages": {
-          "type": "array",
-          "items": {"type": "object"},
-          "description": "Messages passed to processMessages inside the listener when the first report of this step arrives."
-        },
-        "onDestroyedMessages": {
-          "type": "array",
-          "items": {"type": "object"},
-          "description": "Messages passed to processMessages from the root node destruction callback during dispose_resolver."
-        },
-        "reenterMessages": {
-          "type": "array",
-          "items": {"type": "object"},
-          "description": "Messages that the next call of the `reenter` catalog function passes to processMessages, once. Read on `construct_resolver` steps."
-        },
         "path": {
           "type": "string",
           "description": "JSON Pointer the operation targets."

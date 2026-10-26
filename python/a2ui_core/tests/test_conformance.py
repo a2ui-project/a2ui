@@ -96,7 +96,7 @@ UNRUNNABLE_SUITES: dict[str, str] = {
     ),
     "core/node_resolution.yaml": "The Python core has no node resolution layer.",
     "core/problems.yaml": (
-        "The Python core has no node resolution layer or renderer problem queue."
+        "The Python core has no node resolution layer or renderer problem reports."
     ),
 }
 

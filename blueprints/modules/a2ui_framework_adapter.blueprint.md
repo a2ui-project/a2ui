@@ -112,16 +112,16 @@ A `NodeAction` resolves its payload when invoked. For an `event` payload, Core d
 
 - invoke the `NodeAction` synchronously inside the native gesture handler, with no debounce, defer, or re-dispatch through an asynchronous scheduler;
 - do not inspect, cache, or pre-resolve the action payload;
-- may show a pending state while a returned future is unsettled. Failures reach the surface's error listener through the surface's queue, so the view needs no error handling of its own.
+- may show a pending state while a returned future is unsettled. Failures reach the surface's error listener, so the view needs no error handling of its own.
 
 When a dynamic value or check depends on a function that runs asynchronously, a view treats a binding whose value is not yet available like any other empty value and re-renders when `node.props` emits.
 
 ### Problem reporting
 
-Problem delivery follows rules `P1` to `P6` of the [Core SDK blueprint](a2ui_core.blueprint.md#h-problem-reporting). On the adapter side, three rules (`F1` to `F3`) apply:
+Problem delivery follows rules `P1` to `P4` of the [Core SDK blueprint](a2ui_core.blueprint.md#h-problem-reporting). On the adapter side, three rules (`F1` to `F3`) apply:
 
-- **F1. No adapter-level problem reports.** Core and `NodeResolver` enqueue problems on the surface's channel. The node dispatcher and placeholder views render `pending`, `unknown-type`, and `cyclic` states visually and never dispatch reports of their own.
-- **F2. Listeners update framework state directly.** Core never calls a listener inside `NodeResolver` construction, update or disposal, or inside a catalog function's `execute` call. A host listener may update framework state directly, without a post-frame or next-tick callback. A host that calls `processMessages` from a view's build gets listener calls inside that build.
+- **F1. No adapter-level problem reports.** Core and `NodeResolver` report problems on the surface. The node dispatcher and placeholder views render `pending`, `unknown-type`, and `cyclic` states visually and never dispatch reports of their own.
+- **F2. Listeners update framework state directly.** Core never calls a listener inside the call that found the problem. A host listener may update framework state directly, without a post-frame or next-tick callback.
 - **F3. Resolve only while mounted.** A `Surface` view creates its `NodeResolver` when mounted and disposes it when unmounted, maintaining one resolver per mounted view. Unmounted surfaces hold no active resolver.
 
 ### Accessibility
