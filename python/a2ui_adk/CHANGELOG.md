@@ -31,10 +31,12 @@
   and `state` (`RendererState`), and infers `version` from the active catalogs'
   `protocol_version` when `version` is omitted.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- `A2uiEventConverter` reads `system:a2ui_processor`, `system:a2ui_state`, and
-  `system:a2ui_stream` from session state in addition to `system:a2ui_catalogs`,
-  reuses `A2uiPartConverter` across events, and supports incremental streaming
-  via `ResponseStream` on partial ADK events.
+- `A2uiEventConverter` reads an `A2uiRequestProcessor` from the
+  `system:a2ui_processor` session-state key (renamable with `processor_key`)
+  before falling back to `system:a2ui_catalogs`. It converts with the
+  processor's format and the `RendererState` bound to it, and when the format
+  can stream, it opens one `ResponseStream` per response, feeds it each
+  partial ADK event, and closes it on the final event.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 
 ## 0.1.0 (2026-10-17)
