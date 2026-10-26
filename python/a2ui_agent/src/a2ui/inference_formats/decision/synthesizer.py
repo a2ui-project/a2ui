@@ -794,7 +794,7 @@ class DecisionSynthesizer:
         if template_id is not None:
             return self._render_named_template(template_id, data, target_surface_id)
 
-        pointers = inspect_payload_pointers(data, mutable_paths=mutable_paths)
+        pointers = inspect_payload_pointers(data, mutable_paths=mutable_paths or ())
         has_mutable = bool(mutable_paths) or any(p.mutable_hint for p in pointers)
 
         timings: list[float] = []
@@ -956,7 +956,7 @@ class DecisionSynthesizer:
             if (title is not None or summary is not None)
             else None
         )
-        pointers = inspect_payload_pointers(data, mutable_paths=mutable_paths)
+        pointers = inspect_payload_pointers(data, mutable_paths=mutable_paths or ())
 
         config_with_variety = replace(self.config, variety=VarietyMode.NEAR_TOP)
         planner = LayoutPlanner(
