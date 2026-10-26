@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:meta/meta.dart';
-
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import 'catalog.dart';
 import 'messages.dart';
-import 'problem_channel.dart';
 import 'surface_model.dart';
 
 /// The root state model for the A2UI system.
@@ -29,7 +26,6 @@ class SurfaceGroupModel<T extends ComponentApi> {
   final _onSurfaceCreated = EventNotifier<SurfaceModel<T>>();
   final _onSurfaceDeleted = EventNotifier<String>();
   final _onAction = EventNotifier<A2uiRendererAction>();
-  final _channel = ProblemChannel();
 
   /// Fires when a new surface is added.
   EventSource<SurfaceModel<T>> get onSurfaceCreated => _onSurfaceCreated;
@@ -54,7 +50,6 @@ class SurfaceGroupModel<T extends ComponentApi> {
     _actionSubscriptions[surface.id] = surface.onAction.subscribe(
       _onAction.emit,
     );
-    attachProblemChannel(surface, _channel);
     _onSurfaceCreated.emit(surface);
   }
 
@@ -103,9 +98,3 @@ class SurfaceGroupModel<T extends ComponentApi> {
     _onAction.dispose();
   }
 }
-
-/// Runs [body] as one message applied to [group]'s surfaces: their errors
-/// and warnings queued while it runs are delivered when it returns or throws.
-@internal
-R runInMessageScope<R>(SurfaceGroupModel group, R Function() body) =>
-    group._channel.runMessage(body);

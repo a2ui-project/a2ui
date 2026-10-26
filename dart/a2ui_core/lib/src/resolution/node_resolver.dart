@@ -21,7 +21,6 @@ import 'package:logging/logging.dart';
 import '../core/catalog.dart';
 import '../core/component_model.dart';
 import '../core/messages.dart';
-import '../core/problem_channel.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
@@ -181,7 +180,7 @@ class NodeResolver<T extends ComponentApi> {
     }
     _updateDepth++;
     try {
-      ProblemChannel.guardResolution(() => batch(update));
+      batch(update);
     } finally {
       _updateDepth--;
       if (_updateDepth == 0 && _disposeRequested) {
@@ -239,21 +238,19 @@ class NodeResolver<T extends ComponentApi> {
     }
     _disposed = true;
     _disposeRequested = false;
-    ProblemChannel.guardResolution(
-      () => batch(() {
-        _onCreatedSub.unsubscribe();
-        _onDeletedSub.unsubscribe();
-        _rootRecord = null;
-        _rootNode.value = null;
-        for (final MutableComponentNode<T> node in List.of(_records.keys)) {
-          _disposeNode(node);
-        }
-        _pendingParents.clear();
-        _dispatchedErrors.clear();
-        _warnedReferencePaths.clear();
-        _warnedMissingDataPaths.clear();
-      }),
-    );
+    batch(() {
+      _onCreatedSub.unsubscribe();
+      _onDeletedSub.unsubscribe();
+      _rootRecord = null;
+      _rootNode.value = null;
+      for (final MutableComponentNode<T> node in List.of(_records.keys)) {
+        _disposeNode(node);
+      }
+      _pendingParents.clear();
+      _dispatchedErrors.clear();
+      _warnedReferencePaths.clear();
+      _warnedMissingDataPaths.clear();
+    });
   }
 
   /// No-op while a root record exists; root deletion clears it so a re-sent
