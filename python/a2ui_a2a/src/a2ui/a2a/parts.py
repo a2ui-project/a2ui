@@ -47,12 +47,15 @@ def create_a2ui_part(
     Args:
         a2ui_data: The A2UI data dictionary.
         version: The A2UI version: a `ProtocolVersion`, or a version string with
-            or without a leading "v". Without one, or for v0.8 and v0.9, the
-            part uses the deprecated MIME type.
+            or without a leading "v". Defaults to the message's own `version`
+            field. Without either, or for v0.8 and v0.9, the part uses the
+            deprecated MIME type.
 
     Returns:
         An A2A Part with a DataPart containing the A2UI data.
     """
+    if version is None and isinstance(a2ui_data.get("version"), str):
+        version = a2ui_data["version"]
     mime_type = A2UI_MIME_TYPE
     if version is None or to_version_number(version) in ("0.8", "0.9"):
         mime_type = DEPRECATED_A2UI_MIME_TYPE

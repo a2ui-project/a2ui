@@ -14,25 +14,24 @@
 
 """Module for the A2UI Part Converter.
 
-This module provides the `A2uiPartConverter` which acts as a catalog-aware GenAI to A2A
+This module provides the `A2uiPartConverter` which acts as a processor-aware GenAI to A2A
 part converter. It handles both tool-based A2UI (via the `send_a2ui_json_to_client` tool response)
-and text-based A2UI (extracted and healed via A2UI custom tags), validating the structures
-against the active A2UI catalog schema.
+and text-based A2UI (read with the processor's inference format), validating the structures
+against the processor's catalogs and the renderer state bound to it.
 
 Key Components:
-  * `A2uiPartConverter`: A catalog-aware GenAI to A2A part converter.
+  * `A2uiPartConverter`: A processor-aware GenAI to A2A part converter.
 
 Usage Example:
 
   Typically used internally by the A2uiEventConverter or manually configured for custom part conversions:
 
   ```python
-  converter = A2uiPartConverter(catalogs=[my_catalog])
+  converter = A2uiPartConverter(processor)
   a2a_parts = converter.convert(genai_part)
   ```
 """
 
-from collections.abc import Sequence
 import logging
 
 from a2a import types as a2a_types
@@ -42,95 +41,41 @@ from google.genai import types as genai_types
 
 from a2ui import constants
 from a2ui.a2a import create_a2ui_part, parse_content_to_parts
-from a2ui.core import A2uiCatalogError, CatalogApi
-from a2ui.core.schema import ProtocolVersion
-from a2ui.inference_formats.direct_json import DirectJsonParser
-from a2ui.parser import Parser
 from a2ui.processor import A2uiRequestProcessor
-from a2ui.utils import RendererState, to_version_number
 
 logger = logging.getLogger(__name__)
 
 
-def _infer_version(catalogs: Sequence[CatalogApi]) -> ProtocolVersion:
-    if catalogs:
-        raw_version = getattr(catalogs[0], "protocol_version", None)
-        if isinstance(raw_version, ProtocolVersion):
-            return raw_version
-        if isinstance(raw_version, str):
-            try:
-                return ProtocolVersion(f"v{to_version_number(raw_version)}")
-            except ValueError:
-                pass
-    return ProtocolVersion.V0_8
-
-
 @experimental
 class A2uiPartConverter:
-    """A catalog-aware GenAI to A2A part converter.
+    """A processor-aware GenAI to A2A part converter.
 
     This converter handles both tool-based A2UI (via `send_a2ui_json_to_client`)
-    and text-based A2UI (via A2UI delimiter tags). It uses the provided
-    catalogs or request processor to validate and fix JSON payloads.
+    and text-based A2UI (via the format's delimiter tags). The processor
+    supplies everything it needs: the parser for its inference format, the
+    catalogs that text-based A2UI is validated against, and the
+    `RendererState` bound to it, if any, which text-based A2UI is checked
+    against and applied to. Each part is labeled with its message's protocol
+    version.
 
     Args:
-        catalogs: The A2UI catalogs that text-based A2UI is validated against.
-            Optional when `processor` or `parser` is provided.
+        processor: The request processor for the client's catalogs.
         bypass_tool_check: If True, bypass tool validation.
         fallback_text: Optional text to fall back on if parsing fails.
-        version: The A2UI version to use: a `ProtocolVersion`, or a version
-            string with or without a leading "v". Defaults to the protocol
-            version of the active catalogs, or v0.8 if unavailable.
-        parser: Optional parser for text-based A2UI. Defaults to
-            `processor.parser` when `processor` is given, or a
-            `DirectJsonParser` holding the catalogs.
-        processor: Optional `A2uiRequestProcessor` supplying the active
-            catalogs, format parser, and bound renderer state.
-        state: Optional `RendererState` for Canvas UI turns. Defaults to
-            `processor.state` when `processor` is given.
     """
 
     def __init__(
         self,
-        catalogs: Sequence[CatalogApi] | None = None,
+        processor: A2uiRequestProcessor,
+        *,
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
-        version: ProtocolVersion | str | None = None,
-        parser: Parser | None = None,
-        *,
-        processor: A2uiRequestProcessor | None = None,
-        state: RendererState | None = None,
     ):
-        if catalogs is not None:
-            resolved_catalogs = list(catalogs)
-        elif processor is not None:
-            resolved_catalogs = processor.active_catalogs
-        elif parser is not None:
-            resolved_catalogs = list(parser.catalogs)
-        else:
-            raise A2uiCatalogError(
-                "A2uiPartConverter requires catalogs, a processor, or a parser."
-            )
-
+        self._processor = processor
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
-        self._version: ProtocolVersion | str = (
-            version if version is not None else _infer_version(resolved_catalogs)
-        )
-        self._parser: Parser = (
-            parser
-            if parser is not None
-            else (
-                processor.parser
-                if processor is not None
-                else DirectJsonParser(resolved_catalogs)
-            )
-        )
-        self._state: RendererState | None = (
-            state
-            if state is not None
-            else (processor.state if processor is not None else None)
-        )
+        self._parser = processor.parser
+        self._state = processor.state
 
     def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
         """Converts a GenAI part to A2A parts, with A2UI validation.
@@ -163,10 +108,7 @@ class A2uiPartConverter:
                 ):
                     json_data = response_dict.get(constants.A2UI_VALIDATED_JSON_KEY)
                     if json_data:
-                        return [
-                            create_a2ui_part(message, version=self._version)
-                            for message in json_data
-                        ]
+                        return [create_a2ui_part(message) for message in json_data]
 
                 if is_send_a2ui_json_to_client_response:
                     logger.info("No result in A2UI tool response")
@@ -179,7 +121,6 @@ class A2uiPartConverter:
                         result,
                         parser=self._parser,
                         fallback_text=self._fallback_text,
-                        version=self._version,
                         state=self._state,
                     )
 
@@ -196,7 +137,6 @@ class A2uiPartConverter:
                     text,
                     parser=self._parser,
                     fallback_text=self._fallback_text,
-                    version=self._version,
                     state=self._state,
                 )
 

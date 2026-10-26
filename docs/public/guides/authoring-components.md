@@ -258,21 +258,21 @@ The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/s
 
 ```python
 from a2ui.adk import SendA2uiToClientToolset
-from a2ui.utils import resolve_catalogs
+from a2ui.processor import A2uiGenerator
 
-a2ui_catalogs = resolve_catalogs(self.catalog_configs, capabilities)
+generator = A2uiGenerator(self.catalog_configs, examples=examples)
+processor = generator.create_processor(capabilities)
 agent.tools = [
     SendA2uiToClientToolset(
         a2ui_enabled=True,
-        a2ui_catalogs=a2ui_catalogs,
-        a2ui_examples=examples,
+        a2ui_processor=processor,
     )
 ]
 ```
 
 ### 4.3 Tool Execution
 
-Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_adk/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
+Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_adk/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload. The converter reads the request's processor from the `system:a2ui_processor` session-state key, so store it there when the session is prepared.
 
 ```python
 from a2ui.adk import A2uiEventConverter

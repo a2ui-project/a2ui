@@ -32,10 +32,8 @@ from typing import TYPE_CHECKING, Any
 
 from .genai_file_resolver import GenAIFileResolver
 from .send_a2ui_to_client_toolset import (
-    A2uiCatalogsProvider,
     A2uiEnabledProvider,
-    A2uiExamplesProvider,
-    A2uiStateProvider,
+    A2uiProcessorProvider,
     SendA2uiToClientToolset,
 )
 
@@ -94,12 +92,10 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = [
-    "A2uiCatalogsProvider",
     "A2uiEnabledProvider",
     "A2uiEventConverter",
-    "A2uiExamplesProvider",
     "A2uiPartConverter",
-    "A2uiStateProvider",
+    "A2uiProcessorProvider",
     "A2uiSubagentMap",
     "GenAIFileResolver",
     "SendA2uiToClientToolset",

@@ -12,13 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
+import json
 import logging
+import os
+import pathlib
 from typing import override
 
 from a2a.server.agent_execution import RequestContext
 from a2ui.a2a import try_activate_a2ui_extension
 from a2ui.adk import A2uiEventConverter
 from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats import to_message_models
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.processor import A2uiRequestProcessor
 
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
@@ -32,32 +40,29 @@ from google.adk.runners import Runner
 logger = logging.getLogger(__name__)
 
 _A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
-_A2UI_EXAMPLES_KEY = "system:a2ui_examples"
+_A2UI_PROCESSOR_KEY = "system:a2ui_processor"
 
 
-def get_a2ui_catalogs(ctx: ReadonlyContext):
-    """Retrieves the active A2UI catalogs from the session state.
-
-    Args:
-        ctx: The ReadonlyContext for resolving the catalogs.
-
-    Returns:
-        The active A2UI catalogs, or an empty list if none are found.
-    """
-    return ctx.state.get(_A2UI_CATALOGS_KEY) or []
+def _load_example_turns(path: str | None) -> list[list[AgentToRendererMessage]]:
+    """Loads each JSON file in the directory as one example turn."""
+    if not path:
+        return []
+    return [
+        to_message_models(json.loads(pathlib.Path(file).read_text()))
+        for file in sorted(glob.glob(os.path.join(path, "*.json")))
+    ]
 
 
-def get_a2ui_examples(ctx: ReadonlyContext):
-    """Retrieves the A2UI examples from the session state.
+def get_a2ui_processor(ctx: ReadonlyContext) -> A2uiRequestProcessor:
+    """Retrieves the request's A2UI processor from the session state.
 
     Args:
-        ctx: The ReadonlyContext for resolving the examples.
+        ctx: The ReadonlyContext for resolving the processor.
 
     Returns:
-        The A2UI examples or None if not found.
+        The A2uiRequestProcessor negotiated for the client's capabilities.
     """
-    return ctx.state.get(_A2UI_EXAMPLES_KEY)
+    return ctx.state[_A2UI_PROCESSOR_KEY]
 
 
 def get_a2ui_enabled(ctx: ReadonlyContext):
@@ -113,18 +118,18 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                 if context.message and context.message.metadata
                 else None
             )
-            from a2ui.utils import load_examples
-
-            processor = self._agent.create_processor(active_ui_version, capabilities)
+            negotiated = self._agent.create_processor(active_ui_version, capabilities)
             # The rizzcharts catalog already contains every basic component, so
             # passing the basic catalog too would repeat those schemas in the
             # prompt. Use only the preferred catalog, which the examples match.
-            a2ui_catalogs = processor.active_catalogs[:1]
+            a2ui_catalogs = negotiated.active_catalogs[:1]
             examples_path = self._agent.get_examples_path(
                 active_ui_version, a2ui_catalogs[0].catalog_id
             )
-            examples = load_examples(
-                processor.active_catalogs, examples_path, validate=False
+            processor = A2uiRequestProcessor(
+                a2ui_catalogs,
+                examples=_load_example_turns(examples_path),
+                format_factory=DirectJsonFormatFactory(),
             )
 
             await runner.session_service.append_event(
@@ -135,8 +140,7 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOGS_KEY: a2ui_catalogs,
-                            _A2UI_EXAMPLES_KEY: examples,
+                            _A2UI_PROCESSOR_KEY: processor,
                         }
                     ),
                 ),

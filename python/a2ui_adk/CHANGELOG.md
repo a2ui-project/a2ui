@@ -1,42 +1,40 @@
 ## Unreleased
 
-- **BREAKING CHANGE**: `SendA2uiToClientToolset` reads the tool call in an
-  inference format, Express by default, instead of always reading JSON. Its new
-  `inference_format_factory` argument picks the format; pass
-  `DirectJsonFormatFactory()` to keep reading Direct JSON. The tool's argument
-  is renamed from `a2ui_json` to `a2ui_payload`, and the prompt the toolset
-  adds comes from the format's prompt generator. The tool compiles the payload
-  with the format's parser, no longer with `parse_and_fix`, validates it, and
-  still returns A2UI JSON messages for the part converter.
+- **BREAKING CHANGE**: `SendA2uiToClientToolset(a2ui_enabled, a2ui_processor)`
+  takes the request's `A2uiRequestProcessor`, or an `A2uiProcessorProvider`
+  that returns it per context, instead of catalogs and examples. The processor
+  holds the catalogs, the example turns, the inference format and, for a canvas
+  agent, the bound `RendererState`. `A2uiCatalogsProvider` and
+  `A2uiExamplesProvider` are removed; markdown examples are no longer accepted,
+  so pass example turns to `A2uiGenerator` or `A2uiRequestProcessor`. To
+  migrate, store `generator.create_processor(capabilities)` under
+  `system:a2ui_processor` and pass
+  `a2ui_processor=lambda ctx: ctx.state["system:a2ui_processor"]`.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- **BREAKING CHANGE**: `A2uiPartConverter` checks text-based A2UI as a response
-  that shows new UI, so a response that updates a surface it does not create is
-  rejected and logged instead of converted. Tool-based A2UI from
-  `SendA2uiToClientToolset` without a renderer state is still checked with
-  `validate_payload`, which assumes such a surface exists.
+- **BREAKING CHANGE**: The tool reads its argument, renamed from `a2ui_json` to
+  `a2ui_payload`, in the processor's inference format (Express by default)
+  instead of always reading JSON. It compiles the payload with the format's
+  parser, no longer with `parse_and_fix`, validates it against the processor's
+  bound state or, without one, with `validate_payload`, and still returns A2UI
+  JSON messages for the part converter. The prompt it adds comes from the
+  format's prompt generator, and it skips each section (rules, catalogs,
+  examples) that the agent's system instruction already holds, such as when the
+  instruction includes `processor.prompt_snippet`.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- `SendA2uiToClientToolset` accepts example turns (such as
-  `processor.examples`), which the format's prompt generator writes in the
-  format's syntax, a markdown string, or `None`. It skips each prompt section
-  (rules, catalogs, examples) that the agent's system instruction already
-  holds, such as when the instruction includes `processor.prompt_snippet`.
-  Fixed catalogs and examples are bound to one `A2uiRequestProcessor` when the
-  toolset is created, so an empty catalog list, catalogs the format rejects, or
-  an invalid example turn raise there rather than on the first request. An
-  optional `a2ui_state` (`RendererState` or `A2uiStateProvider`) checks and
-  applies tool payloads against a Canvas state. `get_part_converter` reads
-  text-based A2UI with the toolset's format.
+- **BREAKING CHANGE**: `A2uiPartConverter(processor, *, bypass_tool_check=False,
+fallback_text=None)` takes the processor instead of `catalogs`, `parser`,
+  `version` and `state`. It reads text-based A2UI with the processor's parser
+  and checks it against the processor's bound state, as a response that shows
+  new UI when there is none, so a response that updates a surface it does not
+  create is then rejected and logged. Each part is labeled with its message's
+  protocol version.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- `A2uiPartConverter` accepts an optional `processor` (`A2uiRequestProcessor`)
-  and `state` (`RendererState`), and infers `version` from the active catalogs'
-  `protocol_version` when `version` is omitted.
-  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- `A2uiEventConverter` reads an `A2uiRequestProcessor` from the
-  `system:a2ui_processor` session-state key (renamable with `processor_key`)
-  before falling back to `system:a2ui_catalogs`. It converts with the
-  processor's format and the `RendererState` bound to it, and when the format
-  can stream, it opens one `ResponseStream` per response, feeds it each
-  partial ADK event, and closes it on the final event.
+- **BREAKING CHANGE**: `A2uiEventConverter(bypass_tool_check=False,
+fallback_text=None, *, processor_key="system:a2ui_processor")` reads the
+  request's processor from session state. Its `catalogs_key` argument and the
+  `system:a2ui_catalogs` key are removed. When the processor's format can
+  stream, it opens one `ResponseStream` per response, feeds it each partial ADK
+  event, and closes it on the final event.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 
 ## 0.1.0 (2026-10-17)

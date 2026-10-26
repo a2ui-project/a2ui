@@ -31,32 +31,7 @@ from google.adk.runners import Runner
 logger = logging.getLogger(__name__)
 
 _A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
-_A2UI_EXAMPLES_KEY = "system:a2ui_examples"
-
-
-def get_a2ui_catalogs(ctx: ReadonlyContext):
-    """Retrieves the active A2UI catalogs from the session state.
-
-    Args:
-        ctx: The ReadonlyContext for resolving the catalogs.
-
-    Returns:
-        The active A2UI catalogs, or an empty list if none are found.
-    """
-    return ctx.state.get(_A2UI_CATALOGS_KEY) or []
-
-
-def get_a2ui_examples(ctx: ReadonlyContext):
-    """Retrieves the A2UI examples from the session state.
-
-    Args:
-        ctx: The ReadonlyContext for resolving the examples.
-
-    Returns:
-        The A2UI examples or None if not found.
-    """
-    return ctx.state.get(_A2UI_EXAMPLES_KEY)
+_A2UI_PROCESSOR_KEY = "system:a2ui_processor"
 
 
 def get_a2ui_enabled(ctx: ReadonlyContext):
@@ -119,10 +94,6 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
             processor = self._agent.create_processor(
                 active_ui_version, client_capabilities
             )
-            a2ui_catalogs = processor.active_catalogs
-
-            # TODO: Load examples from files.
-            examples = ""
 
             await runner.session_service.append_event(
                 session,
@@ -132,8 +103,7 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOGS_KEY: a2ui_catalogs,
-                            _A2UI_EXAMPLES_KEY: examples,
+                            _A2UI_PROCESSOR_KEY: processor,
                         }
                     ),
                 ),

@@ -24,6 +24,7 @@ from a2a.types import Part
 import pytest
 
 from a2ui.a2a import (
+    create_a2ui_part,
     is_a2ui_part,
     parse_content_to_parts,
     stream_response_to_parts,
@@ -128,3 +129,18 @@ def test_parse_content_to_parts_checks_a_canvas_turn_against_its_state():
     )
 
     assert [part.root.data for part in parts] == [changed]
+
+
+def test_create_a2ui_part_defaults_to_the_messages_version():
+    v0_9_1 = {"version": "v0.9.1", "deleteSurface": {"surfaceId": "s"}}
+    v0_9 = {"version": "v0.9", "deleteSurface": {"surfaceId": "s"}}
+    v0_8 = {"deleteSurface": {"surfaceId": "s"}}
+
+    def mime(part):
+        return part.root.metadata["mimeType"]
+
+    assert mime(create_a2ui_part(v0_9_1)) == "application/a2ui+json"
+    assert mime(create_a2ui_part(v0_9)) == "application/json+a2ui"
+    assert mime(create_a2ui_part(v0_8)) == "application/json+a2ui"
+    # An explicit version still wins.
+    assert mime(create_a2ui_part(v0_9_1, version="0.9")) == "application/json+a2ui"

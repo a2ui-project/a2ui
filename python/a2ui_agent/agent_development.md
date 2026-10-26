@@ -213,7 +213,7 @@ runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
 ```
 
 An agent that uses the ADK `SendA2uiToClientToolset` can instead put the
-request's catalog and examples into the session state; see
+request's processor into the session state; see
 [Dynamic Schemas](#2-dynamic-schemas-context-aware).
 
 ### Step 4: Process Request and Stream UI
@@ -482,11 +482,12 @@ In a dynamic scenario, the agent's instruction doesn't name a catalog. Instead,
 you configure an `A2uiGenerator` once with `CatalogConfig(catalog)` and
 `accepts_inline_catalogs=True`, and call `generator.create_processor(capabilities)`
 for each request (e.g., during session preparation) to negotiate the active
-catalogs and store the selected catalog in the session state.
+catalogs, and store the processor in the session state. The processor holds
+the catalogs, the example turns, the inference format, and, for a canvas agent,
+the conversation's `RendererState` (`create_processor(..., state=...)`).
 
 ```python
 from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
-from a2ui.utils import load_examples
 
 # In your AgentExecutor subclass
 async def _prepare_session(self, context, run_request, runner):
@@ -507,8 +508,6 @@ async def _prepare_session(self, context, run_request, runner):
               state_delta={
                   "system:a2ui_enabled": True,
                   "system:a2ui_processor": processor,
-                  "system:a2ui_catalogs": processor.active_catalogs,
-                  "system:a2ui_examples": processor.examples,
               }
           ),
       ),
@@ -516,41 +515,39 @@ async def _prepare_session(self, context, run_request, runner):
   return session
 ```
 
-#### 2b. Accessing Catalogs via Providers
+#### 2b. Reading the Processor from Session State
 
-The `SendA2uiToClientToolset` can use **Providers**—callables that retrieve the
-active catalogs, examples, and optional Canvas `RendererState` from the current
-context state at runtime. `a2ui_examples` accepts a markdown string, a sequence
-of example turns (such as `processor.examples`), or `None`.
+`SendA2uiToClientToolset` takes the request's processor, or a **provider**: a
+callable that returns it from the current context at runtime.
+`A2uiEventConverter` reads the same `system:a2ui_processor` key.
 
 ```python
-# Providers that read from context state
-def get_a2ui_catalogs(ctx: ReadonlyContext):
-  return ctx.state.get("system:a2ui_catalogs") or []
+from a2ui.adk import A2uiEventConverter, SendA2uiToClientToolset
 
 
-def get_a2ui_examples(ctx: ReadonlyContext):
-  return ctx.state.get("system:a2ui_examples")
+def get_a2ui_processor(ctx: ReadonlyContext) -> A2uiRequestProcessor:
+  return ctx.state["system:a2ui_processor"]
 
 
-def get_a2ui_state(ctx: ReadonlyContext):
-  return ctx.state.get("system:a2ui_state")
+def get_a2ui_enabled(ctx: ReadonlyContext) -> bool:
+  return ctx.state.get("system:a2ui_enabled", False)
 
 
-# Initialize the toolset with providers
 ui_toolset = SendA2uiToClientToolset(
-    a2ui_enabled=True,
-    a2ui_catalogs=get_a2ui_catalogs,
-    a2ui_examples=get_a2ui_examples,
-    a2ui_state=get_a2ui_state,
+    a2ui_enabled=get_a2ui_enabled,
+    a2ui_processor=get_a2ui_processor,
 )
+config = A2aAgentExecutorConfig(event_converter=A2uiEventConverter())
 ```
+
+An agent whose catalogs don't depend on the request can pass one processor
+instead: `SendA2uiToClientToolset(a2ui_enabled=True, a2ui_processor=processor)`.
 
 #### 2c. Runtime Validation
 
-When the LLM calls the UI tool, the toolset uses the dynamic catalogs and its
-inference format (Express by default; pass `inference_format_factory=` to
-change it) to:
+When the LLM calls the UI tool, the toolset uses the request's processor
+(whose inference format is Express unless the generator was given another
+`inference_format_factory`) to:
 
 1. **Generate Instructions**: Add the format's rules, the catalogs and the
    examples, written by the format's prompt generator, to the LLM's system
@@ -559,9 +556,10 @@ change it) to:
    again.
 2. **Compile Payloads**: Compile the tool's `a2ui_payload` argument into A2UI
    messages with the format's parser.
-3. **Validate Payloads**: Validate the messages against the active
-   `RendererState` when provided (for Canvas UIs), or with
-   `a2ui.utils.validate_payload` when stateless, and return them as A2UI JSON.
+3. **Validate Payloads**: Validate the messages against the `RendererState`
+   bound to the processor (for Canvas UIs), or with
+   `a2ui.utils.validate_payload` when there is none, and return them as A2UI
+   JSON.
 
 ### 3. Multiple Version Support
 

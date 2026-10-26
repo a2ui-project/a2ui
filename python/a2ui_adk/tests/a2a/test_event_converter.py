@@ -16,183 +16,77 @@
 
 from unittest.mock import MagicMock, patch
 
+from google.adk.a2a.converters import part_converter as adk_part_converter
 from google.genai import types as genai_types
 
 from a2ui.adk.a2a import A2uiEventConverter, A2uiPartConverter
-from a2ui.core import Catalog
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.processor import A2uiRequestProcessor
+from a2ui.utils import RendererState
 
 
-def test_event_converter_injects_catalog():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    event_mock = MagicMock()
-    invocation_context_mock = MagicMock()
-    # Correctly access session via mock
-    invocation_context_mock.session.state = {"system:a2ui_catalogs": catalog_mock}
-
-    converter = A2uiEventConverter()
-
+def _convert(converter: A2uiEventConverter, state: dict, event=None):
+    """Runs the converter and returns the part converter it passes to ADK."""
+    invocation_context = MagicMock()
+    invocation_context.session.state = state
     with patch(
         "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
     ) as mock_base_converter:
         mock_base_converter.return_value = []
-
-        # Converter is not async
-        converter(event_mock, invocation_context_mock)
-
-        # Verify that mock_base_converter was called with a part_converter that uses the catalog
-        args, kwargs = mock_base_converter.call_args
-        effective_part_converter = args[4]
-
-        assert effective_part_converter.__name__ == "convert"
-        assert isinstance(effective_part_converter.__self__, A2uiPartConverter)
-        assert effective_part_converter.__self__._parser.catalogs == [catalog_mock]
-
-
-def test_event_converter_injects_catalog_sequence():
-    catalogs = [
-        BasicCatalog("1.0"),
-        Catalog.from_json(
-            {"catalogId": "custom", "components": {}},
-            protocol_version="1.0",
-            catalog_id="custom",
-        ),
-    ]
-    event_mock = MagicMock()
-    invocation_context_mock = MagicMock()
-    invocation_context_mock.session.state = {"system:a2ui_catalogs": catalogs}
-
-    converter = A2uiEventConverter()
-
-    with patch(
-        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
-    ) as mock_base_converter:
-        mock_base_converter.return_value = []
-
-        converter(event_mock, invocation_context_mock)
-
-        args, _ = mock_base_converter.call_args
-        effective_part_converter = args[4]
-
-        assert isinstance(effective_part_converter.__self__, A2uiPartConverter)
-        assert effective_part_converter.__self__._parser.catalogs == list(catalogs)
-
-
-def test_event_converter_reads_custom_catalogs_key():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    invocation_context_mock = MagicMock()
-    invocation_context_mock.session.state = {"custom:catalogs": [catalog_mock]}
-
-    converter = A2uiEventConverter(catalogs_key="custom:catalogs")
-
-    with patch(
-        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
-    ) as mock_base_converter:
-        mock_base_converter.return_value = []
-
-        converter(MagicMock(), invocation_context_mock)
-
-        args, _ = mock_base_converter.call_args
-        effective_part_converter = args[4]
-
-        assert isinstance(effective_part_converter.__self__, A2uiPartConverter)
-        assert effective_part_converter.__self__._parser.catalogs == [catalog_mock]
-
-
-def test_event_converter_falls_back_without_catalog():
-    event_mock = MagicMock()
-    invocation_context_mock = MagicMock()
-    invocation_context_mock.session.state = {}  # No catalog
-
-    converter = A2uiEventConverter()
-
-    with patch(
-        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
-    ) as mock_base_converter:
-        mock_base_converter.return_value = []
-
-        # Converter is not async
-        converter(event_mock, invocation_context_mock)
-
-        args, kwargs = mock_base_converter.call_args
-        effective_part_converter = args[4]
-
-        from google.adk.a2a.converters.part_converter import (
-            convert_genai_part_to_a2a_part,
-        )
-
-        assert effective_part_converter == convert_genai_part_to_a2a_part
-
-
-def test_event_converter_propagates_fallback_text():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    event_mock = MagicMock()
-    invocation_context_mock = MagicMock()
-    invocation_context_mock.session.state = {"system:a2ui_catalogs": catalog_mock}
-
-    custom_fallback = "Custom event fallback text"
-    converter = A2uiEventConverter(fallback_text=custom_fallback)
-
-    with patch(
-        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
-    ) as mock_base_converter:
-        mock_base_converter.return_value = []
-
-        converter(event_mock, invocation_context_mock)
-
-        args, kwargs = mock_base_converter.call_args
-        effective_part_converter = args[4]
-
-        assert isinstance(effective_part_converter.__self__, A2uiPartConverter)
-        assert effective_part_converter.__self__._fallback_text == custom_fallback
+        converter(event or MagicMock(), invocation_context)
+    return mock_base_converter.call_args[0][4]
 
 
 def test_event_converter_reads_the_processor_and_its_bound_state():
-    from a2ui.core.schema import ProtocolVersion
-    from a2ui.processor import A2uiRequestProcessor
-    from a2ui.utils import RendererState
-
     catalog = BasicCatalog(ProtocolVersion.V1_0)
     state = RendererState([catalog])
     processor = A2uiRequestProcessor([catalog], state=state)
-    invocation_context_mock = MagicMock()
-    invocation_context_mock.session.state = {"system:a2ui_processor": processor}
 
-    with patch(
-        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
-    ) as mock_base_converter:
-        mock_base_converter.return_value = []
-        A2uiEventConverter()(MagicMock(), invocation_context_mock)
+    part_converter = _convert(
+        A2uiEventConverter(), {"system:a2ui_processor": processor}
+    ).__self__
 
-    part_converter = mock_base_converter.call_args[0][4].__self__
+    assert isinstance(part_converter, A2uiPartConverter)
+    assert part_converter._processor is processor
     assert part_converter._parser is processor.parser
     assert part_converter._state is state
-    assert part_converter._version == ProtocolVersion.V1_0
 
 
-def test_event_converter_prefers_the_processor_to_the_catalogs():
-    from a2ui.processor import A2uiRequestProcessor
-
+def test_event_converter_reads_a_custom_processor_key():
     processor = A2uiRequestProcessor([BasicCatalog("1.0")])
-    invocation_context_mock = MagicMock()
-    invocation_context_mock.session.state = {
-        "system:a2ui_processor": processor,
-        "system:a2ui_catalogs": [MagicMock(spec=Catalog)],
-    }
 
-    with patch(
-        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
-    ) as mock_base_converter:
-        mock_base_converter.return_value = []
-        A2uiEventConverter()(MagicMock(), invocation_context_mock)
+    part_converter = _convert(
+        A2uiEventConverter(processor_key="custom:processor"),
+        {"custom:processor": processor},
+    ).__self__
 
-    assert mock_base_converter.call_args[0][4].__self__._parser is processor.parser
+    assert part_converter._processor is processor
+
+
+def test_event_converter_falls_back_without_a_processor():
+    effective = _convert(A2uiEventConverter(), {})
+    assert effective is adk_part_converter.convert_genai_part_to_a2a_part
+
+
+def test_event_converter_ignores_a_value_that_is_not_a_processor():
+    effective = _convert(
+        A2uiEventConverter(), {"system:a2ui_processor": [BasicCatalog("1.0")]}
+    )
+    assert effective is adk_part_converter.convert_genai_part_to_a2a_part
+
+
+def test_event_converter_passes_its_options_to_the_part_converter():
+    processor = A2uiRequestProcessor([BasicCatalog("1.0")])
+
+    part_converter = _convert(
+        A2uiEventConverter(bypass_tool_check=True, fallback_text="Sorry."),
+        {"system:a2ui_processor": processor},
+    ).__self__
+
+    assert part_converter._bypass_tool_check
+    assert part_converter._fallback_text == "Sorry."
 
 
 def _streaming_context(processor, invocation_id: str = "inv-1") -> MagicMock:
@@ -209,10 +103,6 @@ def _event(partial: bool) -> MagicMock:
 
 
 def test_event_converter_streams_partial_events_into_one_stream():
-    from a2ui.core.schema import ProtocolVersion
-    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
-    from a2ui.processor import A2uiRequestProcessor
-    from a2ui.utils import RendererState
 
     catalog = BasicCatalog(ProtocolVersion.V0_9)
     state = RendererState([catalog])
@@ -259,8 +149,6 @@ def test_event_converter_streams_partial_events_into_one_stream():
 
 
 def test_event_converter_keeps_one_stream_per_invocation():
-    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
-    from a2ui.processor import A2uiRequestProcessor
 
     processor = A2uiRequestProcessor(
         [BasicCatalog("0.9")], format_factory=DirectJsonFormatFactory()
@@ -282,8 +170,6 @@ def test_event_converter_keeps_one_stream_per_invocation():
 
 
 def test_event_converter_converts_a_response_without_partial_events_whole():
-    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
-    from a2ui.processor import A2uiRequestProcessor
 
     catalog = BasicCatalog("0.9")
     processor = A2uiRequestProcessor(
@@ -309,7 +195,6 @@ def test_event_converter_converts_a_response_without_partial_events_whole():
 
 
 def test_event_converter_does_not_stream_a_format_that_cannot():
-    from a2ui.processor import A2uiRequestProcessor
 
     processor = A2uiRequestProcessor([BasicCatalog("0.9")])  # Express
     invocation_context = _streaming_context(processor)
