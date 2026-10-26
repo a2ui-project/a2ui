@@ -1356,7 +1356,7 @@ async def test_local_cross_encoder_answer_batches_and_chunks_pairs() -> None:
     assert answers[1].yes > 0.85
     assert answers[2].expected is not None and answers[2].expected > 1.5
 
-    # Verify chunking when max_batch_pairs=3 (8 pairs -> chunks of 3, 3, 2)
+    # Verify chunking when max_batch_pairs=3 (8 pairs -> encoded once, session called in chunks of 3, 3, 2)
     tok_chunked = _ChunkingFakeTokenizer()
     sess_chunked = _DynamicFakeSession(logits)
     chunked_backend = LocalCrossEncoderBackend(
@@ -1364,7 +1364,7 @@ async def test_local_cross_encoder_answer_batches_and_chunks_pairs() -> None:
     )
     chunked_answers = await chunked_backend.answer(batch)
     assert sess_chunked.run_count == 3
-    assert tok_chunked.call_sizes == [3, 3, 2]
+    assert tok_chunked.call_sizes == [8]
     assert [a.top() for a in chunked_answers] == [a.top() for a in answers]
 
 
@@ -1449,3 +1449,167 @@ async def test_batching_decision_backend_coalesces_20_predicts_and_isolates_fail
                 ),
             )
     await batcher.aclose_current_loop()
+
+
+@pytest.mark.asyncio
+async def test_local_cross_encoder_sorting_and_padding_width() -> None:
+    import numpy as np
+
+    class _DistinctTokenFakeTokenizer:
+
+        def __init__(self, lengths: list[int]) -> None:
+            self._lengths = lengths
+
+        def encode_batch(self, pairs: list[tuple[str, str]]) -> list[_FakeEncoding]:
+            return [
+                _FakeEncoding(
+                    ids=[i * 1000] + list(range(1, self._lengths[i])),
+                    attention_mask=[1] * self._lengths[i],
+                    type_ids=[0] * self._lengths[i],
+                )
+                for i in range(len(pairs))
+            ]
+
+    class _InspectingFakeSession:
+
+        def __init__(self, logits_by_input_id: dict[int, float]) -> None:
+            self._logits_by_input_id = logits_by_input_id
+            self.chunk_padding_widths: list[int] = []
+            self.chunk_sizes: list[int] = []
+
+        def get_inputs(self) -> list[_FakeSessionInput]:
+            return [
+                _FakeSessionInput("input_ids"),
+                _FakeSessionInput("attention_mask"),
+            ]
+
+        def run(self, output_names: Any, feeds: dict[str, Any]) -> list[Any]:
+            del output_names
+            input_ids = feeds["input_ids"]
+            self.chunk_padding_widths.append(input_ids.shape[1])
+            self.chunk_sizes.append(input_ids.shape[0])
+            chunk_logits = [
+                self._logits_by_input_id.get(int(row[0]), 0.0) for row in input_ids
+            ]
+            return [np.array(chunk_logits, dtype=np.float32)[:, np.newaxis]]
+
+    lengths = [5, 2, 8, 3]
+    logits_map = {0: 10.0, 1000: 20.0, 2000: 30.0, 3000: 40.0}
+    tok = _DistinctTokenFakeTokenizer(lengths)
+    sess = _InspectingFakeSession(logits_map)
+
+    backend = LocalCrossEncoderBackend(session=sess, tokenizer=tok, max_batch_pairs=2)
+    pairs = [("q", f"p_{i}") for i in range(4)]
+    logits = backend._score_pairs_sync(pairs)
+
+    # Logits come back in original input order after sorting
+    assert logits == [10.0, 20.0, 30.0, 40.0]
+
+    # Pairs sorted by length: index 1 (len 2), index 3 (len 3) -> chunk 1 max len 3
+    # Index 0 (len 5), index 2 (len 8) -> chunk 2 max len 8
+    assert sess.chunk_sizes == [2, 2]
+    assert sess.chunk_padding_widths == [3, 8]
+
+
+def test_local_cross_encoder_threads_and_cpu_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import os
+    from unittest.mock import MagicMock
+
+    fake_ort = MagicMock()
+    fake_tokenizer_mod = MagicMock()
+    fake_hf = MagicMock()
+
+    class _CaptureSessionOptions:
+
+        def __init__(self) -> None:
+            self.intra_op_num_threads = -1
+            self.inter_op_num_threads = -1
+            self.graph_optimization_level = None
+
+    fake_ort.SessionOptions = _CaptureSessionOptions
+    fake_ort.InferenceSession = MagicMock()
+    fake_hf.hf_hub_download = MagicMock(return_value="/fake/path")
+    fake_tokenizer_inst = MagicMock()
+    fake_tokenizer_mod.Tokenizer.from_file = MagicMock(return_value=fake_tokenizer_inst)
+
+    monkeypatch.setattr(
+        "sys.modules",
+        {
+            **sys.modules,
+            "onnxruntime": fake_ort,
+            "tokenizers": fake_tokenizer_mod,
+            "huggingface_hub": fake_hf,
+        },
+    )
+
+    # threads=None resolves to CPU count
+    backend = LocalCrossEncoderBackend(threads=None)
+    backend._ensure_loaded()
+    expected_cpu = max(1, os.cpu_count() or 1)
+    opts = fake_ort.InferenceSession.call_args[0][1]
+    assert opts.intra_op_num_threads == expected_cpu
+
+    # threads=4 explicitly
+    backend4 = LocalCrossEncoderBackend(threads=4)
+    backend4._ensure_loaded()
+    opts4 = fake_ort.InferenceSession.call_args[0][1]
+    assert opts4.intra_op_num_threads == 4
+
+    # Validation
+    with pytest.raises(ValueError, match="threads must be >= 1"):
+        LocalCrossEncoderBackend(threads=0)
+    with pytest.raises(ValueError, match="threads must be >= 1"):
+        LocalCrossEncoderBackend(threads=-2)
+
+
+def test_local_cross_encoder_max_seq_and_summary_pointers() -> None:
+    with pytest.raises(ValueError, match="max_seq_length must be >= 32"):
+        LocalCrossEncoderBackend(max_seq_length=16)
+    with pytest.raises(ValueError, match="max_summary_pointers must be >= 1"):
+        LocalCrossEncoderBackend(max_summary_pointers=0)
+
+    from a2ui.inference_formats.decision.backends import (
+        _format_query_passage_pairs,
+    )
+
+    query = DecisionQuery(
+        task="root_component",
+        prompt="Display host status",
+        candidates=("HostCard", "none"),
+        context={
+            "pointers": [f"/field_{i}" for i in range(60)],
+            "candidate_descriptions": {"HostCard": "A" * 300},
+        },
+    )
+    query_text, passages = _format_query_passage_pairs(
+        query, max_summary_pointers=12, max_option_chars=240
+    )
+    assert "/field_11" in query_text
+    assert "/field_12" not in query_text
+    assert len(passages[0]) == len("HostCard: ") + 240
+
+
+def test_create_decision_backend_env_knobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("A2UI_DECISION_THREADS", "6")
+    monkeypatch.setenv("A2UI_DECISION_MAX_SEQ", "128")
+    b = create_decision_backend("local")
+    assert isinstance(b, LocalCrossEncoderBackend)
+    assert b.threads == 6
+    assert b.max_seq_length == 128
+
+    monkeypatch.setenv("A2UI_DECISION_THREADS", "0")
+    with pytest.raises(ValueError, match="positive"):
+        create_decision_backend("local")
+
+    monkeypatch.setenv("A2UI_DECISION_THREADS", "invalid")
+    with pytest.raises(ValueError, match="integer"):
+        create_decision_backend("local")
+
+    monkeypatch.setenv("A2UI_DECISION_THREADS", "4")
+    monkeypatch.setenv("A2UI_DECISION_MAX_SEQ", "16")
+    with pytest.raises(ValueError, match="max_seq_length must be >= 32"):
+        create_decision_backend("local")

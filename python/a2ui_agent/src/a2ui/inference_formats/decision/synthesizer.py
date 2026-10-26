@@ -65,6 +65,7 @@ from .models import (
     SynthesisConfig,
     SynthesisOutput,
     SynthesisStage,
+    VarietyMode,
     coerce_decision_payload,
 )
 from .patterns import (
@@ -905,6 +906,97 @@ class DecisionSynthesizer:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             return pool.submit(run_in_new_loop).result()
 
+    async def remix(
+        self,
+        intent: str,
+        payload: Mapping[str, Any] | Sequence[Any] | str,
+        answers: Sequence[DecisionAnswer],
+        *,
+        surface_id: str | None = None,
+        mutable_paths: Collection[str] = (),
+        brief: LayoutBrief | Sequence[str] | None = None,
+        title: str | None = None,
+        summary: str | None = None,
+        seed: int | None = None,
+    ) -> SynthesisOutput:
+        """Re-plans a previously answered surface with variety sampling and 0 decision calls."""
+        return self.remix_sync(
+            intent,
+            payload,
+            answers,
+            surface_id=surface_id,
+            mutable_paths=mutable_paths,
+            brief=brief,
+            title=title,
+            summary=summary,
+            seed=seed,
+        )
+
+    def remix_sync(
+        self,
+        intent: str,
+        payload: Mapping[str, Any] | Sequence[Any] | str,
+        answers: Sequence[DecisionAnswer],
+        *,
+        surface_id: str | None = None,
+        mutable_paths: Collection[str] = (),
+        brief: LayoutBrief | Sequence[str] | None = None,
+        title: str | None = None,
+        summary: str | None = None,
+        seed: int | None = None,
+    ) -> SynthesisOutput:
+        """Synchronously re-plans a previously answered surface with 0 decision calls."""
+        if not answers:
+            raise ValueError("answers do not match this intent and payload")
+
+        data = _as_data_model(payload)
+        brief_obj = _coerce_layout_brief(brief, self.archetypes)
+        copy = (
+            AuthoredCopy(title=title, summary=summary)
+            if (title is not None or summary is not None)
+            else None
+        )
+        pointers = inspect_payload_pointers(data, mutable_paths=mutable_paths)
+
+        config_with_variety = replace(self.config, variety=VarietyMode.NEAR_TOP)
+        planner = LayoutPlanner(
+            self.archetypes, config_with_variety, capabilities=self.patterns
+        )
+        batch, state = planner.build_batch(
+            intent, pointers, brief=brief_obj, payload=data, copy=copy
+        )
+
+        batch_q_ids = {q.id for q in batch.questions}
+        ans_q_ids = {a.question_id for a in answers}
+        if batch_q_ids != ans_q_ids:
+            raise ValueError("answers do not match this intent and payload")
+
+        outcome = planner.read(state, answers, seed=seed)
+        if outcome.plan is None:
+            return SynthesisOutput(
+                stage=SynthesisStage.ABSTAIN_FALLBACK,
+                messages=[],
+                confidence=0.0,
+                entropy=0.0,
+                decision_calls=0,
+                decision_latency_ms=0.0,
+                decision_answers=tuple(answers),
+            )
+
+        components = self._expand_plan(outcome.plan)
+        target_surface_id = (
+            surface_id if surface_id is not None else self.config.default_surface_id
+        )
+        output = self._finish_archetype_output(
+            outcome.plan, state, components, data, target_surface_id
+        )
+        return replace(
+            output,
+            decision_calls=0,
+            decision_latency_ms=0.0,
+            decision_answers=tuple(answers),
+        )
+
     def _render_named_template(
         self, template_id: str, data: Mapping[str, Any], surface_id: str
     ) -> SynthesisOutput:
@@ -1138,7 +1230,7 @@ class DecisionSynthesizer:
             intent, pointers, brief=brief, payload=data, copy=copy
         )
         answers = await self._backend_answer(batch)
-        outcome = planner.read(state, answers)
+        outcome = planner.read(state, answers, seed=variety_seed)
         if outcome.plan is None:
             return outcome, state
         reask = planner.needs_reask(outcome.plan, state)
@@ -1155,7 +1247,7 @@ class DecisionSynthesizer:
             ans for ans in reask_answers if ans.question_id not in existing_ids
         )
         state.trace.clear()
-        return planner.read(state, merged), state
+        return planner.read(state, merged, seed=variety_seed), state
 
     def _block_prefix_and_owner(
         self, block_id: str, pattern: str

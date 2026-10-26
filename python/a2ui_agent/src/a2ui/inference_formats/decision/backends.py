@@ -12,13 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Inference backends for local decision-model A2UI synthesis."""
+"""Inference backends for local decision-model A2UI synthesis.
+
+Environment variables:
+- `A2UI_DECISION_BACKEND`: Default backend kind ('mock', 'local', 'jev', etc.).
+- `A2UI_DECISION_URL`: Default URL for remote backends.
+- `A2UI_DECISION_MODEL`: Default model identifier.
+- `A2UI_DECISION_TEMPERATURE`: Temperature scaling for probability distributions.
+- `A2UI_DECISION_THREADS`: Intra-op thread count for LocalCrossEncoderBackend
+  (defaults to CPU count).
+- `A2UI_DECISION_MAX_SEQ`: Maximum sequence length for LocalCrossEncoderBackend
+  token truncation (defaults to 256).
+"""
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping, Sequence
 import math
+import os
 import re
 import time
 from typing import Any, Protocol, TypeAlias, TypeVar, cast, runtime_checkable
@@ -130,24 +142,37 @@ def _child_slot_clause(query: DecisionQuery, *, full_template: str) -> str | Non
     return f"Slot: {slot}" if slot else None
 
 
-def _pointers_summary(context: Mapping[str, Any], label: str) -> str | None:
+def _pointers_summary(
+    context: Mapping[str, Any], label: str, *, max_pointers: int | None = 12
+) -> str | None:
     """Formats the available payload pointers clause if present in `context`."""
     pointers = context.get("pointers")
     if isinstance(pointers, (list, tuple)) and pointers:
-        return f"{label}: {', '.join(str(p) for p in pointers)}"
+        pts = list(pointers)
+        if max_pointers is not None and max_pointers > 0 and len(pts) > max_pointers:
+            pts = pts[:max_pointers]
+        return f"{label}: {', '.join(str(p) for p in pts)}"
     return None
 
 
-def _candidate_description(context: Mapping[str, Any], candidate: str) -> str | None:
+def _candidate_description(
+    context: Mapping[str, Any], candidate: str, *, max_chars: int = 240
+) -> str | None:
     """Returns the description string for `candidate` from `context`, if any."""
     cand_descs = context.get("candidate_descriptions")
     if isinstance(cand_descs, Mapping) and cand_descs.get(candidate):
-        return str(cand_descs[candidate])
+        desc = str(cand_descs[candidate])
+        if max_chars > 0 and len(desc) > max_chars:
+            desc = desc[:max_chars]
+        return desc
     return None
 
 
 def _format_query_passage_pairs(
     query: DecisionQuery,
+    *,
+    max_summary_pointers: int | None = 12,
+    max_option_chars: int = 240,
 ) -> tuple[str, list[str]]:
     """Formats DecisionQuery into (query_text, passage_texts) for cross-encoder scoring."""
     intent = query.context.get("intent")
@@ -160,13 +185,17 @@ def _format_query_passage_pairs(
         query,
         full_template="Selecting child component for {parent}, slot {slot}",
     )
-    ptr_clause = _pointers_summary(query.context, "Available data fields")
+    ptr_clause = _pointers_summary(
+        query.context, "Available data fields", max_pointers=max_summary_pointers
+    )
     query_parts = [
         p for p in (intent_clause, query.prompt, slot_clause, ptr_clause) if p
     ]
     passage_texts = [
         f"{c}: {desc}"
-        if (desc := _candidate_description(query.context, c))
+        if (
+            desc := _candidate_description(query.context, c, max_chars=max_option_chars)
+        )
         else ("none: None of the above" if c == "none" else c)
         for c in query.candidates
     ]
@@ -1476,6 +1505,9 @@ class LocalCrossEncoderBackend(PredictOnlyBackend):
         temperature: float = 1.0,
         calibrated: bool = True,
         max_batch_pairs: int = 256,
+        threads: int | None = None,
+        max_seq_length: int = 256,
+        max_summary_pointers: int = 12,
         cache_dir: str | None = None,
         session: Any | None = None,
         tokenizer: Any | None = None,
@@ -1484,11 +1516,22 @@ class LocalCrossEncoderBackend(PredictOnlyBackend):
             raise ValueError(f"temperature must be positive, got {temperature}")
         if max_batch_pairs < 1:
             raise ValueError(f"max_batch_pairs must be >= 1, got {max_batch_pairs}")
+        if threads is not None and threads < 1:
+            raise ValueError(f"threads must be >= 1, got {threads}")
+        if max_seq_length < 32:
+            raise ValueError(f"max_seq_length must be >= 32, got {max_seq_length}")
+        if max_summary_pointers < 1:
+            raise ValueError(
+                f"max_summary_pointers must be >= 1, got {max_summary_pointers}"
+            )
         self.model_id = model_id
         self.onnx_subpath = onnx_subpath
         self.temperature = float(temperature)
         self.calibrated = bool(calibrated)
         self.max_batch_pairs = int(max_batch_pairs)
+        self.threads = threads
+        self.max_seq_length = int(max_seq_length)
+        self.max_summary_pointers = int(max_summary_pointers)
         self.cache_dir = cache_dir
 
         self._session = session
@@ -1517,7 +1560,7 @@ class LocalCrossEncoderBackend(PredictOnlyBackend):
                 cache_dir=self.cache_dir,
             )
             opts = ort.SessionOptions()
-            opts.intra_op_num_threads = 2
+            opts.intra_op_num_threads = self.threads or max(1, os.cpu_count() or 1)
             opts.inter_op_num_threads = 1
             opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
             self._session = ort.InferenceSession(
@@ -1532,43 +1575,89 @@ class LocalCrossEncoderBackend(PredictOnlyBackend):
             )
             self._tokenizer = Tokenizer.from_file(tok_path)
             self._tokenizer.enable_padding()
-            self._tokenizer.enable_truncation(max_length=512)
+            self._tokenizer.enable_truncation(max_length=self.max_seq_length)
 
         return self._session, self._tokenizer
 
     def _score_pairs_sync(self, pairs: Sequence[tuple[str, str]]) -> list[float]:
         """Scores `(query, passage)` pairs in chunks of `self.max_batch_pairs`."""
+        if not pairs:
+            return []
+
         import numpy as np
 
         session, tokenizer = self._ensure_loaded()
         input_names = [inp.name for inp in getattr(session, "get_inputs", lambda: ())()]
         has_type_ids = "token_type_ids" in input_names
-        logits_out: list[float] = []
 
-        for start in range(0, len(pairs), self.max_batch_pairs):
-            chunk = list(pairs[start : start + self.max_batch_pairs])
-            encodings = tokenizer.encode_batch(chunk)
+        raw_encodings = tokenizer.encode_batch(list(pairs))
+
+        def _token_count(enc: Any) -> int:
+            mask = getattr(enc, "attention_mask", None)
+            if mask is not None:
+                return int(sum(mask))
+            ids = getattr(enc, "ids", None)
+            return len(ids) if ids is not None else 0
+
+        indexed = [
+            (i, raw_encodings[i], _token_count(raw_encodings[i]))
+            for i in range(len(pairs))
+        ]
+        indexed.sort(key=lambda item: item[2])
+
+        logits_by_original_index: list[tuple[int, float]] = []
+
+        for start in range(0, len(indexed), self.max_batch_pairs):
+            chunk = indexed[start : start + self.max_batch_pairs]
+            chunk_max_len = max(item[2] for item in chunk)
+            chunk_max_len = max(chunk_max_len, 1)
+
+            padded_ids: list[list[int]] = []
+            padded_masks: list[list[int]] = []
+            padded_type_ids: list[list[int]] = []
+
+            for _, enc, count in chunk:
+                raw_ids = list(enc.ids[:count])
+                raw_mask = (
+                    list(enc.attention_mask[:count])
+                    if hasattr(enc, "attention_mask")
+                    else [1] * count
+                )
+                raw_types = (
+                    list(enc.type_ids[:count])
+                    if hasattr(enc, "type_ids")
+                    else [0] * count
+                )
+
+                pad_width = chunk_max_len - count
+                padded_ids.append(raw_ids + [0] * pad_width)
+                padded_masks.append(raw_mask + [0] * pad_width)
+                if has_type_ids:
+                    padded_type_ids.append(raw_types + [0] * pad_width)
+
             feed: dict[str, Any] = {
-                "input_ids": np.array([e.ids for e in encodings], dtype=np.int64),
-                "attention_mask": np.array(
-                    [e.attention_mask for e in encodings], dtype=np.int64
-                ),
+                "input_ids": np.array(padded_ids, dtype=np.int64),
+                "attention_mask": np.array(padded_masks, dtype=np.int64),
             }
             if has_type_ids:
-                feed["token_type_ids"] = np.array(
-                    [e.type_ids for e in encodings], dtype=np.int64
-                )
+                feed["token_type_ids"] = np.array(padded_type_ids, dtype=np.int64)
+
             chunk_logits = np.atleast_1d(
                 np.squeeze(session.run(None, feed)[0]).astype(float)
             )
-            logits_out.extend(float(x) for x in chunk_logits)
-        return logits_out
+            for (orig_idx, _, _), score in zip(chunk, chunk_logits):
+                logits_by_original_index.append((orig_idx, float(score)))
+
+        logits_by_original_index.sort(key=lambda item: item[0])
+        return [score for _, score in logits_by_original_index]
 
     def _infer_sync(
         self, query: DecisionQuery
     ) -> tuple[dict[str, float], float | None]:
         """Loads the ONNX model if needed and scores candidates synchronously."""
-        query_text, passage_texts = _format_query_passage_pairs(query)
+        query_text, passage_texts = _format_query_passage_pairs(
+            query, max_summary_pointers=self.max_summary_pointers
+        )
         pairs = [(query_text, p) for p in passage_texts]
         logits = self._score_pairs_sync(pairs)
         token_logits = {
@@ -1609,7 +1698,9 @@ class LocalCrossEncoderBackend(PredictOnlyBackend):
         slices: list[tuple[DecisionQuestion, tuple[str, ...], int, int]] = []
         for question in batch.questions:
             query = _question_query(question, batch.shared_context)
-            query_text, passage_texts = _format_query_passage_pairs(query)
+            query_text, passage_texts = _format_query_passage_pairs(
+                query, max_summary_pointers=self.max_summary_pointers
+            )
             start = len(all_pairs)
             all_pairs.extend((query_text, p) for p in passage_texts)
             slices.append((question, query.candidates, start, len(all_pairs)))
@@ -1665,12 +1756,32 @@ def _require_url(kind: str, url: str | None) -> str:
     return url
 
 
+def _parse_positive_int_env(name: str) -> int | None:
+    """Parses a positive integer from environment variable `name`, if set."""
+    raw = os.environ.get(name)
+    if not raw or not raw.strip():
+        return None
+    try:
+        val = int(raw.strip())
+    except ValueError as err:
+        raise ValueError(f"{name} must be an integer, got '{raw}'") from err
+    if val < 1:
+        raise ValueError(f"{name} must be positive, got {val}")
+    return val
+
+
 def _create_local_backend(
     model_name: str | None, temperature: float
 ) -> LocalCrossEncoderBackend:
     kw: dict[str, Any] = {"temperature": temperature}
     if model_name:
         kw["model_id"] = model_name
+    threads = _parse_positive_int_env("A2UI_DECISION_THREADS")
+    if threads is not None:
+        kw["threads"] = threads
+    max_seq = _parse_positive_int_env("A2UI_DECISION_MAX_SEQ")
+    if max_seq is not None:
+        kw["max_seq_length"] = max_seq
     return LocalCrossEncoderBackend(**kw)
 
 

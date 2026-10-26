@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
+import random
 import re
 from typing import Any
 
@@ -54,6 +55,7 @@ from .models import (
     SemanticType,
     SlotBinding,
     SynthesisConfig,
+    VarietyMode,
 )
 from .payload_inspector import PointerSummary, split_pointer
 
@@ -171,6 +173,8 @@ class PlannerState:
     action_gate_blocked: bool = False
     required_block_missing: bool = False
     copy: AuthoredCopy | None = None
+    seed: int | None = None
+    rng: random.Random | None = None
 
 
 def _humanize_key(key: str) -> str:
@@ -1275,6 +1279,32 @@ def apply_pointer_once_per_region(
             intent=state.intent,
             preferred_paths=preferred,
         )
+        if block.block_id == "prose" and state.copy is not None and state.copy.summary:
+            body_slot = bindings.get("body")
+            is_real_prose = False
+            if body_slot is not None and body_slot.pointer:
+                by_path = {p.path: p for p in state.pointers}
+                ptr_summary = by_path.get(body_slot.pointer)
+                if ptr_summary is not None and (
+                    ptr_summary.semantic_type
+                    in {SemanticType.LONG_TEXT, SemanticType.MARKDOWN}
+                    or any(
+                        pref in ptr_summary.key.lower()
+                        for pref in (
+                            "summary",
+                            "description",
+                            "body",
+                            "overview",
+                            "notes",
+                            "article",
+                        )
+                    )
+                ):
+                    is_real_prose = True
+            if not is_real_prose:
+                bound_slots = dict(bindings.slots)
+                bound_slots["body"] = SlotBinding(literal=state.copy.summary)
+                bindings = BlockBindings(slots=bound_slots)
         for ptr_path in bindings.pointers():
             used.add(ptr_path)
             if ptr_path in absorbed:
@@ -1285,6 +1315,7 @@ def apply_pointer_once_per_region(
             state,
             actions_allowed=plan.actions_allowed,
             preset_knobs=block.variant_knobs,
+            rng=state.rng,
         )
         updated.append(
             replace(
@@ -2363,9 +2394,18 @@ class LayoutPlanner:
         )
 
     def read(
-        self, state: PlannerState, answers: Sequence[DecisionAnswer]
+        self,
+        state: PlannerState,
+        answers: Sequence[DecisionAnswer],
+        *,
+        seed: int | None = None,
     ) -> PlanOutcome:
         """Reads backend `answers` into a validated `PlanOutcome`."""
+        state.seed = seed
+        if self._config.variety is VarietyMode.NEAR_TOP:
+            state.rng = random.Random(seed)
+        else:
+            state.rng = None
         self._validate_and_index_answers(state, answers)
         family = self._read_family(state)
         if family is None:
@@ -2544,7 +2584,10 @@ class LayoutPlanner:
         """Evaluates the gate for one `BlockRef` and records its trace entry."""
         spec = self._grammar.block(ref.id)
         if not _matches_shape(spec.shape, state.pointers):
-            return None
+            if not (
+                ref.id == "prose" and state.copy is not None and state.copy.summary
+            ):
+                return None
         if ref.id in pinned:
             state.gate_probabilities[ref.id] = 1.0
             return PlannedBlock(block_id=ref.id, pattern=spec.pattern, probability=1.0)
@@ -2602,12 +2645,15 @@ class LayoutPlanner:
     ) -> PageBindings:
         """Builds initial `PageBindings` for `archetype` and records claimed title pointer."""
         state.page_claimed_pointers = set()
-        title_ptr = _page_title_pointer(state.pointers)
-        if title_ptr is not None:
-            state.page_claimed_pointers.add(title_ptr.path)
-            title_binding = SlotBinding(pointer=title_ptr.path)
+        if state.copy is not None and state.copy.title:
+            title_binding = SlotBinding(literal=state.copy.title)
         else:
-            title_binding = SlotBinding(literal=state.intent)
+            title_ptr = _page_title_pointer(state.pointers)
+            if title_ptr is not None:
+                state.page_claimed_pointers.add(title_ptr.path)
+                title_binding = SlotBinding(pointer=title_ptr.path)
+            else:
+                title_binding = SlotBinding(literal=state.intent)
         return PageBindings(
             title=title_binding,
             dialog=bool(archetype.frame.get("dialog", False)),
@@ -2638,6 +2684,40 @@ class LayoutPlanner:
             return PlanOutcome(plan=None, reason=PlanReason.REQUIRED_BLOCK_MISSING)
         return PlanOutcome(plan=plan, reason=PlanReason.PLANNED)
 
+    def _pick_option(
+        self,
+        answer: DecisionAnswer,
+        *,
+        kind: str = "option",
+        rng: random.Random | None = None,
+    ) -> tuple[str, float]:
+        """Picks a winning option from `answer` using ARGMAX or NEAR_TOP sampling."""
+        if (
+            self._config.variety is not VarietyMode.NEAR_TOP
+            or rng is None
+            or not answer.distribution.probabilities
+        ):
+            return answer.top()
+
+        probs = {
+            opt: prob
+            for opt, prob in answer.distribution.probabilities.items()
+            if opt != "none"
+        }
+        if not probs:
+            return answer.top()
+
+        top_opt, top_prob = max(probs.items(), key=lambda item: item[1])
+        cutoff = top_prob - self._config.variety_margin
+        near_top = [(opt, prob) for opt, prob in probs.items() if prob >= cutoff]
+        if len(near_top) <= 1:
+            return top_opt, top_prob
+
+        candidates = [opt for opt, _ in near_top]
+        weights = [prob for _, prob in near_top]
+        chosen = rng.choices(candidates, weights=weights, k=1)[0]
+        return chosen, probs[chosen]
+
     def _resolve_block_questions(
         self,
         spec: BlockSpec,
@@ -2646,6 +2726,7 @@ class LayoutPlanner:
         *,
         actions_allowed: bool,
         preset_knobs: Mapping[str, str],
+        rng: random.Random | None = None,
     ) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
         """Resolves measures, anatomy knobs, and instance answers for `spec`."""
         by_path = {p.path: p for p in state.pointers}
@@ -2670,10 +2751,11 @@ class LayoutPlanner:
                 bindings,
                 state,
                 actions_allowed=actions_allowed,
+                rng=rng,
             )
             if chosen is not None:
                 knobs[knob] = chosen
-        instances = self._resolve_block_instances(spec, bindings, state)
+        instances = self._resolve_block_instances(spec, bindings, state, rng=rng)
         if spec.id in {"banner", "outcome"}:
             for elem_map in instances.values():
                 if "tone" in elem_map:
@@ -2688,20 +2770,24 @@ class LayoutPlanner:
         bindings: BlockBindings,
         state: PlannerState,
         actions_allowed: bool,
+        *,
+        rng: random.Random | None = None,
     ) -> str | None:
         """Selects the highest-ranked choice option whose `requires` hold."""
-        ranked = (
-            [
+        if ans is None:
+            ranked = list(q_spec.options)
+        else:
+            picked, _ = self._pick_option(ans, kind="anatomy", rng=rng)
+            other_opts = [
                 opt
                 for opt, _ in sorted(
                     ans.distribution.probabilities.items(),
                     key=lambda item: -item[1],
                 )
-                if opt != "none"
+                if opt != "none" and opt != picked
             ]
-            if ans is not None
-            else list(q_spec.options)
-        )
+            ranked = [picked] + other_opts
+
         for opt in ranked:
             reqs = q_spec.requires.get(opt, ())
             if _option_requirements_hold(
@@ -2728,6 +2814,7 @@ class LayoutPlanner:
         state: PlannerState,
         *,
         actions_allowed: bool,
+        rng: random.Random | None = None,
     ) -> str | None:
         """Resolves one anatomy knob answer with constraint-aware argmax."""
         if q_spec.kind is QuestionKind.BOOLEAN:
@@ -2752,7 +2839,13 @@ class LayoutPlanner:
                 )
             return val
         return self._resolve_choice_anatomy(
-            q_spec, q_obj, ans, bindings, state, actions_allowed
+            q_spec,
+            q_obj,
+            ans,
+            bindings,
+            state,
+            actions_allowed,
+            rng=rng,
         )
 
     def _record_single_instance_answer(
@@ -2762,10 +2855,16 @@ class LayoutPlanner:
         ans: DecisionAnswer,
         thresh: float,
         state: PlannerState,
+        *,
+        rng: random.Random | None = None,
     ) -> str:
         """Evaluates one instance `DecisionAnswer` and appends a `DecisionRecord`."""
         is_bool = q_spec.kind is QuestionKind.BOOLEAN
-        val = ("true" if ans.yes >= thresh else "false") if is_bool else ans.top()[0]
+        val = (
+            ("true" if ans.yes >= thresh else "false")
+            if is_bool
+            else self._pick_option(ans, kind="instance", rng=rng)[0]
+        )
         if q_obj is not None:
             state.trace.append(
                 DecisionRecord(
@@ -2782,10 +2881,12 @@ class LayoutPlanner:
         spec: BlockSpec,
         bindings: BlockBindings,
         state: PlannerState,
+        *,
+        rng: random.Random | None = None,
     ) -> dict[str, dict[str, str]]:
         """Reads instance answers for `spec` into an element-keyed mapping."""
         if spec.id == "actions":
-            return self._resolve_actions_instances(bindings, state)
+            return self._resolve_actions_instances(bindings, state, rng=rng)
         q_map = {q.id: q for q in state.batch.questions}
         thresh = self.threshold("instance")
         instances: dict[str, dict[str, str]] = {}
@@ -2801,7 +2902,7 @@ class LayoutPlanner:
             ):
                 continue
             val = self._record_single_instance_answer(
-                q_spec, q_map.get(q_id), ans, thresh, state
+                q_spec, q_map.get(q_id), ans, thresh, state, rng=rng
             )
             instances.setdefault(elem_key, {})[q_name] = val
         return instances
@@ -2811,13 +2912,15 @@ class LayoutPlanner:
         ptr_path: str,
         q_map: Mapping[str, DecisionQuestion],
         state: PlannerState,
+        *,
+        rng: random.Random | None = None,
     ) -> str:
         """Reads the winning button option from `instance:actions.primary:<ptr>`."""
         prim_id = f"instance:actions.primary:{ptr_path}"
         prim_ans = state.answers_by_id.get(prim_id)
         if prim_ans is None:
             return ""
-        chosen = prim_ans.top()[0]
+        chosen = self._pick_option(prim_ans, kind="primary_action", rng=rng)[0]
         if prim_id in q_map:
             state.trace.append(
                 DecisionRecord(
@@ -2853,7 +2956,11 @@ class LayoutPlanner:
         return is_dest
 
     def _resolve_actions_instances(
-        self, bindings: BlockBindings, state: PlannerState
+        self,
+        bindings: BlockBindings,
+        state: PlannerState,
+        *,
+        rng: random.Random | None = None,
     ) -> dict[str, dict[str, str]]:
         """Resolves `actions.primary` and `actions.destructive` per button."""
         buttons = bindings.get("buttons")
@@ -2862,7 +2969,7 @@ class LayoutPlanner:
         q_map = {q.id: q for q in state.batch.questions}
         thresh = self.threshold("instance")
         chosen_prim = self._read_primary_action_choice(
-            buttons.pointer or "/actions", q_map, state
+            buttons.pointer or "/actions", q_map, state, rng=rng
         )
         instances: dict[str, dict[str, str]] = {}
         for idx, item in enumerate(buttons.items):
