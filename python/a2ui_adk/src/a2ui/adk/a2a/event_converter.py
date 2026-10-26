@@ -87,9 +87,10 @@ class A2uiEventConverter:
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
         self._processor_key = processor_key
-        # The open stream of each invocation whose response is still streaming.
-        # The final event of the response closes and removes it.
-        self._streams: dict[str, ResponseStream] = {}
+        # The open stream of each invocation whose response is still streaming,
+        # or None once a chunk of it failed. The final event of the response
+        # removes the entry.
+        self._streams: dict[str, ResponseStream | None] = {}
 
     def __call__(
         self,
@@ -138,9 +139,11 @@ class A2uiEventConverter:
         ADK calls it once per part with only the part, so it captures what
         streaming needs from the event: whether the event is partial, and the
         invocation whose stream to use. A partial event's text is fed to the
-        invocation's stream, which is opened on the first one. The final event
-        of a streamed response closes the stream, and its text, which repeats
-        what the partial events held, is dropped. Every other part, and the
+        invocation's stream, which is opened on the first one. If a chunk fails,
+        the rest of the response's partial text is dropped. The final event of
+        a streamed response closes the stream, or sends the fallback text if a
+        chunk failed, and its own text, which repeats what the partial events
+        held, is dropped. Every other part, and the
         text of a response sent without partial events, goes to
         `a2ui_part_converter`.
         """
@@ -152,17 +155,25 @@ class A2uiEventConverter:
             if part.text is None:
                 return a2ui_part_converter.convert(part)
             if is_partial:
-                stream = self._streams.get(invocation_id)
+                if invocation_id not in self._streams:
+                    self._streams[invocation_id] = processor.open_stream()
+                stream = self._streams[invocation_id]
                 if stream is None:
-                    stream = self._streams[invocation_id] = processor.open_stream()
+                    # A chunk of this response failed and ended its stream. A
+                    # new stream would start in the middle of a block and send
+                    # the rest of the block as text, so the rest is dropped.
+                    return []
                 try:
                     return to_a2a_parts(stream.feed(part.text))
                 except Exception as e:
                     logger.warning("Failed to stream A2UI chunk: %s", e)
+                    self._streams[invocation_id] = None
                     return []
-            stream = self._streams.pop(invocation_id, None)
-            if stream is not None:
+            if invocation_id in self._streams:
                 closed_stream = True
+                stream = self._streams.pop(invocation_id)
+                if stream is None:
+                    return self._fallback_parts()
                 try:
                     return to_a2a_parts(stream.close())
                 except Exception as e:

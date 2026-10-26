@@ -14,6 +14,7 @@
 
 """Tests for the A2uiEventConverter class."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 from google.adk.a2a.converters import part_converter as adk_part_converter
@@ -208,4 +209,47 @@ def test_event_converter_does_not_stream_a_format_that_cannot():
         effective = mock_base_converter.call_args[0][4]
 
     assert isinstance(effective.__self__, A2uiPartConverter)
+    assert converter._streams == {}
+
+
+def test_event_converter_drops_the_rest_of_a_response_after_a_failed_chunk():
+    catalog = BasicCatalog("0.9")
+    processor = A2uiRequestProcessor(
+        [catalog], format_factory=DirectJsonFormatFactory()
+    )
+    invocation_context = _streaming_context(processor)
+    converter = A2uiEventConverter(fallback_text="Sorry.")
+    create = {
+        "version": "v0.9",
+        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
+    }
+    # The root's child doesn't exist, so the block fails when it closes.
+    dangling = {
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "root", "component": "Column", "children": ["x"]}],
+        },
+    }
+
+    with patch(
+        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
+    ) as mock_base_converter:
+        mock_base_converter.return_value = []
+
+        def convert(event, text):
+            converter(event, invocation_context)
+            return mock_base_converter.call_args[0][4](genai_types.Part(text=text))
+
+        failed = convert(
+            _event(partial=True),
+            f"<a2ui-json>{json.dumps([create, dangling])}</a2ui-json>",
+        )
+        later = convert(_event(partial=True), ' <a2ui-json>[{"version": "v0.9"}')
+        final = convert(_event(partial=False), "aggregated ignored")
+
+    assert failed == []
+    # The rest of the response is not sent as text.
+    assert later == []
+    assert [p.root.text for p in final] == ["Sorry."]
     assert converter._streams == {}

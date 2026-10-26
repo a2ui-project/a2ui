@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import json
 import logging
-import os
 import pathlib
 from typing import override
 
@@ -48,8 +46,8 @@ def _load_example_turns(path: str | None) -> list[list[AgentToRendererMessage]]:
     if not path:
         return []
     return [
-        to_message_models(json.loads(pathlib.Path(file).read_text()))
-        for file in sorted(glob.glob(os.path.join(path, "*.json")))
+        to_message_models(json.loads(file.read_text(encoding="utf-8")))
+        for file in sorted(pathlib.Path(path).glob("*.json"))
     ]
 
 
