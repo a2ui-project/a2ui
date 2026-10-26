@@ -1395,8 +1395,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Set<String> visited = expanding ?? <String>{};
 
     Object? visit(Object? current) {
-      if (current is List)
+      if (current is List) {
         return [for (final Object? item in current) visit(item)];
+      }
       if (current is! Map) return current;
       final Object? ref = current[r'$ref'];
       if (ref is String && ref.startsWith('#/')) {
@@ -2124,7 +2125,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   }
 
   /// Inlines leaf `#/$defs/<Name>` property references from [defs] into [node],
-  /// marking each inlined map with `catalogDefRef` and [_inlinedCatalogDefNodes].
+  /// marking each inlined map with `catalogDefRef` and
+  /// [_inlinedCatalogDefNodes].
   static Object? _inlineLeafCatalogDefs(
     Object? node,
     Map<String, Object?> defs, [
@@ -2156,7 +2158,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
               !(visited?.contains(defName) ?? false)) {
             final Object? target = defs[defName];
             if (target is Map && !target.containsKey('catalogDefRef')) {
-              final Set<String> nextVisited = {...?visited, defName};
+              final nextVisited = <String>{...?visited, defName};
               final Object? resolvedTarget = _inlineLeafCatalogDefs(
                 target,
                 defs,

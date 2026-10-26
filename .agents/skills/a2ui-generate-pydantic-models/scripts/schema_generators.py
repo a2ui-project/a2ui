@@ -2104,10 +2104,10 @@ def generate_catalog_definition(
                 validator_code = (
                     '    @model_validator(mode="after")\n    def'
                     " _validate_no_root_combinator(self) -> ComponentDefinition:\n     "
-                    "   extra = self.model_extra or {}\n        if \"oneOf\" in extra"
-                    " or \"anyOf\" in extra:\n            raise ValueError("
-                    "\"ComponentDefinition must not have root-level oneOf or"
-                    " anyOf.\")\n        return self\n"
+                    '   extra = self.model_extra or {}\n        if "oneOf" in extra'
+                    ' or "anyOf" in extra:\n            raise ValueError('
+                    '"ComponentDefinition must not have root-level oneOf or'
+                    ' anyOf.")\n        return self\n'
                 )
                 comp_block = comp_block.rstrip() + "\n" + validator_code
             blocks.append(comp_block)
@@ -2148,14 +2148,14 @@ def generate_catalog_definition(
                 " _has_component_const(obj: Any) -> bool:\n            if not"
                 " isinstance(obj, dict):\n                return False\n           "
                 ' props = obj.get("properties")\n            if isinstance(props,'
-                " dict):\n                comp = props.get(\"component\")\n             "
+                ' dict):\n                comp = props.get("component")\n             '
                 '   if isinstance(comp, dict) and "const" in comp:\n                   '
-                " return True\n            all_of = obj.get(\"allOf\")\n            if"
+                ' return True\n            all_of = obj.get("allOf")\n            if'
                 " isinstance(all_of, list):\n                return any("
                 "_has_component_const(item) for item in all_of)\n            return"
                 " False\n\n        for k, v in (self.model_extra or {}).items():\n     "
                 "       if _has_component_const(v):\n                raise ValueError("
-                'f"Leaf definition \'{k}\' must not define a component'
+                "f\"Leaf definition '{k}' must not define a component"
                 ' schema.")\n        return self\n'
             )
             catalog_defs_block = catalog_defs_block.rstrip() + "\n" + leaf_validator
@@ -2176,7 +2176,7 @@ def generate_catalog_definition(
             '    @model_validator(mode="after")\n    def'
             " _validate_component_names(self) -> CatalogDefinition:\n        if"
             ' self.components and "Surface" in self.components:\n            raise'
-            ' ValueError("Component name \'Surface\' is reserved.")\n        return'
+            " ValueError(\"Component name 'Surface' is reserved.\")\n        return"
             " self\n"
         )
         root_block = root_block.rstrip() + "\n" + surface_validator

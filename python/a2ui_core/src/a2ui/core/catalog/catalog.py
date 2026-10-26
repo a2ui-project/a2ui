@@ -763,9 +763,7 @@ def _restore_catalog_def_refs(
                     under_property=True,
                 )
                 target_map: Mapping[str, Any] = (
-                    resolved_target
-                    if isinstance(resolved_target, Mapping)
-                    else target
+                    resolved_target if isinstance(resolved_target, Mapping) else target
                 )
             else:
                 target_map = {}

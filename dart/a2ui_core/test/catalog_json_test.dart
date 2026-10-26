@@ -1457,14 +1457,15 @@ void main() {
     });
 
     test(
-        'inlines catalog definitions in component schemas and resolvedComponentSchemas and restores catalogDefRef markers',
-        () {
-      final v10 = BasicCatalog.v1_0();
+        'inlines catalog definitions in component schemas and '
+        'resolvedComponentSchemas and restores catalogDefRef markers', () {
+      final Catalog<ComponentApi, FunctionImplementation> v10 =
+          BasicCatalog.v1_0();
       final textInMemory =
           v10.components['Text']!.schema.value['properties']! as Map;
       expect(textInMemory['weight'], {
         'type': 'number',
-        'description': "The relative weight of this component within a Row or "
+        'description': 'The relative weight of this component within a Row or '
             "Column. This is similar to the CSS 'flex-grow' property. Note: "
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
@@ -1475,18 +1476,19 @@ void main() {
           .value['properties']! as Map<String, Object?>;
       expect(textResolved['weight'], {
         'type': 'number',
-        'description': "The relative weight of this component within a Row or "
+        'description': 'The relative weight of this component within a Row or '
             "Column. This is similar to the CSS 'flex-grow' property. Note: "
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
       });
 
-      final roundTripped = Catalog.fromJson(v10.toJson());
+      final Catalog<ComponentApi, FunctionApi> roundTripped =
+          Catalog.fromJson(v10.toJson());
       final rtTextInMemory =
           roundTripped.components['Text']!.schema.value['properties']! as Map;
       expect(rtTextInMemory['weight'], {
         'type': 'number',
-        'description': "The relative weight of this component within a Row or "
+        'description': 'The relative weight of this component within a Row or '
             "Column. This is similar to the CSS 'flex-grow' property. Note: "
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
@@ -1497,7 +1499,7 @@ void main() {
           .value['properties']! as Map<String, Object?>;
       expect(rtTextResolved['weight'], {
         'type': 'number',
-        'description': "The relative weight of this component within a Row or "
+        'description': 'The relative weight of this component within a Row or '
             "Column. This is similar to the CSS 'flex-grow' property. Note: "
             'this may ONLY be set when the component is a direct descendant '
             'of a Row or Column.',
