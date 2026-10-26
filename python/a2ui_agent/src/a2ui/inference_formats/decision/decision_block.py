@@ -37,6 +37,7 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "template_id": ("template", "templateId", "template_id"),
     "fallback_dsl": ("fallbackDsl", "fallback_dsl"),
     "layout": ("layout",),
+    "mutable_paths": ("mutablePaths", "mutable_paths"),
 }
 
 
@@ -68,6 +69,28 @@ def _parse_layout_items(raw: Any) -> tuple[str, ...]:
     return tuple(item for item in raw if item.strip())
 
 
+def _parse_mutable_paths(raw: Any) -> tuple[str, ...]:
+    """Normalizes an optional ``mutablePaths`` sequence into ``/``-prefixed pointers."""
+    if raw is None:
+        return ()
+    if (
+        not isinstance(raw, Sequence)
+        or isinstance(raw, (str, bytes, bytearray))
+        or not all(isinstance(item, str) for item in raw)
+    ):
+        raise TypeError(
+            "Decision block field 'mutablePaths' must be a list of JSON pointer"
+            " strings."
+        )
+    paths: list[str] = []
+    for item in raw:
+        stripped = item.strip()
+        if not stripped:
+            continue
+        paths.append(stripped if stripped.startswith("/") else f"/{stripped}")
+    return tuple(paths)
+
+
 @dataclass(frozen=True)
 class DecisionBlock:
     """One decision request: what to show and the data to show it with.
@@ -82,6 +105,7 @@ class DecisionBlock:
         layout: Raw ``role:key,key`` brief items pinning roles to payload
             pointers; empty when the block gave none. The synthesizer parses
             and validates them against its grammar.
+        mutable_paths: JSON Pointers in `payload` that the user may edit.
     """
 
     intent: str
@@ -90,13 +114,14 @@ class DecisionBlock:
     template_id: str | None = None
     fallback_dsl: str | None = None
     layout: tuple[str, ...] = ()
+    mutable_paths: tuple[str, ...] = ()
 
     @classmethod
     def from_mapping(cls, source: Mapping[str, Any]) -> DecisionBlock:
         """Reads a block from a parsed JSON object.
 
         Accepts the camelCase wire names (`surfaceId`, `template`,
-        `fallbackDsl`, `layout`) and their snake_case spellings.
+        `fallbackDsl`, `layout`, `mutablePaths`) and their snake_case spellings.
 
         Raises:
             ValueError: If `intent` is missing or blank, or `payload` is a
@@ -124,6 +149,9 @@ class DecisionBlock:
             return value or None
 
         layout = _parse_layout_items(_first_present(source, _FIELD_ALIASES["layout"]))
+        mutable_paths = _parse_mutable_paths(
+            _first_present(source, _FIELD_ALIASES["mutable_paths"])
+        )
         return cls(
             intent=intent.strip(),
             payload=payload,
@@ -131,6 +159,7 @@ class DecisionBlock:
             template_id=_optional_str("template_id"),
             fallback_dsl=_optional_str("fallback_dsl"),
             layout=layout,
+            mutable_paths=mutable_paths,
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -144,6 +173,8 @@ class DecisionBlock:
             out["fallbackDsl"] = self.fallback_dsl
         if self.layout:
             out["layout"] = list(self.layout)
+        if self.mutable_paths:
+            out["mutablePaths"] = list(self.mutable_paths)
         return out
 
 

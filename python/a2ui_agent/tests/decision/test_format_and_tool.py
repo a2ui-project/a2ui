@@ -857,3 +857,19 @@ async def test_render_tool_run_async_fallbacks() -> None:
         "layout": LayoutBrief.parse(["prose:/foo~1bar"], roles=frozenset({"prose"})),
     })
     assert brief_res.fallback_source is FallbackSource.CARD
+
+    # DecisionBlock mutablePaths / mutable_paths parsing and tool schema
+    assert "mutablePaths" in schema["properties"]
+    mut_block = DecisionBlock.from_mapping({
+        "intent": "Sign in",
+        "payload": {"email": "alex@example.com", "password": ""},
+        "mutablePaths": ["email", "/password"],
+    })
+    assert mut_block.mutable_paths == ("/email", "/password")
+    assert mut_block.to_json()["mutablePaths"] == ["/email", "/password"]
+    with pytest.raises(TypeError, match="mutablePaths"):
+        DecisionBlock.from_mapping({
+            "intent": "Sign in",
+            "payload": {"email": "a"},
+            "mutablePaths": "/email",
+        })

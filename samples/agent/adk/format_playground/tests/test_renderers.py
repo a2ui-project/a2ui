@@ -40,9 +40,18 @@ RESORT_PAYLOAD: dict[str, Any] = {
         " over the valley. Families and walkers come back year after year."
     ),
     "photos": [
-        {"url": "https://example.com/casa-verde/1.jpg", "caption": "Pool at dusk"},
-        {"url": "https://example.com/casa-verde/2.jpg", "caption": "Garden suite"},
-        {"url": "https://example.com/casa-verde/3.jpg", "caption": "Breakfast terrace"},
+        {
+            "url": "https://example.com/casa-verde/1.jpg",
+            "caption": "Pool at dusk",
+        },
+        {
+            "url": "https://example.com/casa-verde/2.jpg",
+            "caption": "Garden suite",
+        },
+        {
+            "url": "https://example.com/casa-verde/3.jpg",
+            "caption": "Breakfast terrace",
+        },
     ],
 }
 RESORT_BLOCK = DecisionBlock(intent="Show the resort overview", payload=RESORT_PAYLOAD)
@@ -77,8 +86,34 @@ def renderers() -> Renderers:
     return Renderers(versions=["0.9", "1.0"], backend=DeterministicMockBackend())
 
 
-def test_backend_display_name_maps_bundled_backends() -> None:
+def test_backend_display_name_maps_bundled_backends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from a2ui.inference_formats.decision import JevHttpBackend
+    from renderers import build_named_backend
+
     assert backend_display_name(DeterministicMockBackend()) == "mock"
+    assert (
+        backend_display_name(
+            JevHttpBackend("https://api.typesafe.ai/v1/systemone", model="jev-latest")
+        )
+        == "jev (jev-latest)"
+    )
+    assert (
+        backend_display_name(
+            JevHttpBackend(
+                "http://127.0.0.1:8790/v1/systemone",
+                model="vertex/decision-gemma",
+            )
+        )
+        == "gev (vertex/decision-gemma)"
+    )
+
+    monkeypatch.setenv("JEV_API_KEY", "vcp_test_key")
+    jev_b = build_named_backend("jev")
+    assert backend_display_name(jev_b) == "jev (jev)"
+    gev_b = build_named_backend("gev")
+    assert backend_display_name(gev_b) == "gev (vertex/decision-gemma)"
 
     class Custom:
         pass
@@ -222,9 +257,52 @@ def test_stage2_user_text_mentions_intent_surface_and_payload() -> None:
     assert '"priceFrom": 240' in text
 
 
-def test_prompt_for_each_mode_is_that_formats_prompt(renderers: Renderers) -> None:
+def test_prompt_for_each_mode_is_that_formats_prompt(
+    renderers: Renderers,
+) -> None:
     express = renderers.prompt_for(RenderMode.EXPRESS, "1.0")
     direct = renderers.prompt_for(RenderMode.DIRECT, "1.0")
     assert express != direct
     assert "surface(" in express
     assert renderers.versions == ("0.9", "1.0")
+
+
+@pytest.mark.asyncio
+async def test_render_decision_login_form_forwards_mutable_paths() -> None:
+    backend = DeterministicMockBackend(
+        scripted={
+            "family": {"input": 0.92, "browse": 0.02},
+            "archetype:input": {"form": 0.88, "settings": 0.12},
+            "gate:form": {"yes": 0.95, "no": 0.05},
+            "gate:actions": {"yes": 0.95, "no": 0.05},
+        }
+    )
+    form_renderers = Renderers(versions=["0.9"], backend=backend)
+    for mutable_paths in (["/email", "/password", "/rememberMe"], []):
+        login_block = DecisionBlock.from_mapping({
+            "intent": "Render a login form with email, password, and sign in button",
+            "payload": {
+                "title": "Welcome Back",
+                "email": "alex.smith@example.com",
+                "password": "",
+                "rememberMe": False,
+                "actions": ["Sign In"],
+            },
+            "mutablePaths": mutable_paths,
+        })
+        res = await form_renderers.render_decision(
+            login_block, surface_id="turn-login", version="0.9"
+        )
+        assert res.ok, res.error
+        validate_payload([BasicCatalog("0.9")], messages_of(res.parts))
+        assert res.metrics is not None
+        assert res.metrics.archetype == "form"
+        assert res.metrics.stage == "archetype"
+        assert (
+            res.metrics.decision_latency_ms is not None
+            and res.metrics.decision_latency_ms > 0.0
+        )
+        assert "path: decision model · archetype form" in res.metrics.footer()
+        assert "decision " in res.metrics.footer()
+        assert res.trace_lines[0].startswith("**Path**: decision model · archetype")
+        assert "**Decision time**:" in res.trace_lines[0]

@@ -21,9 +21,17 @@ from typing import Literal
 
 from modes import PlaygroundSettings, RenderMode, as_mode
 
-CommandName = Literal["mode", "compare", "trace", "help"]
+CommandName = Literal["mode", "backend", "compare", "trace", "help"]
 
-_KNOWN: tuple[CommandName, ...] = ("mode", "compare", "trace", "help")
+DECISION_BACKENDS: tuple[str, ...] = ("jev", "gev", "local", "mock")
+
+_KNOWN: tuple[CommandName, ...] = (
+    "mode",
+    "backend",
+    "compare",
+    "trace",
+    "help",
+)
 
 
 @dataclass(frozen=True)
@@ -84,6 +92,7 @@ def help_text(
             f" · model: `{model_name}`"
         ),
         "`/mode decision|express|direct` picks how the next requests render.",
+        "`/backend jev|gev|local|mock` switches the decision model.",
         "`/compare` renders the next request through all three modes.",
         "`/trace` shows the planner's questions for the last decision render.",
         "`/help` shows this card.",

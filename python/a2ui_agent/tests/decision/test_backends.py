@@ -817,12 +817,17 @@ def test_create_decision_backend_auto_inference_and_http(
 ) -> None:
     # 1. URL ending in /v1/systemone auto-infers systemone
     monkeypatch.delenv("A2UI_DECISION_BACKEND", raising=False)
+    monkeypatch.delenv("A2UI_DECISION_AUTH", raising=False)
+    monkeypatch.delenv("A2UI_DECISION_TOKEN", raising=False)
+    monkeypatch.delenv("JEV_API_KEY", raising=False)
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     b_sys1 = create_decision_backend(
         endpoint_url="https://api.example.com/v1/systemone", model="gemma"
     )
     assert isinstance(b_sys1, JevHttpBackend)
     assert b_sys1._wire_format == "systemone"
-    assert b_sys1._model == "gemma"
+    assert b_sys1.model == "gemma"
+    assert b_sys1.endpoint_url == "https://api.example.com/v1/systemone"
 
     # 2. URL ending in /v1/completions auto-infers step0
     b_step0 = create_decision_backend(
@@ -837,13 +842,26 @@ def test_create_decision_backend_auto_inference_and_http(
     assert isinstance(b_jev, JevHttpBackend)
     assert b_jev._wire_format == "jev"
 
-    # 4. HTTP backends without URL raise ValueError
+    # 4. HTTP backends without URL or JEV_API_KEY raise ValueError
     with pytest.raises(ValueError, match="requires an endpoint URL"):
         create_decision_backend("systemone")
     with pytest.raises(ValueError, match="requires an endpoint URL"):
         create_decision_backend("jev")
     with pytest.raises(ValueError, match="requires an endpoint URL"):
         create_decision_backend("step0")
+
+    # 5. JEV_API_KEY auto-configures TypeSafe /v1/systemone or Vercel AI Gateway /typesafe/v1/systemone
+    monkeypatch.setenv("JEV_API_KEY", "ts-test-key")
+    b_typesafe = create_decision_backend("jev")
+    assert isinstance(b_typesafe, JevHttpBackend)
+    assert b_typesafe.endpoint_url == "https://api.typesafe.ai/v1/systemone"
+    assert b_typesafe.model == "jev-latest"
+
+    monkeypatch.setenv("JEV_API_KEY", "vcp_vercel_gateway_key")
+    b_vercel = create_decision_backend("jev")
+    assert isinstance(b_vercel, JevHttpBackend)
+    assert b_vercel.endpoint_url == "https://ai-gateway.vercel.sh/typesafe/v1/systemone"
+    assert b_vercel.model == "jev"
 
 
 def test_decision_synthesizer_from_env(
@@ -1191,7 +1209,7 @@ async def test_jev_http_backend_answer_native_and_systemone() -> None:
     assert native_answers[1].yes == pytest.approx(0.9)
     assert native_answers[2].expected == pytest.approx(1.5)
 
-    # systemone falls back to per-question predict calls
+    # systemone sends one batched /v1/systemone request with choice, noul, and score
     sys1_requests: list[dict[str, Any]] = []
 
     def sys1_handler(request: httpx.Request) -> httpx.Response:
@@ -1199,28 +1217,55 @@ async def test_jev_http_backend_answer_native_and_systemone() -> None:
         return httpx.Response(
             200,
             json={
+                "model": "vertex/decision-gemma",
                 "answers": {
-                    "q": {
+                    "family": {
+                        "type": "choice",
+                        "choice": "inspect",
                         "probabilities": {
                             "browse": 0.2,
                             "inspect": 0.8,
-                            "yes": 0.75,
-                            "no": 0.25,
-                            "low": 0.5,
-                            "medium": 0.5,
-                            "high": 0.0,
+                            "none": 0.0,
                         },
                         "confidence": 0.8,
-                    }
-                }
+                    },
+                    "gate:picture": {
+                        "type": "noul",
+                        "noul": 0.75,
+                    },
+                    "stakes": {
+                        "type": "score",
+                        "score": 0.5,
+                        "legend": {"0": "low", "1": "medium", "2": "high"},
+                        "probabilities": {
+                            "0": 0.5,
+                            "1": 0.5,
+                            "2": 0.0,
+                        },
+                        "confidence": 0.8,
+                    },
+                },
             },
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(sys1_handler)) as client:
-        jev_sys1 = JevHttpBackend("https://api.example.com/v1/systemone", client=client)
+        jev_sys1 = JevHttpBackend(
+            "https://api.example.com/v1/systemone",
+            model="vertex/decision-gemma",
+            client=client,
+        )
         sys1_answers = await jev_sys1.answer(batch)
 
-    assert len(sys1_requests) == 3
+    assert len(sys1_requests) == 1
+    assert sys1_requests[0]["model"] == "vertex/decision-gemma"
+    assert sys1_requests[0]["state"] == "User intent: Show overview"
+    assert sys1_requests[0]["questions"]["family"]["type"] == "choice"
+    assert sys1_requests[0]["questions"]["gate:picture"]["type"] == "noul"
+    assert sys1_requests[0]["questions"]["stakes"] == {
+        "type": "score",
+        "instructions": "Stakes?",
+        "criteria": ["low", "medium", "high"],
+    }
     assert sys1_answers[0].top() == ("inspect", pytest.approx(0.8))
     assert sys1_answers[1].yes == pytest.approx(0.75)
     assert sys1_answers[2].expected == pytest.approx(0.5)

@@ -29,8 +29,15 @@ import pytest
 _TESTS_DIR = Path(__file__).resolve().parent
 _SAMPLE_DIR = _TESTS_DIR.parent
 for _dir in (_TESTS_DIR, _SAMPLE_DIR):
-    if str(_dir) not in sys.path:
-        sys.path.insert(0, str(_dir))
+    _dir_str = str(_dir)
+    if _dir_str in sys.path:
+        sys.path.remove(_dir_str)
+    sys.path.insert(0, _dir_str)
+for _mod in ("agent", "agent_executor"):
+    _loaded = sys.modules.get(_mod)
+    _file = getattr(_loaded, "__file__", None) if _loaded else None
+    if _file and not str(Path(_file).resolve()).startswith(str(_SAMPLE_DIR)):
+        sys.modules.pop(_mod, None)
 
 os.environ.setdefault("A2UI_DECISION_BACKEND", "mock")
 os.environ.setdefault("GEMINI_API_KEY", "test-key")

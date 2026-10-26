@@ -16,16 +16,20 @@
 
 import logging
 import os
+from pathlib import Path
 
-import click
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
-from agent import PlaygroundAgent
-from agent_executor import PlaygroundAgentExecutor
+import click
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 
+from agent import PlaygroundAgent
+from agent_executor import PlaygroundAgentExecutor
+from modes import RenderMode
+
+load_dotenv(Path.home() / ".env")
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +43,21 @@ class MissingAPIKeyError(Exception):
 @click.command()
 @click.option("--host", default="localhost")
 @click.option("--port", default=10010)
-def main(host: str, port: int) -> None:
+@click.option(
+    "--mode",
+    type=click.Choice([m.value for m in RenderMode], case_sensitive=False),
+    default=RenderMode.DECISION.value,
+    help="Initial render mode for new conversations.",
+)
+@click.option(
+    "--backend",
+    default=None,
+    help=(
+        "Decision backend ('mock', 'local', 'jev', 'systemone', 'step0');"
+        " overrides A2UI_DECISION_BACKEND."
+    ),
+)
+def main(host: str, port: int, mode: str, backend: str | None) -> None:
     try:
         if not os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
             if not os.getenv("GEMINI_API_KEY"):
@@ -48,11 +66,18 @@ def main(host: str, port: int) -> None:
                     " GOOGLE_GENAI_USE_VERTEXAI is not TRUE."
                 )
 
+        if backend:
+            os.environ["A2UI_DECISION_BACKEND"] = backend
+
         base_url = f"http://{host}:{port}"
-        agent = PlaygroundAgent(base_url=base_url)
+        agent = PlaygroundAgent(
+            base_url=base_url,
+            default_mode=RenderMode(mode.lower()),
+        )
         logger.info(
-            "Format playground on %s (model %s, decision backend %s)",
+            "Format playground on %s (mode %s, model %s, decision backend %s)",
             base_url,
+            agent.default_mode,
             agent.model_name,
             agent.renderers.backend_name,
         )

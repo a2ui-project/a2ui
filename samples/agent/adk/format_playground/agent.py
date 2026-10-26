@@ -41,7 +41,7 @@ from a2ui.inference_formats.decision import (
     DecisionBlock,
     create_decision_backend,
 )
-from commands import apply_command, help_text, parse_command
+from commands import DECISION_BACKENDS, apply_command, help_text, parse_command
 from modes import (
     LlmCaller,
     LlmTurn,
@@ -49,9 +49,10 @@ from modes import (
     RenderMode,
     RenderResult,
     TurnMetrics,
+    format_decision_ms,
     surface_id_for,
 )
-from renderers import Renderers
+from renderers import Renderers, build_named_backend
 from stage1 import extract_block, stage1_instruction, stage1_user_text
 
 logger = logging.getLogger(__name__)
@@ -164,9 +165,11 @@ class PlaygroundAgent:
         llm: LlmCaller | None = None,
         renderers: Renderers | None = None,
         model_name: str | None = None,
+        default_mode: RenderMode = RenderMode.DECISION,
     ) -> None:
         self.base_url = base_url
         self.model_name = model_name or default_model_name()
+        self.default_mode = default_mode
         self.llm: LlmCaller = (
             llm
             if llm is not None
@@ -202,7 +205,7 @@ class PlaygroundAgent:
             description=(
                 "Describe an interface in plain language and it is rendered through"
                 " the decision, express, or direct inference format. Commands:"
-                " /mode, /compare, /trace, /help."
+                " /mode, /backend, /compare, /trace, /help."
             ),
             tags=["a2ui", "playground", "decision"],
             examples=["Give me an address entry form", "Show my stock portfolio"],
@@ -223,7 +226,7 @@ class PlaygroundAgent:
     def _settings_for(self, session_id: str) -> PlaygroundSettings:
         settings = self._settings.get(session_id)
         if settings is None:
-            settings = PlaygroundSettings()
+            settings = PlaygroundSettings(mode=self.default_mode)
             self._remember(self._settings, session_id, settings)
         return settings
 
@@ -244,7 +247,9 @@ class PlaygroundAgent:
         suffix: str = "status",
     ) -> list[Part]:
         return self.renderers.status_surface(
-            lines, surface_id=f"{surface_id_for(settings)}-{suffix}", version=version
+            lines,
+            surface_id=f"{surface_id_for(settings)}-{suffix}",
+            version=version,
         )
 
     async def stream(
@@ -258,8 +263,8 @@ class PlaygroundAgent:
                     Part(
                         root=TextPart(
                             text=(
-                                "This playground renders A2UI surfaces; connect with a"
-                                " client that requests the A2UI extension."
+                                "This playground renders A2UI surfaces; connect with"
+                                " a client that requests the A2UI extension."
                             )
                         )
                     )
@@ -275,7 +280,11 @@ class PlaygroundAgent:
         yield {"is_task_complete": True, "parts": parts}
 
     def _run_command(
-        self, command: Any, session_id: str, settings: PlaygroundSettings, version: str
+        self,
+        command: Any,
+        session_id: str,
+        settings: PlaygroundSettings,
+        version: str,
     ) -> list[Part]:
         new_settings, reply = apply_command(command, settings)
         self._remember(self._settings, session_id, new_settings)
@@ -287,6 +296,8 @@ class PlaygroundAgent:
                 lines.insert(
                     0, f"Unknown command `{command.argument[len('unknown:'):]}`."
                 )
+        elif command.name == "backend":
+            lines = self._switch_backend(command.argument)
         elif command.name == "trace":
             lines = list(self._last_trace.get(session_id, ())) or [
                 "No decision turn yet. Render something in `decision` mode first."
@@ -295,8 +306,26 @@ class PlaygroundAgent:
             lines = [reply or ""]
         return self._status(lines, new_settings, version)
 
+    def _switch_backend(self, argument: str | None) -> list[str]:
+        if not argument:
+            choices = ", ".join(DECISION_BACKENDS)
+            return [
+                f"Active decision backend: `{self.renderers.backend_name}`"
+                f" (choose {choices})."
+            ]
+        try:
+            backend = build_named_backend(argument)
+        except ValueError as exc:
+            return [str(exc)]
+        self.renderers.set_backend(backend)
+        return [f"Decision backend set to `{self.renderers.backend_name}`."]
+
     async def _render_turn(
-        self, query: str, session_id: str, settings: PlaygroundSettings, version: str
+        self,
+        query: str,
+        session_id: str,
+        settings: PlaygroundSettings,
+        version: str,
     ) -> list[Part]:
         settings = settings.next_turn()
         try:
@@ -394,10 +423,19 @@ class PlaygroundAgent:
                 or TurnMetrics(mode=mode, backend="llm", llm_calls=0, latency_ms=0.0)
             ).plus_stage1(stage1)
             status = "ok" if result.ok else f"failed: {result.error}"
+            extra_parts: list[str] = []
+            if metrics.decision_latency_ms is not None:
+                extra_parts.append(
+                    f"decision {format_decision_ms(metrics.decision_latency_ms)}"
+                )
+            path = metrics.path_summary()
+            if path is not None:
+                extra_parts.append(path)
+            extra = f" ({', '.join(extra_parts)})" if extra_parts else ""
             lines.append(
                 f"`{mode}`: {metrics.llm_calls}"
                 f" call{'s' if metrics.llm_calls != 1 else ''},"
-                f" {metrics.latency_ms / 1000.0:.1f} s, {metrics.output_tokens} out"
-                f" tokens, {status}"
+                f" {metrics.latency_ms / 1000.0:.1f} s{extra},"
+                f" {metrics.output_tokens} out tokens, {status}"
             )
         return self._status(lines, settings, version, suffix="compare")

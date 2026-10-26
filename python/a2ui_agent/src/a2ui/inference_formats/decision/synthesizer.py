@@ -20,9 +20,11 @@ import asyncio
 import collections
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 import concurrent.futures
+import contextvars
 from dataclasses import replace
 import inspect
 import re
+import time
 from typing import Any, TypeAlias, cast
 
 from a2ui.core import A2uiValidationError, CatalogApi
@@ -46,6 +48,7 @@ from .layout_planner import LayoutPlanner, PlannerState
 from .models import (
     ComponentNodeSpec,
     ComponentSlot,
+    DecisionAnswer,
     DecisionBatch,
     DecisionDistribution,
     DecisionQuery,
@@ -85,6 +88,10 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _ARRAY_PAYLOAD_KEY = "items"
 _ELIGIBILITY_CACHE_SIZE = 256
 """Distinct payload shapes whose archetype eligibility one synthesizer remembers."""
+
+_DECISION_CALL_TIMINGS: contextvars.ContextVar[list[float] | None] = (
+    contextvars.ContextVar("_DECISION_CALL_TIMINGS", default=None)
+)
 
 FallbackMessages: TypeAlias = Sequence[AgentToRendererMessage | Mapping[str, Any]]
 """Messages a fallback callback may return: models or wire-format dicts."""
@@ -457,6 +464,64 @@ def _named_child_entry(
     return entry
 
 
+_MUTABLE_BRIEF_ROLES: frozenset[str] = frozenset({
+    "input",
+    "form",
+    "settings",
+    "groups",
+    "filters",
+    "compose",
+})
+_FRAMING_SCALAR_KEYS: frozenset[str] = frozenset({
+    "title",
+    "subtitle",
+    "heading",
+    "subheading",
+    "subject",
+    "description",
+    "summary",
+    "instructions",
+})
+_ACTION_KEYS: frozenset[str] = frozenset({"actions", "buttons", "cta"})
+
+
+def _promote_mutable_pointers(
+    pointers: Sequence[PointerSummary],
+    brief: LayoutBrief | None = None,
+) -> tuple[PointerSummary, ...]:
+    """Marks editable pointers as `mutable_hint=True` when the caller omitted `mutable_paths`."""
+    if brief is not None:
+        pinned_paths = {
+            p
+            for sec in brief.sections
+            if sec.role in _MUTABLE_BRIEF_ROLES
+            for p in sec.pointers
+        }
+        if pinned_paths:
+            return tuple(
+                replace(p, mutable_hint=True)
+                if p.path in pinned_paths
+                or any(p.path.startswith(f"{bp}/") for bp in pinned_paths)
+                else p
+                for p in pointers
+            )
+    editable_candidates = [
+        p
+        for p in pointers
+        if p.value_type in {"string", "number", "boolean", "object"}
+        and p.key.lower() not in _ACTION_KEYS
+    ]
+    non_framing = {
+        p.path
+        for p in editable_candidates
+        if p.parent or p.key.lower() not in _FRAMING_SCALAR_KEYS
+    }
+    target_paths = non_framing if non_framing else {p.path for p in editable_candidates}
+    return tuple(
+        replace(p, mutable_hint=True) if p.path in target_paths else p for p in pointers
+    )
+
+
 def _coerce_layout_brief(
     layout: LayoutBrief | Sequence[str] | None,
     grammar: ArchetypeGrammar,
@@ -719,25 +784,40 @@ class DecisionSynthesizer:
         pointers = inspect_payload_pointers(data, mutable_paths=mutable_paths)
         has_mutable = bool(mutable_paths) or any(p.mutable_hint for p in pointers)
 
-        stage1_out = await self._try_template_stage(
-            intent,
-            data,
-            pointers,
-            target_surface_id=target_surface_id,
-            has_mutable=has_mutable,
-            config=active_config,
-        )
-        if stage1_out is not None:
-            return stage1_out
+        timings: list[float] = []
+        token = _DECISION_CALL_TIMINGS.set(timings)
+        try:
+            stage1_out = await self._try_template_stage(
+                intent,
+                data,
+                pointers,
+                target_surface_id=target_surface_id,
+                has_mutable=has_mutable,
+                config=active_config,
+            )
+            if stage1_out is not None:
+                return replace(
+                    stage1_out,
+                    decision_latency_ms=sum(timings),
+                    decision_calls=len(timings),
+                )
 
-        output = await self._synthesize_from_catalog(
-            intent,
-            data,
-            pointers,
-            target_surface_id=target_surface_id,
-            has_mutable=has_mutable,
-            config=active_config,
-            layout=brief,
+            output = await self._synthesize_from_catalog(
+                intent,
+                data,
+                pointers,
+                target_surface_id=target_surface_id,
+                has_mutable=has_mutable,
+                config=active_config,
+                layout=brief,
+            )
+        finally:
+            _DECISION_CALL_TIMINGS.reset(token)
+
+        output = replace(
+            output,
+            decision_latency_ms=sum(timings),
+            decision_calls=len(timings),
         )
         if output.stage is not SynthesisStage.ABSTAIN_FALLBACK or output.messages:
             return output
@@ -750,6 +830,26 @@ class DecisionSynthesizer:
             fallback_dsl=fallback_dsl,
             config=active_config,
         )
+
+    async def _backend_predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Calls `self.backend.predict` and records elapsed decision latency."""
+        started = time.perf_counter()
+        dist = await self.backend.predict(query)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        timings = _DECISION_CALL_TIMINGS.get()
+        if timings is not None:
+            timings.append(elapsed_ms)
+        return dist
+
+    async def _backend_answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Calls `self.backend.answer` and records elapsed decision latency."""
+        started = time.perf_counter()
+        answers = await self.backend.answer(batch)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        timings = _DECISION_CALL_TIMINGS.get()
+        if timings is not None:
+            timings.append(elapsed_ms)
+        return answers
 
     def synthesize_sync(
         self,
@@ -861,6 +961,8 @@ class DecisionSynthesizer:
             fallback_source=source,
             layout_plan=abstained.layout_plan,
             trace=abstained.trace,
+            decision_latency_ms=abstained.decision_latency_ms,
+            decision_calls=abstained.decision_calls,
         )
 
     def _compile_fallback_dsl(
@@ -962,7 +1064,7 @@ class DecisionSynthesizer:
         if matching_descriptions:
             query_context["candidate_descriptions"] = matching_descriptions
 
-        dist = await self.backend.predict(
+        dist = await self._backend_predict(
             DecisionQuery(
                 task=DecisionTask.TEMPLATE_SELECT,
                 prompt=intent,
@@ -1017,7 +1119,7 @@ class DecisionSynthesizer:
             else LayoutPlanner(self.archetypes, config, capabilities=self.patterns)
         )
         batch, state = planner.build_batch(intent, pointers, brief=brief, payload=data)
-        answers = await self.backend.answer(batch)
+        answers = await self._backend_answer(batch)
         outcome = planner.read(state, answers)
         if outcome.plan is None:
             return outcome, state
@@ -1028,7 +1130,7 @@ class DecisionSynthesizer:
             shared_context={**batch.shared_context, "reask": True},
             questions=reask,
         )
-        reask_answers = await self.backend.answer(reask_batch)
+        reask_answers = await self._backend_answer(reask_batch)
         reask_by_id = {ans.question_id: ans for ans in reask_answers}
         existing_ids = {a.question_id for a in answers}
         merged = tuple(reask_by_id.get(a.question_id, a) for a in answers) + tuple(
@@ -1155,6 +1257,17 @@ class DecisionSynthesizer:
             trace=tuple(trace),
         )
 
+    def _family_chose_input(self, state: PlannerState, config: SynthesisConfig) -> bool:
+        """Returns whether the `family` answer in `state` selected `input` above threshold."""
+        fam_ans = state.answers_by_id.get("family")
+        if fam_ans is None:
+            return False
+        chosen, prob = fam_ans.top()
+        thresh = config.threshold_overrides.get(
+            "family", self.archetypes.threshold("family")
+        )
+        return chosen == "input" and prob >= thresh
+
     def _eligible_archetypes(
         self, pointers: Sequence[PointerSummary]
     ) -> tuple[LayoutArchetype, ...]:
@@ -1181,7 +1294,14 @@ class DecisionSynthesizer:
         config: SynthesisConfig,
     ) -> tuple[SynthesisOutput | None, tuple[DecisionRecord, ...]]:
         """Attempts archetype-planned synthesis, returning `(output, trace)`."""
-        eligible = self._eligible_archetypes(pointers)
+        active_pointers: Sequence[PointerSummary] = pointers
+        if (
+            brief is not None
+            and not any(p.mutable_hint for p in active_pointers)
+            and any(r in _MUTABLE_BRIEF_ROLES for r in brief.roles())
+        ):
+            active_pointers = _promote_mutable_pointers(active_pointers, brief)
+        eligible = self._eligible_archetypes(active_pointers)
         if not eligible:
             trace: list[DecisionRecord] = []
             _record_trace_reason(
@@ -1196,10 +1316,26 @@ class DecisionSynthesizer:
             outcome, state = await self._plan_layout(
                 intent,
                 data,
-                pointers,
+                active_pointers,
                 brief=brief,
                 config=config,
             )
+            if (
+                outcome.reason == "no_family"
+                and not any(p.mutable_hint for p in active_pointers)
+                and self._family_chose_input(state, config)
+            ):
+                promoted = _promote_mutable_pointers(active_pointers, brief)
+                if any(
+                    a.family == "input" for a in self._eligible_archetypes(promoted)
+                ):
+                    outcome, state = await self._plan_layout(
+                        intent,
+                        data,
+                        promoted,
+                        brief=brief,
+                        config=config,
+                    )
             trace = list(state.trace)
             if outcome.reason == "action_gate":
                 _record_trace_reason(trace, "action_gate", "Action confidence gate")
@@ -1298,7 +1434,7 @@ class DecisionSynthesizer:
         cand_descriptions = {
             c.name: self._describe_component(c) for c in root_candidates
         }
-        dist = await self.backend.predict(
+        dist = await self._backend_predict(
             DecisionQuery(
                 task=DecisionTask.ROOT_COMPONENT,
                 prompt=intent,
@@ -1737,15 +1873,26 @@ class DecisionSynthesizer:
             if slot.kind == SlotKind.CHILD_LIST:
                 child_counter += 1
                 item_id = f"{prefix}item_{child_counter}"
-                item_comp, array_path = await self._build_child_list_item(
-                    effective_spec.name,
-                    slot.name,
-                    item_id,
-                    intent,
-                    pointers,
-                    allow_actions=allow_actions,
-                )
-                comp[slot.name] = {"path": array_path, "componentId": item_id}
+                if any(p.value_type == "array" for p in pointers):
+                    item_comp, array_path = await self._build_child_list_item(
+                        effective_spec.name,
+                        slot.name,
+                        item_id,
+                        intent,
+                        pointers,
+                        allow_actions=allow_actions,
+                    )
+                    comp[slot.name] = {"path": array_path, "componentId": item_id}
+                else:
+                    item_comp = await self._build_single_child(
+                        effective_spec.name,
+                        slot.name,
+                        item_id,
+                        intent,
+                        pointers,
+                        allow_actions=allow_actions,
+                    )
+                    comp[slot.name] = [item_id]
                 children.append(item_comp)
             elif slot.kind == SlotKind.CHILD:
                 child_counter += 1
@@ -1983,7 +2130,7 @@ class DecisionSynthesizer:
             )
         if len(candidates) == 1:
             return candidates[0]
-        dist = await self.backend.predict(
+        dist = await self._backend_predict(
             DecisionQuery(
                 task=DecisionTask.CHILD_COMPONENT,
                 prompt=intent,

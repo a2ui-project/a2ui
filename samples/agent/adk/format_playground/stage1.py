@@ -51,6 +51,12 @@ Rules:
 - Invent realistic, specific data: real-looking names, prices, dates, and
   3 to 6 items for any list. Keep payload keys camelCase and values JSON
   primitives, objects, and arrays.
+- For forms, inputs, or settings, put the field values themselves under each
+  field key (for example `"email": "alex.smith@example.com"`, `"password": ""`,
+  `"rememberMe": false`), put button labels in an `"actions"` array (for
+  example `"actions": ["Sign In"]`), and list the editable pointers in
+  `"mutablePaths"` (for example `["/email", "/password", "/rememberMe"]`). Do
+  not emit `*Label`, `*Placeholder`, or `*ButtonText` keys.
 - When the message supplies JSON, use it verbatim as `payload` and write only
   the `intent`.
 - When the message reports a UI action (a button press, a form submission),

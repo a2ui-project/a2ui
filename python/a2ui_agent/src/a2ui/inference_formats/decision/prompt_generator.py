@@ -54,7 +54,11 @@ one JSON object (or a JSON array of such objects, one per surface).
 
 2. `payload` (required, object or array): The data to display. Use descriptive
    camelCase keys; key names guide which components are chosen. Keep values
-   JSON primitives, objects, and arrays. If you pass an array, it is stored
+   JSON primitives, objects, and arrays. Store actual field values under each
+   key (for example `"email": "alex@example.com", "password": "", "rememberMe": false`),
+   not `*Label` or `*Placeholder` keys; field labels are humanized from the key
+   names, and action buttons come from an `actions` array of button labels
+   (for example `"actions": ["Sign In"]`). If you pass an array, it is stored
    under the `items` key, so bindings read `/items/0/...`.
 
 3. `surfaceId` (optional, string): The surface to create or update. Reuse an
@@ -71,6 +75,10 @@ one JSON object (or a JSON array of such objects, one per surface).
    `"<role>:<key>,<key>"` (keys may be bare top-level names or `/`-prefixed
    JSON pointers; no nested sections). Valid roles are {{brief_roles}}.
    Example: `["picture:name,logoUrl", "collection:/photos", "facts:address,phone"]`.
+
+7. `mutablePaths` (optional, array of strings): JSON pointers (for example
+   `["/email", "/password", "/rememberMe"]`) for fields in `payload` that the
+   user edits in a form or settings screen.
 
 ## Example
 

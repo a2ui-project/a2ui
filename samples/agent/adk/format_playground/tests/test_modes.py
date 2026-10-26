@@ -97,3 +97,82 @@ def test_render_result_ok_requires_parts_and_no_error() -> None:
     assert not RenderResult().ok
     assert not RenderResult(parts=[object()], error="boom").ok  # type: ignore[list-item]
     assert RenderResult(parts=[object()]).ok  # type: ignore[list-item]
+
+
+def test_path_summary_and_decision_timing_across_stages() -> None:
+    archetype_m = TurnMetrics(
+        mode=RenderMode.DECISION,
+        backend="jev",
+        llm_calls=0,
+        latency_ms=415.0,
+        decision_latency_ms=412.0,
+        decision_calls=1,
+        stage="archetype",
+        archetype="form",
+        confidence=0.86,
+        block_count=2,
+    ).plus_stage1(
+        LlmTurn(text="x", prompt_tokens=600, output_tokens=90, latency_ms=1800.0)
+    )
+    assert archetype_m.footer() == (
+        "**decision** · jev · 1 LLM call · decision 412 ms (total 2.2 s)"
+        " · 600 in / 90 out tokens · path: decision model · archetype form"
+        " (0.86) · 2 blocks"
+    )
+
+    template_m = TurnMetrics(
+        mode=RenderMode.DECISION,
+        backend="local",
+        llm_calls=0,
+        latency_ms=19.0,
+        decision_latency_ms=18.2,
+        stage="template_select",
+        template_id="login_card",
+        confidence=0.91,
+    )
+    assert template_m.footer() == (
+        "**decision** · local · 0 LLM calls · decision 18 ms"
+        " · path: templates · template login_card (0.91)"
+    )
+
+    container_m = TurnMetrics(
+        mode=RenderMode.DECISION,
+        backend="jev",
+        llm_calls=0,
+        latency_ms=385.0,
+        decision_latency_ms=380.0,
+        stage="container_2pass",
+        root_component="Column",
+        confidence=0.74,
+    )
+    assert "path: decision model · 2-pass container Column (0.74)" in (
+        container_m.footer()
+    )
+
+    leaf_m = TurnMetrics(
+        mode=RenderMode.DECISION,
+        backend="mock",
+        llm_calls=0,
+        latency_ms=0.5,
+        decision_latency_ms=0.42,
+        stage="fast_1pass_leaf",
+        root_component="Text",
+        confidence=0.83,
+    )
+    assert "decision 0.42 ms · path: decision model · 1-pass leaf Text (0.83)" in (
+        leaf_m.footer()
+    )
+
+    fallback_m = TurnMetrics(
+        mode=RenderMode.DECISION,
+        backend="jev",
+        llm_calls=0,
+        latency_ms=345.0,
+        decision_latency_ms=340.0,
+        stage="abstain_fallback",
+        fallback="card",
+        confidence=0.31,
+    )
+    assert (
+        "path: fallback (card) · decision model abstained (0.31)" in fallback_m.footer()
+    )

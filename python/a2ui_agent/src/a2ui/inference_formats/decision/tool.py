@@ -209,6 +209,15 @@ class DecisionRenderTool:
                         " nested sections)."
                     ),
                 },
+                "mutablePaths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional JSON Pointers (or top-level key names) in"
+                        " `payload` that the user may edit, such as form fields"
+                        " or settings toggles."
+                    ),
+                },
             },
             "required": ["intent", "payload"],
             "additionalProperties": False,
@@ -224,6 +233,8 @@ class DecisionRenderTool:
         }
         if block.layout:
             kwargs["layout"] = block.layout
+        if block.mutable_paths:
+            kwargs["mutable_paths"] = block.mutable_paths
         surface_id = block.surface_id or self._surface_id
         if surface_id is not None:
             kwargs["surface_id"] = surface_id

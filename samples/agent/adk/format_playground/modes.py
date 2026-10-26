@@ -83,6 +83,15 @@ class LlmCaller(Protocol):
         ...
 
 
+def format_decision_ms(ms: float) -> str:
+    """Formats a decision-model latency in milliseconds (or seconds when >= 1000 ms)."""
+    if ms < 1.0:
+        return f"{ms:.2f} ms"
+    if ms < 1000.0:
+        return f"{ms:.0f} ms"
+    return f"{ms / 1000.0:.2f} s ({ms:.0f} ms)"
+
+
 @dataclass(frozen=True)
 class TurnMetrics:
     """What one render cost, shown in the footer under every surface."""
@@ -99,26 +108,79 @@ class TurnMetrics:
     block_count: int | None = None
     fallback: str | None = None
     """A `FallbackSource` value, or `validation_retry` when stage 2 needed a retry."""
+    stage: str | None = None
+    """The `SynthesisStage` value (`template_select`, `archetype`, `fast_1pass_leaf`, `container_2pass`, `abstain_fallback`)."""
+    decision_latency_ms: float | None = None
+    """Wall-clock milliseconds spent waiting on the decision model."""
+    decision_calls: int | None = None
+    """Number of decision model calls or batches."""
+    template_id: str | None = None
+    """Registered template id when `stage == 'template_select'`."""
+    root_component: str | None = None
+    """Catalog root component when `stage` is `fast_1pass_leaf` or `container_2pass`."""
+
+    def path_summary(self) -> str | None:
+        """Describes whether rendering used the decision model, templates, or fallback."""
+        conf = f" ({self.confidence:.2f})" if self.confidence is not None else ""
+        if self.stage == "template_select":
+            tpl = f" {self.template_id}" if self.template_id else ""
+            return f"path: templates · template{tpl}{conf}"
+        if self.stage == "archetype":
+            arch = (
+                f"archetype {self.archetype}{conf}"
+                if self.archetype is not None
+                else f"archetype{conf}"
+            )
+            if self.block_count is not None:
+                blocks = (
+                    f"{self.block_count} block{'' if self.block_count == 1 else 's'}"
+                )
+                return f"path: decision model · {arch} · {blocks}"
+            return f"path: decision model · {arch}"
+        if self.stage == "fast_1pass_leaf":
+            comp = f" {self.root_component}" if self.root_component else ""
+            return f"path: decision model · 1-pass leaf{comp}{conf}"
+        if self.stage == "container_2pass":
+            comp = f" {self.root_component}" if self.root_component else ""
+            return f"path: decision model · 2-pass container{comp}{conf}"
+        if self.stage == "abstain_fallback":
+            source = self.fallback or "abstained"
+            return f"path: fallback ({source}) · decision model abstained{conf}"
+        return None
 
     def footer(self) -> str:
         """One line summarizing the turn, fields separated by ` · `."""
+        if self.decision_latency_ms is not None:
+            dec_time = f"decision {format_decision_ms(self.decision_latency_ms)}"
+            if self.llm_calls > 0:
+                timing = f"{dec_time} (total {self.latency_ms / 1000.0:.1f} s)"
+            else:
+                timing = dec_time
+        else:
+            timing = f"{self.latency_ms / 1000.0:.1f} s"
         parts: list[str] = [
             f"**{self.mode}**",
             self.backend,
             f"{self.llm_calls} LLM call{'' if self.llm_calls == 1 else 's'}",
-            f"{self.latency_ms / 1000.0:.1f} s",
+            timing,
         ]
         if self.prompt_tokens or self.output_tokens:
             parts.append(f"{self.prompt_tokens} in / {self.output_tokens} out tokens")
-        if self.archetype is not None:
-            conf = f" ({self.confidence:.2f})" if self.confidence is not None else ""
-            parts.append(f"archetype {self.archetype}{conf}")
-        if self.block_count is not None:
-            parts.append(
-                f"{self.block_count} block{'' if self.block_count == 1 else 's'}"
-            )
-        if self.fallback is not None:
-            parts.append(f"fallback: {self.fallback}")
+        path = self.path_summary()
+        if path is not None:
+            parts.append(path)
+        else:
+            if self.archetype is not None:
+                conf = (
+                    f" ({self.confidence:.2f})" if self.confidence is not None else ""
+                )
+                parts.append(f"archetype {self.archetype}{conf}")
+            if self.block_count is not None:
+                parts.append(
+                    f"{self.block_count} block{'' if self.block_count == 1 else 's'}"
+                )
+            if self.fallback is not None:
+                parts.append(f"fallback: {self.fallback}")
         return " · ".join(parts)
 
     def plus_stage1(self, stage1: LlmTurn) -> TurnMetrics:

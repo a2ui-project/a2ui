@@ -45,6 +45,11 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 # Lifetime of a cached Application Default Credentials access token.
 _ADC_TOKEN_TTL_SECONDS = 1800.0
 
+_DEFAULT_TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone"
+_DEFAULT_VERCEL_TYPESAFE_SYSTEMONE_URL = (
+    "https://ai-gateway.vercel.sh/typesafe/v1/systemone"
+)
+
 _STEP_ZERO_LABELS: tuple[str, ...] = tuple("ABCDEFGHIJ")
 
 _BackendT = TypeVar("_BackendT", bound="_AsyncClosable")
@@ -145,14 +150,24 @@ def _format_query_passage_pairs(
     query: DecisionQuery,
 ) -> tuple[str, list[str]]:
     """Formats DecisionQuery into (query_text, passage_texts) for cross-encoder scoring."""
+    intent = query.context.get("intent")
+    intent_clause = (
+        f"User intent: {intent}"
+        if isinstance(intent, str) and intent and intent != query.prompt
+        else None
+    )
     slot_clause = _child_slot_clause(
         query,
         full_template="Selecting child component for {parent}, slot {slot}",
     )
     ptr_clause = _pointers_summary(query.context, "Available data fields")
-    query_parts = [p for p in (query.prompt, slot_clause, ptr_clause) if p]
+    query_parts = [
+        p for p in (intent_clause, query.prompt, slot_clause, ptr_clause) if p
+    ]
     passage_texts = [
-        f"{c}: {desc}" if (desc := _candidate_description(query.context, c)) else c
+        f"{c}: {desc}"
+        if (desc := _candidate_description(query.context, c))
+        else ("none: None of the above" if c == "none" else c)
         for c in query.candidates
     ]
     return ". ".join(query_parts), passage_texts
@@ -201,6 +216,23 @@ def _match_step_zero_logprobs(
     return matched
 
 
+def _extract_http_error_detail(response: httpx.Response) -> str | None:
+    """Extracts a human-readable error message from a JSON error response, if any."""
+    try:
+        body = response.json()
+    except Exception:
+        return None
+    if not isinstance(body, Mapping):
+        return None
+    for key in ("error", "detail"):
+        val = body.get(key)
+        if isinstance(val, Mapping) and val.get("message"):
+            return str(val["message"])
+        if isinstance(val, str) and val:
+            return val
+    return None
+
+
 async def _post_json(
     endpoint_url: str,
     payload: Mapping[str, Any],
@@ -214,7 +246,18 @@ async def _post_json(
     response = await client.post(
         endpoint_url, json=payload, headers=hdrs, timeout=timeout_seconds
     )
-    response.raise_for_status()
+    if response.is_error:
+        detail = _extract_http_error_detail(response)
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as err:
+            if detail:
+                raise httpx.HTTPStatusError(
+                    f"{err}: {detail}",
+                    request=err.request,
+                    response=err.response,
+                ) from err
+            raise
     return cast(dict[str, Any], response.json())
 
 
@@ -747,6 +790,165 @@ def _parse_native_question_answer(
     return answer
 
 
+def _build_systemone_state(shared_context: Mapping[str, Any]) -> str:
+    """Formats `shared_context` into a non-empty `/v1/systemone` state string."""
+    intent = shared_context.get("intent")
+    intent_part = f"User intent: {intent}" if intent else None
+    ptr_part = _pointers_summary(shared_context, "Payload data fields")
+    parts = [p for p in (intent_part, ptr_part) if p]
+    if not parts and shared_context:
+        parts = [f"{k}: {v}" for k, v in shared_context.items()]
+    return ". ".join(parts) if parts else "(no context)"
+
+
+def _serialize_systemone_choice_criteria(
+    question: DecisionQuestion,
+) -> dict[str, str]:
+    """Builds the candidate->description map for a `/v1/systemone` choice question."""
+    desc_map: dict[str, str] = {}
+    if question.option_texts:
+        desc_map.update(
+            (opt, str(txt))
+            for opt, txt in zip(question.options, question.option_texts)
+            if txt
+        )
+    cand_descs = question.context.get("candidate_descriptions")
+    if isinstance(cand_descs, Mapping):
+        desc_map.update((str(k), str(v)) for k, v in cand_descs.items() if v)
+    return {
+        c: (
+            desc_map.get(c)
+            or ("None of the above" if c == "none" else f"Candidate option: {c}")
+        )
+        for c in question.candidates()
+    }
+
+
+def _serialize_systemone_question(question: DecisionQuestion) -> dict[str, Any]:
+    """Serializes one `DecisionQuestion` into a `/v1/systemone` question spec."""
+    if question.kind is QuestionKind.BOOLEAN:
+        spec: dict[str, Any] = {
+            "type": "noul",
+            "instructions": question.prompt,
+        }
+        criteria = {
+            target: str(question.context[src])
+            for src, target in (("yes", "true"), ("no", "false"))
+            if question.context.get(src)
+        }
+        if criteria:
+            spec["criteria"] = criteria
+        return spec
+    if question.kind is QuestionKind.SCORE:
+        levels = (
+            [
+                f"{lvl}: {txt}" if txt else str(lvl)
+                for lvl, txt in zip(question.options, question.option_texts)
+            ]
+            if question.option_texts
+            and len(question.option_texts) == len(question.options)
+            else [str(lvl) for lvl in question.options]
+        )
+        return {
+            "type": "score",
+            "instructions": question.prompt,
+            "criteria": levels,
+        }
+    return {
+        "type": "choice",
+        "instructions": question.prompt,
+        "criteria": _serialize_systemone_choice_criteria(question),
+    }
+
+
+def _parse_systemone_boolean_probs(entry: Mapping[str, Any]) -> dict[str, float]:
+    """Extracts `{"yes": p, "no": 1 - p}` from a `/v1/systemone` noul/boolean answer."""
+    for key in ("noul", "probability", "yes"):
+        if key in entry:
+            p_yes = min(1.0, _safe_nonneg_float(entry[key]))
+            return {"yes": p_yes, "no": max(0.0, 1.0 - p_yes)}
+    raw_probs = entry.get("probabilities")
+    if isinstance(raw_probs, Mapping):
+        mapped = {
+            "yes": raw_probs.get("yes", raw_probs.get("true", 0.0)),
+            "no": raw_probs.get("no", raw_probs.get("false", 0.0)),
+        }
+        return _normalize_probabilities(mapped, ("yes", "no"))
+    return {"yes": 0.0, "no": 0.0}
+
+
+def _parse_systemone_score_probs(
+    question: DecisionQuestion, entry: Mapping[str, Any]
+) -> dict[str, float]:
+    """Extracts level probabilities from a `/v1/systemone` score answer."""
+    raw_probs = entry.get("probabilities")
+    mapped: dict[str, Any] = {}
+    if isinstance(raw_probs, Mapping):
+        for idx, level in enumerate(question.options):
+            if level in raw_probs:
+                mapped[level] = raw_probs[level]
+            elif str(idx) in raw_probs:
+                mapped[level] = raw_probs[str(idx)]
+            elif idx in raw_probs:
+                mapped[level] = raw_probs[idx]
+    elif isinstance(raw_probs, Sequence) and not isinstance(raw_probs, (str, bytes)):
+        for idx, level in enumerate(question.options):
+            if idx < len(raw_probs):
+                mapped[level] = raw_probs[idx]
+    return _normalize_probabilities(mapped, question.options)
+
+
+def _parse_systemone_question_answer(
+    question: DecisionQuestion,
+    entry: Mapping[str, Any],
+    envelope: Mapping[str, Any],
+) -> DecisionAnswer:
+    """Builds a `DecisionAnswer` for `question` from a `/v1/systemone` answer entry."""
+    if question.kind is QuestionKind.BOOLEAN:
+        probabilities = _parse_systemone_boolean_probs(entry)
+    elif question.kind is QuestionKind.SCORE:
+        probabilities = _parse_systemone_score_probs(question, entry)
+    else:
+        raw_probs = entry.get("probabilities")
+        probs_map = raw_probs if isinstance(raw_probs, Mapping) else {}
+        probabilities = _normalize_probabilities(probs_map, question.candidates())
+
+    calibrated = (
+        "confidence" in entry
+        or "noul" in entry
+        or bool(envelope.get("calibrated", True))
+    )
+    dist = DecisionDistribution(
+        probabilities=probabilities,
+        calibrated=calibrated,
+        top_logit_margin=_probability_margin(probabilities),
+    )
+    answer = answer_from_distribution(question, dist)
+    raw_score = entry.get("score", entry.get("expected"))
+    if question.kind is QuestionKind.SCORE and raw_score is not None:
+        if sum(answer.distribution.probabilities.values()) <= 0.0:
+            return DecisionAnswer(
+                question_id=question.id,
+                distribution=answer.distribution,
+                expected=float(raw_score),
+            )
+    return answer
+
+
+def _single_candidate_answer(question: DecisionQuestion) -> DecisionAnswer:
+    """Returns a deterministic `DecisionAnswer` for a `< 2` candidate choice."""
+    cands = question.candidates()
+    probs = {cands[0]: 1.0} if cands else {}
+    return DecisionAnswer(
+        question_id=question.id,
+        distribution=DecisionDistribution(
+            probabilities=probs,
+            calibrated=True,
+            top_logit_margin=float("inf") if probs else 0.0,
+        ),
+    )
+
+
 class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
     """HTTP backend for local Jev /predict or /v1/systemone decision endpoints.
 
@@ -767,6 +969,11 @@ class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
     ) -> None:
         self._endpoint_url = endpoint_url
         self._wire_format = str(getattr(wire_format, "value", wire_format))
+        if "ai-gateway.vercel.sh/typesafe" in endpoint_url.lower() and model in (
+            "default",
+            "jev-latest",
+        ):
+            model = "jev"
         self._model = model
         self._auth = auth
         self._headers = dict(headers) if headers else None
@@ -774,6 +981,16 @@ class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
         self._adc_token: str | None = None
         self._adc_expires_at: float = 0.0
         self._adc_lock = asyncio.Lock()
+
+    @property
+    def endpoint_url(self) -> str:
+        """The HTTP endpoint URL queried by this backend."""
+        return self._endpoint_url
+
+    @property
+    def model(self) -> str:
+        """The decision model identifier sent on `/v1/systemone` requests."""
+        return self._model
 
     def _is_systemone(self) -> bool:
         """Returns whether this backend uses the /v1/systemone wire format."""
@@ -805,8 +1022,11 @@ class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
         if auth_target is None:
             import os
 
-            auth_target = os.environ.get("A2UI_DECISION_TOKEN") or os.environ.get(
-                "A2UI_DECISION_AUTH"
+            auth_target = (
+                os.environ.get("A2UI_DECISION_TOKEN")
+                or os.environ.get("A2UI_DECISION_AUTH")
+                or os.environ.get("JEV_API_KEY")
+                or os.environ.get("TYPESAFE_API_KEY")
             )
             if not auth_target:
                 return None
@@ -881,12 +1101,50 @@ class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
             top_logit_margin=top_logit_margin,
         )
 
+    async def _answer_systemone(
+        self, batch: DecisionBatch
+    ) -> tuple[DecisionAnswer, ...]:
+        """Sends `batch` as one `/v1/systemone` request, short-circuiting 1-option choices."""
+        wire_questions = {
+            q.id: _serialize_systemone_question(q)
+            for q in batch.questions
+            if not (q.kind is QuestionKind.CHOICE and len(q.candidates()) < 2)
+        }
+        data: Mapping[str, Any] = {}
+        if wire_questions:
+            headers = await self._build_headers()
+            payload = {
+                "model": self._model,
+                "state": _build_systemone_state(batch.shared_context),
+                "questions": wire_questions,
+            }
+            data = await _post_json(
+                self._endpoint_url,
+                payload,
+                client=self._get_client(),
+                timeout_seconds=self._timeout_seconds,
+                headers=headers,
+            )
+        raw_answers = data.get("answers", {})
+        answers_map = raw_answers if isinstance(raw_answers, Mapping) else {}
+        fallback_q = answers_map.get("q")
+        fallback_entry = fallback_q if isinstance(fallback_q, Mapping) else {}
+        results: list[DecisionAnswer] = []
+        for q in batch.questions:
+            if q.kind is QuestionKind.CHOICE and len(q.candidates()) < 2:
+                results.append(_single_candidate_answer(q))
+                continue
+            raw_entry = answers_map.get(q.id)
+            entry = raw_entry if isinstance(raw_entry, Mapping) else fallback_entry
+            results.append(_parse_systemone_question_answer(q, entry, data))
+        return tuple(results)
+
     async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
-        """Sends `batch` as one `questions[]` request for native Jev, or per-question for systemone."""
+        """Sends `batch` as one request for both native Jev and `/v1/systemone`."""
         if not batch.questions:
             return ()
         if self._is_systemone():
-            return await super().answer(batch)
+            return await self._answer_systemone(batch)
 
         headers = await self._build_headers()
         payload: dict[str, Any] = {
@@ -1243,7 +1501,7 @@ class LocalCrossEncoderBackend(PredictOnlyBackend):
 
         try:
             from huggingface_hub import hf_hub_download
-            import onnxruntime as ort  # type: ignore[import-not-found]
+            import onnxruntime as ort  # type: ignore
             from tokenizers import Tokenizer
         except ImportError as err:
             raise ImportError(
@@ -1416,18 +1674,37 @@ def _create_local_backend(
     return LocalCrossEncoderBackend(**kw)
 
 
+def _default_jev_url_and_model(
+    auth_val: str | Callable[[], str | Any] | None,
+) -> tuple[str | None, str]:
+    """Resolves the hosted `/v1/systemone` URL and default model when a key is present."""
+    import os
+
+    jev_model = os.environ.get("JEV_MODEL")
+    if isinstance(auth_val, str):
+        token = auth_val.strip()
+        if token and token != "adc":
+            if token.startswith("vcp_"):
+                return _DEFAULT_VERCEL_TYPESAFE_SYSTEMONE_URL, jev_model or "jev"
+            return _DEFAULT_TYPESAFE_SYSTEMONE_URL, jev_model or "jev-latest"
+    return None, jev_model or "default"
+
+
 def _create_jev_backend(
     kind: str,
     url: str | None,
     model_name: str | None,
     auth_val: str | Callable[[], str | Any] | None,
 ) -> JevHttpBackend:
-    endpoint = _require_url(kind, url)
-    if kind == DecisionBackendType.SYSTEMONE.value:
+    default_url, default_model = _default_jev_url_and_model(auth_val)
+    endpoint = _require_url(kind, url or default_url)
+    if kind == DecisionBackendType.SYSTEMONE.value or endpoint.rstrip("/").endswith(
+        "/v1/systemone"
+    ):
         return JevHttpBackend(
             endpoint,
             wire_format=DecisionWireFormat.SYSTEMONE,
-            model=model_name or "default",
+            model=model_name or default_model,
             auth=auth_val,
         )
     return JevHttpBackend(endpoint, wire_format=DecisionWireFormat.JEV, auth=auth_val)
@@ -1466,6 +1743,7 @@ def create_decision_backend(
         A2UI_DECISION_URL: Endpoint URL for HTTP backends
         A2UI_DECISION_MODEL: Model identifier (e.g. cross-encoder ID or remote model)
         A2UI_DECISION_AUTH: 'adc', Bearer token string, or omitted
+        JEV_API_KEY / TYPESAFE_API_KEY: API key for hosted Jev (/v1/systemone)
         A2UI_DECISION_TEMPERATURE: Float temperature scaling parameter
 
     Raises:
@@ -1481,6 +1759,8 @@ def create_decision_backend(
         auth
         or os.environ.get("A2UI_DECISION_AUTH")
         or os.environ.get("A2UI_DECISION_TOKEN")
+        or os.environ.get("JEV_API_KEY")
+        or os.environ.get("TYPESAFE_API_KEY")
     )
     temp = _resolve_temperature(
         temperature, os.environ.get("A2UI_DECISION_TEMPERATURE")

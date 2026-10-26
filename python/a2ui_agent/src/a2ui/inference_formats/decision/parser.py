@@ -154,6 +154,7 @@ class DecisionParser(Parser):
                     block.intent,
                     block.payload,
                     surface_id=target_surface_id,
+                    mutable_paths=block.mutable_paths,
                     template_id=block.template_id,
                     fallback_dsl=block.fallback_dsl,
                     layout=block.layout or None,

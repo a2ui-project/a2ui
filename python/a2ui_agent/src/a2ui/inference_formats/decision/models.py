@@ -844,6 +844,10 @@ class SynthesisOutput:
     """The archetype plan behind `messages` when `stage` is `ARCHETYPE`."""
     trace: tuple[DecisionRecord, ...] = ()
     """Every question asked, with its answer and threshold outcome."""
+    decision_latency_ms: float = 0.0
+    """Wall-clock milliseconds spent waiting on the decision model backend."""
+    decision_calls: int = 0
+    """Number of backend `predict` or `answer` calls made during synthesis."""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "trace", tuple(self.trace))

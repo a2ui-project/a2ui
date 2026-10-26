@@ -1105,3 +1105,68 @@ async def test_basic_catalog_default_config_attempts_archetype_path_and_flat_opt
     flat_out = await flat_synth.synthesize("Show title", {"title": "Coral Bay Resort"})
     assert flat_out.stage == SynthesisStage.FAST_1PASS_LEAF
     assert flat_out.layout_plan is None
+
+
+@pytest.mark.asyncio
+async def test_input_family_promotes_mutable_pointers_and_scalar_child_list_is_static() -> (
+    None
+):
+    """Verifies automatic mutable promotion when family chooses 'input' and static [item_id] for scalar CHILD_LIST."""
+    from a2ui.core.basic_catalog import BasicCatalog
+    from .layout_fixtures import ScriptedAnswers
+
+    basic = BasicCatalog("v0.9")
+    sa = ScriptedAnswers(
+        answers={
+            "family": ("input", 0.92),
+            "stakes": 1.0,
+            "urgency": 0.3,
+            "archetype:input": ("form", 0.88),
+            "gate:prose": 0.10,
+            "gate:form": 0.98,
+            "gate:actions": 0.95,
+            "instance:form.control:/email": ("shortText", 0.95),
+            "instance:form.required:/email": 0.99,
+            "instance:form.control:/password": ("obscured", 0.99),
+            "instance:form.required:/password": 0.99,
+            "instance:form.control:/rememberMe": ("toggle", 0.99),
+            "instance:form.required:/rememberMe": 0.05,
+            "instance:actions.primary:/actions": ("Sign In", 0.98),
+            "instance:actions.destructive:0": 0.01,
+        }
+    )
+    synth = DecisionSynthesizer([basic], sa.backend())
+    login_out = await synth.synthesize(
+        "Make me a login form",
+        {
+            "title": "Welcome Back",
+            "email": "alex.smith@example.com",
+            "password": "",
+            "rememberMe": False,
+            "actions": ["Sign In"],
+        },
+    )
+    assert login_out.stage == SynthesisStage.ARCHETYPE
+    assert login_out.layout_plan is not None
+    assert login_out.layout_plan.archetype == "form"
+    validate_payload([basic], login_out.messages)
+
+    # Scalar-only payload with a CHILD_LIST container (Column) emits static [item_id],
+    # not a template object referencing a non-existent '/children' array path.
+    col_synth = DecisionSynthesizer(
+        [basic],
+        DeterministicMockBackend(
+            scripted={
+                "root_component": {"Column": 0.90},
+                "child_component": {"Text": 0.90},
+            }
+        ),
+        config=SynthesisConfig(use_archetypes=False),
+    )
+    col_out = await col_synth.synthesize("Show welcome", {"title": "Welcome Back"})
+    assert col_out.stage == SynthesisStage.CONTAINER_2PASS
+    validate_payload([basic], col_out.messages)
+    col_comps = to_message_dicts(col_out.messages)[1]["updateComponents"]["components"]
+    assert col_comps[0]["component"] == "Column"
+    assert col_comps[0]["children"] == ["item_1"]
+    assert col_comps[1]["text"] == {"path": "/title"}

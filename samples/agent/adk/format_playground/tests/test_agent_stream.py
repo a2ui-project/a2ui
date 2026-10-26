@@ -106,16 +106,25 @@ async def test_agent_card_advertises_both_versions(agent: PlaygroundAgent) -> No
     assert agent.agent_card.skills[0].id == "render_ui"
 
 
-async def test_help_mode_and_trace_before_any_render(agent: PlaygroundAgent) -> None:
+async def test_help_mode_and_trace_before_any_render(
+    agent: PlaygroundAgent, monkeypatch: pytest.MonkeyPatch
+) -> None:
     help_parts = await collect(agent, "/help", "s1")
     assert surface_ids(help_parts) == ["turn-0-status"]
     text = status_text(help_parts)
     assert "/compare" in text and "`mock`" in text and "`fake-model`" in text
+    assert "/backend" in text
 
     mode_parts = await collect(agent, "/mode express", "s1")
     assert "Mode set to `express`" in status_text(mode_parts)
     unknown = await collect(agent, "/sparkle", "s1")
     assert "Unknown command `/sparkle`" in status_text(unknown)
+
+    monkeypatch.setenv("JEV_API_KEY", "vcp_test_key")
+    backend_parts = await collect(agent, "/backend jev", "s1")
+    assert "Decision backend set to `jev (jev)`." in status_text(backend_parts)
+    reset_parts = await collect(agent, "/backend mock", "s1")
+    assert "Decision backend set to `mock`." in status_text(reset_parts)
 
     trace_parts = await collect(agent, "/trace", "s1")
     assert "No decision turn yet" in status_text(trace_parts)
@@ -214,3 +223,18 @@ async def test_ui_action_text_goes_through_stage1(
     assert scripted_llm.calls_for("stage1")[-1]["user_text"] == action_text
     assert action_text.startswith(UI_ACTION_PREFIX)
     assert RenderMode.DECISION.value in status_text(parts)
+
+
+async def test_default_mode_starts_new_session_in_configured_mode(
+    scripted_llm: FakeLlmCaller,
+) -> None:
+    renderers = Renderers(versions=["0.9"], backend=DeterministicMockBackend())
+    express_agent = PlaygroundAgent(
+        "http://localhost:10010",
+        llm=scripted_llm,
+        renderers=renderers,
+        model_name="fake-model",
+        default_mode=RenderMode.EXPRESS,
+    )
+    help_parts = await collect(express_agent, "/help", "s-default-express")
+    assert "Active mode: `express`" in status_text(help_parts)

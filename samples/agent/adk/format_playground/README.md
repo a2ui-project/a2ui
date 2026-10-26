@@ -28,14 +28,29 @@ how many model calls it took, the latency, the token counts, and (for
 
 ## Running the agent
 
+Use [`run.sh`](run.sh) with a preset name (`local`, `mock`, `jev`, `gev`,
+`express`, or `direct`):
+
 ```bash
 cd samples/agent/adk/format_playground
 export GEMINI_API_KEY=...
-A2UI_DECISION_BACKEND=mock uv run .
+
+./run.sh local      # in-process ONNX cross-encoder (auto-installs local deps)
+./run.sh mock       # deterministic offline heuristic
+./run.sh gev        # starts local Gev server (vertex/decision-gemma) and connects to it
+JEV_API_KEY=... ./run.sh jev   # remote TypeSafe Jev (/v1/systemone)
+./run.sh express    # start in express render mode
+./run.sh direct     # start in direct render mode
 ```
 
-The startup log names the model, the decision backend, and the URL
-(`http://localhost:10010` by default; `--port` changes it).
+Or run the package directly with `uv`:
+
+```bash
+A2UI_DECISION_BACKEND=mock uv run . --mode decision
+```
+
+The startup log names the initial mode, the model, the decision backend, and the
+URL (`http://localhost:10010` by default; `--port` changes it).
 
 ### Decision backends
 
