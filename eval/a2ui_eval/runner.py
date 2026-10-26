@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Python Agent SDK bridge implementation.
+"""Python A2UI Agent SDK prompt generation and worker-isolated validation.
 
 Parsing and validation run in long-lived worker processes so that a runaway
 parse can be killed without taking down the evaluation. A worker is a plain
@@ -20,8 +20,8 @@ parse can be killed without taking down the evaluation. A worker is a plain
 not re-import the evaluation's `__main__` module, so it starts in well under a
 second, and it is reused across calls until it times out or dies.
 
-This module must not import `inspect_ai` or the TypeScript/Dart bridges: the
-worker imports it, and anything it pulls in adds to worker start-up time.
+This module must not import `inspect_ai`: the worker imports it, and anything
+it pulls in adds to worker start-up time.
 """
 
 from __future__ import annotations
@@ -50,14 +50,77 @@ from a2ui.inference_formats import (
 from a2ui.parser import A2uiPart, Parser, RawA2uiPart, ResponsePart, TextPart
 from a2ui.processor import CatalogConfig
 
-from .base import DEFAULT_PARSE_TIMEOUT_SEC, AgentSdkBridge, validate_sdk_format
+SUPPORTED_STRATEGIES: tuple[str, ...] = (
+    "direct",
+    "subagent_tool",
+    "express",
+    "elemental",
+    "atom",
+)
+
+SUPPORTED_FORMATS: frozenset[str] = frozenset(
+    {"direct_json", "express", "elemental", "atom"}
+)
+
+# Protocol versions supported for prompt generation and validation.
+SUPPORTED_VERSIONS: frozenset[str] = frozenset({"0.9", "0.9.1", "1.0"})
+
+# Hard-kill budget, in seconds, for a single parse-and-validate call.
+DEFAULT_PARSE_TIMEOUT_SEC: float = 15.0
 
 _WORKER_STARTUP_TIMEOUT_SEC = 120.0
 _STDERR_TAIL_CHARS = 8192
-_EVAL_ROOT = str(Path(__file__).resolve().parents[2])
-_WORKER_SOURCE = (
-    "from a2ui_eval.bridges.python_bridge import _worker_main; _worker_main()"
-)
+_EVAL_ROOT = str(Path(__file__).resolve().parents[1])
+_WORKER_SOURCE = "from a2ui_eval.runner import _worker_main; _worker_main()"
+
+
+def validate_strategy(strategy: str) -> None:
+    """Checks that the given evaluation strategy is supported."""
+    if strategy not in SUPPORTED_STRATEGIES:
+        valid = ", ".join(sorted(SUPPORTED_STRATEGIES))
+        raise ValueError(
+            f"Strategy '{strategy}' is not supported. Supported strategies: {valid}"
+        )
+
+
+def validate_format(format_name: str) -> None:
+    """Checks that the given inference format is supported."""
+    if format_name not in SUPPORTED_FORMATS:
+        valid = ", ".join(sorted(SUPPORTED_FORMATS))
+        raise ValueError(
+            f"Inference format '{format_name}' is not supported."
+            f" Supported formats: {valid}"
+        )
+
+
+def normalize_protocol_version(version: str) -> str:
+    """Normalizes a protocol version string (e.g. 'v0.9.1' -> '0.9.1')."""
+    cleaned = version.strip().lower()
+    if cleaned.startswith("v"):
+        cleaned = cleaned[1:]
+    return cleaned
+
+
+def validate_version(version: str) -> str:
+    """Checks that the given protocol version is supported.
+
+    Args:
+        version: The protocol version, with or without a 'v' prefix.
+
+    Returns:
+        The normalized protocol version (e.g. '0.9.1').
+
+    Raises:
+        ValueError: If the protocol version is not supported.
+    """
+    norm_version = normalize_protocol_version(version)
+    if norm_version not in SUPPORTED_VERSIONS:
+        valid = ", ".join(sorted(SUPPORTED_VERSIONS))
+        raise ValueError(
+            f"Protocol version '{version}' is not supported."
+            f" Supported versions: {valid}"
+        )
+    return norm_version
 
 
 def get_python_strategy(
@@ -358,66 +421,74 @@ def _get_default_pool() -> _WorkerPool:
         return _default_pool
 
 
-class PythonSdkBridge(AgentSdkBridge):
-    """Bridge for the Python A2UI Agent SDK (python/a2ui_agent).
+def generate_prompt(
+    format_name: str,
+    version: str,
+    resolved_catalog_path: str,
+    surface_id: str = "main",
+) -> str:
+    """Generates the format-specific and catalog-specific system prompt snippet."""
+    validate_format(format_name)
+    norm_version = validate_version(version)
+    catalog_config = CatalogConfig.from_path(
+        resolved_catalog_path, protocol_version=norm_version
+    )
+    strategy = get_python_strategy(
+        format_name, norm_version, catalog_config, surface_id=surface_id
+    )
+    return strategy.prompt_generator.generate()
+
+
+def parse_and_validate(
+    format_name: str,
+    version: str,
+    resolved_catalog_path: str,
+    surface_id: str,
+    completion: str,
+    timeout_sec: float = DEFAULT_PARSE_TIMEOUT_SEC,
+    require_complete_tags: bool = False,
+    *,
+    validate: bool = True,
+    pool: _WorkerPool | None = None,
+) -> dict[str, Any]:
+    """Parses an LLM completion and optionally validates the compiled payloads.
 
     Args:
-        worker_command: Command that starts a worker process. Defaults to a
-            `python -c` interpreter serving `_worker_main`, shared by every
-            bridge that uses the default. A custom command gets its own pool.
+        format_name: The inference format of the completion (e.g. 'express').
+        version: The protocol version (e.g. '0.9.1' or '1.0').
+        resolved_catalog_path: Absolute path to the catalog JSON file.
+        surface_id: The default surface ID for formats that need one.
+        completion: The raw LLM completion text.
+        timeout_sec: Hard-kill budget for the call, in seconds. A value of zero
+            or less selects `DEFAULT_PARSE_TIMEOUT_SEC`.
+        require_complete_tags: Whether to fail when the opening and closing
+            A2UI tags are not both present.
+        validate: Whether to validate the compiled messages against a renderer
+            state. When False, the completion is only parsed.
+        pool: Optional worker pool override (used by unit tests).
+
+    Raises:
+        TimeoutError: If the worker exceeds `timeout_sec`.
+        ValueError: If parsing fails, no A2UI payload is found, or (when
+            `validate` is True) the payload fails validation.
+
+    Returns:
+        A dictionary with keys:
+          - 'compiled_jsons': list[dict[str, Any]]
+          - 'parts': list[dict[str, Any]] with {'text': str, 'a2ui_json': list | None}
     """
-
-    sdk_name = "python"
-
-    def __init__(self, worker_command: Sequence[str] | None = None) -> None:
-        self._pool = _WorkerPool(worker_command) if worker_command else None
-
-    def generate_prompt(
-        self,
-        format_name: str,
-        version: str,
-        resolved_catalog_path: str,
-        surface_id: str = "main",
-    ) -> str:
-        validate_sdk_format(self.sdk_name, format_name)
-        catalog_config = CatalogConfig.from_path(
-            resolved_catalog_path, protocol_version=version
-        )
-        strategy = get_python_strategy(
-            format_name, version, catalog_config, surface_id=surface_id
-        )
-        return strategy.prompt_generator.generate()
-
-    def parse_and_validate(
-        self,
-        format_name: str,
-        version: str,
-        resolved_catalog_path: str,
-        surface_id: str,
-        completion: str,
-        timeout_sec: float = DEFAULT_PARSE_TIMEOUT_SEC,
-        require_complete_tags: bool = False,
-        *,
-        validate: bool = True,
-    ) -> dict[str, Any]:
-        """Parses, and optionally validates, in a worker process.
-
-        A `timeout_sec` of zero or less selects `DEFAULT_PARSE_TIMEOUT_SEC`, as
-        the other SDK bridges do. On timeout the worker is killed and a
-        `TimeoutError` is raised. Parse and validation failures, and a worker
-        that dies mid-call, raise `ValueError`.
-        """
-        validate_sdk_format(self.sdk_name, format_name)
-        pool = self._pool or _get_default_pool()
-        return pool.run(
-            {
-                "format_name": format_name,
-                "version": version,
-                "resolved_catalog_path": os.path.abspath(resolved_catalog_path),
-                "surface_id": surface_id,
-                "completion": completion,
-                "require_complete_tags": require_complete_tags,
-                "validate": validate,
-            },
-            timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC,
-        )
+    validate_format(format_name)
+    norm_version = validate_version(version)
+    active_pool = pool or _get_default_pool()
+    return active_pool.run(
+        {
+            "format_name": format_name,
+            "version": norm_version,
+            "resolved_catalog_path": os.path.abspath(resolved_catalog_path),
+            "surface_id": surface_id,
+            "completion": completion,
+            "require_complete_tags": require_complete_tags,
+            "validate": validate,
+        },
+        timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC,
+    )

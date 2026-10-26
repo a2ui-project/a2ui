@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import pytest
 from a2ui.processor import CatalogConfig
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -29,8 +28,9 @@ from inspect_ai.model import (
 )
 from inspect_ai.solver import TaskState
 from inspect_ai.util import store
+import pytest
 
-from a2ui_eval.bridges import (
+from a2ui_eval.runner import (
     DEFAULT_PARSE_TIMEOUT_SEC,
     get_python_strategy,
     parse_and_validate_in_process,
@@ -131,8 +131,8 @@ def test_subagent_tool_solver() -> None:
     assert len(solvers) == 5
 
 
-class _FakeBridge:
-    """Fake SDK bridge that records parse_and_validate calls."""
+class _FakeRunner:
+    """Fake runner that records parse_and_validate calls."""
 
     def __init__(self) -> None:
         self.parse_calls: list[dict[str, Any]] = []
@@ -174,22 +174,26 @@ class _FakeModel:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("sdk", ["python", "ts", "dart"])
-async def test_a2ui_specialist_parses_without_validation(sdk: str) -> None:
+async def test_a2ui_specialist_parses_without_validation() -> None:
     """The subagent tool only parses, so the model gets no validation feedback."""
-    bridge = _FakeBridge()
+    runner = _FakeRunner()
     store().set("version", "0.9.1")
-    store().set("sdk", sdk)
     store().set("catalog", str(V091_CATALOG))
 
     with patch(
-        "a2ui_eval.strategies.subagent_tool.get_sdk_bridge", return_value=bridge
-    ), patch("a2ui_eval.strategies.subagent_tool.get_model", return_value=_FakeModel()):
+        "a2ui_eval.strategies.subagent_tool.generate_prompt",
+        side_effect=runner.generate_prompt,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ), patch(
+        "a2ui_eval.strategies.subagent_tool.get_model", return_value=_FakeModel()
+    ):
         result = await a2ui_specialist()(input="Build a card")
 
     assert result.startswith("Success")
     assert store().get(PAYLOAD_STORE_KEY) is not None
-    assert bridge.parse_calls == [{
+    assert runner.parse_calls == [{
         "format_name": "direct_json",
         "timeout_sec": DEFAULT_PARSE_TIMEOUT_SEC,
         "require_complete_tags": True,
@@ -267,16 +271,19 @@ async def test_a2ui_atom_solvers() -> None:
 
 @pytest.mark.asyncio
 async def test_compile_format_payload_uses_default_timeout() -> None:
-    bridge = _FakeBridge()
-    compile_solver = compile_format_payload("express", version="1.0", sdk="ts")
+    runner = _FakeRunner()
+    compile_solver = compile_format_payload("express", version="1.0")
     state = _state(
         {"catalog": str(V1_CATALOG)}, completion='<a2ui>root = Text("x")</a2ui>'
     )
-    with patch("a2ui_eval.strategies.format.get_sdk_bridge", return_value=bridge):
+    with patch(
+        "a2ui_eval.strategies.format.parse_and_validate",
+        side_effect=runner.parse_and_validate,
+    ):
         await compile_solver(state, dummy_generate)
-    assert len(bridge.parse_calls) == 1
-    assert bridge.parse_calls[0]["timeout_sec"] == DEFAULT_PARSE_TIMEOUT_SEC
-    assert bridge.parse_calls[0]["validate"] is True
+    assert len(runner.parse_calls) == 1
+    assert runner.parse_calls[0]["timeout_sec"] == DEFAULT_PARSE_TIMEOUT_SEC
+    assert runner.parse_calls[0]["validate"] is True
 
 
 def test_get_python_strategy_rejects_unknown_format() -> None:
@@ -325,19 +332,3 @@ async def test_compile_format_payload_empty_output_and_error_recovery() -> None:
     )
     res_error = await compile_solver(error_state, dummy_generate)
     assert "Compilation/validation failed:" in res_error.output.completion
-
-
-@pytest.mark.asyncio
-@pytest.mark.sdk_toolchain
-@pytest.mark.parametrize("sdk", ["ts", "dart"])
-async def test_format_solvers_multi_sdk(sdk: str) -> None:
-    prompt_solver = format_system_prompt("express", version="0.9.1", sdk=sdk)
-    state = await prompt_solver(_state({"catalog": str(V091_CATALOG)}), dummy_generate)
-    assert len(state.messages) == 1
-    assert "<a2ui>" in state.messages[0].content
-
-    compile_solver = compile_format_payload("express", version="0.9.1", sdk=sdk)
-    _set_completion(state, 'Intro\n<a2ui>\nroot = Text("Multi SDK")\n</a2ui>\nOutro')
-    state = await compile_solver(state, dummy_generate)
-    assert "<a2ui-json>" in state.output.completion
-    assert '"component": "Text"' in state.output.completion

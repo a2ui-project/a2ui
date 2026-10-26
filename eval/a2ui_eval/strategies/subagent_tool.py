@@ -39,7 +39,7 @@ from inspect_ai.solver import (
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
-from ..bridges import DEFAULT_PARSE_TIMEOUT_SEC, get_sdk_bridge, normalize_sdk_name
+from ..runner import DEFAULT_PARSE_TIMEOUT_SEC, generate_prompt, parse_and_validate
 from ..shared.utils import GIT_ROOT, measured_generate
 
 PAYLOAD_STORE_KEY = "a2ui_payload"
@@ -54,15 +54,13 @@ def a2ui_specialist() -> Tool:
             input: The UI layout request.
         """
         version = store().get("version", "0.9.1")
-        sdk = store().get("sdk", "python")
         catalog_path = store().get("catalog")
         if not catalog_path:
             raise ValueError("Catalog path is missing from the store.")
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        bridge = get_sdk_bridge(sdk)
         generated_snippet = await asyncio.to_thread(
-            bridge.generate_prompt,
+            generate_prompt,
             "direct_json",
             version,
             resolved_catalog_path,
@@ -108,12 +106,12 @@ def a2ui_specialist() -> Tool:
         output = await get_model().generate(messages)
         if output.completion:
             try:
-                # The specialist only parses, as it did before the SDK bridges
-                # existed. Strict validation runs once, in the scorer. Validating
-                # here would return validation errors to the model and let it
-                # retry, so results would not be comparable with older runs.
+                # The specialist only parses, without strict validation.
+                # Validation runs once, in the scorer. Validating here would
+                # return validation errors to the model and let it retry, so
+                # results would not be comparable with older runs.
                 res_dict = await asyncio.to_thread(
-                    bridge.parse_and_validate,
+                    parse_and_validate,
                     "direct_json",
                     version,
                     resolved_catalog_path,
@@ -140,13 +138,11 @@ def a2ui_specialist() -> Tool:
 
 
 @solver
-def push_metadata_to_store(version: str, sdk: str = "python") -> Solver:
+def push_metadata_to_store(version: str) -> Solver:
     """Pushes metadata from the TaskState to the global store for tools to access."""
-    norm_sdk = normalize_sdk_name(sdk)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         state.store.set("version", version)
-        state.store.set("sdk", norm_sdk)
         state.store.set("catalog", state.metadata.get("catalog"))
         state.store.set(
             "allowed_surface_ids",
@@ -182,16 +178,15 @@ def extract_subagent_payload() -> Solver:
     return solve
 
 
-def subagent_tool_solver(version: str, sdk: str = "python") -> list[Solver]:
+def subagent_tool_solver(version: str) -> list[Solver]:
     """Returns the solver chain for the 'subagent_tool' evaluation strategy."""
-    norm_sdk = normalize_sdk_name(sdk)
     return [
         system_message(
             "You are a helpful assistant. To fulfill UI requests, you MUST"
             " delegate to the `a2ui_specialist` tool."
         ),
         # Tools cannot access TaskState directly, so we must bridge the metadata into the store
-        push_metadata_to_store(version, sdk=norm_sdk),
+        push_metadata_to_store(version),
         use_tools([a2ui_specialist()]),
         measured_generate(),
         extract_subagent_payload(),
