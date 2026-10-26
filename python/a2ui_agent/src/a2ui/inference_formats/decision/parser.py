@@ -139,6 +139,8 @@ class DecisionParser(Parser):
     ) -> list[SynthesisOutput]:
         """Synthesizes `SynthesisOutput`s for every decision block in `format_content`.
 
+        Accepts either raw block JSON or text containing `<a2ui>` decision tags.
+
         Raises:
             A2uiCompilationParseError: If the block is not valid JSON.
             A2uiCompilationValidationError: If a block lacks required fields or
@@ -146,7 +148,18 @@ class DecisionParser(Parser):
             A2uiCompilationError: If the decision model abstains and no
                 fallback produced any messages.
         """
-        blocks = self.read_blocks(format_content)
+        raw_parts = [
+            part.part.a2ui_raw
+            for part in self.unwrap(format_content)
+            if isinstance(part.part, RawA2uiPart)
+        ]
+        if raw_parts:
+            blocks: list[DecisionBlock] = []
+            for raw in raw_parts:
+                blocks.extend(self.read_blocks(raw))
+        else:
+            blocks = self.read_blocks(format_content)
+
         outputs: list[SynthesisOutput] = []
         base_surface_id = (
             default_surface_id if default_surface_id is not None else self.surface_id

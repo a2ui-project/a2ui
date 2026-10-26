@@ -17,12 +17,14 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 import json
 import re
 from typing import Any
 
 from inspect_ai.model import (
+    CachePolicy,
     ChatCompletionChoice,
     ChatMessageAssistant,
     ChatMessageSystem,
@@ -64,6 +66,49 @@ def _set_completion(state: TaskState, content: str) -> None:
     )
 
 
+def assemble_system_prompt(
+    state: TaskState,
+    generated_snippet: str,
+    format_name: str,
+) -> str:
+    """Combines role, workflow, environment notes, snippet, and domain instructions."""
+    role_description = state.metadata.get("protocol_role") or state.metadata.get(
+        "role_description", ""
+    )
+    workflow_description = state.metadata.get("generation_rules") or state.metadata.get(
+        "workflow_description", ""
+    )
+
+    prompt_parts = []
+    if role_description:
+        prompt_parts.append(role_description)
+    if workflow_description:
+        prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+    if format_name == "direct_json":
+        prompt_parts.append(
+            "## Environment Notes:\n"
+            "- When specifying `catalogId` (in `createSurface` as the surface"
+            " default, or on individual components and function calls), always"
+            " use the exact `catalogId` value(s) defined in the provided"
+            " Catalog Schema(s); never invent a custom or placeholder"
+            " `catalogId` URL or identifier (such as `example.com`), even if"
+            " the user prompt mentions a custom catalog.\n"
+            "- In `createSurface`, set `catalogId` to the primary catalog ID"
+            " as the surface default. Components or functions belonging to"
+            " secondary catalogs must specify their own `catalogId`."
+        )
+    prompt_parts.append(generated_snippet)
+    a2ui_prompt = "\n\n".join(prompt_parts)
+
+    domain_prompt = state.metadata.get("system_prompt", "").strip()
+    if domain_prompt:
+        return (
+            f"## Domain Instructions\n{domain_prompt}\n\n## UI Protocol"
+            f" Instructions\n{a2ui_prompt}"
+        )
+    return a2ui_prompt
+
+
 @solver
 def format_system_prompt(format_name: str, version: str) -> Solver:
     """Injects system prompt instructions using the selected format strategy."""
@@ -82,43 +127,7 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
             options=options,
         )
 
-        role_description = state.metadata.get("protocol_role") or state.metadata.get(
-            "role_description", ""
-        )
-        workflow_description = state.metadata.get(
-            "generation_rules"
-        ) or state.metadata.get("workflow_description", "")
-
-        prompt_parts = []
-        if role_description:
-            prompt_parts.append(role_description)
-        if workflow_description:
-            prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
-        if format_name == "direct_json":
-            prompt_parts.append(
-                "## Environment Notes:\n"
-                "- When specifying `catalogId` (in `createSurface` as the surface"
-                " default, or on individual components and function calls), always"
-                " use the exact `catalogId` value(s) defined in the provided"
-                " Catalog Schema(s); never invent a custom or placeholder"
-                " `catalogId` URL or identifier (such as `example.com`), even if"
-                " the user prompt mentions a custom catalog.\n"
-                "- In `createSurface`, set `catalogId` to the primary catalog ID"
-                " as the surface default. Components or functions belonging to"
-                " secondary catalogs must specify their own `catalogId`."
-            )
-        prompt_parts.append(generated_snippet)
-        a2ui_prompt = "\n\n".join(prompt_parts)
-
-        domain_prompt = state.metadata.get("system_prompt", "").strip()
-        if domain_prompt:
-            full_prompt = (
-                f"## Domain Instructions\n{domain_prompt}\n\n## UI Protocol"
-                f" Instructions\n{a2ui_prompt}"
-            )
-        else:
-            full_prompt = a2ui_prompt
-
+        full_prompt = assemble_system_prompt(state, generated_snippet, format_name)
         state.messages.insert(0, ChatMessageSystem(content=full_prompt))
         return state
 
@@ -216,6 +225,45 @@ def _retry_prompt(error: str) -> str:
     )
 
 
+async def retry_until_ok(
+    state: TaskState,
+    generate: Generate,
+    attempt: Callable[[str], Awaitable[Any]],
+    *,
+    max_retries: int,
+    retry_prompt: Callable[[str], str],
+    measured: Solver | None = None,
+) -> tuple[Any, str, int]:
+    """Runs an initial attempt and retries up to max_retries when invalid."""
+    if measured is None:
+        measured = measured_generate()
+
+    completion = (
+        state.output.completion
+        if state.output is not None and state.output.completion
+        else ""
+    ).strip()
+    result = await attempt(completion)
+    state.metadata["pass_at_1"] = result.ok
+
+    retries_used = 0
+    while not result.ok and retries_used < max_retries:
+        retries_used += 1
+        prompt_text = retry_prompt(result.error or "")
+        state.messages.append(ChatMessageUser(content=prompt_text))
+        state = await _generate_accumulating(state, generate, measured)
+        completion = (
+            state.output.completion
+            if state.output is not None and state.output.completion
+            else ""
+        ).strip()
+        result = await attempt(completion)
+
+    state.metadata["pass_at_k"] = result.ok
+    state.metadata["validation_retries_used"] = retries_used
+    return result, completion, retries_used
+
+
 @solver
 def compile_format_payload(
     format_name: str,
@@ -254,26 +302,14 @@ def compile_format_payload(
             allowed_surface_ids=state.metadata.get("allowed_surface_ids", ["main"]),
         )
 
-        completion = state.output.completion.strip()
-        result = await _attempt_compile(ctx, completion)
-        state.metadata["pass_at_1"] = result.ok
-
-        retries_used = 0
-        while not result.ok and retries_used < max_validation_retries:
-            retries_used += 1
-            state.messages.append(
-                ChatMessageUser(content=_retry_prompt(result.error or ""))
-            )
-            state = await _generate_accumulating(state, generate, measured)
-            completion = (
-                state.output.completion
-                if state.output is not None and state.output.completion
-                else ""
-            ).strip()
-            result = await _attempt_compile(ctx, completion)
-
-        state.metadata["pass_at_k"] = result.ok
-        state.metadata["validation_retries_used"] = retries_used
+        result, completion, _ = await retry_until_ok(
+            state,
+            generate,
+            lambda comp: _attempt_compile(ctx, comp),
+            max_retries=max_validation_retries,
+            retry_prompt=_retry_prompt,
+            measured=measured,
+        )
         _apply_compile_result(state, result, completion)
         return state
 
@@ -299,6 +335,7 @@ def format_solver(
     version: str,
     *,
     max_validation_retries: int = 0,
+    cache: bool | CachePolicy = False,
 ) -> list[Solver]:
     """Assembles the solver chain for the specified evaluation strategy.
 
@@ -309,7 +346,7 @@ def format_solver(
     validate_format(format_name)
     return [
         format_system_prompt(format_name, version),
-        measured_generate(),
+        measured_generate(cache=cache),
         compile_format_payload(
             format_name,
             version,

@@ -43,20 +43,31 @@ DECISION_METADATA_KEYS: tuple[str, ...] = (
 
 
 def build_decision_backend(
-    name: str,
+    name: str | None = None,
     *,
     endpoint_url: str | None = None,
 ) -> DecisionBackend:
     """Instantiates a DecisionBackend by short name ('mock', 'local', 'jev').
 
+    When `name` is None, `create_decision_backend()` reads from the environment.
+
     Raises:
         ValueError: If `name` is not in `DECISION_BACKEND_NAMES`.
     """
+    if name is None:
+        return create_decision_backend()
     if name == "mock":
         return DeterministicMockBackend()
     if name == "local":
         return LocalCrossEncoderBackend()
     if name == "jev":
+        import os
+
+        if not os.environ.get("JEV_API_KEY") and not os.environ.get("TYPESAFE_API_KEY"):
+            raise ValueError(
+                "JEV_API_KEY or TYPESAFE_API_KEY must be set in the environment"
+                " to use the jev decision backend"
+            )
         return create_decision_backend(
             "jev",
             endpoint_url=endpoint_url or "https://api.typesafe.ai/v1/systemone",
