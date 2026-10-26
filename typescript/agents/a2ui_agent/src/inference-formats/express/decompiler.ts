@@ -1029,10 +1029,21 @@ export class ExpressDecompiler {
             `${kRepr}: ${this.decompileValue(v, varNames, false, helper, surfaceCatalogId)}`,
           );
         }
+        const eventArgs = [decompileString(name)];
         if (ctxReprs.length > 0) {
-          return `Event(${decompileString(name)}, {${ctxReprs.join(', ')}})`;
+          eventArgs.push(`{${ctxReprs.join(', ')}}`);
         }
-        return `Event(${decompileString(name)})`;
+        if (evt.userMessage !== undefined && evt.userMessage !== null) {
+          const userMessage = this.decompileValue(
+            evt.userMessage,
+            varNames,
+            false,
+            helper,
+            surfaceCatalogId,
+          );
+          eventArgs.push(`userMessage=${userMessage}`);
+        }
+        return `Event(${eventArgs.join(', ')})`;
       }
 
       if ('functionCall' in obj && obj.functionCall && typeof obj.functionCall === 'object') {
