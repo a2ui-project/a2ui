@@ -188,7 +188,7 @@ void main() {
     A2uiRendererError error(String surfaceId, String code) =>
         A2uiRendererError(code: code, surfaceId: surfaceId, message: code);
 
-    test('deleteSurface drops only that surface undelivered reports', () async {
+    test('deleteSurface delivers what was reported before it', () async {
       final SurfaceModel<ComponentApi> a = _surface('a');
       final SurfaceModel<ComponentApi> b = _surface('b');
       group
@@ -205,7 +205,7 @@ void main() {
       unawaited(a.dispatchError(error('a', 'AFTER_DELETE')));
 
       await _microtask();
-      expect(aErrors, isEmpty);
+      expect(_codes(aErrors), ['FIRST']);
       expect(_codes(bErrors), ['SECOND']);
     });
 
@@ -345,6 +345,26 @@ void main() {
         update('s', [
           {'id': 'root', 'component': 'Bogus'},
         ]),
+      ]);
+      expect(events, isEmpty);
+
+      await _microtask();
+      expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
+    });
+
+    test(
+        'an error found before a deleteSurface in the same payload is '
+        'still delivered', () async {
+      mount();
+
+      processor.processMessages([
+        update('s', [
+          {'id': 'root', 'component': 'Bogus'},
+        ]),
+        {
+          'version': 'v0.9',
+          'deleteSurface': {'surfaceId': 's'},
+        },
       ]);
       expect(events, isEmpty);
 
