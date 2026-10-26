@@ -101,6 +101,14 @@ describe('ExpressResponseStream', () => {
     expect(opened.close()).toEqual([{type: 'text', text: ' <'}]);
   });
 
+  it('holds a partial open tag even when a later < is plain text', () => {
+    const opened = parser.openStream();
+
+    expect(textsOf(opened.feed('Note: 1 < 2. <a2ui x="1 < 2"'))).toEqual(['Note: 1 < 2.']);
+    const parts = opened.feed(`>\nroot = Text("Hi")\n${CLOSE}`);
+    expect(componentsOf(messagesOf(parts))).toEqual([{id: 'root', component: 'Text', text: 'Hi'}]);
+  });
+
   it('does not close a block on a tag written inside a comment', () => {
     const calls = stream(parser, [`${OPEN}\nroot = Text("Hi") # not </a2ui> yet\n${CLOSE}`]);
 

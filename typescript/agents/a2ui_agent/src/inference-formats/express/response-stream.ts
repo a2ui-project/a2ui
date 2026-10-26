@@ -145,9 +145,12 @@ export class ExpressResponseStream implements ResponseStream {
    * has none.
    *
    * A `<` followed by a prefix of the tag name, or by the full name and attributes not yet
-   * closed by `>`, is held back; once a `>` closes a tag the lexer did not match, it is text.
+   * closed by `>`, is held back. A `<` that neither completes nor starts the tag is text,
+   * and the scan goes on to the `<` before it; once a `>` closes a tag the lexer did not
+   * match, nothing before it is held.
    */
   private possibleTagStart(text: string): number {
+    const name = this.lexer.openTagName;
     for (let i = text.length - 1; i >= 0; i--) {
       const ch = text[i];
       if (ch === '>') return text.length;
@@ -156,12 +159,9 @@ export class ExpressResponseStream implements ResponseStream {
       if (this.lexer.findOpenTag(`${tail}>`) || this.lexer.findOpenTag(`${tail} >`)) {
         return i;
       }
-      // A longer tail whose name is complete but is not the tag is text, as is one that `>`
-      // would not complete. Without a tag name to compare, the tail is held.
-      const name = this.lexer.openTagName;
+      // Without a tag name to compare, the tail is held.
       if (name === undefined) return i;
-      const prefix = name.slice(0, tail.length - 1);
-      return `<${prefix}`.toLowerCase() === tail.toLowerCase() ? i : text.length;
+      if (`<${name}`.toLowerCase().startsWith(tail.toLowerCase())) return i;
     }
     return text.length;
   }
