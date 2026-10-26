@@ -63,24 +63,29 @@ Widget buildText(
     style = styleOf('h${math.min(heading[1]!.length, 5)}');
   }
   return Text(
-    _withoutMarkers(heading == null ? text : heading[2] ?? ''),
+    _withoutMarkers(heading == null ? text : line),
     style: style == null
         ? null
         : TextStyle(fontSize: style.fontSize, fontWeight: style.fontWeight),
   );
 }
 
-/// A line that is a Markdown heading: its `#` markers in group 1, and its
-/// text, if any, in group 2.
-final RegExp _heading = RegExp(r'^ {0,3}(#{1,6})(?:[ \t]+(.*))?$');
+/// The start of a line that is a Markdown heading, with its `#` markers in
+/// group 1.
+final RegExp _heading = RegExp(r'^ {0,3}(#{1,6})(?:[ \t]|$)');
 
 /// The markers [_withoutMarkers] removes, each with the group of the text
 /// it keeps, or null to keep nothing. None of the patterns backtracks over
 /// more than one line.
 final List<(RegExp, int?)> _markers = [
-  (RegExp(r'\\([!-/:-@\[-`{-~])'), 1),
-  (RegExp(r'`([^`\n]+)`'), 1),
-  (RegExp(r'^ {0,3}(?:#{1,6}[ \t]+|>[ \t]?)', multiLine: true), null),
+  (
+    RegExp(
+      r'^( {0,3}#{1,6}(?:[ \t].*[^ \t])?)[ \t]+#+[ \t]*$',
+      multiLine: true,
+    ),
+    1,
+  ),
+  (RegExp(r'^ {0,3}(?:#{1,6}(?:[ \t]+|$)|>[ \t]?)', multiLine: true), null),
   (RegExp(r'!?\[([^\[\]\n]*)\]\([^()\[\]\n]*\)'), 1),
   (RegExp(r'\*\*(.+?)\*\*'), 1),
   (RegExp(r'__(.+?)__'), 1),
@@ -89,11 +94,36 @@ final List<(RegExp, int?)> _markers = [
   (RegExp(r'(?<!\w)_(?![\s_])([^_\n]+?)(?<![\s_])_(?!\w)'), 1),
 ];
 
-/// [markdown] with the [_markers] removed.
+/// [markdown] with the [_markers] removed and its backslash escapes and code
+/// span delimiters dropped, keeping each escaped character and the text of
+/// each code span as written.
 String _withoutMarkers(String markdown) {
-  var text = markdown;
+  String text = markdown.replaceAllMapped(
+    _literal,
+    (m) => (m[1] ?? m[2]!).replaceAllMapped(
+      _punctuation,
+      (p) => String.fromCharCode(p[0]!.codeUnitAt(0) + _hiddenOffset),
+    ),
+  );
   for (final (RegExp marker, int? kept) in _markers) {
     text = text.replaceAllMapped(marker, (m) => kept == null ? '' : m[kept]!);
   }
-  return text;
+  return text.replaceAllMapped(
+    _hidden,
+    (m) => String.fromCharCode(m[0]!.codeUnitAt(0) - _hiddenOffset),
+  );
 }
+
+/// A code span, with its text in group 1, or a backslash escape, with the
+/// escaped character in group 2.
+final RegExp _literal = RegExp(r'`([^`\n]+)`|\\([!-/:-@\[-`{-~])');
+
+/// An ASCII punctuation character.
+final RegExp _punctuation = RegExp(r'[!-/:-@\[-`{-~]');
+
+/// An ASCII punctuation character [_withoutMarkers] has hidden from the
+/// [_markers] by moving it into the private use area.
+final RegExp _hidden = RegExp(r'[\uE021-\uE07E]');
+
+/// How far [_withoutMarkers] moves a character it hides.
+const int _hiddenOffset = 0xE000;
