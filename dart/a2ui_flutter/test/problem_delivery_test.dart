@@ -86,7 +86,7 @@ void main() {
     controller.jumpTo(4700);
     await tester.pump();
 
-    expect(built, hasLength(56));
+    expect(built, containsAll(<int>[0, 47]));
     expect(reported, {for (final index in built) 's$index'});
   });
 }

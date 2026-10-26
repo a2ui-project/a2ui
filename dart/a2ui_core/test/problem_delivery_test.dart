@@ -220,7 +220,6 @@ void main() {
       unawaited(surface.dispatchError(error('surf', 'GROUPED')));
 
       await _microtask();
-      await _microtask();
       expect(_codes(surfaceErrors), ['STANDALONE', 'GROUPED']);
     });
   });
