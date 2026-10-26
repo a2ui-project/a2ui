@@ -22,7 +22,14 @@ import {ExpressLexer} from '../../../../src/inference-formats/express/generated/
 import {ExpressParser} from '../../../../src/inference-formats/express/generated/ExpressParser.js';
 import {
   ExpressAstVisitor,
+  type ExpressCallNode,
+  type ExpressCheckNode,
+  type ExpressMapNode,
+  type ExpressPathNode,
+  type ExpressSkippedNode,
   type ExpressStatement,
+  type ExpressValue,
+  type ExpressVariableNode,
   parseExpress,
   parseNumberLiteral,
   unescapeString,
@@ -35,6 +42,21 @@ interface VisitorCase {
   statements: ExpressStatement[];
 }
 
+const call = (
+  name: string,
+  args: ExpressValue[] = [],
+  kwargs: Record<string, ExpressValue> = {},
+): ExpressCallNode => ({kind: 'call', name, args, kwargs});
+const check = (name: string, args: ExpressValue[] = []): ExpressCheckNode => ({
+  kind: 'check',
+  name,
+  args,
+});
+const map = (entries: Record<string, ExpressValue>): ExpressMapNode => ({kind: 'map', entries});
+const path = (p: string): ExpressPathNode => ({kind: 'path', path: p});
+const variable = (name: string): ExpressVariableNode => ({kind: 'variable', name});
+const SKIPPED: ExpressSkippedNode = {kind: 'skipped'};
+
 describe('Express AST visitor and parser', () => {
   describe('parses comments, whitespace and separators', () => {
     it.each([
@@ -43,17 +65,17 @@ describe('Express AST visitor and parser', () => {
       {
         name: 'a # comment before a statement',
         source: '# This is a comment\nroot = Text("hi")',
-        statements: [['ASSIGN', 'root', {call: 'Text', args: ['hi']}]],
+        statements: [['ASSIGN', 'root', call('Text', ['hi'])]],
       },
       {
         name: 'a // comment before a statement',
         source: '// This is a slash comment\nroot = Text("hi")',
-        statements: [['ASSIGN', 'root', {call: 'Text', args: ['hi']}]],
+        statements: [['ASSIGN', 'root', call('Text', ['hi'])]],
       },
       {
         name: 'a block comment before a statement',
         source: '/* multi\nline\ncomment */\nroot = Text("hi")',
-        statements: [['ASSIGN', 'root', {call: 'Text', args: ['hi']}]],
+        statements: [['ASSIGN', 'root', call('Text', ['hi'])]],
       },
       {
         name: 'statements separated by semicolons',
@@ -67,7 +89,7 @@ describe('Express AST visitor and parser', () => {
       {
         name: 'trailing semicolons',
         source: 'root = Text("hi");;;;\n',
-        statements: [['ASSIGN', 'root', {call: 'Text', args: ['hi']}]],
+        statements: [['ASSIGN', 'root', call('Text', ['hi'])]],
       },
       {
         name: 'a statement spread over several lines',
@@ -77,16 +99,7 @@ describe('Express AST visitor and parser', () => {
           [
             'ASSIGN',
             'root',
-            {
-              call: 'Column',
-              args: [
-                [
-                  {call: 'Text', args: ['First']},
-                  {call: 'Text', args: ['Second']},
-                ],
-              ],
-              kwargs: {spacing: 16},
-            },
+            call('Column', [[call('Text', ['First']), call('Text', ['Second'])]], {spacing: 16}),
           ],
         ],
       },
@@ -101,17 +114,13 @@ describe('Express AST visitor and parser', () => {
         name: 'a component holding variable references',
         source: 'root = Column([title, content])',
         statements: [
-          [
-            'ASSIGN',
-            'root',
-            {call: 'Column', args: [[{variable: 'title'}, {variable: 'content'}]]},
-          ],
+          ['ASSIGN', 'root', call('Column', [[variable('title'), variable('content')]])],
         ],
       },
       {
         name: 'a map',
         source: 'config = {theme: "dark", showHeader: true, count: 5}',
-        statements: [['ASSIGN', 'config', {theme: 'dark', showHeader: true, count: 5}]],
+        statements: [['ASSIGN', 'config', map({theme: 'dark', showHeader: true, count: 5})]],
       },
       {
         name: 'a list of mixed values',
@@ -128,12 +137,12 @@ describe('Express AST visitor and parser', () => {
       {
         name: 'a data path',
         source: 'selectedUser = $/users/active/id',
-        statements: [['ASSIGN', 'selectedUser', {path: '/users/active/id'}]],
+        statements: [['ASSIGN', 'selectedUser', path('/users/active/id')]],
       },
       {
         name: 'the bare root path',
         source: 'rootPath = $',
-        statements: [['ASSIGN', 'rootPath', {path: ''}]],
+        statements: [['ASSIGN', 'rootPath', path('')]],
       },
       {
         name: 'an assignment to a data path',
@@ -143,7 +152,7 @@ describe('Express AST visitor and parser', () => {
       {
         name: 'an assignment to the bare root path',
         source: '$ = {status: "ok"}',
-        statements: [['ASSIGN', '$', {status: 'ok'}]],
+        statements: [['ASSIGN', '$', map({status: 'ok'})]],
       },
     ] as VisitorCase[])('$name', ({source, statements}) => {
       expect(parseExpress(source)).toEqual({statements, errors: []});
@@ -167,7 +176,7 @@ describe('Express AST visitor and parser', () => {
     ])('reads $text as $value', ({text, value}) => {
       expect(parseNumberLiteral(text)).toBe(value);
       expect(parseExpress(`root = Gauge(${text})`)).toEqual({
-        statements: [['ASSIGN', 'root', {call: 'Gauge', args: [value]}]],
+        statements: [['ASSIGN', 'root', call('Gauge', [value])]],
         errors: [],
       });
     });
@@ -200,28 +209,49 @@ describe('Express AST visitor and parser', () => {
         source: 'colors = ["red", "green", "blue",]',
         statements: [['ASSIGN', 'colors', ['red', 'green', 'blue']]],
       },
-      {name: 'an empty map', source: 'emptyMap = {}', statements: [['ASSIGN', 'emptyMap', {}]]},
+      {
+        name: 'an empty map',
+        source: 'emptyMap = {}',
+        statements: [['ASSIGN', 'emptyMap', map({})]],
+      },
       {
         name: 'a map with identifier keys',
         source: 'options = {key1: 10, key2: 20}',
-        statements: [['ASSIGN', 'options', {key1: 10, key2: 20}]],
+        statements: [['ASSIGN', 'options', map({key1: 10, key2: 20})]],
       },
       {
         name: 'a map with string keys',
         source: 'headers = {"content-type": "application/json", "x-api-key": "secret"}',
         statements: [
-          ['ASSIGN', 'headers', {'content-type': 'application/json', 'x-api-key': 'secret'}],
+          ['ASSIGN', 'headers', map({'content-type': 'application/json', 'x-api-key': 'secret'})],
         ],
       },
       {
         name: 'a map with a trailing comma',
         source: 'coords = {x: 10, y: 20,}',
-        statements: [['ASSIGN', 'coords', {x: 10, y: 20}]],
+        statements: [['ASSIGN', 'coords', map({x: 10, y: 20})]],
       },
       {
         name: 'arrays and maps nested in each other',
         source: 'matrix = [{row: [1, 2]}, {row: [3, 4]}]',
-        statements: [['ASSIGN', 'matrix', [{row: [1, 2]}, {row: [3, 4]}]]],
+        statements: [['ASSIGN', 'matrix', [map({row: [1, 2]}), map({row: [3, 4]})]]],
+      },
+      {
+        name: 'a map whose keys are named like other nodes',
+        source:
+          'm = {variable: "v", path: "p", call: "c", check: "k", skipped: true, kind: "path"}',
+        statements: [
+          [
+            'ASSIGN',
+            'm',
+            map({variable: 'v', path: 'p', call: 'c', check: 'k', skipped: true, kind: 'path'}),
+          ],
+        ],
+      },
+      {
+        name: 'a map with a single quoted key named like a node',
+        source: 'm = {"variable": "v"}',
+        statements: [['ASSIGN', 'm', map({variable: 'v'})]],
       },
     ] as VisitorCase[])('$name', ({source, statements}) => {
       expect(parseExpress(source)).toEqual({statements, errors: []});
@@ -233,37 +263,29 @@ describe('Express AST visitor and parser', () => {
       {
         name: 'a call without arguments',
         source: 'card = Card()',
-        statements: [['ASSIGN', 'card', {call: 'Card', args: []}]],
+        statements: [['ASSIGN', 'card', call('Card')]],
       },
       {
         name: 'a call with positional arguments',
         source: 'label = Text("Hello", "secondary")',
-        statements: [['ASSIGN', 'label', {call: 'Text', args: ['Hello', 'secondary']}]],
+        statements: [['ASSIGN', 'label', call('Text', ['Hello', 'secondary'])]],
       },
       {
         name: 'a call with keyword arguments',
         source: 'btn = Button(label="Click", disabled=false)',
-        statements: [
-          ['ASSIGN', 'btn', {call: 'Button', args: [], kwargs: {label: 'Click', disabled: false}}],
-        ],
+        statements: [['ASSIGN', 'btn', call('Button', [], {label: 'Click', disabled: false})]],
       },
       {
         name: 'a call mixing positional and keyword arguments, with a trailing comma',
         source: 'btn = Button("Save", variant="primary", elevation=2,)',
         statements: [
-          [
-            'ASSIGN',
-            'btn',
-            {call: 'Button', args: ['Save'], kwargs: {variant: 'primary', elevation: 2}},
-          ],
+          ['ASSIGN', 'btn', call('Button', ['Save'], {variant: 'primary', elevation: 2})],
         ],
       },
       {
         name: 'a skipped argument',
         source: 'action = Event("submit", _, "onSuccess")',
-        statements: [
-          ['ASSIGN', 'action', {call: 'Event', args: ['submit', {skipped: true}, 'onSuccess']}],
-        ],
+        statements: [['ASSIGN', 'action', call('Event', ['submit', SKIPPED, 'onSuccess'])]],
       },
       {
         name: 'calls nested in arrays and keyword arguments',
@@ -272,23 +294,12 @@ describe('Express AST visitor and parser', () => {
           [
             'ASSIGN',
             'layout',
-            {
-              call: 'Column',
-              args: [
-                [
-                  {
-                    call: 'Row',
-                    args: [
-                      [
-                        {call: 'Text', args: ['A']},
-                        {call: 'Text', args: ['B']},
-                      ],
-                    ],
-                  },
-                  {call: 'Card', args: [], kwargs: {content: {call: 'Text', args: ['C']}}},
-                ],
+            call('Column', [
+              [
+                call('Row', [[call('Text', ['A']), call('Text', ['B'])]]),
+                call('Card', [], {content: call('Text', ['C'])}),
               ],
-            },
+            ]),
           ],
         ],
       },
@@ -299,11 +310,7 @@ describe('Express AST visitor and parser', () => {
           [
             'ASSIGN',
             'btn',
-            {
-              call: 'Button',
-              args: [],
-              kwargs: {onClick: {call: 'Event', args: ['press'], kwargs: {action: 'save'}}},
-            },
+            call('Button', [], {onClick: call('Event', ['press'], {action: 'save'})}),
           ],
         ],
       },
@@ -314,16 +321,9 @@ describe('Express AST visitor and parser', () => {
           [
             'ASSIGN',
             'list',
-            {
-              call: 'List',
-              args: [],
-              kwargs: {
-                template: {
-                  call: '_template',
-                  args: [{variable: 'item'}, {call: 'Text', args: [{variable: 'item'}]}],
-                },
-              },
-            },
+            call('List', [], {
+              template: call('_template', [variable('item'), call('Text', [variable('item')])]),
+            }),
           ],
         ],
       },
@@ -337,36 +337,28 @@ describe('Express AST visitor and parser', () => {
       {
         name: 'a bare check',
         source: 'v = ?required',
-        statements: [['ASSIGN', 'v', {check: 'required', args: []}]],
+        statements: [['ASSIGN', 'v', check('required')]],
       },
       {
         name: 'a check with empty parentheses',
         source: 'v = ?required()',
-        statements: [['ASSIGN', 'v', {check: 'required', args: []}]],
+        statements: [['ASSIGN', 'v', check('required')]],
       },
       {
         name: 'a check with an argument',
         source: 'rule = ?minLength(8)',
-        statements: [['ASSIGN', 'rule', {check: 'minLength', args: [8]}]],
+        statements: [['ASSIGN', 'rule', check('minLength', [8])]],
       },
       {
         name: 'a check with two arguments and a trailing comma',
         source: 'rangeCheck = ?between(1, 100,)',
-        statements: [['ASSIGN', 'rangeCheck', {check: 'between', args: [1, 100]}]],
+        statements: [['ASSIGN', 'rangeCheck', check('between', [1, 100])]],
       },
       {
         name: 'a list of checks',
         source: 'rules = [?required, ?email, ?minLength(6)]',
         statements: [
-          [
-            'ASSIGN',
-            'rules',
-            [
-              {check: 'required', args: []},
-              {check: 'email', args: []},
-              {check: 'minLength', args: [6]},
-            ],
-          ],
+          ['ASSIGN', 'rules', [check('required'), check('email'), check('minLength', [6])]],
         ],
       },
     ] as VisitorCase[])('$name', ({source, statements}) => {
@@ -379,20 +371,24 @@ describe('Express AST visitor and parser', () => {
       {
         name: 'a surface call',
         source: 'surface("main_surface")',
-        statements: [['EXPR', {call: 'surface', args: ['main_surface']}]],
+        statements: [['EXPR', call('surface', ['main_surface'])]],
       },
       {
         name: 'a deleteSurface call',
         source: 'deleteSurface("old_surface")',
-        statements: [['EXPR', {call: 'deleteSurface', args: ['old_surface']}]],
+        statements: [['EXPR', call('deleteSurface', ['old_surface'])]],
       },
       {
         name: 'a call to another function',
         source: 'notify("hello", level="warn")',
-        statements: [['EXPR', {call: 'notify', args: ['hello'], kwargs: {level: 'warn'}}]],
+        statements: [['EXPR', call('notify', ['hello'], {level: 'warn'})]],
       },
-      {name: 'a bare variable', source: 'myVar', statements: [['EXPR', {variable: 'myVar'}]]},
-      {name: 'a bare map', source: '{theme: "light"}', statements: [['EXPR', {theme: 'light'}]]},
+      {name: 'a bare variable', source: 'myVar', statements: [['EXPR', variable('myVar')]]},
+      {
+        name: 'a bare map',
+        source: '{theme: "light"}',
+        statements: [['EXPR', map({theme: 'light'})]],
+      },
     ] as VisitorCase[])('$name', ({source, statements}) => {
       expect(parseExpress(source)).toEqual({statements, errors: []});
     });
@@ -436,7 +432,7 @@ describe('Express AST visitor and parser', () => {
         statements: [
           ['ASSIGN', 'a', 1],
           ['ASSIGN', 'b', 2],
-          ['ASSIGN', 'c', [{variable: 'broken'}]],
+          ['ASSIGN', 'c', [variable('broken')]],
         ],
         errors: [[4, 0, "mismatched input 'd' expecting {',', ']'}", false]],
       });
@@ -481,6 +477,16 @@ describe('Express AST visitor and parser', () => {
       });
     });
   });
+  describe('map keys', () => {
+    it('stores a __proto__ key as an own entry', () => {
+      const {statements} = parseExpress('m = {"__proto__": 1, a: 2}');
+      const node = statements[0][2] as ExpressMapNode;
+      expect(Object.keys(node.entries)).toEqual(['__proto__', 'a']);
+      expect(Object.getPrototypeOf(node.entries)).toBe(Object.prototype);
+      expect(Object.getOwnPropertyDescriptor(node.entries, '__proto__')?.value).toBe(1);
+    });
+  });
+
   describe('string unescaping', () => {
     it('resolves standard escape sequences', () => {
       expect(unescapeString('hello\\nworld')).toBe('hello\nworld');
