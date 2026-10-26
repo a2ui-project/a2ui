@@ -62,16 +62,16 @@ def _check_task_inputs(version: str, dataset: str | Sequence[str] | None) -> Non
         ValueError: If the protocol version is unsupported, or a requested
             dataset is pinned to a different protocol version.
     """
-    validate_version(version)
+    norm_version = validate_version(version)
     conflicting = [
         name
         for name in split_dataset_names(dataset)
-        if dataset_protocol_version(name) not in (None, version)
+        if dataset_protocol_version(name) not in (None, norm_version)
     ]
     if conflicting:
         raise ValueError(
             f"Dataset(s) {', '.join(conflicting)} cannot be evaluated with"
-            f" protocol version {version}."
+            f" protocol version {norm_version}."
         )
 
 

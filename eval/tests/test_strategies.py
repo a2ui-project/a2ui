@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import pytest
 from a2ui.processor import CatalogConfig
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -29,6 +28,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.solver import TaskState
 from inspect_ai.util import store
+import pytest
 
 from a2ui_eval.runner import (
     DEFAULT_PARSE_TIMEOUT_SEC,

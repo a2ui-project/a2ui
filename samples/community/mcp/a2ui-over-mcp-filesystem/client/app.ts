@@ -25,7 +25,7 @@
 import {Context, basicCatalog} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {createCallMcpToolImplementation} from '@a2ui/catalog-mcp';
+import {CallMcpToolImplementation, configureMcpCatalog} from '@a2ui/catalog-mcp';
 import {Catalog, MessageProcessor, type A2uiMessage, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {provide} from '@lit/context';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
@@ -40,10 +40,7 @@ import {RegexReplaceImplementation} from './functions/regexReplace.js';
 import {SplitImplementation} from './functions/split.js';
 import {UpdateDataModelImplementation} from './functions/updateDataModel.js';
 
-/**
- * Catalog ID combining basic A2UI components, `callMcpTool` and the sample's data
- * transformation functions.
- */
+/** Catalog ID combining basic A2UI components with MCP catalog functions. */
 export const CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
 
@@ -66,19 +63,22 @@ export class A2uiFilesystemApp extends LitElement {
 
   constructor() {
     super();
-    const catalogs: Array<Catalog<any>> = [];
-    this.processor = new MessageProcessor<any>(catalogs);
-    catalogs.push(
-      new Catalog<any>(CATALOG_ID, Array.from(basicCatalog.components.values()), [
+    this.processor = new MessageProcessor<any>([
+      new Catalog<any>(CATALOG_ID, '0.9', Array.from(basicCatalog.components.values()), [
         ...Array.from(basicCatalog.functions.values()),
-        createCallMcpToolImplementation(() => this.mcpClient, this.processor),
+        CallMcpToolImplementation,
         JmespathImplementation,
         SplitImplementation,
         RegexCaptureImplementation,
         RegexReplaceImplementation,
         UpdateDataModelImplementation,
       ]),
-    );
+    ]);
+    configureMcpCatalog({
+      getMcpClientForTool: () => this.mcpClient,
+      processor: this.processor,
+      defaultVersion: 'v0.9',
+    });
 
     this.processor.onSurfaceCreated(surface => {
       this.surface = surface;
@@ -93,7 +93,11 @@ export class A2uiFilesystemApp extends LitElement {
     try {
       this.mcpClient = new Client(
         {name: 'a2ui-filesystem-browser', version: '1.0.0'},
-        {capabilities: {a2ui: {clientCapabilities: this.processor.getClientCapabilities()}} as any},
+        {
+          capabilities: {
+            a2ui: {clientCapabilities: this.processor.getClientCapabilities({versions: ['v0.9']})},
+          } as any,
+        },
       );
       await this.mcpClient.connect(
         new StreamableHTTPClientTransport(new URL(MCP_ENDPOINT, window.location.origin)),

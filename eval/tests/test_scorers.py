@@ -17,10 +17,10 @@ import os
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from inspect_ai.model import ModelName, ModelOutput
 from inspect_ai.scorer import Score, Target
 from inspect_ai.solver import TaskState
+import pytest
 
 from a2ui_eval.runner import DEFAULT_PARSE_TIMEOUT_SEC, RunnerOptions
 from a2ui_eval.scorers import (

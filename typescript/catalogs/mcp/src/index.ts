@@ -15,11 +15,12 @@
  */
 
 /**
- * `@a2ui/catalog-mcp`: the A2UI MCP catalog, with the `callMcpTool` function, configured once
- * per host with `configureMcpCatalog`.
+ * `@a2ui/catalog-mcp`: the A2UI MCP catalog with the `McpApp` universal component and the
+ * `callMcpTool` function, configured once per host with `configureMcpCatalog`.
  */
 
-export {MCP_CATALOG_ID} from './catalog.js';
+export {MCP_CATALOG_ID, mcpCatalog} from './catalog.js';
+export {A2uiMcpApp} from './components/mcp_app.js';
 export {configureMcpCatalog, type McpCatalogConfig} from './mcp_catalog_config.js';
 export type {SandboxConfig} from './shared/sandbox/sandbox_config.js';
 export {
