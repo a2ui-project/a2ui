@@ -84,13 +84,15 @@ class _ChatAppState extends State<ChatApp> {
                       decoration: const InputDecoration(
                         hintText: 'Ask for some UI',
                       ),
-                      onSubmitted: (_) => _send(),
+                      onEditingComplete: _send,
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Send',
-                    icon: const Icon(Icons.send),
-                    onPressed: _send,
+                  TextFieldTapRegion(
+                    child: IconButton(
+                      tooltip: 'Send',
+                      icon: const Icon(Icons.send),
+                      onPressed: _send,
+                    ),
                   ),
                 ],
               ),
