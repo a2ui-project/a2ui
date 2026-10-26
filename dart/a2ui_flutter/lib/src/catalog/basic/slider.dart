@@ -85,17 +85,15 @@ Widget buildSlider(
           onChanged: write == null || !range.isFinite
               ? null
               : (moved) {
-                  final double snapped = steps != null
-                      ? math.min(
-                          max,
-                          min +
-                              range *
-                                  ((moved - min) / range * steps).round() /
-                                  steps,
-                        )
+                  final double stepped = steps != null
+                      ? min +
+                            range *
+                                ((moved - min) / range * steps).round() /
+                                steps
                       : divisions != null
-                      ? math.min(max, min + (moved - min).round())
+                      ? min + (moved - min).round()
                       : moved;
+                  final double snapped = stepped.clamp(min, max);
                   write(
                     snapped == snapped.roundToDouble() &&
                             snapped.abs() < _twoTo53
