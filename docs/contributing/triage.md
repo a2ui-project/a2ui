@@ -21,16 +21,15 @@ This section describes goals at a high level. See concrete steps in the section 
 
 2. **PRs**: We will review only essential PRs from external contributors.
 
-  A PR will be reviewed if:
+    A PR will be reviewed only if **both** of the following are true:
 
     - the PR contributes to a **P0-P3** issue (PRs for P4 issues will not be reviewed), and the issue is linked on the top of the description
+    - **at least one** of the following is true:
+        - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description)
+        - the issue has label `type: contributions-welcome`
+        - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
 
-    - one of the following is true:
-      - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description) 
-      - the issue has label `type: contributions-welcome`
-      - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
-  
-  We will have to reject all other PRs, to preserve team resources for planned work.
+    We will have to reject all other PRs, to preserve team resources for planned work.
 
 ## GitHub labels used in triage
 
@@ -104,7 +103,7 @@ Staleness is calculated from the last human contribution (comment, review, or is
 
 The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress.
 
-The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
+The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), PR events (opened, reopened, labeled, unlabeled, assigned, unassigned), new issue comments, and submitted PR reviews or review comments.
 
 ## Triage responsibilities
 
