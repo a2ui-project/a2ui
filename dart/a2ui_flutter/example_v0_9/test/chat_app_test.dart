@@ -19,6 +19,7 @@ import 'package:a2ui_flutter_example_v0_9/chat_app.dart';
 import 'package:a2ui_flutter_example_v0_9/chat_session.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_client.dart';
@@ -51,6 +52,45 @@ void main() {
       findsOne,
     );
     expect(find.textContaining('**'), findsNothing);
+  });
+
+  testWidgets('opens a link tapped in the model text or in a Text', (
+    tester,
+  ) async {
+    const channel = MethodChannel('plugins.flutter.io/url_launcher');
+    final opened = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      opened.add((call.arguments as Map<Object?, Object?>)['url']);
+      return true;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final client = FakeClient([
+      [
+        '[Docs](https://example.com/docs)',
+        block([
+          createSurface('s'),
+          rootComponent('s', '[Guide](https://example.com/guide)'),
+        ]),
+      ],
+    ]);
+    final session = ChatSession(client: client);
+    addTearDown(session.dispose);
+    await tester.pumpWidget(ChatApp(session: session));
+
+    unawaited(session.send('Link the docs.'));
+    await tester.pump();
+    await tester.tap(find.text('Docs'));
+    await tester.tap(find.text('Guide'));
+    await tester.pump();
+
+    expect(opened, ['https://example.com/docs', 'https://example.com/guide']);
   });
 
   testWidgets(
