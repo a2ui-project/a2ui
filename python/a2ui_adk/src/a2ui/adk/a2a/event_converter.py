@@ -104,56 +104,56 @@ class A2uiEventConverter:
         )
 
         processor = invocation_context.session.state.get(self._processor_key)
-        effective_converter: GenAIPartToA2APartConverter
-        if isinstance(processor, A2uiRequestProcessor):
-            base_converter = A2uiPartConverter(
-                processor,
-                bypass_tool_check=self._bypass_tool_check,
-                fallback_text=self._fallback_text,
+        if not isinstance(processor, A2uiRequestProcessor):
+            return convert_event_to_a2a_events(
+                event, invocation_context, task_id, context_id, part_converter_func
             )
-            effective_converter = (
-                self._make_stream_part_converter(
-                    event=event,
-                    invocation_id=invocation_context.invocation_id,
-                    processor=processor,
-                    base_converter=base_converter,
-                )
-                if processor.format.supports_streaming
-                else base_converter.convert
-            )
-        else:
-            effective_converter = part_converter_func
 
+        a2ui_part_converter = A2uiPartConverter(
+            processor,
+            bypass_tool_check=self._bypass_tool_check,
+            fallback_text=self._fallback_text,
+        )
+        convert_part: GenAIPartToA2APartConverter = (
+            self._streaming_part_converter(
+                event=event,
+                invocation_id=invocation_context.invocation_id,
+                processor=processor,
+                a2ui_part_converter=a2ui_part_converter,
+            )
+            if processor.format.supports_streaming
+            else a2ui_part_converter.convert
+        )
         return convert_event_to_a2a_events(
-            event,
-            invocation_context,
-            task_id,
-            context_id,
-            effective_converter,
+            event, invocation_context, task_id, context_id, convert_part
         )
 
-    def _make_stream_part_converter(
+    def _streaming_part_converter(
         self,
         *,
         event: "Event",
         invocation_id: str,
         processor: A2uiRequestProcessor,
-        base_converter: A2uiPartConverter,
+        a2ui_part_converter: A2uiPartConverter,
     ) -> "GenAIPartToA2APartConverter":
-        """Returns a part converter that streams the response's text.
+        """Returns the part converter for one event of a streamed response.
 
-        A partial event's text is fed to the invocation's stream, which is
-        opened on the first one. The final event of a streamed response closes
-        the stream, and its text, which repeats what the partial events held,
-        is dropped. A response sent without partial events is converted whole.
+        ADK calls it once per part with only the part, so it captures what
+        streaming needs from the event: whether the event is partial, and the
+        invocation whose stream to use. A partial event's text is fed to the
+        invocation's stream, which is opened on the first one. The final event
+        of a streamed response closes the stream, and its text, which repeats
+        what the partial events held, is dropped. Every other part, and the
+        text of a response sent without partial events, goes to
+        `a2ui_part_converter`.
         """
         is_partial = getattr(event, "partial", None) is True
-        flushed_final = False
+        closed_stream = False
 
-        def _convert_part(part: genai_types.Part) -> list[a2a_types.Part]:
-            nonlocal flushed_final
+        def convert_part(part: genai_types.Part) -> list[a2a_types.Part]:
+            nonlocal closed_stream
             if part.text is None:
-                return base_converter.convert(part)
+                return a2ui_part_converter.convert(part)
             if is_partial:
                 stream = self._streams.get(invocation_id)
                 if stream is None:
@@ -165,22 +165,20 @@ class A2uiEventConverter:
                     return []
             stream = self._streams.pop(invocation_id, None)
             if stream is not None:
-                flushed_final = True
+                closed_stream = True
                 try:
                     return to_a2a_parts(stream.close())
                 except Exception as e:
                     logger.warning("Failed to close A2UI stream: %s", e)
-                    if base_converter._fallback_text:
-                        return [
-                            a2a_types.Part(
-                                root=a2a_types.TextPart(
-                                    text=base_converter._fallback_text
-                                )
-                            )
-                        ]
-                    return []
-            if flushed_final:
+                    return self._fallback_parts()
+            if closed_stream:
                 return []
-            return base_converter.convert(part)
+            return a2ui_part_converter.convert(part)
 
-        return _convert_part
+        return convert_part
+
+    def _fallback_parts(self) -> list[a2a_types.Part]:
+        """The fallback text as a part, or no parts when there is none."""
+        if not self._fallback_text:
+            return []
+        return [a2a_types.Part(root=a2a_types.TextPart(text=self._fallback_text))]
