@@ -465,3 +465,17 @@ def test_converter_checks_text_against_the_processors_bound_state():
     )
     assert len(parts2) == 1
     assert parts2[0] == create_a2ui_part(turn2[0], version=ProtocolVersion.V0_9)
+
+
+def test_converter_leaves_thought_parts_to_adk():
+    converter = _converter()
+    part = genai_types.Part(
+        text=f"Thinking about {A2UI_OPEN_TAG}\ninvalid_json\n{A2UI_CLOSE_TAG}",
+        thought=True,
+    )
+
+    a2a_parts = converter.convert(part)
+
+    assert len(a2a_parts) == 1
+    assert isinstance(a2a_parts[0].root, a2a_types.TextPart)
+    assert a2a_parts[0].root.metadata == {"adk_thought": True}

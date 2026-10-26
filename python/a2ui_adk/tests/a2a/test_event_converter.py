@@ -253,3 +253,25 @@ def test_event_converter_drops_the_rest_of_a_response_after_a_failed_chunk():
     assert later == []
     assert [p.root.text for p in final] == ["Sorry."]
     assert converter._streams == {}
+
+
+def test_event_converter_does_not_feed_thought_parts_into_stream():
+    processor = A2uiRequestProcessor(
+        [BasicCatalog("0.9")], format_factory=DirectJsonFormatFactory()
+    )
+    invocation_context = _streaming_context(processor)
+    converter = A2uiEventConverter()
+
+    with patch(
+        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
+    ) as mock_base_converter:
+        mock_base_converter.return_value = []
+        converter(_event(partial=True), invocation_context)
+        convert_part = mock_base_converter.call_args[0][4]
+        thought_parts = convert_part(
+            genai_types.Part(text="<a2ui-json>draft", thought=True)
+        )
+
+    assert len(thought_parts) == 1
+    assert thought_parts[0].root.metadata == {"adk_thought": True}
+    assert converter._streams == {}

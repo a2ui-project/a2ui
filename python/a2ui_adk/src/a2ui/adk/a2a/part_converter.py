@@ -32,6 +32,8 @@ Usage Example:
   ```
 """
 
+from __future__ import annotations
+
 import logging
 
 from a2a import types as a2a_types
@@ -131,7 +133,7 @@ class A2uiPartConverter:
             return []
 
         # 3. Handle Text-based A2UI (TextPart)
-        if text := part.text:
+        if (text := part.text) and not part.thought:
             if self._parser.has_format_content(text):
                 return parse_content_to_parts(
                     text,

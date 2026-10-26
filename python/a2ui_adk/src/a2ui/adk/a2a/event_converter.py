@@ -94,12 +94,12 @@ class A2uiEventConverter:
 
     def __call__(
         self,
-        event: "Event",
-        invocation_context: "InvocationContext",
+        event: Event,
+        invocation_context: InvocationContext,
         task_id: str | None = None,
         context_id: str | None = None,
-        part_converter_func: "GenAIPartToA2APartConverter" = part_converter.convert_genai_part_to_a2a_part,
-    ) -> list["A2AEvent"]:
+        part_converter_func: GenAIPartToA2APartConverter = part_converter.convert_genai_part_to_a2a_part,
+    ) -> list[A2AEvent]:
         """Converts an ADK event to A2A events, using the session processor if available."""
         processor = invocation_context.session.state.get(self._processor_key)
         if not isinstance(processor, A2uiRequestProcessor):
@@ -129,11 +129,11 @@ class A2uiEventConverter:
     def _streaming_part_converter(
         self,
         *,
-        event: "Event",
+        event: Event,
         invocation_id: str,
         processor: A2uiRequestProcessor,
         a2ui_part_converter: A2uiPartConverter,
-    ) -> "GenAIPartToA2APartConverter":
+    ) -> GenAIPartToA2APartConverter:
         """Returns the part converter for one event of a streamed response.
 
         ADK calls it once per part with only the part, so it captures what
@@ -143,7 +143,7 @@ class A2uiEventConverter:
         the rest of the response's partial text is dropped. The final event of
         a streamed response closes the stream, or sends the fallback text if a
         chunk failed, and its own text, which repeats what the partial events
-        held, is dropped. Every other part, and the
+        held, is dropped. Every other part, including model thoughts, and the
         text of a response sent without partial events, goes to
         `a2ui_part_converter`.
         """
@@ -152,7 +152,7 @@ class A2uiEventConverter:
 
         def convert_part(part: genai_types.Part) -> list[a2a_types.Part]:
             nonlocal closed_stream
-            if part.text is None:
+            if part.text is None or part.thought:
                 return a2ui_part_converter.convert(part)
             if is_partial:
                 if invocation_id not in self._streams:

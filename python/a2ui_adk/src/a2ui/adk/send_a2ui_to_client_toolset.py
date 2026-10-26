@@ -53,13 +53,14 @@ Usage Examples:
     ```
 """
 
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
 import inspect
 import logging
 from typing import (
     TYPE_CHECKING,
     Any,
-    Awaitable,
-    Callable,
     TypeAlias,
 )
 
@@ -162,7 +163,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
     async def get_part_converter(
         self, ctx: readonly_context.ReadonlyContext
-    ) -> "A2uiPartConverter":
+    ) -> A2uiPartConverter:
         """Returns an A2uiPartConverter for the context's processor.
 
         The converter reads text-based A2UI with the processor's inference
