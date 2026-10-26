@@ -20,6 +20,7 @@ import 'package:a2ui_flutter/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'chat_session.dart';
 
@@ -145,16 +146,24 @@ Widget _buildEntry(BuildContext context, ChatEntry entry) {
         entry.text,
         style: TextStyle(color: colors.error),
       ),
-      _ => MarkdownBody(data: entry.text),
+      _ => MarkdownBody(data: entry.text, onTapLink: _openLink),
     },
   );
 }
 
-/// Renders [markdown] with [style] as its paragraph style.
+/// Renders [markdown] with [style] as its paragraph style, and opens a
+/// tapped link.
 Widget _markdown(BuildContext context, String markdown, TextStyle style) =>
     MarkdownBody(
       data: markdown,
+      onTapLink: _openLink,
       styleSheet: MarkdownStyleSheet.fromTheme(
         Theme.of(context),
       ).copyWith(p: style),
     );
+
+/// Opens [href] with `url_launcher`.
+void _openLink(String text, String? href, String title) {
+  final Uri? uri = href == null ? null : Uri.tryParse(href);
+  if (uri != null) launchUrl(uri).ignore();
+}
