@@ -31,17 +31,11 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState
 
-from .bridges import (
-    DEFAULT_PARSE_TIMEOUT_SEC,
-    AgentSdkBridge,
-    get_sdk_bridge,
-    normalize_sdk_name,
-)
+from .runner import DEFAULT_PARSE_TIMEOUT_SEC, parse_and_validate
 from .shared.utils import GIT_ROOT
 
 
 async def _compiled_answer_or_none(
-    bridge: AgentSdkBridge,
     version: str,
     resolved_catalog_path: str,
     completion: str,
@@ -53,7 +47,7 @@ async def _compiled_answer_or_none(
     """
     try:
         res_dict = await asyncio.to_thread(
-            bridge.parse_and_validate,
+            parse_and_validate,
             "direct_json",
             version,
             resolved_catalog_path,
@@ -70,17 +64,15 @@ async def _compiled_answer_or_none(
 
 
 @scorer(metrics=[accuracy()])
-def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
-    """Scorer for A2UI evaluation using the target Agent SDK.
+def a2ui_scorer(version: str) -> Scorer:
+    """Scorer for A2UI evaluation using the Python Agent SDK.
 
     Args:
         version: The schema version to load (e.g. '0.9.1' or '1.0').
-        sdk: The Agent SDK implementation to use ('python', 'ts', or 'dart').
 
     Returns:
         An Inspect Scorer that validates the response against the schema and integrity rules.
     """
-    norm_sdk = normalize_sdk_name(sdk)
 
     async def score(
         state: TaskState, target: Target
@@ -102,10 +94,9 @@ def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
                 explanation="Format compilation/validation failed during solver step.",
             )
 
-        bridge = get_sdk_bridge(norm_sdk)
         try:
             res_dict = await asyncio.to_thread(
-                bridge.parse_and_validate,
+                parse_and_validate,
                 "direct_json",
                 version,
                 resolved_catalog_path,
@@ -125,7 +116,7 @@ def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
                 None
                 if isinstance(e, TimeoutError)
                 else await _compiled_answer_or_none(
-                    bridge, version, resolved_catalog_path, answer_text
+                    version, resolved_catalog_path, answer_text
                 )
             )
             return Score(

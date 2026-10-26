@@ -25,8 +25,8 @@ from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
 
-from a2ui_eval.bridges import normalize_sdk_name, validate_sdk_version
 from a2ui_eval.dataset import load_a2ui_dataset
+from a2ui_eval.runner import validate_version
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 from a2ui_eval.strategies import get_solver
 
@@ -53,29 +53,24 @@ def split_dataset_names(dataset: str | list[str] | None) -> list[str]:
     return [name.strip() for name in raw if name.strip()]
 
 
-def _check_task_inputs(sdk: str, version: str, dataset: str | list[str] | None) -> str:
-    """Validates the SDK, protocol version and datasets of a task.
-
-    Returns:
-        The normalized SDK name.
+def _check_task_inputs(version: str, dataset: str | list[str] | None) -> None:
+    """Validates the protocol version and datasets of a task.
 
     Raises:
-        ValueError: If the SDK does not support the version, or a requested
+        ValueError: If the protocol version is unsupported, or a requested
             dataset is pinned to a different protocol version.
     """
-    norm_sdk = normalize_sdk_name(sdk)
-    validate_sdk_version(norm_sdk, version)
+    norm_version = validate_version(version)
     conflicting = [
         name
         for name in split_dataset_names(dataset)
-        if dataset_protocol_version(name) not in (None, version)
+        if dataset_protocol_version(name) not in (None, norm_version)
     ]
     if conflicting:
         raise ValueError(
             f"Dataset(s) {', '.join(conflicting)} cannot be evaluated with"
-            f" protocol version {version}."
+            f" protocol version {norm_version}."
         )
-    return norm_sdk
 
 
 @scorer(metrics=[])
@@ -110,7 +105,6 @@ def a2ui_v0_9_1_eval(
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "direct",
     dataset: str | list[str] | None = None,
-    sdk: str = "python",
 ) -> Task:
     """Evaluation task for A2UI v0.9.1 protocol generation.
 
@@ -119,7 +113,6 @@ def a2ui_v0_9_1_eval(
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'direct').
         dataset: Specific dataset name or list of dataset names.
-        sdk: The Agent SDK implementation to evaluate ('python', 'ts', or 'dart').
 
     Returns:
         An Inspect Task object configured for A2UI v0.9.1 evaluation.
@@ -141,7 +134,7 @@ def a2ui_v0_9_1_eval(
         )
 
     active_version = "0.9.1"
-    norm_sdk = _check_task_inputs(sdk, active_version, dataset)
+    _check_task_inputs(active_version, dataset)
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
     format_name = (
         strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
@@ -155,17 +148,15 @@ def a2ui_v0_9_1_eval(
     )
 
     return Task(
-        name=f"a2ui_v0_9_1_eval_{norm_sdk}" if norm_sdk != "python" else None,
         dataset=dataset_obj,
-        solver=get_solver(strategy, version=active_version, sdk=norm_sdk),
+        solver=get_solver(strategy, version=active_version),
         scorer=[
-            a2ui_scorer(version=active_version, sdk=norm_sdk),
+            a2ui_scorer(version=active_version),
             measured_model_graded_qa(
                 model=grading_model, instructions=GRADER_INSTRUCTIONS
             ),
         ],
         metadata={
-            "sdk": norm_sdk,
             "strategy": strategy,
             "version": active_version,
         },
@@ -178,7 +169,6 @@ def a2ui_v1_0_eval(
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "express",
     dataset: str | list[str] | None = None,
-    sdk: str = "python",
 ) -> Task:
     """Evaluation task for A2UI v1.0 protocol generation.
 
@@ -187,7 +177,6 @@ def a2ui_v1_0_eval(
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'express').
         dataset: Specific dataset name or list of dataset names.
-        sdk: The Agent SDK implementation to evaluate ('python', 'ts', or 'dart').
 
     Returns:
         An Inspect Task object configured for A2UI v1.0 evaluation.
@@ -209,7 +198,7 @@ def a2ui_v1_0_eval(
         )
 
     active_version = "1.0"
-    norm_sdk = _check_task_inputs(sdk, active_version, dataset)
+    _check_task_inputs(active_version, dataset)
     default_catalog_path = "catalogs/basic/v1/catalog.json"
     format_name = (
         strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
@@ -223,17 +212,15 @@ def a2ui_v1_0_eval(
     )
 
     return Task(
-        name=f"a2ui_v1_0_eval_{norm_sdk}" if norm_sdk != "python" else None,
         dataset=dataset_obj,
-        solver=get_solver(strategy, version=active_version, sdk=norm_sdk),
+        solver=get_solver(strategy, version=active_version),
         scorer=[
-            a2ui_scorer(version=active_version, sdk=norm_sdk),
+            a2ui_scorer(version=active_version),
             measured_model_graded_qa(
                 model=grading_model, instructions=GRADER_INSTRUCTIONS
             ),
         ],
         metadata={
-            "sdk": norm_sdk,
             "strategy": strategy,
             "version": active_version,
         },

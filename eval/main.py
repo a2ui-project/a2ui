@@ -17,21 +17,18 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import os
 import sys
-from collections.abc import Callable, Collection
 
 from inspect_ai import Task, eval_set
 from inspect_ai.dataset import MemoryDataset
 
-from a2ui_eval.bridges import (
-    SDK_SUPPORTED_STRATEGIES,
-    SDK_SUPPORTED_VERSIONS,
-    get_sdk_bridge,
+from a2ui_eval.runner import (
+    SUPPORTED_STRATEGIES,
     normalize_protocol_version,
-    normalize_sdk_name,
-    validate_sdk_strategy,
-    validate_sdk_version,
+    validate_strategy,
+    validate_version,
 )
 from a2ui_eval.strategies import STRATEGIES
 from tasks import (
@@ -87,27 +84,6 @@ def resolve_model_name(model_name: str) -> str:
     return stripped
 
 
-def _parse_sdks(raw_sdk: list[str] | None, raw_sdks: str | None) -> list[str]:
-    """Parses and normalizes SDK CLI arguments into a deduplicated list."""
-    combined: list[str] = []
-    if raw_sdk:
-        combined.extend(raw_sdk)
-    if raw_sdks:
-        combined.append(raw_sdks)
-    if not combined:
-        return ["python"]
-
-    selected: list[str] = []
-    for item in combined:
-        for part in item.split(","):
-            cleaned = part.strip()
-            if cleaned:
-                norm = normalize_sdk_name(cleaned)
-                if norm not in selected:
-                    selected.append(norm)
-    return selected or ["python"]
-
-
 def _task_function(version: str) -> Callable[..., Task]:
     """Returns the Inspect task function for a protocol version."""
     # Looked up at call time so that tests can patch the task functions.
@@ -123,29 +99,21 @@ def default_protocol_version(strategy: str) -> str:
     return "0.9.1" if strategy == "subagent_tool" else "1.0"
 
 
-def _version_key(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split("."))
-
-
 def plan_protocol_versions(
     strategy: str,
     version: str,
     datasets: list[str],
-    supported_versions: Collection[str] | None = None,
 ) -> list[tuple[str, list[str]]]:
     """Groups the requested datasets by the protocol version they run under.
 
     Datasets pinned to a version (e.g. 'core_v1_0') run under that version.
-    Other datasets run under `version`. When `version` is 'auto', they run
-    under the strategy's default version, or under the newest version in
-    `supported_versions` if the SDK does not support the default.
+    Other datasets run under `version`, or under the strategy's default version
+    when `version` is 'auto'.
 
     Args:
         strategy: The evaluation strategy name.
         version: The '--version' argument ('0.9.1', '1.0' or 'auto').
         datasets: The requested dataset names. Empty means all datasets.
-        supported_versions: The protocol versions the target SDK supports.
-            None means every version.
 
     Returns:
         A list of (protocol version, dataset names) pairs, one per task to run.
@@ -154,12 +122,7 @@ def plan_protocol_versions(
     Raises:
         ValueError: If an explicit version conflicts with a requested dataset.
     """
-    if version != "auto":
-        fallback = version
-    else:
-        fallback = default_protocol_version(strategy)
-        if supported_versions and fallback not in supported_versions:
-            fallback = max(supported_versions, key=_version_key)
+    fallback = default_protocol_version(strategy) if version == "auto" else version
     if not datasets:
         return [(fallback, [])]
 
@@ -271,22 +234,6 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--sdk",
-        type=str,
-        action="append",
-        help=(
-            "Agent SDK implementation to evaluate (choices: python, ts, dart)."
-            " Can be comma-separated or specified multiple times. Defaults to"
-            " 'python'."
-        ),
-    )
-    parser.add_argument(
-        "--sdks",
-        type=str,
-        default=None,
-        help="Comma-separated list of Agent SDKs to evaluate (e.g. 'python,ts,dart').",
-    )
-    parser.add_argument(
         "--version",
         type=_parse_version_arg,
         choices=[*PROTOCOL_VERSIONS, "auto"],
@@ -295,8 +242,7 @@ def main() -> None:
             "Protocol version to evaluate ('0.9.1', '1.0', or 'auto'). With"
             " 'auto' (the default), datasets with a version suffix such as"
             " 'core_v1_0' run under that version, and other datasets run under"
-            " 1.0, or 0.9.1 for the subagent_tool strategy (falling back to the"
-            " newest version the SDK supports)."
+            " 1.0, or 0.9.1 for the subagent_tool strategy."
         ),
     )
     parser.add_argument(
@@ -335,9 +281,6 @@ def main() -> None:
     # Resolve dataset filters
     selected_datasets = split_dataset_names(args.datasets or args.dataset)
 
-    # Parse and validate SDKs
-    selected_sdks = _parse_sdks(args.sdk, args.sdks)
-
     # Parse and validate strategies
     selected_strategies: list[str] = []
     if args.strategies:
@@ -352,48 +295,29 @@ def main() -> None:
                     f"Unknown evaluation strategy: {strat}. Valid choices:"
                     f" {', '.join(STRATEGIES.keys())}"
                 )
-            for sdk in selected_sdks:
-                validate_sdk_strategy(sdk, strat)
+            validate_strategy(strat)
     else:
-        for sdk in selected_sdks:
-            for strat in SDK_SUPPORTED_STRATEGIES[sdk]:
-                if strat not in selected_strategies:
-                    selected_strategies.append(strat)
+        selected_strategies = list(SUPPORTED_STRATEGIES)
 
-    # Plan every task and validate SDK/version support before any SDK build
-    # or model call, so an unsupported combination fails fast.
-    task_plan: list[tuple[str, str, str, list[str]]] = []
-    for sdk in selected_sdks:
-        sdk_strategies = (
-            selected_strategies
-            if args.strategies
-            else list(SDK_SUPPORTED_STRATEGIES[sdk])
-        )
-        for strat in sdk_strategies:
-            for task_version, task_datasets in plan_protocol_versions(
-                strat,
-                args.version,
-                selected_datasets,
-                SDK_SUPPORTED_VERSIONS[sdk],
-            ):
-                validate_sdk_version(sdk, task_version)
-                task_plan.append((sdk, strat, task_version, task_datasets))
-
-    for sdk in selected_sdks:
-        get_sdk_bridge(sdk).prepare()
+    # Plan every task and validate version support before any model call.
+    task_plan: list[tuple[str, str, list[str]]] = []
+    for strat in selected_strategies:
+        for task_version, task_datasets in plan_protocol_versions(
+            strat,
+            args.version,
+            selected_datasets,
+        ):
+            validate_version(task_version)
+            task_plan.append((strat, task_version, task_datasets))
 
     tasks = []
-    for sdk, strat, task_version, task_datasets in task_plan:
+    for strat, task_version, task_datasets in task_plan:
         task_func = _task_function(task_version)
-        task_kwargs = {
-            "strategy": strat,
-            "grading_model": grading_model,
-            "dataset": ",".join(task_datasets) or None,
-        }
-        if sdk != "python":
-            task_kwargs["sdk"] = sdk
-
-        task_obj = task_func(**task_kwargs)
+        task_obj = task_func(
+            strategy=strat,
+            grading_model=grading_model,
+            dataset=",".join(task_datasets) or None,
+        )
         if args.prompt and getattr(task_obj, "dataset", None) is not None:
             prompt_list = [p.lower() for p in args.prompt]
             filtered = [
@@ -432,10 +356,7 @@ def main() -> None:
         args.max_samples if args.max_samples is not None else 10
     )
 
-    print(
-        f"Starting evaluation for SDKs {selected_sdks} and strategies"
-        f" {selected_strategies}..."
-    )
+    print(f"Starting evaluation for strategies {selected_strategies}...")
     success, _ = eval_set(**eval_set_kwargs)
     if not success:
         print("Evaluation returned failure status!")

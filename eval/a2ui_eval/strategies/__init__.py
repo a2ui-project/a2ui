@@ -20,7 +20,7 @@ from typing import Callable
 
 from inspect_ai.solver import Solver
 
-from ..bridges import normalize_sdk_name, validate_sdk_strategy
+from ..runner import validate_strategy
 from .format import compile_format_payload, format_solver, format_system_prompt
 from .subagent_tool import (
     PAYLOAD_STORE_KEY,
@@ -29,27 +29,22 @@ from .subagent_tool import (
     subagent_tool_solver,
 )
 
-STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
-    "direct": lambda version, sdk="python": format_solver(
-        "direct_json", version, sdk=sdk
-    ),
+STRATEGIES: dict[str, Callable[[str], list[Solver]]] = {
+    "direct": lambda version: format_solver("direct_json", version),
     "subagent_tool": subagent_tool_solver,
-    "express": lambda version, sdk="python": format_solver("express", version, sdk=sdk),
-    "elemental": lambda version, sdk="python": format_solver(
-        "elemental", version, sdk=sdk
-    ),
-    "atom": lambda version, sdk="python": format_solver("atom", version, sdk=sdk),
+    "express": lambda version: format_solver("express", version),
+    "elemental": lambda version: format_solver("elemental", version),
+    "atom": lambda version: format_solver("atom", version),
 }
 
 
-def get_solver(strategy: str, version: str, sdk: str = "python") -> list[Solver]:
-    """Returns the solver chain for the specified evaluation strategy and SDK."""
+def get_solver(strategy: str, version: str) -> list[Solver]:
+    """Returns the solver chain for the specified evaluation strategy."""
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown evaluation strategy: {strategy}")
 
-    norm_sdk = normalize_sdk_name(sdk)
-    validate_sdk_strategy(norm_sdk, strategy)
-    return STRATEGIES[strategy](version, sdk=norm_sdk)
+    validate_strategy(strategy)
+    return STRATEGIES[strategy](version)
 
 
 __all__ = [
