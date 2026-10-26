@@ -220,6 +220,9 @@ def test_v1_0_component_catalog_id_and_extensions() -> None:
     meta = ComponentCommonMetadata.model_validate(flat[0]["metadata"])
     assert meta.extensions == {"custom_ext": {"key": "value"}}
 
+    round_tripped = Text.model_validate(flat[0])
+    assert round_tripped.extensions == {"custom_ext": {"key": "value"}}
+
     with pytest.raises(ValidationError, match="Unicode identifiers"):
         Text(text="Bad ext", extensions={"invalid-key!": 1})
 
@@ -466,3 +469,26 @@ def test_v1_0_open_enum_validation() -> None:
         context=OPEN_ENUM_CONTEXT,
     )
     assert lenient.variant == "futureVariant"  # type: ignore[comparison-overlap]
+
+    # Parses wire @path bindings and @call function calls under model_validate
+    bound_text = Text.model_validate(
+        {
+            "component": "Text",
+            "text": {"@path": "/x"},
+            "variant": "futureVariant",
+        },
+        context=OPEN_ENUM_CONTEXT,
+    )
+    assert bound_text.text == DataBinding(path="/x")
+    assert bound_text.variant == "futureVariant"  # type: ignore[comparison-overlap]
+
+    called_text = Text.model_validate(
+        {
+            "component": "Text",
+            "text": {"@call": "formatString", "args": {"value": "Hi ${/x}"}},
+        },
+        context=OPEN_ENUM_CONTEXT,
+    )
+    assert called_text.text == FunctionCall(
+        call="formatString", args={"value": "Hi ${/x}"}
+    )

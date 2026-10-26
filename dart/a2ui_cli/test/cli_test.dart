@@ -89,11 +89,17 @@ void main() {
           'cli-test-v1-',
         );
         try {
-          for (final version in ['1.0', 'v1.0', '1.0.0', '1.0.0-rc.1']) {
-            final v1File = File(p.join(tmpDir.path, 'v1_catalog.json'))
+          for (final (int i, String version) in [
+            '1.0',
+            'v1.0',
+            '1.0.0',
+            '1.0.0-rc.1',
+          ].indexed) {
+            final catalogId = 'test_v1_$i';
+            final v1File = File(p.join(tmpDir.path, '$catalogId.json'))
               ..writeAsStringSync(
                 jsonEncode(<String, Object?>{
-                  'catalogId': 'test_v1',
+                  'catalogId': catalogId,
                   'protocolVersion': version,
                   'components': <String, Object?>{},
                 }),
@@ -109,7 +115,7 @@ void main() {
             expect(result.exitCode, equals(0), reason: 'version=$version');
             expect(result.stdout, contains('Successfully generated'));
             expect(
-              File(p.join(tmpDir.path, 'test_v1.py')).readAsStringSync(),
+              File(p.join(tmpDir.path, '$catalogId.py')).readAsStringSync(),
               contains('from a2ui.builder.v1_0 import ('),
             );
           }

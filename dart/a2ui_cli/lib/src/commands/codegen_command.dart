@@ -103,7 +103,9 @@ class CodegenCommand extends Command<int> {
     final String specVersion = declaredVersion is String
         ? declaredVersion
         : 'v0.9.1';
-    if (A2uiProtocolVersion.tryParseSemVer(specVersion) == null) {
+    final A2uiProtocolVersion? parsedVersion =
+        A2uiProtocolVersion.tryParseSemVer(specVersion);
+    if (!supportedCodegenVersions.contains(parsedVersion)) {
       errSink.writeln(
         "Unsupported catalog protocol version '$specVersion'. Code generation is "
         'currently supported for protocol versions 0.9, 0.9.1, and 1.0 catalogs.',

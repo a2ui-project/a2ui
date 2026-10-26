@@ -14,11 +14,10 @@
 
 """Protocol v1.0 data models, bindings, actions, and type aliases for A2UI builders.
 
-Re-exports ``AccessibilityAttributes``, ``ActionEvent``, and ``CheckRule`` from
-``a2ui.core.schema.v1_0``. Builder-adapts ``DataBinding`` and ``FunctionCall``
-for typesafe fluent authoring while maintaining full wire and union compatibility
-with core schema models. Defines ``Action`` and ``DynamicChildList`` locally for
-ergonomic authoring.
+Re-exports ``AccessibilityAttributes``, ``ActionEvent``, ``CheckRule``,
+``DataBinding``, and ``FunctionCall`` from ``a2ui.core.schema.v1_0``.
+Defines ``ComponentBuilderNode``, ``Action``, and ``DynamicChildList`` locally
+for ergonomic authoring.
 """
 
 from __future__ import annotations
@@ -28,6 +27,7 @@ from typing import Any, TypeAlias
 
 from pydantic import (
     AliasChoices,
+    AliasPath,
     Field,
     StrictBool,
     StrictFloat,
@@ -41,10 +41,10 @@ from a2ui.core.schema.v1_0 import (
     AccessibilityAttributes as AccessibilityAttributes,
     ActionEvent as ActionEvent,
     CheckRule as CheckRule,
-    DataBinding as CoreDataBinding,
-    Extensions as Extensions,
-    FunctionCall as CoreFunctionCall,
-    LiteralObject as LiteralObject,
+    DataBinding as DataBinding,
+    Extensions,
+    FunctionCall as FunctionCall,
+    LiteralObject,
 )
 from ..core.base_model import BuilderBaseModel
 from ..core.base_node import ComponentBuilderNode as CoreComponentBuilderNode
@@ -59,6 +59,9 @@ class ComponentBuilderNode(CoreComponentBuilderNode):
     extensions: Extensions | None = Field(
         default=None,
         serialization_alias="metadata",
+        validation_alias=AliasChoices(
+            "extensions", AliasPath("metadata", "extensions")
+        ),
     )
 
     @field_serializer("extensions")
@@ -68,32 +71,6 @@ class ComponentBuilderNode(CoreComponentBuilderNode):
         if value is None:
             return None
         return {"extensions": value}
-
-
-class DataBinding(CoreDataBinding):
-    """A JSON Pointer path to a value in the data model."""
-
-    def __init__(self, *, path: str, **kwargs: Any) -> None:
-        super().__init__(**{"@path": path, **kwargs})
-
-
-class FunctionCall(CoreFunctionCall):
-    """Invokes a named function, serializing with the v1.0 '@call' wire alias."""
-
-    def __init__(
-        self,
-        *,
-        call: str,
-        args: dict[str, Any] | None = None,
-        catalog_id: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        init_kwargs: dict[str, Any] = {"@call": call, **kwargs}
-        if args is not None:
-            init_kwargs["args"] = args
-        if catalog_id is not None:
-            init_kwargs["catalog_id"] = catalog_id
-        super().__init__(**init_kwargs)
 
 
 # Canonical Protocol Type Aliases
