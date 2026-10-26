@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.tools.tool_context import ToolContext
+from google.genai import types as genai_types
 import pytest
 
 from a2ui.adk import SendA2uiToClientToolset
@@ -258,6 +259,58 @@ async def test_process_llm_request_skips_a_prompt_snippet_already_in_the_instruc
 
     # Only the note on how to call the tool is new.
     assert _appended(llm_request) == [tool._tool_instruction()]
+
+
+@pytest.mark.parametrize(
+    "wrap",
+    [
+        lambda text: genai_types.Content(parts=[genai_types.Part(text=text)]),
+        lambda text: genai_types.Part(text=text),
+        lambda text: ["Role.", genai_types.Part(text=text)],
+    ],
+    ids=["content", "part", "list"],
+)
+@pytest.mark.asyncio
+async def test_process_llm_request_reads_text_from_a_non_string_instruction(wrap):
+    processor = _processor(examples=_turns())
+    tool = _Tool(processor)
+    llm_request = _llm_request()
+    llm_request.config.system_instruction = wrap(processor.prompt_snippet)
+
+    await tool.process_llm_request(
+        tool_context=_tool_context(), llm_request=llm_request
+    )
+
+    assert _appended(llm_request) == [tool._tool_instruction()]
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        None,
+        MagicMock(system_instruction=None),
+        # Parts that hold no text, or a text that is not a string.
+        MagicMock(
+            system_instruction=[None, genai_types.Part(), MagicMock(text=MagicMock())]
+        ),
+    ],
+    ids=["no_config", "no_instruction", "no_text"],
+)
+@pytest.mark.asyncio
+async def test_process_llm_request_adds_the_whole_prompt_without_instruction_text(
+    config,
+):
+    tool = _tool()
+    llm_request = MagicMock()
+    llm_request.config = config
+
+    await tool.process_llm_request(
+        tool_context=_tool_context(), llm_request=llm_request
+    )
+
+    instructions = _appended(llm_request)
+    assert tool._tool_instruction() in instructions
+    assert len(instructions) > 1
 
 
 @pytest.mark.asyncio

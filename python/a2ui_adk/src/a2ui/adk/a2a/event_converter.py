@@ -39,6 +39,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from a2a import types as a2a_types
+from google.adk.a2a.converters import event_converter as adk_event_converter
 from google.adk.a2a.converters import part_converter
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
@@ -99,13 +100,9 @@ class A2uiEventConverter:
         part_converter_func: "GenAIPartToA2APartConverter" = part_converter.convert_genai_part_to_a2a_part,
     ) -> list["A2AEvent"]:
         """Converts an ADK event to A2A events, using the session processor if available."""
-        from google.adk.a2a.converters.event_converter import (
-            convert_event_to_a2a_events,
-        )
-
         processor = invocation_context.session.state.get(self._processor_key)
         if not isinstance(processor, A2uiRequestProcessor):
-            return convert_event_to_a2a_events(
+            return adk_event_converter.convert_event_to_a2a_events(
                 event, invocation_context, task_id, context_id, part_converter_func
             )
 
@@ -124,7 +121,7 @@ class A2uiEventConverter:
             if processor.format.supports_streaming
             else a2ui_part_converter.convert
         )
-        return convert_event_to_a2a_events(
+        return adk_event_converter.convert_event_to_a2a_events(
             event, invocation_context, task_id, context_id, convert_part
         )
 

@@ -385,20 +385,21 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
 
 def _instruction_text(llm_request: LlmRequest) -> str:
-    """Returns the text of the request's system instructions."""
+    """Returns the text of the request's system instructions.
+
+    ADK keeps the instruction as a string, but `GenerateContentConfig` also
+    allows a `Content`, a part or a list of them. Only text is read; anything
+    else is skipped.
+    """
     config = getattr(llm_request, "config", None)
     instruction = getattr(config, "system_instruction", None)
-    if instruction is None:
-        return ""
     if isinstance(instruction, str):
         return instruction
-    parts = getattr(instruction, "parts", None)
-    if parts is None and isinstance(instruction, list):
-        parts = instruction
-    texts: list[str] = []
-    for part in parts or []:
-        if isinstance(part, str):
-            texts.append(part)
-        elif text := getattr(part, "text", None):
-            texts.append(text)
-    return "\n\n".join(texts)
+    parts = instruction if isinstance(instruction, list) else None
+    if parts is None:
+        content_parts = getattr(instruction, "parts", None)
+        parts = content_parts if isinstance(content_parts, list) else [instruction]
+    texts = [
+        part if isinstance(part, str) else getattr(part, "text", None) for part in parts
+    ]
+    return "\n\n".join(text for text in texts if isinstance(text, str) and text)
