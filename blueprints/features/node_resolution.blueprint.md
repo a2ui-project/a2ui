@@ -68,7 +68,7 @@ The layers have separate responsibilities:
 ### **8. Placeholders**
 
 - A partly streamed surface still resolves to a tree: a reference to a component the surface does not currently hold resolves to a placeholder node with state `pending`. When the component arrives, a resolved node replaces the placeholder at the same position.
-- A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats an ancestor's component id at the same data scope resolves to one with state `cyclic`. The resolver dispatches `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` through the surface's queue.
+- A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats an ancestor's component id at the same data scope resolves to one with state `cyclic`. The resolver dispatches `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` on the surface.
 
 ---
 

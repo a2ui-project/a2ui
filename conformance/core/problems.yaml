@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Problem reporting conformance suite: delivery timing (T1 to T10), channel
-# lifetime (X1), and lazy evaluation on unmounted surfaces (L1). See
+# Problem reporting conformance suite: delivery timing (T1 to T6), delivery
+# after deletion (X1), and lazy evaluation on unmounted surfaces (L1). See
 # problems.md for the catalog, steps and assertions.
 #
 # The web_core runner skips these cases by name, and the Swift runner does not
 # load this suite, until each SDK implements problem reporting.
 #
 # Step mappings:
-#   * `await_delivery` waits for the next drain of the problem channel:
-#     `Future<void>.microtask(() {})` in Dart. Each port defines its own.
+#   * `await_delivery` waits one microtask: `Future<void>.microtask(() {})`
+#     in Dart. Each port defines its own.
 #   * `expect_reports` asserts the reports delivered since the start of the
 #     case or the previous `expect_reports` assertion, in delivery order.
 
@@ -53,58 +53,7 @@
         - code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "s"
 
-- name: T2_dispose_defers_delivery
-  description: >-
-    No listener runs before resolver disposal returns when node destruction
-    triggers a problem, and one has run after delivery.
-  protocolVersion: "v0.9"
-  action: report_problems
-  steps:
-    - op: process_messages
-      messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s"
-            catalogId: "problem-delivery-test"
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "t"
-            catalogId: "problem-delivery-test"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Text"
-                text: "ok"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "t"
-            components:
-              - id: "root"
-                component: "Text"
-                text: "ready"
-    - op: construct_resolver
-      surfaceId: "t"
-    - op: construct_resolver
-      surfaceId: "s"
-      expect_reports: []
-    - op: dispose_resolver
-      surfaceId: "s"
-      onDestroyedMessages:
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "t"
-            components:
-              - id: "root"
-                component: "Bogus"
-      expect_reports: []
-    - op: await_delivery
-      expect_reports:
-        - code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "t"
-
-- name: T3_data_write_and_action_defer_delivery
+- name: T2_data_write_and_action_defer_delivery
   description: >-
     No listener runs before a data write or an action invocation returns, and
     one has run after delivery for each.
@@ -171,103 +120,7 @@
         - code: "EXPRESSION_ERROR"
           surfaceId: "s"
 
-- name: T4_update_then_delete_delivers_before_return
-  description: >-
-    On a surface with a mounted resolver, a bad update followed by
-    deleteSurface in one payload delivers before processMessages returns.
-  protocolVersion: "v0.9"
-  action: report_problems
-  steps:
-    - op: process_messages
-      messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s"
-            catalogId: "problem-delivery-test"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Text"
-                text: "ready"
-    - op: construct_resolver
-      surfaceId: "s"
-    - op: await_delivery
-      expect_reports: []
-    - op: process_messages
-      messages:
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Bogus"
-        - version: "v0.9"
-          deleteSurface:
-            surfaceId: "s"
-      expect_reports:
-        - code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
-
-- name: T5_nested_process_messages_in_listener_delivers_after_return
-  description: >-
-    A listener's nested processMessages call delivers its reports after that
-    listener returns, never re-entering a listener while the first call is on
-    the stack.
-  protocolVersion: "v0.9"
-  action: report_problems
-  steps:
-    - op: process_messages
-      messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s"
-            catalogId: "problem-delivery-test"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Text"
-                text: "ready"
-    - op: construct_resolver
-      surfaceId: "s"
-    - op: await_delivery
-      expect_reports: []
-    - op: process_messages
-      messages:
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Bogus"
-      onFirstReportMessages:
-        - version: "v0.9"
-          updateDataModel:
-            surfaceId: "s"
-            path: "/flag"
-            value: true
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Text"
-                text:
-                  call: "maybeFail"
-                  args:
-                    flag:
-                      path: "/flag"
-                  returnType: "string"
-      expect_reports:
-        - code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
-        - code: "EXPRESSION_ERROR"
-          surfaceId: "s"
-
-- name: T6_throwing_listener_does_not_stop_next_item
+- name: T3_throwing_listener_does_not_stop_next_item
   description: >-
     A listener that throws on the first report does not stop delivery to a
     second listener or delivery of the next item.
@@ -311,69 +164,10 @@
           code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "s"
 
-- name: T7_catalog_function_process_messages_during_resolve_defers
-  description: >-
-    A catalog function that calls processMessages during NodeResolver
-    construction delivers after the constructor returns.
-  protocolVersion: "v0.9"
-  action: report_problems
-  steps:
-    - op: process_messages
-      messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s"
-            catalogId: "problem-delivery-test"
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "t"
-            catalogId: "problem-delivery-test"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "t"
-            components:
-              - id: "root"
-                component: "Text"
-                text: "ready"
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "s"
-            components:
-              - id: "root"
-                component: "Column"
-                children: ["a", "b"]
-              - id: "a"
-                component: "Bogus"
-              - id: "b"
-                component: "Text"
-                text:
-                  call: "reenter"
-                  returnType: "string"
-    - op: construct_resolver
-      surfaceId: "t"
-    - op: await_delivery
-      expect_reports: []
-    - op: construct_resolver
-      surfaceId: "s"
-      reenterMessages:
-        - version: "v0.9"
-          updateComponents:
-            surfaceId: "t"
-            components:
-              - id: "root"
-                component: "Bogus"
-      expect_reports: []
-    - op: await_delivery
-      expect_reports:
-        - code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "s"
-        - code: "UNKNOWN_COMPONENT_TYPE"
-          surfaceId: "t"
-
-- name: T8_resolve_and_dispose_at_once_delivers
+- name: T4_resolve_and_dispose_at_once_delivers
   description: >-
     A resolver constructed and disposed in the same turn still delivers its
-    queued reports.
+    reports.
   protocolVersion: "v0.9"
   action: report_problems
   steps:
@@ -398,10 +192,10 @@
         - code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "s"
 
-- name: T9_listener_disposing_resolver_gets_remaining_items
+- name: T5_listener_disposing_resolver_gets_remaining_items
   description: >-
     A listener that disposes the resolver on the first report still receives
-    the remaining queued items.
+    the remaining reports.
   protocolVersion: "v0.9"
   action: report_problems
   disposeResolverOnFirstReport: "s"
@@ -433,10 +227,10 @@
         - code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "s"
 
-- name: T10_errors_and_warnings_arrive_in_discovery_order
+- name: T6_errors_and_warnings_arrive_in_discovery_order
   description: >-
     Surface listeners receive errors and warnings in discovery order (error,
-    warning, error).
+    warning, error), a microtask after the update that found them.
   protocolVersion: "v0.9"
   action: report_problems
   listeners: ["surface"]
@@ -475,6 +269,8 @@
                   path: "/missing"
               - id: "c"
                 component: "OtherBogus"
+      expect_reports: []
+    - op: await_delivery
       expect_reports:
         - listener: "surface"
           kind: "error"
