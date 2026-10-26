@@ -24,33 +24,39 @@ public protocol OpenURLHandler: AnyObject, Sendable {
 
 /// Opens a URL using a registered handler, ensuring it has an `http` or `https` scheme.
 public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable {
-  public let api = FunctionAPI(
-    name: "openUrl",
-    returnType: .void,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "url": { "type": "string" }
-          },
-          "required": ["url"]
-        }
-        """
-    )
-  )
-
+  public let api: FunctionAPI
   public weak var handler: (any OpenURLHandler)?
   public let baseURL: URL?
 
   /// Initializes a new openUrl function.
   ///
   /// - Parameters:
-  ///   - handler: An optional weak reference to a handler that actually opens the URL on the host platform.
+  ///   - handler: An optional weak reference to a handler that opens the URL on the host platform.
   ///   - baseURL: An optional base URL to resolve relative URLs against.
-  public init(handler: (any OpenURLHandler)? = nil, baseURL: URL? = nil) {
+  ///   - requiresUserActivation: Whether this function requires user activation (true in v1.0).
+  public init(
+    handler: (any OpenURLHandler)? = nil,
+    baseURL: URL? = nil,
+    requiresUserActivation: Bool = false
+  ) {
     self.handler = handler
     self.baseURL = baseURL
+    self.api = FunctionAPI(
+      name: "openUrl",
+      returnType: .void,
+      schema: try! Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "url": { "type": "string" }
+            },
+            "required": ["url"]
+          }
+          """
+      ),
+      requiresUserActivation: requiresUserActivation
+    )
   }
 
   /// Evaluates the openUrl function by resolving the URL and invoking the handler.

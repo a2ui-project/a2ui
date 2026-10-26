@@ -1,0 +1,25 @@
+{
+  "catalogId": "nested_types",
+  "components": {
+    "ComplexCard": {
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "payload": {
+          "type": "object"
+        }
+      },
+      "required": ["tags"]
+    }
+  }
+}

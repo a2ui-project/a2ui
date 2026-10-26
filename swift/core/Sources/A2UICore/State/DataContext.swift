@@ -22,7 +22,8 @@ import OrderedJSON
 public final class DataContext {
   public let path: String
   public let dataModel: DataModel
-  public let protocolVersion: String?
+  public let protocolVersion: A2UIProtocolVersion?
+  public let index: Int?
 
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
@@ -31,22 +32,22 @@ public final class DataContext {
     dataModel: DataModel,
     path: String,
     functionHandler: FunctionHandler,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil,
+    index: Int? = nil
   ) {
     self.dataModel = dataModel
     self.path = path
     self.functionHandler = functionHandler
     self.protocolVersion = protocolVersion
+    self.index = index
   }
 
-  public var isV10: Bool {
-    guard let version = protocolVersion else { return false }
-    let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
-    guard let major = Int(core.split(separator: ".").first ?? "") else { return false }
-    return major >= 1
+  public var atLeastV10: Bool {
+    protocolVersion?.isAtLeastV10 ?? false
   }
 
-  public static func validateReservedDirectives<S: Sequence>(_ keys: S) throws where S.Element == String {
+  public nonisolated static func validateReservedDirectives<S: Sequence>(_ keys: S) throws
+  where S.Element == String {
     for key in keys {
       if key.hasPrefix("@") && !key.hasPrefix("@@") && key != "@path" && key != "@call" {
         throw A2UIValidationError(
@@ -70,7 +71,7 @@ public final class DataContext {
     dataModel.set(absPath, value: value)
   }
 
-  public func nested(relativePath: String) -> DataContext? {
+  public func nested(relativePath: String, index: Int? = nil) -> DataContext? {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
 
@@ -78,81 +79,168 @@ public final class DataContext {
       dataModel: dataModel,
       path: absPath,
       functionHandler: handler,
-      protocolVersion: protocolVersion
+      protocolVersion: protocolVersion,
+      index: index ?? self.index
     )
+  }
+
+  public nonisolated static func unescapeObjectKey(_ key: String) -> String {
+    key.hasPrefix("@@") ? String(key.dropFirst()) : key
   }
 
   /// Resolves a dynamic value to its current literal `JSONValue`.
   ///
-  /// Only a top-level `path` or `call` object is a binding; any other value,
-  /// including containers with nested `path`/`call` keys, passes through
-  /// unchanged.
+  /// Recursively evaluates data bindings (`path` / `@path`), function calls
+  /// (`call` / `@call`), arrays, and nested plain objects.
   public func resolveDynamicValue(_ value: JSONValue) -> JSONValue {
     switch value {
+    case .array(let arr):
+      return .array(arr.map { resolveDynamicValue($0) })
     case .object(let dict):
-      if isV10 {
-        if let pathStr = dict["@path"]?.stringValue {
-          let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
-          return dataModel.get(absPath) ?? .null
-        } else if let callName = dict["@call"]?.stringValue {
-          let catalogID = dict["catalogId"]?.stringValue
-          guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
-            return .null
-          }
+      let allowAtPrefix = protocolVersion?.isAtLeastV10 ?? true
+      let allowLegacyDirectives = !atLeastV10
 
-          var resolvedArgs: [String: JSONValue] = [:]
-          if let argsObj = dict["args"]?.dictionaryValue {
-            for (argKey, argVal) in argsObj {
-              resolvedArgs[argKey] = resolveDynamicValue(argVal)
-            }
-          }
-
-          do {
-            return try function.evaluate(arguments: resolvedArgs, context: self)
-          } catch {
-            return .null
-          }
-        }
-
-        if dict.keys.contains(where: { $0.hasPrefix("@@") }) {
-          var resultDict: OrderedDictionary<String, JSONValue> = [:]
-          for (k, v) in dict {
-            let unescapedKey = k.hasPrefix("@@") ? String(k.dropFirst()) : k
-            resultDict[unescapedKey] = v
-          }
-          return .object(resultDict)
-        }
-
-        return value
-      } else {
-        if let pathStr = dict["path"]?.stringValue, dict["componentId"] == nil {
-          let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
-          return dataModel.get(absPath) ?? .null
-        } else if let callName = dict["call"]?.stringValue {
-          let catalogID = dict["catalogId"]?.stringValue
-          guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
-            return .null
-          }
-
-          var resolvedArgs: [String: JSONValue] = [:]
-          if let argsObj = dict["args"]?.dictionaryValue {
-            for (argKey, argVal) in argsObj {
-              resolvedArgs[argKey] = resolveDynamicValue(argVal)
-            }
-          }
-
-          do {
-            return try function.evaluate(arguments: resolvedArgs, context: self)
-          } catch {
-            return .null
-          }
-        }
-
-        return value
+      if allowAtPrefix, let pathStr = dict["@path"]?.stringValue {
+        let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
+        return dataModel.get(absPath) ?? .null
+      } else if allowLegacyDirectives,
+        let pathStr = dict["path"]?.stringValue,
+        dict["componentId"] == nil
+      {
+        let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
+        return dataModel.get(absPath) ?? .null
+      } else if allowAtPrefix, let callName = dict["@call"]?.stringValue {
+        return evaluateFunctionCall(name: callName, dict: dict)
+      } else if allowLegacyDirectives, let callName = dict["call"]?.stringValue {
+        return evaluateFunctionCall(name: callName, dict: dict)
       }
+
+      var resultDict: OrderedDictionary<String, JSONValue> = [:]
+      for (k, v) in dict {
+        let unescapedKey = allowAtPrefix ? Self.unescapeObjectKey(k) : k
+        resultDict[unescapedKey] = resolveDynamicValue(v)
+      }
+      return .object(resultDict)
     default:
       return value
     }
+  }
+
+  private func evaluateFunctionCall(
+    name callName: String,
+    dict: OrderedDictionary<String, JSONValue>
+  ) -> JSONValue {
+    let function: (any FunctionImplementation)?
+    if atLeastV10 {
+      guard let resolved = resolveV10Function(name: callName, dict: dict) else {
+        return .null
+      }
+      function = resolved
+    } else {
+      let catalogID = dict["catalogId"]?.stringValue
+      if callName == "@index", let catalogID {
+        functionHandler?.handleFunctionError(
+          Self.systemFunctionNamesCatalogError(callName, catalogID: catalogID),
+          functionName: callName
+        )
+        return .null
+      }
+      function =
+        functionHandler?.function(named: callName, catalogID: catalogID)
+        ?? (callName == "@index" ? IndexFunction() : nil)
+    }
+    guard let function else {
+      functionHandler?.handleFunctionError(
+        FunctionError.functionNotFound(callName),
+        functionName: callName
+      )
+      return .null
+    }
+
+    var resolvedArgs: [String: JSONValue] = [:]
+    if let argsObj = dict["args"]?.dictionaryValue {
+      for (argKey, argVal) in argsObj {
+        resolvedArgs[argKey] = resolveDynamicValue(argVal)
+      }
+    }
+
+    do {
+      return try function.evaluate(arguments: resolvedArgs, context: self)
+    } catch {
+      functionHandler?.handleFunctionError(error, functionName: callName)
+      return .null
+    }
+  }
+
+  /// Looks up the function a v1.0 call runs, reporting any failure to the function handler.
+  ///
+  /// A reserved `@` system function belongs to no catalog: a call to one that carries a
+  /// `catalogId` key, whatever its value, is a malformed expression. Any other call runs in the
+  /// catalog it names, else in the default catalog; a non-string `catalogId` or a catalog that
+  /// can't be resolved is reported as a catalog error, not looked up in the default catalog.
+  ///
+  /// - Returns: The function, or `nil` after reporting an error. A function missing from its
+  ///   resolved catalog is reported as `FunctionError.functionNotFound`.
+  private func resolveV10Function(
+    name callName: String,
+    dict: OrderedDictionary<String, JSONValue>
+  ) -> (any FunctionImplementation)? {
+    let rawCatalogID = dict["catalogId"]
+    let catalogIDPath = CatalogResolutionErrors.callCatalogIDPath(functionName: callName)
+    let failure: any Error
+    if callName.hasPrefix("@") {
+      if let rawCatalogID {
+        failure = Self.systemFunctionNamesCatalogError(
+          callName,
+          catalogID: rawCatalogID.stringValue ?? Self.jsonText(rawCatalogID)
+        )
+      } else if callName == "@index" {
+        return functionHandler?.function(named: callName, catalogID: nil) ?? IndexFunction()
+      } else {
+        failure = FunctionError.functionNotFound(callName)
+      }
+    } else if let rawCatalogID, rawCatalogID.stringValue == nil {
+      failure = CatalogResolutionErrors.catalogNotFound(
+        Self.jsonText(rawCatalogID),
+        path: catalogIDPath,
+        code: CatalogResolutionErrors.runtimeCatalogErrorCode
+      )
+    } else {
+      let catalogID = rawCatalogID?.stringValue
+      do {
+        try functionHandler?.validateFunctionCatalog(id: catalogID, functionName: callName)
+      } catch {
+        functionHandler?.handleFunctionError(error, functionName: callName)
+        return nil
+      }
+      if let function = functionHandler?.function(named: callName, catalogID: catalogID) {
+        return function
+      }
+      failure = FunctionError.functionNotFound(callName)
+    }
+    functionHandler?.handleFunctionError(failure, functionName: callName)
+    return nil
+  }
+
+  /// The error reported for a call to a reserved `@` system function that names a catalog.
+  private static func systemFunctionNamesCatalogError(
+    _ callName: String,
+    catalogID: String
+  ) -> FunctionError {
+    FunctionError.invalidArgumentType(
+      expected: "no catalogId on system function \(callName)",
+      actual: catalogID
+    )
+  }
+
+  /// Returns the JSON text of a value, for error messages.
+  private static func jsonText(_ value: JSONValue) -> String {
+    guard let data = try? JSONEncoder().encode(value),
+      let text = String(data: data, encoding: .utf8)
+    else {
+      return String(describing: value)
+    }
+    return text
   }
 
   /// Resolves an action payload by evaluating dynamic values in its context and userMessage.
@@ -205,4 +293,3 @@ public final class DataContext {
     }
   }
 }
-

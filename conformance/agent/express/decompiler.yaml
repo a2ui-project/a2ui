@@ -16,9 +16,12 @@
 #
 # `decompile` is the inverse of `compile`. It exists so a prompt example can be
 # authored as messages and shown to a model in the notation the model is being
-# asked to produce. Every case below recompiles its own output and expects the
-# messages it started from, so a format that cannot round-trip an envelope fails
-# here rather than quietly teaching a model a spelling its own compiler rejects.
+# asked to produce. Every case below recompiles its own output and expects
+# either the exact messages it started from (`expect_round_trip: true`) or the
+# canonical merged/root-anchored messages the compiler produces for that
+# notation (`expect_recompiled`), so a format that cannot round-trip an envelope
+# fails here rather than quietly teaching a model a spelling its own compiler
+# rejects.
 #
 # What the notation means is fixed by `agent/express/compiler.yaml`, and the
 # round trip in every case below is checked against it. Two rules belong to this
@@ -30,6 +33,10 @@
 # - A data model of nested maps writes out as one assignment per leaf path,
 #   because that is the only form the compiler reassembles into the same
 #   structure.
+# - A number is written the way ECMAScript `Number.prototype.toString` writes
+#   it: plain decimal for 1e-6 <= |v| < 1e21, otherwise `<digits>e-7` or
+#   `<digits>e+21` with no zero padding in the exponent. An integral double may
+#   be written `3` or `3.0`; the compiler reads both as the same value.
 #
 # A case asserts fragments through `expect_contains` rather than the whole
 # output, since the exact spelling is the implementation's as long as it
@@ -44,8 +51,13 @@
 # own notation.
 #
 # The catalogs under test live in `args`, and every case here is written against
-# v1.0. A case states no version of its own: the version it runs under is the
-# one its catalog document declares.
+# v1.0 except `test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable`,
+# which uses a v0.9 catalog because the behavior it verifies applies only before v1.0.
+# A case states no version of its own: the version it runs under is the one its
+# catalog document declares.
+
+# A round trip checks the recompiled block on its own, as `validate_payload`
+# does: a surface that the block updates without creating is assumed to exist.
 
 - name: test_decompile_express_components
   description: A createSurface writes back out as the surface line and the component assignments it came from.
@@ -70,6 +82,78 @@
     - "root = Card(body)"
     - 'body = Text("Hello")'
   expect_round_trip: true
+
+- name: test_decompile_express_unicode_identifier_round_trips
+  description: Component ids that are UAX 31 Unicode identifiers are written as bare variable names and round-trip.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["größe", "名前"]
+          - id: "größe"
+            component: "Text"
+            text: "Size"
+          - id: "名前"
+            component: "Text"
+            text: "Name"
+  expect_contains:
+    - "größe = Text("
+    - "名前 = Text("
+    - "root = Column([größe, 名前])"
+  expect_round_trip: true
+
+- name: test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable
+  description: Before v1.0, a component id that is not a UAX 31 identifier gets a derived variable name and an explicit id= argument.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+  messages:
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "header"
+            component: "Card"
+            child: "title-heading"
+          - id: "title-heading"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - 'surface("s1")'
+    - "header = Card(title_heading)"
+    - 'title_heading = Text("Hello", id="title-heading")'
+  expect_round_trip: true
+
+- name: test_decompile_express_non_identifier_id_from_v1_0_is_a_validation_error
+  description: From v1.0, a component id that is not a UAX 31 identifier is rejected as a validation error rather than derived.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "title-heading"
+          - id: "title-heading"
+            component: "Text"
+            text: "Hello"
+  expect_error:
+    category: "ValidationError"
+    message: "UAX #31"
 
 - name: test_decompile_express_data_model
   description: An initial data model writes back out as the data path assignments that would produce it.
@@ -215,18 +299,18 @@
   action: decompile
   args:
     format: express
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
   messages:
     - version: "v1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
-          catalogId: "conformance/simplified"
-          "@call": "openUrl"
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
           args:
-            url: "https://example.com"
+            message: "Saved"
   expect_contains:
-    - 'openUrl("https://example.com")'
+    - 'notify("Saved")'
   expect_round_trip: true
 
 - name: test_decompile_express_quotes_a_map_key_that_is_not_an_identifier
@@ -294,4 +378,556 @@
             caption: "Rainfall"
   expect_contains:
     - 'root = Chart([1, 2, 3], "Rainfall")'
+  expect_round_trip: true
+
+- name: test_decompile_express_doubles_use_ecmascript_notation
+  description: Doubles write out as ECMAScript's Number.prototype.toString spells them, so a prompt example reads the same whichever SDK produced it. The two exponent values sit outside the plain-decimal range and carry a signed exponent with no zero padding; the other two sit inside it and are written in full. A decompiler that used its language's default formatting would write `1e-07` or `1.5e21` for one of them.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [2.5e-7, 1.5e+21, 0.000001, 123456.789]
+            caption: "Scale"
+  expect_contains:
+    - "[2.5e-7, 1.5e+21, 0.000001, 123456.789]"
+  expect_round_trip: true
+
+- name: test_decompile_express_integers_exact_to_2_pow_53
+  description: Integers up to ±(2^53−1) write out as their digits, with no exponent and no fraction, and recompile to the same integers. Beyond that magnitude a double cannot hold them and the spelling is not pinned.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [9007199254740991, -9007199254740991]
+            caption: "Limits"
+  expect_contains:
+    - "[9007199254740991, -9007199254740991]"
+  expect_round_trip: true
+
+- name: test_decompile_express_integral_double_round_trips
+  description: An integral double such as 3.0 may be written `3` or `3.0`; both recompile to the same value, so the case pins only the prefix the two spellings share. A decompiler that wrote `3e0` or threw for the value would fail the round trip.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Gauge"
+            value: 3.0
+  expect_contains:
+    - "root = Gauge(3"
+  expect_round_trip: true
+
+- name: test_decompile_express_two_surfaces_in_two_catalogs
+  description: Two surfaces built from two active catalogs write back out without surface-level catalog arguments when component names are unique across the catalogs, and recompiling restores both surfaces with per-component catalogIds.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Summary"
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s2"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption: "Q1"
+  expect_contains:
+    - 'surface("s1")'
+    - 'root = Text("Summary")'
+    - 'surface("s2")'
+    - 'root = Chart([1, 2], "Q1")'
+  expect_round_trip: true
+
+- name: test_decompile_express_raw_triple_quoted_multiline_string
+  description: A string containing both backslashes and a newline writes out as a raw triple-quoted string (r"""..."""), preserving both the literal backslashes and the line break without escaping.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Path: C:\\Program Files\\App\nLine 2"
+  expect_contains:
+    - 'root = Text(r"""Path: C:\Program Files\App'
+    - 'Line 2""")'
+  expect_round_trip: true
+
+- name: test_decompile_express_template_with_absolute_path
+  description: A child list template with an absolute path ("/items") writes out as _template($/items, <componentId>) and round-trips back to the same template structure.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              path: "/items"
+              componentId: "itemTmpl"
+          - id: "itemTmpl"
+            component: "Text"
+            text:
+              "@path": "label"
+  expect_contains:
+    - "root = Column(_template($/items, itemTmpl))"
+    - "itemTmpl = Text($label)"
+  expect_round_trip: true
+
+- name: test_decompile_express_template_with_relative_path
+  description: A child list template with a relative path ("items") writes out as _template($items, <componentId>) without a leading slash, and a child bound to an empty path ("") writes out as bare $.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              path: "items"
+              componentId: "itemTmpl"
+          - id: "itemTmpl"
+            component: "Text"
+            text:
+              "@path": ""
+  expect_contains:
+    - "root = Column(_template($items, itemTmpl))"
+    - "itemTmpl = Text($)"
+  expect_round_trip: true
+
+- name: test_decompile_express_event_action_without_context
+  description: An event action with no context map writes out as Event("<name>") with a single argument.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "bText"
+            action:
+              event:
+                name: "click"
+          - id: "bText"
+            component: "Text"
+            text: "Click me"
+  expect_contains:
+    - 'Event("click")'
+  expect_round_trip: true
+
+- name: test_decompile_express_event_action_with_context
+  description: An event action carrying a context map of identifier keys writes out as a map literal beside the event name, with string, boolean, and number entries formatted as Express literals.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "bText"
+            action:
+              event:
+                name: "save"
+                context:
+                  userId: "u123"
+                  confirmed: true
+                  count: 5
+          - id: "bText"
+            component: "Text"
+            text: "Save"
+  expect_contains:
+    - 'Event("save", {userId: "u123", confirmed: true, count: 5})'
+  expect_round_trip: true
+
+- name: test_decompile_express_event_action_with_nested_context
+  description: A nested map inside an event's context writes out as a nested Express map literal rather than being flattened into path assignments.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "bText"
+            action:
+              event:
+                name: "checkout"
+                context:
+                  cart:
+                    itemId: "i1"
+                    qty: 2
+          - id: "bText"
+            component: "Text"
+            text: "Checkout"
+  expect_contains:
+    - 'Event("checkout", {cart: {itemId: "i1", qty: 2}})'
+  expect_round_trip: true
+
+- name: test_decompile_express_check_with_default_message_omits_parens
+  description: A check rule whose value matches the component's bound value, with no extra function arguments and the default failure message, writes out in the bare ?fn shorthand without parentheses.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Name"
+            value:
+              "@path": "/name"
+            checks:
+              - condition:
+                  "@call": "required"
+                  args:
+                    value:
+                      "@path": "/name"
+                message: "Required check failed"
+  expect_contains:
+    - 'root = TextField("Name", $/name, ?required)'
+  expect_round_trip: true
+
+- name: test_decompile_express_check_with_arg_omits_default_message
+  description: A check rule carrying a function argument and the default failure message writes out as ?fn(arg), omitting both the implicit bound value and the default message string.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Zip"
+            value:
+              "@path": "/zip"
+            checks:
+              - condition:
+                  "@call": "regex"
+                  args:
+                    pattern: "^[0-9]{5}$"
+                    value:
+                      "@path": "/zip"
+                message: "Regex check failed"
+  expect_contains:
+    - 'root = TextField("Zip", $/zip, ?regex("^[0-9]{5}$"))'
+  expect_round_trip: true
+
+- name: test_decompile_express_check_with_custom_message
+  description: A check rule carrying a custom failure message writes out with the message as the trailing string literal in ?fn(..., "message").
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Zip"
+            value:
+              "@path": "/zip"
+            checks:
+              - condition:
+                  "@call": "regex"
+                  args:
+                    pattern: "^[0-9]{5}$"
+                    value:
+                      "@path": "/zip"
+                message: "Must be 5 digits"
+  expect_contains:
+    - 'root = TextField("Zip", $/zip, ?regex("^[0-9]{5}$", "Must be 5 digits"))'
+  expect_round_trip: true
+
+- name: test_decompile_express_several_checks_in_one_list
+  description: Multiple check rules on a single component write out as a bracketed list [?check1, ?check2(...)].
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Zip"
+            value:
+              "@path": "/zip"
+            checks:
+              - condition:
+                  "@call": "required"
+                  args:
+                    value:
+                      "@path": "/zip"
+                message: "Required check failed"
+              - condition:
+                  "@call": "regex"
+                  args:
+                    pattern: "^[0-9]{5}$"
+                    value:
+                      "@path": "/zip"
+                message: "Must be 5 digits"
+  expect_contains:
+    - 'root = TextField("Zip", $/zip, [?required, ?regex("^[0-9]{5}$", "Must be 5 digits")])'
+  expect_round_trip: true
+
+- name: test_decompile_express_check_without_bound_component_value_writes_explicit_path
+  description: When a component has no bound value property matching the check's value argument, the check rule writes its value path explicitly so it survives a round trip.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Name"
+            checks:
+              - condition:
+                  "@call": "required"
+                  args:
+                    value:
+                      "@path": "/name"
+                message: "Required check failed"
+  expect_contains:
+    - 'root = TextField("Name", ?required($/name))'
+  expect_round_trip: true
+
+- name: test_decompile_express_merges_messages_for_same_surface
+  description: Separate createSurface and updateDataModel messages targeting the same surfaceId merge under a single surface(...) declaration when decompiled.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "First"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        value:
+          status: "loaded"
+  expect_contains:
+    - 'surface("s1")'
+    - '$/status = "loaded"'
+    - 'root = Text("First")'
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "First"
+        dataModel:
+          status: "loaded"
+
+- name: test_decompile_express_update_data_model_scalar_at_path
+  description: An updateDataModel setting a scalar value at a non-root path ("/title") writes out as a single path assignment ($/title = "x").
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/title"
+        value: "x"
+  expect_contains:
+    - 'surface("s1")'
+    - '$/title = "x"'
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/"
+        value:
+          title: "x"
+
+- name: test_decompile_express_update_data_model_map_at_path
+  description: An updateDataModel setting a map at a non-root path ("/user") prefixes each leaf assignment with that path ($/user/name = ...).
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/user"
+        value:
+          name: "Ada"
+          city: "London"
+  expect_contains:
+    - 'surface("s1")'
+    - '$/user/city = "London"'
+    - '$/user/name = "Ada"'
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/"
+        value:
+          user:
+            city: "London"
+            name: "Ada"
+
+- name: test_decompile_express_map_with_keys_named_like_express_constructs
+  description: In v1.0 only `@path` marks a data binding and `@call` a function call, so an object whose keys are plain `path` or `call`, or whose `event` or `functionCall` is not an object, is data and writes back out as a map literal.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              path: "p"
+              call: "c"
+              variable: "m"
+              event: "e"
+              functionCall: "f"
+              count: 6
+  expect_contains:
+    - 'root = Probe({path: "p", call: "c", variable: "m", event: "e", functionCall: "f", count: 6})'
+  expect_round_trip: true
+
+- name: test_decompile_express_map_with_plain_call_and_args_keys
+  description: In v1.0 only `@call` marks a function call, so an object with plain `call` and `args` keys is data, even when `args` is an object.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              call: "fn"
+              args:
+                x: 1
+  expect_contains:
+    - 'root = Probe({call: "fn", args: {x: 1}})'
+  expect_round_trip: true
+
+- name: test_decompile_express_map_with_a_binding_key_beside_other_keys
+  description: A data binding has no key but `@path`, so an object with `@path` beside other keys is data and keeps every key.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              "@path": "/a"
+              other: 1
+  expect_contains:
+    - 'root = Probe({"@path": "/a", other: 1})'
   expect_round_trip: true

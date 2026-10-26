@@ -28,15 +28,12 @@ from a2a.types import (
 )
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.a2a import parse_response_to_parts, stream_response_to_parts
-from a2ui.parser import parse_response
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    CatalogConfig,
-    VERSION_0_9,
-    remove_strict_validation,
-)
-from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.parser import A2uiPart
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import to_version_number
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
@@ -56,7 +53,7 @@ from tools import get_restaurants
 logger = logging.getLogger(__name__)
 
 # A2UI version supported by this agent. Only v0.9 is supported.
-A2UI_VERSION = VERSION_0_9
+A2UI_VERSION = ProtocolVersion.V0_9
 
 # Name of the component catalog this agent advertises and validates against.
 COMPOSITE_CATALOG_NAME = "composite"
@@ -82,9 +79,13 @@ class A2uiDemoAgent:
         self._user_id = "remote_agent"
         self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._schema_manager: A2uiSchemaManager = self._build_schema_manager()
+        self._generator: A2uiGenerator = self._build_generator()
+        self._processor: A2uiRequestProcessor = self._build_processor(self._generator)
         self._ui_runner: Runner = self._build_runner(
-            self._build_llm_agent(self._schema_manager)
+            self._build_llm_agent(
+                self._processor,
+                examples_path=f"examples/{to_version_number(A2UI_VERSION)}",
+            )
         )
         self._parsers = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
@@ -95,24 +96,31 @@ class A2uiDemoAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def _build_schema_manager(self) -> A2uiSchemaManager:
-        return A2uiSchemaManager(
-            version=A2UI_VERSION,
-            catalogs=[
-                CatalogConfig.from_path(
-                    name=COMPOSITE_CATALOG_NAME,
-                    catalog_path=COMPOSITE_CATALOG_PATH,
-                    examples_path=f"examples/{A2UI_VERSION}",
-                )
-            ],
-            schema_modifiers=[remove_strict_validation],
+    def _build_generator(self) -> A2uiGenerator:
+        config = CatalogConfig.from_path(
+            catalog_path=COMPOSITE_CATALOG_PATH,
+            protocol_version=A2UI_VERSION,
         )
+        return A2uiGenerator(
+            [config],
+            inference_format_factory=DirectJsonFormatFactory(),
+        )
+
+    def _build_processor(self, generator: A2uiGenerator) -> A2uiRequestProcessor:
+        return generator.create_processor({
+            f"v{to_version_number(A2UI_VERSION)}": {
+                "supportedCatalogIds": [
+                    c.transformed_catalog.catalog_id for c in generator.catalogs
+                ]
+            }
+        })
 
     def _build_agent_card(self) -> AgentCard:
         ext = get_a2ui_agent_extension(
             A2UI_VERSION,
-            self._schema_manager.accepts_inline_catalogs,
-            self._schema_manager.supported_catalog_ids,
+            supported_catalog_ids=[
+                c.catalog_id for c in self._processor.active_catalogs
+            ],
         )
 
         capabilities = AgentCapabilities(
@@ -180,23 +188,30 @@ class A2uiDemoAgent:
         return "Building an A2UI demo for you..."
 
     def _build_llm_agent(
-        self, schema_manager: A2uiSchemaManager | None = None
+        self,
+        processor: A2uiRequestProcessor | None = None,
+        examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the A2UI demo agent."""
+        from a2ui.utils import load_examples
+
         model_env = os.getenv("MODEL") or "gemini-2.5-flash"
         model_name = model_env.split("/")[-1]
 
-        instruction = (
-            schema_manager.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=True,
-                include_examples=True,
-                validate_examples=True,
+        if processor:
+            prompt_parts = [
+                ROLE_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                processor.prompt_snippet,
+            ]
+            examples = load_examples(
+                processor.active_catalogs, examples_path, validate=True
             )
-            if schema_manager
-            else get_text_prompt()
-        )
+            if examples:
+                prompt_parts.append(f"### Examples:\n{examples}")
+            instruction = "\n\n".join(prompt_parts)
+        else:
+            instruction = get_text_prompt()
 
         return LlmAgent(
             model=Gemini(model=model_name),
@@ -224,13 +239,13 @@ class A2uiDemoAgent:
         # Determine which runner to use based on whether the a2ui extension is active.
         if ui_version:
             runner = self._ui_runner
-            schema_manager = self._schema_manager
+            processor = self._processor
             selected_catalog = (
-                schema_manager.get_selected_catalog() if schema_manager else None
+                processor.active_catalogs[0] if processor.active_catalogs else None
             )
         else:
             runner = self._text_runner
-            schema_manager = None
+            processor = None
             selected_catalog = None
 
         session = await runner.session_service.get_session(
@@ -254,7 +269,9 @@ class A2uiDemoAgent:
         current_query_text = query
 
         # Ensure schema was loaded
-        if ui_version and (not selected_catalog or not selected_catalog.catalog_schema):
+        if ui_version and (
+            not selected_catalog or not selected_catalog.validation_schema
+        ):
             logger.error(
                 "--- A2uiDemoAgent.stream: A2UI_SCHEMA is not loaded. "
                 "Cannot perform UI validation. ---"
@@ -319,15 +336,11 @@ class A2uiDemoAgent:
             full_content_list = []
             parts_streamed = False
 
-            if selected_catalog:
-                from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
-
+            if processor and selected_catalog:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = DirectJsonStreamParser(
-                        catalog=selected_catalog
-                    )
+                    self._parsers[session_id] = processor.create_parser()
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
 
@@ -353,29 +366,17 @@ class A2uiDemoAgent:
             is_valid = False
             error_message = ""
 
-            if ui_version:
+            if ui_version and processor:
                 logger.info(
                     "--- A2uiDemoAgent.stream: Validating UI response (Attempt"
                     f" {attempt})... ---"
                 )
                 try:
-                    response_parts = parse_response(final_response_content)
+                    response_parts = processor.parse_response(final_response_content)
 
                     for part in response_parts:
-                        if not part.a2ui_json:
+                        if not isinstance(part, A2uiPart):
                             continue
-
-                        parsed_json_data = part.a2ui_json
-
-                        # --- Validation Steps ---
-                        # Check if it validates against the A2UI_SCHEMA
-                        # This will raise jsonschema.exceptions.ValidationError if it fails
-                        logger.info(
-                            "--- A2uiDemoAgent.stream: Validating against"
-                            " A2UI_SCHEMA... ---"
-                        )
-                        selected_catalog.validate_components(parsed_json_data)
-                        # --- End Validation Steps ---
 
                         logger.info(
                             "--- A2uiDemoAgent.stream: UI JSON successfully parsed AND"

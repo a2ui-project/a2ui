@@ -16,26 +16,33 @@ import OrderedJSON
 
 /// A message containing the updated set of component declarations for an
 /// active surface.
-public struct UpdateComponentsMessage: Codable, Sendable, Equatable {
+public struct UpdateComponentsMessage: Codable, Sendable, Equatable, ProtocolVersioned {
   public let surfaceID: String
   public let components: [[String: JSONValue]]
+  public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
     case surfaceID = "surfaceId"
     case components
   }
 
-  public init(surfaceID: String, components: [[String: JSONValue]]) {
+  public init(
+    surfaceID: String,
+    components: [[String: JSONValue]],
+    version: A2UIProtocolVersion
+  ) {
     self.surfaceID = surfaceID
     self.components = components
+    self.version = version
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     surfaceID = try container.decode(String.self, forKey: .surfaceID)
     components = try container.decode(
       [[String: JSONValue]].self,
       forKey: .components
     )
+    self.version = version
   }
 }

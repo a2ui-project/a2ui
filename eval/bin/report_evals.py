@@ -50,6 +50,35 @@ def extract_accuracy(log_data: dict[str, Any]) -> float:
     return float(accuracy)
 
 
+def extract_run_labels(log_data: dict[str, Any]) -> dict[str, str | None]:
+    """Extracts the SDK, protocol version and strategy of an eval log.
+
+    The values come from the task metadata, falling back to the task arguments.
+    Logs written before multi-SDK support have no SDK entry and ran on Python.
+
+    Args:
+        log_data: Dictionary containing parsed evaluation log data.
+
+    Returns:
+        A dictionary with 'sdk', 'version' and 'strategy' keys. A value is None
+        when the log does not record it.
+    """
+    eval_spec = log_data.get("eval", {}) or {}
+    task_args = eval_spec.get("task_args", {}) or {}
+    metadata = eval_spec.get("metadata", {}) or {}
+    return {
+        "sdk": metadata.get("sdk") or task_args.get("sdk") or "python",
+        "version": metadata.get("version"),
+        "strategy": metadata.get("strategy") or task_args.get("strategy"),
+    }
+
+
+def format_run_label(log_data: dict[str, Any]) -> str:
+    """Formats a short label such as 'sdk=ts, version=1.0, strategy=direct'."""
+    labels = extract_run_labels(log_data)
+    return ", ".join(f"{key}={value}" for key, value in labels.items() if value)
+
+
 def print_results_summary(log_data: dict[str, Any]) -> None:
     """Prints a summary of the evaluation results for each sample grouped by dataset.
 
@@ -58,6 +87,7 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
     """
     samples = log_data.get("samples", [])
     print("\n=== Evaluation Results Summary ===")
+    print(f"Run: {format_run_label(log_data)}")
 
     # Group by dataset
     datasets: dict[str, list[dict[str, Any]]] = {}
@@ -158,12 +188,18 @@ def generate_markdown_summary(
     eval_spec = log_data.get("eval", {}) or {}
     task_name = eval_spec.get("task", "Unknown Task")
     model_name = eval_spec.get("model", "Unknown Model")
+    labels = extract_run_labels(log_data)
 
     status_str = "PASS" if accuracy_percentage >= threshold else "FAIL"
 
     lines = []
-    lines.append(f"### Evaluation Summary: {task_name}")
+    lines.append(f"### Evaluation Summary: {task_name} ({format_run_label(log_data)})")
     lines.append(f"- **Status**: {status_str}")
+    lines.append(f"- **SDK**: `{labels['sdk']}`")
+    if labels["version"]:
+        lines.append(f"- **Protocol Version**: `{labels['version']}`")
+    if labels["strategy"]:
+        lines.append(f"- **Strategy**: `{labels['strategy']}`")
     lines.append(f"- **Model**: `{model_name}`")
     lines.append(
         f"- **Pass Percentage**: `{accuracy_percentage:.2f}%` (Threshold:"

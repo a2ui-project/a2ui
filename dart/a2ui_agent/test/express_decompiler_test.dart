@@ -116,7 +116,7 @@ void main() {
                     'value': {'path': '/zip'},
                   },
                 },
-                'message': 'Required check failed.',
+                'message': 'Required check failed',
               },
               {
                 'condition': {
@@ -152,7 +152,7 @@ void main() {
                     'value': {'path': '/password'},
                   },
                 },
-                'message': 'Required check failed.',
+                'message': 'Required check failed',
               },
             ],
           },
@@ -178,7 +178,7 @@ void main() {
           },
         ]),
       ]);
-      expect(written, contains('[?isOnline("Offline")]'));
+      expect(written, contains('?isOnline("Offline")'));
     });
 
     test('a call stating its return type as the map it compiles from', () {
@@ -261,6 +261,33 @@ void main() {
       expect(written, contains('surface("g", "${custom.id}")'));
     });
 
+    group('a double the way ECMAScript Number.prototype.toString does', () {
+      /// What a `Gauge` with [value] is written as, after a round trip.
+      String gauge(double value) => roundTrip([
+        create('g', custom.id),
+        components('g', [
+          {'id': 'root', 'component': 'Gauge', 'value': value},
+        ]),
+      ]);
+
+      // Plain decimal for 1e-6 <= |v| < 1e21, exponent form otherwise, with
+      // `.0` kept on integral doubles.
+      final cases = <double, String>{
+        1e-7: '1e-7',
+        0.000015: '0.000015',
+        1e16: '10000000000000000.0',
+        1e21: '1e+21',
+        1.5e300: '1.5e+300',
+        3.0: '3.0',
+        -0.0: '-0.0',
+      };
+      for (final MapEntry<double, String> entry in cases.entries) {
+        test(entry.value, () {
+          expect(gauge(entry.key), contains('root = Gauge(${entry.value})'));
+        });
+      }
+    });
+
     test('an empty data model', () {
       roundTrip([
         {
@@ -285,21 +312,59 @@ void main() {
       ]);
       expect(written.split('\n\n'), hasLength(2));
     });
+
+    test('non-identifier and reserved component ids before v1.0 with derived '
+        'variables and id=', () {
+      final String written = roundTrip([
+        create('s'),
+        components('s', [
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['main-title', 'main_title', 'true'],
+          },
+          {'id': 'main-title', 'component': 'Text', 'text': 'First'},
+          {'id': 'main_title', 'component': 'Text', 'text': 'Second'},
+          {'id': 'true', 'component': 'Text', 'text': 'Third'},
+        ]),
+      ]);
+      expect(
+        written,
+        contains('root = Column([main_title_2, main_title, _true])'),
+      );
+      expect(
+        written,
+        contains('main_title_2 = Text("First", id="main-title")'),
+      );
+      expect(written, contains('main_title = Text("Second")'));
+      expect(written, contains('_true = Text("Third", id="true")'));
+    });
+
+    test('Unicode UAX 31 identifiers as bare variable names', () {
+      final String written = roundTrip([
+        create('s'),
+        components('s', [
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['entête', '見出し_1'],
+          },
+          {'id': 'entête', 'component': 'Text', 'text': 'Bonjour'},
+          {'id': '見出し_1', 'component': 'Text', 'text': 'こんにちは'},
+        ]),
+      ]);
+      expect(written, contains('root = Column([entête, 見出し_1])'));
+      expect(written, contains('entête = Text("Bonjour")'));
+      expect(written, contains('見出し_1 = Text("こんにちは")'));
+    });
   });
 
   group('rejects', () {
     final Map<String, List<Map<String, Object?>>> cases = {
-      'an id that is not an identifier': [
+      'an undeclared component property': [
         create('s'),
         components('s', [
-          {'id': 'root', 'component': 'Card', 'child': 'main-title'},
-          {'id': 'main-title', 'component': 'Text', 'text': 'x'},
-        ]),
-      ],
-      'a property every component shares': [
-        create('s'),
-        components('s', [
-          {'id': 'root', 'component': 'Text', 'text': 'x', 'weight': 1},
+          {'id': 'root', 'component': 'Text', 'text': 'x', 'unknownProp': 1},
         ]),
       ],
       'a null property': [
@@ -324,12 +389,6 @@ void main() {
               },
             ],
           },
-        ]),
-      ],
-      'a number written with an exponent': [
-        create('s'),
-        components('s', [
-          {'id': 'root', 'component': 'Slider', 'max': 1e21},
         ]),
       ],
       'sendDataModel': [
@@ -362,9 +421,18 @@ void main() {
           {'id': 'root', 'component': 'Text', 'text': 'x'},
         ]),
       ],
-      'an update below the root of the data model': [
+      'an update of an item of a list in the data model': [
         {
-          'updateDataModel': {'surfaceId': 's', 'path': '/name', 'value': 'x'},
+          'updateDataModel': {
+            'surfaceId': 's',
+            'path': '/items/0',
+            'value': 'x',
+          },
+        },
+      ],
+      'a removal below the root of the data model': [
+        {
+          'updateDataModel': {'surfaceId': 's', 'path': '/name'},
         },
       ],
       'a data model key that is not a path segment': [
@@ -392,6 +460,22 @@ void main() {
       });
     }
 
+    for (final double value in [double.infinity, double.nan]) {
+      test('a non-finite number ($value)', () {
+        expect(
+          () => parser.decompile(
+            messages([
+              create('g', custom.id),
+              components('g', [
+                {'id': 'root', 'component': 'Gauge', 'value': value},
+              ]),
+            ]),
+          ),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+    }
+
     test('without catalogs', () {
       expect(
         () => const ExpressFormatFactory()
@@ -399,6 +483,48 @@ void main() {
             .createParser()
             .decompile(const []),
         throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('a non-UAX 31 component id in protocol v1.0', () {
+      final CatalogApi v1Basic = Catalog.fromJson(
+        jsonDecode(
+              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+            )
+            as Map<String, Object?>,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+      final Parser v1Parser = const ExpressFormatFactory().createFormat([
+        v1Basic,
+      ]).createParser();
+      final List<AgentToRendererMessage> v1Messages =
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v1.0',
+              'createSurface': {
+                'surfaceId': 's',
+                'components': [
+                  {'id': 'root', 'component': 'Card', 'child': 'main-title'},
+                  {'id': 'main-title', 'component': 'Text', 'text': 'x'},
+                ],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
+      expect(
+        () => v1Parser.decompile(v1Messages),
+        throwsA(
+          isA<A2uiValidationError>()
+              .having((e) => e.path, 'path', 'components.main-title.id')
+              .having((e) => e.errors.map((d) => d.code).toList(), 'codes', [
+                'invalid_identifier',
+              ]),
+        ),
+      );
+      expect(
+        () => v1Parser.compile(
+          'root = Card(child=t); t = Text("x", id="main-title")',
+        ),
+        throwsA(isA<A2uiValidationError>()),
       );
     });
   });
@@ -431,7 +557,12 @@ void main() {
             messages([
               create('s'),
               components('s', [
-                {'id': 'root', 'component': 'Text', 'text': 'x', 'weight': 1},
+                {
+                  'id': 'root',
+                  'component': 'Text',
+                  'text': 'x',
+                  'unknownProp': 1,
+                },
               ]),
             ]),
           ],

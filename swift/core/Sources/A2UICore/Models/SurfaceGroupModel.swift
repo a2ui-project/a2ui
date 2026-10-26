@@ -48,14 +48,13 @@ public final class SurfaceGroupModel: ObservableObject {
 
   // MARK: - Surface Lookup
 
-  /// Retrieves a surface by its ID.
-  public func surface(id: String) -> SurfaceViewModel? {
-    surfacesMap[id]
+  /// Accesses a surface by its ID.
+  public subscript(surfaceID: String) -> SurfaceViewModel? {
+    surfacesMap[surfaceID]
   }
 
   /// Returns a snapshot of all active surfaces.
   public func allSurfaces() -> [String: SurfaceViewModel] {
     surfacesMap
   }
-
 }

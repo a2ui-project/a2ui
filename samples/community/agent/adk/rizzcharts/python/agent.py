@@ -12,31 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-from pathlib import Path
-import pkgutil
+import re
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
-from a2ui.adk import (
-    A2uiCatalogProvider,
-    A2uiEnabledProvider,
-    A2uiExamplesProvider,
-    SendA2uiToClientToolset,
-)
+from a2ui.adk import SendA2uiToClientToolset
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_8, VERSION_0_9
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
-from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.planners.built_in_planner import BuiltInPlanner
 from google.genai import types
-from pydantic import PrivateAttr
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-from agent_executor import get_a2ui_enabled, get_a2ui_catalog, get_a2ui_examples
+from agent_executor import get_a2ui_catalogs, get_a2ui_enabled, get_a2ui_examples
 from google.adk.runners import Runner
 
 try:
@@ -94,6 +88,52 @@ You will also use layout components like `Column` (as the `root`) and `Text` (to
 """
 
 
+def _renderer_capabilities(
+    version: str,
+    client_ui_capabilities: Mapping[str, Any] | None,
+    catalog_ids: Sequence[str],
+) -> dict[str, Any]:
+    """Returns the client's capabilities keyed by protocol version.
+
+    Clients may send the bare capabilities entry, and may leave out
+    `supportedCatalogIds`, which then names every catalog of the agent.
+    Capabilities that are already keyed by protocol version are only read
+    under the negotiated version's key.
+
+    Args:
+        version: The negotiated A2UI protocol version.
+        client_ui_capabilities: The capabilities that the client sent.
+        catalog_ids: The ids of the agent's catalogs.
+
+    Returns:
+        The capabilities for `A2uiGenerator.create_processor`.
+    """
+    key = f"v{to_version_number(version)}"
+    if not client_ui_capabilities:
+        return {key: {"supportedCatalogIds": list(catalog_ids)}}
+    raw: Any = client_ui_capabilities
+    if any(_is_version_key(k) for k in client_ui_capabilities):
+        raw = client_ui_capabilities.get(key)
+        if raw is None:
+            return {key: {"supportedCatalogIds": list(catalog_ids)}}
+        if not isinstance(raw, Mapping):
+            # Left for `create_processor` to reject with a validation error.
+            return {key: raw}
+    entry = dict(raw)
+    if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
+        entry["supportedCatalogIds"] = list(catalog_ids)
+    return {key: entry}
+
+
+def _is_version_key(key: Any) -> bool:
+    """Whether a capabilities key names a protocol version, such as `v0.9`."""
+    return (
+        isinstance(key, str)
+        and key.startswith("v")
+        and bool(re.fullmatch(r"\d+(\.\d+)*", key[1:]))
+    )
+
+
 class RizzchartsAgent:
     """An agent that runs an ecommerce dashboard"""
 
@@ -108,7 +148,7 @@ class RizzchartsAgent:
         self._model = model
 
         self._a2ui_enabled_provider = get_a2ui_enabled
-        self._a2ui_catalog_provider = get_a2ui_catalog
+        self._a2ui_catalogs_provider = get_a2ui_catalogs
         self._a2ui_examples_provider = get_a2ui_examples
 
         self._agent_name = "mcp_app_proxy_agent"
@@ -120,13 +160,18 @@ class RizzchartsAgent:
 
         self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._accepts_inline_catalogs = True
+        self._examples_paths: dict[str, dict[str, str | None]] = {}
+        self._generators: dict[str, A2uiGenerator] = {}
+        self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
 
-        for version in [VERSION_0_8, VERSION_0_9]:
-            inference_format = self._build_inference_format(version)
-            self._inference_formats[version] = inference_format
-            agent = self._build_llm_agent(inference_format)
+        for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
+            generator = self._build_generator(version)
+            processor = self._build_default_processor(version, generator)
+            self._generators[version] = generator
+            self._processors[version] = processor
+            agent = self._build_llm_agent(processor)
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -140,34 +185,55 @@ class RizzchartsAgent:
             return self._text_runner
         return self._ui_runners[version]
 
-    def get_inference_format(self, version: str | None) -> DirectJsonFormat | None:
+    def get_processor(self, version: str | None) -> A2uiRequestProcessor | None:
         if version is None:
             return None
-        return self._inference_formats[version]
+        return self._processors[version]
 
-    def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        return DirectJsonFormat(
-            version=version,
-            catalogs=[
-                CatalogConfig.from_path(
-                    name="rizzcharts",
-                    catalog_path=(
-                        f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json"
-                    ),
-                    examples_path=f"../examples/rizzcharts_catalog/{version}",
-                ),
-                CatalogConfig.from_catalog(
-                    "basic",
-                    BasicCatalog(version),
-                    examples_path=f"../examples/standard_catalog/{version}",
-                ),
-            ],
-            accepts_inline_catalogs=True,
+    def create_processor(
+        self, version: str, client_ui_capabilities: Mapping[str, Any] | None
+    ) -> A2uiRequestProcessor:
+        """Creates an A2uiRequestProcessor negotiated for the client's capabilities."""
+        catalog_ids = [c.catalog_id for c in self._processors[version].active_catalogs]
+        return self._generators[version].create_processor(
+            _renderer_capabilities(version, client_ui_capabilities, catalog_ids)
         )
 
-        self._a2ui_enabled_provider = a2ui_enabled_provider
-        self._a2ui_catalog_provider = a2ui_catalog_provider
-        self._a2ui_examples_provider = a2ui_examples_provider
+    def get_examples_path(self, version: str, catalog_id: str) -> str | None:
+        """Returns the examples directory path for the given version and catalog."""
+        return self._examples_paths.get(version, {}).get(catalog_id)
+
+    def _build_generator(self, version: str) -> A2uiGenerator:
+        rizzcharts_config = CatalogConfig.from_path(
+            catalog_path=(
+                f"../catalog_schemas/{to_version_number(version)}/rizzcharts_catalog_definition.json"
+            ),
+            protocol_version=version,
+        )
+        basic_config = CatalogConfig(BasicCatalog(version))
+        configs = [rizzcharts_config, basic_config]
+        catalogs = [config.transformed_catalog for config in configs]
+        self._examples_paths[version] = {
+            catalogs[0].catalog_id: (
+                f"../examples/rizzcharts_catalog/{to_version_number(version)}"
+            ),
+            catalogs[
+                1
+            ].catalog_id: f"../examples/standard_catalog/{to_version_number(version)}",
+        }
+        return A2uiGenerator(
+            configs,
+            inference_format_factory=DirectJsonFormatFactory(),
+            accepts_inline_catalogs=self._accepts_inline_catalogs,
+        )
+
+    def _build_default_processor(
+        self, version: str, generator: A2uiGenerator
+    ) -> A2uiRequestProcessor:
+        catalog_ids = [c.transformed_catalog.catalog_id for c in generator.catalogs]
+        return generator.create_processor(
+            _renderer_capabilities(version, None, catalog_ids)
+        )
 
     def _build_agent_card(self) -> AgentCard:
         """Returns the AgentCard defining this agent's metadata and skills.
@@ -176,12 +242,12 @@ class RizzchartsAgent:
             An AgentCard object.
         """
         extensions = []
-        if self._inference_formats:
-            for version, sm in self._inference_formats.items():
+        if self._processors:
+            for version, processor in self._processors.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    sm.accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    self._accepts_inline_catalogs,
+                    [c.catalog_id for c in processor.active_catalogs],
                 )
                 extensions.append(ext)
 
@@ -248,21 +314,18 @@ class RizzchartsAgent:
         )
 
     def _build_llm_agent(
-        self, inference_format: DirectJsonFormat | None = None
+        self, processor: A2uiRequestProcessor | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=False,
-                include_examples=False,
-                validate_examples=False,
-            )
-            if inference_format
-            else ""
-        )
+        if processor:
+            instruction = "\n\n".join([
+                ROLE_DESCRIPTION,
+                processor.format.prompt_generator.generate_base_rules(),
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+            ])
+        else:
+            instruction = ""
 
         return LlmAgent(
             model=self._model,
@@ -273,7 +336,7 @@ class RizzchartsAgent:
                 get_store_sales,
                 get_sales_data,
                 SendA2uiToClientToolset(
-                    a2ui_catalog=self._a2ui_catalog_provider,
+                    a2ui_catalogs=self._a2ui_catalogs_provider,
                     a2ui_enabled=self._a2ui_enabled_provider,
                     a2ui_examples=self._a2ui_examples_provider,
                 ),

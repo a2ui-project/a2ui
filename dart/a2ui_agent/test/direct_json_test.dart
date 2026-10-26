@@ -49,14 +49,29 @@ void main() {
     },
   });
 
-  DirectJsonParser parser({Set<String> progressiveKeys = const {}}) =>
-      DirectJsonParser([basic, custom], progressiveKeys: progressiveKeys);
+  /// A catalog of protocol v1.0, which does not mix with the v0.9 ones.
+  final CatalogApi v1_0Catalog = Catalog.fromJson({
+    'catalogId': 'https://example.com/v1.json',
+    'protocolVersion': '1.0',
+    'components': <String, Object?>{},
+  });
 
-  /// The messages one payload compiles to, as JSON.
-  List<Map<String, Object?>> compile(String payload) => [
-    for (final AgentToRendererMessage m in parser().compile(payload))
-      m.toJson(),
-  ];
+  DirectJsonParser parser({
+    Set<String> progressiveKeys = const {},
+    bool bufferIncompleteComponents = false,
+  }) => DirectJsonParser(
+    [basic, custom],
+    progressiveKeys: progressiveKeys,
+    bufferIncompleteComponents: bufferIncompleteComponents,
+  );
+
+  /// The messages one payload compiles to, as JSON, checked on their own
+  /// with [validatePayload].
+  List<Map<String, Object?>> compile(String payload) {
+    final List<AgentToRendererMessage> messages = parser().compile(payload);
+    validatePayload([basic, custom], messages);
+    return [for (final AgentToRendererMessage m in messages) m.toJson()];
+  }
 
   String create(String surfaceId, [String? catalogId]) => jsonEncode({
     'version': 'v0.9',
@@ -85,6 +100,18 @@ void main() {
   Matcher throwsError<T extends A2uiError>() => throwsA(isA<T>());
 
   group('compile', () {
+    test('only translates, leaving the checks to a renderer state', () {
+      final payload =
+          '[${update('s', [
+            {'id': 'root', 'component': 'NoSuchType'},
+          ])}]';
+      expect(parser().compile(payload), hasLength(1));
+      expect(
+        () => parser().parseResponse(payload, wrapped: false),
+        throwsError<A2uiValidationError>(),
+      );
+    });
+
     test('keeps a curly quote inside a string of valid JSON', () {
       final List<Map<String, Object?>> messages = compile(
         '[${update('s', [
@@ -99,10 +126,12 @@ void main() {
     test('reads a raw line break inside a string', () {
       final List<Map<String, Object?>> messages = compile(
         '[{"version": "v0.9", "updateComponents": {"surfaceId": "s", '
-        '"components": [{"id": "root", "component": "Text", '
-        '"text": "Line 1\nLine 2"}]}}]',
+        '"components": [{"id": "root", "component": "Column", '
+        '"children\n": ["work\nText"]}, {"id": "\nworkText\n", '
+        '"component": "Text", "text": "Line 1\nLine 2"}]}}]',
       );
       expect(jsonEncode(messages), contains(r'Line 1\nLine 2'));
+      expect(jsonEncode(messages), contains('"workText"'));
     });
 
     test('removes a markdown fence around an unwrapped payload', () {
@@ -240,6 +269,17 @@ void main() {
         throwsError<A2uiCatalogError>(),
       );
     });
+
+    test('rejects catalogs of different versions, even with no messages', () {
+      final mixed = DirectJsonParser([basic, v1_0Catalog]);
+      for (final payload in ['[]', '[${create('s')}]']) {
+        expect(
+          () => mixed.compile(payload),
+          throwsError<A2uiCatalogError>(),
+          reason: payload,
+        );
+      }
+    });
   });
 
   group('decompile', () {
@@ -296,20 +336,26 @@ void main() {
     });
   });
 
-  group('parseChunk', () {
+  group('openStream', () {
+    /// A state holding surface `s` on the basic catalog, with no components.
+    RendererState canvas() =>
+        RendererState([basic, custom])..apply(parser().compile(create('s')));
+
     List<List<Object?>> stream(
       List<String> chunks, {
       Set<String> progressiveKeys = const {},
+      bool bufferIncompleteComponents = false,
       bool wrapped = true,
+      bool onCanvas = false,
     }) {
-      final DirectJsonParser reader = parser(progressiveKeys: progressiveKeys);
+      final DirectJsonResponseStream reader = parser(
+        progressiveKeys: progressiveKeys,
+        bufferIncompleteComponents: bufferIncompleteComponents,
+      ).openStream(wrapped: wrapped, state: onCanvas ? canvas() : null);
       return [
         for (final String chunk in chunks)
           [
-            for (final ResponsePart part in reader.parseChunk(
-              chunk,
-              wrapped: wrapped,
-            ))
+            for (final ResponsePart part in reader.feed(chunk))
               switch (part) {
                 TextPart(:final String text) => text,
                 A2uiPart(:final List<AgentToRendererMessage> a2ui) => [
@@ -343,6 +389,16 @@ void main() {
       ]);
     });
 
+    test('preserves lone backtick chunks in text', () {
+      expect(stream(['Use ', '`', 'Text', '`', ' for labels.']), [
+        ['Use'],
+        <Object?>[],
+        [' `Text'],
+        <Object?>[],
+        ['` for labels.'],
+      ]);
+    });
+
     test('drops an escape that is cut short in a healed string', () {
       final List<List<Object?>> steps = stream(
         [
@@ -353,6 +409,7 @@ void main() {
           r'e9"}]}}]</a2ui-json>',
         ],
         progressiveKeys: {'text'},
+        onCanvas: true,
       );
       String textOf(List<Object?> step) =>
           (((((step.single! as List).single! as Map)['updateComponents']!
@@ -366,6 +423,164 @@ void main() {
       expect(textOf(steps[2]), 'Tab\té');
     });
 
+    const partialText =
+        '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": '
+        '"s", "components": [{"id": "root", "component": "Text", "text": "Hel';
+
+    test('heals a component while it arrives by default, as v0.9 does', () {
+      expect(
+        stream(
+          [partialText, 'lo"}]}}]</a2ui-json>'],
+          progressiveKeys: {'text'},
+          onCanvas: true,
+        ),
+        [
+          [
+            [
+              jsonDecode(
+                update('s', [
+                  {'id': 'root', 'component': 'Text', 'text': 'Hel'},
+                ]),
+              ),
+            ],
+          ],
+          [
+            [
+              jsonDecode(
+                update('s', [
+                  {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+                ]),
+              ),
+            ],
+          ],
+        ],
+      );
+    });
+
+    test('holds a component back until it closes when buffering', () {
+      expect(
+        stream(
+          [partialText, 'lo"}', ']}}]</a2ui-json>'],
+          progressiveKeys: {'text'},
+          bufferIncompleteComponents: true,
+          onCanvas: true,
+        ),
+        [
+          <Object?>[],
+          [
+            [
+              jsonDecode(
+                update('s', [
+                  {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+                ]),
+              ),
+            ],
+          ],
+          <Object?>[],
+        ],
+      );
+    });
+
+    test('drops only the component cut in its id when buffering', () {
+      expect(
+        stream(
+          [
+            '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": '
+                '"s", "components": [{"id": "root", "component": "Text", '
+                '"text": "A"}, {"id": "ro',
+          ],
+          bufferIncompleteComponents: true,
+          onCanvas: true,
+        ),
+        [
+          [
+            [
+              jsonDecode(
+                update('s', [
+                  {'id': 'root', 'component': 'Text', 'text': 'A'},
+                ]),
+              ),
+            ],
+          ],
+        ],
+      );
+    });
+
+    test('still heals a data model when buffering components', () {
+      expect(
+        stream(
+          [
+            '<a2ui-json>[{"version": "v0.9", "updateDataModel": {"surfaceId": '
+                '"s", "value": {"greeting": "Hel',
+          ],
+          progressiveKeys: {'greeting'},
+          bufferIncompleteComponents: true,
+          onCanvas: true,
+        ),
+        [
+          [
+            [
+              {
+                'version': 'v0.9',
+                'updateDataModel': {
+                  'surfaceId': 's',
+                  'value': {'greeting': 'Hel'},
+                },
+              },
+            ],
+          ],
+        ],
+      );
+    });
+
+    test('holds back a growing data model once its value nests too deep', () {
+      final DirectJsonResponseStream reader = parser().openStream();
+      expect(
+        reader.feed(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "value": {"a": [1, ',
+        ),
+        isNotEmpty,
+      );
+      expect(reader.feed('[' * 60), isEmpty);
+      expect(
+        () => reader.feed('${']' * 61}}}}]</a2ui-json>'),
+        throwsError<A2uiRecursionError>(),
+      );
+    });
+
+    test('checks a later message against the value a data model closed '
+        'with', () {
+      final DirectJsonResponseStream reader = parser().openStream();
+      expect(
+        reader.feed(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "path": "/items", "value": [',
+        ),
+        isNotEmpty,
+      );
+      expect(reader.feed('1, 2]}}, '), isNotEmpty);
+      // The first item is a number, which has no property to set.
+      expect(
+        reader.feed(
+          '{"version": "v0.9", "updateDataModel": {"surfaceId": "s", '
+          '"path": "/items/0/name", "value": "x"}}',
+        ),
+        isEmpty,
+      );
+      // The state reports the core's data error as a validation error.
+      expect(
+        () => reader.feed(']</a2ui-json>'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.cause,
+            'cause',
+            isA<A2uiDataError>(),
+          ),
+        ),
+      );
+    });
+
     test('reads a block wrapped in a markdown fence', () {
       expect(
         stream(['<a2ui-json>\n``', '`json\n[${create('s')}]\n```</a2ui-json>']),
@@ -373,6 +588,27 @@ void main() {
           <Object?>[],
           [
             [created('s')],
+          ],
+        ],
+      );
+    });
+
+    test('reads a fenced block streamed a character at a time', () {
+      final response =
+          '<a2ui-json>\n```json\n[${create('s')}, '
+          '${update('s', [
+            {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+          ])}]\n```\n</a2ui-json>';
+      expect(
+        [for (final List<Object?> step in stream(response.split(''))) ...step],
+        [
+          [created('s')],
+          [
+            jsonDecode(
+              update('s', [
+                {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+              ]),
+            ),
           ],
         ],
       );
@@ -391,11 +627,11 @@ void main() {
     });
 
     test('streams an Express payload as text', () {
-      final DirectJsonParser reader = parser();
-      expect(reader.parseChunk('Here <a2ui'), [
+      final DirectJsonResponseStream reader = parser().openStream();
+      expect(reader.feed('Here <a2ui'), [
         isA<TextPart>().having((p) => p.text, 'text', 'Here'),
       ]);
-      expect(reader.parseChunk('>root = Text("x")</a2ui>'), [
+      expect(reader.feed('>root = Text("x")</a2ui>'), [
         isA<TextPart>().having(
           (p) => p.text,
           'text',
@@ -404,21 +640,90 @@ void main() {
       ]);
     });
 
-    test('rejects a change of wrapped between chunks', () {
-      final DirectJsonParser reader = parser()..parseChunk('Hello');
-      expect(
-        () => reader.parseChunk('[', wrapped: false),
-        throwsA(isA<ArgumentError>()),
-      );
+    test('rejects catalogs of different versions when it opens', () {
+      final mixed = DirectJsonParser([basic, v1_0Catalog]);
+      for (final wrapped in [true, false]) {
+        expect(
+          () => mixed.openStream(wrapped: wrapped),
+          throwsError<A2uiCatalogError>(),
+          reason: 'wrapped: $wrapped',
+        );
+      }
     });
 
-    test('gives each parser from a format its own stream', () {
+    test('emits the text it held back as a possible tag when it closes', () {
+      final DirectJsonResponseStream reader = parser().openStream();
+      expect(reader.feed('Use <a2ui'), [
+        isA<TextPart>().having((p) => p.text, 'text', 'Use'),
+      ]);
+      expect(reader.close(), [
+        isA<TextPart>().having((p) => p.text, 'text', ' <a2ui'),
+      ]);
+    });
+
+    test('throws a parse error when it closes inside a block', () {
+      final DirectJsonResponseStream reader = parser().openStream();
+      reader.feed('<a2ui-json>[${create('s')}');
+      expect(reader.close, throwsError<A2uiParseError>());
+    });
+
+    test('checks the tree of an unwrapped stream when it closes', () {
+      final DirectJsonResponseStream reader = parser().openStream(
+        wrapped: false,
+      );
+      reader.feed(
+        '[${create('s')}, ${update('s', [
+          {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+          {'id': 'orphan', 'component': 'Text', 'text': 'Hi'},
+        ])}]',
+      );
+      expect(reader.close, throwsError<A2uiIntegrityError>());
+    });
+
+    test('ends when a chunk is rejected', () {
+      final DirectJsonResponseStream reader = parser().openStream();
+      expect(
+        () => reader.feed('<a2ui-json>[${create('s')}, {]</a2ui-json>'),
+        throwsError<A2uiParseError>(),
+      );
+      expect(() => reader.feed('more'), throwsStateError);
+      expect(reader.close(), isEmpty);
+    });
+
+    test('applies what it emits to the state it is given', () {
+      final state = RendererState([basic, custom]);
+      final DirectJsonResponseStream reader = parser().openStream(state: state);
+      reader.feed(
+        '<a2ui-json>[${create('s')}, ${update('s', [
+          {'id': 'root', 'component': 'Text', 'text': 'Hi'},
+        ])}]</a2ui-json>',
+      );
+      reader.close();
+      expect(reader.state, same(state));
+      expect(state.getSurface('s')!.componentsModel.keys, ['root']);
+    });
+
+    test('lets one parser read several responses', () {
       final InferenceFormat format = const DirectJsonFormatFactory()
           .createFormat([basic]);
-      final Parser first = format.createParser();
-      expect(first.supportsStreaming, isTrue);
-      first.parseChunk('<a2ui-json>[');
-      expect(format.createParser().parseChunk('Hello'), [isA<TextPart>()]);
+      final Parser shared = format.createParser();
+      expect(shared.supportsStreaming, isTrue);
+      shared.openStream().feed('<a2ui-json>[');
+      expect(shared.openStream().feed('Hello'), [isA<TextPart>()]);
+    });
+
+    test('passes bufferIncompleteComponents from the factory to parsers', () {
+      final Parser buffering = const DirectJsonFormatFactory(
+        progressiveKeys: {'text'},
+        bufferIncompleteComponents: true,
+      ).createFormat([basic]).createParser();
+      expect(buffering.openStream(state: canvas()).feed(partialText), isEmpty);
+      final Parser healing = const DirectJsonFormatFactory(
+        progressiveKeys: {'text'},
+      ).createFormat([basic]).createParser();
+      expect(healing.openStream(state: canvas()).feed(partialText), [
+        isA<A2uiPart>(),
+      ]);
     });
   });
 
@@ -453,11 +758,13 @@ void main() {
       expect(
         text,
         contains(
-          jsonEncode(PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9)),
+          '### Common Types Schema:\n'
+          '{"\$schema":"https://json-schema.org/draft/2020-12/schema",'
+          '"\$id":"https://a2ui.org/specification/v0_9/common_types.json"',
         ),
       );
-      expect(text, contains(jsonEncode(basic.catalogSchema)));
-      expect(text, contains('"version": "v0.9"'));
+      expect(text, contains(jsonEncode(basic.toJson())));
+      expect(text, contains('"version":{"const":"v0.9"}'));
     });
 
     test('prunes the message schema to the allowed messages', () {
@@ -470,7 +777,6 @@ void main() {
         'CreateSurfaceMessage',
         'UpdateComponentsMessage',
         'DeleteSurfaceMessage',
-        '`createSurface`',
       ]) {
         expect(text, isNot(contains(pruned)));
       }
@@ -483,6 +789,33 @@ void main() {
       );
     });
 
+    test('rejects v1.0 helper definitions in the allowlist', () {
+      final CatalogApi v10 = Catalog.fromJson(
+        jsonDecode(
+              File(
+                '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>,
+      );
+      for (final helper in ['Component', 'ComponentsList', 'component']) {
+        expect(
+          () => snippet(catalogs: [v10], allowedMessages: [helper]),
+          throwsA(isA<ArgumentError>()),
+          reason: '$helper is not a message',
+        );
+      }
+      final String text = snippet(
+        catalogs: [v10],
+        allowedMessages: ['updateComponents'],
+      );
+      expect(
+        text,
+        contains('"oneOf":[{"\$ref":"#/\$defs/UpdateComponentsMessage"}]'),
+      );
+      expect(text, contains('"ComponentsList"'));
+    });
+
     test('shows each example as a payload the parser reads back', () {
       final List<AgentToRendererMessage> example = parser().compile(
         '[${create('greeting')}, ${update('greeting', [
@@ -491,7 +824,7 @@ void main() {
       );
       final String text = snippet(examples: [example]);
       final List<ResponsePart> parts = parser().parseResponse(
-        text.substring(text.indexOf('## Examples')),
+        text.substring(text.indexOf('### Examples:')),
       );
       expect(
         parts.whereType<A2uiPart>().single.a2ui.map((m) => m.toJson()),
@@ -501,8 +834,11 @@ void main() {
   });
 
   group('A2uiRequestProcessor', () {
-    test('uses direct JSON by default', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+    test('parses direct JSON when configured with DirectJsonFormatFactory', () {
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       expect(processor.promptSnippet, contains('<a2ui-json>'));
       final List<ResponsePart> parts = processor.parseResponse(
         'Here:<a2ui-json>[${create('s')}, ${update('s', [
@@ -514,7 +850,10 @@ void main() {
     });
 
     test('rejects a response the renderer would reject', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       expect(
         () => processor.parseResponse(
           '<a2ui-json>[${create('s')}, ${update('s', [

@@ -16,10 +16,11 @@ import OrderedJSON
 
 /// A message instructing the client to update a path in the active
 /// surface's data model.
-public struct UpdateDataModelMessage: Codable, Sendable, Equatable {
+public struct UpdateDataModelMessage: Codable, Sendable, Equatable, ProtocolVersioned {
   public let surfaceID: String
   public let path: String
   public let value: JSONValue?
+  public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
     case surfaceID = "surfaceId"
@@ -30,14 +31,16 @@ public struct UpdateDataModelMessage: Codable, Sendable, Equatable {
   public init(
     surfaceID: String,
     path: String? = nil,
-    value: JSONValue? = nil
+    value: JSONValue? = nil,
+    version: A2UIProtocolVersion
   ) {
     self.surfaceID = surfaceID
     self.path = path ?? "/"
     self.value = value
+    self.version = version
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     surfaceID = try container.decode(String.self, forKey: .surfaceID)
     path = try container.decodeIfPresent(String.self, forKey: .path) ?? "/"
@@ -49,6 +52,20 @@ public struct UpdateDataModelMessage: Codable, Sendable, Equatable {
       }
     } else {
       value = nil
+    }
+    self.version = version
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(surfaceID, forKey: .surfaceID)
+    if path != "/" {
+      try container.encode(path, forKey: .path)
+    }
+    if let value {
+      try container.encode(value, forKey: .value)
+    } else {
+      try container.encodeNil(forKey: .value)
     }
   }
 }

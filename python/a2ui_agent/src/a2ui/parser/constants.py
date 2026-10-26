@@ -28,5 +28,9 @@ MSG_TYPE_UPDATE_COMPONENTS = "updateComponents"
 MSG_TYPE_UPDATE_DATA_MODEL = "updateDataModel"
 # deleteSurface is shared between v0.8 and v0.9
 
+# Message types (v1.0)
+MSG_TYPE_CALL_RENDERER_FUNCTION = "callRendererFunction"
+MSG_TYPE_AGENT_FUNCTION_RESPONSE = "agentFunctionResponse"
+
 # Conversational text (non-A2UI)
 MSG_TYPE_TEXT = "text"

@@ -26,10 +26,7 @@ class CatalogSchemaHelper {
 
   /// Checks a compiled component against its schema in [catalog].
   late final PayloadValidator<ComponentApi, FunctionApi> validator =
-      PayloadValidator(
-        catalog: catalog,
-        protocolVersion: A2uiProtocolVersion.v0_9,
-      );
+      PayloadValidator(catalog: catalog);
 
   final Map<String, _ComponentSignature> _components = {};
 
@@ -39,10 +36,9 @@ class CatalogSchemaHelper {
 
   /// The properties a positional argument can fill, in schema order.
   ///
-  /// Only the properties the component declares itself count. Properties it
-  /// shares with every component, such as `id`, `accessibility` and `weight`,
-  /// are left out, so that the first argument is the component's own first
-  /// property.
+  /// Specific component properties come first, followed by common mixin
+  /// properties such as `weight`. Structural properties
+  /// (`id`, `component`, `checks`) and `accessibility` are excluded.
   List<String> properties(String component) => _signature(component).properties;
 
   /// The properties the component requires, beyond `component` and `id`.
@@ -56,10 +52,75 @@ class CatalogSchemaHelper {
   Map<String, Object?>? propertySchema(String component, String property) =>
       _signature(component).schemas[property];
 
+  /// Whether common types were loaded into the catalog validation schema.
+  bool get commonTypesLoaded =>
+      catalog.validationSchema[r'$defs'] is Map &&
+      (catalog.validationSchema[r'$defs'] as Map).isNotEmpty;
+
+  /// Whether [schema] accepts a number literal, resolving `$ref`s against
+  /// [catalog]'s validation schema definitions.
+  bool acceptsNumber(Map<String, Object?>? schema) {
+    final visited = <Object>{};
+    final Object? defsObj = catalog.validationSchema[r'$defs'];
+    final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
+
+    bool check(Map<String, Object?>? s) {
+      if (s == null || !visited.add(s)) return false;
+      final Object? type = s['type'];
+      if (type == 'number' || type == 'integer') return true;
+      if (type is List &&
+          (type.contains('number') || type.contains('integer'))) {
+        return true;
+      }
+
+      if (s['const'] is num) return true;
+
+      final Object? enumVal = s['enum'];
+      if (enumVal is List && enumVal.any((v) => v is num)) return true;
+
+      final String? ref = _refName(s);
+      if (ref != null) {
+        if (defs == null) return true;
+        final Object? resolved = defs[ref];
+        if (resolved is Map) {
+          if (check(resolved.cast<String, Object?>())) return true;
+        } else {
+          return true;
+        }
+      }
+
+      for (final Map<String, Object?> alt in _alternatives(s)) {
+        if (check(alt)) return true;
+      }
+
+      const typeKeys = [
+        'type',
+        'const',
+        'enum',
+        r'$ref',
+        'allOf',
+        'oneOf',
+        'anyOf',
+        'properties',
+        'items',
+        'prefixItems',
+        'not',
+      ];
+      if (!typeKeys.any(s.containsKey)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    return check(schema);
+  }
+
   /// The component's own description, if its schema has one.
   String? componentDescription(String component) {
-    final Map<String, Object?> schema =
-        catalog.components[component]!.schema.value;
+    final Map<String, Object?> schema = catalog
+        .resolvedComponentSchema(component)!
+        .value;
     for (final Map<String, Object?> sub in _subschemas(schema)) {
       if (sub['description'] case final String description) return description;
     }
@@ -74,8 +135,7 @@ class CatalogSchemaHelper {
   /// The parameters the function requires.
   List<String> requiredParameters(String function) => [
     for (final Object? name
-        in catalog.functions[function]!.argumentSchema['required']
-                as List<Object?>? ??
+        in _functionArgsSchema(function)['required'] as List<Object?>? ??
             const [])
       name! as String,
   ];
@@ -85,8 +145,7 @@ class CatalogSchemaHelper {
       _parameterSchemas(function)[parameter];
 
   Map<String, Map<String, Object?>> _parameterSchemas(String function) {
-    final Object? properties =
-        catalog.functions[function]!.argumentSchema['properties'];
+    final Object? properties = _functionArgsSchema(function)['properties'];
     if (properties is! Map) return const {};
     return {
       for (final MapEntry<Object?, Object?> entry in properties.entries)
@@ -95,39 +154,55 @@ class CatalogSchemaHelper {
     };
   }
 
+  Map<String, Object?> _functionArgsSchema(String function) {
+    final Object? fnMap =
+        (catalog.validationSchema['functions']
+            as Map<Object?, Object?>?)?[function];
+    if (fnMap is Map) {
+      final Object? props = fnMap['properties'];
+      if (props is Map && props['args'] is Map) {
+        return (props['args']! as Map).cast<String, Object?>();
+      }
+    }
+    return catalog.functions[function]!.argumentSchema.value;
+  }
+
   _ComponentSignature _signature(String component) =>
       _components.putIfAbsent(component, () {
-        final Map<String, Object?> schema =
-            catalog.components[component]!.schema.value;
+        final Map<String, Object?> schema = catalog
+            .resolvedComponentSchema(component)!
+            .value;
         final List<Map<String, Object?>> subschemas = _subschemas(schema);
-        // The subschema declaring `component` is the component's own. The
-        // others are shared definitions, which the catalog parser has inlined.
-        final List<Map<String, Object?>> own = [
-          for (final Map<String, Object?> sub in subschemas)
-            if (_properties(sub).containsKey('component')) sub,
-        ];
         final schemas = <String, Map<String, Object?>>{};
         final required = <String>[];
         var isCheckable = false;
-        for (final sub in own.isEmpty ? subschemas : own) {
+        for (final sub in subschemas) {
           _properties(sub).forEach((name, value) {
             if (value is Map) schemas[name] = value.cast<String, Object?>();
           });
           for (final Object? name in sub['required'] as List<Object?>? ?? []) {
             required.add(name! as String);
           }
-        }
-        for (final sub in subschemas) {
           if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
           if (_properties(sub).containsKey('checks')) isCheckable = true;
         }
         const structural = {'component', 'id', 'checks'};
         schemas.removeWhere((name, _) => structural.contains(name));
+        const commonKeys = {'accessibility', 'weight'};
+        final List<String> specificProperties = [
+          for (final key in schemas.keys)
+            if (!commonKeys.contains(key)) key,
+        ];
+        final List<String> commonProperties = [
+          for (final key in const ['weight'])
+            if (schemas.containsKey(key)) key,
+        ];
+        final orderedProperties = [...specificProperties, ...commonProperties];
         return _ComponentSignature(
-          properties: [...schemas.keys],
+          properties: orderedProperties,
           required: [
-            for (final String name in required)
-              if (!structural.contains(name)) name,
+            for (final String name in orderedProperties)
+              if (required.contains(name)) name,
           ],
           schemas: schemas,
           isCheckable: isCheckable,

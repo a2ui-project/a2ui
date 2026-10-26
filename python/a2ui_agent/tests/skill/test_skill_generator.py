@@ -19,11 +19,12 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
-from a2ui.inference_formats.experimental.express import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.skill import SkillGenerator
+from a2ui.core import A2uiValidationError, Catalog
+from a2ui.inference_formats.express import ExpressFormat
+from a2ui.processor import CatalogConfig
+from a2ui.skill import Skill, SkillGenerator, SkillSet
 
-from a2ui.schema.utils import find_repo_root
+from ..repo_paths import find_repo_root
 
 # Locate standard basic catalog in repository
 _repo_root = find_repo_root(os.path.dirname(__file__)) or ""
@@ -37,9 +38,9 @@ class TestSkillGenerator(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.catalog_config = CatalogConfig.from_path("basic", CATALOG_PATH)
-        self.catalog = A2uiCatalog.from_config(self.catalog_config)
-        self.express_fmt = ExpressFormat(catalog=self.catalog)
+        self.catalog_config = CatalogConfig.from_path(CATALOG_PATH)
+        self.catalog = self.catalog_config.transformed_catalog
+        self.express_fmt = ExpressFormat([self.catalog])
         self.generator = SkillGenerator(self.express_fmt)
 
     def tearDown(self):
@@ -126,6 +127,96 @@ class TestSkillGenerator(unittest.TestCase):
             self.assertEqual(f.read(), "custom content")
         self.assertTrue(os.path.exists(root_note))
 
+    def test_skill_rejects_filename_that_could_escape_export_directory(self):
+        """A filename that is absolute or has a '.', '..' or empty segment is rejected on construction."""
+        for filename in ("../x/SKILL.md", "/abs/SKILL.md", "a/./b.md", "a//b.md"):
+            with self.subTest(filename=filename):
+                with self.assertRaisesRegex(
+                    A2uiValidationError, "must be a relative path"
+                ):
+                    Skill("bad", "d", "# Bad", filename=filename)
+        with self.assertRaisesRegex(A2uiValidationError, "must be a relative path"):
+            SkillSet({"../x/SKILL.md": Skill("ok", "d", "# Ok")})
+        # Accepted: nested relative paths and a bare file at the root.
+        self.assertEqual(
+            Skill("n", "d", "c", filename="a/b/SKILL.md").filename, "a/b/SKILL.md"
+        )
+        self.assertEqual(Skill("n", "d", "c", filename="FLAT.md").filename, "FLAT.md")
+
+    def test_filename_reassigned_after_construction_is_rejected(self):
+        """A filename reassigned later goes through the same check, in the setter and in add()."""
+        skill = Skill("ok", "d", "# Ok")
+        with self.assertRaisesRegex(A2uiValidationError, "must be a relative path"):
+            skill.filename = "../victim/SKILL.md"
+        self.assertEqual(skill.filename, "ok/SKILL.md")
+
+        # Bypassing the setter still cannot get a bad key into a SkillSet.
+        skill.__dict__["_filename"] = "../victim/SKILL.md"
+        with self.assertRaisesRegex(A2uiValidationError, "must be a relative path"):
+            SkillSet().add(skill)
+
+    def test_export_aborts_when_skill_directory_sits_under_symlink_leaving_output_dir(
+        self,
+    ):
+        """A symlinked parent that resolves outside output_dir aborts before anything is touched."""
+        base = tempfile.TemporaryDirectory()
+        self.addCleanup(base.cleanup)
+        victim_file = os.path.join(base.name, "victim", "skills", "nested", "keep.txt")
+        os.makedirs(os.path.dirname(victim_file))
+        with open(victim_file, "w", encoding="utf-8") as f:
+            f.write("keep me")
+        out = os.path.join(base.name, "out")
+        os.makedirs(out)
+        os.symlink(os.path.join(base.name, "victim"), os.path.join(out, "src"))
+
+        skill_set = SkillSet()
+        skill_set.add(Skill("ok", "d", "# Ok"))
+        skill_set.add(
+            Skill("nested", "d", "# Nested", filename="src/skills/nested/SKILL.md")
+        )
+        with self.assertRaisesRegex(A2uiValidationError, "through a symlink"):
+            skill_set.export_to_directory(out)
+
+        # Nothing was removed or written, not even for the unrelated skill.
+        with open(victim_file, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "keep me")
+        self.assertFalse(os.path.exists(os.path.join(out, "ok")))
+
+    def test_export_removes_symlink_at_skill_directory_instead_of_writing_through_it(
+        self,
+    ):
+        """A symlink where the skill directory belongs is unlinked, and its target is left alone."""
+        base = tempfile.TemporaryDirectory()
+        self.addCleanup(base.cleanup)
+        victim = os.path.join(base.name, "victim")
+        os.makedirs(victim)
+        with open(os.path.join(victim, "stale.txt"), "w", encoding="utf-8") as f:
+            f.write("keep me")
+        out = os.path.join(base.name, "out")
+        os.makedirs(out)
+        link = os.path.join(out, "a2ui-core")
+        os.symlink(victim, link)
+
+        skill_set = SkillSet()
+        skill_set.add(Skill("a2ui-core", "d", "# Core"))
+        skill_set.export_to_directory(out)
+
+        self.assertFalse(os.path.islink(link))
+        self.assertTrue(os.path.isfile(os.path.join(link, "SKILL.md")))
+        with open(os.path.join(victim, "stale.txt"), "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "keep me")
+        self.assertFalse(os.path.exists(os.path.join(victim, "SKILL.md")))
+
+    def test_export_replaces_regular_file_at_skill_directory_path(self):
+        """A regular file where the skill directory belongs is removed instead of failing the write."""
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "a2ui-core"), "w", encoding="utf-8") as f:
+                f.write("not a directory")
+            skill_set = SkillSet()
+            skill_set.add(Skill("a2ui-core", "d", "# Core"))
+            skill_set.export_to_directory(out)
+            self.assertTrue(os.path.isfile(os.path.join(out, "a2ui-core", "SKILL.md")))
+
     def test_skill_set_get_matching_rules(self):
         """Verifies SkillSet.get matching rules (exact key, exact name, min-3-char substring)."""
         skill_set = self.generator.generate_skillset()
@@ -158,9 +249,9 @@ class TestSkillGenerator(unittest.TestCase):
     def test_generate_with_explicit_catalogs_override(self):
         """Verifies methods accept explicit catalog arguments overriding format defaults."""
         testing_catalog_path = os.path.join(SPEC_DIR, "test", "testing_catalog.json")
-        testing_catalog = A2uiCatalog.from_config(
-            CatalogConfig.from_path("testing", testing_catalog_path)
-        )
+        testing_catalog = CatalogConfig.from_path(
+            testing_catalog_path, protocol_version="1.0"
+        ).transformed_catalog
 
         # 1. generate_catalog_skill with explicit catalog generates for that catalog
         cat_skill = self.generator.generate_catalog_skill(testing_catalog)
@@ -195,6 +286,31 @@ class TestSkillGenerator(unittest.TestCase):
         gen = SkillGenerator(mock_fmt)
         skill = gen.generate_catalog_skill(self.catalog)
         self.assertEqual(skill.content, "\n")
+
+    def test_examples_shared_by_catalogs_are_added_once(self):
+        """Verifies examples the format returns for every catalog aren't repeated."""
+        other = Catalog.from_json(
+            catalog_schema={"catalogId": "https://a2ui.org/other", "components": {}},
+            protocol_version="1.0",
+        )
+        mock_fmt = MagicMock()
+        mock_fmt.catalogs = [self.catalog, other]
+        mock_fmt.prompt_generator.generate_base_rules.return_value = "RULES"
+        mock_fmt.prompt_generator.generate_catalog_instructions.return_value = "INST"
+        mock_fmt.prompt_generator.generate_examples.return_value = "SHARED EXAMPLES"
+        gen = SkillGenerator(mock_fmt)
+
+        skill = gen.generate_skill()
+        self.assertEqual(skill.content.count("SHARED EXAMPLES"), 1)
+
+        mock_fmt.prompt_generator.generate_examples.reset_mock()
+        skill_set = gen.generate_skillset()
+        examples_per_skill = [
+            text.count("SHARED EXAMPLES") for text in skill_set.to_dict().values()
+        ]
+        self.assertEqual(sorted(examples_per_skill), [0, 0, 1])
+        # Each catalog's examples are loaded and transformed once.
+        self.assertEqual(mock_fmt.prompt_generator.generate_examples.call_count, 2)
 
 
 if __name__ == "__main__":

@@ -108,10 +108,11 @@ void main() {
       test(
           'an error listener removes an unknown child '
           '(${existingRoot ? 'existing' : 'new'} root)', () {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         var errors = 0;
-        surface.onError.addListener((error) {
+        surface.onError.subscribe((error) {
           if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
             errors++;
             surface.componentsModel.removeComponent('weird');
@@ -139,9 +140,10 @@ void main() {
     }
 
     test('an error listener removes and replaces the unknown child', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+      final surface =
+          SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
-      surface.onError.addListener((error) {
+      surface.onError.subscribe((error) {
         if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
           surface.componentsModel.removeComponent('weird');
           _add(surface, 'weird', 'Text', {'text': 'ready'});
@@ -163,8 +165,9 @@ void main() {
           'an error listener removes the root before '
           '${constructFromExistingSurface ? 'constructor' : 'creation'} '
           'returns', () {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
-        surface.onError.addListener((error) {
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
+        surface.onError.subscribe((error) {
           if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
             surface.componentsModel.removeComponent('root');
           }
@@ -189,13 +192,14 @@ void main() {
     }
 
     test('an error listener repairs a cyclic child on a binder update', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+      final surface =
+          SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
       _add(surface, 'leaf', 'Text', {'text': 'ready'});
       _add(surface, 'card', 'Card', {'child': 'leaf'});
       _add(surface, 'root', 'Card', {'child': 'card'});
       var errors = 0;
-      surface.onError.addListener((error) {
+      surface.onError.subscribe((error) {
         if (error.code == 'CYCLIC_REFERENCE') {
           errors++;
           surface.componentsModel.removeComponent('card');
@@ -213,9 +217,10 @@ void main() {
     });
 
     test('a cycle error listener removes the root during creation', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+      final surface =
+          SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
-      surface.onError.addListener((error) {
+      surface.onError.subscribe((error) {
         if (error.code == 'CYCLIC_REFERENCE') {
           surface.componentsModel.removeComponent('root');
         }
@@ -235,9 +240,10 @@ void main() {
       test(
           'an earlier delete listener replaces a same-type '
           '${replaceRoot ? 'root' : 'child'} model', () {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final id = replaceRoot ? 'root' : 'text';
-        surface.componentsModel.onDeleted.addListener((deletedId) {
+        surface.componentsModel.onDeleted.subscribe((deletedId) {
           if (deletedId == id) {
             _add(surface, id, 'Text', {'text': 'replacement'});
           }
@@ -265,10 +271,11 @@ void main() {
     }
 
     test('nested diagnostics drain before the initiating update returns', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+      final surface =
+          SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
       var errors = 0;
-      surface.onError.addListener((error) {
+      surface.onError.subscribe((error) {
         if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
           errors++;
           surface.componentsModel.removeComponent('root');
@@ -292,12 +299,12 @@ void main() {
       () {
         final surface = SurfaceModel<ComponentApi>(
           'surf',
-          catalog: _catalog(),
+          defaultCatalog: _catalog(),
         );
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         var errors = 0;
         var secondListenerErrors = 0;
-        surface.onError.addListener((error) {
+        surface.onError.subscribe((error) {
           if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
             errors++;
             if (errors == 1) {
@@ -305,7 +312,7 @@ void main() {
             }
           }
         });
-        surface.onError.addListener((error) {
+        surface.onError.subscribe((error) {
           if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
             secondListenerErrors++;
           }
@@ -327,10 +334,11 @@ void main() {
     );
 
     test('disposing in an error listener cancels remaining diagnostics', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+      final surface =
+          SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
       var errors = 0;
-      surface.onError.addListener((error) {
+      surface.onError.subscribe((error) {
         errors++;
         resolver.dispose();
       });
@@ -395,7 +403,7 @@ void _commitBoundaryTests() {
         final function = _FailingFunction();
         final surface = SurfaceModel<ComponentApi>(
           'surf',
-          catalog: _catalog(functions: [function]),
+          defaultCatalog: _catalog(functions: [function]),
         );
         surface.dataModel.set('/flag', false);
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -424,7 +432,7 @@ void _commitBoundaryTests() {
       final function = _FailingFunction();
       final surface = SurfaceModel<ComponentApi>(
         'surf',
-        catalog: _catalog(functions: [function]),
+        defaultCatalog: _catalog(functions: [function]),
       );
       surface.dataModel.set('/flag', false);
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
@@ -432,7 +440,7 @@ void _commitBoundaryTests() {
       _add(surface, 'root', 'Card', {'child': 'leaf', 'label': _expression()});
       final ComponentNode oldRoot = resolver.rootNode.peek()!;
       var callbacks = 0;
-      _child(oldRoot).onDestroyed.addListener((_) {
+      _child(oldRoot).onDestroyed.subscribe((_) {
         callbacks++;
         surface.dataModel.set('/flag', true);
       });
@@ -454,12 +462,12 @@ void _commitBoundaryTests() {
         final function = _FailingFunction();
         final surface = SurfaceModel<ComponentApi>(
           'surf',
-          catalog: _catalog(functions: [function]),
+          defaultCatalog: _catalog(functions: [function]),
         );
         surface.dataModel.set('/flag', true);
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         var errors = 0;
-        surface.onError.addListener((error) {
+        surface.onError.subscribe((error) {
           expect(error.code, 'EXPRESSION_ERROR');
           errors++;
           _expectLiveTree(resolver);
@@ -487,13 +495,14 @@ void _commitBoundaryTests() {
     }
 
     test('child destruction can re-add the root during root deletion', () {
-      final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+      final surface =
+          SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
       final NodeResolver<ComponentApi> resolver = _resolver(surface);
       _add(surface, 'leaf', 'Text', {'text': 'old'});
       _add(surface, 'root', 'Card', {'child': 'leaf'});
       final ComponentNode oldRoot = resolver.rootNode.peek()!;
       ComponentNode? rootDuringDestruction = oldRoot;
-      _child(oldRoot).onDestroyed.addListener((_) {
+      _child(oldRoot).onDestroyed.subscribe((_) {
         rootDuringDestruction = resolver.rootNode.peek();
         _add(surface, 'root', 'Text', {'text': 'replacement'});
       });
@@ -509,7 +518,8 @@ void _commitBoundaryTests() {
     test(
       'throwing destruction listeners do not interrupt any teardown',
       () async {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         _add(surface, 'a', 'Text', {'text': 'a'});
         _add(surface, 'b', 'Text', {'text': 'b'});
@@ -527,11 +537,11 @@ void _commitBoundaryTests() {
         addTearDown(subscription.cancel);
         root.addCleanup(() => events.add('root cleanup'));
         children[1].addCleanup(() => events.add('b cleanup'));
-        children[0].onDestroyed.addListener((_) {
+        children[0].onDestroyed.subscribe((_) {
           events.add('first listener');
           throw StateError('renderer teardown failed');
         });
-        children[0].onDestroyed.addListener(
+        children[0].onDestroyed.subscribe(
               (_) => events.add('second listener'),
             );
 
@@ -565,7 +575,8 @@ void _commitBoundaryTests() {
     test(
       'retired child callbacks observe and can change committed parent props',
       () {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         for (final id in ['a', 'b', 'c']) {
           _add(surface, id, 'Text', {'text': id});
@@ -579,7 +590,7 @@ void _commitBoundaryTests() {
         var destroyed = 0;
         ComponentNode? observedFirst;
         bool? observedAllLive;
-        old.onDestroyed.addListener((_) {
+        old.onDestroyed.subscribe((_) {
           destroyed++;
           final List<ComponentNode> children =
               (root.props.peek()['children'] as List).cast<ComponentNode>();
@@ -606,7 +617,8 @@ void _commitBoundaryTests() {
     test(
       'same-edge placeholder destruction observes its committed replacement',
       () {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         _add(surface, 'root', 'Card', {'child': 'leaf'});
         final ComponentNode root = resolver.rootNode.peek()!;
@@ -616,7 +628,7 @@ void _commitBoundaryTests() {
         bool? observedDisposed;
         NodeState? observedState;
         Object? observedText;
-        pending.onDestroyed.addListener((_) {
+        pending.onDestroyed.subscribe((_) {
           destroyed++;
           final ComponentNode current = _child(root);
           observedChild = current;
@@ -647,12 +659,12 @@ void _commitBoundaryTests() {
           final function = _FailingFunction();
           final surface = SurfaceModel<ComponentApi>(
             'surf',
-            catalog: _catalog(functions: [function]),
+            defaultCatalog: _catalog(functions: [function]),
           );
           surface.dataModel.set('/flag', false);
           final NodeResolver<ComponentApi> resolver = _resolver(surface);
           var errors = 0;
-          surface.onError.addListener((error) {
+          surface.onError.subscribe((error) {
             expect(error.code, 'EXPRESSION_ERROR');
             errors++;
             _expectLiveTree(resolver);
@@ -711,13 +723,13 @@ void _commitBoundaryTests() {
         final function = _FailingFunction();
         final surface = SurfaceModel<ComponentApi>(
           'surf',
-          catalog: _catalog(functions: [function]),
+          defaultCatalog: _catalog(functions: [function]),
         );
         surface.dataModel.set('/flag', true);
         surface.dataModel.set('/tick', 0);
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         var errors = 0;
-        surface.onError.addListener((_) {
+        surface.onError.subscribe((_) {
           errors++;
           _expectLiveTree(resolver);
           expect(_text(resolver.rootNode.peek()!), isNull);
@@ -751,7 +763,8 @@ void _cleanupRegistrationTests() {
       'root deletion',
     ]) {
       test('drains appended cleanups in order during $operation', () {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         _add(surface, 'a', 'Text', {'text': 'a'});
         _add(surface, 'b', 'Text', {'text': 'b'});
@@ -768,11 +781,11 @@ void _cleanupRegistrationTests() {
           events.add('a:first end');
         });
         children[0].addCleanup(() => events.add('a:second'));
-        children[0].onDestroyed.addListener((_) => events.add('a:destroyed'));
+        children[0].onDestroyed.subscribe((_) => events.add('a:destroyed'));
         children[1].addCleanup(() => events.add('b:cleanup'));
-        children[1].onDestroyed.addListener((_) => events.add('b:destroyed'));
+        children[1].onDestroyed.subscribe((_) => events.add('b:destroyed'));
         root.addCleanup(() => events.add('root:cleanup'));
-        root.onDestroyed.addListener((_) => events.add('root:destroyed'));
+        root.onDestroyed.subscribe((_) => events.add('root:destroyed'));
         const childEvents = [
           'a:first start',
           'a:first end',
@@ -828,7 +841,8 @@ void _cleanupRegistrationTests() {
     test(
       'isolates failures in appended cleanups and finishes teardown',
       () async {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         _add(surface, 'a', 'Text', {'text': 'a'});
         _add(surface, 'root', 'Card', {'child': 'a'});
@@ -850,9 +864,9 @@ void _cleanupRegistrationTests() {
           child.addCleanup(() => events.add('last'));
         });
         child.addCleanup(() => events.add('second'));
-        child.onDestroyed.addListener((_) => events.add('child destroyed'));
+        child.onDestroyed.subscribe((_) => events.add('child destroyed'));
         root.addCleanup(() => events.add('root cleanup'));
-        root.onDestroyed.addListener((_) => events.add('root destroyed'));
+        root.onDestroyed.subscribe((_) => events.add('root destroyed'));
 
         expect(resolver.dispose, returnsNormally);
         await Future<void>.delayed(Duration.zero);
@@ -879,7 +893,8 @@ void _cleanupRegistrationTests() {
     test(
       'runs cleanup registered after disposal immediately and isolates failure',
       () async {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         _add(surface, 'root', 'Text', {'text': 'root'});
         final ComponentNode root = resolver.rootNode.peek()!;
@@ -918,7 +933,8 @@ void _cleanupRegistrationTests() {
     test(
       'runs cleanup registered by a destruction listener before it resumes',
       () async {
-        final surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+        final surface =
+            SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
         final NodeResolver<ComponentApi> resolver = _resolver(surface);
         _add(surface, 'root', 'Text', {'text': 'root'});
         final ComponentNode root = resolver.rootNode.peek()!;
@@ -929,7 +945,7 @@ void _cleanupRegistrationTests() {
         ).onRecord.listen(logs.add);
         addTearDown(subscription.cancel);
         final failure = StateError('destruction-time cleanup failed');
-        root.onDestroyed.addListener((_) {
+        root.onDestroyed.subscribe((_) {
           events.add('listener start');
           root.addCleanup(() {
             events.add('cleanup');
@@ -937,7 +953,7 @@ void _cleanupRegistrationTests() {
           });
           events.add('listener end');
         });
-        root.onDestroyed.addListener((_) => events.add('second listener'));
+        root.onDestroyed.subscribe((_) => events.add('second listener'));
 
         expect(resolver.dispose, returnsNormally);
         await Future<void>.delayed(Duration.zero);

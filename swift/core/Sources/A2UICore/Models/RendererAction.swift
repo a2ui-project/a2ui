@@ -1,0 +1,95 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import OrderedJSON
+
+/// Reports a user-initiated action from a component.
+///
+/// Matches the `action` property in
+/// `specification/v1_0/json/renderer_to_agent.json`.
+public struct RendererAction: Equatable, Codable, Sendable, ProtocolVersioned {
+  /// The name of the action, taken from the component's
+  /// `action.event.name` property.
+  public let name: String
+
+  /// The id of the surface where the event originated.
+  public let surfaceID: String
+
+  /// The id of the component that triggered the event.
+  public let sourceComponentID: String
+
+  /// An ISO 8601 timestamp of when the event occurred.
+  public let timestamp: String
+
+  /// A JSON object containing the key-value pairs from the component's
+  /// `action.event.context`, after resolving all data bindings.
+  public let context: [String: JSONValue]
+
+  /// An optional human-readable message describing the action performed by the user.
+  public let userMessage: String?
+
+  /// Optional client-side metadata to send back to the agent with the action.
+  public let metadata: [String: JSONValue]?
+
+  /// The protocol version for the outbound message envelope.
+  public var version: A2UIProtocolVersion
+
+  private enum CodingKeys: String, CodingKey {
+    case name
+    case surfaceID = "surfaceId"
+    case sourceComponentID = "sourceComponentId"
+    case timestamp
+    case context
+    case userMessage
+    case metadata
+  }
+
+  /// Creates a new renderer action.
+  public init(
+    name: String,
+    surfaceID: String,
+    sourceComponentID: String,
+    timestamp: String,
+    context: [String: JSONValue],
+    userMessage: String? = nil,
+    metadata: [String: JSONValue]? = nil,
+    version: A2UIProtocolVersion
+  ) {
+    self.name = name
+    self.surfaceID = surfaceID
+    self.sourceComponentID = sourceComponentID
+    self.timestamp = timestamp
+    self.context = context
+    self.userMessage = userMessage
+    self.metadata = metadata
+    self.version = version
+  }
+
+  public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    name = try container.decode(String.self, forKey: .name)
+    surfaceID = try container.decode(String.self, forKey: .surfaceID)
+    sourceComponentID = try container.decode(String.self, forKey: .sourceComponentID)
+    timestamp = try container.decode(String.self, forKey: .timestamp)
+    context = try container.decode([String: JSONValue].self, forKey: .context)
+    userMessage = try container.decodeIfPresent(String.self, forKey: .userMessage)
+    metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata)
+    self.version = version
+  }
+}
+
+// MARK: - Deprecated Typealiases
+
+@available(*, deprecated, renamed: "RendererAction")
+public typealias ClientAction = RendererAction

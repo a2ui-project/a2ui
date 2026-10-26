@@ -48,14 +48,9 @@ from a2ui.transformers.macros import (
     MacroExpander,
     macro,
 )
-from a2ui.core import A2uiValidationError
-from a2ui.core.schema import AgentToRendererMessage
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import VERSION_0_9_1
-from a2ui.schema.utils import (
-    load_agent_to_renderer_schema,
-    load_common_types_schema,
-)
+from a2ui.core import A2uiValidationError, Catalog, CatalogApi
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
+from a2ui.utils import to_version_number
 from pydantic import TypeAdapter
 
 _message_adapter: TypeAdapter[AgentToRendererMessage] = TypeAdapter(
@@ -68,7 +63,9 @@ CONFORMANCE_DIR = os.path.abspath(
 GOLDEN_DIR = os.path.join(CONFORMANCE_DIR, "golden")
 SUITE_PATH = os.path.join(CONFORMANCE_DIR, "macros.yaml")
 
-PROTOCOL_VERSION = VERSION_0_9_1
+# The catalog definition form of the version, without the leading "v".
+# conformance/agent/macros/macros.yaml expects it back unchanged.
+PROTOCOL_VERSION = to_version_number(ProtocolVersion.V0_9_1)
 
 
 # =============================================================================
@@ -349,19 +346,20 @@ def run_case(case: Case) -> Any:
 # Validation
 # =============================================================================
 
-_catalog: Optional[A2uiCatalog] = None
+_catalog: Optional[CatalogApi] = None
 
 
-def basic_catalog_schema() -> A2uiCatalog:
+def basic_catalog_schema() -> CatalogApi:
     """Loads the basic catalog, memoized because schema loading is slow."""
     global _catalog
     if _catalog is None:
-        _catalog = A2uiCatalog(
-            version=PROTOCOL_VERSION,
-            name="basic",
-            catalog_schema=BasicCatalog(PROTOCOL_VERSION).catalog_schema,
-            s2c_schema=load_agent_to_renderer_schema(PROTOCOL_VERSION),
-            common_types_schema=load_common_types_schema(PROTOCOL_VERSION),
+        # BasicCatalog serves v0.9.1 with the v0.9 catalog, which reports v0.9,
+        # so the catalog is parsed again for the version under test.
+        basic = BasicCatalog(PROTOCOL_VERSION)
+        _catalog = Catalog.from_json(
+            catalog_schema=basic.validation_schema,
+            protocol_version=PROTOCOL_VERSION,
+            catalog_id=basic.catalog_id,
         )
     return _catalog
 
@@ -373,7 +371,7 @@ def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
 
     config = case.validation.to_config()
     has_create = any(isinstance(m, dict) and "createSurface" in m for m in payload)
-    catalogs = [basic_catalog_schema().core_catalog]
+    catalogs = [basic_catalog_schema()]
     if case.catalog_id and case.catalog_id != getattr(catalogs[0], "catalog_id", None):
         alias_cat = copy.copy(catalogs[0])
         alias_cat.catalog_id = case.catalog_id

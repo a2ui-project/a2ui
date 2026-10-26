@@ -400,6 +400,14 @@ def test_serialization_aliases_are_honoured():
     assert "validation_regexp" not in comp
 
 
+def test_aliased_fields_can_be_parsed_from_camel_case_wire_format():
+    """Verifies models with alias can parse their wire camelCase dictionaries."""
+    field = TextField.model_validate(
+        {"component": "TextField", "label": "ZIP", "validationRegexp": "^[0-9]{5}$"}
+    )
+    assert field.validation_regexp == "^[0-9]{5}$"
+
+
 def test_checks_serialize_on_checkable_components():
     """Verifies CheckRule reaches the wire via a component's checks slot."""
     comp = flatten_component_tree(

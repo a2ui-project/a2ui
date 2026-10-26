@@ -85,19 +85,6 @@ void main() {
           ),
         ),
       );
-      expect(
-        () => assertUax31Identifier(
-          'bad-name',
-          context: "component identifier: 'bad-name'",
-        ),
-        throwsA(
-          isA<A2uiCatalogError>().having(
-            (e) => e.message,
-            'message',
-            "Invalid UAX #31 component identifier: 'bad-name'",
-          ),
-        ),
-      );
     });
   });
 }

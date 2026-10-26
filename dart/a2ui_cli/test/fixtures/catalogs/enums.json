@@ -1,0 +1,17 @@
+{
+  "catalogId": "enums_catalog",
+  "components": {
+    "StatusBadge": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "published", "archived"]
+        }
+      },
+      "required": ["label", "status"]
+    }
+  }
+}

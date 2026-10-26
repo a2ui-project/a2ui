@@ -14,26 +14,42 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../utils/catalogs.dart';
 import 'compiler.dart';
 import 'schema_helper.dart';
 
-final RegExp _identifier = RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$');
+final RegExp _xidContinueChar = RegExp(r'^\p{XID_Continue}$', unicode: true);
 final RegExp _pathText = RegExp(r'^[a-zA-Z0-9_/]*$');
 final RegExp _pathSegment = RegExp(r'^[a-zA-Z0-9_]+$');
 
 /// Words the lexer reads as something other than an identifier.
 const Set<String> _keywords = {'_', 'null', 'true', 'false'};
 
-/// Writes v0.9 messages in Express notation: the inverse of the compiler.
+/// The catalog the items of a surface that name none belong to.
+///
+/// `known` is false for a surface the payload does not create, whose catalog
+/// it does not state. `catalogId` is null for a v1.0 surface that names no
+/// catalog.
+typedef _SurfaceCatalog = ({bool known, String? catalogId});
+
+/// Writes messages of the protocol version the catalogs target in Express
+/// notation: the inverse of the compiler.
 ///
 /// Positional arguments follow the property order the catalogs declare, so
 /// the decompiler needs the same catalogs the compiler reads with.
 ///
-/// Compiling the output gives back the messages written, with two
-/// exceptions that mean the same to a renderer: a data model update that
-/// names no path names `/`, and a data model update written beside a
-/// `createSurface` follows the `updateComponents` that gives the surface its
-/// root.
+/// Compiling the output gives back the messages written, with exceptions
+/// that mean the same to a renderer: a data model update that names no path
+/// names `/`, and a data model update written beside a `createSurface` is
+/// part of the surface it creates. Before v1.0 it follows the
+/// `updateComponents` that gives the surface its root; from v1.0 the
+/// components and the data model are both carried by the `createSurface`.
+///
+/// From v1.0 a component or function call is written with the catalog it
+/// belongs to only when several catalogs are active and looking its name up
+/// across them would not find that catalog. With several catalogs a surface
+/// names no catalog, so the recompiled `createSurface` names none, and every
+/// component and call names its own.
 ///
 /// A value with no idiomatic notation, such as a function call that states
 /// its `returnType`, is written as the map literal that compiles to it. What
@@ -41,8 +57,13 @@ const Set<String> _keywords = {'_', 'null', 'true', 'false'};
 class ExpressDecompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressDecompiler(this.catalogs);
+  ///
+  /// [catalogs] are linked with one another, as by [linkCatalogs], so a
+  /// cross-catalog `$ref` resolves; the catalogs passed in are not changed.
+  ExpressDecompiler(List<CatalogApi> catalogs)
+    : catalogs = linkCatalogs(catalogs);
 
+  /// The catalogs this decompiler knows, linked with one another.
   final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _helpers = {
@@ -50,148 +71,223 @@ class ExpressDecompiler {
       catalog.id: CatalogSchemaHelper(catalog),
   };
 
+  /// The protocol version [catalogs] target.
+  late final A2uiProtocolVersion _version = catalogsProtocolVersion(catalogs);
+
+  bool get _v1 => _version.isAtLeast(A2uiProtocolVersion.v1_0);
+
   /// Writes [messages] as the content of one `<a2ui>` block, without the
   /// tags.
   ///
   /// Each surface operation is a paragraph opening with its `surface(...)`
   /// line. A `createSurface` is written together with the `updateComponents`
   /// and whole data model `updateDataModel` that follow it for the same
-  /// surface, since assigning `root` is how Express creates a surface.
+  /// surface, unless it carries components or a data model of its own, since
+  /// assigning `root` is how Express creates a surface. A v1.0
+  /// `callRendererFunction` is written as the function call it makes, as a
+  /// statement of its own.
   ///
-  /// Throws [A2uiCatalogError] if there are no [catalogs], and
-  /// [A2uiValidationError] if a message has no Express notation:
+  /// Throws [A2uiCatalogError] if there are no [catalogs] or they target
+  /// different versions, and [A2uiValidationError] if a message has no
+  /// Express notation:
   ///
-  /// - a `createSurface` with a theme, with `sendDataModel`, or without an
-  ///   `updateComponents` giving the surface its root;
+  /// - a `createSurface` with a theme, with `sendDataModel`, with metadata,
+  ///   or without the components that give the surface its root;
   /// - an `updateComponents` without a `createSurface` that assigns `root`,
   ///   which would create the surface when compiled;
   /// - an `updateDataModel` below the root of the data model, or removing it;
-  /// - a component whose id is not an Express identifier, such as
-  ///   `main-column`, or which sets a property its catalog shares with every
-  ///   component, such as `weight`;
+  /// - from v1.0, a component whose id is not a UAX 31 identifier, such as
+  ///   `main-column`, or a component that sets a property its catalog does not
+  ///   declare for it, such as `metadata`;
   /// - a check that is not a call to a catalog function, or has no message;
+  /// - a `callRendererFunction` naming a surface, or a function call that
+  ///   cannot be written as a call;
+  /// - an `agentFunctionResponse`;
   /// - anything a catalog does not declare, such as an unknown component.
   String decompile(List<AgentToRendererMessage> messages) {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Decompiling Express needs at least one catalog.');
     }
+    final bool v1 = _v1;
     final paragraphs = <String>[];
-    final created = <String, CatalogSchemaHelper>{};
+    final created = <String, String?>{};
+    var calls = 0;
     for (var i = 0; i < messages.length; i++) {
       final AgentToRendererMessage message = messages[i];
       switch (message) {
         case CreateSurfaceMessage():
-          UpdateComponentsMessage? components;
-          UpdateDataModelMessage? data;
+          List<Map<String, Object?>>? components = message.components;
+          Object? data = message.dataModel;
           while (i + 1 < messages.length) {
             final AgentToRendererMessage next = messages[i + 1];
             if (next is UpdateComponentsMessage &&
                 next.surfaceId == message.surfaceId &&
                 components == null) {
-              components = next;
+              components = next.components;
             } else if (next is UpdateDataModelMessage &&
                 next.surfaceId == message.surfaceId &&
                 data == null &&
                 _isWholeModel(next)) {
-              data = next;
+              data = next.value;
             } else {
               break;
             }
             i++;
           }
-          final CatalogSchemaHelper helper = _helper(
-            message.catalogId ??
-                (throw A2uiValidationError(
-                  "Surface '${message.surfaceId}' names no catalogId, which "
-                  'the Express format requires.',
-                )),
+          final String? catalogId = _surfaceCatalog(message);
+          created[message.surfaceId] = catalogId;
+          paragraphs.add(
+            _create(
+              message,
+              (known: true, catalogId: catalogId),
+              components,
+              data as Map<Object?, Object?>?,
+            ),
           );
-          created[message.surfaceId] = helper;
-          paragraphs.add(_create(message, helper, components, data));
         case UpdateComponentsMessage():
           paragraphs.add(_updateComponents(message, created));
         case UpdateDataModelMessage():
           paragraphs.add(_updateData(message, created));
         case DeleteSurfaceMessage():
           paragraphs.add('deleteSurface(${_string(message.surfaceId)})');
+        case CallRendererFunctionMessage() when v1:
+          paragraphs.add(_rendererCall(message, ++calls));
         default:
           throw A2uiValidationError(
             'A ${message.runtimeType} has no Express notation.',
-            details: message.toJson(),
           );
       }
     }
     return paragraphs.join('\n\n');
   }
 
+  /// The catalog of the surface [message] creates.
+  ///
+  /// Before v1.0 the message names it, as the Express format requires. From
+  /// v1.0 a single catalog is the catalog of every surface, and with several
+  /// a surface has the catalog it names, or none.
+  ///
+  /// Throws [A2uiValidationError] if the message names a catalog that is not
+  /// active, or names none before v1.0.
+  String? _surfaceCatalog(CreateSurfaceMessage message) {
+    final String? catalogId = message.catalogId;
+    if (catalogId != null) _helper(catalogId);
+    if (!_v1) {
+      return catalogId ??
+          (throw A2uiValidationError(
+            "Surface '${message.surfaceId}' names no catalogId, which the "
+            'Express format requires.',
+          ));
+    }
+    return catalogs.length == 1 ? catalogs.single.id : catalogId;
+  }
+
   String _create(
     CreateSurfaceMessage message,
-    CatalogSchemaHelper helper,
-    UpdateComponentsMessage? components,
-    UpdateDataModelMessage? data,
+    _SurfaceCatalog surface,
+    List<Map<String, Object?>>? components,
+    Map<Object?, Object?>? data,
   ) {
     final String surfaceId = message.surfaceId;
     if (message.theme != null) {
-      throw _noNotation("The theme of surface '$surfaceId'", message);
+      throw _noNotation("The theme of surface '$surfaceId'");
     }
     if (message.sendDataModel) {
-      throw _noNotation("'sendDataModel' of surface '$surfaceId'", message);
+      throw _noNotation("'sendDataModel' of surface '$surfaceId'");
     }
-    if (components == null ||
-        !components.components.any((c) => c['id'] == 'root')) {
+    if (message.metadata != null) {
+      throw _noNotation("The metadata of surface '$surfaceId'");
+    }
+    if (components == null || !components.any((c) => c['id'] == 'root')) {
       throw A2uiValidationError(
         "Surface '$surfaceId' is created without a root. Express creates a "
         "surface by assigning 'root', so a createSurface has Express notation "
-        'only beside the updateComponents that gives the surface its root.',
-        details: message.toJson(),
+        'only together with the components that give the surface its root.',
       );
     }
     return [
-      _surfaceLine(surfaceId, helper),
-      if (data != null) ..._dataLines(data.value! as Map),
-      ..._componentLines(components, helper),
+      _surfaceLine(surfaceId, surface.catalogId),
+      if (data != null) ..._dataLines(data),
+      ..._componentLines(components, surface),
     ].join('\n');
   }
 
   String _updateComponents(
     UpdateComponentsMessage message,
-    Map<String, CatalogSchemaHelper> created,
+    Map<String, String?> created,
   ) {
+    final String surfaceId = message.surfaceId;
     if (message.components.any((c) => c['id'] == 'root')) {
       throw A2uiValidationError(
-        "The update of surface '${message.surfaceId}' sets 'root' without "
-        "creating the surface. Assigning 'root' in Express creates the "
-        'surface, so this update has no Express notation.',
-        details: message.toJson(),
+        "The update of surface '$surfaceId' sets 'root' without creating the "
+        "surface. Assigning 'root' in Express creates the surface, so this "
+        'update has no Express notation.',
       );
     }
-    final CatalogSchemaHelper helper =
-        created[message.surfaceId] ?? _helperDeclaring(message.components);
+    final _SurfaceCatalog surface = created.containsKey(surfaceId)
+        ? (known: true, catalogId: created[surfaceId])
+        : _v1
+        ? (known: catalogs.length == 1, catalogId: catalogs.first.id)
+        : (known: true, catalogId: _catalogDeclaring(message.components));
     return [
-      _surfaceLine(message.surfaceId, helper),
-      ..._componentLines(message, helper),
+      _surfaceLine(surfaceId, surface.catalogId),
+      ..._componentLines(message.components, surface),
     ].join('\n');
   }
 
   String _updateData(
     UpdateDataModelMessage message,
-    Map<String, CatalogSchemaHelper> created,
+    Map<String, String?> created,
   ) {
-    if (!_isWholeModel(message)) {
+    final String? path = message.path;
+    final Object? value = message.value;
+    final bool atRoot = path == null || path == '/';
+    if (atRoot ? value is! Map : value == null || !_isDataPath(path)) {
       throw A2uiValidationError(
-        "The update of path '${message.path}' in the data model of surface "
-        "'${message.surfaceId}' has no Express notation. Express writes the "
-        'whole data model, from its root, and cannot remove it.',
-        details: message.toJson(),
+        "The update of path '${path ?? '/'}' in the data model of surface "
+        "'${message.surfaceId}' has no Express notation. Express assigns a "
+        'value to a data path, and cannot remove one or replace the root '
+        'with anything but a map.',
       );
     }
+    // Below the root the value is assigned at its path, which compiles to an
+    // update of the root holding it.
     return [
       _surfaceLine(
         message.surfaceId,
-        created[message.surfaceId] ?? _helpers[catalogs.first.id]!,
+        created[message.surfaceId] ?? catalogs.first.id,
       ),
-      ..._dataLines(message.value! as Map),
+      ..._dataLines(value, at: atRoot ? '' : path),
     ].join('\n');
+  }
+
+  /// A v1.0 `callRendererFunction`, the [index]th of the payload, as the
+  /// function call it makes.
+  ///
+  /// The call names the catalog of its function, which the compiler writes
+  /// back, so it is written with the catalog only when a lookup by name would
+  /// not find it. A `functionCallId` other than `call_<index>`, the id the
+  /// compiler gives the call, is written as a `functionCallId` argument.
+  String _rendererCall(CallRendererFunctionMessage message, int index) {
+    final String id = message.functionCallId;
+    if (message.surfaceId case final String surfaceId) {
+      throw _noNotation(
+        "The surface '$surfaceId' of function call '$id', which runs against "
+        'the data model of a surface,',
+      );
+    }
+    final String call =
+        _Component(
+          this,
+          (known: false, catalogId: null),
+          const {},
+          const {},
+        )._call({'args': const <String, Object?>{}, ...message.callFunction}) ??
+        (throw _noNotation("Function call '$id'"));
+    if (id == 'call_$index') return call;
+    final separator = call.endsWith('()') ? '' : ', ';
+    return '${call.substring(0, call.length - 1)}$separator'
+        'functionCallId=${_string(id)})';
   }
 
   /// Whether [message] replaces the whole data model with a map, which is
@@ -208,27 +304,83 @@ class ExpressDecompiler {
 
   /// The first catalog declaring every component in [components], or the
   /// default catalog if none does.
-  CatalogSchemaHelper _helperDeclaring(List<Map<String, Object?>> components) {
+  String _catalogDeclaring(List<Map<String, Object?>> components) {
     for (final CatalogApi catalog in catalogs) {
       final CatalogSchemaHelper helper = _helpers[catalog.id]!;
       if (components.every((c) => helper.isComponent('${c['component']}'))) {
-        return helper;
+        return catalog.id;
       }
     }
-    return _helpers[catalogs.first.id]!;
+    return catalogs.first.id;
   }
 
-  String _surfaceLine(String surfaceId, CatalogSchemaHelper helper) {
-    final String catalogId = helper.catalog.id;
-    return catalogId == catalogs.first.id
-        ? 'surface(${_string(surfaceId)})'
-        : 'surface(${_string(surfaceId)}, ${_string(catalogId)})';
+  /// The catalog a component, or a function when [component] is false,
+  /// named [name] belongs to, and the catalog to write it with, or null.
+  ///
+  /// The catalog is the one [named] names, else the surface's, else, for a
+  /// v1.0 surface the payload does not create, the first catalog declaring
+  /// [name]. Before v1.0 an item always belongs to its surface's catalog. It
+  /// is written only from v1.0, with several catalogs, when a lookup of
+  /// [name] across them would not find that catalog alone, which is what the
+  /// compiler does with an item that names none.
+  ///
+  /// Throws [A2uiValidationError] if the item names no catalog on a surface
+  /// that names none, names one that is not active, or its catalog does not
+  /// declare [name].
+  (CatalogSchemaHelper, String?) _resolve(
+    String name,
+    Object? named,
+    _SurfaceCatalog surface, {
+    required bool component,
+    required String subject,
+  }) {
+    final kind = component ? 'component' : 'function';
+    bool declares(CatalogSchemaHelper helper) =>
+        component ? helper.isComponent(name) : helper.isFunction(name);
+    final Iterable<CatalogSchemaHelper> declaring = _helpers.values.where(
+      declares,
+    );
+    final String catalogId;
+    if (!_v1 || named == null) {
+      catalogId = surface.known || !_v1
+          ? surface.catalogId ??
+                (throw A2uiValidationError(
+                  '$subject names no catalogId, and its surface names no '
+                  'catalog.',
+                ))
+          : declaring.firstOrNull?.catalog.id ?? catalogs.first.id;
+    } else if (named is String) {
+      catalogId = named;
+    } else {
+      throw A2uiValidationError("$subject has a non-string 'catalogId'.");
+    }
+    final CatalogSchemaHelper helper = _helper(catalogId);
+    if (!declares(helper)) {
+      throw A2uiValidationError(
+        "Catalog '$catalogId' declares no $kind named '$name'.",
+      );
+    }
+    // The compiler reads a call to a name some catalog declares as a
+    // component as that component, unless the call names its catalog.
+    final bool found =
+        declaring.length == 1 &&
+        identical(declaring.single, helper) &&
+        (component || !_helpers.values.any((h) => h.isComponent(name)));
+    return (helper, !_v1 || catalogs.length == 1 || found ? null : catalogId);
   }
+
+  /// The `surface(...)` line, which names the surface's catalog before v1.0
+  /// when it is not the default. From v1.0 a surface of a single catalog has
+  /// that catalog, and one of several names none.
+  String _surfaceLine(String surfaceId, String? catalogId) =>
+      _v1 || catalogId == catalogs.first.id
+      ? 'surface(${_string(surfaceId)})'
+      : 'surface(${_string(surfaceId)}, ${_string(catalogId!)})';
 
   /// One assignment per leaf of [model], since the compiler builds nested
   /// maps back up from the paths.
-  List<String> _dataLines(Map<Object?, Object?> model) {
-    if (model.isEmpty) return [r'$/ = {}'];
+  List<String> _dataLines(Object? model, {String at = ''}) {
+    if (at.isEmpty && model is Map && model.isEmpty) return [r'$/ = {}'];
     final lines = <String>[];
     void visit(String path, Object? value) {
       if (value is Map && value.isNotEmpty) {
@@ -248,65 +400,110 @@ class ExpressDecompiler {
       }
     }
 
-    visit('', model);
+    visit(at, model);
     return lines;
   }
 
+  /// Whether [path] is a data path Express can assign at, such as
+  /// `/user/name`: one naming map keys, since the assignment compiles to an
+  /// update of the root that holds a map along the path, and so not one
+  /// naming an item of a list.
+  bool _isDataPath(String path) =>
+      path.startsWith('/') &&
+      path
+          .substring(1)
+          .split('/')
+          .every((s) => _pathSegment.hasMatch(s) && int.tryParse(s) == null);
+
   List<String> _componentLines(
-    UpdateComponentsMessage message,
-    CatalogSchemaHelper helper,
+    List<Map<String, Object?>> components,
+    _SurfaceCatalog surface,
   ) {
-    final Set<String> defined = {
-      for (final Map<String, Object?> component in message.components)
-        if (component['id'] case final String id) id,
-    };
+    final ids = <String>[];
+    for (final component in components) {
+      final Object? id = component['id'];
+      if (id is! String || id.isEmpty) {
+        throw A2uiValidationError(
+          "Component id '$id' has no Express notation.",
+        );
+      }
+      ids.add(id);
+    }
+    if (_v1) {
+      final List<A2uiErrorDetail> details = [
+        for (final String id in ids)
+          if (!isValidUax31Identifier(id))
+            A2uiErrorDetail(
+              path: 'components.$id.id',
+              code: 'invalid_identifier',
+              message: "Component id '$id' must be a valid UAX #31 identifier",
+            ),
+      ];
+      if (details.isNotEmpty) {
+        throw A2uiValidationError(
+          details.first.message,
+          path: details.first.path,
+          errors: details,
+        );
+      }
+    }
+    final Map<String, String> variables = _assignVariableNames(ids);
     return [
-      for (final Map<String, Object?> component in message.components)
-        _Component(helper, defined, component).write(),
+      for (final Map<String, Object?> component in components)
+        _Component(this, surface, variables, component).write(),
     ];
   }
 }
 
-/// Writes one component as `id = Type(arguments)`.
+/// Writes one component as `varName = Type(arguments)`, and the values in it.
 class _Component {
-  _Component(this.helper, this.defined, this.json);
+  _Component(this.decompiler, this.surface, this.variables, this.json);
 
-  final CatalogSchemaHelper helper;
+  final ExpressDecompiler decompiler;
 
-  /// The ids of the components the block defines, which a reference names
-  /// as a variable. Any other id is written as a string.
-  final Set<String> defined;
+  /// The catalog of the component's surface, which its calls that name none
+  /// belong to.
+  final _SurfaceCatalog surface;
+
+  /// The variable name each component of the block is written under, keyed by
+  /// its component id.
+  final Map<String, String> variables;
 
   final Map<String, Object?> json;
+
+  bool get _v1 => decompiler._v1;
+
+  /// The key of a data binding: `@path` from v1.0 and `path` before.
+  String get _pathKey => _v1 ? '@path' : 'path';
+
+  /// The key of a function call: `@call` from v1.0 and `call` before.
+  String get _callKey => _v1 ? '@call' : 'call';
 
   String get _id => '${json['id']}';
 
   String write() {
-    final Object? id = json['id'];
-    if (id is! String || !_isIdentifier(id)) {
-      throw A2uiValidationError(
-        "Component id '$id' has no Express notation. In Express the id is the "
-        'name of the variable holding the component, so it has to be made of '
-        'letters, digits and underscores, and not start with a digit.',
-        details: json,
-      );
-    }
+    final id = json['id']! as String;
+    final String varName = variables[id]!;
     final Object? type = json['component'];
-    if (type is! String || !helper.isComponent(type)) {
-      throw A2uiValidationError(
-        "Catalog '${helper.catalog.id}' declares no component named '$type'.",
-        details: json,
-      );
+    if (type is! String) {
+      throw A2uiValidationError("Component '$id' names no component type.");
     }
+    final (CatalogSchemaHelper helper, String? catalogId) = decompiler._resolve(
+      type,
+      json['catalogId'],
+      surface,
+      component: true,
+      subject: "Component '$id'",
+    );
     final List<String> properties = helper.properties(type);
     for (final String key in json.keys) {
       if (key == 'id' || key == 'component' || key == 'checks') continue;
+      if (_v1 && key == 'catalogId') continue;
       if (!properties.contains(key)) {
         throw A2uiValidationError(
           "Property '$key' of component '$id' has no Express notation: an "
           'Express call to $type takes only the properties $type declares '
           'itself (${properties.join(', ')}).',
-          details: json,
         );
       }
     }
@@ -323,7 +520,6 @@ class _Component {
         throw A2uiValidationError(
           "Property '$property' of component '$id' is null, which Express "
           'cannot write: the compiler leaves a null argument out.',
-          details: json,
         );
       }
       arguments
@@ -332,7 +528,9 @@ class _Component {
       skipped = 0;
     }
     if (json['checks'] case final Object checks) arguments.add(_checks(checks));
-    return '$id = $type(${arguments.join(', ')})';
+    if (catalogId != null) arguments.add('catalogId=${_string(catalogId)}');
+    if (varName != id) arguments.add('id=${_string(id)}');
+    return '$varName = $type(${arguments.join(', ')})';
   }
 
   String _property(Object value, Map<String, Object?>? schema) {
@@ -350,9 +548,9 @@ class _Component {
       if (value case {
         'componentId': final String componentId,
         'path': final String path,
-      } when value.length == 2 && _refersToVariable(componentId)) {
+      } when value.length == 2 && variables.containsKey(componentId)) {
         if (_path(path) case final String written) {
-          return '_template($written, $componentId)';
+          return '_template($written, ${variables[componentId]!})';
         }
       }
     }
@@ -366,13 +564,10 @@ class _Component {
     };
   }
 
-  /// A reference to another component: a variable for one this block
+  /// A reference to another component: its variable name for one this block
   /// defines, and a string for one it does not, which the compiler passes on
   /// as written.
-  String _reference(String id) => _refersToVariable(id) ? id : _string(id);
-
-  bool _refersToVariable(String id) =>
-      defined.contains(id) && _isIdentifier(id);
+  String _reference(String id) => variables[id] ?? _string(id);
 
   /// `Event(name, context)` for an event, the call itself for a local
   /// function, and the map literal otherwise.
@@ -398,35 +593,64 @@ class _Component {
   }
 
   /// `$path` for a data binding the lexer can read, or null.
-  String? _binding(Map<Object?, Object?> value) => switch (value) {
-    {'path': final String path} when value.length == 1 => _path(path),
+  String? _binding(Map<Object?, Object?> value) => switch (value[_pathKey]) {
+    final String path when value.length == 1 => _path(path),
     _ => null,
   };
 
+  /// The function a call that names [name] and, from v1.0, [catalogId]
+  /// belongs to, and the catalog to write it with, or, before v1.0, null if
+  /// it belongs to no active catalog.
+  ///
+  /// Throws [A2uiValidationError] from v1.0 if it belongs to no active
+  /// catalog, since the map the call would be written as instead does not
+  /// compile.
+  (CatalogSchemaHelper, String?)? _function(String name, Object? catalogId) {
+    try {
+      return decompiler._resolve(
+        name,
+        catalogId,
+        surface,
+        component: false,
+        subject: "Function call '$name'",
+      );
+    } on A2uiValidationError {
+      if (_v1) rethrow;
+      return null;
+    }
+  }
+
   /// `name(arguments)` for a call to a catalog function, or null.
   String? _call(Map<Object?, Object?> value) {
-    if (value case {
-      'call': final String name,
-      'args': final Map<Object?, Object?> args,
-    } when value.length == 2 && helper.isFunction(name)) {
-      final List<String> parameters = helper.parameters(name);
-      if (!args.keys.every(parameters.contains)) return null;
-      final arguments = <String>[];
-      var skipped = 0;
-      for (final parameter in parameters) {
-        final Object? argument = args[parameter];
-        if (argument == null) {
-          skipped++;
-          continue;
-        }
-        arguments
-          ..addAll(List.filled(skipped, '_'))
-          ..add(_value(argument, helper.parameterSchema(name, parameter)));
-        skipped = 0;
+    final Object? name = value[_callKey];
+    final Object? args = value['args'];
+    final bool written = value.keys.every(
+      (k) => k == _callKey || k == 'args' || (_v1 && k == 'catalogId'),
+    );
+    if (name is! String || args is! Map || !written) return null;
+    final (CatalogSchemaHelper, String?)? function = _function(
+      name,
+      value['catalogId'],
+    );
+    if (function == null) return null;
+    final (CatalogSchemaHelper helper, String? catalogId) = function;
+    final List<String> parameters = helper.parameters(name);
+    if (!args.keys.every(parameters.contains)) return null;
+    final arguments = <String>[];
+    var skipped = 0;
+    for (final parameter in parameters) {
+      final Object? argument = args[parameter];
+      if (argument == null) {
+        skipped++;
+        continue;
       }
-      return '$name(${arguments.join(', ')})';
+      arguments
+        ..addAll(List.filled(skipped, '_'))
+        ..add(_value(argument, helper.parameterSchema(name, parameter)));
+      skipped = 0;
     }
-    return null;
+    if (catalogId != null) arguments.add('catalogId=${_string(catalogId)}');
+    return '$name(${arguments.join(', ')})';
   }
 
   String _list(List<Object?> value, Map<String, Object?>? itemSchema) =>
@@ -443,44 +667,54 @@ class _Component {
     return '{${entries.join(', ')}}';
   }
 
-  /// The checks of the component, as `?name(arguments, message)` in a list.
+  /// The checks of the component, as `?name(arguments, message)`: one on its
+  /// own, and several in a list.
   String _checks(Object checks) {
     if (checks is! List || checks.isEmpty) {
       throw A2uiValidationError(
         "The checks of component '$_id' have no Express notation: Express "
         'writes checks as a non-empty list.',
-        details: json,
       );
     }
+    if (checks.length == 1) return _check(checks.single);
     return '[${checks.map(_check).join(', ')}]';
   }
 
   String _check(Object? rule) {
     if (rule case {
-      'condition': {
-        'call': final String name,
-        'args': final Map<Object?, Object?> args,
-      },
+      'condition': final Map<Object?, Object?> condition,
       'message': final String message,
-    } when rule.length == 2 && helper.isFunction(name)) {
-      final List<String> parameters = helper.parameters(name);
-      if (args.keys.every(parameters.contains)) {
-        return _checkCall(name, parameters, args, message);
+    } when rule.length == 2) {
+      final Object? name = condition[_callKey];
+      final Object? args = condition['args'];
+      final bool written = condition.keys.every(
+        (k) => k == _callKey || k == 'args' || (_v1 && k == 'catalogId'),
+      );
+      if (name is String && args is Map && written) {
+        if (_function(name, condition['catalogId']) case (
+          final CatalogSchemaHelper helper,
+          final String? catalogId,
+        ) when args.keys.every(helper.parameters(name).contains)) {
+          return _checkCall(name, helper, args, message, catalogId);
+        }
       }
     }
     throw A2uiValidationError(
       "A check of component '$_id' has no Express notation. Express writes a "
       'check as a call to a function of the catalog, with a message.',
-      details: rule,
     );
   }
 
+  /// A check calling [name] of [helper]'s catalog, written with that catalog
+  /// as a `{catalogId: ...}` argument when [catalogId] is not null.
   String _checkCall(
     String name,
-    List<String> parameters,
+    CatalogSchemaHelper helper,
     Map<Object?, Object?> args,
     String message,
+    String? catalogId,
   ) {
+    final List<String> parameters = helper.parameters(name);
     // The compiler passes the component's bound value to a check whose first
     // parameter is `value`, unless the first argument written is a path.
     final Object? bound = json['value'];
@@ -496,7 +730,6 @@ class _Component {
           "Check '?$name' of component '$_id' tests a value other than the "
           "component's own, and not a data binding, which Express cannot "
           'write.',
-          details: json,
         );
       }
     }
@@ -519,6 +752,7 @@ class _Component {
         ..addAll(List.filled(skipped, '_'))
         ..add(_string(message));
     }
+    if (catalogId != null) arguments.add('{catalogId: ${_string(catalogId)}}');
     return arguments.isEmpty ? '?$name' : '?$name(${arguments.join(', ')})';
   }
 }
@@ -535,10 +769,7 @@ String _literal(Object? value) => switch (value) {
   String() => _string(value),
   List() => '[${value.map(_literal).join(', ')}]',
   Map() => _mapOfLiterals(value),
-  _ => throw A2uiValidationError(
-    'The value $value has no Express notation.',
-    details: value,
-  ),
+  _ => throw A2uiValidationError('The value $value has no Express notation.'),
 };
 
 String _mapOfLiterals(Map<Object?, Object?> value) {
@@ -549,15 +780,14 @@ String _mapOfLiterals(Map<Object?, Object?> value) {
   return '{${entries.join(', ')}}';
 }
 
+/// [value] as Express writes doubles: the form of ECMAScript
+/// `Number.prototype.toString`, which Dart's `toString` already produces
+/// (`0.000015`, `1e-7`, `1e+21`), with a `.0` suffix on integral doubles.
 String _double(double value) {
-  final text = '$value';
-  if (!RegExp(r'^-?[0-9]+\.[0-9]+$').hasMatch(text)) {
-    throw A2uiValidationError(
-      'The number $value has no Express notation, which writes numbers as '
-      'plain decimals.',
-    );
+  if (!value.isFinite) {
+    throw A2uiValidationError('The number $value has no Express notation.');
   }
-  return text;
+  return '$value';
 }
 
 /// A string literal: raw when that keeps backslashes single, and escaped
@@ -565,6 +795,14 @@ String _double(double value) {
 String _string(String value) {
   final bool hasBackslash = value.contains(r'\');
   if (hasBackslash && !value.contains(RegExp('["\n\r]'))) return 'r"$value"';
+  // Across lines a raw string is triple-quoted, and ends at the first `"""`.
+  if (hasBackslash &&
+      value.contains('\n') &&
+      !value.contains('\r') &&
+      !value.contains('"""') &&
+      !value.endsWith('"')) {
+    return 'r"""$value"""';
+  }
   final String escaped = value
       .replaceAll(r'\', r'\\')
       .replaceAll('"', r'\"')
@@ -581,7 +819,39 @@ String _entry(String key, String value) => '${_key(key)}: $value';
 String _key(String key) => _isIdentifier(key) ? key : _string(key);
 
 bool _isIdentifier(String name) =>
-    _identifier.hasMatch(name) && !_keywords.contains(name);
+    isValidUax31Identifier(name) && !_keywords.contains(name);
+
+String _deriveVariableName(String id) {
+  String base = id.runes
+      .map(String.fromCharCode)
+      .map((String ch) => _xidContinueChar.hasMatch(ch) ? ch : '_')
+      .join();
+  while (!_isIdentifier(base)) {
+    base = '_$base';
+  }
+  return base;
+}
+
+Map<String, String> _assignVariableNames(Iterable<String> componentIds) {
+  final names = <String, String>{
+    for (final String id in componentIds)
+      if (_isIdentifier(id)) id: id,
+  };
+  final Set<String> taken = names.values.toSet();
+  for (final id in componentIds) {
+    if (names.containsKey(id)) continue;
+    final String base = _deriveVariableName(id);
+    var name = base;
+    var suffix = 2;
+    while (taken.contains(name)) {
+      name = '${base}_$suffix';
+      suffix++;
+    }
+    names[id] = name;
+    taken.add(name);
+  }
+  return names;
+}
 
 Map<Object?, Object?> _asMap(Object? value) => value is Map ? value : const {};
 
@@ -614,8 +884,5 @@ Map<String, Object?>? _itemSchema(Map<String, Object?>? schema) =>
       _ => null,
     };
 
-A2uiValidationError _noNotation(String what, AgentToRendererMessage message) =>
-    A2uiValidationError(
-      '$what has no Express notation.',
-      details: message.toJson(),
-    );
+A2uiValidationError _noNotation(String what) =>
+    A2uiValidationError('$what has no Express notation.');

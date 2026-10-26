@@ -1,0 +1,417 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import A2UICore
+import Foundation
+import JSONSchema
+import OrderedCollections
+import OrderedJSON
+import Testing
+
+@MainActor
+struct RPCHandlerTests {
+
+  private struct MockEchoFunction: FunctionImplementation {
+    let api: FunctionAPI
+
+    init(allowedCallers: AllowedCallers = .rendererOrAgent) {
+      let schema = try! Schema(
+        rawSchema: .object(["type": .string("object")]),
+        context: Context(dialect: .draft2020_12)
+      )
+      self.api = FunctionAPI(
+        name: "echo",
+        returnType: .string,
+        schema: schema,
+        allowedCallers: allowedCallers
+      )
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      arguments["message"] ?? .null
+    }
+  }
+
+  @Test func incomingCallSuccess() async {
+    let handler = RPCHandler()
+    let echoFn = MockEchoFunction()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
+
+    let callPayload = CallFunctionPayload(
+      call: "echo",
+      catalogID: "test",
+      args: ["message": .string("Hello Agent")]
+    )
+    let callMsg = CallRendererFunctionMessage(
+      functionCallID: "call_1",
+      callFunction: callPayload,
+      version: .v10
+    )
+
+    let response = await handler.handleIncomingCall(
+      callMsg,
+      catalogs: [catalog.id: catalog]
+    )
+
+    #expect(response.functionCallID == "call_1")
+    #expect(response.value == .string("Hello Agent"))
+    #expect(response.error == nil)
+  }
+
+  @Test func incomingCallUnknownFunction() async {
+    let handler = RPCHandler()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI]()
+    ).eraseToAnyCatalog()
+
+    let callPayload = CallFunctionPayload(call: "nonexistent", catalogID: "test")
+    let callMsg = CallRendererFunctionMessage(
+      functionCallID: "call_2",
+      callFunction: callPayload,
+      version: .v10
+    )
+
+    let response = await handler.handleIncomingCall(
+      callMsg,
+      catalogs: [catalog.id: catalog]
+    )
+
+    #expect(response.functionCallID == "call_2")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "INVALID_FUNCTION_CALL")
+  }
+
+  @Test func incomingCallDisallowedCaller() async {
+    let handler = RPCHandler()
+    let echoFn = MockEchoFunction(allowedCallers: .rendererOnly)
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
+
+    let callPayload = CallFunctionPayload(call: "echo", catalogID: "test")
+    let callMsg = CallRendererFunctionMessage(
+      functionCallID: "call_3",
+      callFunction: callPayload,
+      version: .v10
+    )
+
+    let response = await handler.handleIncomingCall(
+      callMsg,
+      catalogs: [catalog.id: catalog]
+    )
+
+    #expect(response.functionCallID == "call_3")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "INVALID_FUNCTION_CALL")
+  }
+
+  @Test func incomingCallRejectsUnversionedCatalogDefaultingToV09() async {
+    let handler = RPCHandler()
+    let echoFn = MockEchoFunction()
+    let unversionedCatalog = Catalog(
+      id: "test",
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
+
+    let callPayload = CallFunctionPayload(
+      call: "echo",
+      catalogID: "test",
+      args: ["message": .string("Hello Agent")]
+    )
+    let callMsg = CallRendererFunctionMessage(
+      functionCallID: "call_unversioned",
+      callFunction: callPayload,
+      version: .v10
+    )
+
+    let response = await handler.handleIncomingCall(
+      callMsg,
+      catalogs: [unversionedCatalog.id: unversionedCatalog]
+    )
+
+    #expect(response.functionCallID == "call_unversioned")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "INVALID_FUNCTION_CALL")
+  }
+
+  @Test func incomingCallAmbiguousCatalogsWithoutCatalogIdFails() async {
+    let handler = RPCHandler()
+    let echoFn = MockEchoFunction()
+    let basicCatalog = Catalog(
+      id: "basic",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
+    let otherCatalog = Catalog(
+      id: "other",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
+
+    let callPayload = CallFunctionPayload(call: "echo", args: ["message": .string("hi")])
+    let callMsg = CallRendererFunctionMessage(
+      functionCallID: "call_ambiguous",
+      callFunction: callPayload,
+      version: .v10
+    )
+
+    let response = await handler.handleIncomingCall(
+      callMsg,
+      catalogs: ["basic": basicCatalog, "other": otherCatalog],
+      defaultCatalogID: "basic"
+    )
+
+    #expect(response.functionCallID == "call_ambiguous")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "INVALID_FUNCTION_CALL")
+  }
+
+  @Test func outgoingCallSuccess() async throws {
+    let handler = RPCHandler()
+    let box = RPCBox<RendererToAgentMessage>()
+
+    let task = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "fetchProfile",
+        args: ["userID": .string("u123")],
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { msg in
+          box.value = msg
+        }
+      )
+    }
+
+    // Wait a brief tick for the call to be registered and outbound dispatched
+    try await Task.sleep(nanoseconds: 20_000_000)
+
+    guard case .callAgentFunction(let callMsg) = box.value else {
+      Issue.record("Expected .callAgentFunction message")
+      return
+    }
+
+    #expect(callMsg.surfaceID == "surf1")
+    #expect(callMsg.callFunction.call == "fetchProfile")
+    #expect(callMsg.callFunction.args?["userID"] == .string("u123"))
+
+    // Agent replies with response
+    handler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: callMsg.functionCallID,
+        value: .object(["name": .string("Alice")]),
+        version: .v10
+      )
+    )
+
+    let result = try await task.value
+    #expect(result["name"]?.stringValue == "Alice")
+  }
+
+  @Test func outgoingCallRemoteError() async throws {
+    let handler = RPCHandler()
+    let box = RPCBox<String>()
+
+    let task = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "failingFunction",
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { msg in
+          if case .callAgentFunction(let callMsg) = msg {
+            box.value = callMsg.functionCallID
+          }
+        }
+      )
+    }
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    let callID = try #require(box.value)
+
+    handler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: callID,
+        error: FunctionErrorPayload(code: "INVALID_USER", message: "User does not exist"),
+        version: .v10
+      )
+    )
+
+    do {
+      _ = try await task.value
+      Issue.record("Expected error to be thrown")
+    } catch let error as FunctionError {
+      #expect(error == .remoteError(code: "INVALID_USER", message: "User does not exist"))
+    }
+  }
+
+  @Test func outgoingCallTimeout() async throws {
+    let handler = RPCHandler()
+
+    do {
+      _ = try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "slowFunction",
+        version: .v10,
+        timeoutSeconds: 0.05,
+        sendOutbound: { _ in }
+      )
+      Issue.record("Expected timeout error")
+    } catch let error as FunctionError {
+      if case .timeout = error {
+        // Success
+      } else {
+        Issue.record("Expected .timeout, got \(error)")
+      }
+    }
+  }
+
+  @Test func messageProcessorRoutesRPCCalls() async throws {
+    let echoFn = MockEchoFunction()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    )
+    let processor = MessageProcessor(catalog: catalog)
+
+    let box = RPCBox<RendererFunctionResponseMessage>()
+    processor.outboundListener = { msg in
+      if case .rendererFunctionResponse(let resp) = msg {
+        box.value = resp
+      }
+    }
+
+    let inboundCallJSON = """
+      {
+        "version": "v1.0",
+        "callRendererFunction": {
+          "functionCallId": "proc_call_1",
+          "callFunction": {
+            "call": "echo",
+            "catalogId": "test",
+            "args": { "message": "Processor Echo" }
+          }
+        }
+      }
+      """
+
+    let parser = MessageParser()
+    let message = try parser.parse(jsonString: inboundCallJSON)
+    processor.process(message: message)
+
+    // Give Task brief moment to evaluate
+    try await Task.sleep(nanoseconds: 50_000_000)
+
+    let response = try #require(box.value)
+    #expect(response.functionCallID == "proc_call_1")
+    #expect(response.value == "Processor Echo")
+  }
+
+  @Test func outgoingCallDuplicateAndLifecycleErrors() async throws {
+    let handler = RPCHandler()
+    let task1 = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "slowFn",
+        functionCallID: "dup_call",
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { _ in }
+      )
+    }
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+
+    do {
+      _ = try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "slowFn",
+        functionCallID: "dup_call",
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { _ in }
+      )
+      Issue.record("Expected duplicate error")
+    } catch let error as FunctionError {
+      #expect(error == .duplicate(callID: "dup_call"))
+      #expect(error.rpcCode == "DUPLICATE")
+    }
+
+    handler.cancelAllPendingCalls()
+    do {
+      _ = try await task1.value
+      Issue.record("Expected cancelled error")
+    } catch let error as FunctionError {
+      #expect(error == .cancelled(callID: "dup_call"))
+      #expect(error.rpcCode == "CANCELLED")
+    }
+
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI]()
+    )
+    let processor = MessageProcessor(catalog: catalog)
+    do {
+      _ = try await processor.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "fnWithoutListener",
+        version: .v10
+      )
+      Issue.record("Expected noListener error")
+    } catch let error as FunctionError {
+      #expect(error == .noListener(name: "fnWithoutListener"))
+      #expect(error.rpcCode == "NO_LISTENER")
+    }
+
+    processor.outboundListener = { _ in }
+    let task2 = Task {
+      try await processor.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "disposedFn",
+        functionCallID: "disp_call",
+        version: .v10,
+        timeoutSeconds: 5.0
+      )
+    }
+    try await Task.sleep(nanoseconds: 20_000_000)
+    processor.dispose()
+    do {
+      _ = try await task2.value
+      Issue.record("Expected disposed error")
+    } catch let error as FunctionError {
+      #expect(error == .disposed(callID: "disp_call"))
+      #expect(error.rpcCode == "DISPOSED")
+    }
+  }
+}
+
+private final class RPCBox<T>: @unchecked Sendable {
+  var value: T?
+}

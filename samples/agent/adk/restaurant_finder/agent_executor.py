@@ -32,6 +32,7 @@ from a2a.utils import (
 )
 from a2a.utils.errors import ServerError
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.core.schema import ProtocolVersion
 from agent import RestaurantAgent
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ class RestaurantAgentExecutor(AgentExecutor):
                         logger.info(f"  Part {i}: Found useStreaming={use_streaming}")
 
                     if (
-                        part.root.data.get("version") == "v0.9"
+                        part.root.data.get("version") == ProtocolVersion.V0_9
                         and "action" in part.root.data
                     ):
                         logger.info(f"  Part {i}: Found a2ui v0.9 action payload.")

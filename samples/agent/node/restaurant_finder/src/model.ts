@@ -21,7 +21,7 @@ import {Chat, FunctionCall, GoogleGenAI, PartListUnion} from '@google/genai';
 import type {BasicCatalogs} from './catalogs.js';
 import type {A2uiFormat} from './config.js';
 import {readMessages, toResponseText} from './examples.js';
-import {LruCache} from './lru_cache.js';
+import {LruCache} from './lru-cache.js';
 import {executeGetRestaurants, getPackageRootDir, getRestaurantsDeclaration} from './tools.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 

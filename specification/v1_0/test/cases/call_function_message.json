@@ -37,6 +37,24 @@
       }
     },
     {
+      "description": "CallRendererFunctionMessage: Valid with surfaceId",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "callRendererFunction": {
+          "surfaceId": "surface_1",
+          "functionCallId": "unique-call-id-123-surf",
+          "callFunction": {
+            "@call": "openUrl",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "args": {
+              "url": "https://example.com"
+            }
+          }
+        }
+      }
+    },
+    {
       "description": "CallRendererFunctionMessage: Valid call without args",
       "valid": true,
       "data": {

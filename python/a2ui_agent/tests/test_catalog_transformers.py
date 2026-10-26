@@ -1,0 +1,444 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for the catalog transformers and their use in `CatalogConfig`.
+
+The shared `conformance/agent/catalog_transformer.yaml` suite covers which
+names an allowlist keeps. These tests cover what the suite can't state: the
+generated schema, the untouched input, and the order that `CatalogConfig`
+applies transformers in.
+"""
+
+import json
+import os
+from typing import Any
+
+import jsonschema
+import pytest
+
+from a2ui.catalog_transformers import (
+    CatalogTransformer,
+    ComponentPruningTransformer,
+    FunctionPruningTransformer,
+)
+from a2ui.core import Catalog, CatalogApi
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.catalog import ComponentApi, FunctionApi
+from a2ui.processor import CatalogConfig
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+
+
+def _refs(any_schema: dict[str, Any]) -> set[str]:
+    return {item["$ref"] for item in any_schema["oneOf"]}
+
+
+def test_catalog_transformer_is_abstract() -> None:
+    """Verifies CatalogTransformer cannot be instantiated without transform()."""
+    with pytest.raises(TypeError):
+        CatalogTransformer()  # type: ignore[abstract]
+
+
+def test_pruning_transformers_none_vs_empty_allowlist() -> None:
+    """Verifies None and empty allowlists both keep no items."""
+    original = BasicCatalog("0.9")
+
+    comp_none = ComponentPruningTransformer(None).transform(original)
+    assert list(comp_none.components.keys()) == []
+    assert set(comp_none.functions.keys()) == set(original.functions.keys())
+
+    comp_empty = ComponentPruningTransformer([]).transform(original)
+    assert list(comp_empty.components.keys()) == []
+    assert set(comp_empty.functions.keys()) == set(original.functions.keys())
+
+    func_none = FunctionPruningTransformer(None).transform(original)
+    assert set(func_none.components.keys()) == set(original.components.keys())
+    assert list(func_none.functions.keys()) == []
+
+    func_empty = FunctionPruningTransformer([]).transform(original)
+    assert set(func_empty.components.keys()) == set(original.components.keys())
+    assert list(func_empty.functions.keys()) == []
+
+
+def test_component_pruning_regenerates_any_component():
+    pruned = ComponentPruningTransformer(["Text", "Column"]).transform(
+        BasicCatalog("0.9")
+    )
+
+    schema = pruned.validation_schema
+    assert set(schema["components"]) == {"Text", "Column"}
+    assert _refs(schema["$defs"]["anyComponent"]) == {
+        "#/components/Text",
+        "#/components/Column",
+    }
+
+
+def test_function_pruning_regenerates_any_function():
+    pruned = FunctionPruningTransformer(["email"]).transform(BasicCatalog("0.9"))
+
+    schema = pruned.validation_schema
+    assert set(schema["functions"]) == {"email"}
+    assert _refs(schema["$defs"]["anyFunction"]) == {"#/functions/email"}
+
+
+def test_pruning_removes_unreferenced_helper_defs():
+    catalog = Catalog(
+        catalog_id="custom",
+        protocol_version="0.9",
+        components=[
+            ComponentApi(
+                "Card",
+                {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Card"},
+                        "style": {"$ref": "#/$defs/CardStyle"},
+                    },
+                },
+            ),
+            ComponentApi(
+                "Badge",
+                {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Badge"},
+                        "variant": {"$ref": "#/$defs/BadgeVariant"},
+                    },
+                },
+            ),
+        ],
+        functions=[
+            FunctionApi(
+                name="formatBadge",
+                return_type="string",
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "args": {
+                            "type": "object",
+                            "properties": {
+                                "variant": {"$ref": "#/$defs/FnArgDef"},
+                            },
+                        }
+                    },
+                },
+            )
+        ],
+        defs={
+            "CardStyle": {
+                "type": "object",
+                "properties": {"border": {"$ref": "#/$defs/BorderStyle"}},
+            },
+            "BorderStyle": {"type": "string"},
+            "BadgeVariant": {"type": "string", "enum": ["primary", "secondary"]},
+            "FnArgDef": {"type": "string"},
+        },
+    )
+
+    pruned_comps = ComponentPruningTransformer(["Card"]).transform(catalog)
+    comp_defs = pruned_comps.validation_schema["$defs"]
+    assert "CardStyle" in comp_defs
+    assert "BorderStyle" in comp_defs
+    assert "FnArgDef" in comp_defs
+    assert "BadgeVariant" not in comp_defs
+
+    pruned_fns = FunctionPruningTransformer([]).transform(pruned_comps)
+    fn_defs = pruned_fns.validation_schema["$defs"]
+    assert "CardStyle" in fn_defs
+    assert "BorderStyle" in fn_defs
+    assert "FnArgDef" not in fn_defs
+    assert "BadgeVariant" not in fn_defs
+
+
+def test_pruning_keeps_the_rest_of_the_catalog():
+    catalog = BasicCatalog("0.9")
+
+    pruned = ComponentPruningTransformer(["Text"]).transform(catalog)
+
+    assert pruned.catalog_id == catalog.catalog_id
+    assert pruned.protocol_version == catalog.protocol_version
+    assert pruned.instructions == catalog.instructions
+    assert pruned.theme_schema == catalog.theme_schema
+    assert set(pruned.functions) == set(catalog.functions)
+
+
+def test_pruning_leaves_the_input_catalog_unchanged():
+    catalog = BasicCatalog("0.9")
+    components = set(catalog.components)
+    functions = set(catalog.functions)
+
+    ComponentPruningTransformer(["Text"]).transform(catalog)
+    FunctionPruningTransformer([]).transform(catalog)
+
+    assert set(catalog.components) == components
+    assert set(catalog.functions) == functions
+
+
+@pytest.mark.parametrize(
+    "transformer_class", [ComponentPruningTransformer, FunctionPruningTransformer]
+)
+def test_pruning_rejects_a_single_string(transformer_class):
+    with pytest.raises(TypeError, match="not a string"):
+        transformer_class("Text")
+
+
+def test_pruning_v08_catalog():
+    pruned = ComponentPruningTransformer(["Text", "Column"]).transform(
+        BasicCatalog("0.8")
+    )
+
+    assert set(pruned.components) == {"Text", "Column"}
+    assert set(pruned.validation_schema["components"]) == {"Text", "Column"}
+
+
+def test_pruning_a_loaded_catalog_carries_its_source_forward():
+    source_path = os.path.join(REPO_ROOT, "catalogs/basic/v1/catalog.json")
+    with open(source_path, encoding="utf-8") as f:
+        source = json.load(f)
+    catalog = Catalog.from_json(source)
+
+    pruned = FunctionPruningTransformer(["email"]).transform(
+        ComponentPruningTransformer(["Text", "Column"]).transform(catalog)
+    )
+    out = pruned.to_json()
+
+    assert out["$id"] == source["$id"]
+    assert out["title"] == source["title"]
+    assert out["components"] == {
+        name: source["components"][name] for name in ("Text", "Column")
+    }
+    assert out["functions"] == {"email": source["functions"]["email"]}
+    assert _refs(out["$defs"]["anyComponent"]) == {
+        "#/components/Text",
+        "#/components/Column",
+    }
+    assert _refs(out["$defs"]["anyFunction"]) == {"#/functions/email"}
+    assert Catalog.from_json(out).to_json() == out
+
+
+def test_pruning_a_loaded_catalog_keeps_its_defs_as_written():
+    source = {
+        "catalogId": "https://a2ui.org/x/catalog.json",
+        "components": {
+            "A": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "A"},
+                    "x": {"$ref": "https://a2ui.org/x/catalog.json#/$defs/X"},
+                    "label": {"$ref": "#/$defs/Label"},
+                },
+            },
+            "B": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "B"},
+                    "o": {"$ref": "#/$defs/Orphaned"},
+                },
+            },
+        },
+        "$defs": {
+            "X": {"type": "object", "properties": {"n": {"type": "number"}}},
+            # A local ref to a common type that the document doesn't define.
+            "Label": {
+                "type": "object",
+                "properties": {"text": {"$ref": "#/$defs/DynamicString"}},
+            },
+            "Orphaned": {"type": "string"},
+            "Unreferenced": {"type": "string"},
+        },
+    }
+    catalog = Catalog.from_json(source)
+
+    pruned = ComponentPruningTransformer(["A"]).transform(catalog)
+    out = pruned.to_json()
+
+    assert out["components"] == {"A": source["components"]["A"]}
+    expected_defs = {
+        name: schema for name, schema in source["$defs"].items() if name != "Orphaned"
+    }
+    assert {
+        name: schema
+        for name, schema in out["$defs"].items()
+        if name not in ("anyComponent", "anyFunction")
+    } == expected_defs
+    assert Catalog.from_json(out).to_json() == out
+
+    schema = pruned.validation_schema
+    assert "Orphaned" not in schema["$defs"]
+    a_schema = schema["components"]["A"]
+    assert a_schema["properties"]["x"] == source["$defs"]["X"]
+    validator = jsonschema.Draft202012Validator({"$defs": schema["$defs"], **a_schema})
+    validator.validate(
+        {"id": "a1", "component": "A", "x": {"n": 1}, "label": {"text": "hi"}}
+    )
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate({"id": "a1", "component": "A", "x": {"n": "one"}})
+
+
+def test_pruning_keeps_defs_that_a_kept_unreferenced_def_references():
+    source = {
+        "catalogId": "https://a2ui.org/x/catalog.json",
+        "components": {
+            "A": {"type": "object", "properties": {"component": {"const": "A"}}},
+            "B": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "B"},
+                    "d": {"$ref": "#/$defs/D"},
+                },
+            },
+        },
+        "$defs": {
+            "D": {"type": "string"},
+            # No entry references `Helper`, so it stays, and `D` with it.
+            "Helper": {
+                "type": "object",
+                "properties": {"d": {"$ref": "#/$defs/D"}},
+            },
+        },
+    }
+    catalog = Catalog.from_json(source)
+
+    pruned = ComponentPruningTransformer(["A"]).transform(catalog)
+    out = pruned.to_json()
+
+    assert out["$defs"]["D"] == source["$defs"]["D"]
+    assert out["$defs"]["Helper"] == source["$defs"]["Helper"]
+    assert Catalog.from_json(out).to_json() == out
+
+    defs = pruned.validation_schema["$defs"]
+    validator = jsonschema.Draft202012Validator({"$defs": defs, **defs["Helper"]})
+    validator.validate({"d": "text"})
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate({"d": 1})
+
+
+def _union_sharing_catalog_source(kept_union: str) -> dict[str, Any]:
+    """A catalog whose authored `kept_union` shares a def with a dropped entry."""
+    union_refs = {
+        "anyFunction": [{"$ref": "#/functions/f"}, {"$ref": "#/$defs/X"}],
+        "anyComponent": [{"$ref": "#/components/A"}, {"$ref": "#/$defs/X"}],
+    }
+    return {
+        "catalogId": "https://a2ui.org/x/catalog.json",
+        "components": {
+            "A": {"type": "object", "properties": {"component": {"const": "A"}}},
+            "B": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "B"},
+                    "x": {"$ref": "#/$defs/X"},
+                },
+            },
+        },
+        "functions": {
+            "f": {
+                "type": "object",
+                "properties": {
+                    "call": {"const": "f"},
+                    "returnType": {"const": "string"},
+                },
+            },
+            "g": {
+                "type": "object",
+                "properties": {
+                    "call": {"const": "g"},
+                    "args": {"$ref": "#/$defs/X"},
+                    "returnType": {"const": "string"},
+                },
+            },
+        },
+        "$defs": {
+            "X": {"type": "string"},
+            kept_union: {"allOf": union_refs[kept_union]},
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("kept_union", "transformer"),
+    [
+        ("anyFunction", ComponentPruningTransformer(["A"])),
+        ("anyComponent", FunctionPruningTransformer(["f"])),
+    ],
+)
+def test_pruning_keeps_defs_that_a_kept_authored_union_references(
+    kept_union, transformer
+):
+    source = _union_sharing_catalog_source(kept_union)
+    catalog = Catalog.from_json(source)
+    assert catalog.to_json() == source
+
+    pruned = transformer.transform(catalog)
+    out = pruned.to_json()
+
+    assert out["$defs"][kept_union] == source["$defs"][kept_union]
+    assert out["$defs"]["X"] == source["$defs"]["X"]
+    assert Catalog.from_json(out).to_json() == out
+
+    defs = pruned.validation_schema["$defs"]
+    assert defs["X"] == source["$defs"]["X"]
+    validator = jsonschema.Draft202012Validator({"$defs": defs, "$ref": "#/$defs/X"})
+    validator.validate("text")
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(1)
+
+
+class _RecordingTransformer(CatalogTransformer):
+    """Records the components of each catalog it sees."""
+
+    def __init__(self, log: list[set[str]]):
+        self._log = log
+
+    def transform(self, catalog: CatalogApi) -> CatalogApi:
+        self._log.append(set(catalog.components))
+        return catalog
+
+
+def test_transformed_catalog_applies_transformers_in_order():
+    log: list[set[str]] = []
+    config = CatalogConfig(
+        BasicCatalog("0.9"),
+        transformers=[
+            ComponentPruningTransformer(["Text", "Column", "Row"]),
+            _RecordingTransformer(log),
+            ComponentPruningTransformer(["Text", "Button"]),
+        ],
+    )
+
+    catalog = config.transformed_catalog
+
+    assert log == [{"Text", "Column", "Row"}]
+    assert set(catalog.components) == {"Text"}
+
+
+def test_from_path_accepts_transformers(tmp_path):
+    path = tmp_path / "catalog.json"
+    path.write_text(
+        '{"catalogId": "custom", "components": {"Text": {}, "Image": {}}}',
+        encoding="utf-8",
+    )
+    config = CatalogConfig.from_path(
+        str(path),
+        transformers=[ComponentPruningTransformer(["Image"])],
+        protocol_version="0.9",
+    )
+
+    assert set(config.transformed_catalog.components) == {"Image"}
+
+
+def test_catalog_config_without_transformers_returns_the_catalog():
+    catalog = BasicCatalog("0.9")
+
+    assert CatalogConfig(catalog).transformed_catalog is catalog

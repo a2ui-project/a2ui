@@ -20,14 +20,11 @@ from typing import Any, Dict, List, Sequence, Tuple, Type
 
 from pydantic import TypeAdapter
 
+from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.utils import (
-    load_agent_to_renderer_schema,
-    load_common_types_schema,
-)
+from a2ui.inference_formats.express import ExpressFormat
+from a2ui.parser import A2uiPart, TextPart
 from a2ui.transformers.macros import MacroExpander
 
 
@@ -45,15 +42,7 @@ class MacroAgentRuntime:
         self.protocol_version = protocol_version
 
         # 1. Base Catalog
-        core_basic_cat = BasicCatalog(catalog_version)
-
-        self.server_catalog = A2uiCatalog(
-            version=catalog_version,
-            name="basic",
-            catalog_schema=core_basic_cat.catalog_schema,
-            s2c_schema=load_agent_to_renderer_schema(catalog_version),
-            common_types_schema=load_common_types_schema(catalog_version),
-        )
+        self.server_catalog: CatalogApi = BasicCatalog(catalog_version)
 
         # 2. Macro Expander
         self.expander = MacroExpander(macros)
@@ -65,7 +54,7 @@ class MacroAgentRuntime:
 
         # 4. Central Inference Format Instance (Reused across prompt gen, compile, parse)
         self.format = format_class(
-            catalog=self.inference_catalog,
+            catalogs=[self.inference_catalog],
             surface_id="main",
             version=protocol_version,
         )
@@ -80,15 +69,15 @@ class MacroAgentRuntime:
 
     def generate_system_prompt(self, role_description: str) -> str:
         """Generates system instruction with catalog schema and formatting rules."""
-        return self.format.prompt_generator.generate(
-            role_description=role_description,
-            include_schema=True,
-        )
+        snippet = self.format.prompt_generator.generate()
+        if role_description:
+            return f"{role_description}\n\n{snippet}"
+        return snippet
 
     def compile_dsl(self, dsl: str, surface_id: str = "main") -> List[Dict[str, Any]]:
         """Compiles Express DSL containing macros and lowers output messages to transport."""
         self.format.surface_id = surface_id
-        raw_messages = self.format.parser.compile(dsl)
+        raw_messages = self.format.create_parser().compile(dsl)
         typed_msgs = [self.message_adapter.validate_python(m) for m in raw_messages]
         lowered_models = self.expander.transform_to_transport(typed_msgs)
         return [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_models]
@@ -98,15 +87,15 @@ class MacroAgentRuntime:
     ) -> Tuple[str, List[Dict[str, Any]]]:
         """Parses LLM response, returning conversational text and lowered transport messages."""
         self.format.surface_id = surface_id
-        parts = self.format.parser.parse_response(raw_text)
+        parts = self.format.create_parser().parse_response(raw_text)
         text_parts: List[str] = []
-        raw_messages: List[Dict[str, Any]] = []
+        raw_messages: List[Any] = []
 
         for part in parts:
-            if part.text:
+            if isinstance(part, TextPart) and part.text:
                 text_parts.append(part.text)
-            if part.a2ui_json:
-                raw_messages.extend(part.a2ui_json)
+            elif isinstance(part, A2uiPart):
+                raw_messages.extend(part.a2ui)
 
         typed_msgs = [self.message_adapter.validate_python(m) for m in raw_messages]
         lowered_models = self.expander.transform_to_transport(typed_msgs)

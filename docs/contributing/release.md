@@ -57,17 +57,19 @@ then publish them from the latest `main` of that repository:
 
 ### NPM
 
-See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
+See [web_publishing.md](web_publishing.md).
 
 ### PyPI
 
-Releasing `a2ui-core`, `a2ui-agent-sdk`, or both is performed by providing a prompt to an AI assistant within the `a2ui` project directory.
+The Python packages are `a2ui-core`, `a2ui-agent-sdk`, and the agent framework integrations `a2ui-a2a` and `a2ui-adk`. Releasing one or more of them is performed by providing a prompt to an AI assistant within the `a2ui` project directory.
 
 ```text
-Release a2ui-core, a2ui-agent-sdk, or both with a <major|minor|patch> bump
+Release <package names, or all> with a <major|minor|patch> bump
 ```
 
-The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog. Released packages appear on PyPI ([a2ui-core](https://pypi.org/project/a2ui-core/) and [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/)) as well as under corresponding [Git tags](https://github.com/a2ui-project/a2ui/tags) and [GitHub releases](https://github.com/a2ui-project/a2ui/releases) that link to them.
+Name the packages to release, for example `a2ui-agent-sdk` or `a2ui-a2a and a2ui-adk`, or ask for `all` to release all four.
+
+The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog. Released packages appear on PyPI ([a2ui-core](https://pypi.org/project/a2ui-core/), [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/), [a2ui-a2a](https://pypi.org/project/a2ui-a2a/) and [a2ui-adk](https://pypi.org/project/a2ui-adk/)) as well as under corresponding [Git tags](https://github.com/a2ui-project/a2ui/tags) and [GitHub releases](https://github.com/a2ui-project/a2ui/releases) that link to them.
 
 #### How it works behind the scenes
 
@@ -110,9 +112,9 @@ the required CI checks to run.
 
 #### Versions come from git tags
 
-Each package has its own tag series, `python/a2ui-core/v*` and
-`python/a2ui-agent-sdk/v*`, and hatch-vcs derives the package version from it at
-build time. Do not hand-edit a version anywhere; the `version.py` in each
+Each package has its own tag series (`python/a2ui-core/v*`,
+`python/a2ui-agent-sdk/v*`, `python/a2ui-a2a/v*` and `python/a2ui-adk/v*`), and
+hatch-vcs derives the package version from it at build time. Do not hand-edit a version anywhere; the `version.py` in each
 package only reads the version back out of the installed distribution metadata.
 
 A checkout without tags falls back to the version pinned as `fallback-version`
@@ -124,15 +126,62 @@ match the version it planned, so a release cannot go out on a fallback version.
 
 The preflight checks in
 [release_version.py](../../.github/scripts/release_version.py) fail the run when
-the Unreleased section is empty, when the target version already has a tag, and
-when a proposed `a2ui-core` version falls outside the range that
-`a2ui-agent-sdk` pins it to. That last one means a `a2ui-core` minor bump needs
-the pin in
-[a2ui_agent/pyproject.toml](../../python/a2ui_agent/pyproject.toml)
-widened in the same release.
+the Unreleased section is empty, when the target version already has a tag,
+when a proposed version falls outside the range that another package pins it
+to, and when a package depends on another package of this repository that no
+released version satisfies.
 
-Releasing both packages together publishes `a2ui-core` first, because
-`a2ui-agent-sdk` depends on it.
+The pins form a chain: `a2ui-agent-sdk` pins `a2ui-core`, `a2ui-a2a` and
+`a2ui-adk` pin `a2ui-agent-sdk`, and `a2ui-adk` pins `a2ui-a2a` in its `a2a`
+extra. A minor `a2ui-core` bump, for example, needs the pin in
+[a2ui_agent/pyproject.toml](../../python/a2ui_agent/pyproject.toml)
+widened in a pull request that is merged to `main` before the release is
+dispatched. The workflow releases `main` as it is and cannot change the pin
+during the run.
+
+A dependency can be released in the same run: a release of several packages
+publishes them in dependency order, `a2ui-core`, `a2ui-agent-sdk`,
+`a2ui-a2a`, `a2ui-adk`, so each package's new dependencies are on PyPI first.
+Releasing `a2ui-a2a` or `a2ui-adk` on its own requires a released version of
+each dependency that satisfies its pins.
+
+#### Releasing a new package for the first time
+
+A new package with no release tags starts from `0.0.0` and uses a `minor` bump
+to publish `0.1.0`. Before its first release, complete two one-time setup steps:
+
+1. Add the package name to the OSS Exit Gate allowlist for `a2ui/pypi` (see
+   `go/a2ui-release#pypi`).
+2. Sign in to `https://pypi.org/manage/account/publishing/` with the shared PyPI
+   publisher account (credentials in `go/a2ui-release#pypi`). Under the
+   **Google** tab, register a **Pending Publisher** for the new package name
+   with email `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com` and an empty
+   subject.
+
+When signing in to PyPI, you can generate the 6-digit MFA code from the MFA
+setup key on the command line:
+
+```bash
+oathtool --totp -b "YOUR_MFA_SETUP_KEY"
+```
+
+When PyPI reports an "unrecognized device", look up the verification email in
+https://groups.google.com/a/google.com/g/a2ui-pypi-publish-bot.
+
+PyPI indexes pending publishers for Google Cloud uniquely by `(email, sub)`.
+Every A2UI Python package uses
+`a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com` with an empty subject, so
+**only one Pending Publisher can be registered at a time**. Registering a second
+pending package while the first is still pending fails with:
+
+> A pending trusted publisher matching this configuration has already been
+> registered for a different project name. Please contact PyPI's admins if this
+> wasn't intentional.
+
+When releasing multiple new packages for the first time, register and publish
+them one at a time. Publishing the first package promotes its Pending Publisher
+to a normal project-scoped Trusted Publisher. That frees the service account so
+you can register the next Pending Publisher.
 
 #### If authentication fails
 

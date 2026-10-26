@@ -14,37 +14,73 @@
 
 """Scorers for A2UI evaluation."""
 
+from __future__ import annotations
+
+import asyncio
 import json
-import os
 import time
+
+from inspect_ai.model._model import sample_model_usage
 from inspect_ai.scorer import (
-    scorer,
     Score,
     Scorer,
     Target,
     accuracy,
     model_graded_qa,
+    scorer,
 )
 from inspect_ai.solver import TaskState
-from inspect_ai.model._model import sample_model_usage
-from a2ui.inference_formats.direct_json.format import DirectJsonFormat
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.parser.parser import parse_response
-from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
-from a2ui.core.validation import STRICT_VALIDATION
+
+from .bridges import (
+    DEFAULT_PARSE_TIMEOUT_SEC,
+    AgentSdkBridge,
+    get_sdk_bridge,
+    normalize_sdk_name,
+)
 from .shared.utils import GIT_ROOT
 
 
+async def _compiled_answer_or_none(
+    bridge: AgentSdkBridge,
+    version: str,
+    resolved_catalog_path: str,
+    completion: str,
+) -> str | None:
+    """Parses a completion without validation and returns its JSON messages.
+
+    Used after a failed validation so that the score's answer shows the
+    compiled messages that failed, rather than the raw completion.
+    """
+    try:
+        res_dict = await asyncio.to_thread(
+            bridge.parse_and_validate,
+            "direct_json",
+            version,
+            resolved_catalog_path,
+            "main",
+            completion,
+            DEFAULT_PARSE_TIMEOUT_SEC,
+            True,
+            validate=False,
+        )
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+    compiled_jsons = res_dict.get("compiled_jsons")
+    return json.dumps(compiled_jsons, indent=2) if compiled_jsons else None
+
+
 @scorer(metrics=[accuracy()])
-def a2ui_scorer(version: str) -> Scorer:
-    """Scorer for A2UI evaluation using the Python SDK.
+def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
+    """Scorer for A2UI evaluation using the target Agent SDK.
 
     Args:
         version: The schema version to load (e.g. '0.9.1' or '1.0').
+        sdk: The Agent SDK implementation to use ('python', 'ts', or 'dart').
 
     Returns:
         An Inspect Scorer that validates the response against the schema and integrity rules.
     """
+    norm_sdk = normalize_sdk_name(sdk)
 
     async def score(
         state: TaskState, target: Target
@@ -57,16 +93,6 @@ def a2ui_scorer(version: str) -> Scorer:
 
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
-
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        direct_json_format = DirectJsonFormat(
-            version=version,
-            catalogs=[catalog_config],
-            experiments={"version_1_0"} if version == "1.0" else None,
-        )
-        catalog = direct_json_format.get_selected_catalog()
-        validator = catalog.validator
-
         answer_text = state.output.completion or ""
 
         if answer_text.strip().startswith("Compilation/validation failed:"):
@@ -76,35 +102,37 @@ def a2ui_scorer(version: str) -> Scorer:
                 explanation="Format compilation/validation failed during solver step.",
             )
 
+        bridge = get_sdk_bridge(norm_sdk)
         try:
-            parts = parse_response(answer_text)
-            all_messages = []
-            for part in parts:
-                if part.a2ui_json:
-                    if isinstance(part.a2ui_json, list):
-                        all_messages.extend(part.a2ui_json)
-                    else:
-                        all_messages.append(part.a2ui_json)
-
-            if not all_messages:
-                return Score(
-                    value=0.0,
-                    answer=answer_text,
-                    explanation=(
-                        "No A2UI JSON found in response (tags missing or empty)"
-                    ),
-                )
-
-            answer_text = json.dumps(all_messages, indent=2)
-            MessageProcessor(
-                [catalog.core_catalog],
-                options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-            ).process_messages(all_messages)
-            return Score(
-                value=1.0, answer=answer_text, explanation="Valid A2UI payload"
+            res_dict = await asyncio.to_thread(
+                bridge.parse_and_validate,
+                "direct_json",
+                version,
+                resolved_catalog_path,
+                "main",
+                answer_text,
+                DEFAULT_PARSE_TIMEOUT_SEC,
+                True,
             )
-        except Exception as e:
-            return Score(value=0.0, answer=answer_text, explanation=str(e))
+            return Score(
+                value=1.0,
+                answer=json.dumps(res_dict["compiled_jsons"], indent=2),
+                explanation="Valid A2UI payload",
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # A timeout would only repeat itself, so skip the parse-only retry.
+            compiled_answer = (
+                None
+                if isinstance(e, TimeoutError)
+                else await _compiled_answer_or_none(
+                    bridge, version, resolved_catalog_path, answer_text
+                )
+            )
+            return Score(
+                value=0.0,
+                answer=compiled_answer or answer_text,
+                explanation=str(e),
+            )
 
     return score
 

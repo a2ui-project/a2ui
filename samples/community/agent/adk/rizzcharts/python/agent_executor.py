@@ -13,15 +13,12 @@
 # limitations under the License.
 
 import logging
-from pathlib import Path
 from typing import override
 
 from a2a.server.agent_execution import RequestContext
-from a2a.types import AgentCapabilities, AgentCard, AgentExtension, AgentSkill
-from a2ui.a2a import get_a2ui_agent_extension, try_activate_a2ui_extension
-from a2ui.adk import A2uiEventConverter, SendA2uiToClientToolset
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.adk import A2uiEventConverter
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
@@ -35,20 +32,20 @@ from google.adk.runners import Runner
 logger = logging.getLogger(__name__)
 
 _A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_CATALOG_KEY = "system:a2ui_catalog"
+_A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
 _A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 
 
-def get_a2ui_catalog(ctx: ReadonlyContext):
-    """Retrieves the A2UI catalog from the session state.
+def get_a2ui_catalogs(ctx: ReadonlyContext):
+    """Retrieves the active A2UI catalogs from the session state.
 
     Args:
-        ctx: The ReadonlyContext for resolving the catalog.
+        ctx: The ReadonlyContext for resolving the catalogs.
 
     Returns:
-        The A2UI catalog or None if not found.
+        The active A2UI catalogs, or an empty list if none are found.
     """
-    return ctx.state.get(_A2UI_CATALOG_KEY)
+    return ctx.state.get(_A2UI_CATALOGS_KEY) or []
 
 
 def get_a2ui_examples(ctx: ReadonlyContext):
@@ -104,7 +101,6 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
 
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
         runner = self._agent.get_runner(active_ui_version)
-        inference_format = self._agent.get_inference_format(active_ui_version)
 
         session = await super()._prepare_session(context, run_request, runner)
 
@@ -117,18 +113,18 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                 if context.message and context.message.metadata
                 else None
             )
-            a2ui_catalog = (
-                inference_format.get_selected_catalog(
-                    client_ui_capabilities=capabilities
-                )
-                if inference_format
-                else None
-            )
+            from a2ui.utils import load_examples
 
-            examples = (
-                inference_format.load_examples(a2ui_catalog, validate=True)
-                if inference_format
-                else None
+            processor = self._agent.create_processor(active_ui_version, capabilities)
+            # The rizzcharts catalog already contains every basic component, so
+            # passing the basic catalog too would repeat those schemas in the
+            # prompt. Use only the preferred catalog, which the examples match.
+            a2ui_catalogs = processor.active_catalogs[:1]
+            examples_path = self._agent.get_examples_path(
+                active_ui_version, a2ui_catalogs[0].catalog_id
+            )
+            examples = load_examples(
+                processor.active_catalogs, examples_path, validate=False
             )
 
             await runner.session_service.append_event(
@@ -139,7 +135,7 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOG_KEY: a2ui_catalog,
+                            _A2UI_CATALOGS_KEY: a2ui_catalogs,
                             _A2UI_EXAMPLES_KEY: examples,
                         }
                     ),

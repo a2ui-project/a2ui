@@ -25,6 +25,9 @@ const Map<String, Object?> _single = {
 const Map<String, Object?> _list = {
   r'$ref': r'common_types.json#/$defs/ChildList',
 };
+const Map<String, Object?> _child = {
+  r'$ref': r'common_types.json#/$defs/Child',
+};
 const Map<String, Object?> _template = {
   'type': 'object',
   'properties': {
@@ -38,6 +41,8 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
 ) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'references',
+      // `Child` is a v1.0 common type.
+      protocolVersion: A2uiProtocolVersion.v1_0,
       components: [
         ComponentApi(name: 'Parent', schema: Schema.fromMap(schema)),
         ComponentApi(name: 'Leaf', schema: Schema.object()),
@@ -50,6 +55,8 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
 }) {
   final CatalogApi parsed = Catalog.fromJson({
     'catalogId': 'wire-references',
+    // `Child` is a v1.0 common type.
+    'protocolVersion': 'v1.0',
     r'$defs': definitions,
     'components': {
       'Parent': schema,
@@ -60,7 +67,9 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
   // has no functions.
   return Catalog<ComponentApi, FunctionImplementation>(
     id: parsed.id,
+    protocolVersion: parsed.protocolVersion,
     components: parsed.components.values.toList(),
+    definitions: parsed.definitions,
   );
 }
 
@@ -78,7 +87,7 @@ void _add(
     surface.componentsModel.addComponent(ComponentModel(id, type, properties));
 
 _Fixture _fixture(Catalog<ComponentApi, FunctionImplementation> catalog) {
-  final surface = SurfaceModel<ComponentApi>('s', catalog: catalog);
+  final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(() {
     resolver.dispose();
@@ -103,7 +112,7 @@ void _expectFields(
   );
   final RefFields resolution = extractRefFields(
     catalog.components['Parent']!.schema,
-    document: catalog.catalogSchema,
+    document: catalog.validationSchema,
   );
   final ComponentRefFields? validation = extractComponentRefFields(
     catalog,
@@ -147,8 +156,25 @@ void main() {
         {r'$ref': r'https://example.test/types#/$defs/ChildList'},
       ),
       (
-        'description markers',
-        {'description': r'REF:common_types.json#/$defs/ComponentId|Child'},
+        'commonTypesRef metadata markers',
+        {
+          'commonTypesRef': r'common_types.json#/$defs/ComponentId',
+          'description': 'Child'
+        },
+        {
+          'commonTypesRef': r'common_types.json#/$defs/ChildList',
+          'description': 'Children'
+        },
+      ),
+      ('v1.0 Child wire pointers', _child, _list),
+      (
+        'v1.0 local Child pointers',
+        {r'$ref': r'#/$defs/Child'},
+        {r'$ref': r'#/$defs/ChildList'},
+      ),
+      (
+        'v1.0 Child description markers',
+        {'description': r'REF:common_types.json#/$defs/Child|Child'},
         {'description': r'REF:common_types.json#/$defs/ChildList|Children'},
       ),
     ]) {
@@ -246,6 +272,38 @@ void main() {
       );
     });
 
+    for (final (label, itemRef) in <(String, Map<String, Object?>)>[
+      ('ComponentId', _single),
+      ('v1.0 Child', _child),
+    ]) {
+      test('an inlined ChildList with $label items is a validated list', () {
+        // The template branch alone is only a guess, but an array of marked
+        // ids in a sibling branch identifies the property as a child list,
+        // so graph validation checks it too.
+        _expectFields(
+          {
+            'properties': {
+              'children': {
+                'oneOf': [
+                  {'type': 'array', 'items': itemRef},
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'componentId': itemRef,
+                      'path': {'type': 'string'},
+                    },
+                    'required': ['componentId', 'path'],
+                    'additionalProperties': false,
+                  },
+                ],
+              },
+            },
+          },
+          list: {'children'},
+        );
+      });
+    }
+
     test(
         'graph validation does not infer references from an unmarked '
         'componentId-and-path object', () {
@@ -273,7 +331,7 @@ void main() {
           'component': _single,
           'title': {'type': 'string'},
           'nearMarker': {
-            'description': r'REF:common_types.json#/$defs/ComponentIdSuffix',
+            'commonTypesRef': r'common_types.json#/$defs/ComponentIdSuffix',
           },
         },
       });
@@ -496,6 +554,228 @@ void main() {
         );
         expect(schemas.last['required'], ['condition', 'local']);
       });
+
+      test('ComponentRefMap classifies against the injected document', () {
+        // `Slot` exists only in this document; through it the property is a
+        // structural child-list template, without it the pointer dangles.
+        final slotDocument = <String, Object?>{
+          r'$defs': <String, Object?>{
+            'Slot': <String, Object?>{
+              'type': 'object',
+              'properties': <String, Object?>{
+                'componentId': <String, Object?>{'type': 'string'},
+                'path': <String, Object?>{'type': 'string'},
+              },
+            },
+          },
+        };
+        final componentSchemas = <String, Map<String, Object?>>{
+          'Panel': <String, Object?>{
+            'type': 'object',
+            'properties': <String, Object?>{
+              'body': <String, Object?>{
+                r'$ref': r'common_types.json#/$defs/Slot',
+              },
+            },
+          },
+        };
+
+        expect(
+          ComponentRefMap(componentSchemas, commonTypes: slotDocument)
+              .fieldsFor('Panel'),
+          {
+            'body': isA<ListRef>()
+                .having((ref) => ref.inferred, 'inferred', isTrue),
+          },
+        );
+        expect(ComponentRefMap(componentSchemas).fieldsFor('Panel'), isEmpty);
+      });
+    });
+  });
+
+  group('one reference map for validation and resolution', () {
+    MessageProcessor<ComponentApi> processorFor(
+      Catalog<ComponentApi, FunctionImplementation> catalog,
+    ) {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [catalog],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+        // Strict, so that a dangling reference is rejected: these cases are
+        // about the validator and the resolver reading one reference map.
+        validationConfig: ValidationConfig.strict,
+      );
+      addTearDown(processor.model.dispose);
+      return processor;
+    }
+
+    // Creating the surface in the same payload makes the processor check the
+    // component graph before applying it.
+    AgentToRendererMessagePayload createAndUpdate(
+      String catalogId,
+      List<Map<String, Object?>> components,
+    ) =>
+        AgentToRendererMessage.parseAll([
+          {
+            'version': 'v1.0',
+            'createSurface': {'surfaceId': 's', 'catalogId': catalogId},
+          },
+          {
+            'version': 'v1.0',
+            'updateComponents': {'surfaceId': 's', 'components': components},
+          },
+        ], protocolVersion: A2uiProtocolVersion.v1_0);
+
+    Matcher danglingAt(String id, String field) => throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("'$id' in field '$field'"),
+          ),
+        );
+
+    Map<String, Object?> renderedRootProps(
+      Catalog<ComponentApi, FunctionImplementation> catalog,
+      List<Map<String, Object?>> components,
+    ) {
+      final MessageProcessor<ComponentApi> processor = processorFor(catalog);
+      processor.processMessages(createAndUpdate(catalog.id, components));
+      final resolver = NodeResolver<ComponentApi>(
+        processor.model.getSurface('s')!,
+      );
+      addTearDown(resolver.dispose);
+      return resolver.rootNode.peek()!.props.peek();
+    }
+
+    test('a v1.0 Child slot is checked for dangling ids and mounted', () {
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          _wireCatalog({
+        'properties': {'child': _child},
+      });
+      expect(
+        () => processorFor(catalog).processMessages(
+          createAndUpdate(catalog.id, [
+            {'id': 'root', 'component': 'Parent', 'child': 'missing'},
+          ]),
+        ),
+        danglingAt('missing', 'child'),
+      );
+      final Map<String, Object?> props = renderedRootProps(catalog, [
+        {'id': 'root', 'component': 'Parent', 'child': 'leaf'},
+        {'id': 'leaf', 'component': 'Leaf'},
+      ]);
+      expect((props['child']! as ComponentNode).componentId, 'leaf');
+    });
+
+    test('child and children name fallbacks validate and render alike', () {
+      final Map<String, Object?> schema = {
+        'properties': {
+          'child': {'type': 'string'},
+          'children': {
+            'type': 'array',
+            'items': {'type': 'string'},
+          },
+        },
+      };
+      _expectFields(schema, single: {'child'}, list: {'children'});
+
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          _wireCatalog(schema);
+      expect(
+        () => processorFor(catalog).processMessages(
+          createAndUpdate(catalog.id, [
+            {
+              'id': 'root',
+              'component': 'Parent',
+              'children': ['leaf', 'missing'],
+            },
+            {'id': 'leaf', 'component': 'Leaf'},
+          ]),
+        ),
+        danglingAt('missing', 'children[1]'),
+      );
+      final Map<String, Object?> props = renderedRootProps(catalog, [
+        {
+          'id': 'root',
+          'component': 'Parent',
+          'child': 'a',
+          'children': ['b'],
+        },
+        {'id': 'a', 'component': 'Leaf'},
+        {'id': 'b', 'component': 'Leaf'},
+      ]);
+      expect((props['child']! as ComponentNode).componentId, 'a');
+      expect(
+        (props['children']! as List).cast<ComponentNode>().map(
+              (n) => n.componentId,
+            ),
+        ['b'],
+      );
+    });
+
+    test('a dangling list entry reports its index', () {
+      final ComponentRefFields fields = extractComponentRefFields(
+        _catalog({
+          'properties': {'children': _list},
+        }),
+      )['Parent']!;
+      expect(
+        componentReferences({
+          'children': ['a', 'b', 'missing'],
+        }, fields)
+            .map((r) => r.field),
+        ['children[0]', 'children[1]', 'children[2]'],
+      );
+
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          _wireCatalog({
+        'properties': {'children': _list},
+      });
+      expect(
+        () => processorFor(catalog).processMessages(
+          createAndUpdate(catalog.id, [
+            {
+              'id': 'root',
+              'component': 'Parent',
+              'children': ['a', 'b', 'missing'],
+            },
+            {'id': 'a', 'component': 'Leaf'},
+            {'id': 'b', 'component': 'Leaf'},
+          ]),
+        ),
+        danglingAt('missing', 'children[2]'),
+      );
+    });
+
+    test('only a componentId-and-path object is a template', () {
+      final ComponentRefFields fields = extractComponentRefFields(
+        _catalog({
+          'properties': {'children': _list},
+        }),
+      )['Parent']!;
+      List<String> ids(Object? children) => [
+            for (final ComponentReference reference in componentReferences({
+              'children': children,
+            }, fields))
+              reference.id,
+          ];
+
+      expect(ids({'componentId': 'row'}), isEmpty);
+      expect(ids({'componentId': 'row', 'path': 3}), isEmpty);
+      expect(ids({'componentId': 'row', 'path': '/items'}), ['row']);
+    });
+
+    test('Catalog.refMap is cached and drives both consumers', () {
+      final Catalog<ComponentApi, FunctionImplementation> catalog = _catalog({
+        'properties': {'child': _child, 'children': _list},
+      });
+      expect(identical(catalog.refMap, catalog.refMap), isTrue);
+      expect(catalog.refMap.fieldsFor('Parent').keys, {'child', 'children'});
+      expect(catalog.refMap.fieldsFor('Leaf'), isEmpty);
+      expect(catalog.refMap.fieldsFor('Unknown'), isEmpty);
+      final ComponentRefFields validation =
+          extractComponentRefFields(catalog)['Parent']!;
+      expect(validation.single, {'child'});
+      expect(validation.list, {'children'});
     });
   });
 
@@ -530,32 +810,32 @@ void main() {
           });
           final processor = MessageProcessor<ComponentApi>(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            defaultVersion: A2uiProtocolVersion.v1_0,
           );
           processor.processMessages(
             AgentToRendererMessagePayload.of(
               CreateSurfaceMessage(
-                  version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
+                  version: 'v1.0', surfaceId: 's', catalogId: catalog.id),
             ),
           );
           final SurfaceModel<ComponentApi> surface =
-              processor.groupModel.getSurface('s')!;
+              processor.model.getSurface('s')!;
           final resolver = NodeResolver<ComponentApi>(surface);
           addTearDown(() {
             resolver.dispose();
-            processor.groupModel.dispose();
+            processor.model.dispose();
           });
           void process(List<Map<String, Object?>> components) {
             processor.processMessages(
               AgentToRendererMessage.parseAll([
                 {
-                  'version': 'v0.9',
+                  'version': 'v1.0',
                   'updateComponents': {
                     'surfaceId': 's',
                     'components': components,
                   },
                 },
-              ], protocolVersion: A2uiProtocolVersion.v0_9),
+              ], protocolVersion: A2uiProtocolVersion.v1_0),
             );
           }
 
@@ -597,36 +877,37 @@ void main() {
       });
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v1_0,
+        validationConfig: const ValidationConfig(allowDanglingReferences: true),
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
           CreateSurfaceMessage(
-              version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
+              version: 'v1.0', surfaceId: 's', catalogId: catalog.id),
         ),
       );
       final SurfaceModel<ComponentApi> surface =
-          processor.groupModel.getSurface('s')!;
+          processor.model.getSurface('s')!;
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
-        processor.groupModel.dispose();
+        processor.model.dispose();
       });
       void process(List<Map<String, Object?>> components) {
         processor.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v0.9',
+              'version': 'v1.0',
               'updateComponents': {'surfaceId': 's', 'components': components},
             },
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
+          ], protocolVersion: A2uiProtocolVersion.v1_0),
         );
       }
 
       surface.dataModel.set('/items', ['a', 'b']);
-      // The processor checks references only for surfaces the payload creates,
-      // so this update is applied and the resolver reports the template items
-      // as pending until a later payload delivers the component.
+      // The processor allows dangling references, so this update is applied
+      // and the resolver reports the template items as pending until a later
+      // payload delivers the component.
       process([
         {
           'id': 'root',

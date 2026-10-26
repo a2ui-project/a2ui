@@ -12,20 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
+import os
 from pathlib import Path
-from typing import Any
+
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import (
-    A2uiCatalogProvider,
-    CatalogConfig,
-    VERSION_0_9,
-    remove_strict_validation,
-)
+from a2ui.core.schema import ProtocolVersion
+from a2ui.processor import CatalogConfig
+from a2ui.utils import to_version_number, validate_payload
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent.parent.parent  # a2ui root
@@ -36,30 +32,38 @@ SAMPLE_CONFIGS = [
         "name": "custom-components-example",
         "path": SAMPLES_DIR / "custom-components-example",
         "catalogs": [
-            CatalogConfig.from_path(
-                name="custom-components-example_inline_catalog",
-                catalog_path="inline_catalog_0.9.json",
-                examples_path=f"examples/{VERSION_0_9}",
+            (
+                lambda: CatalogConfig.from_path(
+                    catalog_path="inline_catalog_0.9.json",
+                    protocol_version=ProtocolVersion.V0_9,
+                ),
+                f"examples/{to_version_number(ProtocolVersion.V0_9)}",
             ),
-            CatalogConfig.from_catalog(
-                "basic",
-                BasicCatalog(VERSION_0_9),
+            (
+                lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
+                None,
             ),
         ],
-        "schema_modifiers": [remove_strict_validation],
         "validate": True,
     },
     {
         "name": "restaurant_finder",
         "path": SAMPLES_DIR / "restaurant_finder",
-        "catalogs": [
-            CatalogConfig.from_catalog(
-                "basic",
-                BasicCatalog(VERSION_0_9),
-                examples_path="examples/0.9",
-            )
-        ],
-        "schema_modifiers": [remove_strict_validation],
+        "catalogs": [(
+            lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
+            "examples/0.9",
+        )],
+        "validate": True,
+    },
+    # The agent also validates its v0.8 examples at startup (agent.py), so an
+    # invalid one stops the server.
+    {
+        "name": "restaurant_finder (v0.8)",
+        "path": SAMPLES_DIR / "restaurant_finder",
+        "catalogs": [(
+            lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V0_8)),
+            "examples/0.8",
+        )],
         "validate": True,
     },
 ]
@@ -74,24 +78,22 @@ def test_sample_examples_validation(config):
         sample_path
     )  # Change to sample dir to resolve relative catalog paths if any
 
-    direct_json_format = DirectJsonFormat(
-        VERSION_0_9,
-        catalogs=config["catalogs"],
-        accepts_inline_catalogs=True,
-        schema_modifiers=config["schema_modifiers"],
-    )
+    loaded_entries = [
+        (factory().transformed_catalog, examples_path)
+        for factory, examples_path in config["catalogs"]
+    ]
+    sample_catalogs = [catalog for catalog, _ in loaded_entries]
 
     # Iterate through each catalog and validate its examples
-    for catalog in direct_json_format._supported_catalogs:
-        examples_path = direct_json_format._catalog_example_paths.get(
-            catalog.catalog_id
-        )
+    for catalog, examples_path in loaded_entries:
         if not examples_path:
             continue
 
-        # manager.load_examples(catalog, validate=True) returns a combined string.
-        # It internally calls _validate_example which logs warnings on failure.
-        # To strictly fail the test, we want to capture those failures or re-implement.
+        # An example may create surfaces on any of the sample's catalogs.
+        catalogs = [
+            catalog,
+            *(c for c in sample_catalogs if c is not catalog),
+        ]
 
         path = Path(examples_path)
         if not path.is_absolute():
@@ -108,7 +110,7 @@ def test_sample_examples_validation(config):
                     content = json.load(f)
                     try:
                         if do_validate:
-                            catalog.validate_components(content)
+                            validate_payload(catalogs, content)
                     except Exception as e:
                         pytest.fail(
                             f"Validation failed for {full_path} in sample"

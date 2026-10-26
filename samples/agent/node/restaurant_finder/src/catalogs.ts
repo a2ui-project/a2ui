@@ -32,9 +32,7 @@ export type BasicCatalogs = ReadonlyMap<VersionProfile['version'], CatalogApi>;
  * The v0.9 document states neither a `catalogId` nor a `protocolVersion`, so both come
  * from the version profile.
  */
-export async function loadBasicCatalogs(
-  repoRoot: string = getRepoRootDir(),
-): Promise<BasicCatalogs> {
+export function loadBasicCatalogs(repoRoot: string = getRepoRootDir()): BasicCatalogs {
   const catalogs = new Map<VersionProfile['version'], CatalogApi>();
   for (const profile of VERSIONS) {
     const provider = new FileSystemCatalogProvider(
@@ -42,7 +40,7 @@ export async function loadBasicCatalogs(
       profile.version,
       profile.basicCatalogId,
     );
-    catalogs.set(profile.version, await provider.load());
+    catalogs.set(profile.version, provider.load());
   }
   return catalogs;
 }

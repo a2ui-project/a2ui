@@ -24,7 +24,14 @@
           "$ref": "common_types.json#/$defs/DynamicValue"
         }
       },
-      "required": ["component", "value"]
+      "required": ["component", "value"],
+      "metadata": {
+        "extensions": {
+          "com_example_legacy": {
+            "properties": {"x-legacy-name": {"type": "string"}}
+          }
+        }
+      }
     }
   },
   "functions": {

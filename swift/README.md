@@ -3,8 +3,9 @@
 This directory contains the official native Apple client implementation for A2UI
 (Agent-to-User Interface), supporting iOS, macOS, iPadOS, tvOS, visionOS, and watchOS.
 
-For the platform-agnostic protocol specification and guidelines, see
-[specification/v0_9_1/docs/a2ui_protocol.md](../specification/v0_9_1/docs/a2ui_protocol.md).
+For the platform-agnostic protocol specifications and guidelines, see
+[specification/v0_9_1/docs/a2ui_protocol.md](../specification/v0_9_1/docs/a2ui_protocol.md) and
+[specification/v1_0/docs/a2ui_protocol.md](../specification/v1_0/docs/a2ui_protocol.md).
 
 ---
 
@@ -70,5 +71,5 @@ For AI agents and contributors working in this directory hierarchy:
   spec compliance hierarchy, and verification protocols.
 - **[CODING_STANDARDS.md](CODING_STANDARDS.md)**: Coding standards, safe optional handling,
   and Swift Testing patterns.
-- **[.agents/skills/a2ui-swift-development/](../.agents/skills/a2ui-swift-development/SKILL.md)**:
-  Specialized skill for Swift development.
+- **[.agents/skills/coding-principles/subskills/swift/](../.agents/skills/coding-principles/subskills/swift/INDEX.md)**:
+  Progressive discovery router and coding standards subskills for Swift development.

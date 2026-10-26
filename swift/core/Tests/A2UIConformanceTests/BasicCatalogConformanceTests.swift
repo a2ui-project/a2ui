@@ -20,9 +20,15 @@ import Testing
 
 @MainActor
 private final class ConformanceMockFunctionHandler: FunctionHandler {
-  private let functionsMap: [String: any FunctionImplementation] = Dictionary(
-    uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
-  )
+  private let functionsMap: [String: any FunctionImplementation]
+
+  init(
+    functionsMap: [String: any FunctionImplementation] = Dictionary(
+      uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
+    )
+  ) {
+    self.functionsMap = functionsMap
+  }
 
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
     functionsMap[named]
@@ -32,6 +38,17 @@ private final class ConformanceMockFunctionHandler: FunctionHandler {
 @MainActor
 struct BasicCatalogConformanceTests {
   private let functionHandler = ConformanceMockFunctionHandler()
+  /// Handlers holding each protocol version's Basic Catalog functions. Stored here because
+  /// `DataContext` keeps its function handler weakly.
+  private let versionedFunctionHandlers = Dictionary(
+    uniqueKeysWithValues: A2UIProtocolVersion.allCases.map {
+      (
+        $0,
+        ConformanceMockFunctionHandler(
+          functionsMap: BasicCatalog.makeCatalog(version: $0).functions)
+      )
+    }
+  )
 
   @Test func formatStringAndExpressionParser() throws {
     let dataModel = DataModel(
@@ -64,32 +81,37 @@ struct BasicCatalogConformanceTests {
     let cases = (rawYAML as? [[String: Any]]) ?? []
     #expect(!cases.isEmpty, "core/functions.yaml should hold test cases")
 
-    let functionsMap: [String: any FunctionImplementation] = Dictionary(
-      uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
-    )
-
     for testCase in cases {
       guard let action = testCase["action"] as? String, action == "evaluate_function" else {
         continue
       }
 
-      // The Swift basic catalog implements v0.9, whose validators return
-      // booleans. Cases pinned to a later protocol version exercise v1.0
-      // behaviour (ValidationResult operands) that this catalog does not have.
-      let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
-      let protocolVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion
-      if let protocolVersion, !protocolVersion.hasPrefix("v0.9") {
+      // A case with a `surface` block evaluates the function as a call on a surface, so it
+      // checks catalog resolution. This harness invokes implementations directly and cannot
+      // describe it.
+      if testCase["surface"] != nil {
         continue
       }
 
+      // Validators return booleans in v0.9 and ValidationResult objects in v1.0, so
+      // each case runs against the functions of the protocol version it is pinned to.
+      // Unpinned cases run against v0.9.
       guard let name = testCase["name"] as? String,
         let funcName = testCase["function"] as? String
       else {
         continue
       }
 
+      let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
+      let rawVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion ?? "v0.9"
+      guard let protocolVersion = A2UIProtocolVersion(lenientRawValue: rawVersion) else {
+        Issue.record("\(name): unsupported protocol version \(rawVersion)")
+        continue
+      }
+      let functionsMap = BasicCatalog.makeCatalog(version: protocolVersion).functions
+
       guard let fn = functionsMap[funcName] else {
-        Issue.record("\(name): function '\(funcName)' not found in BasicFunctions")
+        Issue.record("\(name): function '\(funcName)' not found for \(protocolVersion.rawValue)")
         continue
       }
 
@@ -98,7 +120,15 @@ struct BasicCatalogConformanceTests {
           ConformanceTestHelper.toJSONValue($0)
         } ?? .object([:])
       let model = DataModel(initial: dataModelDict)
-      let context = DataContext(dataModel: model, path: "/", functionHandler: functionHandler)
+      // Functions that evaluate through the context (such as formatString) resolve
+      // against the same catalog version as the function under test.
+      let versionedHandler = try #require(versionedFunctionHandlers[protocolVersion])
+      let context = DataContext(
+        dataModel: model,
+        path: "/",
+        functionHandler: versionedHandler,
+        protocolVersion: protocolVersion
+      )
 
       let rawArgs = (testCase["args"] as? [String: Any]) ?? [:]
       var swiftArgs: [String: JSONValue] = [:]
@@ -132,5 +162,136 @@ struct BasicCatalogConformanceTests {
         }
       }
     }
+  }
+
+  @Test func indexFunctionConformance() throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/index_function.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+
+    #expect(!testCases.isEmpty, "Should load test cases from index_function.yaml")
+
+    for testCase in testCases {
+      let errorHandler = IndexConformanceErrorHandler()
+      let processor = MessageProcessor(
+        catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
+        actionHandler: errorHandler,
+        validationConfig: ValidationConfig(targetVersion: "v1.0")
+      )
+
+      for step in testCase.steps {
+        guard let payload = step.payload else { continue }
+
+        if let expectedError = step.expectError {
+          errorHandler.capturedErrors.removeAll()
+          var caughtErrorMessage: String?
+          do {
+            let messages = try ConformanceTestHelper.parsePayload(payload)
+            processor.process(messages: messages)
+          } catch {
+            caughtErrorMessage = error.localizedDescription
+          }
+
+          let errorMessages =
+            errorHandler.capturedErrors.map { err -> String in
+              switch err {
+              case .validationFailed(let v): return v.message
+              case .generic(let g): return g.message
+              }
+            } + (caughtErrorMessage.map { [$0] } ?? [])
+
+          #expect(
+            !errorMessages.isEmpty,
+            "Expected error for \(testCase.name), but processing succeeded without error"
+          )
+          if let expectedMessage = expectedError.message {
+            #expect(
+              errorMessages.contains(where: { $0.contains(expectedMessage) }),
+              "Expected error containing '\(expectedMessage)' in \(testCase.name), got \(errorMessages)"
+            )
+          }
+        } else {
+          let messages = try ConformanceTestHelper.parsePayload(payload)
+          processor.process(messages: messages)
+
+          if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
+            for (surfaceID, expectedSurface) in expectSurfaces {
+              guard let surface = processor.surfaceGroupModel[surfaceID] else {
+                Issue.record("Expected surface '\(surfaceID)' to exist")
+                continue
+              }
+
+              if let expectedComponents = expectedSurface["components"]?.objectValue {
+                for (compID, compExpected) in expectedComponents {
+                  let node = surface.findNode(id: compID)
+                  if let expectedText = compExpected["text"]?.stringValue {
+                    #expect(
+                      node?.string(for: "text") == expectedText,
+                      "[\(testCase.name)] Expected node \(compID).text == '\(expectedText)', got '\(node?.string(for: "text") ?? "nil")'"
+                    )
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test func validationResultConformance() throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/validation_result.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+
+    #expect(!testCases.isEmpty, "Should load test cases from validation_result.yaml")
+
+    for testCase in testCases {
+      let processor = MessageProcessor(
+        catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
+        validationConfig: ValidationConfig(targetVersion: "v1.0")
+      )
+
+      for step in testCase.steps {
+        guard let payload = step.payload else { continue }
+        let messages = try ConformanceTestHelper.parsePayload(payload)
+        processor.process(messages: messages)
+      }
+
+      if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
+        for (surfaceID, expectedSurface) in expectSurfaces {
+          guard let surface = processor.surfaceGroupModel[surfaceID] else {
+            Issue.record("Expected surface '\(surfaceID)' to exist")
+            continue
+          }
+
+          if let expectedVR = expectedSurface["validationResult"]?.objectValue {
+            for (nodeID, expectedCheck) in expectedVR {
+              let node = surface.findNode(id: nodeID)
+              let expectedValid = expectedCheck["valid"]?.boolValue ?? true
+              #expect(
+                node?.isValid == expectedValid,
+                "[\(testCase.name)] Expected node \(nodeID).isValid == \(expectedValid)"
+              )
+
+              if let expectedMsg = expectedCheck["message"]?.stringValue {
+                #expect(
+                  node?.validationErrors.contains(expectedMsg) == true,
+                  "[\(testCase.name)] Expected validation errors to contain '\(expectedMsg)'"
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+private final class IndexConformanceErrorHandler: ActionHandling, @unchecked Sendable {
+  var capturedErrors: [RendererError] = []
+
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: RendererError, from surfaceID: String) {
+    capturedErrors.append(error)
   }
 }

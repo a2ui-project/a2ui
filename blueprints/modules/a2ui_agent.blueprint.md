@@ -247,8 +247,9 @@ class Parser(ABC):
         """Reports whether the content carries a block written in this format.
 
         A caller uses this to decide whether a response is this format's business at all,
-        without paying for a parse. It reads the sentinel tags only and never compiles.
-        Another format's tags do not count.
+        without paying for a parse. It tokenizes blocks without compiling. Another format's
+        tags do not count. A block recovered by `unwrap` when its opening sentinel tag was
+        omitted (closed by this format's closing tag) also counts as a complete block.
 
         Args:
             content: Raw string response emitted by the LLM, possibly partial.
@@ -271,19 +272,28 @@ class Parser(ABC):
         """Tokenizes the LLM response into an ordered list of RawResponsePart objects, extracting raw format content between sentinel tags while preserving chronological order.
 
         Content outside this format's sentinel tags, including another format's tags, is a TextPart.
+        Markdown fences and backticks wrapping inline-code sentinel tags are stripped from block
+        edges, and a closing tag on a single-line comment line closes the block.
+        If the model omits the opening sentinel tag but emits a closing sentinel tag after a fenced
+        block or a line that begins a format payload, at most one such block is recovered in
+        one-shot unwrapping (streaming parsers require the opening sentinel tag).
 
         Args:
             content: Raw string response emitted by the LLM.
 
         Returns:
             An ordered list of RawResponsePart objects representing alternating slices of
-            conversational text and tagged A2UI payload blocks exactly as emitted by the LLM.
+            conversational text and cleaned format payload blocks.
         """
         pass
 
     @abstractmethod
     def compile(self, format_content: str) -> list[AgentToRendererMessage]:
         """Compiles a raw format content string into a list of validated A2UI message structures.
+
+        Compile-time repairs tolerate stray unescaped line breaks inside object keys,
+        identifier/reference properties, at single-line string edges, and in data paths or
+        split identifiers when the joined name resolves.
 
         Args:
             format_content: The uncompiled raw payload string (e.g. raw JSON or DSL expression).
@@ -370,7 +380,7 @@ reaches validation through the first of them:
 
 - **`MessageProcessor` (`a2ui.core.processing`)** is the entry point. It holds every
   active catalog, resolves each component and function call to the catalog it belongs to
-  (the item's own `catalogId`, else the surface default, else the sole catalog), and hands
+  (the item's own `catalogId`, else the surface default, else `A2uiCatalogError`), and hands
   the item to that catalog's validator. It also owns the checks that need more than one
   item: surface lifecycle, component uniqueness, root reachability, cycles, recursion
   depth caps, and data binding JSON Pointer syntax. A surface whose components come from
@@ -598,7 +608,7 @@ class A2uiGenerator:
         Args:
             catalogs: List of supported CatalogConfig configurations.
             examples: Optional list of prompt example turns.
-            inference_format_factory: Optional default InferenceFormatFactory (defaults to DirectJsonFormatFactory).
+            inference_format_factory: Optional default InferenceFormatFactory (defaults to ExpressFormatFactory).
         """
         pass
 
@@ -639,7 +649,7 @@ class A2uiRequestProcessor:
         Args:
             catalogs: List of active Catalog instances.
             examples: Optional list of prompt example turns.
-            format_factory: Format factory for instantiating format strategies.
+            format_factory: Format factory for instantiating format strategies (defaults to ExpressFormatFactory).
         """
         pass
 
@@ -907,7 +917,7 @@ Express does not stream. `ExpressParser.supports_streaming` is False and it does
 
 #### Grammar and parser generation
 
-[`Express.g4`](../../specification/inference_formats/express/Express.g4) is the canonical grammar, and every SDK accepts exactly the language it defines. Generating the lexer and parser from it with [ANTLR](https://www.antlr.org/) is preferred, so that a change to the grammar reaches each SDK by regenerating rather than by reimplementing. The Python SDK does this.
+[`Express.g4`](../../specification/inference_formats/express/Express.g4) is the canonical grammar, and every SDK accepts exactly the language it defines. Generating the lexer and parser from it with [ANTLR](https://www.antlr.org/) is preferred, so that a change to the grammar reaches each SDK by regenerating rather than by reimplementing. The Python, TypeScript and Dart SDKs do this.
 
 An SDK may write its parser by hand instead, for example when the language has no maintained ANTLR runtime or the SDK avoids third-party dependencies. It then says so where the parser is defined, and a change to the grammar has to be made in that parser too. `<format>/compiler.yaml` and the round-trip test below check that the parser still accepts the grammar's language.
 

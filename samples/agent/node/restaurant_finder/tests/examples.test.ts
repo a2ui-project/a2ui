@@ -26,6 +26,7 @@ import {
   A2uiGenerator,
   type AgentToRendererMessage,
   CatalogConfig,
+  DirectJsonFormatFactory,
   ExpressDecompiler,
   ExpressFormatFactory,
 } from '@a2ui/agent';
@@ -38,7 +39,7 @@ import {VERSIONS, type VersionProfile} from '../src/versions.js';
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));
 const FORMATS: A2uiFormat[] = ['direct_json', 'express'];
-const catalogs = await loadBasicCatalogs();
+const catalogs = loadBasicCatalogs();
 
 /** Parses a model response the way the agent does, throwing if it is invalid. */
 function validate(profile: VersionProfile, format: A2uiFormat, response: string) {
@@ -48,7 +49,7 @@ function validate(profile: VersionProfile, format: A2uiFormat, response: string)
   const processor =
     format === 'express'
       ? generator.createProcessor(capabilities, new ExpressFormatFactory({surfaceId: 'default'}))
-      : generator.createProcessor(capabilities);
+      : generator.createProcessor(capabilities, new DirectJsonFormatFactory());
   const parts = processor.parseResponse(response);
   expect(parts.some(part => part.type === 'a2ui')).toBe(true);
 }

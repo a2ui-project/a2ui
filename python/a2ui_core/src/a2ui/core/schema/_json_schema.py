@@ -386,18 +386,45 @@ class SpecAllOf:
     """Annotation that adds `allOf` members a type cannot express.
 
     The type's schema becomes the first member of an `allOf` followed by
-    `schemas`, for example an `if`/`then` format rule. It documents the
-    specification and does not change validation.
+    `schemas`, for example an `if`/`then` format rule or additional `required`
+    properties. Enforces any `"required"` constraints during validation.
     """
 
     def __init__(self, *schemas: dict[str, Any]) -> None:
         self.schemas = schemas
+        self._required: tuple[str, ...] = tuple(
+            prop
+            for s in schemas
+            for prop in s.get("required", ())
+            if isinstance(prop, str)
+        )
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        inner = handler(source)
+        if not self._required:
+            return inner
+        return core_schema.no_info_after_validator_function(
+            self._validate_required, inner
+        )
 
     def __get_pydantic_json_schema__(
         self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         json_schema = handler(schema)
         return {"allOf": [json_schema, *copy.deepcopy(list(self.schemas))]}
+
+    def _validate_required(self, value: Any) -> Any:
+        model_fields = getattr(type(value), "model_fields", {})
+        alias_to_field = {
+            (info.alias or name): name for name, info in model_fields.items()
+        }
+        for prop in self._required:
+            field_name = alias_to_field.get(prop, prop)
+            if getattr(value, field_name, None) is None:
+                raise ValueError(f"Field '{prop}' is required")
+        return value
 
 
 def is_identifier_key(key: str) -> bool:
@@ -407,3 +434,128 @@ def is_identifier_key(key: str) -> bool:
     describes; Python's `re` module cannot compile `\\p{...}` classes.
     """
     return key.isidentifier()
+
+
+_ROOT_KEY_ORDER: Final[tuple[str, ...]] = (
+    "$schema",
+    "$id",
+    "protocolVersion",
+    "title",
+    "description",
+    "catalogId",
+    "instructions",
+    "type",
+    "allowedParents",
+    "allowedChildren",
+    "properties",
+    "patternProperties",
+    "required",
+    "enum",
+    "const",
+    "default",
+    "minItems",
+    "maxItems",
+    "items",
+    "allOf",
+    "oneOf",
+    "anyOf",
+    "propertyNames",
+    "not",
+    "$ref",
+    "discriminator",
+    "additionalProperties",
+    "unevaluatedProperties",
+    "components",
+    "functions",
+    "theme",
+    "$defs",
+)
+_SUBSCHEMA_KEY_ORDER: Final[tuple[str, ...]] = (
+    "title",
+    "type",
+    "$ref",
+    "description",
+    "allowedParents",
+    "allowedChildren",
+    "properties",
+    "patternProperties",
+    "required",
+    "enum",
+    "const",
+    "default",
+    "minItems",
+    "maxItems",
+    "items",
+    "allOf",
+    "oneOf",
+    "anyOf",
+    "propertyNames",
+    "not",
+    "discriminator",
+    "additionalProperties",
+    "unevaluatedProperties",
+    "$defs",
+)
+_V08_SUBSCHEMA_KEY_ORDER: Final[tuple[str, ...]] = (
+    "title",
+    "type",
+    "$ref",
+    "description",
+    "additionalProperties",
+    "minItems",
+    "maxItems",
+    "items",
+    "properties",
+    "required",
+    "enum",
+    "const",
+    "default",
+)
+_ROOT_ORDER_MAP: Final[dict[str, int]] = {k: i for i, k in enumerate(_ROOT_KEY_ORDER)}
+_SUBSCHEMA_ORDER_MAP: Final[dict[str, int]] = {
+    k: i for i, k in enumerate(_SUBSCHEMA_KEY_ORDER)
+}
+_V08_SUBSCHEMA_ORDER_MAP: Final[dict[str, int]] = {
+    k: i for i, k in enumerate(_V08_SUBSCHEMA_KEY_ORDER)
+}
+
+
+def order_spec_schema_keys(
+    node: Any,
+    path: str = "$",
+    is_map: bool = False,
+    is_v08: bool | None = None,
+) -> Any:
+    """Orders dictionary keys to match the published specification JSON schemas."""
+    if is_v08 is None:
+        is_v08 = isinstance(node, dict) and "$schema" not in node
+    if isinstance(node, list):
+        return [
+            order_spec_schema_keys(item, f"{path}[{i}]", False, is_v08)
+            for i, item in enumerate(node)
+        ]
+    if isinstance(node, dict):
+        items = [
+            (
+                k,
+                order_spec_schema_keys(
+                    v,
+                    f"{path}.{k}",
+                    k in ("properties", "patternProperties", "$defs")
+                    or (path == "$" and k in ("components", "functions")),
+                    is_v08,
+                ),
+            )
+            for k, v in node.items()
+        ]
+        if not is_map:
+            if is_v08:
+                items.sort(
+                    key=lambda kv: (_V08_SUBSCHEMA_ORDER_MAP.get(kv[0], 999), kv[0])
+                )
+            elif path == "$" or "title" in node:
+                items.sort(key=lambda kv: (_ROOT_ORDER_MAP.get(kv[0], 999), kv[0]))
+            else:
+                items.sort(key=lambda kv: (_SUBSCHEMA_ORDER_MAP.get(kv[0], 999), kv[0]))
+        return dict(items)
+    return node

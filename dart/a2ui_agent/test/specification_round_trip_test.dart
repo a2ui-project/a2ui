@@ -19,7 +19,7 @@ import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-/// Decompiles each published v0.9 basic catalog example into each format,
+/// Decompiles each published basic catalog example into each format,
 /// compiles it back, and checks that a renderer ends up holding the same
 /// surfaces, as `conformance/README.md` asks of every format.
 ///
@@ -29,33 +29,54 @@ import 'package:test/test.dart';
 /// `sendDataModel` is left out. The examples Express cannot write at all are
 /// listed with the reason, and checked to fail.
 void main() {
-  const catalogPath = '../../specification/v0_9/catalogs/basic/catalog.json';
-  final CatalogApi basic = Catalog.fromJson(
-    jsonDecode(File(catalogPath).readAsStringSync()) as Map<String, Object?>,
-  );
-  final List<File> examples =
-      Directory('../../specification/v0_9/catalogs/basic/examples')
+  group('v0.9 basic catalog', () {
+    _roundTrips(
+      basic: const FileSystemCatalogProvider(
+        '../../specification/v0_9/catalogs/basic/catalog.json',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      ).load(),
+      examples: '../../specification/v0_9/catalogs/basic/examples',
+      expressCannotWrite: const {
+        '00_incremental.json': 'updates an item of a list in the data model',
+      },
+    );
+  });
+
+  group('v1.0 basic catalog', () {
+    _roundTrips(
+      basic: const FileSystemCatalogProvider(
+        '../../catalogs/basic/v1/catalog.json',
+      ).load(),
+      examples: '../../catalogs/basic/v1/examples',
+      expressCannotWrite: const {
+        '00_incremental.json': 'updates an item of a list in the data model',
+      },
+    );
+  });
+}
+
+/// Round-trips each example in the directory [examples] through each format
+/// bound to [basic].
+///
+/// [expressCannotWrite] names the examples Express cannot write, with the
+/// reason.
+void _roundTrips({
+  required CatalogApi basic,
+  required String examples,
+  Map<String, String> expressCannotWrite = const {},
+}) {
+  final A2uiProtocolVersion version = basic.protocolVersion!;
+  final List<File> files =
+      Directory(examples)
           .listSync()
           .whereType<File>()
           .where((f) => f.path.endsWith('.json'))
           .toList()
         ..sort((a, b) => a.path.compareTo(b.path));
 
-  const expressCannotWrite = {
-    '00_complex-layout.json':
-        "sets 'weight', which Express has no notation for",
-    '00_incremental.json': 'updates the data model below its root',
-    '30_live-invitation-builder.json':
-        "sets 'weight', which Express has no notation for",
-    '31_incremental-dashboard.json':
-        "sets 'weight', which Express has no notation for",
-    '33_financial-data-grid.json':
-        "sets 'weight', which Express has no notation for",
-  };
+  test('finds the examples', () => expect(files, isNotEmpty));
 
-  test('finds the examples', () => expect(examples, isNotEmpty));
-
-  for (final file in examples) {
+  for (final file in files) {
     final String name = file.uri.pathSegments.last;
     final document =
         jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
@@ -64,6 +85,7 @@ void main() {
         : 'Uses components the basic catalog does not declare.';
     final List<AgentToRendererMessage> messages = _parse(
       document['messages']! as List<Object?>,
+      version,
     );
 
     group(name, skip: skip, () {
@@ -71,9 +93,13 @@ void main() {
         final Parser parser = const DirectJsonFormatFactory().createFormat([
           basic,
         ]).createParser();
-        final List<AgentToRendererMessage> recompiled = parser.compile(
-          parser.decompile(messages),
-        );
+        final List<AgentToRendererMessage> recompiled = [
+          for (final List<AgentToRendererMessage> payload in _payloads(
+            name,
+            messages,
+          ))
+            ...parser.compile(parser.decompile(payload)),
+        ];
         expect(_json(recompiled), _json(messages));
       });
 
@@ -81,7 +107,10 @@ void main() {
         final Parser parser = const ExpressFormatFactory().createFormat([
           basic,
         ]).createParser();
-        final List<AgentToRendererMessage> written = _forExpress(messages);
+        final List<AgentToRendererMessage> written = _forExpress(
+          messages,
+          version,
+        );
         if (expressCannotWrite[name] case final String reason) {
           expect(
             () => parser.decompile(written),
@@ -101,11 +130,32 @@ void main() {
   }
 }
 
-List<AgentToRendererMessage> _parse(List<Object?> json) =>
-    AgentToRendererMessage.parseAll(
-      json.cast<Map<String, Object?>>(),
-      protocolVersion: A2uiProtocolVersion.v0_9,
-    ).messages;
+/// Examples whose later updates replace a placeholder and leave it
+/// unreachable, which one payload may not do, since every surface it creates
+/// must be whole once it is applied.
+const Set<String> _incremental = {'31_incremental-dashboard.json'};
+
+/// The payloads the example [name] arrives in: its [messages] as one, or for
+/// an [_incremental] example, the surface and its first components, then
+/// each later update in a payload of its own, as later responses send them.
+List<List<AgentToRendererMessage>> _payloads(
+  String name,
+  List<AgentToRendererMessage> messages,
+) => _incremental.contains(name)
+    ? [
+        messages.take(2).toList(),
+        for (final AgentToRendererMessage message in messages.skip(2))
+          [message],
+      ]
+    : [messages];
+
+List<AgentToRendererMessage> _parse(
+  List<Object?> json,
+  A2uiProtocolVersion version,
+) => AgentToRendererMessage.parseAll(
+  json.cast<Map<String, Object?>>(),
+  protocolVersion: version,
+).messages;
 
 List<Object?> _json(List<AgentToRendererMessage> messages) =>
     jsonDecode(jsonEncode([for (final m in messages) m.toJson()]))
@@ -115,6 +165,7 @@ List<Object?> _json(List<AgentToRendererMessage> messages) =>
 /// and without `sendDataModel`.
 List<AgentToRendererMessage> _forExpress(
   List<AgentToRendererMessage> messages,
+  A2uiProtocolVersion version,
 ) {
   String text = jsonEncode([for (final m in messages) m.toJson()]);
   final Set<String> ids = {
@@ -125,7 +176,7 @@ List<AgentToRendererMessage> _forExpress(
     text = text.replaceAll('"$id"', '"${id.replaceAll('-', '_')}"');
   }
   text = text.replaceAll('"sendDataModel":true', '"sendDataModel":false');
-  return _parse(jsonDecode(text) as List<Object?>);
+  return _parse(jsonDecode(text) as List<Object?>, version);
 }
 
 /// The surfaces a renderer holds after applying [messages]: for each, its
@@ -134,19 +185,17 @@ Map<String, Object?> _render(
   CatalogApi catalog,
   List<AgentToRendererMessage> messages,
 ) {
-  final renderer = MessageProcessor<ComponentApi>(
-    catalogs: [_rendererCatalog(catalog)],
-    protocolVersion: A2uiProtocolVersion.v0_9,
+  final MessageProcessor<ComponentApi> renderer = MessageProcessor.forAgent(
+    catalogs: [catalog],
     // Some examples replace a placeholder and leave it unreachable.
     validationConfig: ValidationConfig.relaxed,
   );
-  addTearDown(renderer.groupModel.dispose);
+  addTearDown(renderer.model.dispose);
   renderer.processMessages(AgentToRendererMessagePayload(messages));
   return {
-    for (final SurfaceModel<ComponentApi> surface
-        in renderer.groupModel.allSurfaces)
+    for (final SurfaceModel<ComponentApi> surface in renderer.model.allSurfaces)
       surface.id: {
-        'catalog': surface.catalog.id,
+        'catalog': surface.defaultCatalog?.id,
         'components': {
           for (final ComponentModel component in surface.componentsModel.all)
             component.id: component.toJson(),
@@ -154,31 +203,4 @@ Map<String, Object?> _render(
         'data': surface.dataModel.get('/'),
       },
   };
-}
-
-/// [catalog] as a catalog `MessageProcessor` can hold, with functions that
-/// cannot be invoked.
-Catalog<ComponentApi, FunctionImplementation> _rendererCatalog(
-  CatalogApi catalog,
-) => Catalog<ComponentApi, FunctionImplementation>(
-  id: catalog.id,
-  components: catalog.components.values.toList(),
-  functions: catalog.functions.values.map(_Signature.new).toList(),
-  themeSchema: catalog.themeSchema,
-);
-
-class _Signature extends FunctionImplementation {
-  _Signature(FunctionApi api)
-    : super(
-        name: api.name,
-        argumentSchema: api.argumentSchema,
-        returnType: api.returnType,
-      );
-
-  @override
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]) => throw UnsupportedError('$name is a signature only.');
 }

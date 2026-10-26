@@ -52,13 +52,18 @@ swift-format format -i -r Package.swift swift/
 
 ## 2. Safety: unwrapping and error handling
 
-To keep the runtime solid and crash-free, avoid force unwrapping (`!`) and forced tries (`try!`):
+To keep the runtime solid and crash-free, avoid force unwrapping (`!`) and forced tries (`try!`)
+on runtime or external data:
 
 - **Safe unwrapping**: Use optional binding (`if let`, `guard let`) or handle throwing functions
   in `do-catch` blocks.
 - **Error propagation**: Propagate errors using standard Swift `throws` and typed `Error` enums.
 - **Sensible defaults**: When parsing external data streams, fail gracefully or provide fallbacks
   rather than crashing with `fatalError()`.
+- **Exception for hardcoded compile-time constants**: Using `try!` or `!` is permitted when
+  initializing values from hardcoded static literals that cannot change after compilation (such as
+  static regular expressions or embedded JSON Schema strings), where failure can only occur if a
+  developer made an error in transcribing the static string.
 
 ---
 

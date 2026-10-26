@@ -63,9 +63,30 @@ struct A2UICommonSchemaTests {
 
   @Test func testAllSchemasMapsBaseURIToDocument() {
     let schemas = A2UICommonSchema.allSchemas
-    #expect(schemas.count == 1)
-    #expect(schemas[A2UICommonSchema.baseURI] != nil)
+    #expect(schemas.count == 14)
     #expect(schemas[A2UICommonSchema.baseURI] == A2UICommonSchema.document)
+    #expect(schemas[A2UICommonSchema.v10BaseURI] == A2UICommonSchema.v10Document)
+    #expect(schemas["common_types.json"] == A2UICommonSchema.v10Document)
+    #expect(
+      schemas["https://swift-json-schema.invalid/common_types.json"]
+        == A2UICommonSchema.v10Document
+    )
+    #expect(
+      schemas[A2UICommonSchema.v10CatalogDefinitionURI]
+        == A2UICommonSchema.v10CatalogDefinitionDocument
+    )
+    #expect(
+      schemas["catalog_definition.json"]
+        == A2UICommonSchema.v10CatalogDefinitionDocument
+    )
+    #expect(
+      schemas["https://a2ui.org/schemas/v0_9_1/catalog.json"]
+        == A2UICommonSchema.v09CatalogFunctionStubDocument
+    )
+    #expect(
+      schemas["https://a2ui.org/specification/v1_0/catalog.json"]
+        == A2UICommonSchema.v10CatalogFunctionStubDocument
+    )
   }
 
   // MARK: - Schema Registry
@@ -452,5 +473,57 @@ struct A2UICommonSchemaTests {
     ]
     let result = schema.validate(funcCall)
     #expect(result.isValid)
+  }
+
+  // MARK: - v1.0 FunctionCall Schema
+
+  @Test func testV10FunctionCallValidatesCallAndCatalogId() throws {
+    let schema = try Schema(
+      instance: """
+        { "$ref": "\(A2UICommonSchema.v10URI(for: "FunctionCall"))" }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let value: JSONValue = [
+      "@call": "formatString",
+      "catalogId": "https://a2ui.org/specification/v1_0/basic_catalog.json",
+      "args": ["value": "Hello"],
+    ]
+    #expect(schema.validate(value).isValid)
+  }
+
+  @Test func testV10FunctionCallValidatesIndexSystemFunction() throws {
+    let schema = try Schema(
+      instance: """
+        { "$ref": "\(A2UICommonSchema.v10URI(for: "FunctionCall"))" }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let validValue: JSONValue = [
+      "@call": "@index",
+      "args": ["offset": 1],
+    ]
+    #expect(schema.validate(validValue).isValid)
+
+    let invalidArgsValue: JSONValue = [
+      "@call": "@index",
+      "args": ["unknownArg": 0],
+    ]
+    #expect(!schema.validate(invalidArgsValue).isValid)
+  }
+
+  @Test func testV10FunctionCallRejectsReturnType() throws {
+    let schema = try Schema(
+      instance: """
+        { "$ref": "\(A2UICommonSchema.v10URI(for: "FunctionCall"))" }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let value: JSONValue = [
+      "@call": "formatString",
+      "args": ["value": "Hello"],
+      "returnType": "string",
+    ]
+    #expect(!schema.validate(value).isValid)
   }
 }

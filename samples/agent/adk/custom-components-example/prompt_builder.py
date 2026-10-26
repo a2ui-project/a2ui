@@ -12,20 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    A2uiCatalogProvider,
-    CatalogConfig,
-    FileSystemCatalogProvider,
-    VERSION_0_8,
-    VERSION_0_9,
-    remove_strict_validation,
-)
-from typing import Any
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.processor import A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import to_version_number
 
 ROLE_DESCRIPTION = (
     "You are a helpful contact lookup assistant. Your final output MUST be a a2ui UI"
@@ -72,29 +64,49 @@ def get_text_prompt() -> str:
     """
 
 
-if __name__ == "__main__":
-    # Example of how to use the A2UI Schema Manager to generate a system prompt
-    my_base_url = "http://localhost:8000"
-    my_version = VERSION_0_9
-    inline_catalog_path = f"inline_catalog_{my_version}.json"
-    direct_json_format = DirectJsonFormat(
-        my_version,
-        catalogs=[
-            CatalogConfig.from_path(
-                name="custom-components-example_inline_catalog",
-                catalog_path=inline_catalog_path,
-                examples_path=f"examples/{my_version}",
-            ),
-        ],
-        accepts_inline_catalogs=True,
-        schema_modifiers=[remove_strict_validation],
+def get_ui_prompt(
+    processor: A2uiRequestProcessor,
+    examples_path: str | None = None,
+    *,
+    validate_examples: bool = False,
+) -> str:
+    """Constructs the full system prompt for the UI agent."""
+    from a2ui.utils import load_examples
+
+    prompt_parts = [ROLE_DESCRIPTION]
+    if WORKFLOW_DESCRIPTION:
+        prompt_parts.append(f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}")
+    if UI_DESCRIPTION:
+        prompt_parts.append(f"## UI Description:\n{UI_DESCRIPTION}")
+    prompt_parts.append(processor.prompt_snippet)
+    examples = load_examples(
+        processor.active_catalogs, examples_path, validate=validate_examples
     )
-    contact_prompt = transport_format.generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        workflow_description=WORKFLOW_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
+    if examples:
+        prompt_parts.append(f"### Examples:\n{examples}")
+    return "\n\n".join(prompt_parts)
+
+
+if __name__ == "__main__":
+    from a2ui.utils import load_examples
+
+    # Example of how to use A2uiRequestProcessor to generate a system prompt
+    my_base_url = "http://localhost:8000"
+    my_version = ProtocolVersion.V0_9
+    inline_catalog_path = f"inline_catalog_{to_version_number(my_version)}.json"
+    inline_catalog = CatalogConfig.from_path(
+        catalog_path=inline_catalog_path,
+        protocol_version=my_version,
+    ).transformed_catalog
+    # The examples target both the basic catalog and the inline catalog.
+    basic_catalog = CatalogConfig(BasicCatalog(my_version)).transformed_catalog
+    processor = A2uiRequestProcessor(
+        [inline_catalog, basic_catalog],
+        format_factory=DirectJsonFormatFactory(),
+    )
+    contact_prompt = get_ui_prompt(
+        processor,
+        examples_path=f"examples/{to_version_number(my_version)}",
         validate_examples=False,
     )
     print(contact_prompt)
@@ -102,24 +114,17 @@ if __name__ == "__main__":
         f.write(contact_prompt)
     print("\nGenerated prompt saved to generated_prompt.txt")
 
-    with open(inline_catalog_path, "r", encoding="utf-8") as f:
-        inline_catalog = json.load(f)
-
-    client_ui_capabilities = {"inlineCatalogs": [inline_catalog]}
-    inline_catalog = transport_format.get_selected_catalog(
-        client_ui_capabilities=client_ui_capabilities,
+    request_prompt = processor.format.prompt_generator.generate_catalog_instructions(
+        catalog=inline_catalog
     )
-    request_prompt = inline_catalog.render_as_llm_instructions()
     print(request_prompt)
     with open("request_prompt.txt", "w") as f:
         f.write(request_prompt)
     print("\nGenerated request prompt saved to request_prompt.txt")
 
-    basic_catalog = inference_format.get_selected_catalog(
-        client_ui_capabilities=client_ui_capabilities
-    )
-    examples = inference_format.load_examples(
-        basic_catalog,
+    examples = load_examples(
+        processor.active_catalogs,
+        f"examples/{to_version_number(my_version)}",
         validate=True,
     )
     print(examples)

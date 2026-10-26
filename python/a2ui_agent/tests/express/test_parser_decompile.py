@@ -28,16 +28,19 @@ conformance suites leave to the SDK implementation:
 import json
 import os
 import unittest
+
 from a2ui.core import Catalog
-from a2ui.schema import A2uiCatalog, VERSION_1_0
+from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.express import (
+    ExpressCompiler,
+    ExpressParser,
+    ExpressValidationError,
+)
+from a2ui.inference_formats.express.decompiler import _decompile_number
 
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.parser import ExpressParser
-
-from a2ui.schema.utils import find_repo_root, get_spec_dir
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
-SPEC_DIR = get_spec_dir("v1_0")
 CATALOGS_DIR = os.path.join(REPO_ROOT, "catalogs", "basic")
 CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 
@@ -50,16 +53,16 @@ class TestExpressParser(unittest.TestCase):
         self.catalog_path = CATALOG_PATH
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
+        self.catalog = Catalog.from_json(catalog_dict, protocol_version="1.0")
 
     def test_string_quoting_and_escaping(self):
         """Verifies parsing, compilation, and decompilation of various string quoting forms."""
-        compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressParser(self.catalog)
+        compiler = ExpressCompiler([self.catalog])
+        decompiler = ExpressParser([self.catalog])
 
         def get_compiled_text(dsl_body: str) -> str:
             dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
-            res = compiler.compile(dsl)[0]
+            res = to_message_dicts(compiler.compile(dsl))[0]
             return res["createSurface"]["components"][1]["text"]
 
         # 1. Standard Single-Quoted Strings & Escaping
@@ -136,13 +139,13 @@ class TestExpressParser(unittest.TestCase):
         with self.assertRaises(SyntaxError):
             compiler.compile(incomplete_dsl)
 
-        res_partial = compiler.compile(incomplete_dsl, is_final=False)
+        res_partial = to_message_dicts(compiler.compile(incomplete_dsl, is_final=False))
         self.assertEqual(res_partial[0]["updateDataModel"]["value"]["foo"], 123)
         self.assertNotIn("bar", res_partial[0]["updateDataModel"]["value"])
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
-        from a2ui.inference_formats.experimental.express.decompiler import (
+        from a2ui.inference_formats.express.decompiler import (
             _is_component_reference_property,
         )
 
@@ -192,7 +195,7 @@ class TestExpressParser(unittest.TestCase):
 
     def test_has_format_content_and_unwrap_tags(self):
         """Test has_format_content checks and unwrap tag tokenization."""
-        parser = ExpressParser(self.catalog)
+        parser = ExpressParser([self.catalog])
         self.assertTrue(
             parser.has_format_content("<a2ui>root = Text('Hi')</a2ui>", complete=True)
         )
@@ -205,9 +208,45 @@ class TestExpressParser(unittest.TestCase):
 
         content = "Intro\n<a2ui>\nroot = Text('Hi')\n</a2ui>\nOutro"
         parts = parser.unwrap(content)
-        self.assertEqual(len(parts), 2)
-        self.assertEqual(parts[0].text, "Intro")
-        self.assertIn("root = Text('Hi')", parts[0].a2ui_raw)
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0].part.text, "Intro")
+        self.assertIn("root = Text('Hi')", parts[1].part.a2ui_raw)
+        self.assertEqual(parts[2].part.text, "Outro")
+
+    def test_number_spelling_matches_ecmascript(self):
+        """Verifies numbers are written as ECMAScript `Number.prototype.toString` spells them."""
+        cases = [
+            (1e-7, "1e-7"),
+            (1.5e-5, "0.000015"),
+            (1e16, "10000000000000000.0"),
+            (1e21, "1e+21"),
+            (1.5e300, "1.5e+300"),
+            (123456.789, "123456.789"),
+            (3.0, "3.0"),
+            (-0.0, "-0.0"),
+            (7, "7"),
+        ]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(_decompile_number(value), expected)
+
+    def test_non_finite_numbers_have_no_notation(self):
+        """Verifies infinite and NaN values raise ExpressValidationError."""
+        for value in [float("inf"), float("-inf"), float("nan")]:
+            with self.subTest(value=value):
+                with self.assertRaises(ExpressValidationError):
+                    _decompile_number(value)
+
+    def test_decompiled_numbers_round_trip(self):
+        """Verifies a decompiled exponent-form double compiles back to the same value."""
+        compiler = ExpressCompiler([self.catalog])
+        decompiler = ExpressParser([self.catalog])
+        dsl = 'root = Column([t], weight=1e-7)\nt = Text("Hi")'
+        decompiled = decompiler.decompile(compiler.compile(dsl))
+        self.assertIn("1e-7)", decompiled)
+        messages = to_message_dicts(compiler.compile(decompiled))
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(comps["root"]["weight"], 1e-7)
 
 
 if __name__ == "__main__":

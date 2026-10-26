@@ -25,7 +25,7 @@ public final class FormatNumberFunction: FunctionImplementation, Sendable {
         {
           "type": "object",
           "properties": {
-            "value": { "type": ["number", "string"] },
+            "value": { "type": "number" },
             "decimals": { "type": "number" },
             "grouping": { "type": "boolean" }
           },

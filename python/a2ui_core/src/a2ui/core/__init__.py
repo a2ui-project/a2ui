@@ -19,7 +19,12 @@ from a2ui.core.catalog import (
     get_agent_to_renderer_schema_map as get_agent_to_renderer_schema_map,
     get_common_types_schema_json as get_common_types_schema_json,
     get_common_types_schema_map as get_common_types_schema_map,
+    inline_local_refs as inline_local_refs,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
+    link_catalogs as link_catalogs,
+)
+from a2ui.core.common import (
+    to_protocol_version as to_protocol_version,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError as A2uiCatalogError,
@@ -43,6 +48,9 @@ from a2ui.core.processing import (
 )
 from a2ui.core.resolution import DataContext as DataContext
 from a2ui.core.rpc import CallOptions as CallOptions, RpcHandler as RpcHandler
+from a2ui.core.schema import (
+    A2uiRendererCapabilities as A2uiRendererCapabilities,
+)
 from a2ui.core.state import (
     ComponentModel as ComponentModel,
     DataModel as DataModel,
@@ -65,6 +73,7 @@ __all__ = [
     "A2uiIntegrityError",
     "A2uiParseError",
     "A2uiRecursionError",
+    "A2uiRendererCapabilities",
     "A2uiRpcError",
     "A2uiStateError",
     "A2uiValidationError",
@@ -90,5 +99,8 @@ __all__ = [
     "get_agent_to_renderer_schema_map",
     "get_common_types_schema_json",
     "get_common_types_schema_map",
+    "inline_local_refs",
     "is_valid_uax31_identifier",
+    "link_catalogs",
+    "to_protocol_version",
 ]

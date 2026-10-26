@@ -22,12 +22,12 @@ public final class MessageParser: Sendable {
     self.decoder = decoder
   }
 
-  /// Parses a `ServerToClientMessage` from a JSON-encoded string.
+  /// Parses an `AgentToRendererMessage` from a JSON-encoded string.
   ///
   /// If decoding fails, extracts the `surfaceId` from the raw string if present
   /// and throws a ``MessageParseError`` containing the extracted surface ID
   /// and underlying decoding error.
-  public func parse(jsonString: String) throws -> ServerToClientMessage {
+  public func parse(jsonString: String) throws -> AgentToRendererMessage {
     let data = Data(jsonString.utf8)
     do {
       return try decode(jsonData: data)
@@ -37,9 +37,9 @@ public final class MessageParser: Sendable {
     }
   }
 
-  /// Decodes a `ServerToClientMessage` from raw JSON data.
-  public func decode(jsonData: Data) throws -> ServerToClientMessage {
-    try decoder.decode(ServerToClientMessage.self, from: jsonData)
+  /// Decodes an `AgentToRendererMessage` from raw JSON data.
+  public func decode(jsonData: Data) throws -> AgentToRendererMessage {
+    try decoder.decode(AgentToRendererMessage.self, from: jsonData)
   }
 
   /// Best-effort extraction of a `surfaceId` from a raw JSON line.

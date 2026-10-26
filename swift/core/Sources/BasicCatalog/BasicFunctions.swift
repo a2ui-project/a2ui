@@ -14,21 +14,17 @@
 
 import A2UICore
 
+/// Provides standard function implementations across supported A2UI protocol versions.
 public enum BasicFunctions: Sendable {
-  public static let allFunctions: [any FunctionImplementation] = [
-    AndFunction(),
-    EmailFunction(),
-    FormatCurrencyFunction(),
-    FormatDateFunction(),
-    FormatNumberFunction(),
-    FormatStringFunction(),
-    LengthFunction(),
-    NotFunction(),
-    NumericFunction(),
-    OpenURLFunction(),
-    OrFunction(),
-    PluralizeFunction(),
-    RegexFunction(),
-    RequiredFunction(),
-  ]
+  /// Standard function implementations for A2UI Protocol v0.9 and v0.9.1.
+  public static let v09Functions: [any FunctionImplementation] =
+    V09BasicFunctions.allFunctions
+
+  /// Standard function implementations for A2UI Protocol v1.0.
+  public static let v10Functions: [any FunctionImplementation] =
+    V10BasicFunctions.allFunctions
+
+  /// All supported functions for default catalog configuration
+  /// (v0.9/v0.9.1 backwards compatibility).
+  public static let allFunctions: [any FunctionImplementation] = v09Functions
 }

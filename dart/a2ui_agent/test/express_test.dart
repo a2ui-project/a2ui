@@ -49,10 +49,7 @@ void main() {
   });
 
   A2uiRequestProcessor processor([List<CatalogApi>? catalogs]) =>
-      A2uiRequestProcessor(
-        activeCatalogs: catalogs ?? [basic],
-        formatFactory: const ExpressFormatFactory(),
-      );
+      A2uiRequestProcessor(activeCatalogs: catalogs ?? [basic]);
 
   /// The messages one block compiles to, as JSON.
   List<Map<String, Object?>> compile(String block) {
@@ -126,6 +123,12 @@ title = Card(Text("Nested"))
       );
     });
 
+    test('common property weight as kwarg', () {
+      expect(components('root = Text("Hello", weight=2)'), [
+        {'id': 'root', 'component': 'Text', 'text': 'Hello', 'weight': 2},
+      ]);
+    });
+
     test('string literals', () {
       expect(
         components(r'''
@@ -154,7 +157,7 @@ root = TextField("Zip", $/zip, checks=[?required, ?regex(r"^[0-9]{5}$", "Five di
               'value': {'path': '/zip'},
             },
           },
-          'message': 'Required check failed.',
+          'message': 'Required check failed',
         },
         {
           'condition': {
@@ -175,7 +178,7 @@ root = TextField("Zip", $/zip, checks=[?required, ?regex(r"^[0-9]{5}$", "Five di
               'max': 5,
             },
           },
-          'message': 'Length check failed.',
+          'message': 'Length check failed',
         },
       ]);
     });
@@ -218,6 +221,89 @@ root = Text($/user/name)
           },
         },
       );
+    });
+
+    test('an integer too large for an int as a double', () {
+      expect(components('root = Text("x", weight=99999999999999999999)'), [
+        {'id': 'root', 'component': 'Text', 'text': 'x', 'weight': 1e20},
+      ]);
+    });
+
+    test('line-wrapped identifiers, paths, and single-line strings', () {
+      expect(
+        components(
+          'root = Column([card2\nRating], justify="start\n")\n'
+          'card2\nRating = Card(lights\nCheckbox)\n'
+          'lightsCheckbox = Text(\$/\nform/phone)',
+        ),
+        containsAll(<Object?>[
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['card2Rating'],
+            'justify': 'start',
+          },
+          {'id': 'card2Rating', 'component': 'Card', 'child': 'lightsCheckbox'},
+          {
+            'id': 'lightsCheckbox',
+            'component': 'Text',
+            'text': {'path': '/form/phone'},
+          },
+        ]),
+      );
+    });
+
+    test('positional numeric weight skipping non-numeric properties', () {
+      expect(components('root = Column([a], 2)\na = Text("hi")'), [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['a'],
+          'weight': 2,
+        },
+        {'id': 'a', 'component': 'Text', 'text': 'hi'},
+      ]);
+    });
+
+    group('number literals', () {
+      /// The `value` of a `Gauge` written with [literal].
+      Object? gauge(String literal) {
+        final List<ResponsePart>
+        parts = processor([basic, custom]).parseResponse(
+          '<a2ui>surface("g", "${custom.id}"); root = Gauge($literal)</a2ui>',
+        );
+        final AgentToRendererMessage last =
+            (parts.single as A2uiPart).a2ui.last;
+        return (last as UpdateComponentsMessage).components.single['value'];
+      }
+
+      // Integer text (no '.', 'e' or 'E') is an exact int while it fits in
+      // one; everything else is a double, read the way `double.parse` does.
+      final cases = <String, (Object, Matcher)>{
+        '.5': (0.5, isA<double>()),
+        '-.25': (-0.25, isA<double>()),
+        '1.': (1.0, isA<double>()),
+        '+3': (3, isA<int>()),
+        '1e2': (100.0, isA<double>()),
+        '1E-2': (0.01, isA<double>()),
+        '2.5e-7': (2.5e-7, isA<double>()),
+        '9007199254740991': (9007199254740991, isA<int>()),
+        '9007199254740993': (9007199254740993, isA<int>()),
+        '18446744073709551616': (18446744073709552000.0, isA<double>()),
+        '-0': (0, isA<int>()),
+      };
+      for (final MapEntry<String, (Object, Matcher)> entry in cases.entries) {
+        test(entry.key, () {
+          final Object? value = gauge(entry.key);
+          expect(value, entry.value.$2);
+          expect(value, entry.value.$1);
+        });
+      }
+
+      test('out of the double range is a parse error', () {
+        expect(() => gauge('1e999'), throwsError<A2uiParseError>());
+        expect(() => gauge('-1e999'), throwsError<A2uiParseError>());
+      });
     });
   });
 
@@ -298,10 +384,50 @@ surface("s1")
         'root = Text("x"); orphan = Text("y")',
         throwsError<A2uiIntegrityError>(),
       ),
+      'two top-level components with the same explicit id': (
+        'root = Column([a, b]); a = Text("x", id="dup"); '
+            'b = Text("y", id="dup")',
+        throwsError<A2uiValidationError>(),
+      ),
+      'two inline components with the same explicit id': (
+        'root = Column([Text("x", id="dup"), Text("y", id="dup")])',
+        throwsError<A2uiValidationError>(),
+      ),
     };
     for (final MapEntry<String, (String, Matcher)> entry in cases.entries) {
       test(entry.key, () {
         expect(() => compile(entry.value.$1), entry.value.$2);
+      });
+    }
+  });
+
+  group('reports where a syntax error is', () {
+    final cases = <String, (String, String)>{
+      'one the parser finds': (
+        'root = Text("x")\nb = Text("y"',
+        "line 2, column 13: mismatched input '<EOF>'",
+      ),
+      'one the lexer finds': (
+        'root = @Text("x")',
+        "line 1, column 8: token recognition error at: '@'",
+      ),
+      'an argument given twice': (
+        'root = Text(text="a", text="b")',
+        "line 1, column 23: argument 'text' is given twice.",
+      ),
+    };
+    for (final MapEntry<String, (String, String)> entry in cases.entries) {
+      test(entry.key, () {
+        expect(
+          () => compile(entry.value.$1),
+          throwsA(
+            isA<A2uiParseError>().having(
+              (e) => e.message,
+              'message',
+              contains('Express syntax error at ${entry.value.$2}'),
+            ),
+          ),
+        );
       });
     }
   });
@@ -313,18 +439,30 @@ surface("s1")
         snippet,
         contains(
           '• TextField(label, value?, variant? (static), '
-          'validationRegexp? (static), checks?)',
+          'validationRegexp? (static), '
+          'weight? (static), checks?)',
         ),
       );
       expect(
         snippet,
         contains(
           '• Button(child (component ID), variant? (static), action (action), '
-          'checks?)',
+          'weight? (static), checks?)',
         ),
       );
       expect(snippet, contains('• formatString(value)'));
       expect(snippet, contains('• openUrl(url)'));
+    });
+
+    test('describes each function', () {
+      expect(
+        processor().promptSnippet,
+        contains(
+          '• required(value)\n'
+          '  - Description: Checks that the value is not null, undefined, or '
+          'empty.',
+        ),
+      );
     });
 
     test('describes only the statements of the allowed messages', () {
@@ -388,6 +526,47 @@ surface("s1")
       );
     });
 
+    group('ends a block where the grammar ends strings and comments', () {
+      final cases = <String, (String, String)>{
+        'a comment, at a lone carriage return': (
+          '<a2ui>\r# note\rroot = Text("x")\r</a2ui>',
+          '# note\rroot = Text("x")',
+        ),
+        'a triple-quoted string without its closing quotes': (
+          '<a2ui>root = Text("""x")</a2ui>',
+          'root = Text("""x")',
+        ),
+        'a raw triple-quoted string without its closing quotes': (
+          '<a2ui>root = Text(r"""x")</a2ui>',
+          'root = Text(r"""x")',
+        ),
+        // `r"` followed by a line break is the name `r` and a string, which
+        // reads `\"` as an escaped quote.
+        'a raw string across a line break': (
+          '<a2ui>x = r"\n\\"</a2ui>"\n</a2ui>',
+          'x = r"\n\\"</a2ui>"',
+        ),
+        // `$r` is a path, so the string after it is not raw.
+        'a raw string prefix inside a path': (
+          '<a2ui>x = \$r"\\"</a2ui>"\n</a2ui>',
+          'x = \$r"\\"</a2ui>"',
+        ),
+      };
+      for (final MapEntry<String, (String, String)> entry in cases.entries) {
+        test(entry.key, () {
+          expect(
+            parser.hasFormatContent(entry.value.$1, complete: true),
+            isTrue,
+          );
+          expect(parser.unwrap(entry.value.$1), [
+            isA<RawA2uiPart>()
+                .having((p) => p.a2uiRaw, 'a2uiRaw', entry.value.$2)
+                .having((p) => p.isFinal, 'isFinal', isTrue),
+          ]);
+        });
+      }
+    });
+
     test('reads a direct JSON block as text', () {
       const json = '<a2ui-json>[]</a2ui-json>';
       expect(parser.hasFormatContent(json), isFalse);
@@ -406,7 +585,39 @@ surface("s1")
 
     test('does not stream', () {
       expect(parser.supportsStreaming, isFalse);
-      expect(() => parser.parseChunk('<a2ui>'), throwsUnsupportedError);
+      expect(parser.openStream, throwsUnsupportedError);
+    });
+  });
+
+  group('public API', () {
+    test('builds a format from its parts, as the factory does', () {
+      final format = ExpressFormat(
+        [basic],
+        allowedMessages: ['createSurface', 'updateComponents'],
+      );
+      expect(format.promptGenerator.catalogs, [basic]);
+      expect(
+        format.promptGenerator.generate(),
+        const ExpressFormatFactory(
+          allowedMessages: ['createSurface', 'updateComponents'],
+        ).createFormat([basic]).promptGenerator.generate(),
+      );
+      expect(format.createParser(), isA<ExpressParser>());
+      expect(
+        () => ExpressFormat([basic, basic]),
+        throwsError<A2uiCatalogError>(),
+      );
+    });
+
+    test('compiles and decompiles a block', () {
+      final List<AgentToRendererMessage> messages = ExpressCompiler([
+        basic,
+      ]).compile('root = Text("Hello")');
+      final String block = ExpressDecompiler([basic]).decompile(messages);
+      expect(
+        ExpressParser([basic]).compile(block).map((m) => m.toJson()),
+        messages.map((m) => m.toJson()),
+      );
     });
   });
 }

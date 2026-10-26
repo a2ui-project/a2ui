@@ -52,7 +52,7 @@ struct A2UIAudioPlayerTests {
   }
 
   @Test func audioPlayerRendersFromBasicCatalogImplementation() throws {
-    let catalog = BasicCatalogImplementation.v091Catalog
+    let catalog = BasicCatalogImplementation.makeCatalog(version: .v091)
 
     let node = Node(
       id: "audioNode",

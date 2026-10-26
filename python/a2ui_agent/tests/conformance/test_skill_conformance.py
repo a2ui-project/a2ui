@@ -15,18 +15,27 @@
 """Conformance tests for A2UI Skill and SkillSet APIs driven by conformance/agent/skill.yaml."""
 
 import os
+import tempfile
 import unittest
+
 import yaml
 
-from a2ui.inference_formats.experimental.express import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+from a2ui.core import A2uiValidationError
+from a2ui.inference_formats.experimental.atom import AtomFormat
+from a2ui.inference_formats.experimental.elemental import ElementalFormat
+from a2ui.inference_formats.express import ExpressFormat
+from a2ui.processor import CatalogConfig
 from a2ui.skill import Skill, SkillGenerator, SkillSet
 
-from a2ui.schema.utils import find_repo_root
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_YAML_PATH = os.path.join(REPO_ROOT, "conformance", "agent", "skill.yaml")
 GOLDENS_DIR = os.path.join(REPO_ROOT, "conformance", "test_data", "skills")
+
+_ERROR_CATEGORIES: dict[str, type[Exception]] = {
+    "ValidationError": A2uiValidationError,
+}
 
 
 class TestSkillConformance(unittest.TestCase):
@@ -35,9 +44,9 @@ class TestSkillConformance(unittest.TestCase):
     def test_prompt_generator_base_rules_conformance(self):
         """Asserts prompt_generator.generate_base_rules() matches golden file exactly."""
         cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
-        cat_config = CatalogConfig.from_path("basic", cat_path)
-        catalog = A2uiCatalog.from_config(cat_config)
-        express_fmt = ExpressFormat(catalog=catalog)
+        cat_config = CatalogConfig.from_path(cat_path)
+        catalog = cat_config.transformed_catalog
+        express_fmt = ExpressFormat([catalog])
         prompt_gen = express_fmt.prompt_generator
 
         golden_path = os.path.join(GOLDENS_DIR, "express_base_rules.txt")
@@ -50,9 +59,9 @@ class TestSkillConformance(unittest.TestCase):
     def test_prompt_generator_catalog_instructions_conformance(self):
         """Asserts prompt_generator.generate_catalog_instructions() matches golden file exactly."""
         cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
-        cat_config = CatalogConfig.from_path("basic", cat_path)
-        catalog = A2uiCatalog.from_config(cat_config)
-        express_fmt = ExpressFormat(catalog=catalog)
+        cat_config = CatalogConfig.from_path(cat_path)
+        catalog = cat_config.transformed_catalog
+        express_fmt = ExpressFormat([catalog])
         prompt_gen = express_fmt.prompt_generator
 
         golden_path = os.path.join(GOLDENS_DIR, "express_catalog_instructions.txt")
@@ -78,30 +87,24 @@ class TestSkillConformance(unittest.TestCase):
             args = case.get("args", {})
 
             with self.subTest(name=name):
+                if action == "export_to_directory":
+                    self._run_export_to_directory_case(case, args)
+                    continue
+
                 cat_rel_path = args.get("catalog")
                 catalog = None
                 if cat_rel_path:
                     abs_cat_path = os.path.join(REPO_ROOT, cat_rel_path)
-                    cat_config = CatalogConfig.from_path("basic", abs_cat_path)
-                    catalog = A2uiCatalog.from_config(cat_config)
+                    cat_config = CatalogConfig.from_path(abs_cat_path)
+                    catalog = cat_config.transformed_catalog
 
                 fmt_name = args.get("format", "express")
                 if fmt_name == "express":
-                    fmt = ExpressFormat(catalog=catalog) if catalog else ExpressFormat()
+                    fmt = ExpressFormat([catalog]) if catalog else ExpressFormat()
                 elif fmt_name == "atom":
-                    from a2ui.inference_formats.experimental.atom import AtomFormat
-
-                    fmt = AtomFormat(catalog=catalog) if catalog else AtomFormat()
+                    fmt = AtomFormat([catalog]) if catalog else AtomFormat()
                 elif fmt_name == "elemental":
-                    from a2ui.inference_formats.experimental.elemental import (
-                        ElementalFormat,
-                    )
-
-                    fmt = (
-                        ElementalFormat(catalog=catalog)
-                        if catalog
-                        else ElementalFormat()
-                    )
+                    fmt = ElementalFormat([catalog]) if catalog else ElementalFormat()
                 else:
                     raise ValueError(f"Unsupported format: {fmt_name}")
 
@@ -135,9 +138,57 @@ class TestSkillConformance(unittest.TestCase):
 
                 elif action == "skill_set":
                     skill_set = generator.generate_skillset()
-                    expected_keys = case.get("expected_skills", [])
-                    for k in expected_keys:
-                        self.assertIn(k, skill_set.to_dict())
+                    skills_by_file = skill_set.to_dict()
+                    for k in case.get("expected_skills", []):
+                        self.assertIn(k, skills_by_file)
+                    for k, golden_rel in case.get("expected_skill_files", {}).items():
+                        with open(
+                            os.path.join(REPO_ROOT, golden_rel), "r", encoding="utf-8"
+                        ) as gf:
+                            self.assertEqual(skills_by_file[k], gf.read(), k)
+
+                else:
+                    self.fail(f"Unhandled conformance action: {action}")
+
+    def _run_export_to_directory_case(self, case: dict, args: dict) -> None:
+        """Exports literal skills into a temp dir and checks what survives."""
+        with tempfile.TemporaryDirectory(prefix="a2ui-skill-export-") as temp_dir:
+            for rel in args.get("pre_existing_files", []):
+                abs_path = os.path.join(temp_dir, rel)
+                os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                with open(abs_path, "w", encoding="utf-8") as f:
+                    f.write("pre-existing")
+
+            def run() -> None:
+                skill_set = SkillSet()
+                for spec in args.get("skills", []):
+                    skill_set.add(
+                        Skill(
+                            name=spec["name"],
+                            description=spec["description"],
+                            content=spec["content"],
+                            filename=spec.get("filename"),
+                        )
+                    )
+                skill_set.export_to_directory(temp_dir)
+
+            expect_error = case.get("expect_error")
+            if expect_error:
+                with self.assertRaises(_ERROR_CATEGORIES[expect_error["category"]]):
+                    run()
+            else:
+                run()
+
+            for rel in case.get("expected_files", []):
+                self.assertTrue(
+                    os.path.exists(os.path.join(temp_dir, rel)),
+                    f"expected {rel} to exist",
+                )
+            for rel in case.get("expected_absent_files", []):
+                self.assertFalse(
+                    os.path.exists(os.path.join(temp_dir, rel)),
+                    f"expected {rel} to be removed",
+                )
 
 
 if __name__ == "__main__":

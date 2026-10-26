@@ -102,10 +102,25 @@ extension Node {
   public func string(for key: String) -> String? {
     if let stringValue = properties[key] as? String { return stringValue }
     if let binding = properties[key] as? DataBinding<String> { return binding.value }
-    if let jsonValue = properties[key] as? JSONValue { return jsonValue.stringValue }
-    if let jsonBinding = properties[key] as? DataBinding<JSONValue> {
-      return jsonBinding.value?.stringValue
+    if let jsonValue = properties[key] as? JSONValue {
+      if let str = jsonValue.stringValue { return str }
+      if let num = jsonValue.intValue { return String(num) }
+      if let dbl = jsonValue.doubleValue { return String(dbl) }
+      if let b = jsonValue.boolValue { return String(b) }
+      return nil
     }
+    if let jsonBinding = properties[key] as? DataBinding<JSONValue> {
+      if let val = jsonBinding.value {
+        if let str = val.stringValue { return str }
+        if let num = val.intValue { return String(num) }
+        if let dbl = val.doubleValue { return String(dbl) }
+        if let b = val.boolValue { return String(b) }
+      }
+      return nil
+    }
+    if let intValue = properties[key] as? Int { return String(intValue) }
+    if let dblValue = properties[key] as? Double { return String(dblValue) }
+    if let boolValue = properties[key] as? Bool { return String(boolValue) }
     return nil
   }
 
@@ -193,45 +208,58 @@ extension Node {
     return nil
   }
 
-  /// Returns the resolved accessibility attributes, falling back to implicit label inference.
-  public var accessibilityAttributes: AccessibilityAttributes? {
-    let accessibilityDictionary =
-      (properties["accessibility"] as? ResolvedDictionary)
-      ?? dictionary(for: "accessibility").map { ResolvedDictionary($0) }
+  /// Returns only the accessibility attributes the agent set in the component's `accessibility`
+  /// property, without inferring a label from visible text.
+  ///
+  /// Renderers apply these on top of the label their platform already infers from visible
+  /// content, so that an explicit value overrides the inferred one.
+  public var explicitAccessibilityAttributes: AccessibilityAttributes? {
+    let accessibilityDictionary = properties["accessibility"] as? ResolvedDictionary
     let accessibilityJSON = properties["accessibility"] as? JSONValue
 
-    let explicitLabel =
+    let label =
       accessibilityDictionary?.string(for: "label")
       ?? accessibilityJSON?["label"]?.stringValue
-    let explicitDescription =
+    let description =
       accessibilityDictionary?.string(for: "description")
       ?? accessibilityJSON?["description"]?.stringValue
-    let explicitLive =
+    let live =
       accessibilityDictionary?.string(for: "live")
       ?? accessibilityJSON?["live"]?.stringValue
-    let explicitHidden =
+    let hidden =
       accessibilityDictionary?.bool(for: "hidden")
       ?? accessibilityJSON?["hidden"]?.boolValue
 
+    if label == nil && description == nil && live == nil && hidden == nil {
+      return nil
+    }
+    return AccessibilityAttributes(
+      label: label,
+      description: description,
+      live: live,
+      hidden: hidden
+    )
+  }
+
+  /// Returns the resolved accessibility attributes, falling back to implicit label inference.
+  public var accessibilityAttributes: AccessibilityAttributes? {
+    let explicit = explicitAccessibilityAttributes
+
     let inferredLabel =
-      explicitLabel
+      explicit?.label
       ?? string(for: "title")
       ?? string(for: "text")
       ?? string(for: "label")
 
-    if inferredLabel != nil
-      || explicitDescription != nil
-      || explicitLive != nil
-      || explicitHidden != nil
-    {
-      return AccessibilityAttributes(
-        label: inferredLabel,
-        description: explicitDescription,
-        live: explicitLive,
-        hidden: explicitHidden
-      )
+    if inferredLabel == nil && explicit == nil {
+      return nil
     }
-    return nil
+    return AccessibilityAttributes(
+      label: inferredLabel,
+      description: explicit?.description,
+      live: explicit?.live,
+      hidden: explicit?.hidden
+    )
   }
 }
 

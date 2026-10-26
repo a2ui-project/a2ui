@@ -17,18 +17,19 @@
 import glob
 import json
 import os
+
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.schema import A2uiCatalog
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
-from a2ui.inference_formats.experimental.atom.format import AtomFormat
+from a2ui.inference_formats import to_message_dicts, to_message_models
+from a2ui.inference_formats.experimental.atom import AtomFormat
+from a2ui.inference_formats.experimental.elemental import ElementalFormat
+from a2ui.inference_formats.express import ExpressFormat
 
 
 def _find_specification_example_files():
     """Locates all specification v1.0 (and fallback v0.9) JSON example files."""
-    from a2ui.schema.utils import find_repo_root
+    from .repo_paths import find_repo_root
 
     repo_root = find_repo_root()
     # Target v1.0 specification examples first
@@ -53,11 +54,46 @@ def _find_specification_example_files():
 EXAMPLE_FILES = _find_specification_example_files()
 
 
+def _reachable_from_root(components_by_id):
+    """Keeps the components that the final tree reaches from `root`.
+
+    The test flattens every message of an example into one surface, so a
+    placeholder that a later message replaced would be an unreachable
+    component there. Any string property naming a component counts as a
+    reference, which may keep a few extra components but never drops one the
+    tree reaches.
+    """
+    if "root" not in components_by_id:
+        return components_by_id
+
+    def references(value):
+        if isinstance(value, str):
+            if value in components_by_id:
+                yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from references(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from references(item)
+
+    reached = set()
+    pending = ["root"]
+    while pending:
+        component_id = pending.pop()
+        if component_id in reached:
+            continue
+        reached.add(component_id)
+        component = components_by_id[component_id]
+        pending.extend(references({k: v for k, v in component.items() if k != "id"}))
+    return {k: v for k, v in components_by_id.items() if k in reached}
+
+
 def _assert_recompiled_matches_payload(
     recompiled, expected_surface_id, expected_components
 ):
     assert recompiled, "Recompiled payload must not be empty"
-    messages = recompiled if isinstance(recompiled, list) else [recompiled]
+    messages = to_message_dicts(recompiled)
     recompiled_components = []
     found_surface_id = None
     for msg in messages:
@@ -109,16 +145,10 @@ class TestSpecificationRoundtripAllFormats:
     @pytest.fixture(autouse=True)
     def setup_catalog(self):
         # Load standard basic catalog containing all specification components
-        self.catalog = A2uiCatalog(
-            version="0.9",
-            name="basic_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema=BasicCatalog("0.9").catalog_schema,
-        )
-        self.express_fmt = ExpressFormat(catalog=self.catalog)
-        self.elemental_fmt = ElementalFormat(catalog=self.catalog)
-        self.atom_fmt = AtomFormat(catalog=self.catalog)
+        self.catalog = BasicCatalog("0.9")
+        self.express_fmt = ExpressFormat([self.catalog])
+        self.elemental_fmt = ElementalFormat([self.catalog])
+        self.atom_fmt = AtomFormat([self.catalog])
 
     @pytest.mark.parametrize(
         "json_file", EXAMPLE_FILES, ids=lambda p: os.path.basename(p)
@@ -151,26 +181,27 @@ class TestSpecificationRoundtripAllFormats:
                     if isinstance(c, dict) and "id" in c:
                         components_by_id[c["id"]] = c
 
-        all_components = list(components_by_id.values())
+        all_components = list(_reachable_from_root(components_by_id).values())
 
         if not all_components:
             pytest.skip(f"No components in {os.path.basename(json_file)}")
 
-        surface_payload = {
+        surface_payload = to_message_models({
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": surface_id,
+                "catalogId": self.catalog.catalog_id,
                 "components": all_components,
             },
-        }
+        })
 
         processed = 0
 
         # 1. Test Express Format Roundtrip
         try:
-            express_dsl = self.express_fmt.parser.decompile(surface_payload)
+            express_dsl = self.express_fmt.create_parser().decompile(surface_payload)
             if express_dsl:
-                recompiled = self.express_fmt.parser.compile(express_dsl)
+                recompiled = self.express_fmt.create_parser().compile(express_dsl)
                 _assert_recompiled_matches_payload(
                     recompiled, surface_id, all_components
                 )
@@ -180,9 +211,11 @@ class TestSpecificationRoundtripAllFormats:
 
         # 2. Test Elemental Format Roundtrip
         try:
-            elemental_dom = self.elemental_fmt.parser.decompile(surface_payload)
+            elemental_dom = self.elemental_fmt.create_parser().decompile(
+                surface_payload
+            )
             if elemental_dom:
-                recompiled = self.elemental_fmt.parser.compile(elemental_dom)
+                recompiled = self.elemental_fmt.create_parser().compile(elemental_dom)
                 _assert_recompiled_matches_payload(
                     recompiled, surface_id, all_components
                 )
@@ -192,9 +225,9 @@ class TestSpecificationRoundtripAllFormats:
 
         # 3. Test Atom Format Roundtrip
         try:
-            atom_sexpr = self.atom_fmt.parser.decompile(surface_payload)
+            atom_sexpr = self.atom_fmt.create_parser().decompile(surface_payload)
             if atom_sexpr:
-                recompiled = self.atom_fmt.parser.compile(atom_sexpr)
+                recompiled = self.atom_fmt.create_parser().compile(atom_sexpr)
                 _assert_recompiled_matches_payload(
                     recompiled, surface_id, all_components
                 )

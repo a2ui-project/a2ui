@@ -15,7 +15,6 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
-import JSONSchema
 import SwiftUI
 
 /// Provides pre-configured SwiftUI component implementations for all 18 basic components.
@@ -44,27 +43,43 @@ public enum BasicCatalogImplementation: Sendable {
     dateTimeInput,
   ]
 
-  /// Creates a SwiftUI `Catalog<ComponentImplementation>` instance with all Basic Catalog components.
-  public static func createCatalog(
-    id: String = BasicCatalog.v091CatalogURI,
-    components: [ComponentImplementation] = allComponents,
-    functions: [any FunctionImplementation] = BasicFunctions.allFunctions,
-    themeSchema: Schema? = BasicCatalog.themeSchema
-  ) -> Catalog<ComponentImplementation> {
-    Catalog(
-      id: id,
-      components: components,
-      functions: functions,
-      themeSchema: themeSchema
+  /// All 18 concrete component implementations configured with v1.0 schemas for SwiftUI.
+  public static let v10Components: [ComponentImplementation] = {
+    let buildersByName = Dictionary(
+      uniqueKeysWithValues: allComponents.map { ($0.name, $0.builder) }
     )
+    return V10BasicCatalog.components.compactMap { api in
+      guard let builder = buildersByName[api.name] else { return nil }
+      return ComponentImplementation(api: api, builder: builder)
+    }
+  }()
+
+  /// Returns a pre-configured SwiftUI `Catalog<ComponentImplementation>` instance for the
+  /// specified A2UI protocol version.
+  public static func makeCatalog(
+    version: A2UIProtocolVersion
+  ) -> Catalog<ComponentImplementation> {
+    switch version {
+    case .v09, .v091:
+      return Catalog(
+        id: BasicCatalog.catalogURI(version: version),
+        protocolVersion: version,
+        components: allComponents,
+        functions: V09BasicCatalog.functions,
+        themeSchema: V09BasicCatalog.themeSchema
+      )
+    case .v10:
+      return Catalog(
+        id: BasicCatalog.catalogURI(version: .v10),
+        protocolVersion: .v10,
+        components: v10Components,
+        functions: V10BasicCatalog.functions,
+        themeSchema: nil
+      )
+    }
   }
 
-  public static let v09Catalog = createCatalog(id: BasicCatalog.v09CatalogURI)
-  public static let v091Catalog = createCatalog(id: BasicCatalog.v091CatalogURI)
-
   /// All supported standard Basic Catalog SwiftUI implementations.
-  public static let allCatalogs: [Catalog<ComponentImplementation>] = [
-    v09Catalog,
-    v091Catalog,
-  ]
+  public static let allCatalogs: [Catalog<ComponentImplementation>] =
+    A2UIProtocolVersion.allCases.map { makeCatalog(version: $0) }
 }

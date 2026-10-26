@@ -342,4 +342,259 @@ struct NodeResolverTests {
     #expect(rootNode.type == "Text")
     #expect(rootNode.string(for: "text") == "From Surface")
   }
+
+  @Test func nestedDynamicTemplateGeneratesDistinctNodeIDs() throws {
+    let catalog = try makeCatalog()
+    let components: [String: ComponentModel] = [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: [
+          "children": .object([
+            "componentId": .string("outerGroup"),
+            "path": .string("/groups"),
+          ])
+        ]
+      ),
+      "outerGroup": ComponentModel(
+        id: "outerGroup",
+        type: "Container",
+        properties: [
+          "children": .object([
+            "componentId": .string("innerItem"),
+            "path": .string("items"),
+          ])
+        ]
+      ),
+      "innerItem": ComponentModel(
+        id: "innerItem",
+        type: "Text",
+        properties: ["text": .object(["path": .string("label")])]
+      ),
+    ]
+
+    let data: JSONValue = .object([
+      "groups": .array([
+        .object([
+          "items": .array([
+            .object(["label": .string("G0-I0")]),
+            .object(["label": .string("G0-I1")]),
+          ])
+        ]),
+        .object([
+          "items": .array([
+            .object(["label": .string("G1-I0")]),
+            .object(["label": .string("G1-I1")]),
+          ])
+        ]),
+      ])
+    ])
+
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel(initial: data)
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
+    let outerNodes = rootNode.children(for: "children")
+    #expect(outerNodes.count == 2)
+    #expect(outerNodes[0].id == "outerGroup_0")
+    #expect(outerNodes[1].id == "outerGroup_1")
+
+    let inner0 = outerNodes[0].children(for: "children")
+    let inner1 = outerNodes[1].children(for: "children")
+    #expect(inner0.map(\.id) == ["innerItem_0_0", "innerItem_0_1"])
+    #expect(inner1.map(\.id) == ["innerItem_1_0", "innerItem_1_1"])
+    #expect(inner0[0].string(for: "text") == "G0-I0")
+    #expect(inner1[1].string(for: "text") == "G1-I1")
+  }
+
+  @Test func expressionErrorsEmitPerComponentAndReEmitAfterRecovery() throws {
+    let textSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "text": {
+              "$ref": "https://a2ui.org/schemas/v1_0/common_types.json#/$defs/DynamicString"
+            }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let containerSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "children": {
+              "$ref": "https://a2ui.org/schemas/v1_0/common_types.json#/$defs/ChildList"
+            }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let positiveNumberFunction = NonNegativeStringFunction()
+    let catalog = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Container", schema: containerSchema),
+        AnyComponentAPI(name: "Text", schema: textSchema),
+      ],
+      functions: [positiveNumberFunction]
+    )
+
+    let handler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("t1"), .string("t2")])]
+        ),
+        "t1": ComponentModel(
+          id: "t1",
+          type: "Text",
+          properties: [
+            "text": .object([
+              "@call": .string("nonNegative"),
+              "args": .object(["value": .object(["@path": .string("/val")])]),
+            ])
+          ]
+        ),
+        "t2": ComponentModel(
+          id: "t2",
+          type: "Text",
+          properties: [
+            "text": .object([
+              "@call": .string("nonNegative"),
+              "args": .object(["value": .object(["@path": .string("/val")])]),
+            ])
+          ]
+        ),
+      ]
+    )
+    let dataModel = DataModel(initial: .object(["val": .integer(-1)]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel,
+      actionHandler: handler,
+      protocolVersion: .v10
+    )
+
+    // Pass 1: Both t1 and t2 fail with the same function error; both must emit EXPRESSION_ERROR.
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+
+    // Pass 2: Unrelated data change while /val is still -1; errors should be deduplicated.
+    dataModel.set("/unrelated", value: .string("ok"))
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+
+    // Pass 3: /val recovers to a valid non-negative integer; no new errors and active set clears.
+    dataModel.set("/val", value: .integer(10))
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+
+    // Pass 4: /val fails again in the exact same way; both t1 and t2 must emit EXPRESSION_ERROR again.
+    dataModel.set("/val", value: .integer(-1))
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 4)
+  }
+
+  @Test func customComponentResolvesAccessibilityBindings() throws {
+    // Like most custom schemas, this one leaves `accessibility` to `ComponentCommon`.
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "ProductCard" },
+            "title": { "$ref": "\(A2UICommonSchema.v10URI(for: "DynamicString"))" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "shop",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "ProductCard", schema: schema)]
+    ).eraseToAnyCatalog()
+    let dataModel = DataModel(
+      initial: .object(["productName": .string("iPhone 17"), "hidden": .boolean(false)])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "ProductCard",
+          properties: [
+            "title": .string("iPhone"),
+            "accessibility": .object([
+              "label": .object(["@path": .string("/productName")]),
+              "hidden": .object(["@path": .string("/hidden")]),
+              "live": .string("polite"),
+            ]),
+          ]
+        )
+      ]),
+      dataModel: dataModel,
+      protocolVersion: .v10
+    )
+
+    let node = try #require(resolver.resolveTree())
+    #expect(
+      node.explicitAccessibilityAttributes
+        == AccessibilityAttributes(label: "iPhone 17", live: "polite", hidden: false)
+    )
+
+    dataModel.set("/productName", value: .string("iPhone 17 Pro"))
+    let updated = try #require(resolver.resolveTree())
+    #expect(updated.explicitAccessibilityAttributes?.label == "iPhone 17 Pro")
+  }
+}
+
+private final class ExpressionErrorCaptureHandler: ActionHandling, @unchecked Sendable {
+  var capturedErrors: [RendererError] = []
+
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: RendererError, from surfaceID: String) {
+    capturedErrors.append(error)
+  }
+}
+
+private struct NonNegativeStringFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "nonNegative",
+    returnType: .string,
+    schema: try! Schema(instance: "{\"type\": \"object\"}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    let val = arguments["value"]?.intValue ?? 0
+    if val < 0 {
+      throw FunctionError.executionFailed(
+        name: "nonNegative", message: "Value must be non-negative")
+    }
+    return .string("\(val)")
+  }
 }

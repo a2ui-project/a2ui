@@ -39,9 +39,11 @@ struct ChatView: View {
 
   var body: some View {
     VStack {
-      // Embed native A2UI Surface
-      Surface(viewModel: surfaceViewModel)
-        .environment(\.a2uiCatalogs, [BasicCatalogSwiftUI.catalogImplementation])
+      // Embed native A2UI Surface with registered SwiftUI catalogs
+      Surface(
+        viewModel: surfaceViewModel,
+        catalogs: BasicCatalogSwiftUI.allCatalogs
+      )
     }
   }
 }
@@ -53,34 +55,58 @@ struct ChatView: View {
 
 To render custom component types in SwiftUI:
 
-1. Implement `ComponentImplementation` to supply a view builder:
+1. Construct a `ComponentImplementation` combining a `ComponentAPI` and view builder:
 
 ```swift
 import A2UICore
 import A2UISwiftUI
 import SwiftUI
 
-public struct CustomProfileImplementation: ComponentImplementation {
-  public let api: ComponentAPI = UserCardAPI()
-
-  public init() {}
-
-  @ViewBuilder
-  public func buildView(
-    node: Node,
-    context: ComponentContext
-  ) -> AnyView {
-    AnyView(
-      VStack {
-        Text(node.properties["name"]?.stringValue ?? "Unknown")
-          .font(.headline)
-      }
-    )
+let customProfileImplementation = ComponentImplementation(api: UserCardAPI()) { node in
+  VStack {
+    Text(node.string(for: "name") ?? "Unknown")
+      .font(.headline)
   }
 }
 ```
 
-2. Register the implementation in your catalog array passed to the `.a2uiCatalogs` environment.
+2. Register the `ComponentImplementation` in a `Catalog<ComponentImplementation>` and pass it to `Surface(viewModel:catalogs:)`.
+
+### Accessibility
+
+`ComponentNodeView` applies each component's A2UI `accessibility` attributes to the rendered view,
+so custom components get them without extra work:
+
+- `label`: `accessibilityLabel`
+- `description`: `accessibilityHint`
+- `hidden`: `accessibilityHidden` for the whole subtree
+- `live` (`polite` / `assertive`) announces the explicit `label` whenever it changes, for
+  example when it is bound to the data model
+
+Only values the agent sets are applied, so SwiftUI keeps inferring labels from visible text.
+
+SwiftUI applies a label set on a stack to every element inside it. If your component's root is a
+stack:
+
+- with one focusable control (like a text field with a title and an error line), call
+  `.a2uiAccessibilityControl(for: node, defaultLabel: title)` on the control, so the label and
+  hint reach the element that VoiceOver focuses, and hide the visible title with
+  `.accessibilityHidden(true)` so the field is not read twice;
+- otherwise, call `.a2uiAccessibilityElement(for: node, children: .contain)` on the root (or
+  `.combine` for read-only content), so the label describes the component as a whole. The basic
+  catalog's `Row`, `Column`, `List` and `Card` do this.
+
+The basic catalog's selectable controls expose their state to assistive technologies without
+custom strings: `CheckBox` and `multipleSelection` `ChoicePicker` options are represented as a
+standard `Toggle` (`accessibilityRepresentation`), so the platform announces their on/off state
+in the user's language, while `mutuallyExclusive` options and the selected `Tabs` header carry
+the selected trait. On iOS 17 and macOS 14 and later, the row of tab headers also carries the tab
+bar trait.
+
+Limitations: SwiftUI drops an accessibility hint on a group, so `description` has no effect on
+layout containers or other `.contain` groups (for example `ChoicePicker`). Announcing changes to
+a live component's visible text, rather than its label, is tracked in
+[#3147](https://github.com/a2ui-project/a2ui/issues/3147).
 
 ---
 

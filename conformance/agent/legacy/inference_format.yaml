@@ -154,25 +154,10 @@
       Text: {}
       Button: {}
 
-# --- Manager Modifier Tests ---
+# --- Manager Catalog Loading Tests ---
 
-- name: test_manager_with_modifiers
-  description: Tests that A2uiSchemaManager applies modifiers during loading.
-  catalogConfigs:
-    - name: test_strict
-      path: "test_data/load_examples/schema_with_strict/catalog.json"
-  modifiers: ["remove_strict_validation"]
-  action: load_catalog
-  expect:
-    catalogId: "test_strict"
-    components:
-      Text:
-        type: object
-        properties:
-          text: {type: string}
-
-- name: test_manager_no_modifiers
-  description: Tests that A2uiSchemaManager works fine without modifiers.
+- name: test_manager_keeps_strict_validation
+  description: Tests that A2uiSchemaManager keeps strict validation keywords when loading a catalog.
   catalogConfigs:
     - name: test_strict
       path: "test_data/load_examples/schema_with_strict/catalog.json"
@@ -464,4 +449,4 @@
               - id: "node_0"
                 component: "Text"
                 text:
-                  path: "/title"
+                  "@path": "/title"

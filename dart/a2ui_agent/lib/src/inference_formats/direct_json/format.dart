@@ -15,6 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../inference_format.dart';
+import '../../utils/catalogs.dart';
 import 'parser.dart';
 import 'prompt_generator.dart';
 
@@ -24,10 +25,12 @@ import 'prompt_generator.dart';
 /// The SDK calls [createFormat] with the catalogs of each request, so the
 /// options of the format are given here and passed on to every format created.
 class DirectJsonFormatFactory extends InferenceFormatFactory {
-  /// See [DirectJsonFormat] for [allowedMessages] and [progressiveKeys].
+  /// See [DirectJsonFormat] for [allowedMessages], [progressiveKeys] and
+  /// [bufferIncompleteComponents].
   const DirectJsonFormatFactory({
     this.allowedMessages,
     this.progressiveKeys = const {},
+    this.bufferIncompleteComponents = false,
   });
 
   /// The message types the model may write, such as `createSurface`, or null
@@ -36,6 +39,10 @@ class DirectJsonFormatFactory extends InferenceFormatFactory {
 
   /// The string properties each parser shows while their value streams.
   final Set<String> progressiveKeys;
+
+  /// Whether each parser holds a streamed component of catalogs before v1.0
+  /// back until it closes, as it always does for v1.0 catalogs.
+  final bool bufferIncompleteComponents;
 
   @override
   InferenceFormat createFormat(
@@ -46,6 +53,7 @@ class DirectJsonFormatFactory extends InferenceFormatFactory {
     examples: examples,
     allowedMessages: allowedMessages,
     progressiveKeys: progressiveKeys,
+    bufferIncompleteComponents: bufferIncompleteComponents,
   );
 }
 
@@ -58,19 +66,31 @@ class DirectJsonFormat extends InferenceFormat {
   /// before it is complete, such as the text of a `Text` component. Which
   /// properties hold prose depends on the catalog, so there is no built-in
   /// set. Empty turns healing off.
+  ///
+  /// [bufferIncompleteComponents] holds a streamed component of catalogs
+  /// before v1.0 back until its JSON object closes, as a parser always does
+  /// for v1.0 catalogs; see [DirectJsonParser.bufferIncompleteComponents].
+  ///
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
   DirectJsonFormat(
     List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
     List<String>? allowedMessages,
     Set<String> progressiveKeys = const {},
+    bool bufferIncompleteComponents = false,
   }) : promptGenerator = DirectJsonPromptGenerator(
          List.unmodifiable(catalogs),
          examples: List.unmodifiable(examples),
          allowedMessages: allowedMessages,
        ),
-       _progressiveKeys = Set.unmodifiable(progressiveKeys);
+       _progressiveKeys = Set.unmodifiable(progressiveKeys),
+       _bufferIncompleteComponents = bufferIncompleteComponents {
+    checkDistinctIds(catalogs);
+  }
 
   final Set<String> _progressiveKeys;
+
+  final bool _bufferIncompleteComponents;
 
   @override
   final DirectJsonPromptGenerator promptGenerator;
@@ -79,5 +99,6 @@ class DirectJsonFormat extends InferenceFormat {
   DirectJsonParser createParser() => DirectJsonParser(
     promptGenerator.catalogs,
     progressiveKeys: _progressiveKeys,
+    bufferIncompleteComponents: _bufferIncompleteComponents,
   );
 }

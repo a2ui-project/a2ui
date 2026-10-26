@@ -32,16 +32,21 @@ public final class SurfaceViewModel: ObservableObject {
   public let catalogs: [String: AnyCatalog]
   public let defaultCatalogID: String?
 
-  /// The primary default catalog associated with this surface, if available.
+  /// The default catalog of this surface, or an empty catalog when it has none.
+  ///
+  /// A surface without a default catalog (allowed from v1.0) never falls back to one of its
+  /// other catalogs, because components and function calls must name the catalog they run in.
+  /// To resolve that catalog, use ``getCatalog(id:)``.
   public var catalog: AnyCatalog {
     if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
       return catalog
     }
-    return catalogs.values.first ?? Catalog(id: "empty", components: [])
+    return Catalog(id: "empty", components: [])
   }
   public let theme: [String: JSONValue]?
+  public let metadata: [String: JSONValue]?
   public let sendDataModel: Bool
-  public let protocolVersion: String?
+  public let protocolVersion: A2UIProtocolVersion
 
   public let dataModel: DataModel
   public let componentsModel: SurfaceComponentsModel
@@ -66,27 +71,55 @@ public final class SurfaceViewModel: ObservableObject {
     catalogs: [String: AnyCatalog],
     defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
+    metadata: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
-    self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
+    let allCatalogsAtLeastV10 =
+      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
+    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
+    let resolvedDefaultCatalogID: String?
+    if let defaultCatalogID {
+      resolvedDefaultCatalogID = defaultCatalogID
+    } else if !isAtLeastV10, catalogs.count == 1 {
+      resolvedDefaultCatalogID = catalogs.keys.first
+    } else {
+      resolvedDefaultCatalogID = nil
+    }
+    self.defaultCatalogID = resolvedDefaultCatalogID
     self.theme = theme
+    self.metadata = metadata
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
-    self.protocolVersion = protocolVersion
+    let explicitVersion: A2UIProtocolVersion?
+    if let protocolVersion {
+      explicitVersion = protocolVersion
+    } else if let resolvedDefaultCatalogID,
+      let defaultCat = catalogs[resolvedDefaultCatalogID],
+      let catVer = defaultCat.a2uiProtocolVersion
+    {
+      explicitVersion = catVer
+    } else if allCatalogsAtLeastV10 {
+      explicitVersion = .v10
+    } else if catalogs.count == 1, let onlyCatVer = catalogs.values.first?.a2uiProtocolVersion {
+      explicitVersion = onlyCatVer
+    } else {
+      explicitVersion = nil
+    }
+    self.protocolVersion = explicitVersion ?? .v091
     self.dataModel = DataModel()
     self.componentsModel = SurfaceComponentsModel()
     self.nodeResolver = NodeResolver(
       surfaceID: surfaceID,
       catalogs: catalogs,
-      defaultCatalogID: self.defaultCatalogID,
+      defaultCatalogID: resolvedDefaultCatalogID,
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
       actionHandler: actionHandler,
-      protocolVersion: protocolVersion
+      protocolVersion: explicitVersion
     )
 
     setUpSubscriptions()
@@ -97,17 +130,19 @@ public final class SurfaceViewModel: ObservableObject {
     catalogs: [any CatalogProtocol],
     defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
+    metadata: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     self.init(
       surfaceID: surfaceID,
       catalogs: dict,
-      defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
+      defaultCatalogID: defaultCatalogID,
       theme: theme,
+      metadata: metadata,
       actionHandler: actionHandler,
       sendDataModel: sendDataModel,
       protocolVersion: protocolVersion
@@ -118,9 +153,10 @@ public final class SurfaceViewModel: ObservableObject {
     surfaceID: String,
     catalog: any CatalogProtocol,
     theme: [String: JSONValue]? = nil,
+    metadata: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     let anyCatalog = catalog.eraseToAnyCatalog()
     self.init(
@@ -128,6 +164,7 @@ public final class SurfaceViewModel: ObservableObject {
       catalogs: [anyCatalog.id: anyCatalog],
       defaultCatalogID: anyCatalog.id,
       theme: theme,
+      metadata: metadata,
       actionHandler: actionHandler,
       sendDataModel: sendDataModel,
       protocolVersion: protocolVersion
@@ -161,5 +198,13 @@ public final class SurfaceViewModel: ObservableObject {
 extension SurfaceViewModel: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     nodeResolver.function(named: name, catalogID: catalogID)
+  }
+
+  public func handleFunctionError(_ error: any Error, functionName: String) {
+    nodeResolver.handleFunctionError(error, functionName: functionName)
+  }
+
+  public func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
+    try nodeResolver.validateFunctionCatalog(id: catalogID, functionName: functionName)
   }
 }

@@ -34,21 +34,11 @@ from starlette.middleware.cors import CORSMiddleware
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import (
-    CatalogConfig,
-    VERSION_0_8,
-    VERSION_0_9,
-    remove_strict_validation,
-)
+from a2ui.core.schema import ProtocolVersion
+from a2ui.processor import CatalogConfig
 
-inference_format = DirectJsonFormat(
-    version=VERSION_0_9,
-    catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_9))],
-    schema_modifiers=[remove_strict_validation],
-)
-my_catalog = inference_format.get_selected_catalog()
-a2ui_converter = A2uiPartConverter(a2ui_catalog=my_catalog, version=VERSION_0_9)
+my_catalog = CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)).transformed_catalog
+a2ui_converter = A2uiPartConverter(catalogs=[my_catalog], version=ProtocolVersion.V0_9)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -125,8 +115,8 @@ def main(host, port):
     )
 
     extensions = [
-        get_a2ui_agent_extension(VERSION_0_8, False, []),
-        get_a2ui_agent_extension(VERSION_0_9, False, []),
+        get_a2ui_agent_extension(ProtocolVersion.V0_8, False, []),
+        get_a2ui_agent_extension(ProtocolVersion.V0_9, False, []),
     ]
 
     agent_card = AgentCard(
