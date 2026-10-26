@@ -11,6 +11,7 @@
       {"$ref": "#/$defs/CoreSyntaxTest"},
       {"$ref": "#/$defs/FromCatalogTest"},
       {"$ref": "#/$defs/SkillSetTest"},
+      {"$ref": "#/$defs/ExportToDirectoryTest"},
       {"$ref": "#/$defs/TransformCatalogTest"},
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
@@ -57,6 +58,7 @@
             "dispatch_action",
             "evaluate_function",
             "execute_tool",
+            "export_to_directory",
             "fix_payload",
             "from_catalog",
             "from_format",
@@ -855,12 +857,70 @@
         },
         "expected_skills": {
           "type": "array",
+          "description": "Filenames the SkillSet must contain.",
           "items": {
             "type": "string"
           }
+        },
+        "expected_skill_files": {
+          "type": "object",
+          "description": "Golden file, relative to the repository root, that each listed skill's markdown must equal byte for byte. Keys are skill filenames.",
+          "additionalProperties": {"type": "string"}
         }
       },
       "required": ["action", "args", "expected_skills"]
+    },
+    "ExportToDirectoryTest": {
+      "type": "object",
+      "description": "Exports a SkillSet built from literal skills into a fresh temporary directory pre-populated with `pre_existing_files`, then checks which paths exist afterwards. Pins the cleanup scope of `export_to_directory`: only the directory that holds each skill file is removed, never an ancestor, a sibling, or the output directory itself.",
+      "properties": {
+        "action": {
+          "const": "export_to_directory"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "skills": {
+              "type": "array",
+              "description": "Skills to add to the SkillSet before exporting.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "description": {"type": "string"},
+                  "content": {"type": "string"},
+                  "filename": {
+                    "type": "string",
+                    "description": "Relative path of the skill file. Defaults to `{name}/SKILL.md`."
+                  }
+                },
+                "required": ["name", "description", "content"]
+              }
+            },
+            "pre_existing_files": {
+              "type": "array",
+              "description": "Files to create under the output directory before exporting, relative to it.",
+              "items": {"type": "string"}
+            }
+          },
+          "required": ["skills"]
+        },
+        "expected_files": {
+          "type": "array",
+          "description": "Paths relative to the output directory that must exist after exporting.",
+          "items": {"type": "string"}
+        },
+        "expected_absent_files": {
+          "type": "array",
+          "description": "Paths relative to the output directory that must not exist after exporting.",
+          "items": {"type": "string"}
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError",
+          "description": "When set, building the SkillSet or exporting it must fail with this error, and `expected_files` / `expected_absent_files` are checked afterwards to show nothing was removed or written."
+        }
+      },
+      "required": ["action", "args", "expected_files"]
     },
     "AgentCatalogRef": {
       "description": "A catalog document, either a path relative to `conformance/` or the document inlined in the case.",

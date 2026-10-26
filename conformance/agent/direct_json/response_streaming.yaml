@@ -1608,7 +1608,7 @@
                 root: "root"
 
 - name: test_stream_update_before_create_surface_fails_v09
-  description: An updateComponents before its surface's createSurface is emitted while the block arrives, and the block raises a validation error when it closes, since the surface did not exist yet.
+  description: An updateComponents for a surface that does not exist yet is held back, since a renderer would reject it, and the block raises a validation error when it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -1618,15 +1618,7 @@
     - input: "<a2ui-json>["
       expect: []
     - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "hi"}]}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "s1"
-                components:
-                  - id: "root"
-                    component: "Text"
-                    text: "hi"
+      expect: []
     - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}]</a2ui-json>'
       expect_error:
         category: "ValidationError"
@@ -3380,7 +3372,7 @@
                           path: "/name"
 
 - name: test_stream_data_model_before_create_surface_fails_v09
-  description: An updateDataModel before its surface's createSurface is emitted while the block arrives, and the block raises a validation error when it closes.
+  description: An updateDataModel for a surface that does not exist yet is held back, since a renderer would reject it, the messages after it wait with it, and the block raises a validation error when it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -3390,20 +3382,9 @@
     - input: "<a2ui-json>["
       expect: []
     - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"name": "Alice"}}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              updateDataModel:
-                surfaceId: "s1"
-                value:
-                  name: Alice
+      expect: []
     - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
-      expect:
-        - a2ui:
-            - version: "v0.9"
-              createSurface:
-                surfaceId: "s1"
-                catalogId: "test_catalog"
+      expect: []
     - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"path": "/name"}}]}}]</a2ui-json>'
       expect_error:
         category: "ValidationError"
