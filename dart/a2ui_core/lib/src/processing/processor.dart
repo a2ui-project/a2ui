@@ -326,12 +326,10 @@ class MessageProcessor<T extends ComponentApi> {
       for (final Object? item in _itemsOf(payload)) _route(item),
     ];
     for (final message in routed) {
-      runInMessageScope(model, () {
-        for (final Future<void>? work in _apply(message, isUserActivated)) {
-          // Never fails: handleCallRendererFunction answers errors instead.
-          if (work != null) unawaited(work);
-        }
-      });
+      for (final Future<void>? work in _apply(message, isUserActivated)) {
+        // Never fails: handleCallRendererFunction answers errors instead.
+        if (work != null) unawaited(work);
+      }
     }
   }
 
@@ -350,11 +348,7 @@ class MessageProcessor<T extends ComponentApi> {
       for (final Object? item in _itemsOf(payload)) _route(item),
     ];
     for (final message in routed) {
-      final List<Future<void>?> works = runInMessageScope(
-        model,
-        () => _apply(message, isUserActivated),
-      );
-      for (final work in works) {
+      for (final Future<void>? work in _apply(message, isUserActivated)) {
         if (work != null) await work;
       }
     }
