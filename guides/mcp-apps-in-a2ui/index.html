@@ -813,6 +813,46 @@
 </ul>
 </nav>
 </li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#sample-3-kanban-board-showcase-lit-chat-host-python-agent-node-mcp-server">
+<span class="md-ellipsis">
+      
+        Sample 3: Kanban Board Showcase (Lit Chat Host + Python Agent + Node MCP Server)
+      
+    </span>
+</a>
+<nav aria-label="Sample 3: Kanban Board Showcase (Lit Chat Host + Python Agent + Node MCP Server)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#step-1-build-monorepo-packages-and-start-the-mcp-server">
+<span class="md-ellipsis">
+      
+        Step 1: Build Monorepo Packages and Start the MCP Server
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#step-2-start-the-kanban-agent">
+<span class="md-ellipsis">
+      
+        Step 2: Start the Kanban Agent
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#step-3-start-the-lit-chat-host">
+<span class="md-ellipsis">
+      
+        Step 3: Start the Lit Chat Host
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
 </ul>
 </nav>
 </li>
@@ -1536,6 +1576,46 @@
 </ul>
 </nav>
 </li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#sample-3-kanban-board-showcase-lit-chat-host-python-agent-node-mcp-server">
+<span class="md-ellipsis">
+      
+        Sample 3: Kanban Board Showcase (Lit Chat Host + Python Agent + Node MCP Server)
+      
+    </span>
+</a>
+<nav aria-label="Sample 3: Kanban Board Showcase (Lit Chat Host + Python Agent + Node MCP Server)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#step-1-build-monorepo-packages-and-start-the-mcp-server">
+<span class="md-ellipsis">
+      
+        Step 1: Build Monorepo Packages and Start the MCP Server
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#step-2-start-the-kanban-agent">
+<span class="md-ellipsis">
+      
+        Step 2: Start the Kanban Agent
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#step-3-start-the-lit-chat-host">
+<span class="md-ellipsis">
+      
+        Step 3: Start the Lit Chat Host
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
 </ul>
 </nav>
 </li>
@@ -1780,7 +1860,7 @@
 </span></code></pre></div>
 </blockquote>
 <h2 id="samples">Samples<a class="headerlink" href="#samples" title="Permanent link">¶</a></h2>
-<p>There are two primary samples demonstrating MCP Apps integration. Both live under <code>samples/community/</code> and predate protocol v1.0: Sample 1 uses A2UI v0.8 and Sample 2 uses A2UI v0.9. Each defines its own MCP App component rather than using the <code>McpApp</code> component from the <a href="https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/README.md#v1-catalog-protocol-v10">v1.0 MCP catalog</a>. Each sample requires running <strong>multiple terminals</strong> — one for each backend service and one for the client.</p>
+<p>There are three samples demonstrating MCP Apps integration. All live under <code>samples/community/</code>. Sample 1 and Sample 2 predate protocol v1.0 (Sample 1 uses A2UI v0.8 and Sample 2 uses A2UI v0.9) and each defines its own MCP App component rather than using the <code>McpApp</code> component from the <a href="https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/README.md#v1-catalog-protocol-v10">v1.0 MCP catalog</a>. Sample 3 uses protocol v1.0 and the <code>McpApp</code> component from <code>@a2ui/catalog-mcp</code>. Each sample requires running <strong>multiple terminals</strong> — one for each backend service and one for the client.</p>
 <hr/>
 <h3 id="sample-1-mcp-app-standalone-sample-lit-client-adk-agent">Sample 1: MCP App Standalone Sample (Lit Client &amp; ADK Agent)<a class="headerlink" href="#sample-1-mcp-app-standalone-sample-lit-client-adk-agent" title="Permanent link">¶</a></h3>
 <p>This sample verifies the sandbox with a Lit-based client and an ADK-based A2A agent.</p>
@@ -1856,12 +1936,46 @@
 </tbody>
 </table>
 <hr/>
+<h3 id="sample-3-kanban-board-showcase-lit-chat-host-python-agent-node-mcp-server">Sample 3: Kanban Board Showcase (Lit Chat Host + Python Agent + Node MCP Server)<a class="headerlink" href="#sample-3-kanban-board-showcase-lit-chat-host-python-agent-node-mcp-server" title="Permanent link">¶</a></h3>
+<p>This sample (<a href="https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-kanban/README.md"><code>samples/community/mcp/a2ui-kanban/</code></a>) demonstrates bidirectional communication between an agent, a sandboxed MCP App built with <code>@modelcontextprotocol/ext-apps</code>, and sibling A2UI components using <code>@a2ui/catalog-mcp</code>:</p>
+<ul>
+<li><strong>Agent → MCP App</strong>: The agent invokes MCP server tools (<code>move_task</code>, <code>create_task</code>) and emits an <code>updateDataModel</code> message writing <code>/kanban/board</code>, which <code>McpApp</code> pushes to the board app as <code>ui/notifications/data-model-update</code>.</li>
+<li><strong>Agent reads MCP App state</strong>: Selecting a card or filtering by assignee in the board app sends <code>ui/update-model-context</code>, which <code>McpApp</code> writes into the surface data model sent with the next user turn.</li>
+<li><strong>MCP App → sibling A2UI components</strong>: Dragging a card sends <code>ui/notifications/data-model-change</code> for <code>board</code>, updating <code>/kanban/board</code> and recomputing the sibling <code>Text</code> counters (<code>/kanban/summary/*</code>) client-side without an agent turn.</li>
+<li><strong>MCP App → Agent</strong>: Dropping a card (<code>tools/call</code> + <code>ui/message</code>) or clicking "Ask agent to split" (<code>ui/message</code>) dispatches an <code>a2ui.mcpAppMessage</code> action that the chat host forwards to the agent.</li>
+</ul>
+<h4 id="step-1-build-monorepo-packages-and-start-the-mcp-server">Step 1: Build Monorepo Packages and Start the MCP Server<a class="headerlink" href="#step-1-build-monorepo-packages-and-start-the-mcp-server" title="Permanent link">¶</a></h4>
+<p>From the repository root, build <code>@a2ui/catalog-mcp</code> and <code>@a2ui/lit</code>, install the community workspace dependencies, and start the Kanban MCP server on <code>http://localhost:8788/mcp</code>:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a>yarn<span class="w"> </span>install
+</span><span id="__span-11-2"><a href="#__codelineno-11-2" id="__codelineno-11-2" name="__codelineno-11-2"></a>yarn<span class="w"> </span>workspace<span class="w"> </span>@a2ui/catalog-mcp<span class="w"> </span>run<span class="w"> </span>build
+</span><span id="__span-11-3"><a href="#__codelineno-11-3" id="__codelineno-11-3" name="__codelineno-11-3"></a>yarn<span class="w"> </span>workspace<span class="w"> </span>@a2ui/lit<span class="w"> </span>run<span class="w"> </span>build
+</span><span id="__span-11-4"><a href="#__codelineno-11-4" id="__codelineno-11-4" name="__codelineno-11-4"></a>
+</span><span id="__span-11-5"><a href="#__codelineno-11-5" id="__codelineno-11-5" name="__codelineno-11-5"></a><span class="nb">cd</span><span class="w"> </span>samples/community
+</span><span id="__span-11-6"><a href="#__codelineno-11-6" id="__codelineno-11-6" name="__codelineno-11-6"></a>yarn<span class="w"> </span>install
+</span><span id="__span-11-7"><a href="#__codelineno-11-7" id="__codelineno-11-7" name="__codelineno-11-7"></a>
+</span><span id="__span-11-8"><a href="#__codelineno-11-8" id="__codelineno-11-8" name="__codelineno-11-8"></a><span class="nb">cd</span><span class="w"> </span>mcp/a2ui-kanban/mcp-server
+</span><span id="__span-11-9"><a href="#__codelineno-11-9" id="__codelineno-11-9" name="__codelineno-11-9"></a>yarn<span class="w"> </span>build
+</span><span id="__span-11-10"><a href="#__codelineno-11-10" id="__codelineno-11-10" name="__codelineno-11-10"></a>yarn<span class="w"> </span>start
+</span></code></pre></div>
+<h4 id="step-2-start-the-kanban-agent">Step 2: Start the Kanban Agent<a class="headerlink" href="#step-2-start-the-kanban-agent" title="Permanent link">¶</a></h4>
+<p>In a <strong>new terminal</strong>, start the Python A2A agent on <code>http://localhost:10007</code> (use <code>KANBAN_AGENT=scripted</code> to run the deterministic walkthrough without a Gemini API key):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a href="#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>samples/community/mcp/a2ui-kanban/agent
+</span><span id="__span-12-2"><a href="#__codelineno-12-2" id="__codelineno-12-2" name="__codelineno-12-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GEMINI_API_KEY</span><span class="o">=</span><span class="s2">"your-key"</span><span class="w">  </span><span class="c1"># or export KANBAN_AGENT=scripted</span>
+</span><span id="__span-12-3"><a href="#__codelineno-12-3" id="__codelineno-12-3" name="__codelineno-12-3"></a>uv<span class="w"> </span>run<span class="w"> </span>.
+</span></code></pre></div>
+<h4 id="step-3-start-the-lit-chat-host">Step 3: Start the Lit Chat Host<a class="headerlink" href="#step-3-start-the-lit-chat-host" title="Permanent link">¶</a></h4>
+<p>In a <strong>new terminal</strong>:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a href="#__codelineno-13-1" id="__codelineno-13-1" name="__codelineno-13-1"></a><span class="nb">cd</span><span class="w"> </span>samples/community/mcp/a2ui-kanban/client
+</span><span id="__span-13-2"><a href="#__codelineno-13-2" id="__codelineno-13-2" name="__codelineno-13-2"></a>yarn<span class="w"> </span>dev
+</span></code></pre></div>
+<p>Open <code>http://localhost:5173/</code> and click <strong>"Show me the sprint board"</strong> to load the board surface.</p>
+<hr/>
 <h2 id="url-options-for-testing">URL Options for Testing<a class="headerlink" href="#url-options-for-testing" title="Permanent link">¶</a></h2>
 <p>For testing purposes, you can opt-out of the security self-test by using specific URL query parameters.</p>
 <h3 id="disable_security_self_testtrue"><code>disable_security_self_test=true</code><a class="headerlink" href="#disable_security_self_testtrue" title="Permanent link">¶</a></h3>
 <p>This query parameter allows you to bypass the security self-test that verifies iframe isolation. This is useful for debugging and testing environments where the double-iframe setup may not pass strict origin checks (e.g., <code>localhost</code> development).</p>
 <p>Example usage:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a>http://localhost:4200/?disable_security_self_test=true
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a href="#__codelineno-14-1" id="__codelineno-14-1" name="__codelineno-14-1"></a>http://localhost:4200/?disable_security_self_test=true
 </span></code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">¶</a></h2>
 <table>
