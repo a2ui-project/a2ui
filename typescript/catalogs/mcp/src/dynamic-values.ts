@@ -31,7 +31,7 @@ export type DynamicExpression = DataBinding | FunctionCall;
 const MAX_RESOLUTION_DEPTH = 100;
 
 /** Checks whether a value is a non-null, non-array object. */
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
