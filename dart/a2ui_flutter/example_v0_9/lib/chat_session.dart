@@ -18,7 +18,7 @@ import 'dart:convert';
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
