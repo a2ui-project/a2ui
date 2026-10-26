@@ -17,6 +17,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:collection/collection.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
@@ -61,17 +62,17 @@ final Map<String, CatalogApi> _builtinCatalogs = {
     catalog.id: catalog,
 };
 
-void _runCase(Map<String, Object?> testCase) {
+Future<void> _runCase(Map<String, Object?> testCase) async {
   final action = testCase['action'] as String?;
   switch (action) {
     case 'from_json':
-      _runFromJsonCase(testCase);
+      await _runFromJsonCase(testCase);
     case 'validation_schema':
-      _runValidationSchemaCase(testCase);
+      await _runValidationSchemaCase(testCase);
     case 'round_trip':
-      _runRoundTripCase(testCase);
+      await _runRoundTripCase(testCase);
     case 'to_json':
-      _runToJsonCase(testCase);
+      await _runToJsonCase(testCase);
     default:
       throw StateError('Unsupported catalog conformance action: $action');
   }
@@ -90,10 +91,10 @@ const Set<String> _fromJsonExpectKeys = {
   'invalidComponents',
 };
 
-void _runFromJsonCase(Map<String, Object?> testCase) {
+Future<void> _runFromJsonCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
-  final Map<String, Object?> rawCatalog = _document(
-    testCase['catalog'] ?? testCase['catalogPath'],
+  final Map<String, Object?> rawCatalog = await _document(
+    testCase['catalog'] ?? testCase['catalogPath'] ?? testCase['catalogUrl'],
   );
   final input = rawCatalog;
   final catalogId = testCase['catalogId'] as String?;
@@ -115,7 +116,7 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final CatalogApi catalog = _withPeers(
+  final CatalogApi catalog = await _withPeers(
     testCase,
     Catalog.fromJson(input, protocolVersion: version, catalogId: catalogId),
   );
@@ -271,10 +272,10 @@ A2uiProtocolVersion? _version(Map<String, Object?> testCase) =>
 /// with `fromJson`, even when this package implements that catalog itself:
 /// equivalence with the built-in catalog is covered by
 /// `matchesBuiltinCatalog` in the `from_json` cases.
-void _runValidationSchemaCase(Map<String, Object?> testCase) {
+Future<void> _runValidationSchemaCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
-  final Map<String, Object?> source = _document(
-    testCase['catalog'] ?? testCase['catalogPath'],
+  final Map<String, Object?> source = await _document(
+    testCase['catalog'] ?? testCase['catalogPath'] ?? testCase['catalogUrl'],
   );
   if (testCase['expectError'] != null) {
     expect(
@@ -285,10 +286,11 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final Map<String, Object?> document = _withPeers(
+  final Map<String, Object?> document = (await _withPeers(
     testCase,
     _load(testCase, source),
-  ).validationSchema;
+  ))
+      .validationSchema;
   final String goldenPath = resolveConformancePath(
     testCase['expectFile']! as String,
   );
@@ -411,10 +413,10 @@ bool _resolves(String ref, Map<String, Object?> document) {
 }
 
 /// `fromJson(c).toJson()` equals `c`, and serializing again changes nothing.
-void _runRoundTripCase(Map<String, Object?> testCase) {
+Future<void> _runRoundTripCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
-  final Map<String, Object?> source = _document(
-    testCase['catalog'] ?? testCase['catalogPath'],
+  final Map<String, Object?> source = await _document(
+    testCase['catalog'] ?? testCase['catalogPath'] ?? testCase['catalogUrl'],
   );
   final Map<String, Object?> out = _load(testCase, source).toJson();
   expect(
@@ -439,7 +441,7 @@ void _runRoundTripCase(Map<String, Object?> testCase) {
 /// A case naming `builtinCatalog: basic` serializes this package's own basic
 /// catalog for the case's protocol version; any other case loads its catalog
 /// with [Catalog.fromJson].
-void _runToJsonCase(Map<String, Object?> testCase) {
+Future<void> _runToJsonCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final CatalogApi catalog;
   if (testCase['builtinCatalog'] case final String builtin) {
@@ -458,11 +460,13 @@ void _runToJsonCase(Map<String, Object?> testCase) {
   } else {
     catalog = _load(
       testCase,
-      _document(testCase['catalog'] ?? testCase['catalogPath']),
+      await _document(testCase['catalog'] ??
+          testCase['catalogPath'] ??
+          testCase['catalogUrl']),
     );
   }
 
-  final Map<String, Object?> expected = _document(testCase['expectFile']);
+  final Map<String, Object?> expected = await _document(testCase['expectFile']);
   final List<String> differences = [
     for (final (String path, String detail) in _differences(
       catalog.toJson(),
@@ -502,13 +506,18 @@ CatalogApi _load(
 /// [catalog] linked with the catalogs at the case's `peerCatalogPaths`, each
 /// loaded with [Catalog.fromJson], in order; [catalog] itself when the case
 /// lists none.
-CatalogApi _withPeers(Map<String, Object?> testCase, CatalogApi catalog) {
+Future<CatalogApi> _withPeers(
+    Map<String, Object?> testCase, CatalogApi catalog) async {
   final Object? paths = testCase['peerCatalogPaths'];
   if (paths is! List || paths.isEmpty) return catalog;
-  return catalog.withPeerCatalogs([
-    for (final Object? path in paths)
-      Catalog.fromJson(_document(path), protocolVersion: _version(testCase)),
-  ]);
+  final List<CatalogApi> peers = [];
+  for (final Object? path in paths) {
+    peers.add(
+      Catalog.fromJson(await _document(path),
+          protocolVersion: _version(testCase)),
+    );
+  }
+  return catalog.withPeerCatalogs(peers);
 }
 
 /// The names under a document's `components`, `functions` or `$defs`, in
@@ -555,10 +564,66 @@ bool _jsonEquivalent(Object? a, Object? b, [String? key]) {
   return a == b;
 }
 
-/// Reads a catalog document, inline or by path.
-Map<String, Object?> _document(Object? value) {
+String _cacheFileName(String url) {
+  final String name = url.replaceAll(RegExp(r'[^a-zA-Z0-9_.-]'), '_');
+  if (!name.endsWith('.json')) {
+    return '$name.json';
+  }
+  return name;
+}
+
+Future<Map<String, Object?>> _fetchJsonWithCache(String url) async {
+  final noCache = Platform.environment['A2UI_CONFORMANCE_NO_CACHE'] == '1';
+  final String cacheDirPath = resolveConformancePath('.cache');
+  final cacheDir = Directory(cacheDirPath);
+  final cacheFile = File(p.join(cacheDir.path, _cacheFileName(url)));
+
+  if (!noCache && cacheFile.existsSync()) {
+    try {
+      final String content = cacheFile.readAsStringSync();
+      return jsonDecode(content) as Map<String, Object?>;
+    } catch (_) {
+      // Corrupt cache file, re-fetch.
+    }
+  }
+
+  final client = HttpClient();
+  try {
+    final HttpClientRequest request = await client.getUrl(Uri.parse(url));
+    final HttpClientResponse response = await request.close();
+    if (response.statusCode != HttpStatus.ok) {
+      throw StateError(
+        'Failed to fetch catalog from $url: '
+        '${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+    final String body = await response.transform(utf8.decoder).join();
+    final data = jsonDecode(body) as Map<String, Object?>;
+    if (!noCache) {
+      try {
+        if (!cacheDir.existsSync()) {
+          cacheDir.createSync(recursive: true);
+        }
+        cacheFile.writeAsStringSync(
+          const JsonEncoder.withIndent('  ').convert(data),
+        );
+      } catch (_) {
+        // Best-effort cache write.
+      }
+    }
+    return data;
+  } finally {
+    client.close();
+  }
+}
+
+/// Reads a catalog document, inline, by path, or by URL.
+Future<Map<String, Object?>> _document(Object? value) async {
   if (value is Map<String, Object?>) return value;
   if (value is String) {
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return _fetchJsonWithCache(value);
+    }
     final file = File(resolveConformancePath(value));
     if (!file.existsSync()) {
       throw StateError('Conformance catalog not found: ${file.path}');

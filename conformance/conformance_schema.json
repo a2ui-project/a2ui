@@ -137,6 +137,11 @@
           "type": "string",
           "description": "Repository-relative path to a catalog schema JSON file. Cases load the file with fromJson. A to_json case that should serialize the SDK's own implementation names it with builtinCatalog instead."
         },
+        "catalogUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Remote URL of a catalog schema JSON file to fetch. Cases fetch the URL and load the document with fromJson."
+        },
         "catalogId": {
           "type": "string",
           "description": "Target catalog identifier."
@@ -262,6 +267,7 @@
             "oneOf": [
               {"required": ["builtinCatalog"]},
               {"required": ["catalogPath"]},
+              {"required": ["catalogUrl"]},
               {"required": ["catalog"]}
             ]
           }

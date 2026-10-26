@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+import urllib.request
 from collections.abc import Callable
 from typing import Any
 import pytest
@@ -112,6 +113,41 @@ SPEC_ROOT = os.environ.get(
     os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../specification")),
 )
 CORE_DIR = os.path.join(CONFORMANCE_ROOT, "core")
+CONFORMANCE_CACHE_DIR = os.path.join(CONFORMANCE_ROOT, ".cache")
+
+
+def _get_cache_filename(url: str) -> str:
+    name = re.sub(r"[^a-zA-Z0-9_.-]", "_", url)
+    if not name.endswith(".json"):
+        name += ".json"
+    return name
+
+
+def _fetch_json_with_cache(url: str) -> Any:
+    no_cache = os.environ.get("A2UI_CONFORMANCE_NO_CACHE") == "1"
+    cache_file = os.path.join(CONFORMANCE_CACHE_DIR, _get_cache_filename(url))
+    if not no_cache and os.path.isfile(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "A2UI-Conformance-Harness"}
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+
+    if not no_cache:
+        try:
+            os.makedirs(CONFORMANCE_CACHE_DIR, exist_ok=True)
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
+
+    return data
 
 
 def _version_dir(ver: str) -> str:
@@ -1132,18 +1168,26 @@ def _assert_matches_builtin_catalog(loaded: CatalogApi) -> None:
 
 
 def validate_from_json_case(case: dict[str, Any]) -> None:
-    c_path = case.get("catalogPath")
-    if c_path:
-        full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
-        with open(full_p, "r", encoding="utf-8") as f:
-            c_schema = json.load(f)
+    url = case.get("catalogUrl") or case.get("url")
+    if url:
+        c_schema = _fetch_json_with_cache(url)
+        c_path = url
     else:
-        c_schema = (
-            case.get("catalogSchema")
-            or case.get("catalog")
-            or case.get("schema")
-            or case
-        )
+        c_path = case.get("catalogPath")
+        if c_path:
+            if c_path.startswith("http://") or c_path.startswith("https://"):
+                c_schema = _fetch_json_with_cache(c_path)
+            else:
+                full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
+                with open(full_p, "r", encoding="utf-8") as f:
+                    c_schema = json.load(f)
+        else:
+            c_schema = (
+                case.get("catalogSchema")
+                or case.get("catalog")
+                or case.get("schema")
+                or case
+            )
     c_id = resolve_catalog_id(case) or (c_schema.get("catalogId") if c_path else None)
     p_ver = resolve_protocol_version(case)
     expect_err = case.get("expectError")
@@ -1246,8 +1290,13 @@ def _with_case_peers(catalog: CatalogApi, case: dict[str, Any]) -> CatalogApi:
 
 def _load_case_catalog(case: dict[str, Any]) -> tuple[Any, str | None]:
     """Returns the catalog document of a case and the path it was read from."""
+    url = case.get("catalogUrl") or case.get("url")
+    if url:
+        return _fetch_json_with_cache(url), url
     c_path = case.get("catalogPath") or case.get("catalogFile")
     if c_path:
+        if c_path.startswith("http://") or c_path.startswith("https://"):
+            return _fetch_json_with_cache(c_path), c_path
         full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
         with open(full_p, "r", encoding="utf-8") as f:
             return json.load(f), c_path
