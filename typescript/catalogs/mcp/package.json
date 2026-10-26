@@ -201,6 +201,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.17.1",
     "jmespath": "^0.16.0",
+    "redos-detector": "^6.1.4",
     "zod": "^3.25.76"
   },
   "peerDependencies": {

@@ -194,6 +194,58 @@
         }
       },
       "required": ["@call", "args"]
+    },
+    "split": {
+      "type": "object",
+      "description": "Splits a string into an array of substrings using a literal separator.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "split"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to split."
+            },
+            "separator": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The delimiter string to split on. An empty string splits into individual characters (Unicode code points)."
+            }
+          },
+          "required": ["value", "separator"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
+    "regexCapture": {
+      "type": "object",
+      "description": "Extracts capture groups from the first regular expression match.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "regexCapture"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to match against."
+            },
+            "pattern": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "A regular expression in the portable subset: JavaScript syntax without lookahead, lookbehind or backreferences. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings."
+            }
+          },
+          "required": ["value", "pattern"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"]
     }
   },
   "$defs": {
@@ -217,6 +269,12 @@
         },
         {
           "$ref": "#/functions/updateDataModel"
+        },
+        {
+          "$ref": "#/functions/split"
+        },
+        {
+          "$ref": "#/functions/regexCapture"
         }
       ]
     }

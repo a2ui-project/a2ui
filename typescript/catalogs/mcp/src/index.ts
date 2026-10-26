@@ -32,5 +32,7 @@ export {
   type McpToolDataPayload,
   type McpToolClient,
 } from './functions/callMcpTool.js';
+export {RegexCaptureApi, RegexCaptureImplementation} from './functions/regex_capture.js';
+export {SplitApi, SplitImplementation} from './functions/split.js';
 export {TransformDataApi, TransformDataImplementation} from './functions/transform_data.js';
 export {UpdateDataModelApi, UpdateDataModelImplementation} from './functions/update_data_model.js';
