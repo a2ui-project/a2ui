@@ -24,6 +24,7 @@ from antlr4.error.ErrorListener import ErrorListener
 from .errors import ExpressParseError
 from .generated.express_parser import ExpressParser
 from .generated.express_visitor import ExpressVisitor
+from .nodes import CallNode, CheckNode, PathNode, SkippedNode, VariableNode
 
 
 def parse_number_literal(text: str) -> int | float:
@@ -150,25 +151,26 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
         v = self.visit(ctx.expression())
         return k, v
 
-    def visitPath(self, ctx: ExpressParser.PathContext) -> dict[str, Any]:
+    def visitPath(self, ctx: ExpressParser.PathContext) -> PathNode:
         # path : PATH ;
         text = ctx.PATH().getText()
-        return {"path": text[1:]}
+        return PathNode(text[1:])
 
-    def visitCheck(self, ctx: ExpressParser.CheckContext) -> dict[str, Any]:
+    def visitCheck(self, ctx: ExpressParser.CheckContext) -> CheckNode:
         # check : CHECK ('(' (expression (',' expression)*)? ','? ')')? ;
         name = ctx.CHECK().getText()[1:]  # strip ?
         args = []
         for expr in ctx.expression():
             args.append(self.visit(expr))
-        return {"check": name, "args": args}
+        return CheckNode(name, args)
 
-    def visitArg(self, ctx: ExpressParser.ArgContext) -> dict[str, Any]:
+    def visitArg(self, ctx: ExpressParser.ArgContext) -> tuple[str | None, Any]:
         # arg : named_arg | expression ;
+        # Returns (name, value), with a name of None for a positional argument.
         if ctx.named_arg():
             k, v = self.visit(ctx.named_arg())
-            return {"type": "kw", "key": k, "value": v}
-        return {"type": "pos", "value": self.visit(ctx.expression())}
+            return k, v
+        return None, self.visit(ctx.expression())
 
     def visitNamed_arg(self, ctx: ExpressParser.Named_argContext) -> tuple[str, Any]:
         # named_arg : identifier '=' expression ;
@@ -176,31 +178,28 @@ class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
         v = self.visit(ctx.expression())
         return k, v
 
-    def visitCall(self, ctx: ExpressParser.CallContext) -> dict[str, Any]:
+    def visitCall(self, ctx: ExpressParser.CallContext) -> CallNode:
         # call : identifier '(' (arg (',' arg)*)? ','? ')' ;
         name = ctx.identifier().getText()
         args = []
         kwargs = {}
         for arg_ctx in ctx.arg():
-            res = self.visit(arg_ctx)
-            if isinstance(res, dict) and res.get("type") == "kw":
-                kwargs[res["key"]] = res["value"]
-            elif isinstance(res, dict) and res.get("type") == "pos":
-                args.append(res["value"])
+            key, value = self.visit(arg_ctx)
+            if key is None:
+                args.append(value)
             else:
-                args.append(res)
-        node = {"call": name, "args": args}
-        if kwargs:
-            node["kwargs"] = kwargs
-        return node
+                kwargs[key] = value
+        return CallNode(name, args, kwargs)
 
-    def visitVariable(self, ctx: ExpressParser.VariableContext) -> dict[str, Any]:
+    def visitVariable(
+        self, ctx: ExpressParser.VariableContext
+    ) -> VariableNode | SkippedNode:
         # variable : '_' | identifier ;
         if ctx.identifier():
             name = ctx.identifier().getText()
-            return {"variable": name}
+            return VariableNode(name)
         else:
-            return {"skipped": True}
+            return SkippedNode()
 
     def visitLiteral(self, ctx: ExpressParser.LiteralContext) -> Any:
         # literal : string | NUMBER | BOOLEAN | 'null' ;

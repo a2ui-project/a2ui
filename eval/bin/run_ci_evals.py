@@ -77,16 +77,24 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
         cmd.extend(["--dataset", args.dataset])
     if getattr(args, "datasets", None):
         cmd.extend(["--datasets", args.datasets])
-    if getattr(args, "sdk", None):
-        cmd.extend(["--sdk", args.sdk])
-    if getattr(args, "sdks", None):
-        cmd.extend(["--sdks", args.sdks])
     if getattr(args, "strategies", None):
         cmd.extend(["--strategies", args.strategies])
     if getattr(args, "version", None):
         cmd.extend(["--version", args.version])
     if getattr(args, "max_samples", None) and args.max_samples != 0:
         cmd.extend(["--limit", str(args.max_samples)])
+    for flag, attr in (
+        ("--tier", "tier"),
+        ("--tags", "tags"),
+    ):
+        value = getattr(args, attr, None)
+        if value:
+            cmd.extend([flag, str(value)])
+    retries = getattr(args, "max_validation_retries", None)
+    if retries:
+        cmd.extend(["--max-validation-retries", str(retries)])
+    if getattr(args, "no_judge", False):
+        cmd.append("--no-judge")
     return cmd
 
 
@@ -133,18 +141,6 @@ def main() -> None:
         help="Model used for grading. Default is google/gemini-3.6-flash.",
     )
     parser.add_argument(
-        "--sdk",
-        type=str,
-        default=None,
-        help="Evaluate a specific Agent SDK (python, ts, dart).",
-    )
-    parser.add_argument(
-        "--sdks",
-        type=str,
-        default=None,
-        help="Comma-separated list of Agent SDKs to evaluate (e.g. 'python,ts,dart').",
-    )
-    parser.add_argument(
         "--strategies",
         type=str,
         default=None,
@@ -155,6 +151,29 @@ def main() -> None:
         type=str,
         default=None,
         help="Protocol version to evaluate ('0.9.1', '1.0' or 'auto').",
+    )
+    parser.add_argument(
+        "--tier",
+        type=str,
+        default=None,
+        help="Run only samples tagged with this tier (e.g. 'smoke').",
+    )
+    parser.add_argument(
+        "--tags",
+        type=str,
+        default=None,
+        help="Comma-separated tags a sample must carry to be evaluated.",
+    )
+    parser.add_argument(
+        "--no-judge",
+        action="store_true",
+        help="Skip the LLM judge and gate on Stage 1 and Stage 2 only.",
+    )
+    parser.add_argument(
+        "--max-validation-retries",
+        type=int,
+        default=0,
+        help="Validation self-retries per sample (reports Pass@1 and Pass@K).",
     )
     args = parser.parse_args()
 
