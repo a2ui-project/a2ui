@@ -79,29 +79,26 @@ The script uses the following rules to decide if a PR or issue should get **the 
 
   If no: continue processing.
 
-3. Is the item an issue?
+3. Is the item **an issue**?
 
+  If yes, is it assigned?
+  - If assigned:
+    - **LABEL** when it is `P0` with no human activity for more than 1 day, or `P1` with no human activity for more than 30 days.
+    - **NO LABEL** otherwise.
+  - If not assigned:
+    - **LABEL** when one of the following is true:
+      - It is `P0` or `P1`, which must have an assignee.
+      - It has no priority label (`P0`–`P4`) and was opened by an external contributor. The team manages its own issues.
+      - The latest human contribution is from an external contributor.
+    - **NO LABEL** otherwise.
 
+  If no: continue processing.
 
+4. Is the item **a PR**?
 
-4. Is the item PR? 
-
-
-
-An item gets `status: needs-triage` if it does not have `status: waiting-for-author-response` (it will be auto-removed after external response) and:
-
-**It is an issue** and one of the following is true:
-
-1. **No priority**: It has no assignee, has no priority label (`P0`–`P4`), and was opened by an external contributor (the team manages its own issues).
-2. **Triage assignment expired**: It has `status: assigned-for-triage` and either has no assignee or got the label more than 14 days ago.
-3. **Stale**: It is assigned, is `P0` or `P1`, and has had no human activity for more than 1 day (`P0`) or 30 days (`P1`).
-4. **High priority without assignee**: It is `P0` or `P1` and has no assignee.
-5. **Unanswered external comment**: It has no assignee, and the latest human comment is from an external contributor.
-
-**It is a PR** and one of the following is true:
-
-1. **Triage assignment expired**: Same as for issues.
-2. **Unanswered external PR**: It was opened by an external contributor, and no team member has responded to the author's latest contribution.
+  If yes:
+  - **LABEL** when it was opened by an external contributor and the latest human contribution is from an external contributor, meaning no team member has responded yet.
+  - **NO LABEL** otherwise. PRs opened by team members are never labeled.
 
 Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
 
