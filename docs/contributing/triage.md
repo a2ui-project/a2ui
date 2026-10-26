@@ -12,6 +12,7 @@ Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 This section describes goals at a high level. See concrete steps in the section [Triage responsibilities](#triage-responsibilities).
 
 1. **Issues** priority (aligned with other teams in Dash):
+
     - **P0**: very urgent, and it should be assigned
     - **P1**: actively being worked on, and it should be assigned
     - **P2**: is expected to be converted to P1 within three months, as part of regular planning process
@@ -20,14 +21,16 @@ This section describes goals at a high level. See concrete steps in the section 
 
 2. **PRs**: We will review only essential PRs from external contributors.
 
-  A PR will be rwviewed if:
+  A PR will be reviewed if:
+
     - the PR contributes to a **P0-P3** issue (PRs for P4 issues will not be reviewed), and the issue is linked on the top of the description
+
     - one of the following is true:
       - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description) 
       - the issue has label `type: contributions-welcome`
       - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
   
-  Al other PRs will be rejected.
+  We will have to reject all other PRs, to preserve team resources for planned work.
 
 ## GitHub labels used in triage
 
