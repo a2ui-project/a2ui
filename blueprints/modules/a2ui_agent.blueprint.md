@@ -161,23 +161,69 @@ class FunctionPruningTransformer(CatalogTransformer):
 
 #### `PromptGenerator`
 
-Abstract base interface for constructing system prompt instruction snippets across inference formats.
+Abstract base class for constructing system prompt instruction snippets across inference formats.
 
-The interface is `generate()` alone. Application code gets a prompt generator from `InferenceFormat.prompt_generator` and only renders it, so what a generator is built from (catalogs, examples, format-specific options) belongs to each format's constructor rather than to the shared interface.
+Application code gets a prompt generator from `InferenceFormat.prompt_generator` and renders it with `generate()`. What a generator is built from (catalogs, examples, format-specific options) belongs to each format's constructor rather than to the shared interface.
+
+A format implements the abstract `catalogs` property and three hooks, and never overrides `generate()`:
+
+- `generate_base_rules()`: what every catalog shares, rendered once: the syntax contract, grammar and sentinel tags, plus any protocol schemas the format shows the model (Direct JSON's agent-to-renderer and common types schemas).
+- `generate_catalog_instructions(include_schema, catalog)`: the component and function signatures or schemas of one catalog, or of every catalog in `catalogs` when `catalog` is omitted.
+- `generate_examples(catalog, validate)`: the formatted example turns for one catalog, or for every catalog when `catalog` is omitted.
+
+`generate()` is final and returns `assemble_instructions(self)`, the same function `SkillGenerator` builds a monolithic skill's body with, so a prompt snippet and a monolithic skill for the same catalogs have the same body. The per-format generator classes are not part of the public API: callers reach them through `InferenceFormat.prompt_generator`, and a third-party format subclasses `PromptGenerator` directly.
 
 Every format's generator renders the prompt example turns it is given in the order given. Each turn is the list of `AgentToRendererMessage` objects making it up. An example carries no label of its own: what the model learns from it is the payload, so a description would be the prompt author's prose rather than part of the contract.
 
 ```python
+EXAMPLES_HEADING = "### Examples:\n\n"
+
 class PromptGenerator(ABC):
     """Abstract base class for format-specific prompt generators."""
 
+    @property
     @abstractmethod
+    def catalogs(self) -> list[CatalogApi]:
+        """The catalogs the generator describes, in order."""
+
+    def generate_base_rules(self) -> str:
+        """Renders what every catalog shares: syntax rules, sentinel tags, shared schemas."""
+        return ""
+
+    def generate_catalog_instructions(
+        self, include_schema: bool = True, catalog: CatalogApi | None = None
+    ) -> str:
+        """Renders one catalog's signatures or schemas, or every catalog's when omitted."""
+        return ""
+
+    def generate_examples(
+        self, catalog: CatalogApi | None = None, validate: bool = False
+    ) -> str:
+        """Renders one catalog's example turns, or every catalog's when omitted."""
+        return ""
+
+    @final
     def generate(self) -> str:
-        """
-        Renders format-specific system prompt instructions and catalog schemas.
-        The caller (Agent / Framework) prepends role/workflow preambles and appends suffixes.
-        """
-        pass
+        """Renders the prompt snippet. The caller adds its own role and workflow text."""
+        return assemble_instructions(self)
+
+
+def assemble_instructions(
+    generator: PromptGenerator, catalogs: Sequence[CatalogApi] | None = None
+) -> str:
+    """Joins the hooks' output for some catalogs (default: the generator's own).
+
+    The text is the base rules, then the catalog instructions, then the examples
+    under EXAMPLES_HEADING, separated by blank lines; sections that render nothing
+    are left out.
+
+    - For the generator's own catalogs, the catalog instructions and examples come
+      from one call each with no catalog, so a format can render what its catalogs
+      share once. The result is cached per generator, which is treated as
+      immutable once built.
+    - For any other catalogs, each catalog's instructions and examples are rendered
+      on their own and joined, and examples a catalog repeats are added once.
+    """
 ```
 
 ---
@@ -818,12 +864,26 @@ class DirectJsonPromptGenerator(PromptGenerator):
         self.examples = examples
         self.allowed_messages = allowed_messages
 
-    def generate(self) -> str:
-        """Renders system instructions containing pruned JSON schemas inside <a2ui_schema> tags and <a2ui-json> output instructions.
+    def generate_base_rules(self) -> str:
+        """Renders the <a2ui-json> output rules, then a schema block with the protocol schemas.
 
-        Returns:
-            Formatted system prompt instruction snippet string.
+        The protocol schemas are the agent-to-renderer schema (pruned to
+        `allowed_messages`) and the common types schema (pruned to what the
+        catalogs and that schema use). They belong to the base rules, so text that
+        combines several catalogs' instructions holds them once.
         """
+        pass
+
+    def generate_catalog_instructions(
+        self, include_schema: bool = True, catalog: Optional[CatalogApi] = None
+    ) -> str:
+        """Renders one schema block per catalog, each holding only that catalog's schema."""
+        pass
+
+    def generate_examples(
+        self, catalog: Optional[CatalogApi] = None, validate: bool = False
+    ) -> str:
+        """Renders each example turn as JSON inside <a2ui-json> tags."""
         pass
 
 class DirectJsonParser(Parser):
@@ -894,7 +954,7 @@ Compact functional DSL format designed to reduce output token consumption, enclo
 The Express format package under `a2ui/inference_formats/express/` contains:
 
 - `format`: `ExpressFormatFactory` (subclassing `InferenceFormatFactory`) and `ExpressFormat` (subclassing `InferenceFormat`).
-- `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
+- `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`, internal to the package and reached through `ExpressFormat.prompt_generator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
 - `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures.
 - `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
 - `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.

@@ -18,11 +18,11 @@ This document specifies the language-agnostic architecture, API contracts, metad
 
 To support granular skill modularity and avoid duplicating prompt-building logic, every language SDK's `PromptGenerator` base contract MUST decompose prompt generation into three independent sub-methods:
 
-- `generate_base_rules() -> String`: Emits base syntax contracts, grammar specifications, and sentinel tags (e.g. `<a2ui>`). Must be completely catalog-agnostic.
+- `generate_base_rules() -> String`: Emits what every catalog shares, so text that combines several catalogs' instructions holds it once: base syntax contracts, grammar specifications, sentinel tags (e.g. `<a2ui>`), and any protocol schemas the format shows the model (such as Direct JSON's agent-to-renderer and common types schemas). It names no single catalog's components or functions.
 - `generate_catalog_instructions(include_schema, catalog) -> String`: Emits component and function signatures or JSON schemas for the target catalog (or all bound catalogs if omitted).
 - `generate_examples(catalog, validate) -> String`: Loads and formats few-shot examples for the target catalog (or all bound catalogs).
 
-`PromptGenerator.generate()` serves as the single **Template Method** assembling these sub-methods into a complete agent system prompt.
+The prompt snippet and the monolithic skill are assembled from these sub-methods by one shared function, `assemble_instructions(generator, catalogs)`. `PromptGenerator.generate()` is final and returns `assemble_instructions(self)`; formats implement the sub-methods and the `catalogs` property and never override `generate()`.
 
 ### **2. Additive Composition Layer**
 
@@ -71,7 +71,11 @@ Every language implementation (`a2ui-python`, `a2ui-swift`, `a2ui-kotlin`, `a2ui
 
 ```
 interface PromptGenerator {
-    // Returns base syntax rules, grammar specs, and sentinel output tags. Must be catalog-agnostic.
+    // The catalogs the generator describes, in order. Implemented by each format.
+    catalogs: List<Catalog>
+
+    // Returns what every catalog shares: syntax rules, grammar specs, sentinel output tags,
+    // and any protocol schemas the format shows the model.
     generate_base_rules() -> String
 
     // Returns component and function signatures or JSON schemas for the target catalog (or all bound catalogs).
@@ -80,28 +84,29 @@ interface PromptGenerator {
     // Returns formatted few-shot examples for the target catalog (or all bound catalogs).
     generate_examples(catalog: Catalog? = null, validate: Boolean = false) -> String
 
-    // Template Method: Assembles format-specific system prompt instructions.
-    generate(
-        role_description: String = "",
-        workflow_description: String = "",
-        ui_description: String = "",
-        include_schema: Boolean = true,
-        include_examples: Boolean = false,
-        validate_examples: Boolean = false
-    ) -> String
+    // Final: returns assemble_instructions(this). Formats never override it.
+    generate() -> String
 }
+
+// Joins a generator's sub-methods into the instructions for some catalogs.
+// Defaults to the generator's own catalogs.
+assemble_instructions(generator: PromptGenerator, catalogs: List<Catalog>? = null) -> String
 ```
 
-#### **Template Method Assembly (`generate`)**
+#### **Assembly (`assemble_instructions`)**
 
-The base `generate()` method orchestrates prompt assembly across all inference formats:
+`PromptGenerator.generate()` and `SkillGenerator.generate_skill()` both build their text with `assemble_instructions`:
 
-1. Appends `role_description` if non-empty.
-2. Combines `generate_base_rules()` and `workflow_description` under `## Workflow Description:` if present.
-3. Appends `ui_description` under `## UI Description:` if present.
-4. If `include_schema` is true, calls `generate_catalog_instructions(include_schema=true)` and appends the result if non-empty.
-5. If `include_examples` is true, calls `generate_examples(validate=validate_examples)` and appends the result under `### Examples:` if non-empty.
-6. Joins all non-empty sections with double newlines (`"\n\n"`).
+1. Appends `generate_base_rules()` if non-empty.
+2. Appends the catalog instructions if non-empty:
+   - For the generator's own catalogs, calls `generate_catalog_instructions()` once with no catalog, so a format can render what its catalogs share once (for example, headings that name each catalog).
+   - For any other catalogs, calls `generate_catalog_instructions(catalog=c)` for each and appends each non-empty result.
+3. Appends the examples under `### Examples:` followed by a blank line if any are non-empty:
+   - For the generator's own catalogs, calls `generate_examples()` once with no catalog.
+   - For any other catalogs, calls `generate_examples(catalog=c)` for each and keeps each distinct result once, since a format whose examples aren't kept per catalog returns the same examples for each catalog.
+4. Joins all non-empty sections with double newlines (`"\n\n"`).
+
+The snippet has no role, workflow or UI preamble; the agent adds its own text around it. Implementations may cache the text for a generator's own catalogs, treating a generator as immutable once built.
 
 ### **2. `Skill` Domain Model**
 
@@ -212,6 +217,8 @@ class SkillGenerator {
 
     // Compiles an InferenceFormat into a single unified (monolithic) Skill.
     // Defaults to all catalogs bound to the format if catalogs is omitted.
+    // The body is assemble_instructions(format.prompt_generator, catalogs), so for the
+    // format's own catalogs it is the format's prompt snippet.
     // Default name: "a2ui"
     // Default description: "Generates interactive user interface components for user requests."
     generate_skill(
@@ -293,7 +300,7 @@ To guarantee 100% behavioral parity across multi-language SDKs, all implementati
 
 When implementing this feature in a client language SDK:
 
-1. **Decompose `PromptGenerator`**: In the base `PromptGenerator` class, implement `generate_base_rules()`, `generate_catalog_instructions()`, and `generate_examples()`, and wire `generate()` as a Template Method.
+1. **Decompose `PromptGenerator`**: In the base `PromptGenerator` class, declare the `catalogs` property and the `generate_base_rules()`, `generate_catalog_instructions()`, and `generate_examples()` sub-methods, implement `assemble_instructions()`, and make `generate()` a final method returning `assemble_instructions(self)` (for example `@typing.final` in Python or `@nonVirtual` in Dart).
 2. **Implement `Skill` and `SkillSet` Domain Models**:
    - Implement `Skill` with YAML frontmatter serialization in `to_markdown()`.
    - Implement `SkillSet` with 3-tier lookup resolution in `get()` and scoped directory cleaning in `export_to_directory()`.
@@ -301,5 +308,5 @@ When implementing this feature in a client language SDK:
    - Wrap `InferenceFormat`.
    - Implement `generate_core_skill()`, `generate_catalog_skill()`, `generate_skill()`, and `generate_skillset()` adhering to catalog defaulting semantics.
    - Implement `clean_catalog_name()` helper.
-4. **Wire Format Implementations**: Ensure specific format prompt generators (e.g. `ExpressPromptGenerator`, `DirectJsonPromptGenerator`) implement the decomposed sub-methods.
+4. **Wire Format Implementations**: Ensure specific format prompt generators (e.g. `ExpressPromptGenerator`, `DirectJsonPromptGenerator`) implement the `catalogs` property and the decomposed sub-methods without overriding `generate()`, and keep them internal to their format packages.
 5. **Verify Conformance**: Run unit tests and execute the shared test suite in `conformance/agent/skill.yaml` against `conformance/test_data/skills/` golden files.
