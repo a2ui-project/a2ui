@@ -105,13 +105,18 @@ edit_uri: raw/main/docs/public/
 # Copyright
 copyright: Copyright Google 2025&nbsp;&nbsp;|&nbsp;&nbsp;<a href="//policies.google.com/terms">Terms</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="//policies.google.com/privacy">Privacy</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#__consent">Manage cookies</a>
 
-# Custom CSS
+# Custom CSS & JS
 extra_css:
   - stylesheets/custom.css
+  - stylesheets/landing.css
+
+extra_javascript:
+  - javascripts/landing.js
 
 # Configuration
 theme:
   name: material
+  custom_dir: docs/overrides
   font:
     text: Google Sans
     code: Roboto Mono
