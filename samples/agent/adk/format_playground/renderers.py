@@ -342,8 +342,46 @@ class Renderers:
             error=None if parts else "The decision model produced no surface.",
         )
 
+    async def render_tool_result(
+        self,
+        intent: str,
+        payload: dict[str, Any],
+        *,
+        surface_id: str,
+        version: str = "1.0",
+        mutable_paths: Sequence[str] = (),
+    ) -> RenderResult:
+        """Renders tool data directly via decision synthesizer with no UI-writing model call."""
+        started = time.perf_counter()
+        try:
+            output = await self._synthesizer(version).synthesize(
+                intent,
+                payload,
+                surface_id=surface_id,
+                mutable_paths=mutable_paths,
+            )
+        except (A2uiError, ValueError, httpx.HTTPError) as exc:
+            logger.warning("Tool render failed: %s", exc)
+            return RenderResult(
+                metrics=self._decision_metrics(None, started, mode=RenderMode.TOOL),
+                error=str(exc),
+            )
+        parts = [
+            create_a2ui_part(message, version=version)
+            for message in to_message_dicts(output.messages)
+        ]
+        return RenderResult(
+            parts=parts,
+            metrics=self._decision_metrics(output, started, mode=RenderMode.TOOL),
+            trace_lines=trace_lines(output),
+            error=None if parts else "The decision model produced no surface.",
+        )
+
     def _decision_metrics(
-        self, output: SynthesisOutput | None, started: float
+        self,
+        output: SynthesisOutput | None,
+        started: float,
+        mode: RenderMode = RenderMode.DECISION,
     ) -> TurnMetrics:
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         plan = output.layout_plan if output is not None else None
@@ -359,7 +397,7 @@ class Renderers:
             else elapsed_ms
         )
         return TurnMetrics(
-            mode=RenderMode.DECISION,
+            mode=mode,
             backend=self.backend_name,
             llm_calls=0,
             latency_ms=elapsed_ms,

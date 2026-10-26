@@ -46,8 +46,11 @@ from tests.decision_fixtures import (
 )
 
 
-def test_build_decision_backend_known_names() -> None:
+def test_build_decision_backend_known_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Verifies build_decision_backend returns the expected backend instance."""
+    monkeypatch.setenv("JEV_API_KEY", "test-jev-key")
     assert isinstance(build_decision_backend("mock"), DeterministicMockBackend)
     assert isinstance(build_decision_backend("local"), LocalCrossEncoderBackend)
     assert isinstance(build_decision_backend("jev"), JevHttpBackend)

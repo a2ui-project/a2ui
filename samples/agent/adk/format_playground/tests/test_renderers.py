@@ -306,3 +306,30 @@ async def test_render_decision_login_form_forwards_mutable_paths() -> None:
         assert "decision " in res.metrics.footer()
         assert res.trace_lines[0].startswith("**Path**: decision model · archetype")
         assert "**Decision time**:" in res.trace_lines[0]
+
+
+@pytest.mark.asyncio
+async def test_render_tool_result_synthesizes_with_zero_llm_calls() -> None:
+    backend = DeterministicMockBackend(
+        scripted={
+            "family": {"dashboard": 0.95, "browse": 0.05},
+            "archetype:dashboard": {"status": 0.90, "summary": 0.10},
+            "gate:headline": {"yes": 0.95, "no": 0.05},
+            "gate:facts": {"yes": 0.95, "no": 0.05},
+            "gate:actions": {"yes": 0.95, "no": 0.05},
+        }
+    )
+    tool_renderers = Renderers(versions=["1.0"], backend=backend)
+    res = await tool_renderers.render_tool_result(
+        "Show host health status",
+        {"hostname": "server-1", "cpu": "98%", "status": "critical"},
+        surface_id="turn-tool-test",
+        version="1.0",
+        mutable_paths=["/status"],
+    )
+    assert res.ok, res.error
+    assert res.metrics is not None
+    assert res.metrics.mode is RenderMode.TOOL
+    assert res.metrics.llm_calls == 0
+    assert res.metrics.decision_latency_ms is not None
+    assert "0 LLM calls" in res.metrics.footer()

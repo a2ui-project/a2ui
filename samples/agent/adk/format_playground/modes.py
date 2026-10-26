@@ -20,6 +20,7 @@ depend on it without pulling in a model runtime.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Protocol
@@ -33,9 +34,17 @@ class RenderMode(str, Enum):
     DECISION = "decision"
     EXPRESS = "express"
     DIRECT = "direct"
+    TOOL = "tool"
 
     def __str__(self) -> str:
         return self.value
+
+
+CHAT_MODES: tuple[RenderMode, ...] = (
+    RenderMode.DECISION,
+    RenderMode.EXPRESS,
+    RenderMode.DIRECT,
+)
 
 
 @dataclass(frozen=True)
@@ -63,6 +72,19 @@ class LlmTurn:
     latency_ms: float = 0.0
 
 
+@dataclass(frozen=True)
+class LlmToolTurn:
+    """One model call that invokes a tool: the tool called and what it cost."""
+
+    tool_name: str | None = None
+    arguments: dict[str, Any] = field(default_factory=dict)
+    result: Any = None
+    prompt_tokens: int = 0
+    output_tokens: int = 0
+    latency_ms: float = 0.0
+    text: str = ""
+
+
 class LlmCaller(Protocol):
     """Runs one instruction-plus-message turn against a language model.
 
@@ -80,6 +102,17 @@ class LlmCaller(Protocol):
         user_text: str,
         session_id: str | None,
     ) -> LlmTurn:
+        ...
+
+    async def call_with_tools(
+        self,
+        *,
+        instruction_key: str,
+        instruction: str,
+        user_text: str,
+        session_id: str | None,
+        tools: Sequence[Any],
+    ) -> LlmToolTurn:
         ...
 
 
@@ -158,10 +191,20 @@ class TurnMetrics:
                 timing = dec_time
         else:
             timing = f"{self.latency_ms / 1000.0:.1f} s"
+        if self.mode == RenderMode.TOOL and self.llm_calls > 0:
+            call_label = (
+                f"{self.llm_calls} LLM call (tool call only)"
+                if self.llm_calls == 1
+                else f"{self.llm_calls} LLM calls (tool calls only)"
+            )
+        else:
+            call_label = (
+                f"{self.llm_calls} LLM call{'' if self.llm_calls == 1 else 's'}"
+            )
         parts: list[str] = [
             f"**{self.mode}**",
             self.backend,
-            f"{self.llm_calls} LLM call{'' if self.llm_calls == 1 else 's'}",
+            call_label,
             timing,
         ]
         if self.prompt_tokens or self.output_tokens:

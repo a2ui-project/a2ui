@@ -25,7 +25,7 @@ import pytest
 from a2ui.inference_formats.decision import DeterministicMockBackend
 from agent import PlaygroundAgent
 from fakes import FakeLlmCaller
-from modes import RenderMode
+from modes import LlmToolTurn, RenderMode
 from renderers import Renderers
 from stage1 import UI_ACTION_PREFIX
 from test_renderers import EXPRESS_BAD, EXPRESS_OK, RESORT_PAYLOAD, direct_json_reply
@@ -238,3 +238,81 @@ async def test_default_mode_starts_new_session_in_configured_mode(
     )
     help_parts = await collect(express_agent, "/help", "s-default-express")
     assert "Active mode: `express`" in status_text(help_parts)
+
+
+async def test_tool_mode_renders_surface_with_tool_result(
+    agent: PlaygroundAgent, scripted_llm: FakeLlmCaller
+) -> None:
+    await collect(agent, "/mode tool", "s-tool-1")
+    scripted_llm.script_tool(
+        "tool_mode",
+        LlmToolTurn(
+            tool_name="get_host_health",
+            arguments={"hostname": "prod-01"},
+            result={"hostname": "prod-01", "cpu": "98%", "status": "critical"},
+            prompt_tokens=150,
+            output_tokens=30,
+            latency_ms=120.0,
+        ),
+    )
+    parts = await collect(agent, "check host 01 health", "s-tool-1")
+    ids = surface_ids(parts)
+    assert ids == ["turn-1", "turn-1-tool-footer"]
+    footer = status_text(parts)
+    assert "**tool**" in footer
+    assert "1 LLM call (tool call only)" in footer
+
+
+async def test_tool_mode_plain_text_reply_when_no_tool_called(
+    agent: PlaygroundAgent, scripted_llm: FakeLlmCaller
+) -> None:
+    await collect(agent, "/mode tool", "s-tool-2")
+    scripted_llm.script_tool(
+        "tool_mode",
+        LlmToolTurn(
+            tool_name=None,
+            arguments={},
+            result=None,
+            text="I can only check host health or ski resorts.",
+            prompt_tokens=100,
+            output_tokens=20,
+            latency_ms=80.0,
+        ),
+    )
+    parts = await collect(agent, "what is the capital of France?", "s-tool-2")
+    assert surface_ids(parts) == ["turn-1-status", "turn-1-tool-footer"]
+    assert "I can only check host health" in status_text(parts)
+
+
+async def test_rate_command_records_preference_and_summarizes(
+    agent: PlaygroundAgent,
+    scripted_llm: FakeLlmCaller,
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ratings_file = tmp_path / "ratings.jsonl"
+    monkeypatch.setattr("agent.RATINGS_PATH", ratings_file)
+
+    # Rate before turn
+    unrated = await collect(agent, "/rate decision", "s-rate")
+    assert "No previous turn to rate" in status_text(unrated)
+
+    # Valid turn
+    scripted_llm.script("stage1", STAGE1_BLOCK)
+    await collect(agent, "show resort", "s-rate")
+
+    # Rate invalid mode
+    bad_mode = await collect(agent, "/rate glitter", "s-rate")
+    assert "Unknown mode `glitter`" in status_text(bad_mode)
+
+    # Rate with comment
+    rated = await collect(agent, "/rate decision Very fast and clean", "s-rate")
+    assert (
+        "Recorded preference for `decision` with comment: Very fast and clean"
+        in status_text(rated)
+    )
+
+    # Show ratings
+    summary = await collect(agent, "/ratings", "s-rate")
+    assert "(1 total vote)" in status_text(summary)
+    assert "`decision`: 1 (100.0%)" in status_text(summary)

@@ -37,6 +37,14 @@ from a2ui.parser import BlockLexer, RawA2uiPart, parse_and_fix
 
 logger = logging.getLogger(__name__)
 
+TOOL_MODE_INSTRUCTION = """# Format playground: Tool Mode
+
+You are an assistant with access to backend data and configuration tools.
+When the person asks for information or an action that a tool provides, invoke that tool.
+Never describe or emit user interface code yourself: the decision layout model will render the tool result into a user interface.
+When no tool fits the request, reply with a single concise sentence explaining that no tool is available.
+"""
+
 STAGE1_PREAMBLE = """# Format playground
 
 You are the first stage of a UI playground. The person describes an interface

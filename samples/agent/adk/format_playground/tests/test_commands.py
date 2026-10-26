@@ -29,6 +29,7 @@ from modes import PlaygroundSettings, RenderMode
     [
         ("/mode express", Command("mode", "express")),
         ("  /MODE Direct ", Command("mode", "direct")),
+        ("/mode tool", Command("mode", "tool")),
         ("/mode", Command("mode", None)),
         ("/backend jev", Command("backend", "jev")),
         ("/backend gev", Command("backend", "gev")),
@@ -36,6 +37,12 @@ from modes import PlaygroundSettings, RenderMode
         ("/compare", Command("compare")),
         ("/trace", Command("trace")),
         ("/help", Command("help")),
+        ("/rate decision", Command("rate", "decision")),
+        (
+            "/rate decision looks great",
+            Command("rate", "decision", "looks great"),
+        ),
+        ("/ratings", Command("ratings")),
         ("/nope now", Command("help", "unknown:/nope now")),
         ("/", Command("help", "unknown:/")),
         ("plain text", None),

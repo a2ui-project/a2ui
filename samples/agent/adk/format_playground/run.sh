@@ -59,6 +59,7 @@ Presets:
               already running.
   express     Starts in `express` render mode (decision backend defaults to mock).
   direct      Starts in `direct` render mode (decision backend defaults to mock).
+  tool        Starts in `tool` render mode (decision backend defaults to mock).
 
 Environment variables:
   GEMINI_API_KEY          Gemini API key (or set GOOGLE_GENAI_USE_VERTEXAI=TRUE)
@@ -238,11 +239,15 @@ case "${PRESET}" in
     export A2UI_DECISION_BACKEND="${A2UI_DECISION_BACKEND:-mock}"
     RENDER_MODE="direct"
     ;;
+  tool)
+    export A2UI_DECISION_BACKEND="${A2UI_DECISION_BACKEND:-mock}"
+    RENDER_MODE="tool"
+    ;;
   decision)
     RENDER_MODE="decision"
     ;;
   *)
-    echo "Error: Unknown preset '${PRESET}'. Choose from: local, mock, jev, gev, express, direct." >&2
+    echo "Error: Unknown preset '${PRESET}'. Choose from: local, mock, jev, gev, express, direct, tool." >&2
     usage >&2
     exit 1
     ;;

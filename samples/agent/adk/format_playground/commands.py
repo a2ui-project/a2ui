@@ -21,7 +21,7 @@ from typing import Literal
 
 from modes import PlaygroundSettings, RenderMode, as_mode
 
-CommandName = Literal["mode", "backend", "compare", "trace", "help"]
+CommandName = Literal["mode", "backend", "compare", "trace", "help", "rate", "ratings"]
 
 DECISION_BACKENDS: tuple[str, ...] = ("jev", "gev", "local", "mock")
 
@@ -31,6 +31,8 @@ _KNOWN: tuple[CommandName, ...] = (
     "compare",
     "trace",
     "help",
+    "rate",
+    "ratings",
 )
 
 
@@ -42,10 +44,12 @@ class Command:
     argument: str | None = None
     """The first word after the command, lowercased; for `/help`, an `unknown:<text>`
     marker when the user typed a command that does not exist."""
+    text: str | None = None
+    """The remainder of the command line after the argument, if any."""
 
 
 def parse_command(text: str) -> Command | None:
-    """Parses `/mode express`, `/compare`, `/trace`, or `/help`; None for plain text."""
+    """Parses `/mode express`, `/compare`, `/trace`, `/rate`, `/ratings`, or `/help`."""
     stripped = text.strip()
     if not stripped.startswith("/"):
         return None
@@ -54,9 +58,10 @@ def parse_command(text: str) -> Command | None:
         return Command("help", argument="unknown:/")
     name = words[0].lower()
     argument = words[1].lower() if len(words) > 1 else None
+    rest = " ".join(words[2:]) if len(words) > 2 else None
     if name not in _KNOWN:
         return Command("help", argument=f"unknown:{stripped}")
-    return Command(name, argument)  # type: ignore[arg-type]
+    return Command(name, argument, rest)
 
 
 def apply_command(
@@ -91,10 +96,12 @@ def help_text(
             f"Active mode: `{settings.mode}` · decision backend: `{backend_name}`"
             f" · model: `{model_name}`"
         ),
-        "`/mode decision|express|direct` picks how the next requests render.",
+        "`/mode decision|express|direct|tool` picks how the next requests render.",
         "`/backend jev|gev|local|mock` switches the decision model.",
         "`/compare` renders the next request through all three modes.",
         "`/trace` shows the planner's questions for the last decision render.",
+        "`/rate <mode> [comment]` records a preference vote for the last render.",
+        "`/ratings` summarizes recorded mode preference win counts.",
         "`/help` shows this card.",
         (
             "Try: *give me an address entry form*, *show my stock portfolio*,"

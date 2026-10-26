@@ -46,7 +46,7 @@ class MissingAPIKeyError(Exception):
 @click.option(
     "--mode",
     type=click.Choice([m.value for m in RenderMode], case_sensitive=False),
-    default=RenderMode.DECISION.value,
+    default=os.getenv("A2UI_PLAYGROUND_MODE") or RenderMode.DECISION.value,
     help="Initial render mode for new conversations.",
 )
 @click.option(
