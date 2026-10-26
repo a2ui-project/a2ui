@@ -658,6 +658,32 @@ void main() {
       );
     });
 
+    test('an event with a function call userMessage', () {
+      expect(
+        roundTripV1([
+          {
+            'id': 'root',
+            'component': 'Links',
+            'items': [
+              {
+                'label': 'Reply',
+                'action': {
+                  'event': {
+                    'name': 'reply',
+                    'userMessage': {
+                      '@call': 'openUrl',
+                      'args': {'url': 'https://a2ui.org'},
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ]),
+        contains('Event("reply", userMessage=openUrl("https://a2ui.org"))'),
+      );
+    });
+
     test('a functionCall in a list item action slot as a plain call', () {
       expect(
         roundTripV1([

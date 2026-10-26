@@ -571,7 +571,8 @@ class _Component {
             (context == null || (context is Map && context.isNotEmpty)) &&
             (userMessage == null ||
                 userMessage is String ||
-                _binding(_asMap(userMessage)) != null);
+                _binding(_asMap(userMessage)) != null ||
+                _call(_asMap(userMessage)) != null);
         if (isEvent) {
           final arguments = <String>[
             _string(name),

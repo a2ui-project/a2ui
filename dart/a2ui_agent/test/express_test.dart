@@ -855,6 +855,23 @@ surface("s1")
           'required': ['component', 'child', 'action'],
         },
       },
+      'functions': {
+        'openUrl': {
+          'type': 'object',
+          'returnType': 'void',
+          'properties': {
+            '@call': {'const': 'openUrl'},
+            'args': {
+              'type': 'object',
+              'properties': {
+                'url': {'type': 'string'},
+              },
+              'required': ['url'],
+            },
+          },
+          'required': ['@call', 'args'],
+        },
+      },
     });
 
     /// The action of the `root` Button [block] compiles to.
@@ -922,10 +939,45 @@ surface("s1")
       );
     });
 
-    test('rejects a userMessage that is neither a string nor a path', () {
+    test('compiles a function call userMessage, as DynamicString allows', () {
+      expect(
+        action(
+          'root = Button(label, Event("go", '
+          'userMessage=openUrl("https://a2ui.org")))',
+        ),
+        {
+          'event': {
+            'name': 'go',
+            'userMessage': {
+              '@call': 'openUrl',
+              'args': {'url': 'https://a2ui.org'},
+            },
+          },
+        },
+      );
+    });
+
+    test('rejects a userMessage that is not a DynamicString, naming it', () {
       expect(
         () => action('root = Button(label, Event("go", userMessage=42))'),
-        throwsError<A2uiValidationError>(),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            'Event userMessage must be a string, a \$path data binding or a '
+                'function call, got the number 42.',
+          ),
+        ),
+      );
+      expect(
+        () => action('root = Button(label, Event("go", userMessage={a: 1}))'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('got a map literal.'),
+          ),
+        ),
       );
     });
 

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../utils/catalogs.dart';
@@ -1140,10 +1141,14 @@ class _SurfaceCompiler {
         userMessageNode,
         context.child('userMessage'),
       );
-      if (userMessage is! String && !_isBinding(userMessage)) {
+      // `userMessage` is a DynamicString: a string, a data binding or a
+      // function call.
+      if (userMessage is! String &&
+          !_isBinding(userMessage) &&
+          !_isCall(userMessage)) {
         throw A2uiValidationError(
-          'The userMessage of Event must be a string or a data path, such as '
-          'Event("reply", userMessage="Replying now").',
+          'Event userMessage must be a string, a \$path data binding or a '
+          'function call, got ${_describe(userMessageNode)}.',
         );
       }
       event['userMessage'] = userMessage;
@@ -1185,6 +1190,25 @@ class _SurfaceCompiler {
 
   bool _isBinding(Object? value) =>
       value is Map && value.length == 1 && value[_pathKey] is String;
+
+  bool _isCall(Object? value) => value is Map && value[_callKey] is String;
+
+  /// Names a parsed value for an error message in the terms the model wrote
+  /// it in, rather than as the node's type.
+  String _describe(ExpressNode node) => switch (node) {
+    CallNode(:final String name) => 'a call to $name(...)',
+    CheckNode(:final String name) => 'a check (?$name)',
+    VariableNode(:final String name) => 'the variable $name',
+    PathNode(:final String path) => 'the data binding \$$path',
+    SkippedNode() => "'_'",
+    MapNode() => 'a map literal',
+    ArrayNode() => 'a list',
+    LiteralNode(value: null) => 'null',
+    LiteralNode(value: final bool value) => 'the boolean $value',
+    LiteralNode(value: final num value) => 'the number ${jsonEncode(value)}',
+    LiteralNode(value: final String value) => 'the string ${jsonEncode(value)}',
+    LiteralNode(:final Object? value) => 'a ${value.runtimeType}',
+  };
 }
 
 /// Marks a context in which a component cannot be written.
