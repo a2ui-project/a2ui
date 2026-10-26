@@ -94,7 +94,7 @@ describe('ExpressFormat', () => {
       surfaceId: 'custom_surface',
       version: 'v1.0',
     });
-    expect(format.supportsStreaming).toBe(false);
+    expect(format.supportsStreaming).toBe(true);
     expect(format.promptGenerator).toBeInstanceOf(ExpressPromptGenerator);
   });
 
@@ -110,11 +110,11 @@ describe('ExpressFormat', () => {
     expect((parser as ExpressParser).catalogs[0]).toBe(catalog1);
   });
 
-  it('createParser result has supportsStreaming false and openStream throws', () => {
+  it('createParser result supports streaming', () => {
     const format = new ExpressFormat([catalog1]);
     const parser = format.createParser();
-    expect(parser.supportsStreaming).toBe(false);
-    expect(() => parser.openStream()).toThrow('Streaming is not supported by ExpressParser');
+    expect(parser.supportsStreaming).toBe(true);
+    expect(parser.openStream().close()).toEqual([]);
   });
 
   describe('Version handling', () => {

@@ -21,7 +21,7 @@
  * delegating compilation to ExpressCompiler and decompilation to ExpressDecompiler.
  */
 
-import {Parser} from '../../parser/parser.js';
+import {ParseOptions, Parser} from '../../parser/parser.js';
 import {RawResponsePart} from '../../parser/response-part.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {BlockLexer} from '../../parser/lexer.js';
@@ -34,6 +34,7 @@ import {
 } from '../../errors.js';
 import {ExpressCompiler, formatErrorMessage} from './compiler.js';
 import {ExpressDecompiler} from './decompiler.js';
+import {ExpressResponseStream} from './response-stream.js';
 import {
   ExpressCompilerError,
   ExpressParseError,
@@ -89,6 +90,10 @@ export class ExpressParser extends Parser {
       new Set(['#', '//', '--']),
     );
     this.decompiler = new ExpressDecompiler(this.catalogs, this.version);
+  }
+
+  override get supportsStreaming(): boolean {
+    return true;
   }
 
   hasFormatContent(content: string, {complete = false}: {complete?: boolean} = {}): boolean {
@@ -161,5 +166,12 @@ export class ExpressParser extends Parser {
    */
   wrapDecompiledBlocks(blocks: string[]): string {
     return this.decompiler.wrapDecompiledBlocks(blocks);
+  }
+
+  /**
+   * Opens a stream that emits text as it arrives and each block when its close tag arrives.
+   */
+  override openStream({wrapped = true, state}: ParseOptions = {}): ExpressResponseStream {
+    return new ExpressResponseStream(this, this.lexer, wrapped, state ?? this.emptyState());
   }
 }

@@ -59,7 +59,7 @@ A response parsed whole is applied to the state all or nothing. To check one pay
 
 ## Streaming
 
-Direct JSON responses can be read as they arrive. `openStream` returns a `ResponseStream` for one response: pass each chunk to `feed` and call `close` after the last one. Each message the stream emits has been checked and applied to the state, so a canvas state matches what the client received even when a response fails part way.
+Responses can be read as they arrive. `openStream` returns a `ResponseStream` for one response: pass each chunk to `feed` and call `close` after the last one. Each message the stream emits has been checked and applied to the state, so a canvas state matches what the client received even when a response fails part way.
 
 ```ts
 const stream = processor.openStream({state});
@@ -69,7 +69,9 @@ for await (const chunk of modelStream) {
 for (const part of stream.close()) send(part);
 ```
 
-`close` emits text that was held back because it could have started a tag, throws a `ParseError` if a block is still open, and checks the tree of a response read with `wrapped: false`. A stream that throws has ended. The error's `partialResults` holds the parts the chunk made ready before the failure, which have been applied to the state, so send them too. Express responses are read whole.
+`close` emits text that was held back because it could have started a tag and checks the tree of a response read with `wrapped: false`. A stream that throws has ended. The error's `partialResults` holds the parts the chunk made ready before the failure, which have been applied to the state, so send them too.
+
+A Direct JSON stream emits each message as soon as it reads, and an `updateComponents` or `updateDataModel` again as it grows. An Express stream emits text as it arrives but holds each block until its close tag arrives, then compiles, applies and emits it whole; a response that ends inside a block is compiled as far as it goes. `close` throws a `ParseError` if a Direct JSON block is still open.
 
 By default the first rejected block ends the stream. To show the rest of the response, open the stream with `afterRejectedBlock: 'continue'`. `feed` and `close` then return an `ErrorPart` in place of a rejected block and go on with the text and blocks after it. The messages the block emitted before it was rejected stay in the state.
 

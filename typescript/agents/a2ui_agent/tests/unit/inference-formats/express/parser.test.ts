@@ -275,12 +275,19 @@ describe('ExpressParser', () => {
   });
 
   describe('streaming', () => {
-    it('has supportsStreaming equal to false', () => {
-      expect(parser.supportsStreaming).toBe(false);
+    it('has supportsStreaming equal to true', () => {
+      expect(parser.supportsStreaming).toBe(true);
     });
 
-    it('throws when openStream is called', () => {
-      expect(() => parser.openStream()).toThrow('Streaming is not supported by ExpressParser');
+    it('opens a stream that reads the response chunk by chunk', () => {
+      const stream = parser.openStream();
+      expect(stream.feed('Hi <a2ui>\nroot = Text("Hello")\n')).toEqual([
+        {type: 'text', text: 'Hi'},
+      ]);
+      const parts = stream.feed('</a2ui>');
+      expect(parts).toHaveLength(1);
+      expect(parts[0].type).toBe('a2ui');
+      expect(stream.close()).toEqual([]);
     });
   });
 });

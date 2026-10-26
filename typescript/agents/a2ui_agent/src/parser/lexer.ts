@@ -47,6 +47,8 @@ export class BlockLexer {
   private readonly singleLineComments: Set<string>;
   private readonly payloadStartPattern: RegExp;
   private readonly stripEdgeBackticks: boolean;
+  /** The name of the open tag, such as `a2ui`, when the tag was given as a string. */
+  readonly openTagName: string | undefined;
 
   /**
    * Initializes the block lexer with tag patterns, string delimiters, and comments.
@@ -74,6 +76,7 @@ export class BlockLexer {
     this.singleLineComments = singleLineComments;
     this.payloadStartPattern = payloadStartPattern;
     this.stripEdgeBackticks = stripEdgeBackticks;
+    this.openTagName = typeof openTag === 'string' ? openTag.replace(/[<>/]/g, '') : undefined;
   }
 
   private toStickyRegExp(tag: string | RegExp, isClose: boolean): RegExp {
@@ -111,6 +114,38 @@ export class BlockLexer {
       source = source.substring(1);
     }
     return new RegExp(source, flags);
+  }
+
+  /**
+   * Finds the first open tag in `text`.
+   *
+   * @returns The offsets where the tag starts and ends, or undefined if there is none.
+   */
+  findOpenTag(text: string): {start: number; end: number} | undefined {
+    const match = this.openTagSearchPattern.exec(text);
+    if (!match || match.index === undefined) {
+      return undefined;
+    }
+    return {start: match.index, end: match.index + match[0].length};
+  }
+
+  /**
+   * Finds the close tag that ends the block starting at `start`, skipping string literals
+   * and comments so a tag written inside them does not end the block.
+   *
+   * @returns The offsets where the close tag starts and ends, or undefined while the block
+   *   is still open.
+   */
+  findCloseTag(content: string, start: number): [number, number] | undefined {
+    return this.scanBlock(content, start, content.length) ?? undefined;
+  }
+
+  /**
+   * Cleans the body of a block as `tokenize` does: Markdown fences, then backticks left at
+   * its edges.
+   */
+  cleanBlock(text: string): string {
+    return this.cleanRaw(text);
   }
 
   /**
