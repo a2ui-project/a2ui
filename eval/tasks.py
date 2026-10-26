@@ -18,6 +18,8 @@ from __future__ import annotations
 
 # pylint: disable=duplicate-code
 
+from collections.abc import Sequence
+
 from google import genai
 from google.genai import errors
 from inspect_ai import Task, task
@@ -45,7 +47,7 @@ def dataset_protocol_version(dataset_name: str) -> str | None:
     return None
 
 
-def split_dataset_names(dataset: str | list[str] | None) -> list[str]:
+def split_dataset_names(dataset: str | Sequence[str] | None) -> list[str]:
     """Splits a comma-separated dataset string or list into dataset names."""
     if not dataset:
         return []
@@ -53,7 +55,7 @@ def split_dataset_names(dataset: str | list[str] | None) -> list[str]:
     return [name.strip() for name in raw if name.strip()]
 
 
-def _check_task_inputs(version: str, dataset: str | list[str] | None) -> None:
+def _check_task_inputs(version: str, dataset: str | Sequence[str] | None) -> None:
     """Validates the protocol version and datasets of a task.
 
     Raises:
@@ -99,12 +101,102 @@ Notes for grading:
 """
 
 
+def _list_models_task() -> Task:
+    """Prints the available Gemini models and returns a no-op task."""
+    client = genai.Client()
+    print("\nAvailable Gemini Models:")
+    try:
+        for m in client.models.list():
+            print(f"- {m.name}")
+    except errors.APIError as e:
+        print(f"Error listing models: {e}")
+
+    return Task(
+        dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
+        solver=[],
+        scorer=[dummy_scorer()],
+    )
+
+
+def build_task(
+    *,
+    active_version: str,
+    default_catalog_path: str,
+    grading_model: str,
+    strategy: str,
+    dataset: str | Sequence[str] | None,
+    tags: str | Sequence[str] | None = None,
+    no_judge: bool = False,
+    max_validation_retries: int = 0,
+    subagent_format: str = "direct_json",
+) -> Task:
+    """Builds the evaluation task for one protocol version.
+
+    Args:
+        active_version: The protocol version ('0.9.1' or '1.0').
+        default_catalog_path: Catalog used by samples that name none.
+        grading_model: The model used for LLM-as-a-judge grading.
+        strategy: The evaluation strategy (a key of `STRATEGIES`).
+        dataset: Dataset name(s) to evaluate, or None for all of them.
+        tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
+        no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
+        max_validation_retries: Validation self-retries per sample (Pass@K).
+        subagent_format: Inference format of the `subagent_tool` specialist.
+    """
+    _check_task_inputs(active_version, dataset)
+    format_name = (
+        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
+    )
+    if strategy == "skill_mode":
+        format_name = "express"
+    elif strategy == "subagent_tool":
+        format_name = subagent_format
+
+    dataset_obj = load_a2ui_dataset(
+        dataset=dataset,
+        default_catalog_path=default_catalog_path,
+        version=active_version,
+        format_name=format_name,
+        tags=tags,
+    )
+
+    return Task(
+        dataset=dataset_obj,
+        solver=get_solver(
+            strategy,
+            version=active_version,
+            max_validation_retries=max_validation_retries,
+            subagent_format=subagent_format,
+        ),
+        scorer=[
+            a2ui_scorer(version=active_version),
+            measured_model_graded_qa(
+                model=grading_model,
+                instructions=GRADER_INSTRUCTIONS,
+                no_judge=no_judge,
+            ),
+        ],
+        metadata={
+            "strategy": strategy,
+            "version": active_version,
+            "subagent_format": subagent_format,
+            "max_validation_retries": max_validation_retries,
+            "no_judge": no_judge,
+            "tags": tags,
+        },
+    )
+
+
 @task
 def a2ui_v0_9_1_eval(
     list_models: bool = False,
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "direct",
-    dataset: str | list[str] | None = None,
+    dataset: str | Sequence[str] | None = None,
+    tags: str | Sequence[str] | None = None,
+    no_judge: bool = False,
+    max_validation_retries: int = 0,
+    subagent_format: str = "direct_json",
 ) -> Task:
     """Evaluation task for A2UI v0.9.1 protocol generation.
 
@@ -113,53 +205,26 @@ def a2ui_v0_9_1_eval(
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'direct').
         dataset: Specific dataset name or list of dataset names.
+        tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
+        no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
+        max_validation_retries: Validation self-retries per sample (Pass@K).
+        subagent_format: Inference format of the `subagent_tool` specialist.
 
     Returns:
         An Inspect Task object configured for A2UI v0.9.1 evaluation.
     """
-
     if list_models:
-        client = genai.Client()
-        print("\nAvailable Gemini Models:")
-        try:
-            for m in client.models.list():
-                print(f"- {m.name}")
-        except errors.APIError as e:
-            print(f"Error listing models: {e}")
-
-        return Task(
-            dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
-            solver=[],
-            scorer=[dummy_scorer()],
-        )
-
-    active_version = "0.9.1"
-    _check_task_inputs(active_version, dataset)
-    default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
-    format_name = (
-        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
-    )
-
-    dataset_obj = load_a2ui_dataset(
+        return _list_models_task()
+    return build_task(
+        active_version="0.9.1",
+        default_catalog_path="specification/v0_9_1/catalogs/basic/catalog.json",
+        grading_model=grading_model,
+        strategy=strategy,
         dataset=dataset,
-        default_catalog_path=default_catalog_path,
-        version=active_version,
-        format_name=format_name,
-    )
-
-    return Task(
-        dataset=dataset_obj,
-        solver=get_solver(strategy, version=active_version),
-        scorer=[
-            a2ui_scorer(version=active_version),
-            measured_model_graded_qa(
-                model=grading_model, instructions=GRADER_INSTRUCTIONS
-            ),
-        ],
-        metadata={
-            "strategy": strategy,
-            "version": active_version,
-        },
+        tags=tags,
+        no_judge=no_judge,
+        max_validation_retries=max_validation_retries,
+        subagent_format=subagent_format,
     )
 
 
@@ -168,7 +233,11 @@ def a2ui_v1_0_eval(
     list_models: bool = False,
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "express",
-    dataset: str | list[str] | None = None,
+    dataset: str | Sequence[str] | None = None,
+    tags: str | Sequence[str] | None = None,
+    no_judge: bool = False,
+    max_validation_retries: int = 0,
+    subagent_format: str = "direct_json",
 ) -> Task:
     """Evaluation task for A2UI v1.0 protocol generation.
 
@@ -177,51 +246,24 @@ def a2ui_v1_0_eval(
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'express').
         dataset: Specific dataset name or list of dataset names.
+        tags: Tag(s) a sample must carry to be evaluated (e.g. 'smoke').
+        no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
+        max_validation_retries: Validation self-retries per sample (Pass@K).
+        subagent_format: Inference format of the `subagent_tool` specialist.
 
     Returns:
         An Inspect Task object configured for A2UI v1.0 evaluation.
     """
-
     if list_models:
-        client = genai.Client()
-        print("\nAvailable Gemini Models:")
-        try:
-            for m in client.models.list():
-                print(f"- {m.name}")
-        except errors.APIError as e:
-            print(f"Error listing models: {e}")
-
-        return Task(
-            dataset=MemoryDataset(samples=[Sample(input="dummy", target="dummy")]),
-            solver=[],
-            scorer=[dummy_scorer()],
-        )
-
-    active_version = "1.0"
-    _check_task_inputs(active_version, dataset)
-    default_catalog_path = "catalogs/basic/v1/catalog.json"
-    format_name = (
-        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
-    )
-
-    dataset_obj = load_a2ui_dataset(
+        return _list_models_task()
+    return build_task(
+        active_version="1.0",
+        default_catalog_path="catalogs/basic/v1/catalog.json",
+        grading_model=grading_model,
+        strategy=strategy,
         dataset=dataset,
-        default_catalog_path=default_catalog_path,
-        version=active_version,
-        format_name=format_name,
-    )
-
-    return Task(
-        dataset=dataset_obj,
-        solver=get_solver(strategy, version=active_version),
-        scorer=[
-            a2ui_scorer(version=active_version),
-            measured_model_graded_qa(
-                model=grading_model, instructions=GRADER_INSTRUCTIONS
-            ),
-        ],
-        metadata={
-            "strategy": strategy,
-            "version": active_version,
-        },
+        tags=tags,
+        no_judge=no_judge,
+        max_validation_retries=max_validation_retries,
+        subagent_format=subagent_format,
     )

@@ -18,6 +18,7 @@ import argparse
 import os
 import sys
 from typing import Any
+
 import pytest
 
 # Add bin directory to path to import run_ci_evals
@@ -307,3 +308,50 @@ def test_generate_markdown_summary_fail() -> None:
     assert "  > Second line error" in summary
     assert "- **Judging Failure Reason (Grade I)**:" in summary
     assert "  > Incomplete" in summary
+
+
+def test_build_main_command_forwards_tier_and_judge_flags() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=0,
+        grading_model="google/gemini-3.6-flash",
+        tier="smoke",
+        no_judge=True,
+        max_validation_retries=2,
+    )
+    cmd = build_main_command(args, "20260507")
+    assert cmd[cmd.index("--tier") + 1] == "smoke"
+    assert "--no-judge" in cmd
+    assert cmd[cmd.index("--max-validation-retries") + 1] == "2"
+    assert "--tags" not in cmd
+
+
+def test_build_main_command_forwards_tags() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=0,
+        grading_model="google/gemini-3.6-flash",
+        tags="smoke,stateful",
+        max_validation_retries=0,
+        no_judge=False,
+    )
+    cmd = build_main_command(args, "20260507")
+    assert cmd[cmd.index("--tags") + 1] == "smoke,stateful"
+    assert "--max-validation-retries" not in cmd
+    assert "--no-judge" not in cmd
+
+
+def test_build_main_command_omits_new_flags_by_default() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=0,
+        grading_model="google/gemini-3.6-flash",
+    )
+    cmd = build_main_command(args, "20260507")
+    for flag in (
+        "--tier",
+        "--tags",
+        "--no-judge",
+        "--max-validation-retries",
+    ):
+        assert flag not in cmd
