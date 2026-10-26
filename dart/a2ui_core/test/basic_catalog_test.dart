@@ -605,7 +605,13 @@ void main() {
       );
       expect(
         () => _call(v09, 'regex', {'value': 'abc', 'pattern': '[invalid('}),
-        throwsA(isA<A2uiExpressionError>()),
+        throwsA(
+          isA<A2uiExpressionError>().having(
+            (e) => e.details,
+            'details',
+            isA<String>(),
+          ),
+        ),
       );
     });
   });
