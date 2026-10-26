@@ -518,6 +518,47 @@
             component: "Text"
             text: "Reply"
 
+- name: test_compile_express_event_user_message_function_call
+  description: A userMessage given as a function call compiles to a function call, since the v1.0 field is a DynamicString, which a string, a data binding or a function call satisfies.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", userMessage=formatString("Replying to ${/thread/title}")))
+    label = Text("Reply")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "reply"
+                userMessage:
+                  "@call": "formatString"
+                  args:
+                    value: "Replying to ${/thread/title}"
+          - id: "label"
+            component: "Text"
+            text: "Reply"
+
+- name: test_compile_express_event_user_message_that_is_not_a_dynamic_string_is_a_validation_error
+  description: A userMessage that is none of a string, a data binding or a function call, such as a number or a map literal, is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", userMessage={text: "Replying now"}))
+    label = Text("Reply")
+  expect_error:
+    category: "ValidationError"
+
 - name: test_compile_express_event_context_keyword
   description: The context map of an Event can be given by keyword as well as positionally.
   action: compile

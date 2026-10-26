@@ -645,6 +645,35 @@
     - 'Event("reply", {threadId: "t1"}, userMessage=$/draft/message)'
   expect_round_trip: true
 
+- name: test_decompile_express_event_action_with_function_call_user_message
+  description: An event whose userMessage is a function call is still written as an Event, with the call as the userMessage= argument, so it compiles back to the same action.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "bText"
+            action:
+              event:
+                name: "reply"
+                userMessage:
+                  "@call": "formatString"
+                  args:
+                    value: "Replying to ${/thread/title}"
+          - id: "bText"
+            component: "Text"
+            text: "Reply"
+  expect_contains:
+    - 'Event("reply", userMessage=formatString("Replying to ${/thread/title}"))'
+  expect_round_trip: true
+
 - name: test_decompile_express_function_call_in_list_item_action_slot
   description: A functionCall action nested inside a list item writes out as a plain function call in the item's map literal, which the compiler reads back into the same functionCall because the slot is an action.
   action: decompile
