@@ -1015,8 +1015,10 @@ export class ExpressDecompiler {
         return `_template(${pathRepr}, ${compIdRepr})`;
       }
 
+      // A data binding is an object whose only key is the version's binding key, so a plain
+      // `path` key in v1.0, or a binding key beside other keys, is data.
       const boundPath = obj[helper.keys.path];
-      if (typeof boundPath === 'string') {
+      if (typeof boundPath === 'string' && Object.keys(obj).length === 1) {
         const pathStr = boundPath;
         if (pathStr.startsWith('/')) {
           return `$/${pathStr.slice(1)}`;
@@ -1049,9 +1051,8 @@ export class ExpressDecompiler {
         );
       }
 
-      const callName =
-        obj[helper.keys.call] ??
-        ('call' in obj && ('args' in obj || 'catalogId' in obj) ? obj.call : undefined);
+      // Only the version's function call key names a call, so a plain `call` key in v1.0 is data.
+      const callName = obj[helper.keys.call];
       if (typeof callName === 'string') {
         return this.formatFunctionCall(obj, varNames, surfaceCatalogId);
       }

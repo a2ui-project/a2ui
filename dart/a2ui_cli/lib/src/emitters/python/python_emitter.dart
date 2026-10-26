@@ -23,6 +23,7 @@ library;
 
 import 'dart:io';
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:path/path.dart' as p;
 
 import '../../analyzer/catalog_analyzer.dart' show capitalize;
@@ -95,10 +96,22 @@ String extractCatalogName(String catalogId) {
   return last.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
 }
 
+/// Protocol versions supported by the Python code generator.
+const Set<A2uiProtocolVersion> supportedCodegenVersions = {
+  A2uiProtocolVersion.v0_9,
+  A2uiProtocolVersion.v0_9_1,
+  A2uiProtocolVersion.v1_0,
+};
+
 String _resolveDefaultBaseImport(String specVersion) {
-  // Code generation currently targets the v0.9/v0.9.1 builder runtime.
-  // v1.0 builder support will be added when the Python v1.0 runtime lands.
-  return 'a2ui.builder.v0_9';
+  final A2uiProtocolVersion version =
+      A2uiProtocolVersion.tryParseSemVer(specVersion) ??
+      A2uiProtocolVersion.v0_9_1;
+  return switch (version) {
+    A2uiProtocolVersion.v0_9 ||
+    A2uiProtocolVersion.v0_9_1 => 'a2ui.builder.v0_9',
+    A2uiProtocolVersion.v1_0 => 'a2ui.builder.v1_0',
+  };
 }
 
 /// Renders a catalog description as a one-line Python docstring.

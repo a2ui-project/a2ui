@@ -27,7 +27,10 @@ import {fileURLToPath} from 'url';
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {FileSystemCatalogProvider} from '../../src/index.js';
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
+export const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../../..',
+);
 
 /** Published basic catalog ids, by protocol version. */
 export const BASIC_CATALOG_IDS = {
