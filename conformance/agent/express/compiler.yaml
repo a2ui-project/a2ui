@@ -63,6 +63,10 @@
 #   a map, an `Event` or a check is substituted wherever it is named, and emits
 #   nothing of its own. Without this rule the two would be indistinguishable,
 #   since both are written `name = value`.
+# - A map literal is data. Its keys are kept as written, quoted or not, even a
+#   key that shares its name with an Express construct, such as `variable`,
+#   `path`, `call` or `check`, and a variable of the same name as one of its
+#   string values does not replace that value.
 # - As compile-time repairs on top of `Express.g4` (whose `COMMENT` rule is
 #   `#` and `//` only), `--` single-line comments outside string literals, raw
 #   line breaks at the edges of standard double-quoted strings, and tokens
@@ -1539,3 +1543,192 @@
           - id: "root"
             component: "Text"
             text: "Hello\nWorld"
+
+- name: test_compile_express_map_literal_keeps_keys_named_like_express_constructs
+  description: A map literal whose keys share a name with an Express construct compiles to the same map, not to a reference, binding, call or check.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    root = Probe({variable: "m", path: "p", call: "c", check: "k", skipped: true, kind: "map", count: 6})
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              variable: "m"
+              path: "p"
+              call: "c"
+              check: "k"
+              skipped: true
+              kind: "map"
+              count: 6
+
+- name: test_compile_express_map_literal_with_one_key_named_like_a_construct
+  description: A map literal with only a variable key is still a map, not a variable reference.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    root = Probe({variable: "m"})
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              variable: "m"
+
+- name: test_compile_express_map_literal_keeps_quoted_keys_named_like_constructs
+  description: Quoted keys are kept as written, like unquoted ones.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    root = Probe({"variable": "m", "path": "p", "count": 6})
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              variable: "m"
+              path: "p"
+              count: 6
+
+- name: test_compile_express_map_literal_string_value_ignores_a_variable_of_the_same_name
+  description: A string value in a map literal stays a string even when a variable of that name is assigned.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    m = "replacement"
+    root = Probe({variable: "m", count: 6})
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              variable: "m"
+              count: 6
+
+- name: test_compile_express_map_literal_value_still_resolves_a_variable_reference
+  description: A bare identifier as a map value is still a variable reference, whatever the key is named.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    label = "hi"
+    root = Probe({variable: label, title: label})
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              variable: "hi"
+              title: "hi"
+
+- name: test_compile_express_map_literals_in_function_arguments_keep_their_keys
+  description: Map literals passed to a function, nested or not, keep keys named like Express constructs, and a string argument for such a parameter stays a string.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    root = Probe(series(count=6, variable="m", item={variable: "inner", nested: {path: "deep", call: "c"}}))
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              "@call": "series"
+              args:
+                count: 6
+                variable: "m"
+                item:
+                  variable: "inner"
+                  nested:
+                    path: "deep"
+                    call: "c"
+
+- name: test_compile_express_map_with_call_like_keys_still_rejects_bindings
+  description: A path inside a map literal given to a property that admits no binding is a validation error, even when the map has keys named like an event or a function call, since a map literal is data and is searched like any other.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    root = Probe({event: "e", functionCall: "f", "@call": "c", inner: $/y})
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_skipped_outside_an_argument_is_a_validation_error
+  description: The `_` placeholder only stands in for an argument. Inside an array or a map literal it is a validation error rather than a value.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    root = Probe({items: [_]})
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_check_options_with_other_keys_is_a_validation_error
+  description: A map literal with a catalogId key in a check's arguments holds the check's options, and catalogId is the only option, so any other key is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Email", $/email, _, [?required("Email is required", {catalogId: "conformance/forms", extra: 1})])'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_variable_cycle_is_a_validation_error
+  description: A variable whose value refers back to it, directly or through other variables, has no value to compile.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  input: |-
+    a = {next: b}
+    b = a
+    root = Probe(a)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_check_options_with_null_catalog_id_is_a_validation_error
+  description: A check's options map must name its catalog with a string; a null catalogId is rejected rather than read as no catalogId.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'root = TextField("Email", $/email, _, [?required({catalogId: null})])'
+  expect_error:
+    category: "ValidationError"
