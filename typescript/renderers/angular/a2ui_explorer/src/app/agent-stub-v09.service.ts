@@ -19,6 +19,7 @@ import {A2uiRendererService} from '@a2ui/angular/v0_9';
 import {A2uiClientAction, A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
 import {ActionDispatcher} from './action-dispatcher.service';
 import {AgentStubService} from './agent-stub.service';
+import {handleMcpToolAction} from './mcp';
 
 /**
  * Context for the 'update_property' event.
@@ -100,6 +101,8 @@ export class AgentStubV09Service extends AgentStubService {
             },
           },
         ]);
+      } else {
+        void handleMcpToolAction(action, this.rendererService);
       }
     }, 50);
   }

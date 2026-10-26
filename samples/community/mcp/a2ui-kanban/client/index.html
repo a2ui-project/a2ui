@@ -1,0 +1,64 @@
+<!doctype html>
+<!--
+ Copyright 2024 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      https://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>A2UI Kanban showcase</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --chat-bg: light-dark(#f9fafb, #0f172a);
+        --chat-fg: light-dark(#111827, #f3f4f6);
+        --chat-muted: light-dark(#4b5563, #cbd5e1);
+        --chat-border: light-dark(#d1d5db, #334155);
+        --chat-surface-bg: light-dark(#ffffff, #1e293b);
+        --chat-agent-bg: light-dark(#e5e7eb, #1e293b);
+        --chat-input-bg: light-dark(#ffffff, #1e293b);
+        --chat-code-bg: light-dark(#f3f4f6, #0f172a);
+        --chat-accent: light-dark(#1d4ed8, #93c5fd);
+        --chat-primary-bg: #1d4ed8;
+        --chat-primary-fg: #ffffff;
+        --a2ui-color-background: var(--chat-surface-bg);
+        --a2ui-color-on-background: var(--chat-fg);
+        --a2ui-color-surface: var(--chat-surface-bg);
+        --a2ui-color-on-surface: var(--chat-fg);
+        --a2ui-color-border: var(--chat-border);
+        --a2ui-color-primary: var(--chat-accent);
+        --a2ui-color-on-primary: var(--chat-primary-fg);
+        --a2ui-text-color-text: var(--chat-fg);
+        --a2ui-text-caption-color: var(--chat-muted);
+        --a2ui-tabs-header-color: var(--chat-muted);
+        --a2ui-tabs-header-color-active: var(--chat-accent);
+        --a2ui-card-background: var(--chat-surface-bg);
+        --a2ui-card-margin: 0px;
+      }
+
+      html,
+      body {
+        margin: 0;
+        background: var(--chat-bg);
+        color: var(--chat-fg);
+      }
+    </style>
+  </head>
+  <body>
+    <a2ui-kanban-chat></a2ui-kanban-chat>
+    <script type="module" src="./src/app.ts"></script>
+  </body>
+</html>
