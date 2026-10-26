@@ -334,6 +334,15 @@ class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
             'Event("reply", {threadId: "t1"}, userMessage=$/draft/message)', decompiled
         )
 
+    def test_event_user_message_function_call_round_trips(self):
+        decompiled = self._round_trip(
+            'root = Links([{label: "Reply", action: Event("reply",'
+            ' userMessage=openUrl("https://a2ui.org"))}])'
+        )
+        self.assertIn(
+            'Event("reply", userMessage=openUrl("https://a2ui.org"))', decompiled
+        )
+
     def test_function_call_in_list_item_action_slot_is_written_as_a_call(self):
         decompiled = self._round_trip(
             'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}])'

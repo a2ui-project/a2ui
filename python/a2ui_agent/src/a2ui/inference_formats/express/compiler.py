@@ -23,6 +23,7 @@ The grammar for A2UI Express is defined in Express.g4.
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+import json
 import re
 from typing import Any, Literal
 
@@ -252,6 +253,38 @@ def _schema_allows_databinding(schema: Any) -> bool:
                 if _schema_allows_databinding(sub):
                     return True
     return False
+
+
+def _describe_express_value(val: Any) -> str:
+    """Names a parsed value for an error message in the terms the model wrote it in.
+
+    Returns:
+        A short phrase such as `a map literal` or `the number 42`, rather than
+        the node's repr.
+    """
+    if isinstance(val, CallNode):
+        return f"a call to {val.name}(...)"
+    if isinstance(val, CheckNode):
+        return f"a check (?{val.name})"
+    if isinstance(val, VariableNode):
+        return f"the variable {val.name}"
+    if isinstance(val, PathNode):
+        return f"the data binding ${val.path}"
+    if isinstance(val, SkippedNode):
+        return "'_'"
+    if isinstance(val, dict):
+        return "a map literal"
+    if isinstance(val, list):
+        return "a list"
+    if val is None:
+        return "null"
+    if isinstance(val, bool):
+        return f"the boolean {str(val).lower()}"
+    if isinstance(val, (int, float)):
+        return f"the number {json.dumps(val)}"
+    if isinstance(val, str):
+        return f"the string {json.dumps(val)}"
+    return f"a {type(val).__name__}"
 
 
 def _binding_path(v: Any, path_key: str) -> str | None:
@@ -1245,10 +1278,7 @@ class ExpressCompiler:
                 arg,
                 raw_symbols,
                 ctx,
-                is_action=(
-                    is_action_slot(prop_schema)
-                    or prop_name in ["action", "submitAction"]
-                ),
+                is_action=is_action_slot(prop_schema),
                 parent_id=comp_id,
                 parent_prop=prop_name,
                 slot=_ValueSlot(prop_schema, comp_helper) if prop_schema else None,
@@ -1446,15 +1476,19 @@ class ExpressCompiler:
                     "Event userMessage requires protocol v1.0 or later; the"
                     f" target version {ctx.version} has no userMessage field."
                 )
+            # `userMessage` is a DynamicString: a string, a data binding or a
+            # function call.
             user_message = self._compile_value(
                 fn_kwargs["userMessage"], raw_symbols, ctx
             )
-            if not isinstance(user_message, str) and not (
-                isinstance(user_message, dict) and ctx.path_key in user_message
-            ):
+            is_binding_or_call = isinstance(user_message, dict) and (
+                ctx.path_key in user_message or ctx.call_key in user_message
+            )
+            if not isinstance(user_message, str) and not is_binding_or_call:
                 raise ExpressValidationError(
-                    "Event userMessage must be a string or a $path data binding,"
-                    f" got: {fn_kwargs['userMessage']!r}"
+                    "Event userMessage must be a string, a $path data binding or"
+                    " a function call, got"
+                    f" {_describe_express_value(fn_kwargs['userMessage'])}."
                 )
             event_dict["userMessage"] = user_message
 

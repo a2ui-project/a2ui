@@ -467,12 +467,41 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         self.assertIsInstance(ctx.exception, ExpressValidationError)
         self.assertIn("message", str(ctx.exception))
 
-    def test_event_non_string_user_message_is_a_validation_error(self):
-        with self.assertRaises(ExpressValidationError):
+    def test_event_user_message_accepts_a_function_call(self):
+        root = self._root(
+            'root = Links([{label: "Reply", action: Event("reply",'
+            ' userMessage=concat("a", "b"))}])'
+        )
+        self.assertEqual(
+            root["items"][0]["action"],
+            {
+                "event": {
+                    "name": "reply",
+                    "userMessage": {
+                        "@call": "concat",
+                        "args": {"a": "a", "b": "b"},
+                    },
+                }
+            },
+        )
+
+    def test_event_user_message_that_is_not_a_dynamic_string_is_an_error(self):
+        with self.assertRaises(ExpressValidationError) as ctx:
             self.compiler.compile(
                 'root = Links([{label: "Reply", action: Event("reply",'
                 " userMessage=42)}])"
             )
+        self.assertEqual(
+            str(ctx.exception),
+            "Event userMessage must be a string, a $path data binding or a"
+            " function call, got the number 42.",
+        )
+        with self.assertRaises(ExpressValidationError) as ctx:
+            self.compiler.compile(
+                'root = Links([{label: "Reply", action: Event("reply",'
+                " userMessage={a: 1})}])"
+            )
+        self.assertIn("got a map literal.", str(ctx.exception))
 
     def test_event_too_many_positional_args_is_a_validation_error(self):
         with self.assertRaises(ExpressValidationError):
