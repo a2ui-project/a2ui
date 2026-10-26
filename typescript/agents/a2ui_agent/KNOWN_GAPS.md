@@ -13,6 +13,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it blocks:** Elemental and Atom use cases, and progressive rendering of a single Express block.
 - **Done looks like:** The `InferenceFormat` seam is populated with implementations for Elemental and Atom.
 
+### An Express stream does not recover a block without its open tag
+
+- **What it is:** `ExpressParser.parseResponse` recovers a block the model wrote with a close tag but no `<a2ui>`, from a Markdown fence or a payload start before the close tag. `ExpressParser.openStream` emits text as it arrives, so by the time the close tag shows the text was a block, that text has been emitted as text; the stream passes the close tag through as text too.
+- **Why it exists:** The stream is the block-at-a-time step before a streaming Express compiler. Recovering here would mean holding back prose until it is known not to be a block.
+- **What it blocks:** A streaming client shows the raw notation of a block the model wrote without its open tag.
+- **Done looks like:** The streaming Express compiler reads a block from its first statement, so the open tag is not what tells a block from prose.
+
 ### Express compilation errors have one parent class
 
 - **What it is:** `A2uiCompilationParseError` and `A2uiCompilationValidationError` extend `A2uiCompilationError` only. In main's Python they also inherit from the core parse and validation errors, so an `except A2uiValidationError` there catches an Express validation failure. The Express compiler also raises its own `ExpressSyntaxError` where Python raises the built-in `SyntaxError`.

@@ -82,14 +82,40 @@ describe('ExpressResponseStream', () => {
   });
 
   it('reads the same parts whatever the chunking', () => {
-    const response = `Intro <a2ui>\nroot = Text("Hi")\n</a2ui> and <a2ui>\nsurface("s2")\nroot = Text("Bye")\n</a2ui> outro`;
-    const whole = parser.parseResponse(response);
-
-    for (const size of [1, 3, 7, 50, response.length]) {
-      const parts = stream(parser, chunked(response, size)).flat();
-      expect(messagesOf(parts)).toEqual(messagesOf(whole));
-      expect(textsOf(parts).join('')).toEqual(textsOf(whole).join(''));
+    const responses = [
+      `Intro <a2ui>\nroot = Text("Hi")\n</a2ui> and <a2ui>\nsurface("s2")\nroot = Text("Bye")\n</a2ui> outro`,
+      // Fences around the tags, which models often write.
+      `Here:\n\`\`\`\n<a2ui>\nroot = Text("Hi")\n</a2ui>\n\`\`\`\nDone.`,
+      `\`\`\`express\n<a2ui>\nroot = Text("Hi")\n</a2ui>\n\`\`\`\n\nThen:\n\`\`\`\n<a2ui>\nsurface("s2")\nroot = Text("Bye")\n</a2ui>\n\`\`\``,
+    ];
+    for (const response of responses) {
+      const whole = parser.parseResponse(response);
+      for (const size of [1, 2, 3, 7, 50, response.length]) {
+        const parts = stream(parser, chunked(response, size)).flat();
+        expect(messagesOf(parts), `size ${size}`).toEqual(messagesOf(whole));
+        expect(textsOf(parts).join(''), `size ${size}`).toEqual(textsOf(whole).join(''));
+      }
     }
+  });
+
+  it('drops a fence line right before an open tag and right after a close tag', () => {
+    const calls = stream(parser, [
+      'Here:\n```\n',
+      `${OPEN}\nroot = Text("Hi")\n${CLOSE}`,
+      '\n```\nDone.',
+    ]);
+
+    expect(textsOf(calls[0])).toEqual(['Here:']);
+    expect(calls[1].map(part => part.type)).toEqual(['a2ui']);
+    expect(textsOf(calls[2])).toEqual(['Done.']);
+    expect(calls[3]).toEqual([]);
+  });
+
+  it('keeps a fence that is prose, not a wrapper of a block', () => {
+    const calls = stream(parser, ['Run:\n```sh\n', 'make\n```\nThen ', block]);
+
+    expect(textsOf(calls.flat()).join('')).toBe('Run:\n```sh\nmake\n```\nThen');
+    expect(componentsOf(messagesOf(calls.flat()))).toHaveLength(1);
   });
 
   it('holds back text that could start a tag until the next chunk settles it', () => {
@@ -165,6 +191,28 @@ describe('ExpressResponseStream', () => {
       text: 'Hello',
     });
     expect(() => opened.feed('more')).toThrow('The response stream is closed.');
+  });
+
+  it('checks the tree of each block on its own, unlike parseResponse', () => {
+    // A stream applies each block as it closes, so a block may not name a component a later
+    // block defines. `parseResponse` checks the response as a whole and accepts it.
+    const response = `${OPEN}\nroot = Column([a])\n${CLOSE}${OPEN}\nsurface("s1")\na = Text("A")\n${CLOSE}`;
+    expect(componentsOf(messagesOf(parser.parseResponse(response)))).toHaveLength(2);
+
+    const opened = parser.openStream();
+    expect(() => opened.feed(response)).toThrow(A2uiValidationError);
+  });
+
+  it('wraps a failure of the compiler that is not an A2uiError', () => {
+    class BrokenParser extends ExpressParser {
+      override compile(): never {
+        throw new Error('boom');
+      }
+    }
+    const opened = new BrokenParser([catalog], 's1', 'v1.0').openStream();
+
+    expect(() => opened.feed(block)).toThrow(A2uiCompilationError);
+    expect(() => opened.feed(block)).toThrow('The response stream is closed.');
   });
 
   it('throws on the chunk that closes a block that does not compile', () => {

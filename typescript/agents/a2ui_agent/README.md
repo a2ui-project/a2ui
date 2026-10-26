@@ -73,6 +73,8 @@ for (const part of stream.close()) send(part);
 
 A Direct JSON stream emits each message as soon as it reads, and an `updateComponents` or `updateDataModel` again as it grows. An Express stream emits text as it arrives but holds each block until its close tag arrives, then compiles, applies and emits it whole; a response that ends inside a block is compiled as far as it goes. `close` throws a `ParseError` if a Direct JSON block is still open.
 
+A stream checks each block on its own, where `parseResponse` checks the response as a whole: a block that names a component a later block defines is accepted by `parseResponse` and rejected by a stream, since every part a stream emits has been checked. A block the model wrote without its open tag, which `parseResponse` recovers from the close tag, is read as text by an Express stream.
+
 By default the first rejected block ends the stream. To show the rest of the response, open the stream with `afterRejectedBlock: 'continue'`. `feed` and `close` then return an `ErrorPart` in place of a rejected block and go on with the text and blocks after it. The messages the block emitted before it was rejected stay in the state.
 
 ```ts

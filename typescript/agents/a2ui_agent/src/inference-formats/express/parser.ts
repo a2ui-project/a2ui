@@ -34,7 +34,7 @@ import {
 } from '../../errors.js';
 import {ExpressCompiler, formatErrorMessage} from './compiler.js';
 import {ExpressDecompiler} from './decompiler.js';
-import {ExpressResponseStream} from './response-stream.js';
+import {ExpressResponseStream, ExpressStreamSource} from './response-stream.js';
 import {
   ExpressCompilerError,
   ExpressParseError,
@@ -172,6 +172,11 @@ export class ExpressParser extends Parser {
    * Opens a stream that emits text as it arrives and each block when its close tag arrives.
    */
   override openStream({wrapped = true, state}: ParseOptions = {}): ExpressResponseStream {
-    return new ExpressResponseStream(this, this.lexer, wrapped, state ?? this.emptyState());
+    // The stream compiles through `compileBlock`, so a failure that is not an `A2uiError`
+    // reaches the caller wrapped, as it does from `parseResponse`.
+    const source: ExpressStreamSource = {
+      compile: (formatContent, isFinal) => this.compileBlock(formatContent, isFinal ?? true),
+    };
+    return new ExpressResponseStream(source, this.lexer, wrapped, state ?? this.emptyState());
   }
 }
