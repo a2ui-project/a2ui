@@ -5,12 +5,10 @@
 - `regex` with an invalid pattern puts the parse message in the error's
   `details` instead of the `FormatException` object, so the error encodes as
   JSON.
-- **Breaking:** Errors and warnings reach their listeners after the call that
-  found them returns: at the end of each message that `processMessages`
-  applies, or a microtask after any other call. Disposing the `NodeResolver`
-  that found them no longer cancels them. Code that reads them right after
-  `NodeResolver()`, a data model write or `dispatchError` must await a
-  microtask first.
+- **Breaking:** Errors and warnings reach their listeners in a microtask
+  after the call that found them. Code that reads them right after
+  `processMessages`, `NodeResolver()`, a data model write or `dispatchError`
+  must await a microtask first.
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several

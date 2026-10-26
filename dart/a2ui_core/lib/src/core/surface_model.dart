@@ -14,8 +14,6 @@
 
 import 'dart:async';
 
-import 'package:meta/meta.dart';
-
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/semver.dart';
@@ -24,7 +22,6 @@ import 'common.dart';
 import 'component_model.dart';
 import 'data_model.dart';
 import 'messages.dart';
-import 'problem_channel.dart';
 
 /// A non-fatal condition on a surface, emitted on [SurfaceModel.onWarning].
 class A2uiWarning {
@@ -102,7 +99,6 @@ class SurfaceModel<T extends ComponentApi> {
   final _onAction = EventNotifier<A2uiRendererAction>();
   final _onError = EventNotifier<A2uiRendererError>();
   final _onWarning = EventNotifier<A2uiWarning>();
-  ProblemChannel? _problems;
 
   /// Fires whenever an action is dispatched from this surface.
   EventSource<A2uiRendererAction> get onAction => _onAction;
@@ -295,13 +291,15 @@ class SurfaceModel<T extends ComponentApi> {
     // dispatched here.
   }
 
-  /// Queues [error] for [onError] and completes once it is queued.
+  /// Emits [error] on [onError] in a microtask, so listeners never run
+  /// inside the call that found it. Completes once the microtask is
+  /// scheduled.
   Future<void> dispatchError(A2uiRendererError error) async {
-    _queue(() => _onError.emit(error));
+    scheduleMicrotask(() => _onError.emit(error));
   }
 
-  /// Queues [warning] for [onWarning], stamped with this surface's id, and
-  /// completes once it is queued.
+  /// Emits [warning] on [onWarning] in a microtask, stamped with this
+  /// surface's id. Completes once the microtask is scheduled.
   Future<void> dispatchWarning(A2uiWarning warning) async {
     final stamped = A2uiWarning(
       code: warning.code,
@@ -309,12 +307,8 @@ class SurfaceModel<T extends ComponentApi> {
       path: warning.path,
       surfaceId: id,
     );
-    _queue(() => _onWarning.emit(stamped));
+    scheduleMicrotask(() => _onWarning.emit(stamped));
   }
-
-  // Outside a group, the first report creates a queue of this surface's own.
-  void _queue(void Function() deliver) =>
-      (_problems ??= ProblemChannel()).enqueue(deliver);
 
   /// Disposes of the surface and its resources.
   void dispose() {
@@ -325,11 +319,6 @@ class SurfaceModel<T extends ComponentApi> {
     _onWarning.dispose();
   }
 }
-
-/// Makes [surface] queue its errors and warnings into [channel].
-@internal
-void attachProblemChannel(SurfaceModel surface, ProblemChannel channel) =>
-    surface._problems = channel;
 
 /// Copies maps and lists, so an action listener cannot reach the component or
 /// data model the payload was resolved from.

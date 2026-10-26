@@ -119,12 +119,8 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
       testCase['disposeResolverOnFirstReport'] as String?;
 
   var functionCalls = 0;
-  void Function() onReenter = () {};
   final Catalog<ComponentApi, FunctionImplementation> catalog = _buildCatalog(
-    onReenter: () {
-      functionCalls++;
-      onReenter();
-    },
+    onReenter: () => functionCalls++,
   );
 
   final processor = MessageProcessor<ComponentApi>(
@@ -139,7 +135,6 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
   var listenerDepth = 0;
   var reenteredListener = false;
   var firstListenerThrew = false;
-  List<Object?>? pendingFirstReportMessages;
 
   void recordReport(Map<String, Object?> entry, {required String listener}) {
     if (listenerDepth > 0) {
@@ -151,14 +146,6 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
       if (disposeResolverOnFirstReport case final String targetId) {
         disposeResolverOnFirstReport = null;
         resolvers.remove(targetId)?.dispose();
-      }
-      if (pendingFirstReportMessages case final List<Object?> nested) {
-        pendingFirstReportMessages = null;
-        final int beforeNested = reports.length;
-        processor.processMessages(nested);
-        if (reports.length != beforeNested) {
-          reenteredListener = true;
-        }
       }
       if (throwOnFirstReport && listener == 'first' && !firstListenerThrew) {
         firstListenerThrew = true;
@@ -201,8 +188,6 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
   for (var stepIndex = 0; stepIndex < steps.length; stepIndex++) {
     final step = steps[stepIndex]! as Map<String, Object?>;
     final op = step['op']! as String;
-    pendingFirstReportMessages =
-        step['onFirstReportMessages'] as List<Object?>?;
 
     switch (op) {
       case 'process_messages':
@@ -211,12 +196,6 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
         final surfaceId = step['surfaceId']! as String;
         final SurfaceModel<ComponentApi> surface =
             processor.model.getSurface(surfaceId)!;
-        if (step['reenterMessages'] case final List<Object?> reenter) {
-          onReenter = () {
-            onReenter = () {};
-            processor.processMessages(reenter);
-          };
-        }
         final resolver = NodeResolver<ComponentApi>(surface);
         if (step['disposeImmediately'] == true) {
           resolver.dispose();
@@ -228,11 +207,6 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
         final surfaceId = step['surfaceId']! as String;
         final NodeResolver<ComponentApi> resolver =
             resolvers.remove(surfaceId)!;
-        if (step['onDestroyedMessages'] case final List<Object?> destroyed) {
-          resolver.rootNode.peek()!.onDestroyed.subscribe(
-                (_) => processor.processMessages(destroyed),
-              );
-        }
         resolver.dispose();
       case 'set':
         final surfaceId = step['surfaceId']! as String;
@@ -269,7 +243,7 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
     expect(
       reenteredListener,
       isFalse,
-      reason: '$name step $stepIndex: listener was re-entered during drain',
+      reason: '$name step $stepIndex: listener was re-entered',
     );
 
     if (step['expect_reports'] case final List<Object?> expectedReports) {

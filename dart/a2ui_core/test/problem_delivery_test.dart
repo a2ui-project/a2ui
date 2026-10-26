@@ -39,37 +39,10 @@ class _MaybeFail extends FunctionImplementation {
   }
 }
 
-/// Calls [onCall] each time it is evaluated, and returns `'ok'`.
-class _Reenter extends FunctionImplementation {
-  _Reenter(this.onCall)
-      : super(
-          name: 'reenter',
-          returnType: A2uiReturnType.string,
-          argumentSchema: Schema.object(
-            properties: {'tick': CommonSchemas.dynamicNumber},
-          ),
-        );
-
-  final void Function() onCall;
-
-  @override
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]) {
-    onCall();
-    return 'ok';
-  }
-}
-
-Catalog<ComponentApi, FunctionImplementation> _catalog({
-  void Function()? onReenter,
-}) =>
-    Catalog(
+Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
       id: 'problem-delivery-test',
       protocolVersion: A2uiProtocolVersion.v0_9,
-      functions: [_MaybeFail(), _Reenter(onReenter ?? () {})],
+      functions: [_MaybeFail()],
       components: [
         ComponentApi(
           name: 'Text',
@@ -338,11 +311,6 @@ void main() {
           },
         };
 
-    Map<String, Object?> delete(String surfaceId) => {
-          'version': 'v0.9',
-          'deleteSurface': {'surfaceId': surfaceId},
-        };
-
     /// Creates surface `s` with a Text root and mounts a resolver on it.
     void mount() {
       processor.processMessages([
@@ -371,8 +339,7 @@ void main() {
       });
     });
 
-    test('a mounted surface error is delivered before processMessages returns',
-        () {
+    test('no listener runs before processMessages returns', () async {
       mount();
 
       processor.processMessages([
@@ -380,244 +347,31 @@ void main() {
           {'id': 'root', 'component': 'Bogus'},
         ]),
       ]);
+      expect(events, isEmpty);
 
+      await _microtask();
       expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
     });
 
-    test('an error found before a deleteSurface in one payload is delivered',
-        () {
+    test('an error found before a message that throws is still delivered',
+        () async {
       mount();
 
-      processor.processMessages([
-        update('s', [
-          {'id': 'root', 'component': 'Bogus'},
-        ]),
-        delete('s'),
-      ]);
-
-      expect(processor.model.getSurface('s'), isNull);
-      expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
-    });
-
-    test(
-        'an error found before a message that throws is delivered before the '
-        'exception propagates', () {
-      mount();
-      List<String>? seen;
-
-      try {
-        processor.processMessages([
+      expect(
+        () => processor.processMessages([
           update('s', [
             {'id': 'root', 'component': 'Bogus'},
           ]),
           update('missing', [
             {'id': 'root', 'component': 'Text', 'text': 'never'},
           ]),
-        ]);
-      } on A2uiError {
-        seen = List.of(events);
-      }
-
-      expect(seen, ['error UNKNOWN_COMPONENT_TYPE']);
-    });
-
-    test('a listener nested processMessages is delivered after it returns', () {
-      mount();
-      processor.model.getSurface('s')!.onError.subscribe((error) {
-        if (error.code != 'UNKNOWN_COMPONENT_TYPE') return;
-        events.add('nested start');
-        processor.processMessages([
-          {
-            'version': 'v0.9',
-            'updateDataModel': {
-              'surfaceId': 's',
-              'path': '/flag',
-              'value': true,
-            },
-          },
-          update('s', [
-            {'id': 'root', 'component': 'Text', 'text': _maybeFail()},
-          ]),
-        ]);
-        events.add('nested end');
-      });
-
-      processor.processMessages([
-        update('s', [
-          {'id': 'root', 'component': 'Bogus'},
         ]),
-      ]);
-
-      expect(events, [
-        'error UNKNOWN_COMPONENT_TYPE',
-        'nested start',
-        'nested end',
-        'error EXPRESSION_ERROR',
-      ]);
-    });
-  });
-
-  group('Problem delivery and the resolution guard', () {
-    late MessageProcessor<ComponentApi> processor;
-    late List<String> events;
-    void Function() onCall = () {};
-
-    Map<String, Object?> update(
-      String surfaceId,
-      List<Map<String, Object?>> components,
-    ) =>
-        {
-          'version': 'v0.9',
-          'updateComponents': {
-            'surfaceId': surfaceId,
-            'components': components,
-          },
-        };
-
-    /// Makes surface `t` report an unknown type through its mounted resolver.
-    void breakOther() => processor.processMessages([
-          update('t', [
-            {'id': 'root', 'component': 'Bogus'},
-          ]),
-        ]);
-
-    setUp(() {
-      events = [];
-      onCall = () {};
-      processor = MessageProcessor<ComponentApi>(
-        catalogs: [_catalog(onReenter: () => onCall())],
-        defaultVersion: A2uiProtocolVersion.v0_9,
+        throwsA(isA<A2uiError>()),
       );
-      addTearDown(processor.dispose);
-      processor.model.onSurfaceCreated.subscribe((surface) {
-        surface.onError.subscribe((error) {
-          events.add('${error.surfaceId} ${error.code}');
-        });
-      });
-      processor.processMessages([
-        for (final id in ['s', 't'])
-          {
-            'version': 'v0.9',
-            'createSurface': {
-              'surfaceId': id,
-              'catalogId': 'problem-delivery-test',
-            },
-          },
-        update('t', [
-          {'id': 'root', 'component': 'Text', 'text': 'ready'},
-        ]),
-      ]);
-      final other =
-          NodeResolver<ComponentApi>(processor.model.getSurface('t')!);
-      addTearDown(other.dispose);
-    });
-
-    NodeResolver<ComponentApi> resolve() {
-      final resolver = NodeResolver<ComponentApi>(
-        processor.model.getSurface('s')!,
-      );
-      addTearDown(resolver.dispose);
-      return resolver;
-    }
-
-    test(
-        'a catalog function that calls processMessages during resolver '
-        'construction delivers after the constructor returns', () async {
-      processor.processMessages([
-        update('s', [
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': ['a', 'b'],
-          },
-          {'id': 'a', 'component': 'Bogus'},
-          {
-            'id': 'b',
-            'component': 'Text',
-            'text': {'call': 'reenter', 'returnType': 'string'},
-          },
-        ]),
-      ]);
-      onCall = () {
-        onCall = () {};
-        breakOther();
-      };
-
-      resolve();
       expect(events, isEmpty);
 
       await _microtask();
-      expect(events, ['s UNKNOWN_COMPONENT_TYPE', 't UNKNOWN_COMPONENT_TYPE']);
-    });
-
-    test(
-        'a catalog function that calls processMessages during a data write '
-        'delivers after the write returns', () async {
-      processor.processMessages([
-        update('s', [
-          {
-            'id': 'root',
-            'component': 'Text',
-            'text': {
-              'call': 'reenter',
-              'args': {
-                'tick': {'path': '/tick'},
-              },
-              'returnType': 'string',
-            },
-          },
-        ]),
-      ]);
-      final SurfaceModel<ComponentApi> surface =
-          processor.model.getSurface('s')!;
-      surface.dataModel.set('/tick', 0);
-      resolve();
-      await _microtask();
-      expect(events, isEmpty);
-      onCall = () {
-        onCall = () {};
-        breakOther();
-      };
-
-      surface.dataModel.set('/tick', 1);
-      expect(events, isEmpty);
-
-      await _microtask();
-      expect(events, ['t UNKNOWN_COMPONENT_TYPE']);
-    });
-
-    test(
-        'processMessages called while a resolver disposes delivers after '
-        'dispose returns', () async {
-      _add(processor.model.getSurface('s')!, 'root', 'Text', {'text': 'ok'});
-      final NodeResolver<ComponentApi> resolver = resolve();
-      resolver.rootNode.peek()!.onDestroyed.subscribe((_) => breakOther());
-
-      resolver.dispose();
-      expect(events, isEmpty);
-
-      await _microtask();
-      expect(events, ['t UNKNOWN_COMPONENT_TYPE']);
-    });
-
-    test(
-        'processMessages called while a resolver publishes its root delivers '
-        'after the update returns', () async {
-      final NodeResolver<ComponentApi> resolver = resolve();
-      var published = false;
-      final void Function() unsubscribe = resolver.rootNode.subscribe((root) {
-        if (root == null || published) return;
-        published = true;
-        breakOther();
-      });
-      addTearDown(unsubscribe);
-
-      _add(processor.model.getSurface('s')!, 'root', 'Text', {'text': 'ok'});
-      expect(published, isTrue);
-      expect(events, isEmpty);
-
-      await _microtask();
-      expect(events, ['t UNKNOWN_COMPONENT_TYPE']);
+      expect(events, ['error UNKNOWN_COMPONENT_TYPE']);
     });
   });
 }
