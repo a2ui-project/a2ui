@@ -1,14 +1,11 @@
 # Triage for PRs and issues
 
-See go/a2ui-triage-internal for internal information.
-
 ## Goals
 
 Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 
 1. External PRs are addressed
 2. Issues are prioritized and addressed
-3. Number of branches is observable
 
 ## Invariant we want to keep
 
@@ -21,12 +18,16 @@ This section describes goals at a high level. See concrete steps in the section 
     - **P3**: not planned, but may become a priority
     - **P4**: we do not plan to invest in this issue
 
-2. **PRs**: We will review PRs from external contributors if at least one of the following is true:
-    - the PR contributes to a **P0-P3** issue (PRs for P4 issues will not be reviewed)
-    - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description) or has label `type: contributions-welcome`
-    - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
+2. **PRs**: We will review only essential PRs from external contributors.
 
-The relevant issue should be linked in the PR description.
+  A PR will be rwviewed if:
+    - the PR contributes to a **P0-P3** issue (PRs for P4 issues will not be reviewed), and the issue is linked on the top of the description
+    - one of the following is true:
+      - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description) 
+      - the issue has label `type: contributions-welcome`
+      - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
+  
+  Al other PRs will be rejected.
 
 ## GitHub labels used in triage
 
@@ -112,14 +113,6 @@ When weekly triage is complete, the [`needs-triage`][needs-triage] list should i
 
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 [unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
-
-## AI assistance
-
-Use [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md) to get agent help with triage.
-
-It forks multiple subagents (one for each issue) to try and reproduce the issue if it is something that can be easily reproduced. It won't attempt to repro something that takes a lot of setup.
-
-It will then display a web UI in a local browser with the list of issues to triage, suggested responses (which you can edit) and a UI to apply suggestions to GitHub.
 
 ## Frequently asked questions
 
