@@ -38,6 +38,7 @@ def test_adk_extensions_conformance(name, test_case):
     from a2ui.adk import SendA2uiToClientToolset
     from a2ui.core.basic_catalog import BasicCatalog
     from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+    from a2ui.processor import A2uiRequestProcessor
 
     action = test_case["action"]
     args = test_case.get("args", {})
@@ -51,9 +52,9 @@ def test_adk_extensions_conformance(name, test_case):
 
         # The shared cases write the payload in Direct JSON.
         tool = tool_cls(
-            [BasicCatalog("0.8")],
-            "examples",
-            inference_format_factory=DirectJsonFormatFactory(),
+            A2uiRequestProcessor(
+                [BasicCatalog("0.8")], format_factory=DirectJsonFormatFactory()
+            )
         )
 
         tool_context_mock = MagicMock()

@@ -24,10 +24,12 @@ Key Components:
   * `SendA2uiToClientToolset`: The main entry point. It accepts providers for determining
     if A2UI is enabled and for fetching the active A2UI catalogs. It manages the lifecycle of the
     `_SendA2uiJsonToClientTool`.
-  * `_SendA2uiJsonToClientTool`: A tool exposed to the LLM. The LLM writes the A2UI block in the
-    tool's argument, in the syntax of the toolset's inference format (Express by default). The tool
-    compiles the block into A2UI messages, validates them against the catalogs (and the renderer
-    state, when one is given), and returns the A2UI JSON messages for the part converter to send.
+  * `_SendA2uiJsonToClientTool`: A tool exposed to the LLM. It takes one `A2uiRequestProcessor`
+    (or a provider of one per context), which the toolset binds the catalogs, the examples and the
+    inference format (Express by default) to. The LLM writes the A2UI block in the tool's argument,
+    in the processor's format. The tool compiles the block into A2UI messages, validates them
+    against the catalogs (and the renderer state, when one is given), and returns the A2UI JSON
+    messages for the part converter to send.
 
 Usage Examples:
 
@@ -112,11 +114,12 @@ from a2ui.core import (
     CatalogApi,
 )
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.inference_format import InferenceFormatFactory
+from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.express import ExpressFormatFactory
-from a2ui.parser import A2uiPart, RawA2uiPart
+from a2ui.parser import A2uiPart, Parser, RawA2uiPart
 from a2ui.processor import A2uiRequestProcessor
+from a2ui.prompt import PromptGenerator
 from a2ui.utils import RendererState, validate_payload
 
 if TYPE_CHECKING:
@@ -139,6 +142,10 @@ A2uiExamplesProvider: TypeAlias = Callable[
 A2uiStateProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext],
     RendererState | None | Awaitable[RendererState | None],
+]
+_A2uiProcessorProvider: TypeAlias = Callable[
+    [readonly_context.ReadonlyContext],
+    A2uiRequestProcessor | Awaitable[A2uiRequestProcessor],
 ]
 
 
@@ -180,9 +187,15 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         super().__init__()
         self._a2ui_enabled = a2ui_enabled
         self._ui_tool = self._SendA2uiJsonToClientTool(
-            a2ui_catalogs,
-            a2ui_examples,
-            inference_format_factory=inference_format_factory,
+            _processor_source(
+                a2ui_catalogs,
+                a2ui_examples,
+                (
+                    inference_format_factory
+                    if inference_format_factory is not None
+                    else ExpressFormatFactory()
+                ),
+            ),
             a2ui_state=a2ui_state,
         )
         self._ui_tools: list[base_tool.BaseTool] = [self._ui_tool]
@@ -262,32 +275,23 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
         def __init__(
             self,
-            a2ui_catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
-            a2ui_examples: A2uiExamplesValue | A2uiExamplesProvider = None,
+            processor: A2uiRequestProcessor | _A2uiProcessorProvider,
             *,
-            inference_format_factory: InferenceFormatFactory | None = None,
             a2ui_state: RendererState | A2uiStateProvider | None = None,
         ):
-            self._a2ui_catalogs: list[CatalogApi] | A2uiCatalogsProvider = (
-                a2ui_catalogs
-                if callable(a2ui_catalogs)
-                else self._to_catalog_list(a2ui_catalogs)
-            )
-            # A collection is read once here, so a generator or a set given
-            # directly is not exhausted by the first request.
-            self._a2ui_examples: A2uiExamplesValue | A2uiExamplesProvider = (
-                a2ui_examples
-                if callable(a2ui_examples)
-                else self._to_examples(a2ui_examples)
-            )
-            self._format_factory: InferenceFormatFactory = (
-                inference_format_factory
-                if inference_format_factory is not None
-                else ExpressFormatFactory()
-            )
+            """Initializes the tool.
+
+            Args:
+                processor: The request processor that writes the prompt and
+                  reads the tool's argument, or a provider that returns one per
+                  context. It holds the catalogs, the examples and the
+                  inference format.
+                a2ui_state: Optional `RendererState`, or a provider that returns
+                  one per context, that payloads are checked against and
+                  applied to.
+            """
+            self._processor = processor
             self._a2ui_state = a2ui_state
-            # With fixed catalogs and examples, one processor serves every call.
-            self._cached_processor: A2uiRequestProcessor | None = None
             super().__init__(
                 name=self.TOOL_NAME,
                 description=(
@@ -319,102 +323,25 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                 ),
             )
 
-        @property
-        def _uses_fixed_inputs(self) -> bool:
-            return not callable(self._a2ui_catalogs) and not callable(
-                self._a2ui_examples
-            )
-
-        async def _resolve_a2ui_examples(
-            self, ctx: readonly_context.ReadonlyContext
-        ) -> A2uiExamplesValue:
-            """Resolves the examples, calling the provider if one was given.
-
-            Args:
-                ctx: The readonly_context.ReadonlyContext to resolve the provider with.
-
-            Returns:
-                A markdown string, a sequence of example turns, or None.
-
-            Raises:
-                TypeError: If the examples are of another type.
-            """
-            if not callable(self._a2ui_examples):
-                return self._a2ui_examples
-            examples = self._a2ui_examples(ctx)
-            if inspect.isawaitable(examples):
-                examples = await examples
-            return self._to_examples(examples)
-
-        def _to_examples(self, examples: Any) -> A2uiExamplesValue:
-            """Checks examples and returns them as a string, turns, or None.
-
-            Args:
-                examples: The examples given to the tool or returned by its
-                  provider.
-
-            Returns:
-                The string as it is, the example turns as a list of lists in
-                their original order, or None when there are no examples.
-
-            Raises:
-                TypeError: If the examples are bytes, a single message or turn
-                  in place of a sequence of turns, or of another type.
-            """
-            if examples is None or isinstance(examples, str):
-                return examples
-            if self._is_iterable_collection(examples):
-                turns: list[list[AgentToRendererMessage]] = []
-                for turn in examples:
-                    if not self._is_iterable_collection(turn):
-                        raise TypeError(
-                            f"Tool {self.TOOL_NAME} expects each example turn to"
-                            f" be a sequence of messages, got {type(turn).__name__}."
-                        )
-                    turns.append(list(turn))
-                return turns or None
-            raise TypeError(
-                f"Tool {self.TOOL_NAME} expects examples as a string, a sequence"
-                f" of example turns, or None, got {type(examples).__name__}."
-            )
-
-        @staticmethod
-        def _is_iterable_collection(value: Any) -> bool:
-            """Whether a value is a collection of items, not a single item."""
-            # A message model iterates over its fields, so it is checked first.
-            return isinstance(value, Iterable) and not isinstance(
-                value, (str, bytes, Mapping, AgentToRendererMessage)
-            )
-
         async def _resolve_processor(
             self, ctx: readonly_context.ReadonlyContext
         ) -> A2uiRequestProcessor:
-            """Returns the request processor for the context's catalogs and examples.
-
-            The processor binds the catalogs and the example turns to the
-            toolset's inference format. It writes the prompt and reads the
-            tool's argument.
-
-            Args:
-                ctx: The readonly_context.ReadonlyContext to resolve the providers with.
+            """Returns the request processor, calling the provider if one was given.
 
             Raises:
-                A2uiCatalogError: If there are no catalogs, or the inference
-                  format does not accept them.
-                A2uiValidationError: If an example turn fails validation against
-                  the catalogs.
+                TypeError: If the provider returns something else than an
+                  `A2uiRequestProcessor`.
             """
-            if self._cached_processor is not None:
-                return self._cached_processor
-            catalogs = await self._resolve_a2ui_catalogs(ctx)
-            examples = await self._resolve_a2ui_examples(ctx)
-            processor = A2uiRequestProcessor(
-                catalogs,
-                examples=None if isinstance(examples, str) else examples,
-                format_factory=self._format_factory,
-            )
-            if self._uses_fixed_inputs:
-                self._cached_processor = processor
+            if isinstance(self._processor, A2uiRequestProcessor):
+                return self._processor
+            processor = self._processor(ctx)
+            if inspect.isawaitable(processor):
+                processor = await processor
+            if not isinstance(processor, A2uiRequestProcessor):
+                raise TypeError(
+                    f"Tool {self.TOOL_NAME} expects an A2uiRequestProcessor,"
+                    f" got {type(processor).__name__}."
+                )
             return processor
 
         async def _resolve_a2ui_state(
@@ -423,70 +350,15 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             """Resolves the optional RendererState for Canvas validation."""
             if self._a2ui_state is None or isinstance(self._a2ui_state, RendererState):
                 return self._a2ui_state
-            if callable(self._a2ui_state):
-                state = self._a2ui_state(ctx)
-                if inspect.isawaitable(state):
-                    state = await state
-                if state is not None and not isinstance(state, RendererState):
-                    raise TypeError(
-                        f"Tool {self.TOOL_NAME} expects a RendererState or None,"
-                        f" got {type(state).__name__}."
-                    )
-                return state
-            raise TypeError(
-                f"Tool {self.TOOL_NAME} expects a RendererState or provider,"
-                f" got {type(self._a2ui_state).__name__}."
-            )
-
-        def _to_catalog_list(self, catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
-            """Checks catalogs and returns them as a list.
-
-            Args:
-                catalogs: The catalogs given to the tool or returned by its
-                  provider.
-
-            Returns:
-                The catalogs as a list, in their original order.
-
-            Raises:
-                A2uiCatalogError: If there are no catalogs.
-                TypeError: If a single catalog, a string or bytes is given in
-                  place of an iterable of catalogs.
-            """
-            if isinstance(catalogs, (Catalog, str, bytes)):
+            state = self._a2ui_state(ctx)
+            if inspect.isawaitable(state):
+                state = await state
+            if state is not None and not isinstance(state, RendererState):
                 raise TypeError(
-                    f"Tool {self.TOOL_NAME} expects a sequence of A2UI catalogs,"
-                    f" got {type(catalogs).__name__}."
+                    f"Tool {self.TOOL_NAME} expects a RendererState or None,"
+                    f" got {type(state).__name__}."
                 )
-            catalogs_list = list(catalogs)
-            if not catalogs_list:
-                raise A2uiCatalogError(
-                    f"Tool {self.TOOL_NAME} requires at least one A2UI catalog."
-                )
-            return catalogs_list
-
-        async def _resolve_a2ui_catalogs(
-            self, ctx: readonly_context.ReadonlyContext
-        ) -> list[CatalogApi]:
-            """The resolved self.a2ui_catalogs field to construct instruction for this agent.
-
-            Args:
-                ctx: The readonly_context.ReadonlyContext to resolve the provider with.
-
-            Returns:
-                The A2UI catalogs.
-
-            Raises:
-                A2uiCatalogError: If the provider returns no catalogs.
-                TypeError: If the provider returns a single catalog, a string or
-                  bytes in place of a sequence of catalogs.
-            """
-            if not callable(self._a2ui_catalogs):
-                return self._a2ui_catalogs
-            resolved = self._a2ui_catalogs(ctx)
-            if inspect.isawaitable(resolved):
-                resolved = await resolved
-            return self._to_catalog_list(resolved)
+            return state
 
         def _tool_instruction(self) -> str:
             return (
@@ -513,7 +385,6 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             )
 
             processor = await self._resolve_processor(tool_context)
-            examples = await self._resolve_a2ui_examples(tool_context)
             generator = processor.format.prompt_generator
 
             rules = generator.generate_base_rules()
@@ -525,15 +396,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             )
             if catalog_instructions:
                 sections.append((catalog_instructions, catalog_instructions))
-            if isinstance(examples, str):
-                if examples:
-                    sections.append((examples, examples))
-            else:
-                generated_examples = generator.generate_examples()
-                if generated_examples:
-                    sections.append(
-                        (generated_examples, f"### Examples:\n{generated_examples}")
-                    )
+            examples = generator.generate_examples()
+            if examples:
+                sections.append((examples, f"### Examples:\n{examples}"))
             tool_instruction = self._tool_instruction()
             sections.append((tool_instruction, tool_instruction))
 
@@ -650,3 +515,191 @@ def _instruction_text(llm_request: LlmRequest) -> str:
         elif text := getattr(part, "text", None):
             texts.append(text)
     return "\n\n".join(texts)
+
+
+def _processor_source(
+    catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
+    examples: A2uiExamplesValue | A2uiExamplesProvider,
+    format_factory: InferenceFormatFactory,
+) -> A2uiRequestProcessor | _A2uiProcessorProvider:
+    """Binds the catalogs and examples to the inference format.
+
+    With fixed catalogs and examples, the processor is built once, here, so a
+    bad catalog or example fails when the toolset is created. With a provider
+    for either, a provider is returned that builds a processor per context.
+
+    Raises:
+        A2uiCatalogError: If fixed catalogs are empty or the format rejects them.
+        A2uiValidationError: If a fixed example turn fails validation.
+        TypeError: If the catalogs or examples are of the wrong type.
+    """
+    fixed_catalogs = None if callable(catalogs) else _to_catalog_list(catalogs)
+    # A collection is read once here, so a generator or a set given directly
+    # is not exhausted by the first request.
+    fixed_examples = None if callable(examples) else _to_examples(examples)
+    if fixed_catalogs is not None and not callable(examples):
+        return _build_processor(fixed_catalogs, fixed_examples, format_factory)
+
+    async def provide(ctx: readonly_context.ReadonlyContext) -> A2uiRequestProcessor:
+        if fixed_catalogs is not None:
+            resolved_catalogs = fixed_catalogs
+        else:
+            assert callable(catalogs)
+            resolved_catalogs = _to_catalog_list(await _call(catalogs, ctx))
+        resolved_examples = (
+            _to_examples(await _call(examples, ctx))
+            if callable(examples)
+            else fixed_examples
+        )
+        return _build_processor(resolved_catalogs, resolved_examples, format_factory)
+
+    return provide
+
+
+async def _call(provider: Callable[[Any], Any], ctx: Any) -> Any:
+    """Calls a sync or async provider."""
+    value = provider(ctx)
+    if inspect.isawaitable(value):
+        value = await value
+    return value
+
+
+def _build_processor(
+    catalogs: list[CatalogApi],
+    examples: A2uiExamplesValue,
+    format_factory: InferenceFormatFactory,
+) -> A2uiRequestProcessor:
+    """Builds the processor; a markdown string of examples goes to its prompt."""
+    if isinstance(examples, str):
+        return A2uiRequestProcessor(
+            catalogs,
+            format_factory=_MarkdownExamplesFormatFactory(format_factory, examples),
+        )
+    return A2uiRequestProcessor(
+        catalogs, examples=examples, format_factory=format_factory
+    )
+
+
+def _to_catalog_list(catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
+    """Checks catalogs and returns them as a list, in their original order.
+
+    Raises:
+        A2uiCatalogError: If there are no catalogs.
+        TypeError: If a single catalog, a string or bytes is given in place of
+          an iterable of catalogs.
+    """
+    if isinstance(catalogs, (Catalog, str, bytes)):
+        raise TypeError(
+            f"Tool {A2UI_TOOL_NAME} expects a sequence of A2UI catalogs,"
+            f" got {type(catalogs).__name__}."
+        )
+    catalogs_list = list(catalogs)
+    if not catalogs_list:
+        raise A2uiCatalogError(
+            f"Tool {A2UI_TOOL_NAME} requires at least one A2UI catalog."
+        )
+    return catalogs_list
+
+
+def _to_examples(examples: Any) -> A2uiExamplesValue:
+    """Checks examples and returns them as a string, turns, or None.
+
+    Returns:
+        The string as it is, the example turns as a list of lists in their
+        original order, or None when there are no examples.
+
+    Raises:
+        TypeError: If the examples are bytes, a single message or turn in place
+          of a sequence of turns, or of another type.
+    """
+    if examples is None or isinstance(examples, str):
+        return examples or None
+    if _is_iterable_collection(examples):
+        turns: list[list[AgentToRendererMessage]] = []
+        for turn in examples:
+            if not _is_iterable_collection(turn):
+                raise TypeError(
+                    f"Tool {A2UI_TOOL_NAME} expects each example turn to be a"
+                    f" sequence of messages, got {type(turn).__name__}."
+                )
+            turns.append(list(turn))
+        return turns or None
+    raise TypeError(
+        f"Tool {A2UI_TOOL_NAME} expects examples as a string, a sequence of"
+        f" example turns, or None, got {type(examples).__name__}."
+    )
+
+
+def _is_iterable_collection(value: Any) -> bool:
+    """Whether a value is a collection of items, not a single item."""
+    # A message model iterates over its fields, so it is checked first.
+    return isinstance(value, Iterable) and not isinstance(
+        value, (str, bytes, Mapping, AgentToRendererMessage)
+    )
+
+
+class _MarkdownExamplesPromptGenerator(PromptGenerator):
+    """A format's prompt generator whose examples are a markdown string."""
+
+    def __init__(self, inner: PromptGenerator, examples: str):
+        self._inner = inner
+        self._examples = examples
+
+    def generate_base_rules(self) -> str:
+        return self._inner.generate_base_rules()
+
+    def generate_catalog_instructions(
+        self, include_schema: bool = True, catalog: Any | None = None
+    ) -> str:
+        return self._inner.generate_catalog_instructions(
+            include_schema=include_schema, catalog=catalog
+        )
+
+    def generate_examples(
+        self, catalog: Any | None = None, validate: bool = False
+    ) -> str:
+        return self._examples
+
+    def generate(self) -> str:
+        return super().generate()
+
+
+class _MarkdownExamplesFormat(InferenceFormat):
+    """An inference format whose prompt shows markdown examples.
+
+    Agents written before example turns existed pass their examples as text.
+    """
+
+    def __init__(self, inner: InferenceFormat, examples: str):
+        self._inner = inner
+        self._prompt_generator = _MarkdownExamplesPromptGenerator(
+            inner.prompt_generator, examples
+        )
+
+    @property
+    def prompt_generator(self) -> PromptGenerator:
+        return self._prompt_generator
+
+    def create_parser(self) -> Parser:
+        return self._inner.create_parser()
+
+    @property
+    def supports_streaming(self) -> bool:
+        return self._inner.supports_streaming
+
+
+class _MarkdownExamplesFormatFactory(InferenceFormatFactory):
+    """Creates a format whose prompt shows markdown examples."""
+
+    def __init__(self, inner: InferenceFormatFactory, examples: str):
+        self._inner = inner
+        self._examples = examples
+
+    def create_format(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+    ) -> InferenceFormat:
+        return _MarkdownExamplesFormat(
+            self._inner.create_format(catalogs, examples), self._examples
+        )

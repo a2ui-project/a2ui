@@ -19,7 +19,10 @@
   `processor.examples`), which the format's prompt generator writes in the
   format's syntax, a markdown string, or `None`. It skips each prompt section
   (rules, catalogs, examples) that the agent's system instruction already
-  holds, such as when the instruction includes `processor.prompt_snippet`. An
+  holds, such as when the instruction includes `processor.prompt_snippet`.
+  Fixed catalogs and examples are bound to one `A2uiRequestProcessor` when the
+  toolset is created, so an empty catalog list, catalogs the format rejects, or
+  an invalid example turn raise there rather than on the first request. An
   optional `a2ui_state` (`RendererState` or `A2uiStateProvider`) checks and
   applies tool payloads against a Canvas state. `get_part_converter` reads
   text-based A2UI with the toolset's format.
