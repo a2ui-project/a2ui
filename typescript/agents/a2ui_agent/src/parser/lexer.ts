@@ -130,8 +130,8 @@ export class BlockLexer {
   }
 
   /**
-   * Finds the close tag that ends the block starting at `start`, skipping string literals
-   * and comments so a tag written inside them does not end the block.
+   * Finds the close tag that ends the block starting at `start`, as `tokenize` does: a tag
+   * inside a string literal does not end the block, while one on a comment line does.
    *
    * @returns The offsets where the close tag starts and ends, or undefined while the block
    *   is still open.
