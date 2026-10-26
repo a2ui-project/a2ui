@@ -863,3 +863,71 @@
           user:
             city: "London"
             name: "Ada"
+
+- name: test_decompile_express_map_with_keys_named_like_express_constructs
+  description: In v1.0 only `@path` marks a data binding and `@call` a function call, so an object whose keys are plain `path` or `call`, or whose `event` or `functionCall` is not an object, is data and writes back out as a map literal.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              path: "p"
+              call: "c"
+              variable: "m"
+              event: "e"
+              functionCall: "f"
+              count: 6
+  expect_contains:
+    - 'root = Probe({path: "p", call: "c", variable: "m", event: "e", functionCall: "f", count: 6})'
+  expect_round_trip: true
+
+- name: test_decompile_express_map_with_plain_call_and_args_keys
+  description: In v1.0 only `@call` marks a function call, so an object with plain `call` and `args` keys is data, even when `args` is an object.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              call: "fn"
+              args:
+                x: 1
+  expect_contains:
+    - 'root = Probe({call: "fn", args: {x: 1}})'
+  expect_round_trip: true
+
+- name: test_decompile_express_map_with_a_binding_key_beside_other_keys
+  description: A data binding has no key but `@path`, so an object with `@path` beside other keys is data and keeps every key.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/literal_map"
+        components:
+          - id: "root"
+            component: "Probe"
+            payload:
+              "@path": "/a"
+              other: 1
+  expect_contains:
+    - 'root = Probe({"@path": "/a", other: 1})'
+  expect_round_trip: true
