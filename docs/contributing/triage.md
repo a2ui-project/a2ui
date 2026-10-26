@@ -64,6 +64,30 @@ Two of these labels are automated: `status: needs-triage` is managed entirely by
 
 The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the conditions below, and removes the label from the rest.
 
+The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
+
+1. Does the item have `status: waiting-for-author-response` (that will be auto-removed after external response)?
+
+  If yes: **NO LABEL**.
+  If no: continue processing.
+
+2. Does the item have `status: assigned-for-triage`?
+
+  If yes:
+  - **LABEL** when either has no assignee or got the label more than 14 days ago.
+  - **NO LABEL** otherwise.
+
+  If no: continue processing.
+
+3. Is the item an issue?
+
+
+
+
+4. Is the item PR? 
+
+
+
 An item gets `status: needs-triage` if it does not have `status: waiting-for-author-response` (it will be auto-removed after external response) and:
 
 **It is an issue** and one of the following is true:
