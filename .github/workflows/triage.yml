@@ -36,10 +36,17 @@ on:
     types: [submitted]
   pull_request_review_comment:
     types: [created]
-  # PR lifecycle events (opened/synchronize/...) are deliberately absent: the
-  # only PR rule needs a day of maintainer silence, and pushes and edits are
-  # not contributions, so none of those events can change a flag when they
-  # fire. Comments, reviews and the daily cron cover every transition.
+  # The `issues` events above fire for issues only, so PRs need their own.
+  # An external PR needs triage the moment it is opened, and labels and
+  # assignees decide whether it stays flagged. Pushes and edits are not
+  # contributions, so `synchronize` and `edited` are left out.
+  #
+  # `pull_request_target`, unlike `pull_request`, gets a token that can label
+  # PRs from forks. It runs this workflow as defined on the base branch, and
+  # the checkout below takes the base branch too, so no code from the PR runs.
+  # Keep it that way: never check out the PR's head here.
+  pull_request_target:
+    types: [opened, reopened, labeled, unlabeled, assigned, unassigned]
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
 
