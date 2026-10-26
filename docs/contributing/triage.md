@@ -103,7 +103,7 @@ Staleness is calculated from the last human contribution (comment, review, or is
 
 The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress.
 
-The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), PR events (opened, reopened, labeled, unlabeled, assigned, unassigned), new issue comments, and submitted PR reviews or review comments.
+The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
 
 ## Triage responsibilities
 
