@@ -11,7 +11,8 @@
   fetches it; v0.8 and v0.9 catalogs load as before. Recommended migration:
   bundle referenced components, properties and functions into each catalog so
   it is standalone.
-  [#3232](https://github.com/a2ui-project/a2ui/issues/3232)
+  [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
+  [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
 - Schema validation never fetches a `$ref` over the network. A `$ref` to a
   document that is not available locally fails validation with an
   unresolvable-reference error instead of being downloaded

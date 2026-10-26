@@ -140,3 +140,101 @@ def test_inherited_property_order_lists_checks_once_and_last(inheriting_helper):
         "checks",
     ]
     assert inheriting_helper.is_checkable("Derived")
+
+
+_V0_9_COMMON_TYPES = "https://a2ui.org/specification/v0_9/common_types.json"
+
+
+@pytest.fixture
+def nested_mixin_helper() -> CatalogSchemaHelper:
+    catalog = Catalog.from_json({
+        "catalogId": "nested_mixin",
+        "protocolVersion": "v0.9",
+        "$defs": {
+            "MaterialComponentCommon": {
+                "allOf": [
+                    {"$ref": f"{_V0_9_COMMON_TYPES}#/$defs/ComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "weight": {"type": "number"},
+                            "style": {"type": "string", "enum": ["flat", "raised"]},
+                        },
+                    },
+                ]
+            }
+        },
+        "components": {
+            "MaterialText": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "#/$defs/MaterialComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "MaterialText"},
+                            "text": {"type": "string"},
+                            "usageHint": {"type": "string", "enum": ["h1", "body"]},
+                        },
+                        "required": ["component", "text"],
+                    },
+                ],
+            },
+            "MaterialHeading": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "#/$defs/MaterialComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "MaterialHeading"},
+                            "text": {"type": "string"},
+                            "style": {"type": "string", "enum": ["display"]},
+                        },
+                        "required": ["component", "text"],
+                    },
+                ],
+                "properties": {
+                    "weight": {"$ref": f"{_V0_9_COMMON_TYPES}#/$defs/ComponentId"},
+                },
+            },
+        },
+    })
+    return CatalogSchemaHelper(catalog)
+
+
+def test_nested_local_mixin_properties_follow_component_properties(
+    nested_mixin_helper,
+):
+    assert nested_mixin_helper.get_component_properties("MaterialText") == [
+        "text",
+        "usageHint",
+        "weight",
+        "style",
+    ]
+    assert nested_mixin_helper.get_component_required("MaterialText") == [
+        "component",
+        "text",
+    ]
+    assert nested_mixin_helper.get_property_schema("MaterialText", "weight") == {
+        "type": "number"
+    }
+    assert nested_mixin_helper.get_property_enum("MaterialText", "style") == [
+        "flat",
+        "raised",
+    ]
+    assert nested_mixin_helper.accepts_number(
+        nested_mixin_helper.get_property_schema("MaterialText", "weight")
+    )
+
+
+def test_own_definition_wins_over_nested_local_mixin(nested_mixin_helper):
+    assert nested_mixin_helper.get_component_properties("MaterialHeading") == [
+        "text",
+        "style",
+        "weight",
+    ]
+    assert nested_mixin_helper.get_property_enum("MaterialHeading", "style") == [
+        "display"
+    ]
+    assert nested_mixin_helper.get_property_type("MaterialHeading", "weight") == "Child"

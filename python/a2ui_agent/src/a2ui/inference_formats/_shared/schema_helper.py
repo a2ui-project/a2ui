@@ -50,6 +50,44 @@ def _find_enum(s: Any) -> list[Any] | None:
     return None
 
 
+def _ordered_component_sub_schemas(schema: Any) -> list[dict[str, Any]]:
+    """Returns component sub-schemas with specific definitions before common mixins.
+
+    Walks the component schema and its nested `allOf` entries, including the
+    `allOf` of an inlined local mixin such as a `$defs` entry that composes
+    `ComponentCommon` with extra properties. A sub-schema whose `properties`
+    contain `component` is specific; the others are common mixins. Within each
+    group, sub-schemas keep their pre-order position, so positional argument
+    order is consistent across protocol versions.
+    """
+    if not isinstance(schema, dict):
+        return []
+    specific: list[dict[str, Any]] = []
+    common: list[dict[str, Any]] = []
+
+    def _visit(node: Any, is_root: bool = False) -> None:
+        if not isinstance(node, dict):
+            return
+        props = node.get("properties")
+        is_specific = isinstance(props, dict) and "component" in props
+        if is_specific:
+            specific.append(node)
+        elif (
+            not is_root
+            or isinstance(props, dict)
+            or "required" in node
+            or "$ref" in node
+        ):
+            common.append(node)
+        all_of = node.get("allOf")
+        if isinstance(all_of, list):
+            for sub in all_of:
+                _visit(sub, is_root=False)
+
+    _visit(schema, is_root=True)
+    return [*specific, *common]
+
+
 class CatalogSchemaHelper:
     """Dynamic schema crawler for A2UI catalogs.
 
@@ -108,42 +146,29 @@ class CatalogSchemaHelper:
         self.component_property_enums = {}
 
         for name, schema in self.components.items():
-            props = {}
-            reqs = []
+            props: dict[str, Any] = {}
+            reqs: list[str] = []
             is_checkable = False
 
-            # Crawl allOf and root schema for properties.
+            # Crawl the root schema and its nested allOf for properties.
             # Prioritize specific component definition schemas over common mixins
             # (such as CatalogComponentCommon which contains 'weight') so positional
-            # argument order is consistent across protocol versions.
-            sub_schemas = []
-            if "allOf" in schema:
-                specific = []
-                common = []
-                for sub in schema["allOf"]:
-                    if (
-                        isinstance(sub, dict)
-                        and "properties" in sub
-                        and "component" in sub["properties"]
-                    ):
-                        specific.append(sub)
-                    else:
-                        common.append(sub)
-                sub_schemas.extend(specific)
-                sub_schemas.extend(common)
-            sub_schemas.append(schema)
-
-            for sub in sub_schemas:
-                if not isinstance(sub, dict):
-                    continue
-                if "$ref" in sub:
-                    ref = sub["$ref"]
-                    if "Checkable" in ref:
-                        is_checkable = True
-                if "properties" in sub:
-                    props.update(sub["properties"])
-                if "required" in sub:
-                    reqs.extend(sub["required"])
+            # argument order is consistent across protocol versions. A property
+            # keeps the position of its first occurrence; its schema comes from
+            # `get_property_schema`, where the component's own definition wins.
+            for sub in _ordered_component_sub_schemas(schema):
+                ref = sub.get("$ref")
+                if isinstance(ref, str) and "Checkable" in ref:
+                    is_checkable = True
+                sub_props = sub.get("properties")
+                if isinstance(sub_props, dict):
+                    for pk, pv in sub_props.items():
+                        props.setdefault(pk, pv)
+                sub_reqs = sub.get("required")
+                if isinstance(sub_reqs, list):
+                    for r in sub_reqs:
+                        if r not in reqs:
+                            reqs.append(r)
 
             # Filter out structural properties component, id, and catalogId,
             # and checks, which a checkable component lists last.
@@ -280,16 +305,22 @@ class CatalogSchemaHelper:
     def get_property_schema(
         self, component_name: str, property_name: str
     ) -> dict[str, Any] | None:
-        """Crawls all sub-schemas of a component to retrieve a property's schema definition."""
+        """Crawls all sub-schemas of a component to retrieve a property's schema definition.
+
+        The component's own definition wins over its `allOf` sub-schemas, which
+        are searched, including nested ones, in the same order that
+        `get_component_properties` lists their properties.
+        """
         schema = self.components.get(component_name)
         if not schema or not isinstance(schema, dict):
             return None
 
-        sub_schemas = [schema]
-        if "allOf" in schema and isinstance(schema["allOf"], list):
-            sub_schemas.extend(schema["allOf"])
+        own_props = schema.get("properties")
+        if isinstance(own_props, dict) and property_name in own_props:
+            res = own_props[property_name]
+            return res if isinstance(res, dict) else None
 
-        for sub in sub_schemas:
+        for sub in _ordered_component_sub_schemas(schema):
             if (
                 isinstance(sub, dict)
                 and "properties" in sub

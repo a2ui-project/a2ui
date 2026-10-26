@@ -491,6 +491,115 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     });
   });
 
+  describe('a local mixin with its own allOf (v0.9)', () => {
+    const common = 'https://a2ui.org/specification/v0_9/common_types.json#/$defs';
+    const doc: Record<string, unknown> = {
+      catalogId: 'test_nested_mixin',
+      components: {
+        MaterialText: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialText'},
+                text: {type: 'string'},
+                usageHint: {type: 'string', enum: ['h1', 'body']},
+              },
+              required: ['component', 'text'],
+            },
+          ],
+        },
+        MaterialHeading: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialHeading'},
+                text: {type: 'string'},
+                weight: {type: 'string', enum: ['own-light', 'own-bold']},
+              },
+            },
+          ],
+        },
+        MaterialButton: {
+          type: 'object',
+          allOf: [
+            {$ref: `${common}/Checkable`},
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialButton'},
+                child: {type: 'string'},
+                action: {$ref: `${common}/Action`},
+              },
+            },
+          ],
+        },
+      },
+      functions: {},
+      $defs: {
+        MaterialComponentCommon: {
+          allOf: [
+            {$ref: `${common}/ComponentCommon`},
+            {
+              type: 'object',
+              properties: {
+                weight: {type: 'number'},
+                style: {type: 'object'},
+              },
+              required: ['style'],
+            },
+          ],
+        },
+      },
+    };
+    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), 'v0.9');
+
+    it('lists the properties of the nested allOf after the component’s own', () => {
+      expect(helper.getComponentProperties('MaterialText')).toEqual([
+        'text',
+        'usageHint',
+        'weight',
+        'style',
+      ]);
+      expect(helper.getComponentRequired('MaterialText')).toEqual(['component', 'text', 'style']);
+    });
+
+    it('finds the schema of a property of the nested allOf', () => {
+      expect(helper.getPropertySchema('MaterialText', 'weight')).toEqual({type: 'number'});
+      expect(helper.getPropertySchema('MaterialText', 'style')).toEqual({type: 'object'});
+    });
+
+    it("uses the component's own definition over one in the nested allOf", () => {
+      expect(helper.getComponentProperties('MaterialHeading')).toEqual(['text', 'weight', 'style']);
+      expect(helper.getPropertySchema('MaterialHeading', 'weight')?.enum).toEqual([
+        'own-light',
+        'own-bold',
+      ]);
+      expect(helper.getPropertyEnum('MaterialHeading', 'weight')).toEqual([
+        'own-light',
+        'own-bold',
+      ]);
+    });
+
+    it('appends checks from the common Checkable once, last', () => {
+      expect(helper.getComponentProperties('MaterialButton')).toEqual([
+        'child',
+        'action',
+        'weight',
+        'style',
+        'checks',
+      ]);
+      expect(helper.isCheckable('MaterialButton')).toBe(true);
+      expect(isActionSlot(helper.getPropertySchema('MaterialButton', 'action'))).toBe(true);
+    });
+  });
+
   describe('helper general methods', () => {
     it('retrieves descriptions and property schemas', () => {
       const cat = basicCatalogV10;

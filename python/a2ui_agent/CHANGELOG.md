@@ -39,7 +39,8 @@
   other document raises `A2uiCatalogError`. Recommended migration: bundle
   referenced components, properties and functions into each catalog so it is
   standalone.
-  [#3232](https://github.com/a2ui-project/a2ui/issues/3232)
+  [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
+  [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
   `call`, `check`, `skipped`); before, such a map was read as a variable
@@ -70,7 +71,8 @@
 - The Express, Elemental and Atom prompts and compilers read a component
   property's enum from the component's own definition when it also inherits
   the property through `allOf`, and list `checks` once, last, for a checkable
-  component that also declares `checks` itself.
+  component that also declares `checks` itself
+  ([#3575](https://github.com/a2ui-project/a2ui/pull/3575)).
 - Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
   `a2ui.constants`, the message metadata key under which the v1.0 A2A
   extension sends the renderer capabilities. v0.8 and v0.9 use
