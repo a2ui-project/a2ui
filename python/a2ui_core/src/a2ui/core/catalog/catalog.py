@@ -45,6 +45,7 @@ from ..schema._dynamic_types import clean_schema_node
 from ..schema._json_schema import (
     CATALOG_DEF_MARKER,
     INLINE_DEF_MARKER,
+    KEEP_ANY_OF_MARKER,
     SPEC_TITLE_KEY,
     inline_marked_defs,
 )
@@ -696,33 +697,34 @@ def _inline_leaf_catalog_defs(
             and set(node.keys()) <= {"$ref", "description", "default"}
         ):
             tail = raw_ref[len("#/$defs/") :]
-            if (
-                "/" not in tail
-                and tail in defs
-                and tail not in _UNION_DEFS
-                and tail != "theme"
-                and tail not in PRESERVED_TYPE_REFS
-                and (visited is None or tail not in visited)
-            ):
-                target = defs.get(tail)
-                if isinstance(target, Mapping) and CATALOG_DEF_MARKER not in target:
-                    next_visited = {*(visited or ()), tail}
-                    resolved_target = _inline_leaf_catalog_defs(
-                        dict(target),
-                        defs,
-                        next_visited,
-                        under_property=True,
-                    )
-                    if (
-                        isinstance(resolved_target, dict)
-                        and "$ref" not in resolved_target
-                    ):
-                        inlined = copy.deepcopy(resolved_target)
-                        for key, val in node.items():
-                            if key != "$ref":
-                                inlined[key] = copy.deepcopy(val)
-                        inlined[CATALOG_DEF_MARKER] = tail
-                        return inlined
+            if "/" not in tail:
+                def_name = tail.replace("~1", "/").replace("~0", "~")
+                if (
+                    def_name in defs
+                    and def_name not in _UNION_DEFS
+                    and def_name != "theme"
+                    and def_name not in PRESERVED_TYPE_REFS
+                    and (visited is None or def_name not in visited)
+                ):
+                    target = defs.get(def_name)
+                    if isinstance(target, Mapping) and CATALOG_DEF_MARKER not in target:
+                        next_visited = {*(visited or ()), def_name}
+                        resolved_target = _inline_leaf_catalog_defs(
+                            dict(target),
+                            defs,
+                            next_visited,
+                            under_property=True,
+                        )
+                        if (
+                            isinstance(resolved_target, dict)
+                            and "$ref" not in resolved_target
+                        ):
+                            inlined = copy.deepcopy(resolved_target)
+                            for key, val in node.items():
+                                if key != "$ref":
+                                    inlined[key] = copy.deepcopy(val)
+                            inlined[CATALOG_DEF_MARKER] = def_name
+                            return inlined
     return {
         k: _inline_leaf_catalog_defs(
             v,
@@ -750,8 +752,22 @@ def _restore_catalog_def_refs(
         def_name = node.get(CATALOG_DEF_MARKER)
         if isinstance(def_name, str) and def_name:
             target = defs.get(def_name)
-            target_map = target if isinstance(target, Mapping) else {}
-            ref_node: dict[str, Any] = {"$ref": f"#/$defs/{def_name}"}
+            if isinstance(target, Mapping):
+                resolved_target = _inline_leaf_catalog_defs(
+                    dict(target),
+                    defs,
+                    {def_name},
+                    under_property=True,
+                )
+                target_map: Mapping[str, Any] = (
+                    resolved_target
+                    if isinstance(resolved_target, Mapping)
+                    else target
+                )
+            else:
+                target_map = {}
+            escaped_name = def_name.replace("~", "~0").replace("/", "~1")
+            ref_node: dict[str, Any] = {"$ref": f"#/$defs/{escaped_name}"}
             for key in ("description", "default"):
                 if key in node and node[key] != target_map.get(key):
                     ref_node[key] = copy.deepcopy(node[key])
@@ -840,15 +856,17 @@ _DATA_KEYWORDS: Final[frozenset[str]] = frozenset(
 
 
 def _mark_authored_titles(node: Any, in_properties: bool = False) -> Any:
-    """Marks the `title` keywords of an authored schema to survive cleaning.
+    """Marks the `title` and `anyOf` keywords of an authored schema to survive cleaning.
 
-    `clean_schema_node` drops `title`, which Pydantic generates for every
-    model and field, but keeps the marked titles of the specification. A
-    title a catalog document wrote is an annotation to keep, so it is marked
-    the same way. A property named `title` is not a keyword and stays as is.
+    `clean_schema_node` drops `title` and rewrites `anyOf` to `oneOf`, which
+    Pydantic generates for every model, field, and `Union`. A `title` or
+    `anyOf` a catalog document wrote is kept as authored, so it is marked
+    here. A property named `title` or `anyOf` is not a keyword and stays as is.
     """
     if isinstance(node, dict):
         result: dict[str, Any] = {}
+        if not in_properties and "anyOf" in node:
+            result[KEEP_ANY_OF_MARKER] = True
         for key, value in node.items():
             if not in_properties and key in _DATA_KEYWORDS:
                 result[key] = value
@@ -1742,7 +1760,11 @@ class Catalog(Generic[TComponent, TFunction]):
             components=components,
             functions=functions,
             defs={
-                name: resolve(schema)
+                name: (
+                    resolve(schema)
+                    if inline_local_defs
+                    else resolve(_restore_catalog_def_refs(schema, own_defs))
+                )
                 for name, schema in self.defs.items()
                 if name not in _UNION_DEFS
             },
@@ -2080,9 +2102,17 @@ class Catalog(Generic[TComponent, TFunction]):
         if self.instructions:
             schema["instructions"] = self.instructions
 
-        defs: dict[str, Any] = copy.deepcopy(resolved.defs)
+        defs: dict[str, Any] = (
+            _mark_authored_titles(copy.deepcopy(resolved.defs))
+            if self._layout.defs_from_document
+            else copy.deepcopy(resolved.defs)
+        )
         if resolved.theme:
-            theme = copy.deepcopy(resolved.theme)
+            theme = (
+                _mark_authored_titles(copy.deepcopy(resolved.theme))
+                if self._layout.theme_from_document
+                else copy.deepcopy(resolved.theme)
+            )
             # From v0.9, a theme that does not close itself states that it is
             # open, so renderers may add their own theme properties.
             if (

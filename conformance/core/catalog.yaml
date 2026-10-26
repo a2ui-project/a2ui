@@ -626,6 +626,116 @@
     components: [Listed]
     functions: [listed]
 
+- name: test_v10_catalog_from_json_leaf_defs
+  description: Tests that a v1.0 catalog declaring leaf $defs (token enums, open string unions, nested objects with a component property, and allOf-composed leaf definitions) resolves them in memory, produces a self-contained validationSchema, and validates component instances against all leaf definition constraints.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/leaf_defs"
+    metadata:
+      displayName: "Leaf Defs Catalog"
+      extensions:
+        x-vendor: "acme"
+    components:
+      SelectBox:
+        type: object
+        description: "A selector with reusable leaf definitions."
+        allOf:
+          - $ref: "common_types.json#/$defs/ComponentCommon"
+          - type: object
+            properties:
+              component: {const: SelectBox}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+              color: {$ref: "#/$defs/ColorValue"}
+              weight:
+                $ref: "#/$defs/Weight"
+                description: "Custom flex weight override."
+                default: 2
+              options:
+                type: array
+                items: {$ref: "#/$defs/SelectOption"}
+              composite: {$ref: "#/$defs/CompositeOption"}
+            required: [component, label]
+        unevaluatedProperties: false
+    $defs:
+      Weight:
+        type: number
+        description: "Relative flex weight."
+        minimum: 1
+      ColorToken:
+        type: string
+        enum: [primary, secondary, accent]
+      ColorValue:
+        anyOf:
+          - $ref: "#/$defs/ColorToken"
+          - type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
+      SelectOption:
+        type: object
+        properties:
+          label: {type: string}
+          value: {type: string}
+          component: {type: string}
+        required: [label, value]
+      CompositeOption:
+        type: object
+        allOf:
+          - $ref: "#/$defs/SelectOption"
+          - type: object
+            properties:
+              disabled: {type: boolean}
+        unevaluatedProperties: false
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/SelectBox"
+        discriminator:
+          propertyName: component
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/leaf_defs"
+    protocolVersion: "v1.0"
+    components: [SelectBox]
+    selfContained: true
+    validComponents:
+      - id: sb1
+        component: SelectBox
+        label: "Choose a theme"
+        color: primary
+        weight: 3
+        options:
+          - label: "Dark"
+            value: "dark"
+            component: "Icon"
+        composite:
+          label: "Default"
+          value: "default"
+          disabled: false
+      - id: sb2
+        component: SelectBox
+        label: "Custom hex color"
+        color: "#1a2b3c"
+    invalidComponents:
+      - id: sb_bad_color
+        component: SelectBox
+        label: "Invalid color"
+        color: "not-a-color"
+      - id: sb_bad_weight
+        component: SelectBox
+        label: "Invalid weight"
+        weight: 0
+      - id: sb_bad_option
+        component: SelectBox
+        label: "Missing required value in SelectOption"
+        options:
+          - label: "Only label"
+      - id: sb_extra_composite_prop
+        component: SelectBox
+        label: "Extra property on closed CompositeOption"
+        composite:
+          label: "Default"
+          value: "default"
+          extra: true
+
 # ------------------------------------------------------------------------------
 # 1d. Cross-catalog references to peer catalogs
 #
@@ -780,6 +890,73 @@
   action: round_trip
   catalogPath: "conformance/test_data/catalogs/function_metadata_catalog_v1_0.json"
 
+- name: test_v10_custom_catalog_round_trip_leaf_defs
+  description: Tests that a v1.0 catalog with leaf $defs, chained leaf $defs, call-site description and default overrides on $ref properties, unused leaf $defs, and metadata.extensions round-trips with its $defs and property $ref pointers intact.
+  action: round_trip
+  protocolVersion: "v1.0"
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/leaf_defs_round_trip"
+    metadata:
+      displayName: "Leaf Defs Round Trip"
+      extensions:
+        x-vendor: "acme"
+    components:
+      SelectBox:
+        type: object
+        description: "A selector with reusable leaf definitions."
+        allOf:
+          - $ref: "common_types.json#/$defs/ComponentCommon"
+          - type: object
+            properties:
+              component: {const: SelectBox}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+              weight: {$ref: "#/$defs/Weight"}
+              customWeight:
+                $ref: "#/$defs/Weight"
+                description: "Custom flex weight override."
+                default: 2
+              primaryWeight: {$ref: "#/$defs/PrimaryWeight"}
+              color: {$ref: "#/$defs/ColorValue"}
+              options:
+                type: array
+                items: {$ref: "#/$defs/SelectOption"}
+            required: [component, label]
+        unevaluatedProperties: false
+    $defs:
+      Weight:
+        type: number
+        description: "Relative flex weight."
+        minimum: 1
+      PrimaryWeight:
+        $ref: "#/$defs/Weight"
+      ColorToken:
+        type: string
+        enum: [primary, secondary, accent]
+      ColorValue:
+        anyOf:
+          - $ref: "#/$defs/ColorToken"
+          - type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
+      SelectOption:
+        type: object
+        properties:
+          label: {type: string}
+          value: {type: string}
+          component: {type: string}
+        required: [label, value]
+        additionalProperties: false
+      UnusedToken:
+        type: string
+        const: "unused"
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/SelectBox"
+        discriminator:
+          propertyName: component
+      anyFunction:
+        not: {}
+
 # ==============================================================================
 # 4. validation_schema
 # ==============================================================================
@@ -842,3 +1019,48 @@
   peerCatalogPaths:
     - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
   expectFile: "conformance/test_data/validation_schema/test_v10_cross_catalog_validation_schema.json"
+
+- name: test_v10_custom_validation_schema_leaf_defs
+  description: Tests that the validationSchema of a v1.0 catalog with leaf $defs and call-site overrides preserves the leaf $defs and property $ref pointers while flattening ComponentCommon and inlining referenced common types.
+  action: validation_schema
+  protocolVersion: "v1.0"
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/leaf_defs_validation_schema"
+    components:
+      SelectBox:
+        type: object
+        description: "A selector with reusable leaf definitions."
+        allOf:
+          - $ref: "common_types.json#/$defs/ComponentCommon"
+          - type: object
+            properties:
+              component: {const: SelectBox}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+              weight: {$ref: "#/$defs/Weight"}
+              customWeight:
+                $ref: "#/$defs/Weight"
+                description: "Custom flex weight override."
+                default: 2
+              color: {$ref: "#/$defs/ColorValue"}
+            required: [component, label]
+        unevaluatedProperties: false
+    $defs:
+      Weight:
+        type: number
+        description: "Relative flex weight."
+        minimum: 1
+      ColorToken:
+        type: string
+        enum: [primary, secondary, accent]
+      ColorValue:
+        anyOf:
+          - $ref: "#/$defs/ColorToken"
+          - type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/SelectBox"
+        discriminator:
+          propertyName: component
+  expectFile: "conformance/test_data/validation_schema/test_v10_custom_validation_schema_leaf_defs.json"

@@ -1339,7 +1339,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         for (final MapEntry<String, Object?> entry in orderedProperties.entries)
           entry.key: _normalizePropertyRefs(
             inlineLocalRefs(
-              _stripInlinedCatalogDefMarkers(entry.value, isReadSchema),
+              _normalizePropertyRefs(
+                _stripInlinedCatalogDefMarkers(entry.value, isReadSchema),
+                isReadSchema: isReadSchema,
+                definitions: definitions,
+              ),
               rootDoc,
               null,
               peerDocs,
@@ -1815,14 +1819,32 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   static Map<String, Object?>? _lookupDefInMap(
     String ref,
-    Map<String, Object?> defs,
-  ) {
+    Map<String, Object?> defs, [
+    Set<String>? visited,
+  ]) {
     if (!ref.startsWith(r'#/$defs/')) return null;
     final String tail = ref.substring(8);
     if (tail.contains('/')) return null;
     final String defName = tail.replaceAll('~1', '/').replaceAll('~0', '~');
+    final Set<String> seen = visited ?? <String>{};
+    if (!seen.add(defName)) return null;
     final Object? target = defs[defName];
-    return target is Map ? target.cast<String, Object?>() : null;
+    if (target is! Map) return null;
+    final Map<String, Object?> targetMap = target.cast<String, Object?>();
+    final Object? innerRef = targetMap[r'$ref'];
+    if (innerRef is String && innerRef.startsWith(r'#/$defs/')) {
+      final Map<String, Object?>? resolvedInner =
+          _lookupDefInMap(innerRef, defs, seen);
+      if (resolvedInner != null) {
+        return <String, Object?>{
+          for (final MapEntry<String, Object?> entry in resolvedInner.entries)
+            if (entry.key != r'$ref') entry.key: entry.value,
+          for (final MapEntry<String, Object?> entry in targetMap.entries)
+            if (entry.key != r'$ref') entry.key: entry.value,
+        };
+      }
+    }
+    return targetMap;
   }
 
   /// The `$defs` pointer fragment of [ref] when it names a common type.

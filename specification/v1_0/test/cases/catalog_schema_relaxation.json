@@ -203,6 +203,8 @@
         "catalogId": "https://example.com/catalog.json",
         "components": {
           "Card": {
+            "type": "object",
+            "required": ["component"],
             "oneOf": [
               {
                 "type": "object",
@@ -222,6 +224,8 @@
         "catalogId": "https://example.com/catalog.json",
         "components": {
           "Card": {
+            "type": "object",
+            "required": ["component"],
             "anyOf": [
               {
                 "type": "object",
