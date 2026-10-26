@@ -155,7 +155,7 @@ To support catalog flexibility and avoid hardcoding specific formatting or actio
 - Local actions use this same signature to trigger behaviors, for example `openUrl("https://example.com")`. The compiler maps these to standard client function actions.
 - Server events use a reserved `Event` signature to declare backend actions, for example `Event("save_deal", {rep: $/form/rep})`.
   - `Event(name, context?)` takes the event name and an optional context map positionally. The context can also be given by keyword: `Event("save_deal", context={rep: $/form/rep})`.
-  - `userMessage=` sets the message shown on the user's behalf when the event fires, as a string or a `$path` binding: `Event("reply", userMessage="Replying now")`. It maps to the v1.0 `Action.event.userMessage` field, so the compiler rejects it when targeting an earlier protocol version.
+  - `userMessage=` sets the message shown on the user's behalf when the event fires. It takes what the v1.0 `DynamicString` type takes: a string, a `$path` binding or a function call, as in `Event("reply", userMessage="Replying now")` or `Event("reply", userMessage=formatString("Replying to ${/thread/title}"))`. It maps to the v1.0 `Action.event.userMessage` field, so the compiler rejects it when targeting an earlier protocol version.
   - Any other keyword argument on `Event` is an error, rather than being dropped from the compiled action.
 - An action slot is any catalog property whose schema is the common `Action` type, including one nested inside a list item or object property (for example `Cards([{label: "Docs", action: openUrl("https://a2ui.org")}])`). A function call in an action slot compiles to a `functionCall` action; outside an action slot, it compiles to a plain function call value.
 

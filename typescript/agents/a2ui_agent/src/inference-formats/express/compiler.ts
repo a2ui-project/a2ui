@@ -297,6 +297,22 @@ function formatValue(v: unknown): string {
 }
 
 /**
+ * Names a parsed value for an error message in the terms the model wrote it in, rather than
+ * as the AST's JSON.
+ */
+function describeExpressValue(val: unknown): string {
+  if (isExpressNode(val, 'call')) return `a call to ${val.name}(...)`;
+  if (isExpressNode(val, 'check')) return `a check (?${val.name})`;
+  if (isExpressNode(val, 'variable')) return `the variable ${val.name}`;
+  if (isExpressNode(val, 'path')) return `the data binding $${val.path}`;
+  if (isExpressNode(val, 'map')) return 'a map literal';
+  if (isExpressNode(val, 'skipped')) return "'_'";
+  if (Array.isArray(val)) return 'a list';
+  if (val === null) return 'null';
+  return `the ${typeof val} ${JSON.stringify(val)}`;
+}
+
+/**
  * Casts raw compiler message envelopes to AgentToRendererMessage.
  * Python reproduces several behaviours that do not strictly match the standard TS message type
  * (such as standalone function calls emitting top-level functionCallId and callFunction).
@@ -1422,17 +1438,17 @@ export class ExpressCompiler {
             `${targetMajorMinor[0]}.${targetMajorMinor[1]} has no userMessage field.`,
         );
       }
+      // `userMessage` is a DynamicString: a string, a data binding or a function call.
       const userMessage = compile(fnKwargs.userMessage);
-      if (
-        typeof userMessage !== 'string' &&
-        !(
-          userMessage &&
-          typeof userMessage === 'object' &&
-          Object.hasOwn(userMessage, ctx.keys.path)
-        )
-      ) {
+      const isBindingOrCall =
+        userMessage !== null &&
+        typeof userMessage === 'object' &&
+        !Array.isArray(userMessage) &&
+        (Object.hasOwn(userMessage, ctx.keys.path) || Object.hasOwn(userMessage, ctx.keys.call));
+      if (typeof userMessage !== 'string' && !isBindingOrCall) {
         throw new ExpressValidationError(
-          `Event userMessage must be a string or a $path data binding, got: ${formatValue(fnKwargs.userMessage)}`,
+          `Event userMessage must be a string, a $path data binding or a function call, ` +
+            `got ${describeExpressValue(fnKwargs.userMessage)}.`,
         );
       }
       event.userMessage = userMessage;

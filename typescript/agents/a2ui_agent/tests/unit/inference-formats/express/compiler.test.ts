@@ -539,10 +539,34 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       ).toThrow("Argument 'message' is not a valid parameter of function 'Event'.");
     });
 
-    it('rejects a non-string userMessage', () => {
+    it('compiles a function call userMessage, as DynamicString allows', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Button(Text("Go"), action=Event("go", userMessage=formatString("Hi ${/name}")))',
+        ),
+      ) as Array<{action: unknown}>;
+
+      expect(root.action).toEqual({
+        event: {
+          name: 'go',
+          userMessage: {'@call': 'formatString', args: {value: 'Hi ${/name}'}},
+        },
+      });
+    });
+
+    it('rejects a userMessage that is not a DynamicString, naming what it got', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() =>
         compiler.compile('root = Button(Text("Go"), action=Event("go", userMessage=42))'),
+      ).toThrow(
+        'Event userMessage must be a string, a $path data binding or a function call, got the number 42.',
+      );
+      expect(() =>
+        compiler.compile('root = Button(Text("Go"), action=Event("go", userMessage={a: 1}))'),
+      ).toThrow(/got a map literal\./);
+      expect(() =>
+        compiler.compile('root = Button(Text("Go"), action=Event("go", userMessage=[1]))'),
       ).toThrow(ExpressValidationError);
     });
 
