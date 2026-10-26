@@ -1423,7 +1423,11 @@ export class ExpressCompiler {
       const userMessage = compile(fnKwargs.userMessage);
       if (
         typeof userMessage !== 'string' &&
-        !(userMessage && typeof userMessage === 'object' && ctx.keys.path in userMessage)
+        !(
+          userMessage &&
+          typeof userMessage === 'object' &&
+          Object.hasOwn(userMessage, ctx.keys.path)
+        )
       ) {
         throw new ExpressValidationError(
           `Event userMessage must be a string or a $path data binding, got: ${formatValue(fnKwargs.userMessage)}`,
