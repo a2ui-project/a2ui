@@ -10,6 +10,17 @@
   `Video` with `posterUrl`)
   ([#3070](https://github.com/a2ui-project/a2ui/pull/3070)).
 - **BREAKING**: `Skill` and `SkillSet` raise `A2uiValidationError` (a `ValueError`) for a `filename` that is absolute or has an empty, `.` or `..` segment, which they used to accept; the check runs on construction, on assignment, and in `SkillSet.add`. `SkillSet.export_to_directory` now removes only the directory that holds each skill file (for example `src/skills/nested` for `src/skills/nested/SKILL.md`) instead of the first path segment (`src`), removes a symlink or file at that path instead of following it, and raises before touching anything when a skill directory's parent is a symlink out of the output directory.
+- **BREAKING CHANGE**: `parse_and_fix` and the `a2ui.parser.payload_fixer`
+  module are removed. Nothing in the SDK used them any more: each inference
+  format's parser repairs the model's output, and the Direct JSON parser's
+  reader accepts trailing commas, unescaped control characters, smart quotes
+  used as JSON delimiters and a single message outside an array. Unlike
+  `parse_and_fix`, it keeps typographic quotes inside string values, so valid
+  JSON such as `"Willkommen im „Café Central“"` is no longer rejected
+  ([#2934](https://github.com/a2ui-project/a2ui/issues/2934)). To read a Direct
+  JSON block, use `DirectJsonParser(catalogs).compile(text)` or
+  `A2uiRequestProcessor.parse_response`.
+  [#PR_NUMBER](https://github.com/a2ui-project/a2ui/pull/PR_NUMBER)
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
   `call`, `check`, `skipped`); before, such a map was read as a variable
