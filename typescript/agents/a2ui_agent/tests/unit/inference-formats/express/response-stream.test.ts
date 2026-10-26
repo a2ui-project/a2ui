@@ -109,12 +109,16 @@ describe('ExpressResponseStream', () => {
     expect(componentsOf(messagesOf(parts))).toEqual([{id: 'root', component: 'Text', text: 'Hi'}]);
   });
 
-  it('does not close a block on a tag written inside a comment', () => {
-    const calls = stream(parser, [`${OPEN}\nroot = Text("Hi") # not </a2ui> yet\n${CLOSE}`]);
+  it('closes a block on a close tag written on a comment line, as parseResponse does', () => {
+    // The conformance rule (response_parser.yaml, test_unwrap_express_close_tag_on_comment_line):
+    // a close tag on the same line as a single-line comment still closes the block.
+    const response = `${OPEN}\nroot = Text("Hi") # done ${CLOSE} and more`;
+    const parts = stream(parser, [response]).flat();
 
-    expect(componentsOf(messagesOf(calls.flat()))).toEqual([
-      {id: 'root', component: 'Text', text: 'Hi'},
-    ]);
+    expect(parts.map(part => part.type)).toEqual(['a2ui', 'text']);
+    expect(messagesOf(parts)).toEqual(messagesOf(parser.parseResponse(response)));
+    expect(componentsOf(messagesOf(parts))).toEqual([{id: 'root', component: 'Text', text: 'Hi'}]);
+    expect(textsOf(parts)).toEqual(['and more']);
   });
 
   it('strips a Markdown fence around the block', () => {
