@@ -98,6 +98,12 @@ describe('Public Barrel Exports', () => {
     }
   });
 
+  it('exports the Skill generator symbols', () => {
+    expect(a2uiAgent.Skill).toBeDefined();
+    expect(a2uiAgent.SkillSet).toBeDefined();
+    expect(a2uiAgent.SkillGenerator).toBeDefined();
+  });
+
   it('does not leak internal namespace symbols', () => {
     // A private import shouldn't leak from the barrel.
     // Basic spot check for internal/web_core.ts items not directly requested:

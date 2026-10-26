@@ -106,12 +106,7 @@ const SUPPORTED_FORMATS = new Set(['direct_json', 'express']);
  * Conformance actions this SDK has no implementation for. Their cases are skipped with the
  * reason given, rather than falling through the harness and passing without running.
  */
-const UNIMPLEMENTED_ACTIONS = new Map<string, string>([
-  ['from_format', 'skill generation is not implemented'],
-  ['core_syntax', 'skill generation is not implemented'],
-  ['from_catalog', 'skill generation is not implemented'],
-  ['skill_set', 'skill generation is not implemented'],
-]);
+const UNIMPLEMENTED_ACTIONS = new Map<string, string>([]);
 
 export function classify(testCase: TestCase) {
   const superseded = SUPERSEDED.get(testCase.name) ?? SUPERSEDED_ACTIONS.get(testCase.action);
