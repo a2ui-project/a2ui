@@ -20,6 +20,7 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
 import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
+import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
   buildComponentUnion,
@@ -750,24 +751,8 @@ function convertUnionToZod(
   if (zodBranches.length === 1) {
     unionZod = zodBranches[0];
   } else {
-    const baseUnion = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
-    unionZod = isOneOf
-      ? z
-          .any()
-          .superRefine((val, ctx) => {
-            let matches = 0;
-            for (const b of zodBranches) {
-              if (b.safeParse(val).success && ++matches > 1) {
-                ctx.addIssue({
-                  code: z.ZodIssueCode.custom,
-                  message: 'Value matched more than one schema in oneOf',
-                });
-                return;
-              }
-            }
-          })
-          .pipe(baseUnion)
-      : baseUnion;
+    const tuple = [zodBranches[0], zodBranches[1], ...zodBranches.slice(2)] as const;
+    unionZod = isOneOf ? exclusiveUnion(tuple) : z.union(tuple);
   }
 
   if (propSchema.default !== undefined) {
@@ -1194,7 +1179,7 @@ function convertComponentJsonSchemaToZod(
  * of parameter names to subschemas), rather than a full JSON Schema object or
  * reference combinator.
  */
-function isShorthandParameterMap(schema: unknown): boolean {
+export function isShorthandParameterMap(schema: unknown): boolean {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return false;
   }

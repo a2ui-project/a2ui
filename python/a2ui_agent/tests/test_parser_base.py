@@ -43,8 +43,20 @@ def _make_delete_message(surface_id: str = "main") -> DeleteSurfaceMessage:
     )
 
 
+_MOCK_CATALOG = Catalog(
+    catalog_id="test/mock",
+    protocol_version=ProtocolVersion.V1_0,
+    components=[],
+    functions=[],
+)
+
+
 class _MockParser(Parser):
     """Minimal concrete Parser implementation for testing base Parser methods."""
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        return [_MOCK_CATALOG]
 
     def has_format_content(self, content: str, complete: bool = False) -> bool:
         if complete:
@@ -78,7 +90,8 @@ class _MockParser(Parser):
             result.append(RawResponsePart(part=TextPart(text=remaining)))
         return result
 
-    def compile(self, format_content: str) -> list[Any]:
+    def compile(self, format_content: str, *, is_final: bool = True) -> list[Any]:
+        del is_final
         surface_ids = [s.strip() for s in format_content.split(",") if s.strip()]
         return [_make_delete_message(sid) for sid in surface_ids]
 
@@ -158,13 +171,13 @@ def test_parser_wrap_and_decompile_roundtrip() -> None:
 
 
 def test_parser_streaming_defaults() -> None:
-    """Verifies supports_streaming is False by default and parse_chunk raises NotImplementedError."""
+    """Verifies supports_streaming is False by default and streaming raises NotImplementedError."""
     parser = _MockParser()
     assert parser.supports_streaming is False
     with pytest.raises(
         NotImplementedError, match="Streaming is not supported by _MockParser"
     ):
-        parser.parse_chunk("<mock>main</mock>")
+        parser.open_stream()
 
 
 def test_prompt_generator_abc() -> None:

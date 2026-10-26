@@ -29,7 +29,7 @@ permissions:
 env:
   RENDERERS_INC: "--include 'typescript/**'"
   TOOLS_INC: "--include 'tools/**'"
-  SAMPLES_INC: "--include 'samples/client/**' --include 'samples/agent/node/**'"
+  SAMPLES_INC: "--include 'samples/client/**' --include 'samples/agent/node/**' --include 'samples/vegachart/**'"
 
 jobs:
   changes:
@@ -67,6 +67,7 @@ jobs:
             samples:
               - 'samples/client/**'
               - 'samples/agent/node/**'
+              - 'samples/vegachart/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'
@@ -88,7 +89,7 @@ jobs:
   ci-renderers:
     needs: changes
     if: ${{ needs.changes.outputs.renderers == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright has no Chromium build for Ubuntu 26.04 yet
     # Healthy runs finish in ~20 min. Cap the job so a hung test fails fast
     # instead of running to the default 6h timeout (see issue #1637).
     timeout-minutes: 30
