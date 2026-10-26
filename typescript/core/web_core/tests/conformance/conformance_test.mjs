@@ -126,15 +126,11 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 const SKIP_TEST_NAMES = new Set([
   // Skipped until web_core implements problem reporting.
   'T1_resolve_defers_delivery',
-  'T2_dispose_defers_delivery',
-  'T3_data_write_and_action_defer_delivery',
-  'T4_update_then_delete_delivers_before_return',
-  'T5_nested_process_messages_in_listener_delivers_after_return',
-  'T6_throwing_listener_does_not_stop_next_item',
-  'T7_catalog_function_process_messages_during_resolve_defers',
-  'T8_resolve_and_dispose_at_once_delivers',
-  'T9_listener_disposing_resolver_gets_remaining_items',
-  'T10_errors_and_warnings_arrive_in_discovery_order',
+  'T2_data_write_and_action_defer_delivery',
+  'T3_throwing_listener_does_not_stop_next_item',
+  'T4_resolve_and_dispose_at_once_delivers',
+  'T5_listener_disposing_resolver_gets_remaining_items',
+  'T6_errors_and_warnings_arrive_in_discovery_order',
   'X1_delete_surface_before_delivery_drops_evaluation_items',
   'L1_unmounted_surface_evaluates_no_function',
 ]);
