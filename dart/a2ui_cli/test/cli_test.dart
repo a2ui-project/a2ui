@@ -83,33 +83,42 @@ void main() {
     });
 
     test(
-      'fails with exit code 1 on unsupported v1.0 catalog version',
+      'succeeds with exit code 0 on supported v1.0 catalog versions',
       () async {
         final Directory tmpDir = Directory.systemTemp.createTempSync(
           'cli-test-v1-',
         );
         try {
-          final v1File = File(p.join(tmpDir.path, 'v1_catalog.json'))
-            ..writeAsStringSync(
-              jsonEncode(<String, Object?>{
-                'catalogId': 'test_v1',
-                'protocolVersion': '1.0',
-                'components': <String, Object?>{},
-              }),
+          for (final (int i, String version) in [
+            '1.0',
+            'v1.0',
+            '1.0.0',
+            '1.0.0-rc.1',
+          ].indexed) {
+            final catalogId = 'test_v1_$i';
+            final v1File = File(p.join(tmpDir.path, '$catalogId.json'))
+              ..writeAsStringSync(
+                jsonEncode(<String, Object?>{
+                  'catalogId': catalogId,
+                  'protocolVersion': version,
+                  'components': <String, Object?>{},
+                }),
+              );
+            final ({int exitCode, String stdout, String stderr}) result =
+                await _captureCli([
+                  'codegen',
+                  '-c',
+                  v1File.path,
+                  '-o',
+                  tmpDir.path,
+                ]);
+            expect(result.exitCode, equals(0), reason: 'version=$version');
+            expect(result.stdout, contains('Successfully generated'));
+            expect(
+              File(p.join(tmpDir.path, '$catalogId.py')).readAsStringSync(),
+              contains('from a2ui.builder.v1_0 import ('),
             );
-          final ({int exitCode, String stdout, String stderr}) result =
-              await _captureCli([
-                'codegen',
-                '-c',
-                v1File.path,
-                '-o',
-                tmpDir.path,
-              ]);
-          expect(result.exitCode, equals(1));
-          expect(
-            result.stderr,
-            contains('Unsupported catalog protocol version'),
-          );
+          }
         } finally {
           tmpDir.deleteSync(recursive: true);
         }
@@ -117,33 +126,36 @@ void main() {
     );
 
     test(
-      'fails with exit code 1 on unsupported v0.8 catalog version',
+      'fails with exit code 1 on unsupported catalog versions (v0.8, 1.1, 2.0)',
       () async {
         final Directory tmpDir = Directory.systemTemp.createTempSync(
-          'cli-test-v08-',
+          'cli-test-unsupported-',
         );
         try {
-          final v08File = File(p.join(tmpDir.path, 'v08_catalog.json'))
-            ..writeAsStringSync(
-              jsonEncode(<String, Object?>{
-                'catalogId': 'test_v08',
-                'protocolVersion': 'v0.8',
-                'components': <String, Object?>{},
-              }),
+          for (final version in ['v0.8', '1.1', '2.0']) {
+            final badFile = File(p.join(tmpDir.path, 'bad_catalog.json'))
+              ..writeAsStringSync(
+                jsonEncode(<String, Object?>{
+                  'catalogId': 'test_unsupported',
+                  'protocolVersion': version,
+                  'components': <String, Object?>{},
+                }),
+              );
+            final ({int exitCode, String stdout, String stderr}) result =
+                await _captureCli([
+                  'codegen',
+                  '-c',
+                  badFile.path,
+                  '-o',
+                  tmpDir.path,
+                ]);
+            expect(result.exitCode, equals(1), reason: 'version=$version');
+            expect(
+              result.stderr,
+              contains('Unsupported catalog protocol version'),
+              reason: 'version=$version',
             );
-          final ({int exitCode, String stdout, String stderr}) result =
-              await _captureCli([
-                'codegen',
-                '-c',
-                v08File.path,
-                '-o',
-                tmpDir.path,
-              ]);
-          expect(result.exitCode, equals(1));
-          expect(
-            result.stderr,
-            contains('Unsupported catalog protocol version'),
-          );
+          }
         } finally {
           tmpDir.deleteSync(recursive: true);
         }

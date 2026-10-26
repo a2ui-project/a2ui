@@ -1,5 +1,14 @@
 ## Unreleased
 
+- Schema validation never fetches a `$ref` over the network. A cross-catalog
+  `$ref` whose JSON Pointer passes through an array, such as
+  `<peer>#/components/Button/allOf/1/properties/action`, now resolves against
+  the held peer catalog; previously it was left in place and jsonschema
+  downloaded the peer. A `$ref` into a catalog that isn't held now fails
+  validation with an unresolvable-reference error instead.
+- `SchemaValidator.evolve` no longer raises `TypeError` (`_registry`) for a
+  subschema that declares its own `$schema`, and keeps the validator's
+  registry.
 - `to_protocol_version` is exported from the `a2ui.core` public facade.
 - Under a `ValidationConfig` that allows dangling references, and orphans or a
   missing root, as an agent mirroring a renderer's surfaces uses,

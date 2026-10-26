@@ -49,3 +49,100 @@
   expected_skills:
     - a2ui-core/SKILL.md
     - a2ui-basic/SKILL.md
+  expected_skill_files:
+    a2ui-core/SKILL.md: conformance/test_data/skills/express_core.skill.md
+    a2ui-basic/SKILL.md: conformance/test_data/skills/express_basic_catalog.skill.md
+
+# --- SkillSet.export_to_directory cleanup scope ---
+#
+# Each case writes `pre_existing_files` under a fresh temporary directory, builds a
+# SkillSet from the literal `skills`, exports it there, and then checks that every
+# path in `expected_files` exists and every path in `expected_absent_files` does not.
+
+- name: test_export_wipes_stale_files_and_preserves_siblings
+  description: >-
+    Exporting removes stale files inside a skill's own directory, and leaves unrelated
+    sibling directories and files at the root of the output directory untouched.
+  action: export_to_directory
+  args:
+    skills:
+      - name: a2ui-core
+        description: Core rules.
+        content: "# Core"
+      - name: a2ui-basic
+        description: Basic catalog.
+        content: "# Basic"
+    pre_existing_files:
+      - a2ui-core/stale_note.txt
+      - unrelated-custom-skill/SKILL.md
+      - root_note.txt
+  expected_files:
+    - a2ui-core/SKILL.md
+    - a2ui-basic/SKILL.md
+    - unrelated-custom-skill/SKILL.md
+    - root_note.txt
+  expected_absent_files:
+    - a2ui-core/stale_note.txt
+
+- name: test_export_nested_filename_cleans_only_own_directory
+  description: >-
+    A skill whose filename is nested (such as `src/skills/nested/SKILL.md`) cleans only
+    the directory that holds the skill file, never an ancestor such as `src/`.
+  action: export_to_directory
+  args:
+    skills:
+      - name: nested
+        description: Nested skill.
+        content: "# Nested"
+        filename: src/skills/nested/SKILL.md
+    pre_existing_files:
+      - src/keep.ts
+      - src/skills/sibling/SKILL.md
+      - src/skills/nested/stale.txt
+  expected_files:
+    - src/skills/nested/SKILL.md
+    - src/keep.ts
+    - src/skills/sibling/SKILL.md
+  expected_absent_files:
+    - src/skills/nested/stale.txt
+
+- name: test_export_root_level_filename_does_not_wipe_output_dir
+  description: >-
+    A skill whose filename has no directory component is written into the output
+    directory root without removing anything else in it.
+  action: export_to_directory
+  args:
+    skills:
+      - name: flat
+        description: Flat skill.
+        content: "# Flat"
+        filename: FLAT.md
+    pre_existing_files:
+      - other.md
+      - some-skill/SKILL.md
+  expected_files:
+    - FLAT.md
+    - other.md
+    - some-skill/SKILL.md
+
+- name: test_export_rejects_filename_outside_output_dir
+  description: >-
+    A skill whose filename is absolute or has a `.` or `..` segment is rejected with a
+    validation error, and nothing in the output directory is removed or written.
+  action: export_to_directory
+  args:
+    skills:
+      - name: outside
+        description: Escapes the output directory.
+        content: "# Outside"
+        filename: ../outside/SKILL.md
+    pre_existing_files:
+      - root_note.txt
+      - some-skill/SKILL.md
+  expect_error:
+    category: ValidationError
+  expected_files:
+    - root_note.txt
+    - some-skill/SKILL.md
+  expected_absent_files:
+    - ../outside/SKILL.md
