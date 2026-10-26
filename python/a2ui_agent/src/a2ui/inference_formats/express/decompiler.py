@@ -337,6 +337,22 @@ class ExpressDecompiler:
         self._v1 = is_at_least_version(
             catalogs_protocol_version(self._catalogs), ProtocolVersion.V1_0
         )
+        # The binding and function call keys of the catalogs' version.
+        self._path_key = "@path" if self._v1 else "path"
+        self._call_key = "@call" if self._v1 else "call"
+
+    def _is_function_call(self, val: dict[str, Any]) -> bool:
+        """Checks whether a value in a component property is a function call.
+
+        In v1.0 and later, only `@call` names a function call, so an object
+        with a plain `call` key is data. Before v1.0, `call` names one when the
+        object has `args` or `catalogId` beside it; otherwise it is data.
+        """
+        if self._v1:
+            return isinstance(val.get(self._call_key), str)
+        return isinstance(val.get("call"), str) and (
+            "args" in val or "catalogId" in val
+        )
 
     def _check_component_ids(self, component_ids: Sequence[str]) -> None:
         """From v1.0, rejects component IDs that are not UAX 31 identifiers."""
@@ -812,14 +828,18 @@ class ExpressDecompiler:
             A plain-text representation of the value.
         """
         if isinstance(val, dict):
-            if _has_reserved_key(val, "path"):
-                path_str = _reserved_value(val, "path")
-                if "componentId" in val:
-                    comp_id_repr = _decompile_reference(val["componentId"], var_names)
-                    return f"_template({_decompile_path(path_str)}, {comp_id_repr})"
-                return _decompile_path(path_str)
+            # A child list template keeps the plain `path` key in every
+            # version. A data binding is an object whose only key is the
+            # binding key of the version, so a plain `path` key in v1.0, or a
+            # binding key beside other keys, is data.
+            if "componentId" in val and "path" in val:
+                comp_id_repr = _decompile_reference(val["componentId"], var_names)
+                return f"_template({_decompile_path(val['path'])}, {comp_id_repr})"
+            bound_path = val.get(self._path_key)
+            if isinstance(bound_path, str) and len(val) == 1:
+                return _decompile_path(bound_path)
 
-            if "event" in val:
+            if isinstance(val.get("event"), dict):
                 evt = val["event"]
                 name = _decompile_string(evt.get("name", ""))
                 ctx = evt.get("context", {})
@@ -833,12 +853,12 @@ class ExpressDecompiler:
                     return f"Event({name}, {{{', '.join(ctx_reprs)}}})"
                 return f"Event({name})"
 
-            if "functionCall" in val:
+            if isinstance(val.get("functionCall"), dict):
                 return self._decompile_call(
                     val["functionCall"], var_names, surface_cat_id
                 )
 
-            if _has_reserved_key(val, "call"):
+            if self._is_function_call(val):
                 return self._decompile_call(val, var_names, surface_cat_id)
 
             items_reprs = []
