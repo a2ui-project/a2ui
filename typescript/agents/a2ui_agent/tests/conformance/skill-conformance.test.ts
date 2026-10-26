@@ -38,26 +38,26 @@ const basicCatalogV10 = loadBasicCatalog('v1.0');
 interface SkillCaseContext {
   args: Record<string, unknown>;
   catalog?: CatalogApi;
+  format: ExpressFormat | DirectJsonFormat;
   generator: SkillGenerator;
 }
 
 function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
   const args = (testCase.args as Record<string, unknown>) || {};
-  const catRelPath = args.catalog as string | undefined;
-  let catalog: CatalogApi | undefined;
-  if (catRelPath) {
-    const absCatPath = path.resolve(REPO_ROOT, catRelPath);
-    const catConfig = CatalogConfig.fromPath(absCatPath);
-    catalog = catConfig.transformedCatalog;
-  }
+  const catRelPaths =
+    (args.catalogs as string[] | undefined) ?? (args.catalog ? [args.catalog as string] : []);
+  const catalogs = catRelPaths.map(
+    rel => CatalogConfig.fromPath(path.resolve(REPO_ROOT, rel)).transformedCatalog,
+  );
+  const catalog: CatalogApi | undefined = catalogs[0];
 
   const fmtName = (args.format as string | undefined) ?? 'express';
-  const fmt =
+  const format =
     fmtName === 'express'
-      ? new ExpressFormat(catalog ? [catalog] : [])
-      : new DirectJsonFormat(catalog ? [catalog] : [basicCatalogV10]);
-  const generator = new SkillGenerator(fmt);
-  return {args, catalog, generator};
+      ? new ExpressFormat(catalogs)
+      : new DirectJsonFormat(catalogs.length > 0 ? catalogs : [basicCatalogV10]);
+  const generator = new SkillGenerator(format);
+  return {args, catalog, format, generator};
 }
 
 function runFromFormatCase(testCase: LoadedCase, {args, generator}: SkillCaseContext): void {
@@ -142,6 +142,21 @@ function runExportToDirectoryCase(testCase: LoadedCase): void {
   }
 }
 
+function runMonolithicSkillEqualsPromptSnippetCase(
+  _testCase: LoadedCase,
+  {format, generator}: SkillCaseContext,
+): void {
+  const skillObj = generator.generateSkill();
+  const snippet = format.promptGenerator.generate();
+  expect(skillObj.content).toBe(`${snippet}\n`);
+  // The serialized skill trims whitespace at the body's ends. The body follows the line
+  // that closes the frontmatter; schema blocks in it also end with `---`.
+  const markdown = skillObj.toMarkdown();
+  const closing = '\n---\n\n';
+  const body = markdown.slice(markdown.indexOf(closing) + closing.length);
+  expect(body).toBe(`${snippet.trim()}\n`);
+}
+
 const SKILL_ACTION_HANDLERS: Record<
   string,
   (testCase: LoadedCase, ctx: SkillCaseContext) => void | Promise<void>
@@ -150,6 +165,7 @@ const SKILL_ACTION_HANDLERS: Record<
   core_syntax: runCoreSyntaxCase,
   from_catalog: runFromCatalogCase,
   skill_set: runSkillSetCase,
+  monolithic_skill_equals_prompt_snippet: runMonolithicSkillEqualsPromptSnippetCase,
 };
 
 describe('Conformance: skill.yaml', () => {

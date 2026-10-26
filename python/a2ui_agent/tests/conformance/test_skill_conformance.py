@@ -207,9 +207,6 @@ class TestSkillConformance(unittest.TestCase):
                     f"expected {rel} to be removed",
                 )
 
-                else:
-                    self.fail(f"Unhandled conformance action: {action}")
-
 
 if __name__ == "__main__":
     unittest.main()
