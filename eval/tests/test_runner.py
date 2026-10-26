@@ -76,6 +76,24 @@ def test_generate_prompt_v10() -> None:
     assert "<a2ui>" in express_prompt
 
 
+def test_generate_prompt_normalizes_and_validates_version() -> None:
+    prompt = generate_prompt("direct_json", " v0.9.1 ", V091_CATALOG)
+    assert V09_CATALOG_ID in prompt
+    with pytest.raises(ValueError, match="not supported"):
+        generate_prompt("direct_json", "0.8", V091_CATALOG)
+
+
+def test_parse_and_validate_rejects_unsupported_version() -> None:
+    with pytest.raises(ValueError, match="not supported"):
+        parse_and_validate(
+            format_name="direct_json",
+            version="0.8",
+            resolved_catalog_path=V091_CATALOG,
+            surface_id="main",
+            completion="<a2ui-json>[]</a2ui-json>",
+        )
+
+
 def test_parse_and_validate_direct_json_v091() -> None:
     valid_completion = """
     Here is your requested UI:

@@ -429,11 +429,12 @@ def generate_prompt(
 ) -> str:
     """Generates the format-specific and catalog-specific system prompt snippet."""
     validate_format(format_name)
+    norm_version = validate_version(version)
     catalog_config = CatalogConfig.from_path(
-        resolved_catalog_path, protocol_version=version
+        resolved_catalog_path, protocol_version=norm_version
     )
     strategy = get_python_strategy(
-        format_name, version, catalog_config, surface_id=surface_id
+        format_name, norm_version, catalog_config, surface_id=surface_id
     )
     return strategy.prompt_generator.generate()
 
@@ -477,11 +478,12 @@ def parse_and_validate(
           - 'parts': list[dict[str, Any]] with {'text': str, 'a2ui_json': list | None}
     """
     validate_format(format_name)
+    norm_version = validate_version(version)
     active_pool = pool or _get_default_pool()
     return active_pool.run(
         {
             "format_name": format_name,
-            "version": version,
+            "version": norm_version,
             "resolved_catalog_path": os.path.abspath(resolved_catalog_path),
             "surface_id": surface_id,
             "completion": completion,
