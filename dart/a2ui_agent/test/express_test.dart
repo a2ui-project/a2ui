@@ -916,7 +916,7 @@ surface("s1")
           isA<A2uiValidationError>().having(
             (e) => e.message,
             'message',
-            contains("Event has no parameter 'message'"),
+            contains("Event has no keyword parameter 'message'"),
           ),
         ),
       );

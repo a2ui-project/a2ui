@@ -1111,8 +1111,8 @@ class _SurfaceCompiler {
     for (final String key in call.kwargs.keys) {
       if (!_eventKeywords.contains(key)) {
         throw A2uiValidationError(
-          "Event has no parameter '$key'. Its parameters are: name, "
-          '${_eventKeywords.join(', ')}.',
+          "Event has no keyword parameter '$key'. Its keyword parameters "
+          'are: ${_eventKeywords.join(', ')}.',
         );
       }
     }
