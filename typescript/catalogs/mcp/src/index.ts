@@ -15,25 +15,17 @@
  */
 
 /**
- * A2UI MCP Catalog providing `callMcpTool`.
- *
- * Example setup:
- * ```ts
- * const catalogs: Catalog<any>[] = [];
- * const processor = new MessageProcessor(catalogs, onAction);
- *
- * const callMcpTool = createCallMcpToolImplementation(toolName => clientFor(toolName), processor);
- * catalogs.push(new Catalog(MCP_CATALOG_ID, '0.9', [], [callMcpTool]));
- * ```
+ * `@a2ui/catalog-mcp`: the A2UI MCP catalog, with the `callMcpTool` function, configured once
+ * per host with `configureMcpCatalog`.
  */
 
-/** Identifier of the catalog this package implements. */
-export const MCP_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json';
-
+export {MCP_CATALOG_ID} from './catalog.js';
+export {configureMcpCatalog, type McpCatalogConfig} from './mcp_catalog_config.js';
+export type {SandboxConfig} from './shared/sandbox/sandbox_config.js';
 export {
-  A2UI_MIME_TYPE,
-  CallMcpToolApi,
-  createCallMcpToolImplementation,
+  CallMcpToolImplementation,
+  type CallMcpToolOptions,
+  type McpAppResourcePayload,
   type McpClientResolver,
   type McpToolClient,
 } from './functions/callMcpTool.js';
