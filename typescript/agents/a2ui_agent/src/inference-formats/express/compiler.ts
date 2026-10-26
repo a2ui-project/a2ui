@@ -1382,6 +1382,9 @@ export class ExpressCompiler {
    * `userMessage` is a v1.0 Action field. It is rejected when targeting an earlier
    * protocol version, and so is any other keyword the signature does not define,
    * rather than being dropped from the compiled action.
+   *
+   * The event's name, message and context entries are `DynamicValue`s, not actions, so a
+   * function call among them stays a plain call whatever slot the event itself sits in.
    */
   private compileEventCall(
     callVal: ExpressCallNode,
@@ -1389,12 +1392,11 @@ export class ExpressCompiler {
     compIds: Map<string, string>,
     ctx: CompileContext,
     targetMajorMinor: [number, number],
-    isAction: boolean,
   ): Record<string, unknown> {
     const fnArgs = callVal.args;
     const fnKwargs = callVal.kwargs;
     const compile = (node: unknown): unknown =>
-      this._compileValue(node, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+      this._compileValue(node, rawSymbols, compIds, ctx, targetMajorMinor, false);
 
     if (fnArgs.length > 2) {
       throw new ExpressValidationError(
@@ -1625,7 +1627,7 @@ export class ExpressCompiler {
 
       // 2. Is it a reserved Event signature?
       if (fnName === 'Event') {
-        return this.compileEventCall(callVal, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+        return this.compileEventCall(callVal, rawSymbols, compIds, ctx, targetMajorMinor);
       }
 
       // 3. Is it an inline component constructor?

@@ -509,6 +509,22 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(root.action).toEqual({event: {name: 'go', context: {id: 1}}});
     });
 
+    it('keeps a function call inside an event context a plain call', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Button(Text("Go"), action=Event("go", {label: formatString("Hi ${/name}")}))',
+        ),
+      ) as Array<{action: unknown}>;
+
+      expect(root.action).toEqual({
+        event: {
+          name: 'go',
+          context: {label: {'@call': 'formatString', args: {value: 'Hi ${/name}'}}},
+        },
+      });
+    });
+
     it('rejects a context given both positionally and by keyword', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() =>
