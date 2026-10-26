@@ -20,7 +20,7 @@
   ([#2934](https://github.com/a2ui-project/a2ui/issues/2934)). To read a Direct
   JSON block, use `DirectJsonParser(catalogs).compile(text)` or
   `A2uiRequestProcessor.parse_response`.
-  [#PR_NUMBER](https://github.com/a2ui-project/a2ui/pull/PR_NUMBER)
+  [#3632](https://github.com/a2ui-project/a2ui/pull/3632)
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
   `call`, `check`, `skipped`); before, such a map was read as a variable
