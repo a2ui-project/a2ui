@@ -96,7 +96,9 @@ void main() {
           'gone',
       '- item_one\n- 2 * 3 * 4': '- item_one\n- 2 * 3 * 4',
       '**`config.yaml`** and ~~**old**~~': 'config.yaml and old',
-      r'\*not italic\* \# not heading': 'not italic # not heading',
+      r'\*not italic\* \# not heading': '*not italic* # not heading',
+      'the `__init__` method': 'the __init__ method',
+      '## Closed ##\nbody': 'Closed\nbody',
     };
     await pumpComponents(tester, [
       {
@@ -119,11 +121,12 @@ void main() {
       {
         'id': 'root',
         'component': 'Column',
-        'children': ['h2', 'h6', 'h1'],
+        'children': ['h2', 'h6', 'h1', 'h3'],
       },
       {'id': 'h2', 'component': 'Text', 'text': '  ## Title\n'},
       {'id': 'h6', 'component': 'Text', 'text': '###### Small'},
       {'id': 'h1', 'component': 'Text', 'text': '# Learn C#'},
+      {'id': 'h3', 'component': 'Text', 'text': '### Closed ###'},
     ], catalog: _catalog);
 
     final TextTheme theme = Theme.of(
@@ -140,6 +143,10 @@ void main() {
     expect(
       tester.widget<Text>(find.text('Learn C#')).style?.fontSize,
       theme.headlineLarge!.fontSize,
+    );
+    expect(
+      tester.widget<Text>(find.text('Closed')).style?.fontSize,
+      theme.headlineSmall!.fontSize,
     );
   });
 
