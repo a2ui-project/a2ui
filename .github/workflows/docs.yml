@@ -58,6 +58,12 @@ jobs:
         uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
         with:
+          # An empty token makes the action diff `pull_request.base.sha..HEAD`
+          # with git instead of reading the pull request's files from the
+          # GitHub API, which fails the job when the API has a transient
+          # error. It fetches the base commit itself, so the shallow checkout
+          # above is enough. Push and scheduled runs always used git.
+          token: ""
           filters: |
             docs:
               - ".github/workflows/docs.yml"
