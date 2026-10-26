@@ -105,9 +105,10 @@ class SurfaceModel<T extends ComponentApi> {
 
   /// Fires whenever an error occurs on this surface.
   ///
-  /// Errors arrive in the order they were dispatched, at the end of the
-  /// `MessageProcessor` message that found them, or a microtask after the
-  /// [dispatchError] call that queued them.
+  /// Each error arrives a microtask after the [dispatchError] call that
+  /// reported it, in dispatch order, so a later message may already have fixed
+  /// what it describes. Errors not yet delivered when the surface is disposed
+  /// are dropped.
   EventSource<A2uiRendererError> get onError => _onError;
 
   /// Fires whenever a non-fatal warning occurs on this surface.
