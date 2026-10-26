@@ -132,7 +132,9 @@ class DecisionParser(Parser):
                 ) from exc
         return blocks
 
-    def compile(self, format_content: str) -> list[AgentToRendererMessage]:
+    def compile(
+        self, format_content: str, *, is_final: bool = True
+    ) -> list[AgentToRendererMessage]:
         """Synthesizes the messages for every decision block in `format_content`.
 
         Raises:

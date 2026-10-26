@@ -31,7 +31,7 @@ from a2ui.core import A2uiValidationError, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.parser.messages import to_message_models
-from a2ui.utils.validation import validate_payload
+from a2ui.utils import validate_payload
 
 from .archetypes import ArchetypeGrammar, LayoutArchetype
 from .backends import (

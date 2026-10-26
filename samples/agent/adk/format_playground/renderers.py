@@ -450,7 +450,7 @@ class Renderers:
             'Text("")'
         )
         source = f'surface("{surface_id}")\nroot = Column([{texts}])'
-        parser = self.processor(RenderMode.EXPRESS, version).create_parser()
+        parser = self.processor(RenderMode.EXPRESS, version).parser
         messages = parser.compile(source)
         return [
             create_a2ui_part(message, version=version)
