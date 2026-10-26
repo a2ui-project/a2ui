@@ -62,21 +62,26 @@ Two of these labels are automated: `status: needs-triage` is managed entirely by
 
 ### How the automated triage bot works
 
-The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open item against the rules below, in order. An item that matches a rule is flagged: it gets `status: needs-triage`. Otherwise the label is removed.
+The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the conditions below, and removes the label from the rest.
 
-1. **Triage assignments**: An issue or PR with `status: assigned-for-triage` is flagged if it has no assignee, or if the label was added more than 14 days ago. Otherwise it is not flagged, because the assignee is triaging it. The 14 days count from the most recent time the label was added, so removing and re-adding the label restarts them. The rules below do not apply to these items.
-2. **Waiting on author**: An item with `status: waiting-for-author-response` is not flagged. The bot removes this label once an external contributor posts a comment, review or review comment after the label was added.
-3. **Assigned issues**: Flagged only if a P0 or P1 issue is stale, meaning it has had no human activity for:
-    - `P0`: more than 1 day
-    - `P1`: more than 30 days
-4. **Unassigned issues**: Flagged if any of the following apply:
-    - **No priority**: The issue has no priority label (`P0`–`P4`).
-    - **High priority**: The issue is `P0` or `P1`, which must have an assignee.
-    - **Unanswered external comment**: The latest human comment is from an external contributor.
-5. **Pull requests**: Flagged if opened by an external contributor and no maintainer has responded to the author's latest contribution. Maintainer-authored PRs are not flagged.
-6. **Transparency**: The automation prints to the console what items are flagged or unflagged and why. This can be used to track triage progress.
+An item gets `status: needs-triage` if it does not have `status: waiting-for-author-response` and:
+
+**It is an issue** and one of the following is true:
+
+1. **No priority**: It has no assignee, has no priority label (`P0`–`P4`), and was opened by an external contributor (the team manages its own issues).
+2. **Triage assignment expired**: It has `status: assigned-for-triage` and either has no assignee or got the label more than 14 days ago.
+3. **Stale**: It is assigned, is `P0` or `P1`, and has had no human activity for more than 1 day (`P0`) or 30 days (`P1`).
+4. **High priority without assignee**: It is `P0` or `P1` and has no assignee.
+5. **Unanswered external comment**: It has no assignee, and the latest human comment is from an external contributor.
+
+**It is a PR** and one of the following is true:
+
+1. **Triage assignment expired**: Same as for issues.
+2. **Unanswered external PR**: It was opened by an external contributor, and no team member has responded to the author's latest contribution.
 
 Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
+
+The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress.
 
 The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
 
