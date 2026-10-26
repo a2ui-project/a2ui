@@ -19,17 +19,11 @@ This section describes goals at a high level. See concrete steps in the section 
     - **P3**: not planned, but may become a priority
     - **P4**: we do not plan to invest in this issue
 
-2. **PRs**: We will review only essential PRs from external contributors.
+2. **PRs**: We review contributions if:
 
-    A PR will be reviewed only if **both** of the following are true:
-
-    - the PR contributes to a **P0-P3** issue (PRs for P4 issues will not be reviewed), and the issue is linked on the top of the description
-    - **at least one** of the following is true:
-        - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description)
-        - the issue has label `type: contributions-welcome`
-        - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
-
-    We will have to reject all other PRs, to preserve team resources for planned work.
+    - they are easy to review
+    - they align well with the rest of the work, without stepping on each other's toes
+    - we have cycles to review, land, and maintain them over time
 
 ## GitHub labels used in triage
 
