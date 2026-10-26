@@ -1184,32 +1184,37 @@ extension CatalogInvokerExtension
   Map<String, Object?> _resolvedArgumentSchema(FunctionImplementation fn) {
     final Map<FunctionImplementation, Map<String, Object?>> byFunction =
         _resolvedArgumentSchemas[this] ??= Map.identity();
-    return byFunction[fn] ??= resolveSchemaRefs(
+    return byFunction[fn] ??= _resolveArgumentSchema(fn);
+  }
+
+  /// The argument schema of [fn] with its references resolved and, in a
+  /// catalog for v1.0 or later, each boolean position also accepting an
+  /// object with a boolean `valid`, as a DynamicBoolean coerces one to that
+  /// boolean.
+  Map<String, Object?> _resolveArgumentSchema(FunctionImplementation fn) {
+    final Map<String, Object?> schema = resolveSchemaRefs(
       fn.argumentSchema.value,
       validationSchema,
       commonTypes: commonTypesSchema,
     );
+    final A2uiProtocolVersion? version = protocolVersion;
+    if (version == null || !version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+      return schema;
+    }
+    return _withValidityInBooleans(schema) as Map<String, Object?>;
   }
 
   /// The ways [args] fail [fn]'s argument schema, or an empty list when they
   /// match. Null arguments are left unchecked, as in [invoke], and a
   /// [ValidationResult] is checked as its JSON object.
-  ///
-  /// In a catalog for v1.0 or later, a [ValidationResult], or an object with
-  /// a boolean `valid`, is checked as that boolean instead, as a
-  /// DynamicBoolean coerces one.
   List<ValidationError> argumentErrors(
     FunctionImplementation fn,
     Map<String, dynamic> args,
-  ) {
-    final A2uiProtocolVersion? version = protocolVersion;
-    final bool validity =
-        version != null && version.isAtLeast(A2uiProtocolVersion.v1_0);
-    return _errorsOf(fn, {
-      for (final MapEntry<String, dynamic> entry in args.entries)
-        entry.key: _checkable(entry.value, validity: validity),
-    });
-  }
+  ) =>
+      _errorsOf(fn, {
+        for (final MapEntry<String, dynamic> entry in args.entries)
+          entry.key: _asJson(entry.value),
+      });
 
   /// The ways [args] fail [fn]'s argument schema, leaving null arguments
   /// unchecked.
@@ -1238,21 +1243,42 @@ extension CatalogInvokerExtension
   }
 
   /// [value] with each [ValidationResult] in it, at any depth, replaced by its
-  /// JSON object or, when [validity] is true, by its validity, as is each
-  /// object with a boolean `valid` then.
-  static Object? _checkable(Object? value, {required bool validity}) =>
-      switch (value) {
-        ValidationResult(:final bool valid) =>
-          validity ? valid : value.toJson(),
-        {'valid': final bool valid} when validity => valid,
+  /// JSON object.
+  static Object? _asJson(Object? value) => switch (value) {
+        final ValidationResult result => result.toJson(),
         final List<Object?> list => [
-            for (final Object? item in list)
-              _checkable(item, validity: validity),
+            for (final Object? item in list) _asJson(item),
           ],
         final Map<String, Object?> map => <String, Object?>{
             for (final MapEntry<String, Object?> entry in map.entries)
-              entry.key: _checkable(entry.value, validity: validity),
+              entry.key: _asJson(entry.value),
           },
         _ => value,
       };
+
+  /// [schema] with each boolean position in it, at any depth, also accepting
+  /// an object with a boolean `valid`.
+  static Object? _withValidityInBooleans(Object? schema) => switch (schema) {
+        {'type': 'boolean'} => {
+            'anyOf': [schema, _validityObject],
+          },
+        final Map<String, Object?> map => <String, Object?>{
+            for (final MapEntry<String, Object?> entry in map.entries)
+              entry.key: _withValidityInBooleans(entry.value),
+          },
+        final List<Object?> list => [
+            for (final Object? item in list) _withValidityInBooleans(item),
+          ],
+        _ => schema,
+      };
 }
+
+/// The schema of an object with a boolean `valid`, which a DynamicBoolean
+/// coerces to that boolean.
+const Map<String, Object?> _validityObject = {
+  'type': 'object',
+  'properties': {
+    'valid': {'type': 'boolean'},
+  },
+  'required': ['valid'],
+};

@@ -810,6 +810,56 @@ void main() {
         );
       });
 
+      test('in an object position as it is', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith({
+          'status': Schema.object(
+            properties: {'valid': Schema.boolean(), 'note': Schema.string()},
+          ),
+        });
+        final args = <String, dynamic>{
+          'value': {
+            'status': {'valid': true, 'note': 'checked'},
+          },
+        };
+
+        expect(catalog.invoke('echo', args, context), args['value']);
+        expect(
+          catalog.invoke(
+            'echo',
+            {
+              'value': {'status': result},
+            },
+            context,
+          ),
+          {'status': result},
+        );
+      });
+
+      test('in a boolean position as a map with a boolean valid', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith({'flag': Schema.boolean()});
+        final args = <String, dynamic>{
+          'value': {
+            'flag': {'valid': false, 'message': 'no'},
+          },
+        };
+
+        expect(catalog.invoke('echo', args, context), args['value']);
+        expect(
+          () => catalog.invoke(
+            'echo',
+            {
+              'value': {
+                'flag': {'valid': 'yes'},
+              },
+            },
+            context,
+          ),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
       test('in a catalog before v1.0 as its JSON object', () {
         expect(
           () => catalogWith(
