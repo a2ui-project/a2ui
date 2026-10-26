@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `argumentErrors`, the argument check of `Catalog.invoke` and of a
+  `callRendererFunction`, checks a `ValidationResult` argument as its JSON
+  object instead of throwing `StateError`, and on a catalog for v1.0 or later
+  accepts one, or any object with a boolean `valid`, in a boolean position, so
+  `and`, `or` and `not` over validation rules run.
+- A component's `accessibility.hidden` resolves as a dynamic value, as its
+  `label` and `description` do, so it reaches `node.props` as a binding to
+  its value, and a `hidden` bound to a data path follows the data.
 - `regex` with an invalid pattern puts the parse message in the error's
   `details` instead of the `FormatException` object, so the error encodes as
   JSON.
