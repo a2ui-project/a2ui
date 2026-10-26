@@ -221,21 +221,17 @@ Here is how the flow wires up:
 
 ### 4.1 Session Preparation (Executor)
 
-The execution layer (e.g., `RizzchartsAgentExecutor`) intercepts the incoming message to detect if A2UI is enabled and what catalogs the client supports. It resolves the catalog and saves it to the session state.
+The execution layer (e.g., `RizzchartsAgentExecutor`) intercepts the incoming message to detect if A2UI is enabled and what catalogs the client supports. It negotiates an `A2uiRequestProcessor` for the client's capabilities and saves it to the session state under `system:a2ui_processor`.
 
 ```python
 # In agent_executor.py
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.utils import resolve_catalogs
+from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 
-use_ui = try_activate_a2ui_extension(context)
-if use_ui:
-    # Resolve the catalogs based on client capabilities
-    catalogs = resolve_catalogs(
-        self.catalog_configs, capabilities, accepts_inline_catalogs=True
-    )
-    inference_format = DirectJsonFormat(catalogs, examples_path=self.examples_path)
-    examples = inference_format.prompt_generator.generate_examples(validate=True)
+active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
+if active_ui_version:
+    capabilities = (context.message.metadata or {}).get(A2UI_CLIENT_CAPABILITIES_KEY)
+    processor = self._agent.create_processor(active_ui_version, capabilities)
 
     # Save to session (Event contains state_delta)
     await runner.session_service.append_event(
@@ -243,9 +239,8 @@ if use_ui:
         Event(
             actions=EventActions(
                 state_delta={
-                    _A2UI_ENABLED_KEY: True,
-                    _A2UI_CATALOGS_KEY: catalogs,
-                    _A2UI_EXAMPLES_KEY: examples,
+                    "system:a2ui_enabled": True,
+                    "system:a2ui_processor": processor,
                 }
             ),
         ),
@@ -254,18 +249,15 @@ if use_ui:
 
 ### 4.2 Agent Tool Setup
 
-The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client.
+The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client. Pass a provider that reads the request's processor from session state, or pass one processor directly when the catalogs do not vary per request.
 
 ```python
 from a2ui.adk import SendA2uiToClientToolset
-from a2ui.processor import A2uiGenerator
 
-generator = A2uiGenerator(self.catalog_configs, examples=examples)
-processor = generator.create_processor(capabilities)
 agent.tools = [
     SendA2uiToClientToolset(
-        a2ui_enabled=True,
-        a2ui_processor=processor,
+        a2ui_enabled=lambda ctx: ctx.state.get("system:a2ui_enabled", False),
+        a2ui_processor=lambda ctx: ctx.state["system:a2ui_processor"],
     )
 ]
 ```

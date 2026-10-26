@@ -126,6 +126,17 @@ class A2uiEventConverter:
             event, invocation_context, task_id, context_id, convert_part
         )
 
+    def _close_stream(self, invocation_id: str) -> list[a2a_types.Part]:
+        """Closes and removes the invocation's open stream, returning any trailing parts."""
+        stream = self._streams.pop(invocation_id)
+        if stream is None:
+            return self._fallback_parts()
+        try:
+            return to_a2a_parts(stream.close())
+        except Exception as e:
+            logger.warning("Failed to close A2UI stream: %s", e)
+            return self._fallback_parts()
+
     def _streaming_part_converter(
         self,
         *,
@@ -153,7 +164,11 @@ class A2uiEventConverter:
         def convert_part(part: genai_types.Part) -> list[a2a_types.Part]:
             nonlocal closed_stream
             if part.text is None or part.thought:
-                return a2ui_part_converter.convert(part)
+                parts = a2ui_part_converter.convert(part)
+                if not is_partial and invocation_id in self._streams:
+                    closed_stream = True
+                    return [*self._close_stream(invocation_id), *parts]
+                return parts
             if is_partial:
                 if invocation_id not in self._streams:
                     self._streams[invocation_id] = processor.open_stream()
@@ -171,14 +186,7 @@ class A2uiEventConverter:
                     return []
             if invocation_id in self._streams:
                 closed_stream = True
-                stream = self._streams.pop(invocation_id)
-                if stream is None:
-                    return self._fallback_parts()
-                try:
-                    return to_a2a_parts(stream.close())
-                except Exception as e:
-                    logger.warning("Failed to close A2UI stream: %s", e)
-                    return self._fallback_parts()
+                return self._close_stream(invocation_id)
             if closed_stream:
                 return []
             return a2ui_part_converter.convert(part)

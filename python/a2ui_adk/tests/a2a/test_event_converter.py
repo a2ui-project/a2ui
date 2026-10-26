@@ -275,3 +275,29 @@ def test_event_converter_does_not_feed_thought_parts_into_stream():
     assert len(thought_parts) == 1
     assert thought_parts[0].root.metadata == {"adk_thought": True}
     assert converter._streams == {}
+
+
+def test_event_converter_closes_stream_when_final_event_has_no_text_part():
+    processor = A2uiRequestProcessor(
+        [BasicCatalog("0.9")], format_factory=DirectJsonFormatFactory()
+    )
+    invocation_context = _streaming_context(processor)
+    converter = A2uiEventConverter()
+
+    with patch(
+        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
+    ) as mock_base_converter:
+        mock_base_converter.return_value = []
+        converter(_event(partial=True), invocation_context)
+        mock_base_converter.call_args[0][4](genai_types.Part(text="Hello <a2ui"))
+        assert "inv-1" in converter._streams
+
+        converter(_event(partial=False), invocation_context)
+        parts = mock_base_converter.call_args[0][4](
+            genai_types.Part(
+                function_call=genai_types.FunctionCall(name="some_tool", args={})
+            )
+        )
+
+    assert parts[0].root.text == " <a2ui"
+    assert converter._streams == {}
