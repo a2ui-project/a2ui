@@ -89,7 +89,7 @@ jobs:
   ci-renderers:
     needs: changes
     if: ${{ needs.changes.outputs.renderers == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright has no Chromium build for Ubuntu 26.04 yet
     # Healthy runs finish in ~20 min. Cap the job so a hung test fails fast
     # instead of running to the default 6h timeout (see issue #1637).
     timeout-minutes: 30
