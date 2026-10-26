@@ -17,6 +17,8 @@ import 'dart:async';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter_example_v0_9/chat_app.dart';
 import 'package:a2ui_flutter_example_v0_9/chat_session.dart';
+// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_client.dart';
@@ -50,4 +52,34 @@ void main() {
     );
     expect(find.textContaining('**'), findsNothing);
   });
+
+  testWidgets(
+    'keeps the text field focused after sending with Enter or the button',
+    (tester) async {
+      final client = FakeClient([
+        ['First reply.'],
+        ['Second reply.'],
+      ]);
+      final session = ChatSession(client: client);
+      addTearDown(session.dispose);
+      await tester.pumpWidget(ChatApp(session: session));
+      bool focused() => tester
+          .widget<EditableText>(find.byType(EditableText))
+          .focusNode
+          .hasFocus;
+
+      await tester.enterText(find.byType(TextField), 'First turn.');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(focused(), isTrue);
+
+      await tester.enterText(find.byType(TextField), 'Second turn.');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pump();
+      expect(focused(), isTrue);
+      expect(client.requests, hasLength(2));
+    },
+    // On desktop a tap outside a focused text field unfocuses it.
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 }
