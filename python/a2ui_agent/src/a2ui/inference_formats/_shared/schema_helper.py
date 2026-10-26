@@ -35,6 +35,37 @@ from a2ui.core import (
 _COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
 
 
+def _common_def_name(ref: Any) -> str | None:
+    """Returns the common type a `$ref` names, or None if it is not one."""
+    if not isinstance(ref, str):
+        return None
+    m = _COMMON_DEF_RE.search(ref)
+    return m.group(1) if m else None
+
+
+def is_action_slot(schema: Any) -> bool:
+    """Checks whether a property schema is an Action slot.
+
+    A property is an action slot when its schema references the common `Action`
+    def, directly or through `oneOf`/`anyOf`/`allOf`.
+
+    Args:
+        schema: The property JSON schema to inspect.
+
+    Returns:
+        True if the schema references the common `Action` type.
+    """
+    if not isinstance(schema, dict):
+        return False
+    if _common_def_name(schema.get("$ref")) == "Action":
+        return True
+    for key in ("allOf", "oneOf", "anyOf"):
+        subs = schema.get(key)
+        if isinstance(subs, list) and any(is_action_slot(sub) for sub in subs):
+            return True
+    return False
+
+
 def _find_enum(s: Any) -> list[Any] | None:
     """Returns the first `enum` list found in a schema or its combinators."""
     if isinstance(s, dict):
@@ -462,3 +493,70 @@ class CatalogSchemaHelper:
             return False
 
         return _check(schema, False)
+
+    def resolve_subschema(self, schema: Any, key: str) -> dict[str, Any] | None:
+        """Resolves the schema of an array item or an object property.
+
+        Follows `$ref` (into both the common types and the catalog document),
+        `allOf`, `oneOf` and `anyOf` to find the schema declared at that
+        position.
+
+        Args:
+            schema: The parent JSON schema to inspect.
+            key: `items` for array items, or the property name for object
+                properties. A property name falls back to
+                `additionalProperties` when it is not declared.
+
+        Returns:
+            The resolved sub-schema, or None if none is declared.
+        """
+        visited: set[int] = set()
+
+        def _resolve(s: Any, in_common_types: bool) -> dict[str, Any] | None:
+            if not isinstance(s, dict) or id(s) in visited:
+                return None
+            visited.add(id(s))
+
+            if key == "items":
+                items = s.get("items")
+                if isinstance(items, dict):
+                    return items
+            else:
+                props = s.get("properties")
+                prop = props.get(key) if isinstance(props, dict) else None
+                if isinstance(prop, dict):
+                    return prop
+                additional = s.get("additionalProperties")
+                if isinstance(additional, dict):
+                    return additional
+
+            ref = s.get("$ref")
+            if isinstance(ref, str):
+                def_name = _common_def_name(ref)
+                if def_name:
+                    found = _resolve(self._lookup_common_def(def_name), True)
+                elif in_common_types and (
+                    ref.startswith("#/$defs/") or ref.startswith("#/definitions/")
+                ):
+                    name = ref[8:] if ref.startswith("#/$defs/") else ref[14:]
+                    found = _resolve(self._lookup_common_def(name), True)
+                elif ref.startswith("#/"):
+                    found = _resolve(
+                        self._resolve_json_pointer(self.catalog, ref), False
+                    )
+                else:
+                    found = None
+                if found:
+                    return found
+
+            for combinator in ("allOf", "oneOf", "anyOf"):
+                subs = s.get(combinator)
+                if isinstance(subs, list):
+                    for sub in subs:
+                        found = _resolve(sub, in_common_types)
+                        if found:
+                            return found
+
+            return None
+
+        return _resolve(schema, False)

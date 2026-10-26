@@ -258,5 +258,91 @@ class TestExpressParser(unittest.TestCase):
         self.assertEqual(comps["root"]["weight"], 1e-7)
 
 
+class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
+    """Covers writing `Event` keyword arguments and nested action slots back out."""
+
+    def setUp(self):
+        self.catalog = Catalog.from_json(
+            {
+                "catalogId": "test/links",
+                "components": {
+                    "Links": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Links"},
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "action": {
+                                            "$ref": "common_types.json#/$defs/Action"
+                                        },
+                                    },
+                                    "required": ["label", "action"],
+                                },
+                            },
+                        },
+                        "required": ["component", "items"],
+                    },
+                },
+                "functions": {
+                    "openUrl": {
+                        "type": "object",
+                        "returnType": "void",
+                        "properties": {
+                            "@call": {"const": "openUrl"},
+                            "args": {
+                                "type": "object",
+                                "properties": {"url": {"type": "string"}},
+                                "required": ["url"],
+                            },
+                        },
+                        "required": ["@call", "args"],
+                    },
+                },
+            },
+            protocol_version="1.0",
+        )
+        self.compiler = ExpressCompiler([self.catalog], version="v1.0")
+        self.decompiler = ExpressParser([self.catalog])
+
+    def _round_trip(self, dsl: str) -> str:
+        """Decompiles the compiled DSL and checks the text compiles back the same."""
+        compiled = self.compiler.compile(dsl)
+        decompiled = self.decompiler.decompile(compiled)
+        self.assertEqual(
+            to_message_dicts(self.compiler.compile(decompiled)),
+            to_message_dicts(compiled),
+        )
+        return decompiled
+
+    def test_event_user_message_is_written_as_keyword(self):
+        decompiled = self._round_trip(
+            'root = Links([{label: "Reply", action: Event("reply",'
+            ' userMessage="Now")}])'
+        )
+        self.assertIn('Event("reply", userMessage="Now")', decompiled)
+
+    def test_event_user_message_binding_follows_context(self):
+        decompiled = self._round_trip(
+            'root = Links([{label: "Reply", action: Event("reply", {threadId: "t1"},'
+            " userMessage=$/draft/message)}])"
+        )
+        self.assertIn(
+            'Event("reply", {threadId: "t1"}, userMessage=$/draft/message)', decompiled
+        )
+
+    def test_function_call_in_list_item_action_slot_is_written_as_a_call(self):
+        decompiled = self._round_trip(
+            'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}])'
+        )
+        self.assertIn(
+            'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}])',
+            decompiled,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
