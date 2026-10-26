@@ -20,6 +20,7 @@ from collections import OrderedDict
 from collections.abc import AsyncIterable, Sequence
 import logging
 import os
+import random
 import time
 from typing import Any
 import uuid
@@ -269,6 +270,17 @@ class PlaygroundAgent:
         self._last_turn: OrderedDict[
             str, tuple[str, list[tuple[RenderMode, RenderResult, TurnMetrics]]]
         ] = OrderedDict()
+        self._last_decision_context: OrderedDict[
+            str,
+            tuple[
+                str,
+                Any,
+                tuple[Any, ...],
+                Sequence[str],
+                str | None,
+                str | None,
+            ],
+        ] = OrderedDict()
         self.agent_card = self._build_agent_card()
 
     def _build_agent_card(self) -> AgentCard:
@@ -359,7 +371,7 @@ class PlaygroundAgent:
         settings = self._settings_for(session_id)
         command = parse_command(query)
         if command is not None:
-            parts = self._run_command(command, session_id, settings, ui_version)
+            parts = await self._run_command(command, session_id, settings, ui_version)
         elif settings.mode is RenderMode.TOOL and not settings.compare:
             parts = await self._render_tool_turn(
                 query, session_id, settings, ui_version
@@ -368,7 +380,7 @@ class PlaygroundAgent:
             parts = await self._render_turn(query, session_id, settings, ui_version)
         yield {"is_task_complete": True, "parts": parts}
 
-    def _run_command(
+    async def _run_command(
         self,
         command: Any,
         session_id: str,
@@ -395,6 +407,10 @@ class PlaygroundAgent:
             lines = self._rate_turn(session_id, command.argument, command.text)
         elif command.name == "ratings":
             lines = self._show_ratings()
+        elif command.name == "remix":
+            return await self._remix_turn(
+                session_id, command.argument, new_settings, version
+            )
         else:
             lines = [reply or ""]
         return self._status(lines, new_settings, version)
@@ -456,8 +472,22 @@ class PlaygroundAgent:
             results.append((mode, result))
             parts.extend(result.parts)
             parts.extend(self._footer_parts(mode, result, stage1, settings, version))
-            if mode is RenderMode.DECISION and result.trace_lines:
-                self._remember(self._last_trace, session_id, result.trace_lines)
+            if mode is RenderMode.DECISION:
+                if result.trace_lines:
+                    self._remember(self._last_trace, session_id, result.trace_lines)
+                if result.decision_answers:
+                    self._remember(
+                        self._last_decision_context,
+                        session_id,
+                        (
+                            block.intent,
+                            block.payload,
+                            result.decision_answers,
+                            block.mutable_paths,
+                            block.title,
+                            block.summary,
+                        ),
+                    )
             cand_metrics = (
                 result.metrics
                 or TurnMetrics(mode=mode, backend="llm", llm_calls=0, latency_ms=0.0)
@@ -563,6 +593,19 @@ class PlaygroundAgent:
 
         if result.trace_lines:
             self._remember(self._last_trace, session_id, result.trace_lines)
+        if result.decision_answers:
+            self._remember(
+                self._last_decision_context,
+                session_id,
+                (
+                    intent,
+                    tool_result,
+                    result.decision_answers,
+                    mutable_paths,
+                    None,
+                    None,
+                ),
+            )
 
         self._remember(
             self._last_turn,
@@ -573,6 +616,90 @@ class PlaygroundAgent:
             self._settings,
             session_id,
             settings.__class__(mode=settings.mode, turn=settings.turn),
+        )
+        return parts
+
+    async def _remix_turn(
+        self,
+        session_id: str,
+        argument: str | None,
+        settings: PlaygroundSettings,
+        version: str,
+    ) -> list[Part]:
+        context = self._last_decision_context.get(session_id)
+        if not context:
+            return self._status(
+                [
+                    "No previous decision render to remix. Render something"
+                    " in `decision` or `tool` mode first."
+                ],
+                settings,
+                version,
+            )
+        seed: int | None = None
+        if argument:
+            try:
+                seed = int(argument)
+            except ValueError:
+                return self._status(
+                    [
+                        f"Invalid seed `{argument}`; provide an integer (e.g."
+                        " `/remix 42`)."
+                    ],
+                    settings,
+                    version,
+                )
+        else:
+            seed = random.randint(1, 1000000)
+
+        intent, payload, answers, mutable_paths, title, summary = context
+        surface_id = surface_id_for(settings, RenderMode.DECISION)
+        result = await self.renderers.remix(
+            intent,
+            payload,
+            answers,
+            surface_id=surface_id,
+            version=version,
+            mutable_paths=mutable_paths,
+            title=title,
+            summary=summary,
+            seed=seed,
+        )
+        if not result.ok:
+            return self._status([f"Remix failed: {result.error}"], settings, version)
+
+        parts = list(result.parts)
+        metrics = result.metrics or TurnMetrics(
+            mode=RenderMode.DECISION,
+            backend="remix",
+            llm_calls=0,
+            latency_ms=0.0,
+            remix_seed=seed,
+        )
+        footer_lines = [metrics.footer()]
+        parts.extend(
+            self._status(footer_lines, settings, version, suffix="remix-footer")
+        )
+
+        if result.trace_lines:
+            self._remember(self._last_trace, session_id, result.trace_lines)
+        if result.decision_answers:
+            self._remember(
+                self._last_decision_context,
+                session_id,
+                (
+                    intent,
+                    payload,
+                    result.decision_answers,
+                    mutable_paths,
+                    title,
+                    summary,
+                ),
+            )
+        self._remember(
+            self._last_turn,
+            session_id,
+            (f"/remix {seed}", [(RenderMode.DECISION, result, metrics)]),
         )
         return parts
 

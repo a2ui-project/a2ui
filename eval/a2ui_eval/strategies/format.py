@@ -82,7 +82,7 @@ def assemble_system_prompt(
     prompt_parts = []
     if role_description:
         prompt_parts.append(role_description)
-    if workflow_description:
+    if workflow_description and format_name != "decision":
         prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
     if format_name == "direct_json":
         prompt_parts.append(

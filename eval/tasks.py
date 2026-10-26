@@ -149,7 +149,9 @@ def build_task(
     """
     _check_task_inputs(active_version, dataset)
     format_name = (
-        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
+        strategy
+        if strategy in ["express", "elemental", "atom", "decision"]
+        else "direct_json"
     )
     if strategy == "skill_mode":
         format_name = "express"

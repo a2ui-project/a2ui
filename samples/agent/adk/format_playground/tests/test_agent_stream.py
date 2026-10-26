@@ -316,3 +316,27 @@ async def test_rate_command_records_preference_and_summarizes(
     summary = await collect(agent, "/ratings", "s-rate")
     assert "(1 total vote)" in status_text(summary)
     assert "`decision`: 1 (100.0%)" in status_text(summary)
+
+
+async def test_remix_command_resamples_layout_with_zero_calls(
+    agent: PlaygroundAgent, scripted_llm: FakeLlmCaller
+) -> None:
+    # Remix before decision turn
+    unremixed = await collect(agent, "/remix", "s-remix")
+    assert "No previous decision render to remix" in status_text(unremixed)
+
+    # Valid decision turn
+    scripted_llm.script("stage1", STAGE1_BLOCK)
+    parts = await collect(agent, "show resort", "s-remix")
+    assert surface_ids(parts) == ["turn-1", "turn-1-decision-footer"]
+
+    # Invalid seed
+    bad_seed = await collect(agent, "/remix abc", "s-remix")
+    assert "Invalid seed `abc`" in status_text(bad_seed)
+
+    # Valid remix with seed
+    remixed = await collect(agent, "/remix 42", "s-remix")
+    assert surface_ids(remixed) == ["turn-1", "turn-1-remix-footer"]
+    footer = status_text(remixed)
+    assert "**decision** · remix · 0 LLM calls · 0 decision calls" in footer
+    assert "remix seed 42" in footer

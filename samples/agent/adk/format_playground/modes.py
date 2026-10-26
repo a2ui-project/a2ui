@@ -151,6 +151,8 @@ class TurnMetrics:
     """Registered template id when `stage == 'template_select'`."""
     root_component: str | None = None
     """Catalog root component when `stage` is `fast_1pass_leaf` or `container_2pass`."""
+    remix_seed: int | None = None
+    """Random seed used when re-sampling layout during remix."""
 
     def path_summary(self) -> str | None:
         """Describes whether rendering used the decision model, templates, or fallback."""
@@ -183,6 +185,26 @@ class TurnMetrics:
 
     def footer(self) -> str:
         """One line summarizing the turn, fields separated by ` · `."""
+        if self.backend == "remix":
+            call_label = "0 LLM calls · 0 decision calls"
+            timing = (
+                f"{self.latency_ms:.1f} ms"
+                if self.latency_ms < 1000.0
+                else f"{self.latency_ms / 1000.0:.2f} s"
+            )
+            parts: list[str] = [
+                f"**{self.mode}**",
+                self.backend,
+                call_label,
+                timing,
+            ]
+            if self.remix_seed is not None:
+                parts.append(f"remix seed {self.remix_seed}")
+            path = self.path_summary()
+            if path is not None:
+                parts.append(path)
+            return " · ".join(parts)
+
         if self.decision_latency_ms is not None:
             dec_time = f"decision {format_decision_ms(self.decision_latency_ms)}"
             if self.llm_calls > 0:
@@ -248,6 +270,8 @@ class RenderResult:
     """Decision only: one line per planner question, for `/trace`."""
     error: str | None = None
     """Why rendering failed, if it did."""
+    decision_answers: tuple[Any, ...] = ()
+    output: Any = None
 
     @property
     def ok(self) -> bool:

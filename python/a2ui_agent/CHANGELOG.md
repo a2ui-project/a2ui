@@ -118,6 +118,22 @@
     `SynthesisOutput.trace` (`include_trace=True`). `PlanReason`,
     `Requirement`, `LintCode`, and `LintSeverity` are string enums;
     `PatternRef` and `ResolvedPattern` replace `name:variant` string splitting.
+  - `LocalCrossEncoderBackend` optimizes CPU performance by defaulting
+    `intra_op_num_threads` to the core count (`A2UI_DECISION_LOCAL_THREADS`),
+    truncating candidate passages to 128 tokens (`A2UI_DECISION_MAX_SEQ_LENGTH`),
+    and sorting candidate pairs by length before padding and batching
+    (`A2UI_DECISION_SORT_BY_LENGTH`).
+  - `DecisionBackend` supports temperature scaling on raw logits before computing
+    softmax probabilities (`A2UI_DECISION_TEMPERATURE` or `temperature` parameter).
+  - `DecisionBlock`, `DecisionSynthesizer`, and `ArchetypeGrammar` support authored
+    copy fields (`title`, `summary`), layout variety sampling (`VarietyMode.NEAR_TOP`,
+    `SynthesisConfig.variety`, `variety_margin`), and zero-backend-call re-sampling
+    (`DecisionSynthesizer.remix` / `remix_sync`).
+  - Add the `decision` evaluation strategy (`eval/a2ui_eval/strategies/decision.py`),
+    strategy comparison CLI (`eval/bin/compare_strategies.py`), and decision model
+    benchmark harness (`eval/bin/decision_bench.py` and `eval/datasets/decision_plans/v1.yaml`).
+  - Format playground adds `tool` mode (`--mode tool`, `/mode tool`), `/rate` and
+    `/ratings` commands with JSONL persistence, and `/remix` zero-model-call re-planning.
 - Express variable and check identifiers now follow Unicode UAX 31 in the
   grammar and decompiler ([#3390](https://github.com/a2ui-project/a2ui/issues/3390)).
   From protocol v1.0 onward, `ExpressDecompiler` rejects component IDs that are

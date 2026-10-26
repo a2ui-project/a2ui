@@ -1,35 +1,23 @@
 # A2UI format playground
 
-A chat-style sample agent for trying the three A2UI inference formats on the
-same request. Type "give me an address entry form" or "show my stock
-portfolio" and the surface is rendered through the mode you picked:
-`decision`, `express`, or `direct`.
+A chat-style sample agent for exploring A2UI inference formats and tool rendering workflows. You can interact with the agent in chat mode (`decision`, `express`, or `direct`) or try `tool` mode where tool execution data is rendered directly via the decision model.
 
-The agent works in two stages. Stage 1 is one model call that turns your
-request into a decision block (`intent`, `payload`, optional `layout`), the
-same block the `decision` inference format publishes to agents. Stage 2
-renders it: `decision` compiles the block with the local decision model and
-makes no further model call; `express` and `direct` make a second model call
-with that format's own prompt and the same intent and payload, then validate
-the reply. `/compare` renders all three from one payload, so the comparison is
-apples to apples.
+In chat mode, the agent works in two stages. Stage 1 is a single model call that turns your request into a decision block (`intent`, `payload`, optional `layout`, `title`, `summary`), which is the same structure the `decision` inference format publishes to agents. Stage 2 renders it: `decision` compiles the block with the decision model with zero additional model calls; `express` and `direct` make a second model call using that format's prompt and validate the reply. Running `/compare` renders all three modes from one payload for direct comparison.
 
-Every turn ends with a footer card that names the mode, the decision backend,
-how many model calls it took, the latency, the token counts, and (for
-`decision`) the archetype and its confidence.
+In `tool` mode, the language model is provided domain tools (`get_host_health`, `get_resort`, `get_transfer_quote`, `get_playback_settings`). The tool output is passed directly to the decision synthesizer without asking the language model to write UI code.
+
+Every turn ends with a footer card naming the mode, the backend, the number of model calls, the latency, token counts, and archetype or path details.
 
 ## Prerequisites
 
 - Python (see `requires-python` in `pyproject.toml`) and [uv](https://docs.astral.sh/uv/)
 - Node and Yarn for the sample client
-- A Gemini API key (`GEMINI_API_KEY`), or Vertex AI configured through
-  `GOOGLE_GENAI_USE_VERTEXAI=TRUE`
+- A Gemini API key (`GEMINI_API_KEY`), or Vertex AI configured through `GOOGLE_GENAI_USE_VERTEXAI=TRUE`
 - Optional: `MODEL_NAME` to pick a model (defaults to `gemini-3.6-flash`)
 
 ## Running the agent
 
-Use [`run.sh`](run.sh) with a preset name (`local`, `mock`, `jev`, `gev`,
-`express`, or `direct`):
+Use [`run.sh`](run.sh) with a preset name (`local`, `mock`, `jev`, `gev`, `express`, `direct`, or `tool`):
 
 ```bash
 cd samples/agent/adk/format_playground
@@ -41,12 +29,13 @@ export GEMINI_API_KEY=...
 JEV_API_KEY=... ./run.sh jev   # remote TypeSafe Jev (/v1/systemone)
 ./run.sh express    # start in express render mode
 ./run.sh direct     # start in direct render mode
+./run.sh tool       # start in tool mode (ADK tool call with zero UI model calls)
 ```
 
 Or run the package directly with `uv`:
 
 ```bash
-A2UI_DECISION_BACKEND=mock uv run . --mode decision
+A2UI_DECISION_BACKEND=mock uv run . --mode tool
 ```
 
 The startup log names the initial mode, the model, the decision backend, and the
@@ -87,9 +76,12 @@ the quickest way to try your own data shapes.
 
 | Command | Effect |
 | :-- | :-- |
-| `/mode decision` \| `express` \| `direct` | Picks how the next requests render. |
-| `/compare` | Renders the next request through all three modes from the same data. |
+| `/mode decision` \| `express` \| `direct` \| `tool` | Picks how the next requests render. |
+| `/compare` | Renders the next request through all three chat modes from the same data. |
 | `/trace` | Shows the planner's questions, answers, and thresholds for the last `decision` render. |
+| `/rate <mode> [comment]` | Records a preference vote for the last rendered turn. |
+| `/ratings` | Summarizes recorded mode preference win counts from the ratings log. |
+| `/remix [seed]` | Re-samples the last decision layout with 0 model calls and 0 decision backend queries. |
 | `/help` | Shows the active settings and these commands. |
 
 Anything else is a render request. A message that contains a JSON object or

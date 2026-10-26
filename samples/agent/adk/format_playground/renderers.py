@@ -339,6 +339,8 @@ class Renderers:
             parts=parts,
             metrics=self._decision_metrics(output, started),
             trace_lines=trace_lines(output),
+            decision_answers=output.decision_answers,
+            output=output,
             error=None if parts else "The decision model produced no surface.",
         )
 
@@ -374,7 +376,77 @@ class Renderers:
             parts=parts,
             metrics=self._decision_metrics(output, started, mode=RenderMode.TOOL),
             trace_lines=trace_lines(output),
+            decision_answers=output.decision_answers,
+            output=output,
             error=None if parts else "The decision model produced no surface.",
+        )
+
+    async def remix(
+        self,
+        intent: str,
+        payload: Mapping[str, Any] | Sequence[Any] | str,
+        answers: Sequence[Any],
+        *,
+        surface_id: str,
+        version: str = "1.0",
+        mutable_paths: Sequence[str] = (),
+        title: str | None = None,
+        summary: str | None = None,
+        seed: int | None = None,
+    ) -> RenderResult:
+        """Re-plans a previous decision surface using variety sampling with 0 backend calls."""
+        started = time.perf_counter()
+        try:
+            output = await self._synthesizer(version).remix(
+                intent,
+                payload,
+                answers,
+                surface_id=surface_id,
+                mutable_paths=mutable_paths,
+                title=title,
+                summary=summary,
+                seed=seed,
+            )
+        except (A2uiError, ValueError, httpx.HTTPError) as exc:
+            logger.warning("Remix failed: %s", exc)
+            return RenderResult(
+                metrics=TurnMetrics(
+                    mode=RenderMode.DECISION,
+                    backend="remix",
+                    llm_calls=0,
+                    decision_calls=0,
+                    decision_latency_ms=0.0,
+                    latency_ms=(time.perf_counter() - started) * 1000.0,
+                    remix_seed=seed,
+                ),
+                error=str(exc),
+            )
+        parts = [
+            create_a2ui_part(message, version=version)
+            for message in to_message_dicts(output.messages)
+        ]
+        metrics = TurnMetrics(
+            mode=RenderMode.DECISION,
+            backend="remix",
+            llm_calls=0,
+            decision_calls=0,
+            decision_latency_ms=0.0,
+            latency_ms=(time.perf_counter() - started) * 1000.0,
+            archetype=output.layout_plan.archetype if output.layout_plan else None,
+            block_count=(
+                len(output.layout_plan.blocks) if output.layout_plan else None
+            ),
+            confidence=output.confidence,
+            stage=output.stage.value,
+            remix_seed=seed,
+        )
+        return RenderResult(
+            parts=parts,
+            metrics=metrics,
+            trace_lines=trace_lines(output),
+            decision_answers=output.decision_answers,
+            output=output,
+            error=None if parts else "Remix produced no surface.",
         )
 
     def _decision_metrics(
