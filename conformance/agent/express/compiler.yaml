@@ -545,6 +545,36 @@
             component: "Text"
             text: "Submit"
 
+- name: test_compile_express_event_context_keeps_a_function_call_a_plain_call
+  description: The entries of an Event's context are DynamicValues, not actions, so a function call among them compiles to a plain function call even though the Event itself sits in an action slot.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("go", {greeting: formatString("Hi ${/name}")}))
+    label = Text("Go")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "go"
+                context:
+                  greeting:
+                    "@call": "formatString"
+                    args:
+                      value: "Hi ${/name}"
+          - id: "label"
+            component: "Text"
+            text: "Go"
+
 - name: test_compile_express_event_unknown_keyword_is_a_validation_error
   description: A keyword argument that Event does not define is a validation error rather than being dropped from the compiled action.
   action: compile
