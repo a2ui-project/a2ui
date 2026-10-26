@@ -231,7 +231,12 @@ def generate_basic_catalog_components(
             processed_inline.add(iname)
             inline_names.append(iname)
             codegen.name_context = iname.removesuffix("Item")
-            comp_blocks.append(codegen.compile_object_def(iname, ispec))
+            prev_skip = codegen.skip_component_property
+            codegen.skip_component_property = False
+            try:
+                comp_blocks.append(codegen.compile_object_def(iname, ispec))
+            finally:
+                codegen.skip_component_property = prev_skip
 
     comp_blocks.extend(leaf_def_blocks)
     comp_blocks.extend(component_defs)

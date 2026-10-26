@@ -1338,7 +1338,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       'properties': {
         for (final MapEntry<String, Object?> entry in orderedProperties.entries)
           entry.key: _normalizePropertyRefs(
-            inlineLocalRefs(entry.value, rootDoc, null, peerDocs),
+            inlineLocalRefs(
+              _stripInlinedCatalogDefMarkers(entry.value, isReadSchema),
+              rootDoc,
+              null,
+              peerDocs,
+            ),
             isReadSchema: isReadSchema,
             definitions: definitions,
           ),
@@ -1374,15 +1379,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Set<String>? expanding,
   ]) {
     final Object? defs = root[r'$defs'];
-    if (defs is! Map) return inlineLocalRefs(node, root, expanding, peers);
-    final Set<String> authored = {
-      for (final Object? name in defs.keys)
-        if (name is String &&
-            !_builtDefNames.contains(name) &&
-            !isCommonTypeDef(name))
-          name,
-    };
-    if (authored.isEmpty) return inlineLocalRefs(node, root, expanding, peers);
+    final Set<String> authored = defs is Map
+        ? {
+            for (final Object? name in defs.keys)
+              if (name is String &&
+                  !_builtDefNames.contains(name) &&
+                  !isCommonTypeDef(name))
+                name,
+          }
+        : const <String>{};
     final Set<String> visited = expanding ?? <String>{};
 
     Object? visit(Object? current) {
@@ -1416,12 +1421,17 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             {...visited, key},
           );
           if (resolved is! Map) return current;
-          return <String, Object?>{
+          final merged = <String, Object?>{
             ...resolved.cast<String, Object?>(),
             for (final MapEntry<Object?, Object?> entry in current.entries)
               if (entry.key != r'$ref')
                 entry.key! as String: visit(entry.value),
           };
+          if ((_inlinedCatalogDefNodes[resolved] ?? false) ||
+              (_inlinedCatalogDefNodes[current] ?? false)) {
+            _inlinedCatalogDefNodes[merged] = true;
+          }
+          return merged;
         }
       } else if (ref is String &&
           !ref.startsWith('#/') &&
@@ -1700,6 +1710,33 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
     }
     return current;
+  }
+
+  static Object? _stripInlinedCatalogDefMarkers(
+    Object? node,
+    bool isReadSchema, {
+    bool isPropertiesMap = false,
+  }) {
+    if (!isReadSchema) return node;
+    if (node is List) {
+      return [
+        for (final Object? item in node)
+          _stripInlinedCatalogDefMarkers(item, isReadSchema),
+      ];
+    }
+    if (node is! Map) return node;
+    final bool stripHere = !isPropertiesMap &&
+        node['catalogDefRef'] is String &&
+        (_inlinedCatalogDefNodes[node] ?? false);
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in node.entries)
+        if (!(stripHere && entry.key == 'catalogDefRef'))
+          entry.key! as String: _stripInlinedCatalogDefMarkers(
+            entry.value,
+            isReadSchema,
+            isPropertiesMap: !isPropertiesMap && entry.key == 'properties',
+          ),
+    };
   }
 
   /// [node] with each reference to a common type written as

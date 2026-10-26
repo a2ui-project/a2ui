@@ -94,7 +94,9 @@ export const LeafDefinitionSchema = z
           !z
             .union([
               z.object({
-                'properties': z.object({'component': z.object({'const': z.any()})}),
+                'properties': z.object({
+                  'component': z.record(z.string(), z.any()).refine(c => 'const' in c),
+                }),
                 'type': z.any().optional(),
               }),
               z.object({

@@ -357,9 +357,12 @@ class SpecShaper:
         if not _is_model(args_model):
             return None
         catalog_defs: dict[str, Any] = {}
+        canonical_defs: dict[str, dict[str, Any]] = {}
+        _find_catalog_def_schemas(args_model, canonical_defs)
         args = _extract_catalog_defs(
             args_model.model_json_schema(ref_template=_REF_TEMPLATE),
             catalog_defs,
+            canonical_defs,
         )
         model_defs = args.pop("$defs", {})
         for field_name in _own_fields(args_model):

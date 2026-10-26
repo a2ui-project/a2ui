@@ -253,7 +253,7 @@ function generateCatalogDefinition({pureCommonNames, helperNames}) {
       // and loses array "contains" inside "not".
       code = code.replace(
         /z\.object\(\{\s*["']component["']:\s*z\.record\(z\.string\(\),\s*z\.any\(\)\)\s*\}\)/,
-        "z.object({'component': z.object({'const': z.any()})})",
+        "z.object({'component': z.record(z.string(), z.any()).refine(c => 'const' in c)})",
       );
       code = code.replace(
         /z\.object\(\{\s*["']allOf["']:\s*z\.array\(z\.any\(\)\)\s*\}\)/,

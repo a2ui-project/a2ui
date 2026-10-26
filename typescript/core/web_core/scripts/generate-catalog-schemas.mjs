@@ -634,14 +634,22 @@ function topologicalSortDefNames(names, catalogDefs) {
  */
 function generateDefModel(name, schema, ctx) {
   let effectiveSchema = schema;
-  if (Array.isArray(schema.allOf) && (schema.type === 'object' || schema.properties)) {
+  if (Array.isArray(schema.allOf)) {
     const flattened = flattenSchema(schema, ctx.catalogDefs, ctx.commonDefs);
-    effectiveSchema = {
-      ...schema,
-      type: 'object',
-      properties: flattened.properties,
-      ...(flattened.required.length > 0 ? {required: flattened.required} : {}),
-    };
+    if (
+      schema.type === 'object' ||
+      schema.properties ||
+      Object.keys(flattened.properties).length > 0
+    ) {
+      const restSchema = {...schema};
+      delete restSchema.allOf;
+      effectiveSchema = {
+        ...restSchema,
+        type: 'object',
+        properties: flattened.properties,
+        ...(flattened.required.length > 0 ? {required: flattened.required} : {}),
+      };
+    }
   }
   let code;
   let prediction;

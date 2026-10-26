@@ -1302,4 +1302,42 @@ describe('built-in basic catalogs', () => {
       $ref: '#/$defs/ColorToken',
     });
   });
+
+  it('validates LeafDefinitionSchema and ComponentDefinitionSchema against catalog_schema_relaxation.json', async () => {
+    const {LeafDefinitionSchema, ComponentDefinitionSchema} =
+      await import('../v1_0/schema/catalog-definition.js');
+    const suite = readRepoJson('specification/v1_0/test/cases/catalog_schema_relaxation.json');
+    const validCatalog = suite.tests[0].data;
+    for (const [defName, defSchema] of Object.entries(validCatalog.$defs)) {
+      if (defName === 'anyComponent' || defName === 'anyFunction') continue;
+      assert.strictEqual(
+        LeafDefinitionSchema.safeParse(defSchema).success,
+        true,
+        `Expected valid leaf def ${defName} to pass LeafDefinitionSchema`,
+      );
+    }
+    for (const [compName, compSchema] of Object.entries(validCatalog.components)) {
+      assert.strictEqual(
+        ComponentDefinitionSchema.safeParse(compSchema).success,
+        true,
+        `Expected valid component ${compName} to pass ComponentDefinitionSchema`,
+      );
+    }
+    assert.strictEqual(
+      LeafDefinitionSchema.safeParse(suite.tests[1].data.$defs.BadComponentDef).success,
+      false,
+    );
+    assert.strictEqual(
+      LeafDefinitionSchema.safeParse(suite.tests[2].data.$defs.BadWrappedComponentDef).success,
+      false,
+    );
+    assert.strictEqual(
+      ComponentDefinitionSchema.safeParse(suite.tests[3].data.components.Card).success,
+      false,
+    );
+    assert.strictEqual(
+      ComponentDefinitionSchema.safeParse(suite.tests[4].data.components.Card).success,
+      false,
+    );
+  });
 });

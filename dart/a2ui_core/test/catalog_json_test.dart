@@ -1492,6 +1492,16 @@ void main() {
             'of a Row or Column.',
         'catalogDefRef': r'#/$defs/Weight',
       });
+      final rtTextResolved = roundTripped
+          .resolvedComponentSchema('Text')!
+          .value['properties']! as Map<String, Object?>;
+      expect(rtTextResolved['weight'], {
+        'type': 'number',
+        'description': "The relative weight of this component within a Row or "
+            "Column. This is similar to the CSS 'flex-grow' property. Note: "
+            'this may ONLY be set when the component is a direct descendant '
+            'of a Row or Column.',
+      });
       expect(roundTripped.toJson(), equals(v10.toJson()));
 
       final custom = Catalog<ComponentApi, FunctionApi>(

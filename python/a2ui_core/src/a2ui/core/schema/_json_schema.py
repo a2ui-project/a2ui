@@ -263,9 +263,23 @@ class CatalogDef:
     ) -> dict[str, Any] | None:
         if self._canonical is not None:
             return copy.deepcopy(self._canonical)
-        alias_tp = self._locals.get(self.name)
-        if alias_tp is None:
-            alias_tp = self._globals.get(self.name)
+        pascal_name = "".join(
+            part[:1].upper() + part[1:]
+            for part in self.name.replace("-", "_").split("_")
+            if part
+        )
+        candidates = (
+            (self.name, pascal_name)
+            if pascal_name and pascal_name != self.name
+            else (self.name,)
+        )
+        alias_tp = None
+        for cand in candidates:
+            alias_tp = self._locals.get(cand)
+            if alias_tp is None:
+                alias_tp = self._globals.get(cand)
+            if alias_tp is not None:
+                break
         if alias_tp is None:
             return None
         raw = TypeAdapter(alias_tp).json_schema(ref_template=ref_template)

@@ -1019,3 +1019,25 @@ def test_catalog_def_preserves_field_level_description_and_default_overrides() -
         "default": 2,
     }
     assert Catalog.from_json(doc).to_json() == doc
+
+
+def test_catalog_definition_validates_catalog_schema_relaxation_cases() -> None:
+    from pathlib import Path
+    from pydantic import ValidationError
+    from a2ui.core.schema.v1_0.catalog_definition import CatalogDefinition
+
+    suite_path = (
+        Path(REPO_ROOT)
+        / "specification"
+        / "v1_0"
+        / "test"
+        / "cases"
+        / "catalog_schema_relaxation.json"
+    )
+    suite = json.loads(suite_path.read_text(encoding="utf-8"))
+    for case in suite["tests"]:
+        if case["valid"]:
+            CatalogDefinition.model_validate(case["data"])
+        else:
+            with pytest.raises(ValidationError):
+                CatalogDefinition.model_validate(case["data"])
