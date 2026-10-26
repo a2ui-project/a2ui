@@ -537,6 +537,160 @@ void main() {
     });
   });
 
+  group('writes v1.0 actions', () {
+    final CatalogApi links = Catalog.fromJson({
+      'catalogId': 'https://example.com/links.json',
+      'protocolVersion': '1.0',
+      'components': {
+        'Text': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Text'},
+            'text': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+          },
+          'required': ['component', 'text'],
+        },
+        'Button': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Button'},
+            'child': {r'$ref': r'common_types.json#/$defs/Child'},
+            'action': {r'$ref': r'common_types.json#/$defs/Action'},
+          },
+          'required': ['component', 'child', 'action'],
+        },
+        'Links': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Links'},
+            'items': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'label': {'type': 'string'},
+                  'action': {r'$ref': r'common_types.json#/$defs/Action'},
+                },
+                'required': ['label', 'action'],
+              },
+            },
+          },
+          'required': ['component', 'items'],
+        },
+      },
+      'functions': {
+        'openUrl': {
+          'type': 'object',
+          'returnType': 'void',
+          'properties': {
+            '@call': {'const': 'openUrl'},
+            'args': {
+              'type': 'object',
+              'properties': {
+                'url': {'type': 'string'},
+              },
+              'required': ['url'],
+            },
+          },
+          'required': ['@call', 'args'],
+        },
+      },
+    });
+    final Parser v1Parser = const ExpressFormatFactory().createFormat([
+      links,
+    ]).createParser();
+
+    /// Writes a v1.0 surface of [components] in Express, checks that
+    /// compiling the result returns it, and returns what was written.
+    String roundTripV1(List<Map<String, Object?>> components) {
+      final List<AgentToRendererMessage> original =
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v1.0',
+              'createSurface': {
+                'surfaceId': 's',
+                'catalogId': links.id,
+                'components': components,
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
+      final String written = v1Parser.decompile(original);
+      expect(
+        v1Parser.compile(written).map((m) => m.toJson()),
+        original.map((m) => m.toJson()),
+        reason: 'Express written:\n$written',
+      );
+      return written;
+    }
+
+    test('an event with userMessage=, after its context', () {
+      expect(
+        roundTripV1([
+          {
+            'id': 'root',
+            'component': 'Button',
+            'child': 'label',
+            'action': {
+              'event': {'name': 'reply', 'userMessage': 'Replying now'},
+            },
+          },
+          {'id': 'label', 'component': 'Text', 'text': 'Reply'},
+        ]),
+        contains('Event("reply", userMessage="Replying now")'),
+      );
+      expect(
+        roundTripV1([
+          {
+            'id': 'root',
+            'component': 'Button',
+            'child': 'label',
+            'action': {
+              'event': {
+                'name': 'reply',
+                'userMessage': {'@path': '/draft'},
+                'context': {'id': 1},
+              },
+            },
+          },
+          {'id': 'label', 'component': 'Text', 'text': 'Reply'},
+        ]),
+        contains(r'Event("reply", {id: 1}, userMessage=$/draft)'),
+      );
+    });
+
+    test('a functionCall in a list item action slot as a plain call', () {
+      expect(
+        roundTripV1([
+          {
+            'id': 'root',
+            'component': 'Links',
+            'items': [
+              {
+                'label': 'Docs',
+                'action': {
+                  'functionCall': {
+                    '@call': 'openUrl',
+                    'args': {'url': 'https://a2ui.org'},
+                  },
+                },
+              },
+              {
+                'label': 'Go',
+                'action': {
+                  'event': {'name': 'go'},
+                },
+              },
+            ],
+          },
+        ]),
+        contains(
+          'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, '
+          '{label: "Go", action: Event("go")}])',
+        ),
+      );
+    });
+  });
+
   group('examples', () {
     final List<AgentToRendererMessage> greeting = messages([
       create('greeting'),

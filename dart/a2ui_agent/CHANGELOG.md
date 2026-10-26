@@ -59,6 +59,15 @@
   which `RendererState.of` uses. The release that publishes this version
   raises the `a2ui_core` constraint along with that `a2ui_core` release; until
   then the workspace resolves `a2ui_core` from this repository.
+- `ExpressCompiler` accepts `userMessage=` and `context=` keyword arguments on
+  `Event(...)`, compiling `userMessage` to the v1.0 `event.userMessage` field,
+  and throws `A2uiValidationError` for `userMessage` before v1.0 and for any
+  keyword `Event` does not define, where it used to drop them. A function call
+  in an action slot nested inside a list item or object property (such as
+  `items: [{label, action: openUrl(...)}]`) is now compiled as a
+  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back
+  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598),
+  [#3636](https://github.com/a2ui-project/a2ui/pull/3636)).
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or

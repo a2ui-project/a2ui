@@ -515,7 +515,7 @@ class _Component {
       }
       arguments
         ..addAll(List.filled(skipped, '_'))
-        ..add(_property(value, helper.propertySchema(type, property)));
+        ..add(_value(value, helper.propertySchema(type, property)));
       skipped = 0;
     }
     if (json['checks'] case final Object checks) arguments.add(_checks(checks));
@@ -524,12 +524,8 @@ class _Component {
     return '$varName = $type(${arguments.join(', ')})';
   }
 
-  String _property(Object value, Map<String, Object?>? schema) {
-    if (isAction(schema)) return _action(value);
-    return _value(value, schema);
-  }
-
   String _value(Object? value, Map<String, Object?>? schema) {
+    if (isAction(schema) && value != null) return _action(value);
     if (isComponentId(schema) && value is String) return _reference(value);
     if (isChildList(schema)) {
       if (value is List && value.every((Object? v) => v is String)) {
@@ -560,21 +556,29 @@ class _Component {
   /// as written.
   String _reference(String id) => variables[id] ?? _string(id);
 
-  /// `Event(name, context)` for an event, the call itself for a local
-  /// function, and the map literal otherwise.
+  /// `Event(name, context?, userMessage=?)` for an event, the call itself
+  /// for a local function, and the map literal otherwise.
   String _action(Object value) {
     switch (value) {
       case {'event': final Map<Object?, Object?> event} when value.length == 1:
         final Object? name = event['name'];
         final Object? context = event['context'];
+        final Object? userMessage = event['userMessage'];
+        const keys = {'name', 'context', 'userMessage'};
         final bool isEvent =
             name is String &&
-            event.keys.every((k) => k == 'name' || k == 'context') &&
-            (context == null || (context is Map && context.isNotEmpty));
+            event.keys.every(keys.contains) &&
+            (context == null || (context is Map && context.isNotEmpty)) &&
+            (userMessage == null ||
+                userMessage is String ||
+                _binding(_asMap(userMessage)) != null);
         if (isEvent) {
-          return context == null
-              ? 'Event(${_string(name)})'
-              : 'Event(${_string(name)}, ${_value(context, null)})';
+          final arguments = <String>[
+            _string(name),
+            if (context != null) _value(context, null),
+            if (userMessage != null) 'userMessage=${_value(userMessage, null)}',
+          ];
+          return 'Event(${arguments.join(', ')})';
         }
       case {'functionCall': final Map<Object?, Object?> call}
           when value.length == 1:

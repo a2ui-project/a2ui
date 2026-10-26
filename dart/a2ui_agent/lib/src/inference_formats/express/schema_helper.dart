@@ -116,6 +116,53 @@ class CatalogSchemaHelper {
     return check(schema);
   }
 
+  /// The schema [schema] declares for an array item, when [key] is `items`,
+  /// or for the property named [key] of an object, or null if it declares
+  /// none.
+  ///
+  /// Follows `$ref`s into the definitions of [catalog]'s validation schema,
+  /// which bundles the common types, and the members of `allOf`, `oneOf` and
+  /// `anyOf`, so that a nested slot such as `items: [{label, action}]` is
+  /// found whichever way the catalog writes it.
+  Map<String, Object?>? resolveSubschema(
+    Map<String, Object?>? schema,
+    String key,
+  ) {
+    final Object? defsObj = catalog.validationSchema[r'$defs'];
+    final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
+    // A definition may refer to itself, so each is followed once.
+    final visitedRefs = <String>{};
+
+    Map<String, Object?>? resolve(Map<String, Object?>? s) {
+      if (s == null) return null;
+      if (key == 'items') {
+        if (s['items'] case final Map<Object?, Object?> items) {
+          return items.cast<String, Object?>();
+        }
+      } else {
+        if (_properties(s)[key] case final Map<Object?, Object?> property) {
+          return property.cast<String, Object?>();
+        }
+        if (s['additionalProperties'] case final Map<Object?, Object?> more) {
+          return more.cast<String, Object?>();
+        }
+      }
+      if (_refName(s) case final String ref when visitedRefs.add(ref)) {
+        if (defs?[ref] case final Map<Object?, Object?> target) {
+          if (resolve(target.cast<String, Object?>()) case final found?) {
+            return found;
+          }
+        }
+      }
+      for (final Map<String, Object?> alt in _alternatives(s)) {
+        if (resolve(alt) case final found?) return found;
+      }
+      return null;
+    }
+
+    return resolve(schema);
+  }
+
   /// The component's own description, if its schema has one.
   String? componentDescription(String component) {
     final Map<String, Object?> schema = catalog

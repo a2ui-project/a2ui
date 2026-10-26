@@ -30,6 +30,9 @@ String defaultCheckMessage(String check) =>
 /// The helpers that belong to no catalog.
 const Set<String> _reservedHelpers = {'Event', '_template'};
 
+/// The keyword arguments the reserved `Event(...)` signature accepts.
+const List<String> _eventKeywords = ['userMessage', 'context'];
+
 /// Compiles Express blocks into A2UI messages of the protocol version the
 /// catalogs target.
 ///
@@ -311,6 +314,25 @@ class _StandaloneCall {
   final _Surface? surface;
 }
 
+/// The catalog schema declared at a value's position, with the helper whose
+/// catalog declares it.
+class _Slot {
+  const _Slot(this.schema, this.helper);
+
+  final Map<String, Object?> schema;
+  final CatalogSchemaHelper helper;
+
+  /// Whether the slot takes an action.
+  bool get holdsAction => isAction(schema);
+
+  /// The slot of an array item, when [key] is `items`, or of the entry [key]
+  /// of a map, or null when the schema declares none at that position.
+  _Slot? sub(String key) => switch (helper.resolveSubschema(schema, key)) {
+    final Map<String, Object?> found => _Slot(found, helper),
+    null => null,
+  };
+}
+
 /// Where a value is being compiled.
 class _Context {
   _Context({
@@ -318,6 +340,7 @@ class _Context {
     required this.hoisted,
     this.isAction = false,
     this.valueBinding,
+    this.slot,
   });
 
   /// The id a component written inline here takes.
@@ -332,11 +355,30 @@ class _Context {
   /// The binding of the enclosing component's `value`, which a check tests.
   final Map<String, Object?>? valueBinding;
 
+  /// The schema declared at this position, when known. Array items and map
+  /// entries resolve their own sub-schema from it, so an action slot nested
+  /// inside a list item (such as `items: [{label, action}]`) is compiled as
+  /// an action too.
+  final _Slot? slot;
+
   _Context child(Object suffix) => _Context(
     idPrefix: '${idPrefix}_$suffix',
     hoisted: hoisted,
     valueBinding: valueBinding,
   );
+
+  /// The context of an array item, when [key] is `items`, or of the map
+  /// entry [key], at the sub-schema of [slot] at that position.
+  _Context sub(Object suffix, String key) {
+    final _Slot? sub = slot?.sub(key);
+    return _Context(
+      idPrefix: '${idPrefix}_$suffix',
+      hoisted: hoisted,
+      isAction: sub?.holdsAction ?? false,
+      valueBinding: valueBinding,
+      slot: sub,
+    );
+  }
 }
 
 class _SurfaceCompiler {
@@ -749,6 +791,7 @@ class _SurfaceCompiler {
           idPrefix: '${id}_$property',
           hoisted: hoisted,
           isAction: isAction(schema),
+          slot: schema == null ? null : _Slot(schema, helper),
         ),
       );
       if (value is List && expectsOptionObjects(schema)) {
@@ -899,11 +942,11 @@ class _SurfaceCompiler {
     ),
     ArrayNode(:final List<ExpressNode> items) => [
       for (final (int index, ExpressNode item) in items.indexed)
-        _value(item, context.child(index)),
+        _value(item, context.sub(index, 'items')),
     ],
     MapNode(:final Map<String, ExpressNode> entries) => {
       for (final MapEntry<String, ExpressNode> entry in entries.entries)
-        entry.key: _value(entry.value, context.child(entry.key)),
+        entry.key: _value(entry.value, context.sub(entry.key, entry.key)),
     },
     VariableNode(:final String name) => _variable(name, context),
     CheckNode() => _check(node, context).$1,
@@ -1052,20 +1095,63 @@ class _SurfaceCompiler {
     };
   }
 
-  /// `Event(name, context?)`: an action sent to the agent.
+  /// `Event(name, context?, userMessage=?, context=?)`: an action sent to
+  /// the agent.
+  ///
+  /// `userMessage` is a v1.0 field of the Action, so before v1.0 it is
+  /// rejected, as is any keyword the signature does not define, rather than
+  /// dropped from the compiled action.
   Map<String, Object?> _event(CallNode call, _Context context) {
-    ExpressNode? argument(int index, String name) =>
-        call.kwargs[name] ??
-        (index < call.args.length ? call.args[index] : null);
+    if (call.args.length > 2) {
+      throw A2uiValidationError(
+        'Event takes at most 2 positional arguments (name, context), but '
+        '${call.args.length} are given.',
+      );
+    }
+    for (final String key in call.kwargs.keys) {
+      if (!_eventKeywords.contains(key)) {
+        throw A2uiValidationError(
+          "Event has no parameter '$key'. Its parameters are: name, "
+          '${_eventKeywords.join(', ')}.',
+        );
+      }
+    }
+    if (call.args.length == 2 && call.kwargs.containsKey('context')) {
+      throw A2uiValidationError("Parameter 'context' of Event is given twice.");
+    }
 
-    final ExpressNode? nameNode = argument(0, 'name');
+    final ExpressNode? nameNode = call.args.firstOrNull;
     final Object? eventName = nameNode == null
         ? null
         : _value(nameNode, context.child('name'));
     if (eventName is! String) {
       throw A2uiValidationError('Event needs a name, such as Event("submit").');
     }
-    final ExpressNode? contextNode = argument(1, 'context');
+    final event = <String, Object?>{'name': eventName};
+
+    if (call.kwargs['userMessage'] case final ExpressNode userMessageNode) {
+      if (!_v1) {
+        throw A2uiValidationError(
+          'Event userMessage requires protocol v1.0 or later; the target '
+          'version ${compiler._version.jsonValue} has no userMessage field.',
+        );
+      }
+      final Object? userMessage = _value(
+        userMessageNode,
+        context.child('userMessage'),
+      );
+      if (userMessage is! String && !_isBinding(userMessage)) {
+        throw A2uiValidationError(
+          'The userMessage of Event must be a string or a data path, such as '
+          'Event("reply", userMessage="Replying now").',
+        );
+      }
+      event['userMessage'] = userMessage;
+    }
+
+    final ExpressNode? contextNode = call.args.length == 2
+        ? call.args[1]
+        : call.kwargs['context'];
     final Object? eventContext = contextNode == null
         ? null
         : _value(contextNode, context.child('context'));
@@ -1075,13 +1161,10 @@ class _SurfaceCompiler {
         'Event("submit", {id: \$/item/id}).',
       );
     }
-    return {
-      'event': {
-        'name': eventName,
-        if (eventContext is Map && eventContext.isNotEmpty)
-          'context': eventContext,
-      },
-    };
+    if (eventContext is Map && eventContext.isNotEmpty) {
+      event['context'] = eventContext;
+    }
+    return {'event': event};
   }
 
   /// [id], the id an inline component takes from where it is written, such
