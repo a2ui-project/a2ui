@@ -160,6 +160,12 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
   // Step 3: issues.
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
+  // The team manages its own issues, so a missing priority matters only once
+  // an external contributor has opened or commented on the issue. A team reply
+  // since then does not settle it; only a priority does.
+  const needsPriority = !priority && (openedByExternal || contributions.some(isExternal));
+  const noPriorityReason = 'this issue has external input but no priority label yet.';
+
   // An assigned issue has a team member on it, so it is flagged only when that
   // work goes quiet beyond its priority's threshold, or when outside input
   // still lacks a priority.
@@ -169,10 +175,7 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
       const unit = threshold === 1 ? 'day' : 'days';
       return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
     }
-    if (!priority && (openedByExternal || contributions.some(isExternal))) {
-      return 'this issue has external input but no priority label yet.';
-    }
-    return null;
+    return needsPriority ? noPriorityReason : null;
   }
 
   // Urgent work with nobody on it.
@@ -180,10 +183,8 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
     return `this ${priority} issue has no assignee.`;
   }
 
-  // No priority assigned yet. The team manages its own issues, so only an
-  // external one needs prioritizing.
-  if (!priority && openedByExternal) {
-    return 'this issue has no priority label yet.';
+  if (needsPriority) {
+    return noPriorityReason;
   }
 
   // The last word on the issue is an external one. Like PRs, this carries no

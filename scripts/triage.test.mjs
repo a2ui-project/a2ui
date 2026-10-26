@@ -215,41 +215,49 @@ describe('flagReason — issues', () => {
     }
   });
 
-  describe('assigned with no priority', () => {
-    const assigned = {assignees: [{login: 'dev'}]};
-    const externalComment = event({
-      author_association: 'NONE',
-      user: {login: 'reporter', type: 'User'},
-    });
+  // The same check applies whether or not someone is assigned.
+  for (const [name, assignees] of [
+    ['assigned', [{login: 'dev'}]],
+    ['unassigned', []],
+  ]) {
+    describe(`${name} with no priority`, () => {
+      const externalComment = event({
+        author_association: 'NONE',
+        user: {login: 'reporter', type: 'User'},
+      });
 
-    it('flags an issue opened by an external contributor', () => {
-      assert.match(flagReason(externalIssue(assigned), [], NOW), /no priority label/);
-    });
+      it('flags an issue opened by an external contributor', () => {
+        assert.match(flagReason(externalIssue({assignees}), [], NOW), /no priority label/);
+      });
 
-    it("flags a team member's issue with an external comment", () => {
-      const item = issue({...assigned, comments: 1});
-      assert.match(flagReason(item, [externalComment], NOW), /no priority label/);
-    });
+      it("flags a team member's issue with an external comment", () => {
+        const item = issue({assignees, comments: 1});
+        assert.match(flagReason(item, [externalComment], NOW), /no priority label/);
+      });
 
-    // The flag is about missing priority, not an unanswered comment, so a team
-    // reply after the external comment does not clear it.
-    it('keeps flagging once a team member has replied to the external comment', () => {
-      const item = issue({...assigned, comments: 2});
-      const reply = event({created_at: daysAgo(0)});
-      assert.match(flagReason(item, [externalComment, reply], NOW), /no priority label/);
-    });
+      // The flag is about missing priority, not an unanswered comment, so a
+      // team reply after the external comment does not clear it.
+      it('keeps flagging once a team member has replied to the external comment', () => {
+        const item = issue({assignees, comments: 2});
+        const reply = event({created_at: daysAgo(0)});
+        assert.match(flagReason(item, [externalComment, reply], NOW), /no priority label/);
+      });
 
-    it("does not flag a team member's issue with only team comments", () => {
-      const item = issue({...assigned, comments: 1});
-      assert.equal(flagReason(item, [event()], NOW), null);
-    });
+      it("does not flag a team member's issue with only team comments", () => {
+        const item = issue({assignees, comments: 1});
+        assert.equal(flagReason(item, [event()], NOW), null);
+      });
 
-    it('ignores bot comments', () => {
-      const item = issue({...assigned, comments: 1});
-      const botComment = event({author_association: 'NONE', user: {login: 'ci[bot]', type: 'Bot'}});
-      assert.equal(flagReason(item, [botComment], NOW), null);
+      it('ignores bot comments', () => {
+        const item = issue({assignees, comments: 1});
+        const botComment = event({
+          author_association: 'NONE',
+          user: {login: 'ci[bot]', type: 'Bot'},
+        });
+        assert.equal(flagReason(item, [botComment], NOW), null);
+      });
     });
-  });
+  }
 
   // Drive the assignee rule off ASSIGNEE_REQUIRED_PRIORITIES rather than
   // hardcoding P0/P1, so the test tracks the config constant.
