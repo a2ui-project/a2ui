@@ -610,11 +610,15 @@ def test_data_context_v10_coerces_validation_result_in_optional_list():
     from pydantic import Field
 
     from a2ui.core.catalog import FunctionImplementation
-    from a2ui.core.schema.v1_0.common_types import DynamicBoolean, StrictBaseModel
+    from a2ui.core.schema.v1_0 import DynamicBoolean, StrictBaseModel
+
+    class NestedFlags(StrictBaseModel):
+        inner: DynamicBoolean | None = Field(default=None)
 
     class FlagsArgs(StrictBaseModel):
         flags: list[DynamicBoolean] | None = Field(default=None)
         flag: DynamicBoolean | None = Field(default=None)
+        nested: NestedFlags | None = Field(default=None)
 
     seen: list[dict[str, Any]] = []
 
@@ -645,11 +649,16 @@ def test_data_context_v10_coerces_validation_result_in_optional_list():
         "args": {
             "flags": [{"@path": "/bad"}, True],
             "flag": {"@path": "/good"},
+            "nested": {"inner": {"@path": "/bad"}},
         },
     })
 
     assert errors == []
-    assert result == {"flags": [False, True], "flag": True}
+    assert result == {
+        "flags": [False, True],
+        "flag": True,
+        "nested": {"inner": False},
+    }
 
 
 def test_data_context_v09_leaves_valid_objects_alone():
@@ -665,6 +674,9 @@ def test_data_context_v09_leaves_valid_objects_alone():
         ctx.resolve_dynamic_value({"call": "not", "args": {"value": {"path": "/flag"}}})
         is False
     )
+
+
+def test_data_context_validates_arguments_as_written():
     """An argument the schema does not declare is rejected before resolution."""
     from a2ui.core.basic_catalog import v1_0
 

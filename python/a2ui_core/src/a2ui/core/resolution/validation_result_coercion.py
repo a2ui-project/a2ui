@@ -32,7 +32,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ..schema.v1_0.common_types import DynamicBoolean
+from ..schema.v1_0 import DynamicBoolean
 
 _DYNAMIC_BOOLEAN_DEF = "DynamicBoolean"
 
@@ -114,6 +114,26 @@ def _list_item_annotation(annotation: Any) -> Any | None:
     return None
 
 
+def _model_annotation(annotation: Any) -> type[BaseModel] | None:
+    """Returns the ``BaseModel`` subclass of an object annotation, or None.
+
+    Looks through ``Annotated`` and through the members of an ``Optional``
+    or other union, so ``NestedModel | None`` yields ``NestedModel``.
+    """
+    origin = typing.get_origin(annotation)
+    if origin is typing.Annotated:
+        return _model_annotation(typing.get_args(annotation)[0])
+    if origin in (typing.Union, types.UnionType):
+        for member in typing.get_args(annotation):
+            sub_model = _model_annotation(member)
+            if sub_model is not None:
+                return sub_model
+        return None
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    return None
+
+
 def _coerce_for_annotation(annotation: Any, value: Any) -> Any:
     if is_dynamic_boolean_annotation(annotation):
         valid = validity_of(value)
@@ -121,6 +141,9 @@ def _coerce_for_annotation(annotation: Any, value: Any) -> Any:
     item_annotation = _list_item_annotation(annotation)
     if item_annotation is not None and isinstance(value, list):
         return [_coerce_for_annotation(item_annotation, item) for item in value]
+    sub_model = _model_annotation(annotation)
+    if sub_model is not None and isinstance(value, dict):
+        return _coerce_for_model(sub_model, value)
     return value
 
 
