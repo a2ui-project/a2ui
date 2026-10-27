@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import scene3dExample from '../../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json' with {type: 'json'};
 import {
   isWebComponentImplementation,
   MessageProcessor,
@@ -157,6 +158,16 @@ describe('mcpCatalog', () => {
     expect(surface.componentsModel.get('score_app')?.type).toBe('McpApp');
     expect(surface.componentsModel.get('name_field')?.type).toBe('TextField');
     expect(surface.dataModel.get('/player')).toEqual({name: 'Ada', score: 0});
+    surface.dispose();
+  });
+
+  it('processes the 3D geometry showcase example next to the basic catalog', () => {
+    const processor = new MessageProcessor<WebComponentImplementation>([...EXAMPLE_CATALOGS]);
+    processor.processMessages(parseExampleMessages(scene3dExample));
+    const surface = processor.model.getSurface('gallery-mcp-app-3d-geometry')!;
+    expect(surface).toBeDefined();
+    expect(surface.componentsModel.get('scene3d_app')?.type).toBe('McpApp');
+    expect(surface.componentsModel.get('scene3d_context_text')?.type).toBe('Text');
     surface.dispose();
   });
 });
