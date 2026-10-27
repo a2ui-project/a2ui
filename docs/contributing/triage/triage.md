@@ -103,7 +103,7 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 
 3. Complete the triage card in go/a2ui-triage-notes and send it to [the team chat][team-chat].
 
-### For owners of `status: assigned-for-triage`
+### By owners of `status: assigned-for-triage`
 
 If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to [triage the item](#triage-an-item) within two weeks of the assignment. Then remove the label.
 
