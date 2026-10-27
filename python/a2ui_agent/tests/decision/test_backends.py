@@ -1219,3 +1219,40 @@ async def test_step_zero_chat_completions_and_bearer_auth() -> None:
     assert captured_bodies[0]["top_logprobs"] == 5
     assert "messages" in captured_bodies[0]
     assert dist.top_choice()[0] == "monitor"
+
+
+@pytest.mark.asyncio
+async def test_step_zero_logprob_case_insensitive_fallback_and_non_mapping_choice() -> (
+    None
+):
+    """Matches lowercase/whitespace logprob tokens and ignores non-mapping choices."""
+    responses = [
+        {"choices": [{"logprobs": {"top_logprobs": [{" b": -0.1, " a": -2.5}]}}]},
+        {"choices": ["malformed-non-mapping-choice"]},
+    ]
+    call_idx = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        nonlocal call_idx
+        body = responses[call_idx]
+        call_idx += 1
+        return httpx.Response(200, json=body)
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        backend = StepZeroLogprobBackend(
+            "http://vllm.local/v1/completions", "gemma", client=client
+        )
+        dist = await backend.predict(
+            DecisionQuery(task="family", prompt="p", candidates=("browse", "monitor"))
+        )
+        assert dist.top_choice()[0] == "monitor"
+
+        dist_malformed = await backend.predict(
+            DecisionQuery(task="family", prompt="p", candidates=("browse", "monitor"))
+        )
+        assert dist_malformed.probabilities == {
+            "browse": pytest.approx(0.5),
+            "monitor": pytest.approx(0.5),
+        }

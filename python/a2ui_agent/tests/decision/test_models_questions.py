@@ -121,6 +121,8 @@ def test_question_candidates_and_task_prefix() -> None:
 def test_question_validation() -> None:
     with pytest.raises(ValueError, match="non-empty"):
         DecisionQuestion(id="", kind=QuestionKind.BOOLEAN, prompt="?")
+    with pytest.raises(ValueError, match="non-empty"):
+        DecisionQuestion(id=123, kind=QuestionKind.BOOLEAN, prompt="?")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="take no options"):
         DecisionQuestion(id="b", kind=QuestionKind.BOOLEAN, prompt="?", options=("x",))
     with pytest.raises(ValueError, match="need options"):

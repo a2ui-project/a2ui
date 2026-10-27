@@ -28,6 +28,7 @@ from collections.abc import Callable, Mapping, Sequence
 import math
 import os
 import re
+import threading
 import time
 from typing import Any, Protocol, TypeAlias, TypeVar, cast, runtime_checkable
 
@@ -196,14 +197,20 @@ def _match_step_zero_logprobs(
 ) -> dict[str, float]:
     """Maps single-character label (`A`-`J`) or candidate token logprobs to option ids."""
     matched: dict[str, float] = {}
+    norm_logprobs = {k.strip().lower(): v for k, v in top_logprobs.items()}
     for idx, cand in enumerate(candidates):
         label = _STEP_ZERO_LABELS[idx]
+        cand_clean = cand.strip()
         if label in top_logprobs:
             matched[cand] = top_logprobs[label]
         elif cand in top_logprobs:
             matched[cand] = top_logprobs[cand]
-        elif cand.strip() in top_logprobs:
-            matched[cand] = top_logprobs[cand.strip()]
+        elif cand_clean in top_logprobs:
+            matched[cand] = top_logprobs[cand_clean]
+        elif label.lower() in norm_logprobs:
+            matched[cand] = norm_logprobs[label.lower()]
+        elif cand_clean.lower() in norm_logprobs:
+            matched[cand] = norm_logprobs[cand_clean.lower()]
     return matched
 
 
@@ -285,7 +292,10 @@ def _extract_top_logprobs(data: Mapping[str, Any]) -> dict[str, float]:
     choices = data.get("choices")
     if not isinstance(choices, list) or not choices:
         return {}
-    logprobs_obj = choices[0].get("logprobs")
+    first_choice = choices[0]
+    if not isinstance(first_choice, Mapping):
+        return {}
+    logprobs_obj = first_choice.get("logprobs")
     if not isinstance(logprobs_obj, Mapping):
         return {}
 
@@ -581,6 +591,7 @@ class _HttpClientOwner(_AsyncClosable):
     _client: httpx.AsyncClient | None
     _owned_clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient]
     _timeout_seconds: float
+    _lock: threading.Lock
 
     def _init_http_client(
         self, client: httpx.AsyncClient | None, timeout_seconds: float
@@ -588,17 +599,19 @@ class _HttpClientOwner(_AsyncClosable):
         self._client = client
         self._owned_clients = {}
         self._timeout_seconds = timeout_seconds
+        self._lock = threading.Lock()
 
     @property
     def _owned_client(self) -> httpx.AsyncClient | None:
         """Returns the client owned by the current loop, or the most recent one."""
-        if not self._owned_clients:
-            return None
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return next(reversed(self._owned_clients.values()))
-        return self._owned_clients.get(loop)
+        with self._lock:
+            if not self._owned_clients:
+                return None
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return next(reversed(self._owned_clients.values()))
+            return self._owned_clients.get(loop)
 
     def _sweep_closed_loops(self) -> None:
         """Removes entries whose event loop has already been closed."""
@@ -610,29 +623,32 @@ class _HttpClientOwner(_AsyncClosable):
         """Returns the caller-supplied client or a loop-local owned one."""
         if self._client is not None:
             return self._client
-        self._sweep_closed_loops()
         loop = asyncio.get_running_loop()
-        client = self._owned_clients.get(loop)
-        if client is None or client.is_closed:
-            client = httpx.AsyncClient(timeout=self._timeout_seconds)
-            self._owned_clients[loop] = client
-        return client
+        with self._lock:
+            self._sweep_closed_loops()
+            client = self._owned_clients.get(loop)
+            if client is None or client.is_closed:
+                client = httpx.AsyncClient(timeout=self._timeout_seconds)
+                self._owned_clients[loop] = client
+            return client
 
     async def aclose_current_loop(self) -> None:
         """Closes and removes the client owned by the currently running event loop."""
-        self._sweep_closed_loops()
         loop = asyncio.get_running_loop()
-        client = self._owned_clients.pop(loop, None)
+        with self._lock:
+            self._sweep_closed_loops()
+            client = self._owned_clients.pop(loop, None)
         if client is not None and not client.is_closed:
             await client.aclose()
 
     async def aclose(self) -> None:
         """Closes all internally owned `httpx.AsyncClient` instances."""
-        if not self._owned_clients:
-            return
+        with self._lock:
+            if not self._owned_clients:
+                return
+            items = list(self._owned_clients.items())
+            self._owned_clients.clear()
         current_loop = asyncio.get_running_loop()
-        items = list(self._owned_clients.items())
-        self._owned_clients.clear()
         for loop, client in items:
             if client.is_closed:
                 continue
