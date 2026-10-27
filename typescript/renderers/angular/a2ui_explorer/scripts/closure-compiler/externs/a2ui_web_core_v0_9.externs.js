@@ -296,3 +296,27 @@ function SurfaceModelExterns() {}
  */
 function MarkdownRendererExterns() {}
 /** @type {?} */ MarkdownRendererExterns.prototype.render;
+
+/**
+ * Externs for Zod v4 runtime properties defined via `Object.defineProperty` or indexed by string format keys.
+ * @record
+ * @struct
+ */
+function ZodExterns() {}
+/** @type {?} */ ZodExterns.prototype._zod;
+/** @type {?} */ ZodExterns.prototype.init;
+/** @type {?} */ ZodExterns.prototype._def;
+/** @type {?} */ ZodExterns.prototype.issues;
+/** @type {?} */ ZodExterns.prototype.propValues;
+/** @type {?} */ ZodExterns.prototype.optin;
+/** @type {?} */ ZodExterns.prototype.optout;
+/** @type {?} */ ZodExterns.prototype.pattern;
+/** @type {?} */ ZodExterns.prototype.innerType;
+/** @type {?} */ ZodExterns.prototype.shape;
+/** @type {?} */ ZodExterns.prototype.safeint;
+/** @type {?} */ ZodExterns.prototype.int32;
+/** @type {?} */ ZodExterns.prototype.uint32;
+/** @type {?} */ ZodExterns.prototype.float32;
+/** @type {?} */ ZodExterns.prototype.float64;
+/** @type {?} */ ZodExterns.prototype.int64;
+/** @type {?} */ ZodExterns.prototype.uint64;
