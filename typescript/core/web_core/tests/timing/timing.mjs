@@ -114,12 +114,8 @@ function collectGarbage(options) {
   if (typeof globalThis.gc !== 'function') return;
   if (options === undefined) {
     globalThis.gc();
-    return;
-  }
-  try {
+  } else {
     globalThis.gc(options);
-  } catch {
-    globalThis.gc();
   }
 }
 
@@ -128,6 +124,13 @@ function collectGarbage(options) {
  * the young generation is collected first so that nursery allocations from
  * earlier runs are not charged to this one and old-space `Mark-Compact`
  * does not deoptimize JIT-compiled code between timed runs.
+ *
+ * A major GC can still occur inside `body` if promoted allocations cross V8's
+ * old-space limit. In these suites, each `body` call creates local state that
+ * becomes unreachable as soon as `body` returns, so only the tail of objects
+ * surviving an in-run scavenge is promoted before the next pre-run minor GC
+ * clears the nursery, keeping old-space growth across `DEFAULT_RUNS` well below
+ * V8's threshold.
  *
  * @param {() => void} body The code to time.
  * @param {() => number} now The clock, in milliseconds.

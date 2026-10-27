@@ -128,24 +128,6 @@ describe('compareMedianTimes', () => {
       [{type: 'minor'}],
     ]);
   });
-
-  it('falls back to a zero-argument gc call if passing options throws', () => {
-    const {now, spend} = fakeClock();
-    const originalGc = globalThis.gc;
-    let zeroArgCalls = 0;
-    globalThis.gc = (...args) => {
-      if (args.length > 0) {
-        throw new Error('options unsupported');
-      }
-      zeroArgCalls++;
-    };
-    try {
-      compareMedianTimes(spend(8), spend(2), {runs: 1, now});
-    } finally {
-      globalThis.gc = originalGc;
-    }
-    assert.equal(zeroArgCalls, 3);
-  });
 });
 
 describe('measureGrowth', () => {
