@@ -118,18 +118,16 @@ export interface FunctionImplementation extends FunctionApi {
 /**
  * Recursively unwraps dynamic wire AST nodes into their evaluated runtime values.
  */
-export type ResolvedDynamic<T> = T extends {path: string} | {call: string}
-  ? never
-  : T extends (infer U)[]
-    ? ResolvedDynamic<U>[]
-    : T extends object
-      ? {[K in keyof T]: ResolvedDynamic<T[K]>}
-      : T;
+export type ResolvedDynamic<T> = T extends (infer U)[]
+  ? ResolvedDynamic<U>[]
+  : T extends object
+    ? {[K in keyof T]: ResolvedDynamic<T[K]>}
+    : T;
 
 /**
  * Extracts and resolves execution-time argument types from a function's Zod validation schema.
  */
-export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = ResolvedDynamic<z.infer<Schema>>;
+export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = z.infer<Schema>;
 
 /**
  * Creates a typed FunctionImplementation from an API definition and an execution callback.
