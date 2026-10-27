@@ -24,6 +24,9 @@
 // - Items are selected by query, but the query alone is not trusted: GitHub's
 //   search index can lag behind reality. Before changing any label, the script
 //   re-reads the item and confirms it still matches.
+// - The workflow always runs this file from `main`, whatever event triggers it.
+//   A PR event would otherwise run the PR's copy, and two copies with different
+//   rules undo each other's labels on every run.
 
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
@@ -53,10 +56,11 @@ const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 export const isBot = user =>
   Boolean(user) && (user.type === 'Bot' || /\[bot\]$/.test(user.login || ''));
 
-// True for a human outside the team. Takes anything with `association` and
-// `user`: a normalized contribution or the result of `lastHumanContribution`.
-const isExternal = ({association, user}) =>
-  !MAINTAINER_ASSOCIATIONS.has(association) && !isBot(user);
+// True for anyone outside the team, bots included: an issue a workflow files or
+// a PR dependabot opens needs triage as much as one from an outside human.
+// Takes anything with `association`: a normalized contribution or the result of
+// `lastHumanContribution`.
+const isExternal = ({association}) => !MAINTAINER_ASSOCIATIONS.has(association);
 
 const labelNames = item =>
   (item.labels || []).map(label => (typeof label === 'string' ? label : label.name));
@@ -92,15 +96,16 @@ export function lastHumanContribution(item, contributions) {
 }
 
 /**
- * True when the request WAITING_LABEL is tracking has been answered: an external
- * contributor — the item's author or anyone else outside the team — contributed
- * at least once at or after `waitingSince`, the moment the label was added. Used
- * to clear the label.
+ * True when the request WAITING_LABEL is tracking has been answered: a human
+ * outside the team — the item's author or anyone else — contributed at least
+ * once at or after `waitingSince`, the moment the label was added. Used to clear
+ * the label.
  *
  * Maintainer contributions never count: the team asked the question, so its own
- * follow-ups do not answer it. Neither do contributions from before the label
- * went on — the opening post predates it, so an item with no replies is exactly
- * the one still waiting.
+ * follow-ups do not answer it. Bot contributions do not count either, although
+ * bots are external: a bot cannot answer the question. Neither do contributions
+ * from before the label went on — the opening post predates it, so an item with
+ * no replies is exactly the one still waiting.
  *
  * `waitingSince` is null when the labeling could not be read — see
  * `labelsAddedAt`. The label is then left for a human to clear rather than
@@ -108,7 +113,9 @@ export function lastHumanContribution(item, contributions) {
  */
 export function externalHasResponded(contributions, waitingSince) {
   if (!waitingSince) return false;
-  return contributions.some(event => event.createdAt >= waitingSince && isExternal(event));
+  return contributions.some(
+    event => event.createdAt >= waitingSince && isExternal(event) && !isBot(event.user),
+  );
 }
 
 /**
@@ -144,7 +151,7 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
   }
 
   const latest = lastHumanContribution(item, contributions);
-  const openedByExternal = isExternal({association: item.author_association, user: item.user});
+  const openedByExternal = isExternal({association: item.author_association});
 
   // Step 4: PRs. Only external contributors' PRs are watched; maintainers
   // manage their own, so an internally-authored PR is never flagged. There is

@@ -9,7 +9,9 @@ Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 
 ## References
 
-
+- [How the automated triage bot works](automation.md)
+- [Standard triage replies](templates.md)
+- [Decisions made for triage process](decisions.md)
 
 ## Invariant we want to keep
 
@@ -68,13 +70,12 @@ For each issue that is [not first-line-handled](https://github.com/a2ui-project/
 
 ### Second line triage (weekly)
 
-Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [the triage bot](automation.md), disappears. Do at least one of the following:
+Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [the triage bot](automation.md), disappears:
 
-- Set priority (P0-P4)
-    - Be sure to assign P0/P1 issues to someone.
-- Answer external comments
+- Set priority (P0-P4) to issues. Assign P0/P1 to someone.
+- Answer external comments.
 - Add `status: waiting-for-author-response` when you need more information from the author
-- Assign the item to a team member who will finish the triage, and add `status: assigned-for-triage`. The assignee removes the label when done. If the label is still there after 14 days, the bot flags the item again.
+- Assign the item to a team member who will finish the triage, and add `status: assigned-for-triage`.
 
 You can remove the `needs-triage` label manually to speed up the process, but if the item still matches a rule, the label will come back because the label will be re-applied by the triage bot.
 
@@ -93,4 +94,8 @@ When weekly triage is complete, the [`needs-triage`][needs-triage] list should i
 
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 [unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
+
+### Owners of `status: assigned-for-triage`
+
+If you are assigned to PR or issue with label `status: assigned-for-triage`, this means you are treated as an expert in the area and your job is to triage the item.
 
