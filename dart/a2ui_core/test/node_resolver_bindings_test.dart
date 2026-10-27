@@ -540,11 +540,12 @@ void main() {
       );
     });
 
-    test('@index at the root is reported and resolves to null', () {
+    test('@index at the root is reported and resolves to null', () async {
       add('root', 'Text', {
         'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
       expect(textOf(resolver.rootNode.value!), isNull);
+      await Future<void>.delayed(Duration.zero);
       expect(errors.single.code, 'EXPRESSION_ERROR');
       expect(
         errors.single.message,

@@ -300,6 +300,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// [ValidationConfig.allowDanglingReferences], or both in one message, or
   /// no config.
   ///
+  /// Errors and warnings that surfaces report while a message is applied
+  /// reach their listeners in a microtask after this returns or throws.
+  ///
   /// Throws [A2uiValidationError] for a payload of any other shape, an
   /// envelope that is not a well-formed message of the version it declares, a
   /// version no adapter in [adapterRegistry] serves, a component that does not
