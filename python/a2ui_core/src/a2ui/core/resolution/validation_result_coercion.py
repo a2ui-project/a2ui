@@ -34,7 +34,6 @@ from pydantic import BaseModel
 
 from ..schema.v1_0.common_types import DynamicBoolean
 
-_DYNAMIC_BOOLEAN_MEMBERS: tuple[Any, ...] = typing.get_args(DynamicBoolean)
 _DYNAMIC_BOOLEAN_DEF = "DynamicBoolean"
 
 
@@ -163,8 +162,10 @@ def _json_schema_properties(schema: dict[str, Any]) -> dict[str, Any] | None:
     properties = schema.get("properties")
     if isinstance(properties, dict):
         args = properties.get("args")
-        if isinstance(args, dict) and isinstance(args.get("properties"), dict):
-            return args["properties"]
+        if isinstance(args, dict):
+            args_properties = args.get("properties")
+            if isinstance(args_properties, dict):
+                return args_properties
         return properties
     parameters = schema.get("parameters")
     return parameters if isinstance(parameters, dict) else None
