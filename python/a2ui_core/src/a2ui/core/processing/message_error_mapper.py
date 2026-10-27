@@ -16,7 +16,7 @@
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeGuard
 
 from pydantic import BaseModel
 
@@ -83,7 +83,7 @@ def _extract_dict_context(msg: Mapping[str, Any]) -> ErrorEnvelopeContext:
     )
 
 
-def _is_collection_payload(value: Any) -> bool:
+def _is_collection_payload(value: Any) -> TypeGuard[Iterable[Any]]:
     """Returns whether value is an iterable message collection rather than a single item."""
     return isinstance(value, Iterable) and not isinstance(
         value, (BaseModel, Mapping, str, bytes)

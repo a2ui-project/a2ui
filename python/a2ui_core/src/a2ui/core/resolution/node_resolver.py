@@ -118,7 +118,9 @@ def _resolve_ref_spec(
     if callable(get_map):
         ref_map = get_map()
         if isinstance(ref_map, dict) and model.type in ref_map:
-            return ref_map[model.type]
+            spec = ref_map[model.type]
+            if isinstance(spec, ComponentRefSpec):
+                return spec
     resolve_schema = getattr(cat, "resolved_component_schema", None)
     schema = resolve_schema(model.type) if callable(resolve_schema) else None
     if schema is None:
@@ -146,8 +148,10 @@ def _extract_validation_fields(
 def _get_safe_child_list(val: Any) -> list[Any]:
     if isinstance(val, list):
         return val
-    if isinstance(val, dict) and isinstance(val.get("explicitList"), list):
-        return val["explicitList"]
+    if isinstance(val, dict):
+        expl = val.get("explicitList")
+        if isinstance(expl, list):
+            return list(expl)
     return []
 
 
@@ -216,9 +220,13 @@ def _wrap_dynamic_values(
         path = _extract_binding_path(raw, data_context.at_least_v10)
         if path is None:
             return ResolvedBinding(value, writable=False)
+
+        def _set_val(new_val: Any) -> None:
+            data_context.set(path, new_val)
+
         return WritableBinding(
             value=value,
-            set=lambda new_val, p=path: data_context.set(p, new_val),
+            set=_set_val,
             path=path,
             writable=True,
         )
@@ -285,7 +293,7 @@ class NodeResolver:
         self._model_subs: list[Subscription] = []
         self._root_record: _NodeRecord | None = None
         self._disposed = False
-        self.on_root_replaced: EventSource[ComponentNode | None] = EventSource()
+        self.on_root_replaced: EventSource = EventSource()
 
         cm = surface.components_model
         self._model_subs.append(cm.on_created.subscribe(self._on_component_created))
@@ -854,11 +862,16 @@ class NodeResolver:
             record.component_model.properties if record.component_model else {}
         )
         if record.behavior is not None and record.node.context is not None:
-            wrapped = _wrap_dynamic_values(
+            raw_wrapped = _wrap_dynamic_values(
                 next_props,
                 record.behavior,
                 model_props,
                 record.node.context.data_context,
+            )
+            wrapped: dict[str, Any] = (
+                dict(raw_wrapped)
+                if isinstance(raw_wrapped, dict)
+                else {k: v for k, v in next_props.items() if k not in _SKIP_BINDER_KEYS}
             )
         else:
             wrapped = {
