@@ -115,8 +115,13 @@ def seed_cases_from_logs(
                 else:
                     continue
 
+                if not isinstance(block_data, dict):
+                    continue
+
                 sample_id = str(sample.get("id") or sample.get("name") or "sample")
-                arch = meta.get("decision_archetype") or "unknown"
+                arch = meta.get("decision_archetype")
+                if not arch or arch == "unknown":
+                    continue
                 case_name = f"{sample_id}_{arch}"
                 if case_name in existing_names:
                     continue

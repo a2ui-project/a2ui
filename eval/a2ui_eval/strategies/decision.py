@@ -122,7 +122,7 @@ def compile_decision_payload(
 
         resolved_catalog_path = str(GIT_ROOT / state.metadata["catalog"])
         options = runner_options_from_metadata(state.metadata, resolved_catalog_path)
-        allowed_surface_ids = state.metadata.get("allowed_surface_ids", ["main"])
+        allowed_surface_ids = state.metadata.get("allowed_surface_ids") or ["main"]
 
         catalogs, _ = build_catalogs_and_examples(
             resolved_catalog_path,

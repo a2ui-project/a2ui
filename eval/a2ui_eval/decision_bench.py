@@ -56,19 +56,19 @@ class PlanCase:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PlanCase:
-        expected = data.get("expected", {})
-        blocks = expected.get("blocks", {})
+        expected = data.get("expected") or {}
+        blocks = expected.get("blocks") or {}
         return cls(
             name=data["name"],
             intent=data["intent"],
-            payload=dict(data.get("payload", {})),
-            expected_family=expected.get("family", ""),
-            expected_archetypes=list(expected.get("archetypes", [])),
-            mutable_paths=list(data.get("mutable_paths", [])),
-            required_blocks=list(blocks.get("required", [])),
-            forbidden_blocks=list(blocks.get("forbidden", [])),
-            expected_action_gate=expected.get("action_gate", "pass"),
-            tags=list(data.get("tags", [])),
+            payload=dict(data.get("payload") or {}),
+            expected_family=expected.get("family") or "",
+            expected_archetypes=list(expected.get("archetypes") or []),
+            mutable_paths=list(data.get("mutable_paths") or []),
+            required_blocks=list(blocks.get("required") or []),
+            forbidden_blocks=list(blocks.get("forbidden") or []),
+            expected_action_gate=expected.get("action_gate") or "pass",
+            tags=list(data.get("tags") or []),
             verified=bool(data.get("verified", True)),
             source=data.get("source"),
         )
@@ -321,6 +321,8 @@ def fit_temperature(
     best_ece = float("inf")
 
     for temp in grid:
+        if temp <= 0:
+            continue
         rescaled: list[tuple[float, float]] = []
         for p, y in calibration_data:
             # Rescale probability through temperature:

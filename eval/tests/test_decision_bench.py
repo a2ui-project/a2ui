@@ -118,6 +118,29 @@ def test_fit_temperature_returns_1_for_calibrated_inputs() -> None:
     calibrated_data = [(0.8, 1.0)] * 8 + [(0.8, 0.0)] * 2
     t = fit_temperature(calibrated_data)
     assert t == 1.0
+    assert fit_temperature(calibrated_data, candidates=(-1.0, 0.0, 1.0)) == 1.0
+
+
+def test_plan_case_from_dict_handles_explicit_nulls() -> None:
+    from a2ui_eval.decision_bench import PlanCase
+
+    case = PlanCase.from_dict({
+        "name": "null_case",
+        "intent": "test",
+        "payload": None,
+        "mutable_paths": None,
+        "tags": None,
+        "expected": {
+            "family": None,
+            "archetypes": None,
+            "blocks": None,
+            "action_gate": None,
+        },
+    })
+    assert case.payload == {}
+    assert case.expected_archetypes == []
+    assert case.required_blocks == []
+    assert case.expected_action_gate == "pass"
 
 
 def test_seed_script_creates_unverified_stubs_skipped_by_default(
