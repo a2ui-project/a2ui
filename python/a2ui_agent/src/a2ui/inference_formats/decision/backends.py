@@ -298,6 +298,30 @@ def _extract_top_logprobs(data: Mapping[str, Any]) -> dict[str, float]:
     logprobs_obj = choices[0].get("logprobs")
     if not isinstance(logprobs_obj, Mapping):
         return {}
+
+    result: dict[str, float] = {}
+    content_list = logprobs_obj.get("content")
+    if isinstance(content_list, list) and content_list:
+        first_pos = content_list[0]
+        if isinstance(first_pos, Mapping):
+            chat_top = first_pos.get("top_logprobs")
+            if isinstance(chat_top, list):
+                for entry in chat_top:
+                    if (
+                        isinstance(entry, Mapping)
+                        and "token" in entry
+                        and "logprob" in entry
+                    ):
+                        lp = float(entry["logprob"])
+                        token_str = str(entry["token"])
+                        result[token_str] = lp
+                        stripped = token_str.strip()
+                        if stripped and (
+                            stripped not in result or lp > result[stripped]
+                        ):
+                            result[stripped] = lp
+                return result
+
     top_list = logprobs_obj.get("top_logprobs")
     if not isinstance(top_list, list) or not top_list:
         return {}
@@ -305,7 +329,6 @@ def _extract_top_logprobs(data: Mapping[str, Any]) -> dict[str, float]:
     if not isinstance(first_step, Mapping):
         return {}
 
-    result: dict[str, float] = {}
     for token, logprob in first_step.items():
         lp = float(logprob)
         token_str = str(token)
@@ -1211,8 +1234,9 @@ class StepZeroLogprobBackend(PredictOnlyBackend, _HttpClientOwner):
         *,
         temperature: float = 1.0,
         max_logprobs: int = 20,
+        auth: str | Callable[[], str | Any] | None = None,
         client: httpx.AsyncClient | None = None,
-        timeout_seconds: float = 2.0,
+        timeout_seconds: float = 20.0,
     ) -> None:
         if temperature <= 0.0:
             raise ValueError(f"temperature must be positive, got {temperature}")
@@ -1222,7 +1246,14 @@ class StepZeroLogprobBackend(PredictOnlyBackend, _HttpClientOwner):
         self._model = model
         self._temperature = float(temperature)
         self._max_logprobs = int(max_logprobs)
+        self._auth = auth
         self._init_http_client(client, timeout_seconds)
+
+    def _build_headers(self) -> dict[str, str] | None:
+        """Builds optional Bearer authorization headers."""
+        if isinstance(self._auth, str) and self._auth.strip():
+            return {"Authorization": f"Bearer {self._auth.strip()}"}
+        return None
 
     async def _predict_with_prefix(
         self, query: DecisionQuery, *, shared_prefix: str = ""
@@ -1236,18 +1267,39 @@ class StepZeroLogprobBackend(PredictOnlyBackend, _HttpClientOwner):
                 top_logit_margin=0.0,
             )
         prompt = _format_step_zero_prompt(query, shared_prefix=shared_prefix)
-        payload: dict[str, Any] = {
-            "model": self._model,
-            "prompt": prompt,
-            "max_tokens": 1,
-            "temperature": 0.0,
-            "logprobs": min(max(len(query.candidates), 5), self._max_logprobs),
-        }
+        num_logprobs = min(max(len(query.candidates), 5), self._max_logprobs)
+        if self._endpoint_url.rstrip("/").lower().endswith("/chat/completions"):
+            payload: dict[str, Any] = {
+                "model": self._model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Reply with ONLY the single uppercase letter (A-J)"
+                            " of the best candidate."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 1,
+                "temperature": 0.0,
+                "logprobs": True,
+                "top_logprobs": num_logprobs,
+            }
+        else:
+            payload = {
+                "model": self._model,
+                "prompt": prompt,
+                "max_tokens": 1,
+                "temperature": 0.0,
+                "logprobs": num_logprobs,
+            }
         data = await _post_json(
             self._endpoint_url,
             payload,
             client=self._get_client(),
             timeout_seconds=self._timeout_seconds,
+            headers=self._build_headers(),
         )
         top_logprobs = _extract_top_logprobs(data)
         matched = _match_step_zero_logprobs(query.candidates, top_logprobs)
@@ -1735,7 +1787,9 @@ def _infer_backend_kind(url: str | None) -> str:
         clean_url = url.rstrip("/").lower()
         if clean_url.endswith("/v1/systemone"):
             return DecisionBackendType.SYSTEMONE.value
-        if clean_url.endswith("/v1/completions"):
+        if clean_url.endswith("/v1/completions") or clean_url.endswith(
+            "/chat/completions"
+        ):
             return DecisionBackendType.STEP_ZERO.value
         return DecisionBackendType.JEV.value
     try:
@@ -1822,11 +1876,17 @@ def _create_jev_backend(
 
 
 def _create_step_zero_backend(
-    url: str | None, model_name: str | None, temperature: float
+    url: str | None,
+    model_name: str | None,
+    temperature: float,
+    auth_val: str | Callable[[], str | Any] | None = None,
 ) -> StepZeroLogprobBackend:
     endpoint = _require_url(DecisionBackendType.STEP_ZERO.value, url)
     return StepZeroLogprobBackend(
-        endpoint, model=model_name or "default", temperature=temperature
+        endpoint,
+        model=model_name or "default",
+        temperature=temperature,
+        auth=auth_val,
     )
 
 
@@ -1892,7 +1952,7 @@ def create_decision_backend(
             kind, url, model_name, auth_val
         ),
         DecisionBackendType.STEP_ZERO.value: lambda: _create_step_zero_backend(
-            url, model_name, temp
+            url, model_name, temp, auth
         ),
         DecisionBackendType.MOCK.value: DeterministicMockBackend,
     }

@@ -810,6 +810,13 @@ class SynthesisConfig:
     """How choices are sampled from question distributions (ARGMAX or NEAR_TOP)."""
     variety_margin: float = 0.15
     """In NEAR_TOP mode, options within this margin of top probability are sampled."""
+    two_stage_batching: bool | None = None
+    """Splits planning into Stage 1 (family/archetype) and Stage 2 (winning archetype blocks).
+
+    When None (default), enabled automatically for local/step-0 backends
+    (`LocalCrossEncoderBackend` and `StepZeroLogprobBackend`) and disabled for
+    single-round-trip remote/mock backends (`JevHttpBackend`, `DeterministicMockBackend`).
+    """
 
     def __post_init__(self) -> None:
         _validate_unit_interval(

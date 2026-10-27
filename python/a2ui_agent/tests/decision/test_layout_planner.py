@@ -865,3 +865,185 @@ def test_threshold_overrides_take_precedence_over_grammar_thresholds() -> None:
     assert "collection" not in strict_outcome.plan.block_ids()
     assert strict_outcome.reason is PlanReason.PLANNED
     assert strict_outcome.reason == "planned"
+
+
+def test_decision_suite_gap_fixes_orphan_recovery_3_field_items_redirect_and_primitive_arrays() -> (
+    None
+):
+    """Covers the four completeness gaps surfaced by `decision_v1_0`."""
+    # Gap A: Unclaimed single top-level scalar pointer (`/author`) is recovered into `facts`
+    # even when `gate:facts < 0.75`.
+    article_fixture = LayoutFixture(
+        name="article_summary",
+        intent="Show the article summary",
+        payload={
+            "title": "Why Declarative UIs Work",
+            "author": "Ada Lovelace",
+            "body": (
+                "Declarative user interfaces separate state from structure so that"
+                " agents can emit data payloads while deterministic layout rules"
+                " handle presentation and accessibility."
+            ),
+        },
+    )
+    _, _, _, article_outcome, _ = _run_fixture(
+        article_fixture,
+        {
+            "family": ("inspect", 0.85),
+            "archetype:inspect": ("detail", 0.85),
+            "gate:prose": 0.90,
+            "gate:facts": 0.40,
+        },
+    )
+    assert article_outcome.plan is not None
+    assert "facts" in article_outcome.plan.block_ids()
+    facts_block = next(b for b in article_outcome.plan.blocks if b.block_id == "facts")
+    fact_ptrs = [it["value"].pointer for it in facts_block.bindings.get("rows").items]
+    assert "/author" in fact_ptrs
+
+    # Gap B: 3-field collection items (`name`, `elevation`, `openRuns` and `title`, `snippet`, `url`)
+    # bind `headline`, `supporting`, and `meta`.
+    search_fixture = LayoutFixture(
+        name="search_results",
+        intent="Show search results",
+        payload={
+            "results": [
+                {
+                    "title": "A2UI Protocol Specification",
+                    "snippet": "Streaming declarative user interfaces for AI agents.",
+                    "url": "https://a2ui.dev/spec",
+                },
+                {
+                    "title": "Decision Model Layout Grammar",
+                    "snippet": "Archetype and block selection via zero-shot scoring.",
+                    "url": "https://a2ui.dev/decision",
+                },
+            ]
+        },
+    )
+    _, _, _, search_outcome, _ = _run_fixture(
+        search_fixture,
+        {
+            "family": ("browse", 0.90),
+            "archetype:browse": ("feed", 0.90),
+            "gate:collection": 0.90,
+        },
+    )
+    assert search_outcome.plan is not None
+    col_block = next(
+        b for b in search_outcome.plan.blocks if b.block_id == "collection"
+    )
+    items_slot = col_block.bindings.get("items")
+    assert items_slot is not None
+    assert items_slot.fields["headline"].pointer == "title"
+    assert items_slot.fields["supporting"].pointer == "snippet"
+    assert items_slot.fields["meta"].pointer == "url"
+
+    # Gap C: Flat scalar step payload (`recipeName`, `currentStep`, `totalSteps`, `instruction`)
+    # redirects `follow` to an eligible family (`inspect -> detail`) and binds all pointers.
+    recipe_fixture = LayoutFixture(
+        name="sourdough_step",
+        intent="Walk me through making sourdough bread step by step",
+        payload={
+            "recipeName": "Country Sourdough",
+            "currentStep": 1,
+            "totalSteps": 5,
+            "instruction": "Mix 50g starter with 50g warm water and 50g bread flour.",
+        },
+    )
+    _, _, _, recipe_outcome, _ = _run_fixture(
+        recipe_fixture,
+        {
+            "family": {"follow": 0.80, "inspect": 0.15, "act": 0.05},
+            "archetype:inspect": ("none", 0.60),
+            "gate:prose": 0.85,
+            "gate:facts": 0.85,
+        },
+    )
+    assert recipe_outcome.reason == "planned"
+    assert recipe_outcome.plan is not None
+    assert recipe_outcome.plan.family == "inspect"
+    all_bound_ptrs = set(recipe_outcome.plan.page.title.pointers())
+    for b in recipe_outcome.plan.blocks:
+        all_bound_ptrs.update(b.bindings.pointers())
+    assert {
+        "/recipeName",
+        "/currentStep",
+        "/totalSteps",
+        "/instruction",
+    } <= all_bound_ptrs
+
+    # Gap D: On a catalog without `chart`, `chart?` in `dashboard` is skipped as a redundant
+    # optional fallback (since `headline` is already in `dashboard.blocks`), and primitive
+    # string arrays (`regions: ["us-east", "us-west", "eu-central"]`) unroll into `collection`.
+    cluster_fixture = LayoutFixture(
+        name="cluster_status",
+        intent="Show cluster status across regions",
+        payload={
+            "clusterName": "prod-us-1",
+            "overallHealth": "healthy",
+            "activeNodes": 42,
+            "regions": ["us-east", "us-west", "eu-central"],
+        },
+    )
+    caps_no_chart = StubCapabilities(disabled=frozenset({("chart", None)}))
+    _, _, _, cluster_outcome, cluster_sa = _run_fixture(
+        cluster_fixture,
+        {
+            "family": ("monitor", 0.90),
+            "archetype:monitor": ("dashboard", 0.90),
+            "gate:banner": 0.85,
+            "gate:headline": 0.90,
+            "gate:collection": 0.85,
+        },
+        capabilities=caps_no_chart,
+    )
+    assert "gate:chart" not in cluster_sa.asked
+    assert cluster_outcome.plan is not None
+    assert "chart" not in cluster_outcome.plan.block_ids()
+    assert "collection" in cluster_outcome.plan.block_ids()
+    reg_col = next(b for b in cluster_outcome.plan.blocks if b.block_id == "collection")
+    reg_items = reg_col.bindings.get("items")
+    assert reg_items is not None
+    assert len(reg_items.items) == 3
+    assert [it["headline"].pointer for it in reg_items.items] == [
+        "/regions/0",
+        "/regions/1",
+        "/regions/2",
+    ]
+
+
+def test_two_stage_batching_reduces_pairs_and_matches_single_stage() -> None:
+    """`build_stage1_batch` + `build_stage2_batch` asks fewer pairs while producing the same plan."""
+    scripted: dict[str, ScriptedValue] = {
+        "family": ("monitor", 0.90),
+        "stakes": 0.4,
+        "urgency": 1.6,
+        "archetype:monitor": ("dashboard", 0.88),
+        "gate:banner": 0.85,
+        "gate:headline": 0.90,
+        "gate:facts": 0.80,
+        "gate:collection": 0.20,
+        "gate:actions": 0.20,
+    }
+    _, single_state, _, single_outcome, _ = _run_fixture(HOST, scripted)
+    assert single_outcome.plan is not None
+
+    grammar = ArchetypeGrammar.default()
+    planner = LayoutPlanner(grammar)
+    pointers = inspect_payload_pointers(HOST.payload, mutable_paths=HOST.mutable_paths)
+    sa = ScriptedAnswers(answers=scripted)
+    backend = sa.backend()
+    stage1_batch, state = planner.build_stage1_batch(
+        HOST.intent, pointers, payload=HOST.payload
+    )
+    stage1_answers = asyncio.run(backend.answer(stage1_batch))
+    stage2_batch = planner.build_stage2_batch(state, stage1_answers)
+    stage2_answers = asyncio.run(backend.answer(stage2_batch))
+    two_stage_outcome = planner.read(state, (*stage1_answers, *stage2_answers))
+
+    assert two_stage_outcome.plan is not None
+    assert two_stage_outcome.plan.family == single_outcome.plan.family
+    assert two_stage_outcome.plan.archetype == single_outcome.plan.archetype
+    assert two_stage_outcome.plan.block_ids() == single_outcome.plan.block_ids()
+    assert state.batch.pair_count() < single_state.batch.pair_count()

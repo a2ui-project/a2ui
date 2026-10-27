@@ -1613,3 +1613,52 @@ def test_create_decision_backend_env_knobs(
     monkeypatch.setenv("A2UI_DECISION_MAX_SEQ", "16")
     with pytest.raises(ValueError, match="max_seq_length must be >= 32"):
         create_decision_backend("local")
+
+
+@pytest.mark.asyncio
+async def test_step_zero_chat_completions_and_bearer_auth() -> None:
+    """`StepZeroLogprobBackend` supports `/v1/chat/completions` and Bearer auth."""
+    captured_headers: list[dict[str, str]] = []
+    captured_bodies: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_headers.append(dict(request.headers))
+        captured_bodies.append(json.loads(request.content.decode("utf-8")))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{
+                    "logprobs": {
+                        "content": [{
+                            "token": "B",
+                            "logprob": -0.05,
+                            "top_logprobs": [
+                                {"token": "B", "logprob": -0.05},
+                                {"token": "A", "logprob": -3.10},
+                            ],
+                        }]
+                    }
+                }]
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        backend = StepZeroLogprobBackend(
+            "https://api.openai.com/v1/chat/completions",
+            "gpt-4o-mini",
+            auth="sk-test-123",
+            client=client,
+        )
+        dist = await backend.predict(
+            DecisionQuery(
+                task="family",
+                prompt="What is the user trying to do?",
+                candidates=("browse", "monitor", "inspect"),
+            )
+        )
+    assert captured_headers[0].get("authorization") == "Bearer sk-test-123"
+    assert captured_bodies[0]["logprobs"] is True
+    assert captured_bodies[0]["top_logprobs"] == 5
+    assert "messages" in captured_bodies[0]
+    assert dist.top_choice()[0] == "monitor"

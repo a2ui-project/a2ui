@@ -388,13 +388,21 @@ def evaluate_single_run(
     # Archetype accuracy
     observed_archetype = ""
     archetype_prob = 1.0
-    for qid, ans in answers_by_id.items():
-        if qid.startswith("archetype:"):
-            top_arch, archetype_prob = ans.top()
-            observed_archetype = top_arch
-            break
-    if not observed_archetype and output.layout_plan:
+    if output.layout_plan:
         observed_archetype = output.layout_plan.archetype
+        arch_ans = answers_by_id.get(f"archetype:{output.layout_plan.family}")
+        if arch_ans is not None:
+            _, archetype_prob = arch_ans.top()
+    elif f"archetype:{observed_family}" in answers_by_id:
+        observed_archetype, archetype_prob = answers_by_id[
+            f"archetype:{observed_family}"
+        ].top()
+    else:
+        for qid, ans in answers_by_id.items():
+            if qid.startswith("archetype:"):
+                top_arch, archetype_prob = ans.top()
+                observed_archetype = top_arch
+                break
 
     archetype_correct = observed_archetype.lower() in {
         a.lower() for a in case.expected_archetypes

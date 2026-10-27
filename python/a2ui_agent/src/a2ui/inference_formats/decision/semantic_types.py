@@ -449,9 +449,9 @@ _ENUM_KEY_HINTS = frozenset({
 
 _CODE_KEY_HINTS = frozenset({
     "code",
-    "snippet",
+    "code_snippet",
     "script",
-    "query",
+    "sql_query",
     "sql",
     "regex",
     "command",
@@ -477,9 +477,11 @@ _LONG_TEXT_KEY_HINTS = frozenset({
     "message",
     "review",
     "excerpt",
+    "snippet",
     "abstract",
     "details",
     "instructions",
+    "instruction",
     "story",
 })
 _IDENTIFIER_KEY_HINTS = frozenset({

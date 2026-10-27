@@ -29,7 +29,7 @@ from a2ui.inference_formats.decision import (
     create_decision_backend,
 )
 
-DECISION_BACKEND_NAMES: tuple[str, ...] = ("mock", "local", "jev")
+DECISION_BACKEND_NAMES: tuple[str, ...] = ("mock", "local", "jev", "step0")
 
 DECISION_METADATA_KEYS: tuple[str, ...] = (
     "decision_backend",
@@ -72,6 +72,8 @@ def build_decision_backend(
             "jev",
             endpoint_url=endpoint_url or "https://api.typesafe.ai/v1/systemone",
         )
+    if name == "step0":
+        return create_decision_backend("step0", endpoint_url=endpoint_url)
     raise ValueError(
         f"Unknown decision backend: {name}. Expected one of {DECISION_BACKEND_NAMES}"
     )

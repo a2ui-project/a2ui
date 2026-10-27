@@ -749,11 +749,6 @@
                 },
                 "item_col",
                 {
-                  "$ifKnob": {
-                    "trailing": [
-                      "value"
-                    ]
-                  },
                   "$if": "meta",
                   "id": "item_meta"
                 },

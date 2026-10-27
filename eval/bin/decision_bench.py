@@ -25,7 +25,7 @@ from pathlib import Path
 import sys
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.decision import DecisionSynthesizer
+from a2ui.inference_formats.decision import DecisionSynthesizer, SynthesisConfig
 from a2ui_eval.decision_bench import (
     load_plan_cases,
     render_markdown,
@@ -33,6 +33,10 @@ from a2ui_eval.decision_bench import (
 )
 from a2ui_eval.decision_common import build_decision_backend
 from a2ui_eval.shared.utils import GIT_ROOT
+from dotenv import load_dotenv
+
+load_dotenv()
+load_dotenv(Path.home() / ".env")
 
 DEFAULT_CASES_PATH = GIT_ROOT / "eval" / "datasets" / "decision_plans" / "v1.yaml"
 
@@ -43,9 +47,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--backend",
-        choices=["mock", "local", "jev"],
+        choices=["mock", "local", "jev", "step0"],
         default=None,
-        help="Decision backend to evaluate (mock, local, or jev; default: env).",
+        help="Decision backend to evaluate (mock, local, jev, or step0; default: env).",
+    )
+    parser.add_argument(
+        "--two-stage",
+        dest="two_stage",
+        action="store_true",
+        default=None,
+        help=(
+            "Force two-stage batching (Stage 1: family/archetype, Stage 2: winning"
+            " archetype blocks)."
+        ),
+    )
+    parser.add_argument(
+        "--single-stage",
+        dest="two_stage",
+        action="store_false",
+        help="Force single-stage speculative batching.",
     )
     parser.add_argument(
         "--cases",
@@ -108,7 +128,8 @@ async def _async_main(args: argparse.Namespace) -> int:
     backend = build_decision_backend(args.backend)
     backend_name = args.backend or getattr(backend, "name", "default")
     catalogs = [BasicCatalog("v1.0")]
-    synth = DecisionSynthesizer(catalogs, backend)
+    config = SynthesisConfig(two_stage_batching=args.two_stage)
+    synth = DecisionSynthesizer(catalogs, backend, config=config)
 
     try:
         summary = await run_benchmark(

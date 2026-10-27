@@ -723,17 +723,34 @@
       "shape": {
         "pointers": [
           "string",
+          "name",
+          "title",
+          "identifier",
           "number",
+          "integer",
+          "count",
+          "quantity",
+          "percent",
+          "percentage",
+          "rating",
+          "bounded",
           "date",
+          "time",
           "datetime",
+          "relative_time",
+          "duration",
           "enum",
+          "status",
           "email",
           "phone",
           "url",
-          "boolean"
+          "place_name",
+          "address",
+          "boolean",
+          "currency"
         ],
         "count": [
-          2,
+          1,
           null
         ]
       },
@@ -748,13 +765,29 @@
           "repeat": true,
           "from": [
             "string",
+            "name",
+            "title",
+            "identifier",
             "number",
+            "integer",
+            "count",
+            "quantity",
+            "percent",
+            "percentage",
+            "rating",
+            "bounded",
             "date",
+            "time",
             "datetime",
+            "relative_time",
+            "duration",
             "enum",
+            "status",
             "email",
             "phone",
             "url",
+            "place_name",
+            "address",
             "boolean",
             "currency"
           ],
@@ -934,9 +967,34 @@
               "from": [
                 "string",
                 "long_text",
+                "markdown",
+                "code",
                 "place_name",
                 "address",
-                "email"
+                "email",
+                "url",
+                "quantity",
+                "duration",
+                "date",
+                "number",
+                "integer",
+                "count"
+              ],
+              "prefer": [
+                "subtitle",
+                "summary",
+                "description",
+                "snippet",
+                "detail",
+                "body",
+                "caption",
+                "location",
+                "address",
+                "elevation"
+              ],
+              "avoidKeys": [
+                "id",
+                "currency"
               ]
             },
             "picture": {
@@ -957,7 +1015,33 @@
                 "distance",
                 "place_name",
                 "count",
-                "number"
+                "integer",
+                "number",
+                "percent",
+                "percentage",
+                "url",
+                "string",
+                "long_text",
+                "code",
+                "status",
+                "enum"
+              ],
+              "prefer": [
+                "price",
+                "priceFrom",
+                "amount",
+                "cost",
+                "total",
+                "date",
+                "time",
+                "arrives",
+                "duration",
+                "distance",
+                "openRuns",
+                "runs",
+                "url",
+                "link",
+                "href"
               ],
               "max": 2,
               "orderBy": "salience"
@@ -967,6 +1051,20 @@
                 "status",
                 "enum",
                 "boolean"
+              ],
+              "prefer": [
+                "status",
+                "state",
+                "availability",
+                "stock",
+                "badge",
+                "tag",
+                "category",
+                "role"
+              ],
+              "avoidKeys": [
+                "id",
+                "currency"
               ]
             },
             "rating": {
@@ -1100,7 +1198,10 @@
           "fields": {
             "title": {
               "from": [
-                "string"
+                "title",
+                "name",
+                "string",
+                "long_text"
               ],
               "required": true
             },

@@ -678,13 +678,15 @@ def _pick_best_element_key(
     field_name: str,
     field_spec: SlotSpec,
     used_keys: set[str],
+    *,
+    min_score: int = 0,
 ) -> str | None:
     """Selects the best matching relative key on `arr_ptr` for `field_spec`."""
     best_key: str | None = None
-    best_score = -1
+    best_score = min_score - 1
     preferred_names = {p.lower() for p in (*field_spec.prefer, field_name)}
     for ek in arr_ptr.element_keys:
-        if ek in used_keys:
+        if ek in used_keys or ek.lower() in {"actions", "action"}:
             continue
         ek_sem = arr_ptr.element_semantic_types.get(ek, SemanticType.STRING)
         fake_ptr = PointerSummary(
@@ -694,11 +696,14 @@ def _pick_best_element_key(
             semantic_type=ek_sem,
             key=ek,
         )
+        if _is_avoided_key(fake_ptr, field_spec.avoid_keys):
+            continue
         if not _pointer_matches_types(fake_ptr, field_spec.from_types):
             continue
-        score = (10 if ek.lower() in preferred_names else 0) + (
-            5 if ek_sem in field_spec.from_types else 1
+        is_pref = any(
+            pref == ek.lower() or pref in ek.lower() for pref in preferred_names
         )
+        score = (10 if is_pref else 0) + (5 if ek_sem in field_spec.from_types else 1)
         if score > best_score:
             best_score = score
             best_key = ek
@@ -712,18 +717,35 @@ def _bind_array_element_fields(
     """Binds relative per-element fields of a repeated array-backed slot."""
     bound_fields: dict[str, SlotBinding] = {}
     used_keys: set[str] = set()
-    for field_name, field_spec in fields.items():
-        best_key = _pick_best_element_key(arr_ptr, field_name, field_spec, used_keys)
-        if best_key is not None:
-            used_keys.add(best_key)
-            bound_fields[field_name] = SlotBinding(
-                pointer=best_key,
-                semantic_type=arr_ptr.element_semantic_types.get(
-                    best_key, SemanticType.STRING
-                ),
-            )
-        elif not arr_ptr.element_keys and field_spec.required:
-            bound_fields[field_name] = SlotBinding(pointer="")
+    passes = (
+        tuple((k, v) for k, v in fields.items() if v.required),
+        tuple((k, v) for k, v in fields.items() if not v.required),
+    )
+    for req_pass, field_group in enumerate(passes):
+        score_cutoffs = (0,) if req_pass == 0 else (10, 0)
+        for min_score in score_cutoffs:
+            for field_name, field_spec in field_group:
+                if field_name in bound_fields:
+                    continue
+                best_key = _pick_best_element_key(
+                    arr_ptr,
+                    field_name,
+                    field_spec,
+                    used_keys,
+                    min_score=min_score,
+                )
+                if best_key is not None:
+                    used_keys.add(best_key)
+                    bound_fields[field_name] = SlotBinding(
+                        pointer=best_key,
+                        semantic_type=arr_ptr.element_semantic_types.get(
+                            best_key, SemanticType.STRING
+                        ),
+                    )
+                elif (
+                    min_score == 0 and not arr_ptr.element_keys and field_spec.required
+                ):
+                    bound_fields[field_name] = SlotBinding(pointer="")
     return bound_fields
 
 
@@ -734,11 +756,15 @@ def _unroll_array_items(
     return tuple(
         {
             f_name: SlotBinding(
-                pointer=f"{ptr.path}/{idx}/{f_bind.pointer}",
+                pointer=(
+                    f"{ptr.path}/{idx}/{f_bind.pointer}"
+                    if f_bind.pointer
+                    else f"{ptr.path}/{idx}"
+                ),
                 semantic_type=f_bind.semantic_type,
             )
             for f_name, f_bind in fields.items()
-            if f_bind.pointer
+            if f_bind.bound
         }
         for idx in range(ptr.cardinality)
     )
@@ -761,7 +787,11 @@ def _bind_array_repeated_slot(
             not f_spec.required or f_name in fields
             for f_name, f_spec in slot.fields.items()
         ):
-            items = _unroll_array_items(ptr, fields) if block_id == "steps" else ()
+            items = (
+                _unroll_array_items(ptr, fields)
+                if (block_id == "steps" or not ptr.element_keys)
+                else ()
+            )
             return SlotBinding(pointer=ptr.path, fields=fields, items=items)
     return SlotBinding()
 
@@ -1402,6 +1432,164 @@ def apply_pictures_need_a_look(
     return replace(plan, blocks=tuple(updated_blocks), page=page)
 
 
+def _is_pointer_covered(path: str, claimed: set[str]) -> bool:
+    """Returns whether `path` or any ancestor/descendant pointer is in `claimed`."""
+    if path in claimed:
+        return True
+    prefix = f"{path}/"
+    return any(cp.startswith(prefix) or path.startswith(f"{cp}/") for cp in claimed)
+
+
+def apply_no_orphaned_pointers(
+    plan: LayoutPlan,
+    state: PlannerState,
+    planner: LayoutPlanner,
+) -> LayoutPlan:
+    """Recovers unclaimed top-level scalar or array pointers into `facts` or `collection`."""
+    claimed: set[str] = (
+        set(state.page_claimed_pointers)
+        | set(plan.page.title.pointers())
+        | set(plan.page.subtitle.pointers())
+        | set(plan.page.mark.pointers())
+        | _collect_absorbed_siblings(state.pointers)
+    )
+    for b in plan.blocks:
+        claimed.update(b.bindings.pointers())
+
+    blocks = list(plan.blocks)
+    present_ids = {b.block_id for b in blocks}
+
+    # 1. Recover an unclaimed non-action data array into `collection` when no list block is present.
+    if not planner.config.threshold_overrides and not (
+        present_ids & {"collection", "steps", "comparison"}
+    ):
+        uncovered_arrays = [
+            p
+            for p in state.pointers
+            if p.value_type == "array"
+            and p.cardinality > 0
+            and not _is_action_pointer(p)
+            and not _is_pointer_covered(p.path, claimed)
+            and "image_url" not in p.element_semantic_types.values()
+        ]
+        if uncovered_arrays:
+            col_spec = planner.grammar.block("collection")
+            resolved_col = _resolve_block_pattern(col_spec, planner._capabilities)
+            if resolved_col is not None:
+                col_pat, col_preset = resolved_col
+                col_bindings = planner.bind_slots(
+                    col_spec,
+                    state.pointers,
+                    set(claimed),
+                    salience_scores=state.salience_scores,
+                    payload=state.payload,
+                    intent=state.intent,
+                )
+                if col_bindings.is_bound("items"):
+                    col_knobs, col_inst = planner._resolve_block_questions(
+                        col_spec,
+                        col_bindings,
+                        state,
+                        actions_allowed=plan.actions_allowed,
+                        preset_knobs=col_preset,
+                        rng=state.rng,
+                    )
+                    blocks.append(
+                        PlannedBlock(
+                            block_id="collection",
+                            pattern=col_pat,
+                            bindings=col_bindings,
+                            variant_knobs=col_knobs,
+                            instances=col_inst,
+                        )
+                    )
+                    claimed.update(col_bindings.pointers())
+                    present_ids.add("collection")
+
+    # 2. Recover unclaimed top-level scalar fact pointers into `facts` (or `prose` fallback rows).
+    prose_absent = "prose" not in present_ids
+    prose_ans = state.answers_by_id.get("gate:prose")
+    allow_prose_fallback_in_facts = (
+        prose_absent
+        and plan.urgency < 1.5
+        and (prose_ans is None or prose_ans.yes >= 0.50)
+    )
+    uncovered_scalars = [
+        p
+        for p in state.pointers
+        if not p.parent
+        and p.value_type in {"string", "number", "boolean"}
+        and not _is_nested_mutable_setting(p, state.pointers)
+        and not _is_pointer_covered(p.path, claimed)
+        and (
+            p.semantic_type not in _NON_FACT_SEMANTIC_TYPES
+            or (
+                allow_prose_fallback_in_facts
+                and p.semantic_type in {"long_text", "markdown", "code"}
+            )
+        )
+    ]
+    if uncovered_scalars:
+        facts_spec = planner.grammar.block("facts")
+        resolved_facts = _resolve_block_pattern(facts_spec, planner._capabilities)
+        if resolved_facts is not None:
+            facts_pat, facts_preset = resolved_facts
+            extra_rows = tuple(
+                _build_scalar_item_mapping(
+                    ptr, facts_spec.slots["rows"], state.pointers
+                )
+                for ptr in uncovered_scalars
+            )
+            if "facts" in present_ids:
+                for idx, b in enumerate(blocks):
+                    if b.block_id == "facts":
+                        existing_rows = b.bindings.get("rows")
+                        merged_items = (
+                            (*existing_rows.items, *extra_rows)
+                            if existing_rows is not None
+                            else extra_rows
+                        )
+                        new_bindings = BlockBindings(
+                            slots={
+                                **b.bindings.slots,
+                                "rows": SlotBinding(items=merged_items),
+                            }
+                        )
+                        blocks[idx] = replace(b, bindings=new_bindings)
+                        claimed.update(new_bindings.pointers())
+                        break
+            else:
+                facts_bindings = BlockBindings(
+                    slots={"rows": SlotBinding(items=extra_rows)}
+                )
+                facts_knobs, facts_inst = planner._resolve_block_questions(
+                    facts_spec,
+                    facts_bindings,
+                    state,
+                    actions_allowed=plan.actions_allowed,
+                    preset_knobs=facts_preset,
+                    rng=state.rng,
+                )
+                insert_idx = len(blocks)
+                for idx, b in enumerate(blocks):
+                    if b.block_id in {"actions", "compose"}:
+                        insert_idx = idx
+                        break
+                blocks.insert(
+                    insert_idx,
+                    PlannedBlock(
+                        block_id="facts",
+                        pattern=facts_pat,
+                        bindings=facts_bindings,
+                        variant_knobs=facts_knobs,
+                        instances=facts_inst,
+                    ),
+                )
+                claimed.update(facts_bindings.pointers())
+
+    return replace(plan, blocks=tuple(blocks))
+
+
 def _is_collection_picture_sparse(
     items: SlotBinding | None, payload: Mapping[str, Any]
 ) -> bool:
@@ -1897,6 +2085,120 @@ class LayoutPlanner:
         state.batch = batch
         return batch, state
 
+    def build_stage1_batch(
+        self,
+        intent: str,
+        pointers: Sequence[PointerSummary],
+        *,
+        eligible: Sequence[LayoutArchetype] | None = None,
+        brief: LayoutBrief | None = None,
+        payload: Mapping[str, Any] | None = None,
+        copy: AuthoredCopy | None = None,
+    ) -> tuple[DecisionBatch, PlannerState]:
+        """Builds Stage 1 (`family`, `stakes`, `urgency`, and `archetype:*`) of a two-stage batch."""
+        norm_pointers = _normalize_pointers(pointers)
+        elig = (
+            tuple(eligible)
+            if eligible is not None
+            else self._default_eligible(norm_pointers)
+        )
+        prior = self.prior_archetypes(elig, norm_pointers, brief)
+        state = PlannerState(
+            intent=intent,
+            pointers=norm_pointers,
+            eligible=elig,
+            prior_archetypes=tuple(a.id for a in prior),
+            brief=brief,
+            batch=DecisionBatch(shared_context={}, questions=()),
+            payload=dict(payload) if payload is not None else {},
+            copy=copy,
+        )
+        questions: list[DecisionQuestion] = []
+        self._append_job_questions(questions, state)
+        self._append_archetype_questions(questions, state)
+        batch = DecisionBatch(
+            shared_context={
+                "intent": intent,
+                "pointers": [p.path for p in norm_pointers],
+            },
+            questions=tuple(questions),
+        )
+        state.batch = batch
+        return batch, state
+
+    def build_stage2_batch(
+        self,
+        state: PlannerState,
+        stage1_answers: Sequence[DecisionAnswer],
+    ) -> DecisionBatch:
+        """Builds Stage 2 (`gate`, `anatomy`, `salience`, and `instance` for the winning archetype)."""
+        self._validate_and_index_answers(state, stage1_answers)
+        family = self._read_family(state)
+        archetype = (
+            self._read_archetype(state, family)[0] if family is not None else None
+        )
+        state.trace.clear()
+        if archetype is None:
+            return DecisionBatch(
+                shared_context=dict(state.batch.shared_context), questions=()
+            )
+
+        questions: list[DecisionQuestion] = list(state.batch.questions)
+        seen_ids = {q.id for q in questions}
+        pinned_blocks = (
+            {r for r in state.brief.roles() if r in self._grammar.blocks}
+            if state.brief is not None
+            else set()
+        )
+        gated_blocks: list[BlockSpec] = []
+        seen_block_ids: set[str] = set()
+        for ref in archetype.blocks:
+            if ref.id in seen_block_ids or self._is_redundant_optional_fallback(
+                ref, archetype
+            ):
+                continue
+            seen_block_ids.add(ref.id)
+            spec = self._grammar.block(ref.id)
+            if _matches_shape(spec.shape, state.pointers):
+                gated_blocks.append(spec)
+
+        for spec in gated_blocks:
+            if spec.gate is not None and spec.id not in pinned_blocks:
+                self._try_add_question(
+                    questions,
+                    DecisionQuestion(
+                        id=f"gate:{spec.id}",
+                        kind=QuestionKind.BOOLEAN,
+                        prompt=spec.gate.question,
+                        context={"yes": spec.gate.yes, "no": spec.gate.no},
+                        allow_none=False,
+                    ),
+                    state,
+                    seen_ids=seen_ids,
+                )
+        self._append_anatomy_for_blocks(questions, gated_blocks, state, seen_ids)
+        if any(b.id in {"headline", "facts"} for b in gated_blocks):
+            page_ptr = _page_title_pointer(state.pointers)
+            absorbed = _collect_absorbed_siblings(state.pointers)
+            sal_candidates = [
+                ptr
+                for ptr in state.pointers
+                if self._is_salience_candidate(ptr, page_ptr, absorbed, state)
+            ]
+            if len(sal_candidates) > 3:
+                self._append_salience_questions(questions, state)
+        self._append_instance_questions(questions, state, (archetype,))
+        stage1_len = len(state.batch.questions)
+        stage2_questions = tuple(questions[stage1_len:])
+        state.batch = DecisionBatch(
+            shared_context=dict(state.batch.shared_context),
+            questions=tuple(questions),
+        )
+        return DecisionBatch(
+            shared_context=dict(state.batch.shared_context),
+            questions=stage2_questions,
+        )
+
     def _try_add_question(
         self,
         questions: list[DecisionQuestion],
@@ -1982,13 +2284,28 @@ class LayoutPlanner:
                 seen_ids=seen_ids,
             )
 
+    def _is_redundant_optional_fallback(
+        self, ref: BlockRef, archetype: LayoutArchetype
+    ) -> bool:
+        """Returns True when an optional block's unsupported pattern degrades to a sibling block."""
+        if ref.requirement != "optional":
+            return False
+        spec = self._grammar.block(ref.id)
+        if self._capabilities.has_pattern(spec.pattern):
+            return False
+        resolved = _resolve_block_pattern(spec, self._capabilities)
+        if resolved is None:
+            return True
+        fb_pat, _ = resolved
+        return fb_pat != spec.pattern and fb_pat in set(archetype.block_ids())
+
     def _collect_gated_blocks(self, state: PlannerState) -> list[BlockSpec]:
         """Returns unique `BlockSpec`s from `state.eligible` whose payload shape holds."""
         gated: list[BlockSpec] = []
         seen: set[str] = set()
         for arch in state.eligible:
             for ref in arch.blocks:
-                if ref.id in seen:
+                if ref.id in seen or self._is_redundant_optional_fallback(ref, arch):
                     continue
                 seen.add(ref.id)
                 spec = self._grammar.block(ref.id)
@@ -2464,7 +2781,16 @@ class LayoutPlanner:
         chosen, prob = fam_ans.top()
         thresh = self.threshold("family")
         eligible_fams = {a.family for a in state.eligible}
-        if chosen == "none" or prob < thresh or chosen not in eligible_fams:
+        if (
+            chosen == "none"
+            or prob < thresh
+            or not eligible_fams
+            or (
+                chosen == "input"
+                and chosen not in eligible_fams
+                and not any(p.mutable_hint for p in state.pointers)
+            )
+        ):
             state.trace.append(
                 DecisionRecord(
                     question=fam_q,
@@ -2474,6 +2800,16 @@ class LayoutPlanner:
                 )
             )
             return None
+        if chosen not in eligible_fams:
+            eligible_ranked = [
+                (fam_id, fam_prob)
+                for fam_id, fam_prob in fam_ans.distribution.probabilities.items()
+                if fam_id in eligible_fams
+            ]
+            if eligible_ranked:
+                chosen = max(eligible_ranked, key=lambda kv: kv[1])[0]
+            else:
+                chosen = state.eligible[0].family
         state.trace.append(
             DecisionRecord(
                 question=fam_q, answer=fam_ans, threshold=thresh, outcome=chosen
@@ -2504,12 +2840,35 @@ class LayoutPlanner:
         q_map = {q.id: q for q in state.batch.questions}
         arch_q = q_map.get(q_id)
         arch_ans = state.answers_by_id.get(q_id)
+        fam_archs = [a for a in state.eligible if a.family == family]
         if arch_q is None or arch_ans is None:
-            fam_archs = [a for a in state.eligible if a.family == family]
             return (fam_archs[0], 1.0) if fam_archs else (None, 0.0)
         chosen, prob = arch_ans.top()
         thresh = self.threshold("archetype")
+        fam_ans = state.answers_by_id.get("family")
+        was_redirected = fam_ans is not None and fam_ans.top()[0] != family
         if chosen == "none" or prob < thresh:
+            if was_redirected and fam_archs and fam_ans is not None:
+                non_none = [
+                    (opt, p)
+                    for opt, p in arch_ans.distribution.probabilities.items()
+                    if opt != "none" and any(a.id == opt for a in fam_archs)
+                ]
+                best_id = (
+                    max(non_none, key=lambda kv: kv[1])[0]
+                    if non_none
+                    else fam_archs[0].id
+                )
+                best_prob = max(prob, fam_ans.top()[1])
+                state.trace.append(
+                    DecisionRecord(
+                        question=arch_q,
+                        answer=arch_ans,
+                        threshold=thresh,
+                        outcome=best_id,
+                    )
+                )
+                return self._grammar.archetype(best_id), best_prob
             state.trace.append(
                 DecisionRecord(
                     question=arch_q,
@@ -2635,6 +2994,8 @@ class LayoutPlanner:
         )
         active: list[PlannedBlock] = []
         for ref in archetype.blocks:
+            if self._is_redundant_optional_fallback(ref, archetype):
+                continue
             block = self._evaluate_single_block_gate(ref, q_map, pinned, state)
             if block is not None:
                 active.append(block)
@@ -2661,7 +3022,7 @@ class LayoutPlanner:
         )
 
     def _apply_all_rules(self, plan: LayoutPlan, state: PlannerState) -> PlanOutcome:
-        """Runs the 11 grammar `apply_<rule>` functions in pipeline order."""
+        """Runs the grammar `apply_<rule>` functions in pipeline order."""
         plan = apply_required_block_wins(plan, state)
         plan = apply_at_least(plan, state, self._grammar)
         plan = apply_fallback_must_end(plan, state, self._grammar, self._capabilities)
@@ -2677,6 +3038,7 @@ class LayoutPlanner:
         )
         plan = apply_one_primary_action(plan, state)
         plan = apply_urgency_terse(plan, state, self._capabilities)
+        plan = apply_no_orphaned_pointers(plan, state, self)
         plan = apply_no_empty_container(plan, state, self._grammar)
         if state.action_gate_blocked:
             return PlanOutcome(plan=None, reason=PlanReason.ACTION_GATE)

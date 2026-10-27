@@ -37,6 +37,8 @@ from .archetypes import ArchetypeGrammar, LayoutArchetype
 from .backends import (
     DecisionBackend,
     DeterministicMockBackend,
+    LocalCrossEncoderBackend,
+    StepZeroLogprobBackend,
     create_decision_backend,
     ensure_batch_backend,
 )
@@ -1226,6 +1228,27 @@ class DecisionSynthesizer:
             if config == self.config
             else LayoutPlanner(self.archetypes, config, capabilities=self.patterns)
         )
+        use_two_stage = (
+            config.two_stage_batching
+            if config.two_stage_batching is not None
+            else isinstance(
+                self.backend, (LocalCrossEncoderBackend, StepZeroLogprobBackend)
+            )
+        )
+        if use_two_stage:
+            stage1_batch, state = planner.build_stage1_batch(
+                intent, pointers, brief=brief, payload=data, copy=copy
+            )
+            stage1_answers = await self._backend_answer(stage1_batch)
+            stage2_batch = planner.build_stage2_batch(state, stage1_answers)
+            stage2_answers = (
+                await self._backend_answer(stage2_batch)
+                if stage2_batch.questions
+                else ()
+            )
+            answers = (*stage1_answers, *stage2_answers)
+            return planner.read(state, answers, seed=variety_seed), state
+
         batch, state = planner.build_batch(
             intent, pointers, brief=brief, payload=data, copy=copy
         )
