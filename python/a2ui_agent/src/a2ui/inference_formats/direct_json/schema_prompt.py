@@ -65,7 +65,7 @@ def schema_to_prompt(
     )
 
 
-def _protocol_schema_prompt(
+def protocol_schema_prompt(
     catalogs: Iterable[CatalogApi],
     allowed_messages: Sequence[str] | None = None,
 ) -> str:
@@ -73,7 +73,7 @@ def _protocol_schema_prompt(
 
     The block holds the agent-to-renderer schema and the common types that the
     catalogs or that schema reference, as `schema_to_prompt` writes them, but
-    no catalog schema. Pair it with `_catalog_schema_prompt` to describe the
+    no catalog schema. Pair it with `catalog_schema_prompt` to describe the
     catalogs themselves.
 
     Args:
@@ -92,10 +92,10 @@ def _protocol_schema_prompt(
     return _schema_block(_protocol_schema_sections(linked, allowed_messages))
 
 
-def _catalog_schema_prompt(catalogs: Iterable[CatalogApi]) -> str:
+def catalog_schema_prompt(catalogs: Iterable[CatalogApi]) -> str:
     """Returns a schema block with only the catalog schemas, one per catalog.
 
-    The block holds no protocol schema; `_protocol_schema_prompt` writes those.
+    The block holds no protocol schema; `protocol_schema_prompt` writes those.
 
     Args:
       catalogs: The catalogs to describe, which share a protocol version, in
