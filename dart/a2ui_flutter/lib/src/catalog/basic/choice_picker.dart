@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import 'check_hint.dart';
 import 'unbounded_width.dart';
 import 'write_back.dart';
 
@@ -59,6 +60,7 @@ Widget buildChoicePicker(
     filterable: props.boolean('filterable') ?? false,
     onChanged: writerFor(context, props, 'value'),
     error: props.validationErrors.firstOrNull,
+    hint: checkHint(props),
   );
 }
 
@@ -72,6 +74,7 @@ class _ChoicePicker extends StatefulWidget {
     required this.filterable,
     required this.onChanged,
     required this.error,
+    required this.hint,
   });
 
   final String? label;
@@ -82,6 +85,7 @@ class _ChoicePicker extends StatefulWidget {
   final bool filterable;
   final void Function(Object? value)? onChanged;
   final String? error;
+  final String? hint;
 
   @override
   State<_ChoicePicker> createState() => _ChoicePickerState();
@@ -129,6 +133,7 @@ class _ChoicePickerState extends State<_ChoicePicker> {
     final List<String> selected = widget.selected;
     final String? label = widget.label;
     final String? error = widget.error;
+    final String? hint = widget.hint;
     return limitUnboundedWidth(
       context,
       Column(
@@ -158,7 +163,9 @@ class _ChoicePickerState extends State<_ChoicePicker> {
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.error,
               ),
-            ),
+            )
+          else if (hint != null)
+            Text(hint, style: theme.textTheme.bodySmall),
         ],
       ),
     );
