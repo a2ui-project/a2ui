@@ -286,13 +286,14 @@ def test_decompiler_delegation(test_catalog):
         == "<a2ui>\na = 1\nb = 2\n</a2ui>"
     )
 
-    # Verify abstract PromptGenerator generate pass
+    # A generator whose hooks render nothing renders an empty snippet.
     from a2ui.prompt import PromptGenerator
 
     class DummyPromptGenerator(PromptGenerator):
 
-        def generate(self):
-            return super().generate()
+        @property
+        def catalogs(self):
+            return []
 
     assert DummyPromptGenerator().generate() == ""
 

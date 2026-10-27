@@ -22,6 +22,7 @@ from typing import Optional
 from a2ui.constants import EXAMPLES_HEADING
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
+from a2ui.prompt import assemble_instructions
 
 from .skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
 
@@ -46,32 +47,14 @@ class SkillGenerator:
 
         If catalogs is not specified, defaults to the catalogs configured on the inference format.
         """
-        resolved_catalogs = _resolve_catalogs_list(catalogs, self.fmt)
-        prompt_gen = self.fmt.prompt_generator
-
-        base_rules = prompt_gen.generate_base_rules()
-
-        cat_blocks = []
-        ex_blocks = []
-        for c in resolved_catalogs:
-            inst = prompt_gen.generate_catalog_instructions(catalog=c)
-            if inst:
-                cat_blocks.append(inst)
-            ex = prompt_gen.generate_examples(catalog=c)
-            # A format whose examples aren't kept per catalog returns the same
-            # examples for each catalog, so they're added once.
-            if ex and ex not in ex_blocks:
-                ex_blocks.append(ex)
-
-        body_parts = []
-        if base_rules:
-            body_parts.append(base_rules)
-        if cat_blocks:
-            body_parts.extend(cat_blocks)
-        if ex_blocks:
-            body_parts.append(EXAMPLES_HEADING + "\n\n".join(ex_blocks))
-
-        content_str = "\n\n".join(body_parts) + "\n"
+        # Without explicit catalogs, the body is the format's prompt snippet.
+        content_str = (
+            assemble_instructions(
+                self.fmt.prompt_generator,
+                None if catalogs is None else list(catalogs),
+            )
+            + "\n"
+        )
         desc = (
             description
             or "Generates interactive user interface components for user requests."
