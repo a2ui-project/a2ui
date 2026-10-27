@@ -256,7 +256,7 @@ From a clone of the mirror next to a clone of this repository:
 ```bash
 git rm -rq --ignore-unmatch .
 git -C ../a2ui archive A2UISwiftCore-v<version> \
-  Package.swift LICENSE swift/core swift/swiftui specification catalogs conformance \
+  Package.swift LICENSE .gitignore swift/core swift/swiftui specification catalogs conformance \
   | tar -x
 swift build
 swift test --enable-swift-testing
