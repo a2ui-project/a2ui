@@ -381,11 +381,25 @@ class _SurfaceCompiler {
 
   List<Map<String, Object?>> _dataUpdates(String surfaceId) => [
     for (final (String path, ExpressNode node) in surface.data)
-      compiler._envelope('updateDataModel', {
-        'surfaceId': surfaceId,
-        'path': path.isEmpty ? '/' : (path.startsWith('/') ? path : '/$path'),
-        'value': _value(node, _Context(idPrefix: 'data', hoisted: _noHoisting)),
-      }),
+      () {
+        final jsonPath = path.isEmpty
+            ? '/'
+            : (path.startsWith('/') ? path : '/$path');
+        final Object? value = _value(
+          node,
+          _Context(idPrefix: 'data', hoisted: _noHoisting),
+        );
+        if (jsonPath == '/' && value is! Map<String, Object?>) {
+          throw A2uiValidationError(
+            r'Only a map can be assigned to the whole data model, $/.',
+          );
+        }
+        return compiler._envelope('updateDataModel', {
+          'surfaceId': surfaceId,
+          'path': jsonPath,
+          'value': value,
+        });
+      }(),
   ];
 
   List<Map<String, Object?>> compile() {
@@ -1126,6 +1140,9 @@ Object _materializeChild(
   }
   // A map or list assigned earlier is copied rather than written into: its
   // element type may be narrower than Object?, as it is for an Event's map.
+  // Copying produces the same output as mutating in place (as the Python and
+  // TypeScript compilers do) because _value compiles a fresh container for
+  // each path assignment, so no two branches share a container instance.
   if (existing is Map) return Map<String, Object?>.from(existing);
   if (existing is List) return List<Object?>.from(existing);
   throw A2uiValidationError(

@@ -1,7 +1,7 @@
 ---
 codebase_path: python/a2ui_agent
 associated_module: a2ui_agent
-module_blueprint_commit: 47f4988ab66c88be77bd48ca8c92dffb8b39ea11
+module_blueprint_commit: 6c08216e44868319362dc73b5af0abf9696626da
 implemented_features:
   - skill_generator
   - typesafe_builder_api

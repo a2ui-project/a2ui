@@ -944,17 +944,23 @@ class ExpressCompiler:
         )
 
         if not is_create:
-            data_updates = [
-                {
+            data_updates = []
+            for path_name, ast_val in scope.data_path_assignments.items():
+                pointer = _to_json_pointer(path_name)
+                compiled_val = self._compile_data_value(scope, ast_val, ctx)
+                if pointer == "/" and not isinstance(compiled_val, dict):
+                    raise ExpressValidationError(
+                        "Cannot assign a non-map value to the root data path"
+                        f" '$/' (got {type(compiled_val).__name__})."
+                    )
+                data_updates.append({
                     "version": ctx.version,
                     SurfaceOperation.UPDATE_DATA: {
                         "surfaceId": surf_id,
-                        "path": _to_json_pointer(path_name),
-                        "value": self._compile_data_value(scope, ast_val, ctx),
+                        "path": pointer,
+                        "value": compiled_val,
                     },
-                }
-                for path_name, ast_val in scope.data_path_assignments.items()
-            ]
+                })
             if not compiled_components:
                 if data_updates:
                     return data_updates

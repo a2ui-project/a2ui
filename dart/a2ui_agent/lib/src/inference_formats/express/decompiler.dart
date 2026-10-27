@@ -250,14 +250,12 @@ class ExpressDecompiler {
         'with anything but a map.',
       );
     }
-    // Below the root the value is assigned at its path, which compiles to an
-    // update of the root holding it.
     return [
       _surfaceLine(
         message.surfaceId,
         created[message.surfaceId] ?? catalogs.first.id,
       ),
-      ..._dataLines(value, at: atRoot ? '' : path),
+      '\$${atRoot ? '/' : path} = ${_literal(value)}',
     ].join('\n');
   }
 
@@ -378,9 +376,8 @@ class ExpressDecompiler {
       : 'surface(${_string(surfaceId)}, ${_string(catalogId!)})';
 
   /// One assignment per leaf of [model], since the compiler builds nested
-  /// maps back up from the paths.
-  List<String> _dataLines(Object? model, {String at = ''}) {
-    if (at.isEmpty && model is Map && model.isEmpty) return [r'$/ = {}'];
+  /// maps back up from the paths on surface creation.
+  List<String> _dataLines(Map<Object?, Object?> model) {
     final lines = <String>[];
     void visit(String path, Object? value) {
       if (value is Map && value.isNotEmpty) {
@@ -404,7 +401,7 @@ class ExpressDecompiler {
       }
     }
 
-    visit(at, model);
+    visit('', model);
     return lines;
   }
 

@@ -440,6 +440,10 @@ void main() {
         },
       ],
       'a data model key that is not a path segment': [
+        create('s'),
+        components('s', [
+          {'id': 'root', 'component': 'Text', 'text': 'x'},
+        ]),
         {
           'updateDataModel': {
             'surfaceId': 's',

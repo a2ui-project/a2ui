@@ -238,7 +238,7 @@ describe('ExpressDecompiler', () => {
       );
     });
 
-    it('writes an updateDataModel as one assignment per leaf', () => {
+    it('writes a standalone root updateDataModel as a root map assignment', () => {
       const {catalog, version} = getCatalogInfo('basic_v0_9');
       const messages = [
         {
@@ -247,7 +247,7 @@ describe('ExpressDecompiler', () => {
         },
       ] as unknown as AgentToRendererMessage[];
       expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
-        'surface("surf_09")\n$/profile/active = true\n$/profile/name = "Bob"',
+        'surface("surf_09")\n$/ = {profile: {name: "Bob", active: true}}',
       );
     });
   });

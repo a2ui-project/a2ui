@@ -1824,3 +1824,15 @@
   input: 'root = TextField("Email", $/email, _, [?required({catalogId: null})])'
   expect_error:
     category: "ValidationError"
+
+- name: test_compile_express_update_scope_root_non_map_is_validation_error
+  description: Assigning a non-map value to the root data path ($/) in an update scope is a validation error, just as in a surface-creating scope.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("s1")
+    $/ = 5
+  expect_error:
+    category: "ValidationError"

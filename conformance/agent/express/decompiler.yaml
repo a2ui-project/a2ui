@@ -198,7 +198,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_update_data_model
-  description: A standalone data model update writes back out as the data path assignment that would produce it, with no component assignment beside it to make the block a create.
+  description: A standalone root data model update writes back out as a root map assignment ($/ = {...}), with no component assignment beside it to make the block a create, and round-trips without losing replace semantics.
   action: decompile
   args:
     format: express
@@ -212,14 +212,8 @@
           title: "Hello"
   expect_contains:
     - 'surface("s1")'
-    - '$/title = "Hello"'
-  expect_round_trip: false
-  expect_recompiled:
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/title"
-        value: "Hello"
+    - '$/ = {title: "Hello"}'
+  expect_round_trip: true
 
 - name: test_decompile_express_delete_surface
   description: A deleteSurface writes back out as the statement of that name, which is what lets a lifecycle turn be shown to a model as an example.
@@ -347,35 +341,28 @@
   expect_round_trip: true
 
 - name: test_decompile_express_nested_data_model_is_one_assignment_per_leaf
-  description: A data model of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, and recompiles to one updateDataModel per leaf path.
+  description: A surface creation dataModel of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
   action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
     - version: "v1.0"
-      updateDataModel:
+      createSurface:
         surfaceId: "s1"
-        path: "/"
-        value:
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+        dataModel:
           user:
             name: "Ada"
             city: "London"
   expect_contains:
     - '$/user/name = "Ada"'
     - '$/user/city = "London"'
-  expect_round_trip: false
-  expect_recompiled:
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/user/city"
-        value: "London"
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/user/name"
-        value: "Ada"
+  expect_round_trip: true
 
 - name: test_decompile_express_list_of_numbers
   description: A property holding plain numbers writes out as an array of them, with no quoting and no component references. Every other decompile case writes a list of child ids, which a decompiler could produce by treating array entries as names.
@@ -846,7 +833,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_update_data_model_map_at_path
-  description: An updateDataModel setting a map at a non-root path ("/user") prefixes each leaf assignment with that path ($/user/name = ...) and recompiles to one updateDataModel per leaf path.
+  description: An updateDataModel setting a map at a non-root path ("/user") writes out as a map literal assignment at that path ($/user = {...}) so that replacing the map round-trips without merging into sibling keys.
   action: decompile
   args:
     format: express
@@ -861,20 +848,8 @@
           city: "London"
   expect_contains:
     - 'surface("s1")'
-    - '$/user/city = "London"'
-    - '$/user/name = "Ada"'
-  expect_round_trip: false
-  expect_recompiled:
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/user/city"
-        value: "London"
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/user/name"
-        value: "Ada"
+    - '$/user = {name: "Ada", city: "London"}'
+  expect_round_trip: true
 
 - name: test_decompile_express_map_with_keys_named_like_express_constructs
   description: In v1.0 only `@path` marks a data binding and `@call` a function call, so an object whose keys are plain `path` or `call`, or whose `event` or `functionCall` is not an object, is data and writes back out as a map literal.

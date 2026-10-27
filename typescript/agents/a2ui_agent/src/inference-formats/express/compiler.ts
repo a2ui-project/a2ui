@@ -744,6 +744,7 @@ export class ExpressCompiler {
     if (scope.update || !hasRootComponent) {
       const dataUpdates: AgentToRendererMessage[] = [];
       for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+        const pointer = toJsonPointer(pathName);
         const compiledVal = this._compileValue(
           astVal,
           scope.rawSymbols,
@@ -752,12 +753,20 @@ export class ExpressCompiler {
           targetMajorMinor,
           false,
         );
+        if (
+          pointer === '/' &&
+          (!compiledVal || typeof compiledVal !== 'object' || Array.isArray(compiledVal))
+        ) {
+          throw new ExpressValidationError(
+            "Cannot assign a non-map value to the root data path '$/'.",
+          );
+        }
         dataUpdates.push(
           asAgentToRendererMessage({
             version: targetVersion,
             [SurfaceOperation.UPDATE_DATA]: {
               surfaceId: scopeSurfId,
-              path: toJsonPointer(pathName),
+              path: pointer,
               value: compiledVal,
             },
           }),

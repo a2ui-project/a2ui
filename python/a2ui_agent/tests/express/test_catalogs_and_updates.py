@@ -607,12 +607,12 @@ root = Panel("B")
 @pytest.mark.parametrize(
     "path, value, expected_line",
     [
-        ("/user", {"name": "Ada"}, '$/user/name = "Ada"'),
+        ("/user", {"name": "Ada"}, '$/user = {name: "Ada"}'),
         ("/count", 5, "$/count = 5"),
-        ("/", {"a": 3}, "$/a = 3"),
+        ("/", {"a": 3}, "$/ = {a: 3}"),
     ],
 )
-def test_update_data_model_decompiled_as_leaf_assignments(
+def test_update_data_model_decompiled_at_assigned_path(
     parser: ExpressParser, path: str, value: Any, expected_line: str
 ) -> None:
     messages = [{
@@ -725,11 +725,11 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
         },
     }
     dsl = parser.decompile(to_message_models([create, call, update]))
-    assert 'surface("s1")\n$/a = 3' in dsl
+    assert 'surface("s1")\n$/ = {a: 3}' in dsl
     assert 'sharedFn("p", catalogId="test/primary")' in dsl
     assert _compile(parser, dsl)[2] == {
         "version": "v1.0",
-        "updateDataModel": {"surfaceId": "s1", "path": "/a", "value": 3},
+        "updateDataModel": {"surfaceId": "s1", "path": "/", "value": {"a": 3}},
     }
 
 

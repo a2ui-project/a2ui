@@ -10,9 +10,11 @@
   renderer). Surface-creating scopes continue to fold data path assignments into
   a single root data model and now support list element traversal, canonical
   numeric-segment list auto-vivification, and full root replacement via
-  `$/ = {...}`. `ExpressDecompiler` now accepts numeric path segments in
-  `updateDataModel` (such as `/items/0`) and sorts map keys when flattening data
-  models into leaf assignments.
+  `$/ = {...}`. `ExpressDecompiler` now writes standalone `updateDataModel`
+  messages as `{path} = {value}` (`$/ = {...}` at root) so map replacements
+  round-trip without merging into sibling keys, accepts numeric path segments in
+  `updateDataModel` (such as `/items/0`), and sorts map keys when flattening
+  surface-creation data models into leaf assignments.
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
