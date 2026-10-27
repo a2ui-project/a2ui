@@ -9,10 +9,10 @@ describe the archetypes and how each catalog draws them.
 
 Two kinds of file take part:
 
-| File | Scope | Who authors it |
-| :--- | :--- | :--- |
-| `decision/v1/archetypes.json` | Catalog-agnostic. One copy for the whole protocol, validated by `archetype_definition.json`. | The A2UI team, with the decision format. |
-| `<catalog>/patterns.json` | One per catalog, beside its `catalog.json`, validated by `decision/v1/pattern_definition.json`. The basic catalog's file is `catalogs/basic/v1/patterns.json`. | The catalog's maintainers. |
+| File                          | Scope                                                                                                                                                          | Who authors it                           |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------- |
+| `decision/v1/archetypes.json` | Catalog-agnostic. One copy for the whole protocol, validated by `archetype_definition.json`.                                                                   | The A2UI team, with the decision format. |
+| `<catalog>/patterns.json`     | One per catalog, beside its `catalog.json`, validated by `decision/v1/pattern_definition.json`. The basic catalog's file is `catalogs/basic/v1/patterns.json`. | The catalog's maintainers.               |
 
 The grammar names abstract patterns (`page`, `banner`, `picture`, `headline`,
 `facts`, `prose`, `collection`, and so on). A pattern file says which real
@@ -100,24 +100,24 @@ id-less component templates picked per element by `$byInstance`.
 Component templates are ordinary component objects for the catalog, plus
 directives whose keys start with `$`:
 
-| Directive | Value | Meaning |
-| :--- | :--- | :--- |
-| `$slot` | slot name | A data binding to the pointer bound to that slot. Relative inside `$repeat`. `$default` beside it supplies a literal when the slot is unbound. |
-| `$text` | literal with `{slot}` placeholders | A formatted string. When a placeholder is bound the expander emits a `formatString` call; `{$index1}` is the 1-based element index. |
-| `$default` | any JSON | The value used when the `$slot` or `$knobValue` beside it resolves to nothing. |
-| `$if` | slot name | Emit the component only when the slot is bound. |
-| `$ifKnob` | `{knob: [values]}` | Emit the component only when every named knob has one of the listed values. |
-| `$ifSelf` | `{"true": ..., "false": ...}` | Pick a value by whether the element's author equals the `self` knob. |
-| `$ifInstance` | `{answer: value}` | Emit the enclosing property only when the element's instance answers match. |
-| `$byType` | slot name | The sibling key equal to the slot's semantic type names the child id to emit. |
-| `$byInstance` | instance answer name | Pick a `fieldVariants` entry (or a sibling key) by the element's answer. |
-| `$repeat` | repeated slot name | Turn `children` into a template child list bound to the slot's array; the sibling `component` names the template. |
-| `$map` | knob or answer name | The sibling key equal to its value is the literal to emit. |
-| `$event` | event name or slot | An action `{"event": {"name": ...}}`; `context` beside it is passed through. |
-| `$blocks` | `true` | In the page pattern, where the block roots go, in archetype order. |
-| `$knobValue` | `knob.property` | A value looked up in the plan, with `$default` when absent. |
-| `$item` | `true` | Inside `$repeat`, the current element, bound as event context. |
-| `$index1` | `true` | Inside `$repeat`, the 1-based index of the current element. |
+| Directive     | Value                              | Meaning                                                                                                                                        |
+| :------------ | :--------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$slot`       | slot name                          | A data binding to the pointer bound to that slot. Relative inside `$repeat`. `$default` beside it supplies a literal when the slot is unbound. |
+| `$text`       | literal with `{slot}` placeholders | A formatted string. When a placeholder is bound the expander emits a `formatString` call; `{$index1}` is the 1-based element index.            |
+| `$default`    | any JSON                           | The value used when the `$slot` or `$knobValue` beside it resolves to nothing.                                                                 |
+| `$if`         | slot name                          | Emit the component only when the slot is bound.                                                                                                |
+| `$ifKnob`     | `{knob: [values]}`                 | Emit the component only when every named knob has one of the listed values.                                                                    |
+| `$ifSelf`     | `{"true": ..., "false": ...}`      | Pick a value by whether the element's author equals the `self` knob.                                                                           |
+| `$ifInstance` | `{answer: value}`                  | Emit the enclosing property only when the element's instance answers match.                                                                    |
+| `$byType`     | slot name                          | The sibling key equal to the slot's semantic type names the child id to emit.                                                                  |
+| `$byInstance` | instance answer name               | Pick a `fieldVariants` entry (or a sibling key) by the element's answer.                                                                       |
+| `$repeat`     | repeated slot name                 | Turn `children` into a template child list bound to the slot's array; the sibling `component` names the template.                              |
+| `$map`        | knob or answer name                | The sibling key equal to its value is the literal to emit.                                                                                     |
+| `$event`      | event name or slot                 | An action `{"event": {"name": ...}}`; `context` beside it is passed through.                                                                   |
+| `$blocks`     | `true`                             | In the page pattern, where the block roots go, in archetype order.                                                                             |
+| `$knobValue`  | `knob.property`                    | A value looked up in the plan, with `$default` when absent.                                                                                    |
+| `$item`       | `true`                             | Inside `$repeat`, the current element, bound as event context.                                                                                 |
+| `$index1`     | `true`                             | Inside `$repeat`, the 1-based index of the current element.                                                                                    |
 
 Component ids in a pattern are local. The expander prefixes them with the block
 id so a pattern can appear more than once on a surface. Headings use Markdown

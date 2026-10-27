@@ -49,42 +49,22 @@
       "id": "feed",
       "family": "browse",
       "criteria": "A collection to look through, where the items matter more than any one of them.",
-      "blocks": [
-        "banner?",
-        "filters?",
-        "picture?",
-        "collection!"
-      ]
+      "blocks": ["banner?", "filters?", "picture?", "collection!"]
     },
     {
       "id": "compare",
       "family": "browse",
       "criteria": "A few options the person is weighing against each other, with the same attributes for each.",
       "shape": {
-        "arrayLength": [
-          2,
-          5
-        ]
+        "arrayLength": [2, 5]
       },
-      "blocks": [
-        "banner?",
-        "prose?",
-        "comparison!",
-        "actions?"
-      ]
+      "blocks": ["banner?", "prose?", "comparison!", "actions?"]
     },
     {
       "id": "dashboard",
       "family": "monitor",
       "criteria": "Numbers and status at a glance, with the most important figure first.",
-      "blocks": [
-        "banner?",
-        "headline!",
-        "chart?",
-        "facts?",
-        "media?",
-        "collection?"
-      ],
+      "blocks": ["banner?", "headline!", "chart?", "facts?", "media?", "collection?"],
       "atLeast": 2
     },
     {
@@ -107,22 +87,13 @@
       "id": "result",
       "family": "act",
       "criteria": "The outcome of something the person just did: success, failure, a receipt, nothing found.",
-      "blocks": [
-        "outcome!",
-        "facts?",
-        "steps?",
-        "actions"
-      ]
+      "blocks": ["outcome!", "facts?", "steps?", "actions"]
     },
     {
       "id": "confirm",
       "family": "act",
       "criteria": "One short decision about one thing, asked before it happens: confirm, delete, approve, allow.",
-      "blocks": [
-        "prose",
-        "facts?",
-        "actions!"
-      ],
+      "blocks": ["prose", "facts?", "actions!"],
       "frame": {
         "dialog": true
       }
@@ -131,13 +102,7 @@
       "id": "checkout",
       "family": "act",
       "criteria": "Review and commit: a cart, an order or booking summary with totals, a payment.",
-      "blocks": [
-        "banner?",
-        "collection",
-        "facts!",
-        "form?",
-        "actions!"
-      ],
+      "blocks": ["banner?", "collection", "facts!", "form?", "actions!"],
       "frame": {
         "stickyActions": true
       }
@@ -149,11 +114,7 @@
       "shape": {
         "mutable": true
       },
-      "blocks": [
-        "prose?",
-        "form!",
-        "actions"
-      ]
+      "blocks": ["prose?", "form!", "actions"]
     },
     {
       "id": "settings",
@@ -162,103 +123,51 @@
       "shape": {
         "mutable": true
       },
-      "blocks": [
-        "banner?",
-        "groups!",
-        "actions?"
-      ]
+      "blocks": ["banner?", "groups!", "actions?"]
     },
     {
       "id": "guide",
       "family": "follow",
       "criteria": "Instructions followed in order: a how-to, a method, troubleshooting, an onboarding checklist.",
-      "blocks": [
-        "picture?",
-        "prose?",
-        "facts?",
-        "steps!",
-        "actions?"
-      ]
+      "blocks": ["picture?", "prose?", "facts?", "steps!", "actions?"]
     },
     {
       "id": "article",
       "family": "inspect",
       "criteria": "Something to read: an explanation, a story, a report, documentation, where the text is the point.",
       "shape": {
-        "proseLength": [
-          "summary",
-          "article"
-        ]
+        "proseLength": ["summary", "article"]
       },
-      "blocks": [
-        "picture?",
-        "prose!",
-        "facts?",
-        "collection?",
-        "actions?"
-      ]
+      "blocks": ["picture?", "prose!", "facts?", "collection?", "actions?"]
     },
     {
       "id": "timeline",
       "family": "inspect",
       "criteria": "What happened, in order: shipment events, an audit trail, a build's stages, a patient's history, a project's milestones.",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "elementTypes": [
-          "datetime",
-          "date",
-          "time",
-          "relative_time"
-        ]
+        "pointers": ["array"],
+        "elementTypes": ["datetime", "date", "time", "relative_time"]
       },
-      "blocks": [
-        "banner?",
-        "headline?",
-        "timeline!",
-        "actions?"
-      ]
+      "blocks": ["banner?", "headline?", "timeline!", "actions?"]
     },
     {
       "id": "location",
       "family": "inspect",
       "criteria": "A place, or something at a place: where it is, how to get there, what is nearby.",
       "shape": {
-        "pointers": [
-          "location",
-          "address"
-        ]
+        "pointers": ["location", "address"]
       },
-      "blocks": [
-        "picture?",
-        "map!",
-        "facts",
-        "collection?",
-        "actions?"
-      ]
+      "blocks": ["picture?", "map!", "facts", "collection?", "actions?"]
     },
     {
       "id": "chat",
       "family": "browse",
       "criteria": "A conversation: messages between people or with an assistant, in order, each with who said it and when.",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "elementKeys": [
-          "author",
-          "sender",
-          "from",
-          "role",
-          "speaker"
-        ]
+        "pointers": ["array"],
+        "elementKeys": ["author", "sender", "from", "role", "speaker"]
       },
-      "blocks": [
-        "banner?",
-        "conversation!",
-        "compose?"
-      ]
+      "blocks": ["banner?", "conversation!", "compose?"]
     }
   ],
   "blocks": [
@@ -273,17 +182,11 @@
       },
       "slots": {
         "title": {
-          "from": [
-            "string",
-            "enum"
-          ],
+          "from": ["string", "enum"],
           "required": true
         },
         "text": {
-          "from": [
-            "string",
-            "long_text"
-          ]
+          "from": ["string", "long_text"]
         }
       },
       "instance": {
@@ -298,19 +201,13 @@
           }
         }
       },
-      "fallback": [
-        "banner",
-        "prose"
-      ]
+      "fallback": ["banner", "prose"]
     },
     {
       "id": "picture",
       "pattern": "picture",
       "shape": {
-        "pointers": [
-          "image_url",
-          "media_object"
-        ]
+        "pointers": ["image_url", "media_object"]
       },
       "gate": {
         "kind": "boolean",
@@ -320,59 +217,28 @@
       },
       "slots": {
         "picture": {
-          "from": [
-            "image_url",
-            "media_object"
-          ],
+          "from": ["image_url", "media_object"],
           "required": true,
-          "avoidKeys": [
-            "logo",
-            "icon",
-            "avatar",
-            "thumbnail"
-          ]
+          "avoidKeys": ["logo", "icon", "avatar", "thumbnail"]
         },
         "caption": {
-          "from": [
-            "string",
-            "title"
-          ]
+          "from": ["string", "title"]
         },
         "width": {
-          "from": [
-            "integer"
-          ],
-          "sibling": [
-            "width",
-            "w"
-          ]
+          "from": ["integer"],
+          "sibling": ["width", "w"]
         },
         "height": {
-          "from": [
-            "integer"
-          ],
-          "sibling": [
-            "height",
-            "h"
-          ]
+          "from": ["integer"],
+          "sibling": ["height", "h"]
         },
         "aspectRatio": {
-          "from": [
-            "ratio",
-            "string"
-          ],
-          "sibling": [
-            "aspectRatio",
-            "aspect"
-          ]
+          "from": ["ratio", "string"],
+          "sibling": ["aspectRatio", "aspect"]
         },
         "orientation": {
-          "from": [
-            "enum"
-          ],
-          "sibling": [
-            "orientation"
-          ]
+          "from": ["enum"],
+          "sibling": ["orientation"]
         }
       },
       "anatomy": {
@@ -415,21 +281,14 @@
           ]
         }
       },
-      "fallback": [
-        "picture"
-      ]
+      "fallback": ["picture"]
     },
     {
       "id": "filters",
       "pattern": "filters",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "arrayLength": [
-          8,
-          null
-        ],
+        "pointers": ["array"],
+        "arrayLength": [8, null],
         "mutable": true
       },
       "gate": {
@@ -440,23 +299,15 @@
       },
       "slots": {
         "query": {
-          "from": [
-            "string"
-          ],
+          "from": ["string"],
           "mutable": true
         },
         "categories": {
-          "from": [
-            "enum",
-            "status",
-            "array"
-          ],
+          "from": ["enum", "status", "array"],
           "note": "the distinct values of an enum field across the items, or a sibling list of category names; how they are drawn is the catalog's choice"
         }
       },
-      "fallback": [
-        "filters"
-      ]
+      "fallback": ["filters"]
     },
     {
       "id": "headline",
@@ -480,10 +331,7 @@
           "datetime",
           "relative_time"
         ],
-        "count": [
-          1,
-          null
-        ]
+        "count": [1, null]
       },
       "gate": {
         "kind": "boolean",
@@ -532,45 +380,23 @@
           "orderBy": "salience",
           "fields": {
             "label": {
-              "from": [
-                "key"
-              ]
+              "from": ["key"]
             },
             "value": {
-              "from": [
-                "any"
-              ],
+              "from": ["any"],
               "required": true
             },
             "delta": {
-              "from": [
-                "number",
-                "percent"
-              ],
-              "sibling": [
-                "delta",
-                "change",
-                "diff",
-                "previous"
-              ]
+              "from": ["number", "percent"],
+              "sibling": ["delta", "change", "diff", "previous"]
             },
             "min": {
-              "from": [
-                "number"
-              ],
-              "sibling": [
-                "min"
-              ]
+              "from": ["number"],
+              "sibling": ["min"]
             },
             "max": {
-              "from": [
-                "number"
-              ],
-              "sibling": [
-                "max",
-                "total",
-                "limit"
-              ]
+              "from": ["number"],
+              "sibling": ["max", "total", "limit"]
             }
           }
         }
@@ -608,11 +434,7 @@
         "state_tone": {
           "kind": "choice",
           "appliesWhen": {
-            "value": [
-              "status",
-              "enum",
-              "boolean"
-            ]
+            "value": ["status", "enum", "boolean"]
           },
           "question": "Is {label} being {value} good, bad, or neutral for the person?",
           "options": {
@@ -623,19 +445,13 @@
           }
         }
       },
-      "fallback": [
-        "headline",
-        "facts"
-      ]
+      "fallback": ["headline", "facts"]
     },
     {
       "id": "media",
       "pattern": "media",
       "shape": {
-        "pointers": [
-          "video_url",
-          "audio_url"
-        ]
+        "pointers": ["video_url", "audio_url"]
       },
       "gate": {
         "kind": "boolean",
@@ -645,51 +461,28 @@
       },
       "slots": {
         "source": {
-          "from": [
-            "video_url",
-            "audio_url"
-          ],
+          "from": ["video_url", "audio_url"],
           "required": true
         },
         "poster": {
-          "from": [
-            "image_url"
-          ],
-          "sibling": [
-            "poster",
-            "thumbnail",
-            "artwork"
-          ]
+          "from": ["image_url"],
+          "sibling": ["poster", "thumbnail", "artwork"]
         },
         "title": {
-          "from": [
-            "title",
-            "string"
-          ]
+          "from": ["title", "string"]
         },
         "duration": {
-          "from": [
-            "duration"
-          ]
+          "from": ["duration"]
         }
       },
-      "fallback": [
-        "media",
-        "facts"
-      ]
+      "fallback": ["media", "facts"]
     },
     {
       "id": "chart",
       "pattern": "chart",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "elementTypes": [
-          "number",
-          "date",
-          "datetime"
-        ]
+        "pointers": ["array"],
+        "elementTypes": ["number", "date", "datetime"]
       },
       "gate": {
         "kind": "boolean",
@@ -699,23 +492,14 @@
       },
       "slots": {
         "series": {
-          "from": [
-            "array"
-          ],
+          "from": ["array"],
           "required": true
         },
         "title": {
-          "from": [
-            "key",
-            "string"
-          ]
+          "from": ["key", "string"]
         }
       },
-      "fallback": [
-        "chart",
-        "headline",
-        "collection"
-      ]
+      "fallback": ["chart", "headline", "collection"]
     },
     {
       "id": "facts",
@@ -749,10 +533,7 @@
           "boolean",
           "currency"
         ],
-        "count": [
-          1,
-          null
-        ]
+        "count": [1, null]
       },
       "gate": {
         "kind": "boolean",
@@ -795,33 +576,23 @@
           "orderBy": "salience",
           "fields": {
             "label": {
-              "from": [
-                "key"
-              ],
+              "from": ["key"],
               "required": true
             },
             "value": {
-              "from": [
-                "any"
-              ],
+              "from": ["any"],
               "required": true
             }
           }
         }
       },
-      "fallback": [
-        "facts",
-        "prose"
-      ]
+      "fallback": ["facts", "prose"]
     },
     {
       "id": "prose",
       "pattern": "prose",
       "shape": {
-        "pointers": [
-          "long_text",
-          "string"
-        ]
+        "pointers": ["long_text", "string"]
       },
       "gate": {
         "kind": "boolean",
@@ -831,17 +602,10 @@
       },
       "slots": {
         "heading": {
-          "from": [
-            "title",
-            "string"
-          ]
+          "from": ["title", "string"]
         },
         "body": {
-          "from": [
-            "long_text",
-            "markdown",
-            "string"
-          ],
+          "from": ["long_text", "markdown", "string"],
           "required": true
         }
       },
@@ -849,41 +613,22 @@
         "length": {
           "derivedFrom": "body.hints.wordCount",
           "levels": {
-            "line": [
-              0,
-              15
-            ],
-            "blurb": [
-              15,
-              60
-            ],
-            "summary": [
-              60,
-              200
-            ],
-            "article": [
-              200,
-              null
-            ]
+            "line": [0, 15],
+            "blurb": [15, 60],
+            "summary": [60, 200],
+            "article": [200, null]
           },
           "note": "Computed, never asked. Patterns may vary by it (an article gets a heading and may be collapsed behind a Read more where the catalog can; a line is set inline). The rules use it too: article-length prose moves to the front of detail and suppresses the picture's prominence to supporting."
         }
       },
-      "fallback": [
-        "prose"
-      ]
+      "fallback": ["prose"]
     },
     {
       "id": "collection",
       "pattern": "collection",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "elementTypes": [
-          "object",
-          "string"
-        ]
+        "pointers": ["array"],
+        "elementTypes": ["object", "string"]
       },
       "gate": {
         "kind": "boolean",
@@ -902,16 +647,9 @@
             "reel": "A sideways-scrolling shelf of picture cards: a short set of suggestions or a gallery."
           },
           "requires": {
-            "cards": [
-              "picture"
-            ],
-            "grid": [
-              "picture",
-              "pattern:collection:grid"
-            ],
-            "reel": [
-              "picture"
-            ]
+            "cards": ["picture"],
+            "grid": ["picture", "pattern:collection:grid"],
+            "reel": ["picture"]
           },
           "note": "pattern:<name>.<variant> means the option is offered only when the catalog's pattern has that variant, so a catalog that would draw grid as a reel is not asked about grid."
         },
@@ -936,32 +674,20 @@
             "none": "Nothing."
           },
           "requires": {
-            "button": [
-              "actions_allowed"
-            ]
+            "button": ["actions_allowed"]
           }
         }
       },
       "slots": {
         "items": {
           "repeat": true,
-          "from": [
-            "array"
-          ],
+          "from": ["array"],
           "required": true,
           "fields": {
             "headline": {
-              "from": [
-                "title",
-                "name",
-                "string"
-              ],
+              "from": ["title", "name", "string"],
               "required": true,
-              "prefer": [
-                "name",
-                "title",
-                "label"
-              ]
+              "prefer": ["name", "title", "label"]
             },
             "supporting": {
               "from": [
@@ -992,16 +718,10 @@
                 "address",
                 "elevation"
               ],
-              "avoidKeys": [
-                "id",
-                "currency"
-              ]
+              "avoidKeys": ["id", "currency"]
             },
             "picture": {
-              "from": [
-                "image_url",
-                "media_object"
-              ]
+              "from": ["image_url", "media_object"]
             },
             "meta": {
               "from": [
@@ -1047,11 +767,7 @@
               "orderBy": "salience"
             },
             "badge": {
-              "from": [
-                "status",
-                "enum",
-                "boolean"
-              ],
+              "from": ["status", "enum", "boolean"],
               "prefer": [
                 "status",
                 "state",
@@ -1062,21 +778,11 @@
                 "category",
                 "role"
               ],
-              "avoidKeys": [
-                "id",
-                "currency"
-              ]
+              "avoidKeys": ["id", "currency"]
             },
             "rating": {
-              "from": [
-                "rating",
-                "number"
-              ],
-              "prefer": [
-                "rating",
-                "score",
-                "stars"
-              ]
+              "from": ["rating", "number"],
+              "prefer": ["rating", "score", "stars"]
             }
           }
         }
@@ -1096,24 +802,15 @@
           }
         }
       },
-      "fallback": [
-        "collection"
-      ]
+      "fallback": ["collection"]
     },
     {
       "id": "comparison",
       "pattern": "comparison",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "arrayLength": [
-          2,
-          5
-        ],
-        "elementTypes": [
-          "object"
-        ]
+        "pointers": ["array"],
+        "arrayLength": [2, 5],
+        "elementTypes": ["object"]
       },
       "gate": {
         "kind": "boolean",
@@ -1124,35 +821,23 @@
       "slots": {
         "options": {
           "repeat": true,
-          "from": [
-            "array"
-          ],
+          "from": ["array"],
           "required": true,
           "fields": {
             "headline": {
-              "from": [
-                "string"
-              ],
+              "from": ["string"],
               "required": true
             },
             "picture": {
-              "from": [
-                "image_url"
-              ]
+              "from": ["image_url"]
             },
             "attributes": {
-              "from": [
-                "any"
-              ],
+              "from": ["any"],
               "repeat": true,
               "max": 5
             },
             "highlight": {
-              "from": [
-                "currency",
-                "number",
-                "date"
-              ]
+              "from": ["currency", "number", "date"]
             }
           }
         }
@@ -1164,23 +849,14 @@
           "optionsFrom": "attributes"
         }
       },
-      "fallback": [
-        "comparison",
-        "collection:cards",
-        "collection:rows"
-      ]
+      "fallback": ["comparison", "collection:cards", "collection:rows"]
     },
     {
       "id": "steps",
       "pattern": "steps",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "elementTypes": [
-          "string",
-          "object"
-        ]
+        "pointers": ["array"],
+        "elementTypes": ["string", "object"]
       },
       "gate": {
         "kind": "boolean",
@@ -1191,38 +867,23 @@
       "slots": {
         "items": {
           "repeat": true,
-          "from": [
-            "array"
-          ],
+          "from": ["array"],
           "required": true,
           "fields": {
             "title": {
-              "from": [
-                "title",
-                "name",
-                "string",
-                "long_text"
-              ],
+              "from": ["title", "name", "string", "long_text"],
               "required": true
             },
             "detail": {
-              "from": [
-                "long_text",
-                "string"
-              ]
+              "from": ["long_text", "string"]
             },
             "done": {
-              "from": [
-                "boolean"
-              ]
+              "from": ["boolean"]
             }
           }
         }
       },
-      "fallback": [
-        "steps",
-        "collection:rows"
-      ]
+      "fallback": ["steps", "collection:rows"]
     },
     {
       "id": "form",
@@ -1239,45 +900,27 @@
       "slots": {
         "fields": {
           "repeat": true,
-          "from": [
-            "mutable"
-          ],
+          "from": ["mutable"],
           "required": true,
           "fields": {
             "label": {
-              "from": [
-                "key"
-              ],
+              "from": ["key"],
               "required": true
             },
             "value": {
-              "from": [
-                "any"
-              ],
+              "from": ["any"],
               "required": true
             },
             "options": {
-              "from": [
-                "enum",
-                "array"
-              ]
+              "from": ["enum", "array"]
             },
             "min": {
-              "from": [
-                "number"
-              ],
-              "sibling": [
-                "min"
-              ]
+              "from": ["number"],
+              "sibling": ["min"]
             },
             "max": {
-              "from": [
-                "number"
-              ],
-              "sibling": [
-                "max",
-                "limit"
-              ]
+              "from": ["number"],
+              "sibling": ["max", "limit"]
             }
           }
         }
@@ -1298,16 +941,9 @@
             "date": "A date, a time, or both."
           },
           "requires": {
-            "choice": [
-              "options"
-            ],
-            "multiChoice": [
-              "options"
-            ],
-            "range": [
-              "min",
-              "max"
-            ]
+            "choice": ["options"],
+            "multiChoice": ["options"],
+            "range": ["min", "max"]
           }
         },
         "required": {
@@ -1317,19 +953,14 @@
           "no": "It is optional or has a sensible default."
         }
       },
-      "fallback": [
-        "form",
-        "facts"
-      ]
+      "fallback": ["form", "facts"]
     },
     {
       "id": "groups",
       "pattern": "groups",
       "shape": {
         "mutable": true,
-        "pointers": [
-          "object"
-        ]
+        "pointers": ["object"]
       },
       "gate": {
         "kind": "boolean",
@@ -1340,33 +971,23 @@
       "slots": {
         "groups": {
           "repeat": true,
-          "from": [
-            "object"
-          ],
+          "from": ["object"],
           "required": true,
           "fields": {
             "heading": {
-              "from": [
-                "key"
-              ],
+              "from": ["key"],
               "required": true
             },
             "rows": {
               "repeat": true,
-              "from": [
-                "mutable"
-              ],
+              "from": ["mutable"],
               "fields": {
                 "label": {
-                  "from": [
-                    "key"
-                  ],
+                  "from": ["key"],
                   "required": true
                 },
                 "value": {
-                  "from": [
-                    "any"
-                  ],
+                  "from": ["any"],
                   "required": true
                 }
               }
@@ -1386,10 +1007,7 @@
           }
         }
       },
-      "fallback": [
-        "groups",
-        "form"
-      ]
+      "fallback": ["groups", "form"]
     },
     {
       "id": "actions",
@@ -1406,16 +1024,11 @@
       "slots": {
         "buttons": {
           "repeat": true,
-          "from": [
-            "action"
-          ],
+          "from": ["action"],
           "max": 3,
           "fields": {
             "label": {
-              "from": [
-                "string",
-                "key"
-              ],
+              "from": ["string", "key"],
               "required": true
             }
           }
@@ -1435,23 +1048,14 @@
           "no": "It opens, saves, continues, or can be undone."
         }
       },
-      "fallback": [
-        "actions"
-      ]
+      "fallback": ["actions"]
     },
     {
       "id": "timeline",
       "pattern": "timeline",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "elementTypes": [
-          "datetime",
-          "date",
-          "time",
-          "relative_time"
-        ]
+        "pointers": ["array"],
+        "elementTypes": ["datetime", "date", "time", "relative_time"]
       },
       "gate": {
         "kind": "boolean",
@@ -1462,43 +1066,23 @@
       "slots": {
         "events": {
           "repeat": true,
-          "from": [
-            "array"
-          ],
+          "from": ["array"],
           "required": true,
           "orderBy": "time",
           "fields": {
             "time": {
-              "from": [
-                "datetime",
-                "date",
-                "time",
-                "relative_time"
-              ],
+              "from": ["datetime", "date", "time", "relative_time"],
               "required": true
             },
             "title": {
-              "from": [
-                "title",
-                "string",
-                "status"
-              ],
+              "from": ["title", "string", "status"],
               "required": true
             },
             "detail": {
-              "from": [
-                "long_text",
-                "string",
-                "place_name",
-                "address"
-              ]
+              "from": ["long_text", "string", "place_name", "address"]
             },
             "state": {
-              "from": [
-                "status",
-                "enum",
-                "boolean"
-              ]
+              "from": ["status", "enum", "boolean"]
             }
           }
         }
@@ -1528,20 +1112,13 @@
           }
         }
       },
-      "fallback": [
-        "timeline",
-        "steps",
-        "collection:rows"
-      ]
+      "fallback": ["timeline", "steps", "collection:rows"]
     },
     {
       "id": "map",
       "pattern": "map",
       "shape": {
-        "pointers": [
-          "location",
-          "address"
-        ]
+        "pointers": ["location", "address"]
       },
       "gate": {
         "kind": "boolean",
@@ -1551,48 +1128,25 @@
       },
       "slots": {
         "location": {
-          "from": [
-            "location",
-            "address"
-          ],
+          "from": ["location", "address"],
           "required": true
         },
         "label": {
-          "from": [
-            "place_name",
-            "title",
-            "name",
-            "string"
-          ]
+          "from": ["place_name", "title", "name", "string"]
         },
         "pins": {
-          "from": [
-            "array"
-          ],
-          "elementTypes": [
-            "location"
-          ]
+          "from": ["array"],
+          "elementTypes": ["location"]
         }
       },
-      "fallback": [
-        "map",
-        "facts"
-      ]
+      "fallback": ["map", "facts"]
     },
     {
       "id": "conversation",
       "pattern": "conversation",
       "shape": {
-        "pointers": [
-          "array"
-        ],
-        "elementKeys": [
-          "author",
-          "sender",
-          "from",
-          "role",
-          "speaker"
-        ]
+        "pointers": ["array"],
+        "elementKeys": ["author", "sender", "from", "role", "speaker"]
       },
       "gate": {
         "kind": "boolean",
@@ -1603,62 +1157,28 @@
       "slots": {
         "messages": {
           "repeat": true,
-          "from": [
-            "array"
-          ],
+          "from": ["array"],
           "required": true,
           "fields": {
             "author": {
-              "from": [
-                "name",
-                "string",
-                "enum"
-              ],
+              "from": ["name", "string", "enum"],
               "required": true,
-              "prefer": [
-                "author",
-                "sender",
-                "from",
-                "role",
-                "speaker"
-              ]
+              "prefer": ["author", "sender", "from", "role", "speaker"]
             },
             "text": {
-              "from": [
-                "long_text",
-                "markdown",
-                "string"
-              ],
+              "from": ["long_text", "markdown", "string"],
               "required": true,
-              "prefer": [
-                "text",
-                "message",
-                "content",
-                "body"
-              ]
+              "prefer": ["text", "message", "content", "body"]
             },
             "time": {
-              "from": [
-                "datetime",
-                "time",
-                "relative_time"
-              ]
+              "from": ["datetime", "time", "relative_time"]
             },
             "avatar": {
-              "from": [
-                "image_url"
-              ],
-              "prefer": [
-                "avatar",
-                "photo"
-              ]
+              "from": ["image_url"],
+              "prefer": ["avatar", "photo"]
             },
             "attachment": {
-              "from": [
-                "image_url",
-                "document_url",
-                "url"
-              ]
+              "from": ["image_url", "document_url", "url"]
             }
           }
         }
@@ -1672,10 +1192,7 @@
           "note": "Decides which side messages sit on; none means a transcript with every message on the left."
         }
       },
-      "fallback": [
-        "conversation",
-        "collection:rows"
-      ]
+      "fallback": ["conversation", "collection:rows"]
     },
     {
       "id": "compose",
@@ -1692,28 +1209,16 @@
       },
       "slots": {
         "draft": {
-          "from": [
-            "string",
-            "long_text"
-          ],
+          "from": ["string", "long_text"],
           "mutable": true,
-          "prefer": [
-            "draft",
-            "reply",
-            "message",
-            "input"
-          ]
+          "prefer": ["draft", "reply", "message", "input"]
         },
         "sendLabel": {
-          "from": [
-            "string"
-          ],
+          "from": ["string"],
           "default": "Send"
         }
       },
-      "fallback": [
-        "compose"
-      ]
+      "fallback": ["compose"]
     },
     {
       "id": "outcome",
@@ -1726,17 +1231,11 @@
       },
       "slots": {
         "headline": {
-          "from": [
-            "string",
-            "enum"
-          ],
+          "from": ["string", "enum"],
           "required": true
         },
         "detail": {
-          "from": [
-            "long_text",
-            "string"
-          ]
+          "from": ["long_text", "string"]
         }
       },
       "instance": {
@@ -1750,11 +1249,7 @@
           }
         }
       },
-      "fallback": [
-        "outcome",
-        "banner",
-        "prose"
-      ]
+      "fallback": ["outcome", "banner", "prose"]
     }
   ],
   "rules": [

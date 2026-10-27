@@ -7,26 +7,26 @@
   "required": ["catalogIds", "version", "patterns"],
   "additionalProperties": false,
   "properties": {
-    "$schema": { "type": "string" },
+    "$schema": {"type": "string"},
     "catalogIds": {
       "type": "array",
       "description": "Catalog ids (the `catalogId` of each catalog.json) this file applies to.",
       "minItems": 1,
       "uniqueItems": true,
-      "items": { "type": "string", "format": "uri", "minLength": 1 }
+      "items": {"type": "string", "format": "uri", "minLength": 1}
     },
-    "version": { "type": "string", "minLength": 1 },
+    "version": {"type": "string", "minLength": 1},
     "patterns": {
       "type": "object",
       "minProperties": 1,
-      "propertyNames": { "pattern": "^[a-z_]+$" },
-      "additionalProperties": { "$ref": "#/$defs/pattern" }
+      "propertyNames": {"pattern": "^[a-z_]+$"},
+      "additionalProperties": {"$ref": "#/$defs/pattern"}
     }
   },
   "$defs": {
     "stringList": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {"type": "string"}
     },
     "pattern": {
       "type": "object",
@@ -35,35 +35,32 @@
       "properties": {
         "slots": {
           "type": "array",
-          "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }
+          "items": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
         },
         "knobs": {
           "type": "object",
-          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
           "additionalProperties": {
             "type": "array",
             "minItems": 1,
-            "items": { "type": "string", "minLength": 1 }
+            "items": {"type": "string", "minLength": 1}
           }
         },
-        "root": { "type": "string", "minLength": 1 },
-        "components": { "$ref": "#/$defs/componentList" },
+        "root": {"type": "string", "minLength": 1},
+        "components": {"$ref": "#/$defs/componentList"},
         "variants": {
           "type": "array",
           "minItems": 1,
-          "items": { "$ref": "#/$defs/variant" }
+          "items": {"$ref": "#/$defs/variant"}
         },
         "fieldVariants": {
           "type": "object",
-          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-          "additionalProperties": { "$ref": "#/$defs/fieldVariant" }
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/fieldVariant"}
         },
-        "note": { "type": "string" }
+        "note": {"type": "string"}
       },
-      "oneOf": [
-        { "required": ["root", "components"] },
-        { "required": ["variants"] }
-      ]
+      "oneOf": [{"required": ["root", "components"]}, {"required": ["variants"]}]
     },
     "variant": {
       "type": "object",
@@ -74,58 +71,58 @@
           "type": "object",
           "description": "Knob name to the value or values that select this variant; a variant without `when` is the default.",
           "additionalProperties": {
-            "oneOf": [{ "type": "string" }, { "$ref": "#/$defs/stringList" }]
+            "oneOf": [{"type": "string"}, {"$ref": "#/$defs/stringList"}]
           }
         },
-        "root": { "type": "string", "minLength": 1 },
-        "components": { "$ref": "#/$defs/componentList" },
-        "note": { "type": "string" }
+        "root": {"type": "string", "minLength": 1},
+        "components": {"$ref": "#/$defs/componentList"},
+        "note": {"type": "string"}
       }
     },
     "componentList": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/component" }
+      "items": {"$ref": "#/$defs/component"}
     },
     "component": {
       "description": "A component template with an id, expanded once per block (or once per element inside `$repeat`).",
-      "allOf": [{ "$ref": "#/$defs/templateObject" }],
+      "allOf": [{"$ref": "#/$defs/templateObject"}],
       "required": ["id", "component"]
     },
     "fieldVariant": {
       "description": "An id-less component template selected by `$byInstance`; the expander assigns the id.",
-      "allOf": [{ "$ref": "#/$defs/templateObject" }],
+      "allOf": [{"$ref": "#/$defs/templateObject"}],
       "required": ["component"]
     },
     "templateValue": {
       "anyOf": [
-        { "type": ["string", "number", "boolean", "null"] },
-        { "type": "array", "items": { "$ref": "#/$defs/templateValue" } },
-        { "$ref": "#/$defs/templateObject" }
+        {"type": ["string", "number", "boolean", "null"]},
+        {"type": "array", "items": {"$ref": "#/$defs/templateValue"}},
+        {"$ref": "#/$defs/templateObject"}
       ]
     },
     "templateObject": {
       "type": "object",
       "description": "Any JSON object; keys starting with `$` are template directives with the value shapes below.",
       "properties": {
-        "$slot": { "$ref": "#/$defs/slotDirective" },
-        "$text": { "$ref": "#/$defs/textDirective" },
-        "$default": { "$ref": "#/$defs/defaultDirective" },
-        "$if": { "$ref": "#/$defs/ifDirective" },
-        "$ifKnob": { "$ref": "#/$defs/ifKnobDirective" },
-        "$ifSelf": { "$ref": "#/$defs/ifSelfDirective" },
-        "$ifInstance": { "$ref": "#/$defs/ifInstanceDirective" },
-        "$byType": { "$ref": "#/$defs/byTypeDirective" },
-        "$byInstance": { "$ref": "#/$defs/byInstanceDirective" },
-        "$repeat": { "$ref": "#/$defs/repeatDirective" },
-        "$map": { "$ref": "#/$defs/mapDirective" },
-        "$event": { "$ref": "#/$defs/eventDirective" },
-        "$blocks": { "$ref": "#/$defs/blocksDirective" },
-        "$knobValue": { "$ref": "#/$defs/knobValueDirective" },
-        "$item": { "$ref": "#/$defs/itemDirective" }
+        "$slot": {"$ref": "#/$defs/slotDirective"},
+        "$text": {"$ref": "#/$defs/textDirective"},
+        "$default": {"$ref": "#/$defs/defaultDirective"},
+        "$if": {"$ref": "#/$defs/ifDirective"},
+        "$ifKnob": {"$ref": "#/$defs/ifKnobDirective"},
+        "$ifSelf": {"$ref": "#/$defs/ifSelfDirective"},
+        "$ifInstance": {"$ref": "#/$defs/ifInstanceDirective"},
+        "$byType": {"$ref": "#/$defs/byTypeDirective"},
+        "$byInstance": {"$ref": "#/$defs/byInstanceDirective"},
+        "$repeat": {"$ref": "#/$defs/repeatDirective"},
+        "$map": {"$ref": "#/$defs/mapDirective"},
+        "$event": {"$ref": "#/$defs/eventDirective"},
+        "$blocks": {"$ref": "#/$defs/blocksDirective"},
+        "$knobValue": {"$ref": "#/$defs/knobValueDirective"},
+        "$item": {"$ref": "#/$defs/itemDirective"}
       },
       "patternProperties": {
-        "^[^$]": { "$ref": "#/$defs/templateValue" }
+        "^[^$]": {"$ref": "#/$defs/templateValue"}
       },
       "additionalProperties": false
     },
@@ -151,22 +148,22 @@
       "type": "object",
       "minProperties": 1,
       "description": "Knob name to accepted values; the component is emitted only when every knob matches.",
-      "additionalProperties": { "$ref": "#/$defs/stringList" }
+      "additionalProperties": {"$ref": "#/$defs/stringList"}
     },
     "ifSelfDirective": {
       "type": "object",
       "description": "Value (or child id) to use when the element's author is the `self` knob (`true`) or not (`false`).",
       "additionalProperties": false,
       "properties": {
-        "true": { "type": "string" },
-        "false": { "type": "string" }
+        "true": {"type": "string"},
+        "false": {"type": "string"}
       }
     },
     "ifInstanceDirective": {
       "type": "object",
       "minProperties": 1,
       "description": "Instance answer name to required value; the enclosing property is emitted only when each holds.",
-      "additionalProperties": { "type": ["string", "boolean"] }
+      "additionalProperties": {"type": ["string", "boolean"]}
     },
     "byTypeDirective": {
       "type": "string",

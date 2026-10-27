@@ -7,32 +7,32 @@
   "required": ["version", "thresholds", "job", "archetypes", "blocks"],
   "additionalProperties": false,
   "properties": {
-    "$schema": { "type": "string" },
-    "version": { "type": "string", "minLength": 1 },
-    "thresholds": { "$ref": "#/$defs/thresholds" },
-    "job": { "$ref": "#/$defs/job" },
+    "$schema": {"type": "string"},
+    "version": {"type": "string", "minLength": 1},
+    "thresholds": {"$ref": "#/$defs/thresholds"},
+    "job": {"$ref": "#/$defs/job"},
     "archetypes": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/archetype" }
+      "items": {"$ref": "#/$defs/archetype"}
     },
     "blocks": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/block" }
+      "items": {"$ref": "#/$defs/block"}
     },
     "rules": {
       "type": "array",
-      "items": { "$ref": "#/$defs/rule" }
+      "items": {"$ref": "#/$defs/rule"}
     },
     "lint": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {"type": "string"}
     }
   },
   "$defs": {
-    "unitInterval": { "type": "number", "minimum": 0, "maximum": 1 },
-    "identifier": { "type": "string", "pattern": "^[a-z_]+$" },
+    "unitInterval": {"type": "number", "minimum": 0, "maximum": 1},
+    "identifier": {"type": "string", "pattern": "^[a-z_]+$"},
     "blockMark": {
       "type": "string",
       "pattern": "^[a-z_]+[!?]?$",
@@ -40,19 +40,16 @@
     },
     "stringList": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {"type": "string"}
     },
     "stringMap": {
       "type": "object",
-      "additionalProperties": { "type": "string" }
+      "additionalProperties": {"type": "string"}
     },
     "range": {
       "type": "array",
       "description": "An inclusive [min, max] pair; null leaves that end open.",
-      "prefixItems": [
-        { "type": ["integer", "null"] },
-        { "type": ["integer", "null"] }
-      ],
+      "prefixItems": [{"type": ["integer", "null"]}, {"type": ["integer", "null"]}],
       "minItems": 2,
       "maxItems": 2,
       "items": false
@@ -71,14 +68,14 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "family": { "$ref": "#/$defs/unitInterval" },
-        "archetype": { "$ref": "#/$defs/unitInterval" },
-        "expected": { "$ref": "#/$defs/unitInterval" },
-        "optional": { "$ref": "#/$defs/unitInterval" },
-        "instance": { "$ref": "#/$defs/unitInterval" },
-        "reask_below": { "$ref": "#/$defs/unitInterval" },
-        "actionGateFloor": { "$ref": "#/$defs/unitInterval" },
-        "actionGateCap": { "$ref": "#/$defs/unitInterval" }
+        "family": {"$ref": "#/$defs/unitInterval"},
+        "archetype": {"$ref": "#/$defs/unitInterval"},
+        "expected": {"$ref": "#/$defs/unitInterval"},
+        "optional": {"$ref": "#/$defs/unitInterval"},
+        "instance": {"$ref": "#/$defs/unitInterval"},
+        "reask_below": {"$ref": "#/$defs/unitInterval"},
+        "actionGateFloor": {"$ref": "#/$defs/unitInterval"},
+        "actionGateCap": {"$ref": "#/$defs/unitInterval"}
       }
     },
     "job": {
@@ -86,9 +83,9 @@
       "required": ["family", "stakes", "urgency"],
       "additionalProperties": false,
       "properties": {
-        "family": { "$ref": "#/$defs/choiceQuestion" },
-        "stakes": { "$ref": "#/$defs/scoreQuestion" },
-        "urgency": { "$ref": "#/$defs/scoreQuestion" }
+        "family": {"$ref": "#/$defs/choiceQuestion"},
+        "stakes": {"$ref": "#/$defs/scoreQuestion"},
+        "urgency": {"$ref": "#/$defs/scoreQuestion"}
       }
     },
     "shapeFilter": {
@@ -96,17 +93,17 @@
       "description": "Deterministic payload pre-filter evaluated before a question enters the batch.",
       "additionalProperties": false,
       "properties": {
-        "pointers": { "$ref": "#/$defs/stringList" },
-        "arrayLength": { "$ref": "#/$defs/range" },
-        "elementTypes": { "$ref": "#/$defs/stringList" },
-        "elementKeys": { "$ref": "#/$defs/stringList" },
-        "mutable": { "type": "boolean" },
+        "pointers": {"$ref": "#/$defs/stringList"},
+        "arrayLength": {"$ref": "#/$defs/range"},
+        "elementTypes": {"$ref": "#/$defs/stringList"},
+        "elementKeys": {"$ref": "#/$defs/stringList"},
+        "mutable": {"type": "boolean"},
         "proseLength": {
           "type": "array",
-          "items": { "enum": ["line", "blurb", "summary", "article"] }
+          "items": {"enum": ["line", "blurb", "summary", "article"]}
         },
-        "count": { "$ref": "#/$defs/range" },
-        "actions_allowed": { "type": "boolean" }
+        "count": {"$ref": "#/$defs/range"},
+        "actions_allowed": {"type": "boolean"}
       }
     },
     "archetype": {
@@ -114,19 +111,19 @@
       "required": ["id", "family", "criteria", "blocks"],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "family": { "$ref": "#/$defs/identifier" },
-        "criteria": { "type": "string", "minLength": 1 },
+        "id": {"$ref": "#/$defs/identifier"},
+        "family": {"$ref": "#/$defs/identifier"},
+        "criteria": {"type": "string", "minLength": 1},
         "blocks": {
           "type": "array",
           "minItems": 1,
-          "items": { "$ref": "#/$defs/blockMark" }
+          "items": {"$ref": "#/$defs/blockMark"}
         },
-        "shape": { "$ref": "#/$defs/shapeFilter" },
-        "atLeast": { "type": "integer", "minimum": 1 },
+        "shape": {"$ref": "#/$defs/shapeFilter"},
+        "atLeast": {"type": "integer", "minimum": 1},
         "frame": {
           "type": "object",
-          "additionalProperties": { "type": "boolean" }
+          "additionalProperties": {"type": "boolean"}
         }
       }
     },
@@ -134,36 +131,36 @@
       "type": "object",
       "description": "Slot name to semantic type(s) or the word `bound`; the question is asked only when it holds.",
       "additionalProperties": {
-        "oneOf": [{ "type": "string" }, { "$ref": "#/$defs/stringList" }]
+        "oneOf": [{"type": "string"}, {"$ref": "#/$defs/stringList"}]
       }
     },
     "derivedWhen": {
       "type": "object",
       "description": "Deterministic answers keyed by hint source; the question is skipped when one matches.",
-      "additionalProperties": { "type": "object" }
+      "additionalProperties": {"type": "object"}
     },
     "requires": {
       "type": "object",
       "description": "Option id to the slots, knob options, pattern variants, or capability flags it needs.",
-      "additionalProperties": { "$ref": "#/$defs/stringList" }
+      "additionalProperties": {"$ref": "#/$defs/stringList"}
     },
     "questionBase": {
       "type": "object",
       "required": ["kind", "question"],
       "properties": {
-        "kind": { "enum": ["choice", "boolean", "score"] },
-        "question": { "type": "string", "minLength": 1 },
-        "appliesWhen": { "$ref": "#/$defs/appliesWhen" },
-        "derivedWhen": { "$ref": "#/$defs/derivedWhen" },
-        "note": { "type": "string" }
+        "kind": {"enum": ["choice", "boolean", "score"]},
+        "question": {"type": "string", "minLength": 1},
+        "appliesWhen": {"$ref": "#/$defs/appliesWhen"},
+        "derivedWhen": {"$ref": "#/$defs/derivedWhen"},
+        "note": {"type": "string"}
       }
     },
     "choiceQuestion": {
-      "allOf": [{ "$ref": "#/$defs/questionBase" }],
+      "allOf": [{"$ref": "#/$defs/questionBase"}],
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "choice" },
+        "kind": {"const": "choice"},
         "question": true,
         "appliesWhen": true,
         "derivedWhen": true,
@@ -171,37 +168,37 @@
         "options": {
           "type": "object",
           "minProperties": 1,
-          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-          "additionalProperties": { "type": "string" }
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"type": "string"}
         },
-        "optionsFrom": { "type": "string", "minLength": 1 },
-        "requires": { "$ref": "#/$defs/requires" },
-        "allowNone": { "type": "boolean" }
+        "optionsFrom": {"type": "string", "minLength": 1},
+        "requires": {"$ref": "#/$defs/requires"},
+        "allowNone": {"type": "boolean"}
       },
-      "oneOf": [{ "required": ["options"] }, { "required": ["optionsFrom"] }]
+      "oneOf": [{"required": ["options"]}, {"required": ["optionsFrom"]}]
     },
     "booleanQuestion": {
-      "allOf": [{ "$ref": "#/$defs/questionBase" }],
+      "allOf": [{"$ref": "#/$defs/questionBase"}],
       "type": "object",
       "required": ["yes", "no"],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "boolean" },
+        "kind": {"const": "boolean"},
         "question": true,
         "appliesWhen": true,
         "derivedWhen": true,
         "note": true,
-        "yes": { "type": "string", "minLength": 1 },
-        "no": { "type": "string", "minLength": 1 }
+        "yes": {"type": "string", "minLength": 1},
+        "no": {"type": "string", "minLength": 1}
       }
     },
     "scoreQuestion": {
-      "allOf": [{ "$ref": "#/$defs/questionBase" }],
+      "allOf": [{"$ref": "#/$defs/questionBase"}],
       "type": "object",
       "required": ["levels"],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "score" },
+        "kind": {"const": "score"},
         "question": true,
         "appliesWhen": true,
         "derivedWhen": true,
@@ -209,25 +206,25 @@
         "levels": {
           "type": "array",
           "minItems": 2,
-          "items": { "type": "string", "minLength": 1 }
+          "items": {"type": "string", "minLength": 1}
         },
-        "perPointer": { "type": "boolean" },
+        "perPointer": {"type": "boolean"},
         "select": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "min": { "type": "integer", "minimum": 0 },
-            "max": { "type": "integer", "minimum": 1 },
-            "aboveLevel": { "type": "number", "minimum": 0 }
+            "min": {"type": "integer", "minimum": 0},
+            "max": {"type": "integer", "minimum": 1},
+            "aboveLevel": {"type": "number", "minimum": 0}
           }
         }
       }
     },
     "question": {
       "oneOf": [
-        { "$ref": "#/$defs/choiceQuestion" },
-        { "$ref": "#/$defs/booleanQuestion" },
-        { "$ref": "#/$defs/scoreQuestion" }
+        {"$ref": "#/$defs/choiceQuestion"},
+        {"$ref": "#/$defs/booleanQuestion"},
+        {"$ref": "#/$defs/scoreQuestion"}
       ]
     },
     "slot": {
@@ -238,23 +235,23 @@
         "from": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
+          "items": {"type": "string", "minLength": 1}
         },
-        "required": { "type": "boolean" },
-        "repeat": { "type": "boolean" },
-        "max": { "type": "integer", "minimum": 1 },
-        "prefer": { "$ref": "#/$defs/stringList" },
-        "avoidKeys": { "$ref": "#/$defs/stringList" },
-        "sibling": { "$ref": "#/$defs/stringList" },
-        "orderBy": { "type": "string", "minLength": 1 },
-        "mutable": { "type": "boolean" },
-        "elementTypes": { "$ref": "#/$defs/stringList" },
+        "required": {"type": "boolean"},
+        "repeat": {"type": "boolean"},
+        "max": {"type": "integer", "minimum": 1},
+        "prefer": {"$ref": "#/$defs/stringList"},
+        "avoidKeys": {"$ref": "#/$defs/stringList"},
+        "sibling": {"$ref": "#/$defs/stringList"},
+        "orderBy": {"type": "string", "minLength": 1},
+        "mutable": {"type": "boolean"},
+        "elementTypes": {"$ref": "#/$defs/stringList"},
         "default": true,
-        "note": { "type": "string" },
+        "note": {"type": "string"},
         "fields": {
           "type": "object",
-          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-          "additionalProperties": { "$ref": "#/$defs/slot" }
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/slot"}
         }
       }
     },
@@ -263,13 +260,13 @@
       "required": ["derivedFrom", "levels"],
       "additionalProperties": false,
       "properties": {
-        "derivedFrom": { "type": "string", "minLength": 1 },
+        "derivedFrom": {"type": "string", "minLength": 1},
         "levels": {
           "type": "object",
           "minProperties": 1,
-          "additionalProperties": { "$ref": "#/$defs/range" }
+          "additionalProperties": {"$ref": "#/$defs/range"}
         },
-        "note": { "type": "string" }
+        "note": {"type": "string"}
       }
     },
     "block": {
@@ -277,34 +274,34 @@
       "required": ["id", "pattern", "fallback"],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/identifier" },
-        "pattern": { "$ref": "#/$defs/identifier" },
-        "shape": { "$ref": "#/$defs/shapeFilter" },
-        "gate": { "$ref": "#/$defs/booleanQuestion" },
-        "salience": { "$ref": "#/$defs/scoreQuestion" },
+        "id": {"$ref": "#/$defs/identifier"},
+        "pattern": {"$ref": "#/$defs/identifier"},
+        "shape": {"$ref": "#/$defs/shapeFilter"},
+        "gate": {"$ref": "#/$defs/booleanQuestion"},
+        "salience": {"$ref": "#/$defs/scoreQuestion"},
         "anatomy": {
           "type": "object",
-          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-          "additionalProperties": { "$ref": "#/$defs/question" }
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/question"}
         },
         "instance": {
           "type": "object",
-          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-          "additionalProperties": { "$ref": "#/$defs/question" }
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/question"}
         },
         "measures": {
           "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/measure" }
+          "additionalProperties": {"$ref": "#/$defs/measure"}
         },
         "slots": {
           "type": "object",
-          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-          "additionalProperties": { "$ref": "#/$defs/slot" }
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/slot"}
         },
         "fallback": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string", "pattern": "^[a-z_-]+(:[a-z_]+)?$" }
+          "items": {"type": "string", "pattern": "^[a-z_-]+(:[a-z_]+)?$"}
         }
       }
     },
@@ -313,8 +310,8 @@
       "required": ["id", "rule"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "rule": { "type": "string", "minLength": 1 }
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "rule": {"type": "string", "minLength": 1}
       }
     }
   }

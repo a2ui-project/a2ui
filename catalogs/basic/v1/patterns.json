@@ -7,21 +7,10 @@
   "version": "1",
   "patterns": {
     "page": {
-      "slots": [
-        "title",
-        "subtitle",
-        "mark",
-        "blocks"
-      ],
+      "slots": ["title", "subtitle", "mark", "blocks"],
       "knobs": {
-        "dialog": [
-          "yes",
-          "no"
-        ],
-        "stickyActions": [
-          "yes",
-          "no"
-        ]
+        "dialog": ["yes", "no"],
+        "stickyActions": ["yes", "no"]
       },
       "note": "mark is a small image beside the title: a logo or avatar that the picture block's prominence score placed at level 0.",
       "variants": [
@@ -146,11 +135,7 @@
       ]
     },
     "banner": {
-      "slots": [
-        "title",
-        "text",
-        "tone"
-      ],
+      "slots": ["title", "text", "tone"],
       "root": "banner_card",
       "components": [
         {
@@ -162,10 +147,7 @@
           "id": "banner_row",
           "component": "Row",
           "align": "center",
-          "children": [
-            "banner_icon",
-            "banner_col"
-          ]
+          "children": ["banner_icon", "banner_col"]
         },
         {
           "id": "banner_icon",
@@ -208,30 +190,15 @@
       ]
     },
     "picture": {
-      "slots": [
-        "picture",
-        "caption"
-      ],
+      "slots": ["picture", "caption"],
       "knobs": {
-        "framing": [
-          "banner",
-          "portrait",
-          "object",
-          "poster"
-        ],
-        "prominence": [
-          "mark",
-          "supporting",
-          "leading",
-          "full"
-        ]
+        "framing": ["banner", "portrait", "object", "poster"],
+        "prominence": ["mark", "supporting", "leading", "full"]
       },
       "variants": [
         {
           "when": {
-            "prominence": [
-              "mark"
-            ]
+            "prominence": ["mark"]
           },
           "root": "picture_img",
           "components": [
@@ -258,9 +225,7 @@
         },
         {
           "when": {
-            "prominence": [
-              "supporting"
-            ]
+            "prominence": ["supporting"]
           },
           "root": "picture_img",
           "components": [
@@ -344,12 +309,7 @@
       "note": "Basic v1 Image has no aspect-ratio control; width, height, and orientation from the payload only inform framing and the choice between header and largeFeature. A catalog with an explicit aspect ratio property would map the aspectRatio slot directly."
     },
     "media": {
-      "slots": [
-        "source",
-        "poster",
-        "title",
-        "duration"
-      ],
+      "slots": ["source", "poster", "title", "duration"],
       "root": "media_col",
       "components": [
         {
@@ -411,10 +371,7 @@
       ]
     },
     "filters": {
-      "slots": [
-        "query",
-        "categories"
-      ],
+      "slots": ["query", "categories"],
       "root": "filters_col",
       "components": [
         {
@@ -458,18 +415,10 @@
       "note": "displayStyle chips is this catalog's own enum value; the grammar slot is categories and says nothing about how they are drawn."
     },
     "headline": {
-      "slots": [
-        "items"
-      ],
+      "slots": ["items"],
       "knobs": {
-        "deltas": [
-          "yes",
-          "no"
-        ],
-        "gauge": [
-          "yes",
-          "no"
-        ]
+        "deltas": ["yes", "no"],
+        "gauge": ["yes", "no"]
       },
       "root": "headline_row",
       "components": [
@@ -501,9 +450,7 @@
             },
             {
               "$ifKnob": {
-                "gauge": [
-                  "yes"
-                ]
+                "gauge": ["yes"]
               },
               "$if": "max",
               "id": "headline_gauge"
@@ -545,9 +492,7 @@
       "note": "No gauge or progress component in basic v1, so a bounded value is written as 'value of max'. Status and boolean values are rendered as their text; a catalog with a badge or chip would map state_tone to it."
     },
     "facts": {
-      "slots": [
-        "rows"
-      ],
+      "slots": ["rows"],
       "root": "facts_card",
       "components": [
         {
@@ -568,10 +513,7 @@
           "id": "facts_row",
           "component": "Row",
           "justify": "spaceBetween",
-          "children": [
-            "facts_label",
-            "facts_value"
-          ]
+          "children": ["facts_label", "facts_value"]
         },
         {
           "id": "facts_label",
@@ -591,24 +533,14 @@
       ]
     },
     "prose": {
-      "slots": [
-        "heading",
-        "body"
-      ],
+      "slots": ["heading", "body"],
       "knobs": {
-        "length": [
-          "line",
-          "blurb",
-          "summary",
-          "article"
-        ]
+        "length": ["line", "blurb", "summary", "article"]
       },
       "variants": [
         {
           "when": {
-            "length": [
-              "article"
-            ]
+            "length": ["article"]
           },
           "root": "prose_col",
           "components": [
@@ -679,28 +611,11 @@
       ]
     },
     "collection": {
-      "slots": [
-        "items"
-      ],
+      "slots": ["items"],
       "knobs": {
-        "layout": [
-          "rows",
-          "cards",
-          "reel"
-        ],
-        "leading": [
-          "thumbnail",
-          "avatar",
-          "icon",
-          "number",
-          "none"
-        ],
-        "trailing": [
-          "chevron",
-          "button",
-          "value",
-          "none"
-        ]
+        "layout": ["rows", "cards", "reel"],
+        "leading": ["thumbnail", "avatar", "icon", "number", "none"],
+        "trailing": ["chevron", "button", "value", "none"]
       },
       "variants": [
         {
@@ -725,25 +640,19 @@
               "children": [
                 {
                   "$ifKnob": {
-                    "leading": [
-                      "thumbnail"
-                    ]
+                    "leading": ["thumbnail"]
                   },
                   "id": "item_thumb"
                 },
                 {
                   "$ifKnob": {
-                    "leading": [
-                      "avatar"
-                    ]
+                    "leading": ["avatar"]
                   },
                   "id": "item_avatar"
                 },
                 {
                   "$ifKnob": {
-                    "leading": [
-                      "icon"
-                    ]
+                    "leading": ["icon"]
                   },
                   "id": "item_icon"
                 },
@@ -754,17 +663,13 @@
                 },
                 {
                   "$ifKnob": {
-                    "trailing": [
-                      "button"
-                    ]
+                    "trailing": ["button"]
                   },
                   "id": "item_button"
                 },
                 {
                   "$ifKnob": {
-                    "trailing": [
-                      "chevron"
-                    ]
+                    "trailing": ["chevron"]
                   },
                   "id": "item_chevron"
                 }
@@ -940,9 +845,7 @@
                 },
                 {
                   "$ifKnob": {
-                    "trailing": [
-                      "button"
-                    ]
+                    "trailing": ["button"]
                   },
                   "id": "item_button"
                 }
@@ -1042,9 +945,7 @@
       "note": "No grid variant: basic v1 has no intrinsic grid, so grid is never offered for this catalog (requires pattern:collection:grid)."
     },
     "comparison": {
-      "slots": [
-        "options"
-      ],
+      "slots": ["options"],
       "root": "cmp_row",
       "components": [
         {
@@ -1114,10 +1015,7 @@
           "id": "cmp_attr",
           "component": "Row",
           "justify": "spaceBetween",
-          "children": [
-            "cmp_attr_label",
-            "cmp_attr_value"
-          ]
+          "children": ["cmp_attr_label", "cmp_attr_value"]
         },
         {
           "id": "cmp_attr_label",
@@ -1138,9 +1036,7 @@
       ]
     },
     "steps": {
-      "slots": [
-        "items"
-      ],
+      "slots": ["items"],
       "root": "steps_list",
       "components": [
         {
@@ -1156,10 +1052,7 @@
           "id": "step",
           "component": "Row",
           "align": "start",
-          "children": [
-            "step_marker",
-            "step_col"
-          ]
+          "children": ["step_marker", "step_col"]
         },
         {
           "id": "step_marker",
@@ -1198,9 +1091,7 @@
       ]
     },
     "form": {
-      "slots": [
-        "fields"
-      ],
+      "slots": ["fields"],
       "root": "form_col",
       "components": [
         {
@@ -1338,9 +1229,7 @@
       }
     },
     "groups": {
-      "slots": [
-        "groups"
-      ],
+      "slots": ["groups"],
       "root": "groups_col",
       "components": [
         {
@@ -1354,10 +1243,7 @@
         {
           "id": "group",
           "component": "Column",
-          "children": [
-            "group_heading",
-            "group_card"
-          ]
+          "children": ["group_heading", "group_card"]
         },
         {
           "id": "group_heading",
@@ -1457,14 +1343,9 @@
       }
     },
     "actions": {
-      "slots": [
-        "buttons"
-      ],
+      "slots": ["buttons"],
       "knobs": {
-        "sticky": [
-          "yes",
-          "no"
-        ]
+        "sticky": ["yes", "no"]
       },
       "root": "actions_row",
       "components": [
@@ -1502,14 +1383,9 @@
       "note": "Basic v1 has no destructive variant. A destructive non-primary button is rendered default; a destructive primary is downgraded to default by the one-primary-action rule when stakes >= 2."
     },
     "conversation": {
-      "slots": [
-        "messages"
-      ],
+      "slots": ["messages"],
       "knobs": {
-        "self": [
-          "<author>",
-          "none"
-        ]
+        "self": ["<author>", "none"]
       },
       "root": "conv_list",
       "components": [
@@ -1616,20 +1492,14 @@
       "note": "Basic v1 has no bubble, so each message is a Card; self messages are pushed right with Row justify end. $ifSelf compares the message author to the self knob at expansion time."
     },
     "compose": {
-      "slots": [
-        "draft",
-        "sendLabel"
-      ],
+      "slots": ["draft", "sendLabel"],
       "root": "compose_row",
       "components": [
         {
           "id": "compose_row",
           "component": "Row",
           "align": "end",
-          "children": [
-            "compose_field",
-            "compose_send"
-          ]
+          "children": ["compose_field", "compose_send"]
         },
         {
           "id": "compose_field",
@@ -1666,11 +1536,7 @@
       ]
     },
     "outcome": {
-      "slots": [
-        "headline",
-        "detail",
-        "tone"
-      ],
+      "slots": ["headline", "detail", "tone"],
       "root": "outcome_col",
       "components": [
         {

@@ -48,15 +48,7 @@ catalogs/
   `compose`) onto Basic Catalog components for decision-model layout synthesis,
   while `decision/v1/archetypes.json` (with `archetype_definition.json` and
   `pattern_definition.json`, documented in `decision/README.md`) defines the
-  catalog-agnostic layout archetype grammar (`ArchetypeGrammar`). Python
-  packages mirror these assets via
-  `python/a2ui_agent/scripts/sync_decision_assets.py`.
-- For any custom catalog (inside this directory or in an external repository),
-  use the [a2ui-generate-catalog-patterns](../.agents/skills/a2ui-generate-catalog-patterns/SKILL.md)
-  skill and its CLI (`catalog_patterns_tool.py`) to inspect `catalog.json` and
-  generate and validate `patterns.json` (composable blocks), `templates.json`
-  (fixed-surface `SurfaceTemplate` definitions), and `sample_payloads.json`
-  alongside `catalog.json`.
+  catalog-agnostic layout archetype grammar (`ArchetypeGrammar`).
 - `basic/` is versioned by catalog major version (`v1/`), which is independent
   of the protocol version. Newer catalogs start unversioned
   (`catalogs/<catalog>/catalog.json`) and add a version directory only when
