@@ -18,7 +18,7 @@ from collections.abc import Iterable, Sequence
 import json
 
 from a2ui import constants
-from a2ui.core import A2uiCatalogError, CatalogApi, inline_local_refs, link_catalogs
+from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.utils import (
     load_agent_to_renderer_schema,
@@ -58,10 +58,10 @@ def schema_to_prompt(
         protocol versions, or their protocol version isn't one this SDK
         defines.
     """
-    linked = _check_and_link(catalogs)
+    catalogs = _checked_catalogs(catalogs)
     return _schema_block(
-        _protocol_schema_sections(linked, allowed_messages)
-        + _catalog_schema_sections(linked)
+        _protocol_schema_sections(catalogs, allowed_messages)
+        + _catalog_schema_sections(catalogs)
     )
 
 
@@ -88,8 +88,8 @@ def protocol_schema_prompt(
     Raises:
       A2uiCatalogError: As `schema_to_prompt` raises it.
     """
-    linked = _check_and_link(catalogs)
-    return _schema_block(_protocol_schema_sections(linked, allowed_messages))
+    catalogs = _checked_catalogs(catalogs)
+    return _schema_block(_protocol_schema_sections(catalogs, allowed_messages))
 
 
 def catalog_schema_prompt(catalogs: Iterable[CatalogApi]) -> str:
@@ -107,11 +107,11 @@ def catalog_schema_prompt(catalogs: Iterable[CatalogApi]) -> str:
     Raises:
       A2uiCatalogError: As `schema_to_prompt` raises it.
     """
-    return _schema_block(_catalog_schema_sections(_check_and_link(catalogs)))
+    return _schema_block(_catalog_schema_sections(_checked_catalogs(catalogs)))
 
 
-def _check_and_link(catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
-    """Checks that catalogs can share one schema prompt and links them."""
+def _checked_catalogs(catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
+    """Returns catalogs as a list after checking they can share one schema prompt."""
     catalogs = list(catalogs)
     if not catalogs:
         raise A2uiCatalogError("The schema prompt needs at least one catalog.")
@@ -121,33 +121,23 @@ def _check_and_link(catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
             "The schema prompt's catalogs target different protocol versions:"
             f" {sorted(v.value for v in versions)}."
         )
-    return list(link_catalogs(catalogs))
+    return catalogs
 
 
 def _protocol_schema_sections(
     catalogs: Sequence[CatalogApi],
     allowed_messages: Sequence[str] | None,
 ) -> list[str]:
-    """Returns the agent-to-renderer and common types sections for linked catalogs."""
+    """Returns the agent-to-renderer and common types sections for catalogs."""
     version = catalogs[0].protocol_version
     a2r_schema = load_agent_to_renderer_schema(version)
     if allowed_messages is not None:
         a2r_schema = prune_messages_schema(a2r_schema, version, allowed_messages)
 
     catalog_docs = [c.to_json() for c in catalogs]
-    peer_resolved_docs = [
-        inline_local_refs(
-            {k: v for k, v in doc.items() if k in ("components", "functions", "theme")},
-            doc,
-            peers=c.peer_catalogs,
-        )
-        for c, doc in zip(catalogs, catalog_docs)
-        if c.peer_catalogs
-    ]
     common_types_schema = prune_common_types_schema(
         load_common_types_schema(version),
         *catalog_docs,
-        *peer_resolved_docs,
         a2r_schema,
     )
 
@@ -164,7 +154,7 @@ def _protocol_schema_sections(
 
 
 def _catalog_schema_sections(catalogs: Sequence[CatalogApi]) -> list[str]:
-    """Returns one catalog schema section per linked catalog."""
+    """Returns one catalog schema section per catalog."""
     return [
         "### Catalog Schema:\n" + json.dumps(c.to_json(), separators=(",", ":"))
         for c in catalogs

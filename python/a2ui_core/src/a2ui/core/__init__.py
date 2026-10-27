@@ -21,7 +21,6 @@ from a2ui.core.catalog import (
     get_common_types_schema_map as get_common_types_schema_map,
     inline_local_refs as inline_local_refs,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
-    link_catalogs as link_catalogs,
 )
 from a2ui.core.common import (
     to_protocol_version as to_protocol_version,
@@ -101,6 +100,5 @@ __all__ = [
     "get_common_types_schema_map",
     "inline_local_refs",
     "is_valid_uax31_identifier",
-    "link_catalogs",
     "to_protocol_version",
 ]
