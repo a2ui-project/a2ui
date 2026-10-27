@@ -77,7 +77,7 @@ const SUPERSEDED = new Map<string, string>([
     'test_parse_response_empty_tags',
   ].map((name): [string, string] => [
     name,
-    'superseded by direct_json/response_parser.yaml, where a response without tags is text and an empty block fails when it compiles',
+    'superseded by direct_json/response_parser.yaml, where a response without tags is a text part, an empty response has no parts, and an empty block fails when it compiles',
   ]),
 ]);
 
@@ -106,12 +106,7 @@ const SUPPORTED_FORMATS = new Set(['direct_json', 'express']);
  * Conformance actions this SDK has no implementation for. Their cases are skipped with the
  * reason given, rather than falling through the harness and passing without running.
  */
-const UNIMPLEMENTED_ACTIONS = new Map<string, string>([
-  ['from_format', 'skill generation is not implemented'],
-  ['core_syntax', 'skill generation is not implemented'],
-  ['from_catalog', 'skill generation is not implemented'],
-  ['skill_set', 'skill generation is not implemented'],
-]);
+const UNIMPLEMENTED_ACTIONS = new Map<string, string>([]);
 
 export function classify(testCase: TestCase) {
   const superseded = SUPERSEDED.get(testCase.name) ?? SUPERSEDED_ACTIONS.get(testCase.action);
@@ -135,7 +130,7 @@ export function classify(testCase: TestCase) {
   if (version === '1.0') version = 'v1.0';
   if (version === '0.8') version = 'v0.8';
 
-  let format = 'direct_json';
+  let format = 'express';
   if (typeof testCase.format === 'string') {
     format = testCase.format;
   } else if (testCase.args && typeof testCase.args.format === 'string') {

@@ -16,18 +16,11 @@
 
 import {ParseError} from '../../errors.js';
 import {AgentToRendererMessage, CatalogApi, linkCatalogs} from '../../internal/web-core.js';
+import {BlockLexer, JSON_PAYLOAD_START_RE} from '../../parser/lexer.js';
 import {ParseOptions, Parser} from '../../parser/parser.js';
 import {RawResponsePart} from '../../parser/response-part.js';
 import {checkParserCatalogs} from '../../utils/catalog-checks.js';
-import {
-  CLOSE_TAG,
-  OPEN_TAG,
-  addText,
-  clean,
-  matchCloseTag,
-  scanBlock,
-  searchOpenTag,
-} from './blocks.js';
+import {CLOSE_TAG, OPEN_TAG, cleanRaw} from './blocks.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 import {readJson} from './json-reader.js';
 import {DirectJsonResponseStream} from './response-stream.js';
@@ -49,6 +42,14 @@ export class DirectJsonParser extends Parser {
   /** The keys whose string values a stream heals while they arrive. */
   readonly progressiveKeys: ReadonlySet<string>;
   private readonly decompiler = new DirectJsonDecompiler();
+  private readonly lexer = new BlockLexer(
+    OPEN_TAG,
+    CLOSE_TAG,
+    new Set(["'", '"']),
+    new Set(),
+    JSON_PAYLOAD_START_RE,
+    true,
+  );
 
   /**
    * @param catalogs The active catalogs, which must target compatible protocol versions.
@@ -67,34 +68,12 @@ export class DirectJsonParser extends Parser {
   }
 
   hasFormatContent(content: string, {complete = false}: {complete?: boolean} = {}): boolean {
-    const open = searchOpenTag(content);
-    if (!open) return false;
-    if (!complete) return true;
-    const [closeStart] = scanBlock(content, open.end);
-    return closeStart !== undefined;
+    const parts = this.lexer.tokenize(content);
+    return parts.some(p => p.type === 'a2ui' && (!complete || p.isFinal));
   }
 
   unwrap(content: string): RawResponsePart[] {
-    const parts: RawResponsePart[] = [];
-    let i = 0;
-    for (;;) {
-      const open = searchOpenTag(content, i);
-      if (!open) break;
-      addText(parts, content.slice(i, open.start));
-      const [closeStart] = scanBlock(content, open.end);
-      if (closeStart === undefined) {
-        parts.push({type: 'a2ui', a2uiRaw: clean(content.slice(open.end)), isFinal: false});
-        return parts;
-      }
-      parts.push({
-        type: 'a2ui',
-        a2uiRaw: clean(content.slice(open.end, closeStart)),
-        isFinal: true,
-      });
-      i = matchCloseTag(content, closeStart)!;
-    }
-    addText(parts, content.slice(i));
-    return parts;
+    return this.lexer.tokenize(content);
   }
 
   /**
@@ -108,7 +87,7 @@ export class DirectJsonParser extends Parser {
         `The response ended inside an ${OPEN_TAG} block, before its ${CLOSE_TAG} tag.`,
       );
     }
-    const cleaned = clean(formatContent);
+    const cleaned = cleanRaw(formatContent);
     if (!cleaned) {
       throw new ParseError('The direct JSON block is empty.');
     }

@@ -26,18 +26,17 @@ CLOSE_TAG = "</a2ui-json>"
 OPEN_TAG_RE = re.compile(r"<a2ui-json(?:\s[^>]*)?>", re.IGNORECASE)
 CLOSE_TAG_RE = re.compile(r"</a2ui-json\s*>", re.IGNORECASE)
 # The start of a tag that runs to the end of the text, matched at a position.
-_OPEN_TAG_START_RE = re.compile(r"<a2ui-json\s[^>]*$", re.IGNORECASE)
+OPEN_TAG_START_RE = re.compile(r"<a2ui-json\s[^>]*$", re.IGNORECASE)
 _CLOSE_TAG_START_RE = re.compile(r"</a2ui-json\s*$", re.IGNORECASE)
 _LEADING_FENCE_RE = re.compile(r"^```[a-zA-Z-]*\s*")
 _TRAILING_FENCE_RE = re.compile(r"\s*```[a-zA-Z-]*$")
-_STREAM_TRAILING_FENCE_RE = re.compile(r"\s*`{1,3}[a-zA-Z-]*\s*$")
 
 
 def possible_tag_start(text: str) -> int:
     """Returns where a tail of `text` could start an open tag, else its length."""
     idx = text.find("<")
     while idx >= 0:
-        if _is_tag_prefix(text, idx, OPEN_TAG) or _OPEN_TAG_START_RE.match(text, idx):
+        if _is_tag_prefix(text, idx, OPEN_TAG) or OPEN_TAG_START_RE.match(text, idx):
             return idx
         idx = text.find("<", idx + 1)
     return len(text)
@@ -58,28 +57,116 @@ def scan_block(content: str, start: int) -> tuple[int | None, int]:
       length of the body that can be read: up to the close tag, or up to a
       tail that could start one.
     """
-    i = start
-    in_string = False
-    n = len(content)
-    while i < n:
-        c = content[i]
-        if in_string:
-            if c == "\\":
-                i += 2
-                continue
-            if c == '"':
-                in_string = False
-        elif c == '"':
-            in_string = True
-        elif c == "<":
-            if CLOSE_TAG_RE.match(content, i) is not None:
-                return i, i - start
-            if _is_tag_prefix(content, i, CLOSE_TAG) or _CLOSE_TAG_START_RE.match(
-                content, i
-            ):
-                return None, i - start
-        i += 1
-    return None, n - start
+    return BlockScanner(start).scan(content)
+
+
+class BlockScanner:
+    """Finds the close tag of a block as its text arrives.
+
+    Each scan goes on from where the last one stopped, so across the scans of
+    a longer and longer text each character is read once. A tag written
+    inside a JSON string does not count.
+    """
+
+    def __init__(self, start: int) -> None:
+        """Creates a scanner of the block whose body starts at `start`."""
+        self._start = start
+        # Where the next scan starts. Past the end of the text when the text
+        # ends in an escape whose second character has not arrived.
+        self._i = start
+        self._in_string = False
+
+    def scan(self, content: str) -> tuple[int | None, int]:
+        """Scans `content`, the text the last scan read and more.
+
+        Returns:
+          As `scan_block` does.
+        """
+        i = self._i
+        n = len(content)
+        in_string = self._in_string
+        try:
+            while i < n:
+                if in_string:
+                    # Jumps to the next quote or escape.
+                    quote = content.find('"', i)
+                    escape = content.find("\\", i, quote if quote >= 0 else n)
+                    if escape >= 0:
+                        i = escape + 2
+                        continue
+                    if quote < 0:
+                        i = n
+                        break
+                    in_string = False
+                    i = quote + 1
+                    continue
+                c = content[i]
+                if c == '"':
+                    in_string = True
+                elif c == "<":
+                    if CLOSE_TAG_RE.match(content, i) is not None:
+                        return i, i - self._start
+                    if _is_tag_prefix(
+                        content, i, CLOSE_TAG
+                    ) or _CLOSE_TAG_START_RE.match(content, i):
+                        # Scanned again from here once more text arrives.
+                        return None, i - self._start
+                i += 1
+            return None, n - self._start
+        finally:
+            self._i = i
+            self._in_string = in_string
+
+
+def payload_start(block: str, end: int) -> int | None:
+    """Where the payload of a block still arriving starts.
+
+    That is after leading whitespace and after the line of a leading Markdown
+    fence. None while nothing but the start of a fence has arrived, or while
+    the fence's line is not complete.
+
+    Args:
+      block: The block text.
+      end: Where the part of `block` that can be read ends.
+    """
+    start = 0
+    while start < end and block[start].isspace():
+        start += 1
+    if end - start <= 3 and "```".startswith(block[start:end]):
+        return None
+    if block.startswith("```", start):
+        newline = block.find("\n", start, end)
+        return None if newline < 0 else newline + 1
+    if start < end and block[start] == "`":
+        while start < end and (block[start] == "`" or block[start].isspace()):
+            start += 1
+    return start
+
+
+def trailing_fence_start(block: str, start: int, end: int) -> int:
+    """Where a Markdown fence that ends `block[start:end]` begins, else `end`.
+
+    The fence is what `\\s*`{1,3}[a-zA-Z-]*\\s*$` matches: a fence still
+    arriving may have fewer than three backticks. It is found by reading back
+    from the end, so that a block is not searched from its start on every
+    chunk.
+    """
+    fence = end
+    while fence > start and block[fence - 1].isspace():
+        fence -= 1
+    while fence > start and (
+        block[fence - 1] == "-" or ("a" <= block[fence - 1].lower() <= "z")
+    ):
+        fence -= 1
+    ticks = 0
+    while ticks < 3 and fence > start and block[fence - 1] == "`":
+        fence -= 1
+        ticks += 1
+    if not ticks:
+        return end
+    while fence > start and block[fence - 1].isspace():
+        fence -= 1
+    return fence
 
 
 def add_text(parts: list[RawResponsePart], text: str) -> None:
@@ -94,18 +181,5 @@ def clean(text: str) -> str:
     cleaned = text.strip()
     cleaned = _LEADING_FENCE_RE.sub("", cleaned, count=1)
     cleaned = _TRAILING_FENCE_RE.sub("", cleaned, count=1)
-    return cleaned.strip()
-
-
-def clean_start(block: str) -> str:
-    """Strips the opening fence and a trailing fence from a block still arriving."""
-    text = block.lstrip()
-    if "```".startswith(text):
-        # Nothing has arrived yet but the start of a fence.
-        return ""
-    if text.startswith("```"):
-        newline = text.find("\n")
-        if newline < 0:
-            return ""
-        text = text[newline + 1 :]
-    return _STREAM_TRAILING_FENCE_RE.sub("", text, count=1)
+    cleaned = cleaned.strip()
+    return "" if not cleaned.strip("`") else cleaned

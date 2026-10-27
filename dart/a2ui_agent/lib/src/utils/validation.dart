@@ -31,16 +31,17 @@ import 'renderer_state.dart';
 ///
 /// To check a payload against what earlier payloads sent, keep a
 /// [RendererState] and call its [RendererState.apply] and
-/// [RendererState.checkTopology] instead.
+/// [RendererState.checkTopology] inside [RendererState.transaction], so a
+/// rejected response is rolled back whole.
 ///
 /// Each message must state a `version` that the catalogs' protocol version
-/// accepts, such as `v0.9` or `v0.9.1` for v0.9 catalogs.
+/// accepts, such as `v0.9` or `v0.9.1` for v0.9 catalogs and `v1.0` for v1.0
+/// catalogs.
 ///
 /// Throws [A2uiValidationError], or a subclass such as [A2uiIntegrityError],
 /// describing the first problem found if a renderer holding [catalogs] would
 /// reject the payload, and [A2uiCatalogError] if [catalogs] is empty or they
-/// target protocol versions whose messages differ. Checking payloads for
-/// v1.0 catalogs is not implemented yet and throws [UnimplementedError].
+/// target protocol versions whose messages differ.
 void validatePayload(
   List<CatalogApi> catalogs,
   Iterable<AgentToRendererMessage> payload,

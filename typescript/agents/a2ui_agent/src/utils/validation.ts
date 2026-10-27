@@ -18,7 +18,7 @@
  * Stateless validation of the payloads that an agent sends.
  */
 
-import {A2uiValidationError, CatalogApi} from '../internal/web-core.js';
+import {CatalogApi} from '../internal/web-core.js';
 import {RendererState} from './renderer-state.js';
 
 /**
@@ -49,7 +49,8 @@ class PayloadState extends RendererState {
  * surface passes if one such catalog accepts it.
  *
  * To check a payload against what earlier payloads sent, keep a `RendererState` and call
- * its `apply` and `checkTopology` instead.
+ * its `apply` and `checkTopology` inside `state.transaction(...)`, so that a rejected
+ * response is rolled back whole.
  *
  * Each message must match the protocol's message schema and state a `version` that the
  * catalogs' protocol version accepts, spelled as the specification spells it: `v0.9` or
@@ -57,17 +58,14 @@ class PayloadState extends RendererState {
  *
  * @param catalogs The active catalogs, which must target compatible protocol versions. Each
  *     surface is checked against the catalog its `catalogId` names.
- * @param payload An iterable of messages, as parsed JSON objects.
+ * @param payload One message, or an iterable of messages, as parsed JSON objects.
  * @throws {A2uiValidationError} If a renderer holding the catalogs would reject the payload.
  *     The error, or a subclass such as `A2uiIntegrityError`, describes the first problem
  *     found.
  * @throws {A2uiCatalogError} If no catalogs are given, or if their messages state different
  *     versions, for example v0.9 and v1.0 catalogs.
  */
-export function validatePayload(catalogs: CatalogApi[], payload: Iterable<unknown>): void {
+export function validatePayload(catalogs: CatalogApi[], payload: unknown): void {
   const state = new PayloadState(catalogs);
-  if (typeof payload !== 'object' || payload === null || !(Symbol.iterator in payload)) {
-    throw new A2uiValidationError('Payload is not a JSON array.');
-  }
   state.checkTopology(state.apply(payload));
 }

@@ -129,11 +129,17 @@ describe('validatePayload', () => {
     );
   });
 
-  it('accepts an empty payload and rejects one that is not an array', () => {
+  it('accepts an empty payload', () => {
     validatePayload([BASIC], []);
-    expect(() => validatePayload([BASIC], {} as unknown as unknown[])).toThrow(
-      'Payload is not a JSON array.',
+  });
+
+  it('accepts one message on its own', () => {
+    validatePayload([BASIC], update(COLUMN));
+    expect(() => validatePayload([BASIC], update({id: 'x', component: 'Unknown'}))).toThrow(
+      A2uiValidationError,
     );
+    expect(() => validatePayload([BASIC], {})).toThrow('Message 0 states no version');
+    expect(() => validatePayload([BASIC], 'nope')).toThrow('Message 0 is not a JSON object.');
   });
 
   it('rejects a message that is not an object', () => {
@@ -207,6 +213,13 @@ describe('validatePayload', () => {
     ).toThrow(A2uiValidationError);
   });
 
+  it('does not assume a surface that a later message creates', () => {
+    const check = () => validatePayload([BASIC], [update(COLUMN, TEXT), create(basicId)]);
+
+    expect(check).toThrow(A2uiValidationError);
+    expect(check).toThrow(/Surface not found/);
+  });
+
   it('accepts a surface recreated after a delete', () => {
     validatePayload(
       [BASIC],
@@ -217,6 +230,21 @@ describe('validatePayload', () => {
         update(COLUMN, TEXT),
       ],
     );
+  });
+
+  it('skips the tree of a surface that a later message of the payload deletes', () => {
+    // As in Python: the tree is checked once the payload is applied, and the surface is gone
+    // by then. Each component was still checked against the catalog.
+    const deleted: Message = {version: 'v0.9', deleteSurface: {surfaceId: 's'}};
+    for (const components of [[COLUMN], [{...COLUMN, children: []}, TEXT], [TEXT]]) {
+      validatePayload([BASIC], [create(basicId), update(...components), deleted]);
+    }
+    expect(() =>
+      validatePayload(
+        [BASIC],
+        [create(basicId), update({id: 'root', component: 'Unknown'}), deleted],
+      ),
+    ).toThrow(A2uiValidationError);
   });
 
   it('rejects a surface on a catalog it does not hold', () => {

@@ -25,6 +25,7 @@ import {
   A2uiIntegrityError,
   A2uiRequestProcessor,
   A2uiValidationError,
+  DirectJsonFormatFactory,
   DirectJsonParser,
   ExpressParser,
   InMemoryCatalogProvider,
@@ -350,9 +351,104 @@ describe('ResponseStream', () => {
   });
 });
 
+/** A canvas state holding surface `s` with `root -> a`. */
+function canvas(parser: DirectJsonParser): RendererState {
+  const state = new RendererState([BASIC]);
+  parser.parseResponse(block(CREATE, update(column('a'), text('a'))), {state});
+  return state;
+}
+
+const CHANGE_A = update({id: 'a', component: 'Text', text: 'Changed'});
+
+describe('what a failed or cut-off response holds against later turns', () => {
+  it('does not hold what a failed stream emitted against later turns', () => {
+    const parser = new DirectJsonParser([BASIC]);
+    const state = canvas(parser);
+    const stream = parser.openStream({state});
+
+    const parts = stream.feed('<a2ui-json>[' + JSON.stringify(update(text('orphan'))));
+    expect(emitted(parts)).not.toEqual([]);
+    expect(() => stream.feed(']</a2ui-json>')).toThrow(/'orphan' is not reachable/);
+
+    // The renderer holds the orphan, and no message can remove it.
+    expect(componentIds(state)).toContain('orphan');
+    parser.parseResponse(block(CHANGE_A), {state});
+    expect(components(state)['a']).toMatchObject({text: 'Changed'});
+  });
+
+  it('does not hold what a stream cut off inside a block emitted', () => {
+    const parser = new DirectJsonParser([BASIC]);
+    const state = canvas(parser);
+    const stream = parser.openStream({state});
+
+    const parts = stream.feed('<a2ui-json>[' + JSON.stringify(update(text('orphan'))) + ',');
+    expect(emitted(parts)).not.toEqual([]);
+    expect(() => stream.close()).toThrow(/ended inside/);
+
+    parser.parseResponse(block(CHANGE_A), {state});
+    expect(components(state)['a']).toMatchObject({text: 'Changed'});
+  });
+
+  it('does not hold what it emitted when a chunk finishes a block and fails in the next', () => {
+    const parser = new DirectJsonParser([BASIC]);
+    const state = canvas(parser);
+    const stream = parser.openStream({state});
+
+    const parts = stream.feed('<a2ui-json>[' + JSON.stringify(update(text('b'))) + ',');
+    expect(emitted(parts)).toEqual([update(text('b'))]);
+    // The chunk finishes the block, which makes `b` reachable, and then fails in a second
+    // block, so its rollback leaves `b` emitted and unchecked.
+    expect(() =>
+      stream.feed(
+        JSON.stringify(update(column('a', 'b'))) +
+          ']</a2ui-json><a2ui-json>' +
+          JSON.stringify([update({id: 'x', component: 'Unknown'})]) +
+          '</a2ui-json>',
+      ),
+    ).toThrow(A2uiValidationError);
+
+    expect(componentIds(state)).toContain('b');
+    parser.parseResponse(block(CHANGE_A), {state});
+    expect(components(state)['a']).toMatchObject({text: 'Changed'});
+  });
+
+  it('keeps only the text in partialResults when the tree check fails', () => {
+    const parser = new DirectJsonParser([BASIC]);
+    const state = new RendererState([BASIC]);
+
+    const error = caught(() =>
+      parser.parseResponse('Here.\n' + block(CREATE, update(column('missing'))), {state}),
+    );
+
+    expect(error).toBeInstanceOf(A2uiIntegrityError);
+    expect(String(error)).toMatch(/Dangling reference/);
+    const partial = (error as {partialResults: ResponsePart[]}).partialResults;
+    expect(partial.every(part => part.type === 'text')).toBe(true);
+    expect(textOf(partial)).toBe('Here.');
+    expect(state.getSurface('s')).toBeUndefined();
+  });
+
+  it("does not hold a truncated block's components against later turns", () => {
+    /** Compiles a cut-off block as far as it goes, as Express does. */
+    class TruncationTolerantParser extends DirectJsonParser {
+      override compile(formatContent: string): ReturnType<DirectJsonParser['compile']> {
+        return super.compile(formatContent);
+      }
+    }
+    const parser = new TruncationTolerantParser([BASIC]);
+    const state = canvas(parser);
+
+    parser.parseResponse('<a2ui-json>' + JSON.stringify([update(text('orphan'))]), {state});
+
+    expect(componentIds(state)).toContain('orphan');
+    parser.parseResponse(block(CHANGE_A), {state});
+    expect(components(state)['a']).toMatchObject({text: 'Changed'});
+  });
+});
+
 describe('A2uiRequestProcessor with a renderer state', () => {
   it('parses canvas turns against the state it is given', () => {
-    const processor = new A2uiRequestProcessor([BASIC]);
+    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
     const state = processor.createState();
     processor.parseResponse(block(CREATE, update(column('a'), text('a'))), {state});
 
@@ -367,7 +463,7 @@ describe('A2uiRequestProcessor with a renderer state', () => {
   });
 
   it('checks each call against a new state when it has none', () => {
-    const processor = new A2uiRequestProcessor([BASIC]);
+    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
 
     processor.parseResponse(block(CREATE, update(text('root'))));
     // The same surface can be created again: nothing was kept from the first call.
@@ -376,7 +472,7 @@ describe('A2uiRequestProcessor with a renderer state', () => {
   });
 
   it('rejects a state for other catalogs', () => {
-    const processor = new A2uiRequestProcessor([BASIC]);
+    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
     const other = new RendererState([otherCatalog()]);
 
     expect(() => processor.parseResponse(block(CREATE), {state: other})).toThrow(A2uiCatalogError);
@@ -385,7 +481,9 @@ describe('A2uiRequestProcessor with a renderer state', () => {
 
   it('uses a bound state when a call passes none', () => {
     const state = new RendererState([BASIC]);
-    const processor = new A2uiRequestProcessor([BASIC], undefined, undefined, {state});
+    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory(), {
+      state,
+    });
 
     processor.parseResponse(block(CREATE, update(column('a'), text('a'))));
     const stream = processor.openStream();
@@ -415,6 +513,34 @@ describe('A2uiRequestProcessor with a renderer state', () => {
     const processor = new A2uiRequestProcessor([prefixed], undefined, undefined, {state});
 
     expect(processor.state).toBe(state);
+  });
+
+  it('accepts a state that holds the active catalogs in order', () => {
+    const other = otherCatalog();
+    const processor = new A2uiRequestProcessor(
+      [BASIC, other],
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
+
+    expect(processor.acceptsState(processor.createState())).toBe(true);
+    expect(processor.acceptsState(new RendererState([BASIC, other]))).toBe(true);
+    // The order decides which catalog a surface resolves to.
+    expect(processor.acceptsState(new RendererState([other, BASIC]))).toBe(false);
+    expect(processor.acceptsState(new RendererState([BASIC]))).toBe(false);
+  });
+
+  it('accepts a state for the v0.9.1 spelling of the same catalogs', () => {
+    const v091 = loadBasicCatalog('v0.9.1');
+    const processor = new A2uiRequestProcessor([BASIC]);
+
+    expect(v091.id).toBe(BASIC.id);
+    expect(processor.acceptsState(new RendererState([v091]))).toBe(true);
+    expect(new A2uiRequestProcessor([v091]).acceptsState(processor.createState())).toBe(true);
+    expect(
+      () =>
+        new A2uiRequestProcessor([BASIC], undefined, undefined, {state: new RendererState([v091])}),
+    ).not.toThrow();
   });
 
   it('reuses one parser', () => {

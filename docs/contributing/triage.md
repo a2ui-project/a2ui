@@ -1,34 +1,29 @@
 # Triage for PRs and issues
 
-See go/a2ui-triage-internal for internal information.
-
 ## Goals
 
 Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 
 1. External PRs are addressed
 2. Issues are prioritized and addressed
-3. Number of branches is observable
 
 ## Invariant we want to keep
 
 This section describes goals at a high level. See concrete steps in the section [Triage responsibilities](#triage-responsibilities).
 
 1. **Issues** priority (aligned with other teams in Dash):
+
     - **P0**: very urgent, and it should be assigned
     - **P1**: actively being worked on, and it should be assigned
     - **P2**: is expected to be converted to P1 within three months, as part of regular planning process
     - **P3**: not planned, but may become a priority
     - **P4**: we do not plan to invest in this issue
 
-2. **PRs**: We will review PRs from external contributors if at least one of the following is true:
-    - the PR contributes to a **P0-P3** issue (PRs for P4 issues will not be reviewed)
-    - the issue is assigned to a contributor by the A2UI team (as assignee or in the first line of issue description) or has label `type: contributions-welcome`
-    - the change is, in the opinion of the A2UI team, absolutely clear and obviously needed
+2. **PRs**: We review contributions if:
 
-The relevant issue should be linked in the the PR description.
-
-3. **Branches**: [list of stale branches](https://github.com/a2ui-project/a2ui/branches/stale) should fit on one screen and should not have a button ‘Next’.
+    - they are easy to review
+    - they align well with the rest of the work, without stepping on each other's toes
+    - we have cycles to review, land, and maintain them over time
 
 ## GitHub labels used in triage
 
@@ -39,6 +34,7 @@ The relevant issue should be linked in the the PR description.
 5. [size: small][size-small]
 6. [type: contributions-welcome][contributions-welcome]
 7. [status: waiting-for-author-response][waiting-for-author-response]
+8. [status: assigned-for-triage][assigned-for-triage]
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 
@@ -53,29 +49,53 @@ See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 [size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22
 [contributions-welcome]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22type%3A%20contributions-welcome%22
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
+[assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
 
-Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies.
+Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies. The bot also reads `status: assigned-for-triage`, which is applied and removed manually, and flags items that carry it without an assignee or for more than 14 days.
 
 ### How the automated triage bot works
 
-The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It reconciles `status: needs-triage` across all open items according to the following rules:
+The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It checks every open issue and PR, adds `status: needs-triage` to the ones that match the conditions below, and removes the label from the rest.
 
-1. **Skipped items**: The automation skips the following items:
-    - **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once an external contributor posts a comment, review or review comment after the label was added.
-    - **Assigned issues**: When an issue is assigned, it is assumed that a team member is looking into it.
-2. **Issues**: Flagged with `status: needs-triage` if any of the following apply:
-    - **No priority**: The issue lacks a priority label (`P0`–`P4`).
-    - **Unassigned high priority**: Labeled `P0` or `P1` without an assignee.
-    - **Stale**: Inactive beyond the priority threshold:
-        - `P0`: stale for > 1 day
-        - `P1`: stale for > 30 days
-        - `P2`: stale for > 90 days
-        - (`P3` and `P4` issues are never flagged for staleness)
-    - **Unanswered external comment**: The latest human comment is from an external contributor.
-3. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution. (Maintainer-authored PRs are not flagged).
-4. **Transparency**: The automation prints to the console what items are flagged or unflagged and why. This can be used to track triage progress.
+The script uses the following rules to decide if a PR or issue should get **the label `status: needs-triage`**:
+
+1. Does the item have `status: waiting-for-author-response`? The bot removes this label once an external contributor responds.
+
+    - If yes: **NO LABEL**.
+    - If no: continue processing.
+
+2. Does the item have `status: assigned-for-triage`?
+
+    - If yes:
+        - **LABEL** when it has no assignee or got the label more than 14 days ago.
+        - **NO LABEL** otherwise.
+    - If no: continue processing.
+
+3. Is the item **an issue**?
+
+    - If yes, is it assigned?
+        - If assigned:
+            - **LABEL** when one of the following is true:
+                - It is `P0` with no human activity for more than 1 day, or `P1` with no human activity for more than 30 days.
+                - It has no priority label (`P0`–`P4`), and it was opened or commented by an external contributor.
+            - **NO LABEL** otherwise.
+        - If not assigned:
+            - **LABEL** when one of the following is true:
+                - It is `P0` or `P1`, which must have an assignee.
+                - It has no priority label (`P0`–`P4`) and was opened or commented by an external contributor.
+                - The latest human contribution is from an external contributor.
+            - **NO LABEL** otherwise.
+    - If no: continue processing.
+
+4. Is the item **a PR**?
+
+    - If yes:
+        - **LABEL** when it was opened by an external contributor and the latest human contribution is from an external contributor, meaning no team member has responded yet.
+        - **NO LABEL** otherwise.
 
 Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
+
+The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress.
 
 The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
 
@@ -96,6 +116,7 @@ Update [items with label `status: needs-triage`][needs-triage], so that the labe
     - Be sure to assign P0/P1 issues to someone.
 - Answer external comments
 - Add `status: waiting-for-author-response` when you need more information from the author
+- Assign the item to a team member who will finish the triage, and add `status: assigned-for-triage`. The assignee removes the label when done. If the label is still there after 14 days, the bot flags the item again.
 
 You can remove the `needs-triage` label manually to speed up the process, but if the item still matches a rule, the label will come back because the label will be re-applied by the triage bot.
 
@@ -114,14 +135,6 @@ When weekly triage is complete, the [`needs-triage`][needs-triage] list should i
 
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 [unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
-
-## AI assistance
-
-Use [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md) to get agent help with triage.
-
-It forks multiple subagents (one for each issue) to try and reproduce the issue if it is something that can be easily reproduced. It won't attempt to repro something that takes a lot of setup.
-
-It will then display a web UI in a local browser with the list of issues to triage, suggested responses (which you can edit) and a UI to apply suggestions to GitHub.
 
 ## Frequently asked questions
 

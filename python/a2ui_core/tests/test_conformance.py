@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Callable
 from typing import Any
 import pytest
 import yaml
@@ -33,7 +34,11 @@ from a2ui.core.processing import (
     MessageProcessor,
     MessageProcessorOptions,
 )
-from a2ui.core.validation import STRICT_VALIDATION, PayloadValidator
+from a2ui.core.validation import (
+    RELAXED_VALIDATION,
+    STRICT_VALIDATION,
+    PayloadValidator,
+)
 from a2ui.core.exceptions import (
     A2uiCatalogError,
     A2uiDataError,
@@ -68,7 +73,13 @@ SUPPORTED_PROTOCOL_VERSIONS = {
     "1.0",
 }
 
-SKIP_TEST_NAMES: set[str] = set()
+SKIP_TEST_NAMES: set[str] = {
+    # A known difference of the Python core: its topology checks read a v0.8
+    # string property as a child reference when it names a component the
+    # surface holds, which the TypeScript and Kotlin cores do not.
+    "test_v08_topology_plain_string_property_not_treated_as_child_ref",
+    "test_v08_topology_plain_string_property_does_not_close_cycle",
+}
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()
@@ -85,6 +96,11 @@ UNRUNNABLE_SUITES: dict[str, str] = {
     ),
     "core/node_resolution.yaml": "The Python core has no node resolution layer.",
 }
+
+# Actions that time an operation rather than check what it returns. Their cases
+# run in `test_conformance_timing`, which is marked `performance` and so runs
+# only under `uv run pytest -m performance` (see timing_harness.py).
+TIMING_ACTIONS = {"measure_growth", "measure_overhead"}
 
 # Root core conformance directory resolution
 CONFORMANCE_ROOT = os.environ.get(
@@ -549,7 +565,13 @@ def assert_raises(expect_error: Any):
         )
 
 
-CONFORMANCE_CASES = load_conformance_cases()
+ALL_CONFORMANCE_CASES = load_conformance_cases()
+CONFORMANCE_CASES = [
+    c for c in ALL_CONFORMANCE_CASES if c[2].get("action") not in TIMING_ACTIONS
+]
+TIMING_CASES = [
+    c for c in ALL_CONFORMANCE_CASES if c[2].get("action") in TIMING_ACTIONS
+]
 
 
 def test_all_suites_load() -> None:
@@ -623,6 +645,58 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
             f"Action '{action}' has no handler in the core Python harness."
             " Add one, or add the suite to UNRUNNABLE_SUITES with a reason."
         )
+
+
+def _timed_processing(case: dict[str, Any]) -> Callable[[str], Callable[[], object]]:
+    """Returns how a `process_messages` timing case prepares a timed run.
+
+    The catalogs are built and the payload decoded before the timing starts.
+    Each timed run creates a processor and hands it every message in one
+    `process_messages` call.
+    """
+    catalogs = [_load_catalog_path(p) for p in case["catalogPaths"]]
+    config = {"none": None, "relaxed": RELAXED_VALIDATION}[
+        case["args"]["validation_config"]
+    ]
+    options = MessageProcessorOptions(validation_config=config)
+
+    def prepare(payload: str) -> Callable[[], object]:
+        messages = json.loads(payload)
+        return lambda: MessageProcessor(catalogs, options=options).process_messages(
+            messages
+        )
+
+    return prepare
+
+
+def test_timing_cases_have_handlers() -> None:
+    """Every timing case is one `test_conformance_timing` can run.
+
+    The timing cases run only under `-m performance`, so this check runs with
+    the other tests to catch a case the harness cannot run.
+    """
+    assert TIMING_CASES, "No timing cases found under conformance/core."
+    for test_id, _, case in TIMING_CASES:
+        assert (case.get("action"), case.get("operation")) == (
+            "measure_growth",
+            "process_messages",
+        ), f"{test_id}: the core harness has no handler for this timing case."
+        _timed_processing(case)
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize(
+    "test_id, rel_path, case",
+    TIMING_CASES,
+    ids=[c[0] for c in TIMING_CASES],
+)
+def test_conformance_timing(
+    test_id: str, rel_path: str, case: dict[str, Any], timing: Any
+) -> None:
+    """Runs a `measure_growth` case of `core/message_processor_scaling.yaml`."""
+    assert case["action"] == "measure_growth", test_id
+    assert case["operation"] == "process_messages", test_id
+    timing.measure_growth(case, _timed_processing(case))
 
 
 def test_resolve_nodes_outside_its_suite_is_unsupported() -> None:

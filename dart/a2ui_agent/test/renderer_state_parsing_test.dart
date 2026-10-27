@@ -98,6 +98,10 @@ void main() {
     ),
   );
 
+  final Map<String, Object?> changeA = update([
+    {'id': 'a', 'component': 'Text', 'text': 'Changed'},
+  ]);
+
   group('parseResponse', () {
     test('a chat turn shows new UI', () {
       // Without a state, an update to a surface the turn never created is
@@ -228,6 +232,24 @@ void main() {
         ),
         throwsIntegrity("non-existent component 'missing'"),
       );
+    });
+
+    test('a truncated block does not hold its components against later '
+        'turns', () {
+      // Direct JSON compiles a cut-off block that holds whole JSON, as
+      // Express compiles one as far as it goes.
+      final RendererState state = canvas();
+
+      parser().parseResponse(
+        '<a2ui-json>${jsonEncode([
+          update([text('orphan')]),
+        ])}',
+        state: state,
+      );
+
+      expect(componentIds(state), contains('orphan'));
+      parser().parseResponse(block([changeA]), state: state);
+      expect(components(state)['a'], containsPair('text', 'Changed'));
     });
   });
 
@@ -533,11 +555,63 @@ void main() {
         throwsA(isA<A2uiValidationError>()),
       );
     });
+
+    test(
+      'a failed stream does not hold what it emitted against later turns',
+      () {
+        final RendererState state = canvas();
+        final DirectJsonResponseStream stream = parser().openStream(
+          state: state,
+        );
+
+        final List<ResponsePart> parts = stream.feed(
+          '<a2ui-json>[${jsonEncode(update([text('orphan')]))}',
+        );
+        expect(emitted(parts), isNotEmpty);
+        expect(
+          () => stream.feed(']</a2ui-json>'),
+          throwsIntegrity("'orphan' is not reachable"),
+        );
+
+        // The renderer holds the orphan, and no message can remove it.
+        expect(componentIds(state), contains('orphan'));
+        parser().parseResponse(block([changeA]), state: state);
+        expect(components(state)['a'], containsPair('text', 'Changed'));
+      },
+    );
+
+    test('a stream cut off inside a block does not hold what it emitted', () {
+      final RendererState state = canvas();
+      final DirectJsonResponseStream stream = parser().openStream(state: state);
+
+      expect(
+        emitted(
+          stream.feed('<a2ui-json>[${jsonEncode(update([text('orphan')]))},'),
+        ),
+        isNotEmpty,
+      );
+      expect(
+        stream.close,
+        throwsA(
+          isA<A2uiParseError>().having(
+            (e) => e.message,
+            'message',
+            contains('ended inside'),
+          ),
+        ),
+      );
+
+      parser().parseResponse(block([changeA]), state: state);
+      expect(components(state)['a'], containsPair('text', 'Changed'));
+    });
   });
 
   group('A2uiRequestProcessor', () {
     test('parses canvas turns against a state it creates', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       final RendererState state = processor.createState();
       processor.parseResponse(
         block([
@@ -582,7 +656,10 @@ void main() {
     });
 
     test('rejects a state for other catalogs', () {
-      final processor = A2uiRequestProcessor(activeCatalogs: [basic]);
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
       final other = RendererState([
         Catalog.fromJson({
           'catalogId': 'other',
@@ -607,10 +684,29 @@ void main() {
       );
     });
 
+    test('accepts a state that holds the active catalogs in order', () {
+      final Catalog other = Catalog.fromJson({
+        'catalogId': 'other',
+        'protocolVersion': '0.9',
+        'components': <String, Object?>{},
+      });
+      final processor = A2uiRequestProcessor(
+        activeCatalogs: [basic, other],
+        formatFactory: const DirectJsonFormatFactory(),
+      );
+
+      expect(processor.acceptsState(processor.createState()), isTrue);
+      expect(processor.acceptsState(RendererState([basic, other])), isTrue);
+      // The order decides which catalog a surface resolves to.
+      expect(processor.acceptsState(RendererState([other, basic])), isFalse);
+      expect(processor.acceptsState(RendererState([basic])), isFalse);
+    });
+
     test('uses a bound state when a call passes none', () {
       final state = RendererState([basic]);
       final processor = A2uiRequestProcessor(
         activeCatalogs: [basic],
+        formatFactory: const DirectJsonFormatFactory(),
         state: state,
       );
 
@@ -648,6 +744,29 @@ void main() {
       expect(
         generator.createProcessor(capabilities, state: state).state,
         same(state),
+      );
+    });
+
+    test('A2uiGenerator rejects a state for other catalogs', () {
+      final generator = A2uiGenerator(catalogs: [CatalogConfig(basic)]);
+      final capabilities = A2uiRendererCapabilities.forCatalogIds([basic.id]);
+      final other = RendererState([
+        Catalog.fromJson({
+          'catalogId': 'other',
+          'protocolVersion': '0.9',
+          'components': <String, Object?>{},
+        }),
+      ]);
+
+      expect(
+        () => generator.createProcessor(capabilities, state: other),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.message,
+            'message',
+            contains('active catalogs'),
+          ),
+        ),
       );
     });
   });

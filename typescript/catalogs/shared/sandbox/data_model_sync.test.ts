@@ -177,6 +177,12 @@ describe('DataModelSync', () => {
       expect(sync.applyChange({key: 'unknown', value: 1})).toBe('unbound');
     });
 
+    it('reports inherited object property names as not bound', () => {
+      expect(sync.applyChange({key: 'toString', value: 1})).toBe('unbound');
+      expect(sync.applyChange({key: 'constructor', value: 1})).toBe('unbound');
+      expect(sync.applyChange({key: '__proto__', value: {polluted: true}})).toBe('unbound');
+    });
+
     it('diffs later host changes against the state the frame wrote', () => {
       sync.applyChange({key: 'game', subpath: '/score', value: 5});
       host.setData('/game/player', 'bob');

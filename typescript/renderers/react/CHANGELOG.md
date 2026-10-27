@@ -1,5 +1,8 @@
 ## Unreleased
 
+## 0.14.0
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.
 - (v1_0) `A2uiSurface` renders a surface whose `createSurface` names no default catalog: each component resolves against its own catalog. `SurfaceModel.defaultCatalog` (and the deprecated `catalog` getter) from `@a2ui/web_core` may now be `undefined`, so code that reads `surface.defaultCatalog` must handle that case.
 - Relocate package directory from `renderers/react` to `typescript/renderers/react`.
 

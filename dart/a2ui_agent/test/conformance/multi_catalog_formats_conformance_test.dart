@@ -31,10 +31,7 @@ void main() {
     final List<Map<String, Object?>> cases = loadSuite(path);
     test('suite is not empty', () => expect(cases, isNotEmpty));
     for (final testCase in cases) {
-      test(
-        testCase['name']! as String,
-        () => version.run(() => _runCase(testCase, version)),
-      );
+      test(testCase['name']! as String, () => _runCase(testCase, version));
     }
   });
 }

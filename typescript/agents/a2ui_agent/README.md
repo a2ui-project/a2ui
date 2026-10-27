@@ -9,21 +9,11 @@ This package targets A2UI protocol **v0.9** and **v1.0**, and supports the **Dir
 Load your catalogs once at startup and create an `A2uiGenerator`. On each turn, create a request processor for the client's capabilities, include its `promptSnippet` in your system prompt, and pass the model's response to `parseResponse`:
 
 ```ts
-import {
-  A2uiGenerator,
-  CatalogConfig,
-  ExpressFormatFactory,
-  type RendererCapabilities,
-} from '@a2ui/agent';
+import {A2uiGenerator, CatalogConfig, type RendererCapabilities} from '@a2ui/agent';
 
 // 1. Load catalogs and build the generator once at startup.
 const componentCatalog = CatalogConfig.fromPath('path/to/catalog.json');
-const generator = new A2uiGenerator(
-  [componentCatalog],
-  undefined,
-  // Omit to use DirectJsonFormatFactory by default, or pass ExpressFormatFactory:
-  new ExpressFormatFactory(),
-);
+const generator = new A2uiGenerator([componentCatalog]);
 
 // 2. Per request, negotiate active catalogs for the client's capabilities.
 const capabilities: RendererCapabilities = {
@@ -45,7 +35,7 @@ for (const part of processor.parseResponse(llmResponse)) {
 }
 ```
 
-`parseResponse` throws an `A2uiError` when a block cannot be read or a renderer would reject a message. The error's `partialResults` holds the parts read before it.
+`parseResponse` throws an `A2uiError` when a block cannot be read or a renderer would reject a message. The error's `partialResults` holds the parts before the failing block, or only the text when the tree check across every block fails. None of them is applied to the state.
 
 ## Chat and canvas
 
@@ -102,6 +92,12 @@ const v09Catalog = CatalogConfig.fromPath(
 yarn workspace @a2ui/agent test
 yarn workspace @a2ui/agent lint
 yarn workspace @a2ui/agent format
+```
+
+The timing suites of the conformance tests, `conformance/agent/direct_json/scaling.yaml` and `conformance/agent/express/scaling.yaml`, check that parsing and streaming a response take time in proportion to its size. Times depend on the machine, so `test` leaves them out. Run them on their own:
+
+```sh
+yarn workspace @a2ui/agent test:timing
 ```
 
 Architecture, design decisions, and parser regeneration instructions live in the [codebase blueprint](../../../blueprints/codebases/typescript/agents/a2ui_agent/codebase.blueprint.md).

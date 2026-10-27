@@ -266,4 +266,115 @@ describe('DirectJsonResponseStream', () => {
       {id: 'root', component: 'Text', text: 'line\nbreak'},
     ]);
   });
+
+  it('holds a callRendererFunction until its object closes, and the messages after it', () => {
+    const parser = new DirectJsonParser([basicV10]);
+    const id = basicV10.id;
+    const call = `{"version": "v1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "openUrl", "catalogId": "${id}", "args": {"url": "https://a2ui.org"}}}}`;
+    const update =
+      '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}';
+    const state = new RendererState([basicV10]);
+    state.apply({version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}});
+    const opened = parser.openStream({state});
+    const cut = call.length - 2;
+
+    expect(messagesOf(opened.feed(`${OPEN}[${call.slice(0, cut)}`))).toEqual([]);
+    const parts = opened.feed(`${call.slice(cut)}, ${update}]${CLOSE}`);
+
+    expect(messagesOf(parts).map(message => Object.keys(message)[1])).toEqual([
+      'callRendererFunction',
+      'updateComponents',
+    ]);
+  });
+
+  it('emits a growing updateComponents whole each time it gains components', () => {
+    const parser = new DirectJsonParser([basicV10]);
+    const id = basicV10.id;
+    const items = Array.from({length: 6}, (_, i) => ({
+      id: `t${i}`,
+      component: 'Text',
+      text: `${i}`,
+    }));
+    const response =
+      OPEN +
+      JSON.stringify([
+        {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}},
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Column', children: items.map(c => c.id)},
+              ...items,
+            ],
+          },
+        },
+      ]) +
+      CLOSE;
+    const state = new RendererState([basicV10]);
+
+    const messages = stream(parser, chunked(response, 9), state);
+
+    const updates = messages.filter(message => 'updateComponents' in message);
+    expect(updates.length).toBeGreaterThan(2);
+    const counts = updates.map(update => componentsFor([update], 's1').length);
+    // Each emission is the message as it stands, with more components than the last.
+    expect(counts).toEqual([...counts].sort((a, b) => a - b));
+    expect(new Set(counts).size).toBe(counts.length);
+    expect(counts[counts.length - 1]).toBe(7);
+    expect([...state.getSurface('s1')!.componentsModel.keys].sort()).toEqual(
+      ['root', ...items.map(c => c.id)].sort(),
+    );
+  });
+
+  it('rejects a component id repeated across the chunks of one updateComponents', () => {
+    const parser = new DirectJsonParser([basicV10]);
+    const id = basicV10.id;
+    const state = new RendererState([basicV10]);
+    state.apply({version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}});
+    const opened = parser.openStream({state});
+
+    opened.feed(
+      `${OPEN}[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "a"}, `,
+    );
+
+    expect(() => opened.feed('{"id": "root", "component": "Text", "text": "b"}, ')).toThrow(
+      /Duplicate component ID: 'root'/,
+    );
+  });
+
+  it('applies a growing updateDataModel again once it closes', () => {
+    const parser = new DirectJsonParser([basicV10], {progressiveKeys: ['name']});
+    const id = basicV10.id;
+    const state = new RendererState([basicV10]);
+    state.apply({version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}});
+    const value = {items: Array.from({length: 5}, (_, i) => ({name: `Item ${i}`}))};
+    const response =
+      OPEN +
+      JSON.stringify([{version: 'v1.0', updateDataModel: {surfaceId: 's1', path: '/', value}}]) +
+      CLOSE;
+
+    const messages = stream(parser, chunked(response, 11), state);
+
+    expect(messages.length).toBeGreaterThan(2);
+    expect(messages[messages.length - 1]).toEqual({
+      version: 'v1.0',
+      updateDataModel: {surfaceId: 's1', path: '/', value},
+    });
+    expect(state.getSurface('s1')!.dataModel.get('/')).toEqual(value);
+  });
+
+  it('emits nothing after a closed message the state rejects, and throws when the block closes', () => {
+    const parser = new DirectJsonParser([basicV10]);
+    const id = basicV10.id;
+    const opened = parser.openStream();
+    const missing =
+      '{"version": "v1.0", "updateComponents": {"surfaceId": "missing", "components": []}}';
+    const create = `{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${id}"}}`;
+
+    expect(messagesOf(opened.feed(`${OPEN}[${missing}, `))).toEqual([]);
+    expect(messagesOf(opened.feed(`${create}, `))).toEqual([]);
+    expect(() => opened.feed(`${create}]${CLOSE}`)).toThrow(A2uiValidationError);
+    expect(opened.state.surfaceIds).toEqual([]);
+  });
 });

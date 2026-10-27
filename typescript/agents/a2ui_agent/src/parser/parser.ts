@@ -105,24 +105,30 @@ export abstract class Parser {
    * Nothing has been sent when a whole response is parsed, so it is checked as a whole: a
    * component may name a child that a later block adds, and the trees of the surfaces the
    * response touches are checked once every block is applied. The messages are applied to
-   * the state all or nothing: if any check fails, the state is left as it was. An error
-   * carries the parts read before it in `partialResults`.
+   * the state all or nothing: if any check fails, the state is left as it was.
+   *
+   * A block cut off at the end of the response, which formats other than Direct JSON compile
+   * as far as it goes, is applied too, but the trees of the surfaces it touches are not
+   * checked.
    *
    * @param content The raw model response.
    * @param options Whether the response is wrapped in tags, and the state to check it
    *     against.
-   * @throws {A2uiError} If a block cannot be read or a message is rejected.
+   * @throws {A2uiError} If a block cannot be read or the state rejects it. The error's
+   *     `partialResults` holds the parts before the failing block, or only the text when a
+   *     tree check fails, since that check spans every block. None of them is applied to the
+   *     state.
    */
   parseResponse(content: string, {wrapped = true, state}: ParseOptions = {}): ResponsePart[] {
     const target = state ?? this.emptyState();
     const parts: ResponsePart[] = [];
     return target.transaction(() => {
+      const touched = new Set<string>();
+      const incomplete = new Set<string>();
       try {
         const rawParts: RawResponsePart[] = wrapped
           ? this.unwrap(content)
           : [{type: 'a2ui', a2uiRaw: content, isFinal: true}];
-        const touched = new Set<string>();
-        const incomplete = new Set<string>();
         for (const raw of rawParts) {
           if (raw.type === 'text') {
             parts.push({type: 'text', text: raw.text});
@@ -135,14 +141,26 @@ export abstract class Parser {
           }
           parts.push({type: 'a2ui', a2ui: messages});
         }
+      } catch (e) {
+        throw withPartialResults(e, parts);
+      }
+      try {
         const complete = [...touched].filter(s => !incomplete.has(s));
         if (complete.length > 0) target.checkTopology(complete);
       } catch (e) {
-        if (e instanceof A2uiError) {
-          (e as A2uiError & {partialResults?: ResponsePart[]}).partialResults = parts;
-        }
-        throw e;
+        // The tree check spans every block, so no block is known to be good: only the text is
+        // kept.
+        throw withPartialResults(
+          e,
+          parts.filter(p => p.type === 'text'),
+        );
       }
+      // A truncated block's messages are kept, as the renderer the caller sends them to will
+      // hold them, but its trees are not checked: a cut-off block is missing what it would
+      // have added. Its components are marked checked, so a later turn is not required to
+      // make them reachable; its dangling references and a missing root are still reported
+      // when a later turn checks the surface.
+      target.markChecked(incomplete);
       return parts;
     });
   }
@@ -178,4 +196,12 @@ export abstract class Parser {
   openStream(_options: ParseOptions = {}): ResponseStream {
     throw new Error(`Streaming is not supported by ${this.constructor.name}`);
   }
+}
+
+/** Attaches the parts read before an `A2uiError` to it, and returns the error. */
+function withPartialResults(e: unknown, parts: ResponsePart[]): unknown {
+  if (e instanceof A2uiError) {
+    (e as A2uiError & {partialResults?: ResponsePart[]}).partialResults = parts;
+  }
+  return e;
 }

@@ -306,7 +306,7 @@ This message is sent by the agent to execute a function registered on the render
   - `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `rendererFunctionResponse` message.
   - `callFunction` (object, required): The description of the function call.
     - `@call` (string, required): The registered name of the function to execute.
-    - `catalogId` (string, required): The catalog ID defining the function to execute. `catalogId` MUST be specified on `callRendererFunction`; if omitted or unregistered, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
+    - `catalogId` (string, required): The catalog ID defining the function to execute. `catalogId` MUST be specified on `callRendererFunction`. A call without it violates the schema, so the message is malformed, and should be rejected. Agents should validate outgoing messages against the schema so that a missing `catalogId` never reaches the renderer. If `catalogId` names a catalog the renderer has not registered, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
     - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
 
 **Evaluation Scope and Ordering:**
@@ -496,7 +496,7 @@ A2UI's component model is designed for flexibility, separating the protocol's st
 
 Each object in the `components` array of an `updateComponents` message defines a single UI component. It has the following structure:
 
-- `id` (`ComponentId`, required): A unique string that identifies this specific component instance. This is used for parent-child references.
+- `id` (`ComponentId`, required): A unique string that identifies this specific component instance. This is used for parent-child references. It MUST follow the [Catalog Entity Naming Rules](#catalog-entity-naming-rules) (UAX #31): `user_card` and `userCard` are valid, `user-card` and `1st_item` are not.
 - `component` (string, required): Specifies the component's type (e.g., `"Text"`).
 - `catalogId` (string, optional): A string that uniquely identifies the catalog for this component, overriding the surface's default `catalogId`. Useful when combining components from multiple catalogs in a single surface.
 - **Component Properties**: Other properties relevant to the specific component type (e.g., `text`, `url`, `children`) are included directly in the component object.
@@ -541,7 +541,7 @@ Every catalog follows the standard `Catalog` object definition:
 
 #### Catalog Entity Naming Rules
 
-To ensure complete cross-language compatibility across renderer SDKs, parsers, and code generators, all catalog entity identifiers—specifically **component names**, **function names**, and **argument/property names**—MUST adhere strictly to [Unicode Standard Annex #31 (UAX #31)](https://www.unicode.org/reports/tr31/) variable naming rules.
+To ensure complete cross-language compatibility across renderer SDKs, parsers, and code generators, all catalog entity identifiers—specifically **component names**, **function names**, and **argument/property names**—as well as **component instance IDs** (`ComponentId`) MUST adhere strictly to [Unicode Standard Annex #31 (UAX #31)](https://www.unicode.org/reports/tr31/) variable naming rules.
 
 1. **Permitted Characters**: Identifiers must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`). Subsequent characters must belong to the Unicode property class `XID_Continue`.
 2. **Prohibited Initial Characters**: Identifiers MUST NOT begin with a decimal digit (Unicode general category `Nd`).
@@ -1328,7 +1328,7 @@ Displaying item positions inside a list row template:
 
 ```json
 {
-  "id": "todo-index",
+  "id": "todo_index",
   "component": "Text",
   "text": {
     "@call": "formatString",

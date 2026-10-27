@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-import {CatalogConfig} from './catalog-config.js';
-import {RendererCapabilities, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
+import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {InferenceFormatFactory} from '../inference-format.js';
+import {ExpressFormatFactory} from '../inference-formats/express/format.js';
+import {AgentToRendererMessage, CatalogApi, RendererCapabilities} from '../internal/web-core.js';
+import {resolveCatalogs} from '../utils/catalog-resolver.js';
+import {validatePayload} from '../utils/validation.js';
+import {CatalogConfig} from './catalog-config.js';
 import {
   A2uiRequestProcessor,
   A2uiRequestProcessorOptions,
   ProcessorCacheEntry,
 } from './processor.js';
-import {resolveCatalogs} from '../utils/catalog-resolver.js';
-import {validatePayload} from '../utils/validation.js';
-import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
-import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 
 /**
  * Agent-lifetime object holding every catalog the agent supports.
@@ -46,7 +46,7 @@ export class A2uiGenerator {
     private readonly examples?: Record<string, AgentToRendererMessage[] | string>,
     inferenceFormatFactory?: InferenceFormatFactory,
   ) {
-    this.factory = inferenceFormatFactory || new DirectJsonFormatFactory();
+    this.factory = inferenceFormatFactory || new ExpressFormatFactory();
   }
 
   /**
@@ -63,11 +63,12 @@ export class A2uiGenerator {
    * @throws {A2uiCatalogError} If `rendererCapabilities` is missing, since there is
    *     nothing to negotiate against, if negotiation leaves no catalog, or if
    *     `options.state` holds other catalogs than the negotiated ones.
-   * @throws {A2uiValidationError} If an example message is not an object, or a renderer
-   *     holding the negotiated catalogs would reject an example.
+   * @throws {A2uiValidationError} If the capabilities lack an entry for the catalogs'
+   *     protocol version, if an example message is not an object, or if a renderer holding
+   *     the negotiated catalogs would reject an example.
    */
   createProcessor(
-    rendererCapabilities: RendererCapabilities,
+    rendererCapabilities: Record<string, RendererCapabilities> | RendererCapabilities,
     inferenceFormatFactory?: InferenceFormatFactory,
     options: A2uiRequestProcessorOptions = {},
   ): A2uiRequestProcessor {

@@ -15,12 +15,12 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
-import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
+import {ExpressFormatFactory} from '../inference-formats/express/format.js';
 import {A2uiCatalogError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
 import {ParseOptions, Parser} from '../parser/parser.js';
 import {ResponsePart} from '../parser/response-part.js';
 import {ResponseStream} from '../parser/response-stream.js';
-import {toWireProtocolVersion} from '../utils/protocol-version.js';
+import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
 import {RendererState} from '../utils/renderer-state.js';
 
 /** Options for a request processor. */
@@ -28,7 +28,8 @@ export interface A2uiRequestProcessorOptions {
   /**
    * The renderer state a canvas agent keeps for the conversation. `parseResponse` and
    * `openStream` use it when a call passes none. Without one, each call checks the response
-   * against a new state, as a chat agent wants.
+   * against a new state, as a chat agent wants. A processor bound to a state serves only that
+   * conversation.
    */
   state?: RendererState;
 }
@@ -51,7 +52,7 @@ export class A2uiRequestProcessor {
   /**
    * @param catalogs The negotiated catalogs active for this request.
    * @param _examples Prompt examples, keyed by name.
-   * @param formatFactory The inference format. Direct JSON by default.
+   * @param formatFactory The inference format. Express by default.
    * @param options The renderer state to bind, if any.
    * @param cacheEntry Internal shared cache entry from `A2uiGenerator`.
    * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
@@ -69,7 +70,7 @@ export class A2uiRequestProcessor {
       this._parser = cacheEntry.parser;
       this._promptSnippet = cacheEntry.promptSnippet;
     } else {
-      const factory = formatFactory || new DirectJsonFormatFactory();
+      const factory = formatFactory || new ExpressFormatFactory();
       this._format = factory.createFormat(catalogs, _examples);
     }
     this.checkState(options.state);
@@ -171,16 +172,37 @@ export class A2uiRequestProcessor {
     return options.state;
   }
 
-  private checkState(state: RendererState | undefined): void {
-    if (state === undefined) return;
-    const describe = (catalogs: CatalogApi[]) =>
-      catalogs.map(c => `${c.id} (${toWireProtocolVersion(c.protocolVersion)})`).join(', ');
-    const held = describe(state.catalogs);
-    const active = describe(this.catalogs);
-    if (held !== active) {
-      throw new A2uiCatalogError(
-        `The renderer state holds catalogs [${held}], but the processor's active catalogs are [${active}].`,
-      );
-    }
+  /**
+   * Whether the processor can check responses against a renderer state.
+   *
+   * A state is accepted when it holds the processor's active catalogs, in the same order, since
+   * the order decides which catalog a surface resolves to. A state made with `createState` is
+   * always accepted. An agent that keeps a state per conversation calls this to tell whether the
+   * state still fits the request's catalogs, and makes a new one with `createState` when it
+   * doesn't.
+   */
+  acceptsState(state: RendererState): boolean {
+    return catalogsKey(state.catalogs) === catalogsKey(this.catalogs);
   }
+
+  private checkState(state: RendererState | undefined): void {
+    if (state === undefined || this.acceptsState(state)) return;
+    throw new A2uiCatalogError(
+      `The renderer state holds catalogs [${describeCatalogs(state.catalogs)}], but the processor's active catalogs are [${describeCatalogs(this.catalogs)}].`,
+    );
+  }
+}
+
+/**
+ * The id and release line of each catalog, in order, to compare two lists of catalogs. A
+ * v0.9 and a v0.9.1 catalog with the same id compare equal, since a `RendererState` treats
+ * the two versions as one.
+ */
+function catalogsKey(catalogs: CatalogApi[]): string {
+  return JSON.stringify(catalogs.map(c => [c.id, toReleaseLine(c.protocolVersion)]));
+}
+
+/** The id and normalized protocol version of each catalog, in order. */
+function describeCatalogs(catalogs: CatalogApi[]): string {
+  return catalogs.map(c => `${c.id} (${toWireProtocolVersion(c.protocolVersion)})`).join(', ');
 }

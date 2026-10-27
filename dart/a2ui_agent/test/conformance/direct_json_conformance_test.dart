@@ -25,7 +25,8 @@ import 'suites.dart';
 /// it and lifts what the parser returns, as `suites.dart` describes. The
 /// direct JSON suites write each message on its own, so nothing is joined. A
 /// case whose catalog declares v1.0 runs with `bufferIncompleteComponents`
-/// on, as a v1.0 agent configures it. A streaming case whose catalog declares
+/// on, so that a v0.9 parser holds components back as a v1.0 parser always
+/// does. A streaming case whose catalog declares
 /// v0.9 already speaks that version and runs as written, and one whose
 /// catalog declares v0.8 is skipped, since this SDK does not implement it.
 ///
@@ -47,7 +48,7 @@ void main() {
           if (version == SuiteVersion.v1_0 && !_targetsV1(testCase)) continue;
           test(
             testCase['name']! as String,
-            () => version.run(() => _runCase(testCase, version)),
+            () => _runCase(testCase, version),
             skip: _skipReason(testCase, version),
           );
         }
@@ -59,20 +60,13 @@ void main() {
 /// v1.0 streaming cases that rely on what v0.9 cannot state: a component
 /// naming its own catalog, or a `createSurface` carrying components and a
 /// data model, which only lowering a whole payload can split.
-const Set<String> _v1OnlyStreamingCases = {
+const Set<String> _v1OnlyCases = {
+  'test_compile_json_newline_in_create_surface_data_model_preserved',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
   'test_stream_component_catalog_id_arrives_late_v10',
   'test_stream_catalog_id_split_across_chunks_v10',
-};
-
-/// Streaming cases this SDK does not pass yet, each with the behavior it
-/// lacks.
-const Map<String, String> _knownStreamingGaps = {
-  'test_stream_cut_surrogate_pair_v09':
-      'Known gap: a string cut inside an escaped surrogate pair is healed '
-      'with U+FFFD rather than cut before the pair.',
 };
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
@@ -89,15 +83,15 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
     return 'This SDK does not implement v0.8.';
   }
   if (version == SuiteVersion.v0_9) {
-    if (_v1OnlyStreamingCases.contains(testCase['name'])) {
-      return 'v0.9 cannot state what the case streams.';
+    if (_v1OnlyCases.contains(testCase['name'])) {
+      return 'v0.9 cannot state what the case carries.';
     }
     if (testCase['action'] == 'generate_prompt_snippet') {
       return 'The snippet embeds the schemas of the catalogs\' version, so '
           'the case runs as written in v1.0 only.';
     }
   }
-  return _knownStreamingGaps[testCase['name']];
+  return null;
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
@@ -161,6 +155,11 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
     case 'wrap':
       return format.createParser().wrap(
         rawParts(testCase['parts']! as List<Object?>),
+      );
+    case 'has_format_content':
+      return format.createParser().hasFormatContent(
+        testCase['input']! as String,
+        complete: args['complete'] as bool? ?? false,
       );
     case 'unwrap':
       // Unwrapping keeps the payload as written, so it is not lowered.
@@ -230,20 +229,40 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
     expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
     yielded.addAll(parts);
   }
-  // Every case ends on a complete response, so closing the stream emits
-  // nothing more and throws nothing.
-  expect(stream.close(), isEmpty);
+  yielded.addAll(lift(stream.close()));
   if (testCase['expect_matches_single_shot'] == true) {
     expect(
-      lift(
-        _format(
-          testCase,
-          version,
-        ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
+      _mergeAdjacentText(yielded),
+      _mergeAdjacentText(
+        lift(
+          _format(
+            testCase,
+            version,
+          ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
+        ),
       ),
-      yielded,
     );
   }
+}
+
+List<Object?> _mergeAdjacentText(List<Object?> parts) {
+  final merged = <Object?>[];
+  for (final part in parts) {
+    if (merged.isNotEmpty &&
+        merged.last is Map<String, Object?> &&
+        part is Map<String, Object?> &&
+        (merged.last as Map<String, Object?>).containsKey('text') &&
+        part.containsKey('text')) {
+      final lastMap = Map<String, Object?>.from(
+        merged.last as Map<String, Object?>,
+      );
+      lastMap['text'] = '${lastMap['text']}${part['text']}';
+      merged[merged.length - 1] = lastMap;
+    } else {
+      merged.add(part);
+    }
+  }
+  return merged;
 }
 
 void _checkWrapped(

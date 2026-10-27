@@ -23,7 +23,7 @@ from a2ui.core import A2uiCatalogError
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import A2uiRendererCapabilities, AgentToRendererMessage
 from a2ui.inference_format import InferenceFormatFactory
-from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.inference_formats.express import ExpressFormatFactory
 from a2ui.utils import RendererState, resolve_catalogs, validate_payload
 
 from .catalog_config import CatalogConfig
@@ -56,7 +56,7 @@ class A2uiGenerator:
         Args:
             catalogs: List of supported CatalogConfig configurations.
             examples: Optional list of prompt example turns.
-            inference_format_factory: Optional default InferenceFormatFactory (defaults to DirectJsonFormatFactory).
+            inference_format_factory: Optional default InferenceFormatFactory (defaults to ExpressFormatFactory).
             accepts_inline_catalogs: Whether inline catalogs sent in renderer capabilities become active.
         """
         self.catalogs = list(catalogs)
@@ -66,7 +66,7 @@ class A2uiGenerator:
         self.factory: InferenceFormatFactory = (
             inference_format_factory
             if inference_format_factory is not None
-            else DirectJsonFormatFactory()
+            else ExpressFormatFactory()
         )
         self.accepts_inline_catalogs = accepts_inline_catalogs
         self._processor_cache: dict[tuple[Any, ...], _ProcessorCacheEntry] = {}
@@ -160,7 +160,7 @@ class A2uiGenerator:
                     catalogs=active_catalogs,
                     examples=self.examples,
                 )
-                cache_entry = _ProcessorCacheEntry(fmt)
+                cache_entry = _ProcessorCacheEntry(fmt, factory)
                 self._processor_cache[cache_key] = cache_entry
         return A2uiRequestProcessor(
             catalogs=active_catalogs,

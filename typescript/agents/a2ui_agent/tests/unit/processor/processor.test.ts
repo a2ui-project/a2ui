@@ -14,18 +14,35 @@
  * limitations under the License.
  */
 
-import {describe, test, expect} from 'vitest';
+import {describe, expect, test} from 'vitest';
 
-import {A2uiIntegrityError, A2uiRequestProcessor, A2uiValidationError} from '../../../src/index.js';
+import {
+  A2uiIntegrityError,
+  A2uiRequestProcessor,
+  A2uiValidationError,
+  DirectJsonFormatFactory,
+} from '../../../src/index.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../helpers/conformance-catalogs.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
 
 describe('A2uiRequestProcessor', () => {
-  test('throws on invalid payload (validation error)', () => {
+  test('defaults to ExpressFormatFactory and parses Express responses', () => {
     const catalog = basicCatalogV10;
     const processor = new A2uiRequestProcessor([catalog]);
+
+    expect(processor.promptSnippet).toContain('<a2ui>');
+    expect(processor.promptSnippet).toContain('Text(');
+
+    const parts = processor.parseResponse('<a2ui>\nsurface("s1")\nroot = Text("hello")\n</a2ui>');
+    expect(parts).toHaveLength(1);
+    expect(parts[0].type).toBe('a2ui');
+  });
+
+  test('throws on invalid payload (validation error)', () => {
+    const catalog = basicCatalogV10;
+    const processor = new A2uiRequestProcessor([catalog], undefined, new DirectJsonFormatFactory());
 
     const v1Payload = `
 <a2ui-json>
@@ -52,7 +69,7 @@ describe('A2uiRequestProcessor', () => {
 
   test('keeps state across calls only in a renderer state', () => {
     const catalog = basicCatalogV10;
-    const processor = new A2uiRequestProcessor([catalog]);
+    const processor = new A2uiRequestProcessor([catalog], undefined, new DirectJsonFormatFactory());
     const state = processor.createState();
 
     const payload = `
@@ -86,9 +103,13 @@ describe('A2uiRequestProcessor', () => {
 
   test('promptSnippet includes the configured examples', () => {
     const catalog = basicCatalogV10;
-    const processor = new A2uiRequestProcessor([catalog], {
-      [catalog.id]: '---BEGIN greeting---\nexample text\n---END greeting---',
-    });
+    const processor = new A2uiRequestProcessor(
+      [catalog],
+      {
+        [catalog.id]: '---BEGIN greeting---\nexample text\n---END greeting---',
+      },
+      new DirectJsonFormatFactory(),
+    );
 
     expect(processor.promptSnippet).toContain('---BEGIN A2UI JSON SCHEMA---');
     expect(processor.promptSnippet).toContain(
@@ -123,7 +144,11 @@ describe('A2uiRequestProcessor', () => {
     }
 
     test('rejects a call to a function no catalog declares', () => {
-      const processor = new A2uiRequestProcessor([basicCatalogV10]);
+      const processor = new A2uiRequestProcessor(
+        [basicCatalogV10],
+        undefined,
+        new DirectJsonFormatFactory(),
+      );
       const response = responseWithRoot({
         component: 'Text',
         text: {'@call': 'noSuchFn', args: {}},
@@ -136,7 +161,11 @@ describe('A2uiRequestProcessor', () => {
     });
 
     test('rejects a call to an undefined @ system function', () => {
-      const processor = new A2uiRequestProcessor([basicCatalogV10]);
+      const processor = new A2uiRequestProcessor(
+        [basicCatalogV10],
+        undefined,
+        new DirectJsonFormatFactory(),
+      );
       const response = responseWithRoot({
         component: 'Text',
         text: {'@call': '@foo', args: {}},
@@ -149,7 +178,11 @@ describe('A2uiRequestProcessor', () => {
     });
 
     test('rejects a component type no catalog declares', () => {
-      const processor = new A2uiRequestProcessor([basicCatalogV10]);
+      const processor = new A2uiRequestProcessor(
+        [basicCatalogV10],
+        undefined,
+        new DirectJsonFormatFactory(),
+      );
       const response = responseWithRoot({component: 'NoSuchWidget'});
 
       expectValidationError(
@@ -160,7 +193,11 @@ describe('A2uiRequestProcessor', () => {
 
     test('accepts a valid call to a function of another active catalog', () => {
       const custom = loadConformanceCatalog('custom_catalog_v1_0.json');
-      const processor = new A2uiRequestProcessor([basicCatalogV10, custom]);
+      const processor = new A2uiRequestProcessor(
+        [basicCatalogV10, custom],
+        undefined,
+        new DirectJsonFormatFactory(),
+      );
       const response = responseWithRoot({
         component: 'Text',
         text: {'@call': 'percent', catalogId: custom.id, args: {value: 0.5}},
@@ -171,7 +208,11 @@ describe('A2uiRequestProcessor', () => {
 
     test('checks a call to another active catalog against that catalog', () => {
       const custom = loadConformanceCatalog('custom_catalog_v1_0.json');
-      const processor = new A2uiRequestProcessor([basicCatalogV10, custom]);
+      const processor = new A2uiRequestProcessor(
+        [basicCatalogV10, custom],
+        undefined,
+        new DirectJsonFormatFactory(),
+      );
       const response = responseWithRoot({
         component: 'Text',
         text: {'@call': 'percent', catalogId: custom.id, args: {value: 'half'}},
@@ -184,7 +225,11 @@ describe('A2uiRequestProcessor', () => {
     });
 
     test('accepts a response that updates part of a surface in its state', () => {
-      const processor = new A2uiRequestProcessor([basicCatalogV10]);
+      const processor = new A2uiRequestProcessor(
+        [basicCatalogV10],
+        undefined,
+        new DirectJsonFormatFactory(),
+      );
       const state = processor.createState();
       processor.parseResponse(responseWithRoot({component: 'Text', text: 'hello'}), {state});
       const update = (children: string[], ...components: Array<Record<string, unknown>>) =>

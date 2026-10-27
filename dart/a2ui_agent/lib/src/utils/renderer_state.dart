@@ -37,20 +37,8 @@ const ValidationConfig _inProgressValidation = ValidationConfig(
   allowOrphanComponents: true,
 );
 
-/// A surface as it was before a frame first changed it.
-class _SurfaceSnapshot {
-  const _SurfaceSnapshot(this.surface, this.assumed, this.changed);
-
-  /// A copy of the surface, or null if it did not exist.
-  final SurfaceModel<ComponentApi>? surface;
-  final bool assumed;
-  final Set<String>? changed;
-}
-
-/// What a failed [RendererState.apply] or transaction restores.
-class _Frame {
-  final Map<String, _SurfaceSnapshot> surfaces = {};
-}
+/// Undoes one change to the state.
+typedef _Undo = void Function();
 
 /// The agent's mirror of the surfaces a renderer holds.
 ///
@@ -73,6 +61,17 @@ class _Frame {
 /// applied all or nothing. A streamed response cannot be rolled back, since
 /// the renderer has already received what was emitted.
 ///
+/// Being atomic costs what the messages change, not the size of the surfaces
+/// they touch. While an [apply] or a transaction is open, the state keeps an
+/// undo log: each message records what it replaced, and a failure reverts
+/// those records, latest first. A deleted surface is kept aside rather than
+/// disposed of, and a rollback puts the same object back; it is disposed of
+/// once the outermost [apply] or transaction ends. A component an update
+/// recreated, by changing its type or catalog, is put back at its place, so
+/// a rollback keeps the order of the components, and a deleted data model
+/// key goes back to its place in its map. No surface is copied when a
+/// message is applied or a transaction opens.
+///
 /// The state holds the surfaces as they now stand, not the messages that
 /// built them. An update to a surface the state never saw created is
 /// rejected, as the renderer would reject it.
@@ -80,9 +79,6 @@ class _Frame {
 /// The state is authoritative for surfaces and their components. The data
 /// model values it holds can drift from the renderer's, since the user edits
 /// bound inputs there, but no check depends on them.
-///
-/// Checking messages for v1.0 catalogs is not implemented yet: [apply]
-/// throws [UnimplementedError] for them.
 class RendererState {
   /// Creates the empty state of a renderer that holds [catalogs].
   ///
@@ -125,9 +121,18 @@ class RendererState {
   /// checked.
   final Map<String, Set<String>> _changed = {};
 
-  final List<_Frame> _frames = [];
+  /// How to undo each change made since the outermost open [apply] or
+  /// transaction began.
+  final List<_Undo> _log = [];
 
-  /// The ids of the surfaces the renderer holds.
+  /// The surfaces deleted since the outermost open [apply] or transaction
+  /// began, kept to be put back if it fails.
+  final Set<SurfaceModel<ComponentApi>> _detached = Set.identity();
+
+  /// How many [apply] calls and transactions are open.
+  int _open = 0;
+
+  /// The ids of the surfaces the renderer holds, in no particular order.
   List<String> get surfaceIds => [
     for (final SurfaceModel<ComponentApi> surface
         in _processor.model.allSurfaces)
@@ -141,27 +146,26 @@ class RendererState {
   /// Checks [messages] against the state and applies them.
   ///
   /// Each message must state a `version` that the catalogs' protocol version
-  /// accepts: `v0.9` or `v0.9.1` for v0.9 and v0.9.1 catalogs. Each component
-  /// and function call is checked against the catalog it resolves to, and
-  /// component ids and cycles against the surface's components. References,
-  /// the root and reachability are left to [checkTopology], since a
-  /// component may name a child that a later message adds.
+  /// accepts: `v0.9` or `v0.9.1` for v0.9 and v0.9.1 catalogs, and `v1.0` for
+  /// v1.0 catalogs. Each component and function call is checked against the
+  /// catalog it resolves to, and component ids and cycles against the
+  /// surface's components. References, the root and reachability are left to
+  /// [checkTopology], since a component may name a child that a later message
+  /// adds.
   ///
   /// The call is atomic: if a message is rejected, none of them is applied.
+  /// Being atomic costs what the messages change, not the size of the
+  /// surfaces they touch.
   ///
   /// Returns the ids of the surfaces the messages create, update or delete,
   /// in the order the messages first name them.
   ///
   /// Throws [A2uiValidationError], or a subclass such as
   /// [A2uiIntegrityError], describing the first problem found if a renderer
-  /// in this state would reject a message. Throws [UnimplementedError] for
-  /// messages of v1.0 catalogs.
+  /// in this state would reject a message.
   List<String> apply(Iterable<AgentToRendererMessage> messages) {
     final List<AgentToRendererMessage> payload = messages.toList();
     if (payload.isEmpty) return [];
-    if (_protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0)) {
-      throw UnimplementedError('Checking payloads of protocol v1.0');
-    }
     for (final (int index, AgentToRendererMessage message) in payload.indexed) {
       _checkMessage(message, index);
     }
@@ -214,87 +218,384 @@ class RendererState {
         );
       }
     }
-    for (final surfaceId in ids) {
-      if (_changed[surfaceId]?.isNotEmpty ?? false) {
-        _save(surfaceId);
-        _changed.remove(surfaceId);
-      }
+    // An assumed surface was not checked, so what changed on it stays
+    // recorded for the check after it is created.
+    markChecked(ids.where((surfaceId) => !_assumed.contains(surfaceId)));
+  }
+
+  /// Stops holding the components each surface changed against later checks.
+  ///
+  /// [checkTopology] calls this for the surfaces it checks. A caller calls it
+  /// for the surfaces of messages the renderer received that failed a check,
+  /// such as a stream that failed after it emitted them: no message removes a
+  /// component, so a component the renderer already holds can't be made
+  /// reachable later, and the later turns are not held to it. Dangling
+  /// references and a missing root are still reported, since [checkTopology]
+  /// checks those on the whole surface. Like any other change, this is undone
+  /// when the transaction it was made in fails.
+  void markChecked(Iterable<String> surfaceIds) {
+    for (final surfaceId in LinkedHashSet<String>.of(surfaceIds)) {
+      _forgetChanged(surfaceId);
     }
   }
 
   /// Runs [body] atomically and returns what it returns.
   ///
   /// If [body] throws, the state is restored to what it was when [body]
-  /// started, and the error propagates. [body] must be synchronous: what an
+  /// started, and the error propagates. Opening a transaction copies nothing,
+  /// and undoing one costs what was applied inside it. Transactions nest: an
+  /// inner transaction that fails restores the state to where the inner one
+  /// started, and the outer one goes on. [body] must be synchronous: what an
   /// asynchronous body applies after its first `await` is outside the
   /// transaction.
   T transaction<T>(T Function() body) => _frame(body);
 
   /// Releases the surfaces the state holds. The state cannot be used
   /// afterwards.
-  void dispose() => _processor.model.dispose();
+  void dispose() {
+    _processor.model.dispose();
+    _disposeDetached();
+  }
 
+  /// Runs [body] and undoes what it changed if it throws.
+  ///
+  /// The frame is a position in the undo log. A failure reverts the log to
+  /// it, so a failed inner frame undoes only what was changed inside it. Once
+  /// the outermost frame ends, nothing can be undone any more, and the log is
+  /// cleared.
   T _frame<T>(T Function() body) {
-    final frame = _Frame();
-    _frames.add(frame);
+    final int mark = _log.length;
+    _open++;
     try {
       return body();
     } catch (_) {
-      _rollback(frame);
+      _revert(mark);
       rethrow;
     } finally {
-      _frames.removeLast();
-    }
-  }
-
-  void _rollback(_Frame frame) {
-    final SurfaceGroupModel<ComponentApi> model = _processor.model;
-    for (final MapEntry<String, _SurfaceSnapshot>(
-          key: String surfaceId,
-          value: _SurfaceSnapshot snapshot,
-        )
-        in frame.surfaces.entries) {
-      model.deleteSurface(surfaceId);
-      if (snapshot.surface case final SurfaceModel<ComponentApi> surface) {
-        // The snapshot may be shared with an outer frame, so a copy of it
-        // goes live and the snapshot itself stays as it was.
-        model.addSurface(_cloneSurface(surface));
-      }
-      if (snapshot.assumed) {
-        _assumed.add(surfaceId);
-      } else {
-        _assumed.remove(surfaceId);
-      }
-      if (snapshot.changed case final Set<String> changed) {
-        _changed[surfaceId] = {...changed};
-      } else {
-        _changed.remove(surfaceId);
+      _open--;
+      if (_open == 0) {
+        _log.clear();
+        _disposeDetached();
       }
     }
   }
 
-  /// Snapshots a surface for every open frame, before the surface changes.
-  void _save(String surfaceId) {
-    final List<_Frame> frames = [
-      for (final _Frame frame in _frames)
-        if (!frame.surfaces.containsKey(surfaceId)) frame,
+  /// Undoes the changes logged after [mark], latest first.
+  ///
+  /// An undo that throws does not stop the others, so the rest of the log
+  /// is still undone. Its error is dropped: the caller rethrows the error
+  /// that caused the rollback.
+  void _revert(int mark) {
+    while (_log.length > mark) {
+      _undoQuietly(_log.removeLast());
+    }
+  }
+
+  /// Logs how to undo a change, if an [apply] or transaction is open.
+  void _record(_Undo undo) {
+    if (_open > 0) _log.add(undo);
+  }
+
+  // The state's own bookkeeping. Each change goes through one of these, so
+  // that it is logged.
+
+  void _setAssumed(String surfaceId, bool assumed) {
+    if (_assumed.contains(surfaceId) == assumed) return;
+    if (assumed) {
+      _assumed.add(surfaceId);
+      _record(() => _assumed.remove(surfaceId));
+    } else {
+      _assumed.remove(surfaceId);
+      _record(() => _assumed.add(surfaceId));
+    }
+  }
+
+  /// Records components a surface added or replaced since its tree was last
+  /// checked.
+  void _noteChanged(String surfaceId, Iterable<String> componentIds) {
+    Set<String>? changed = _changed[surfaceId];
+    if (changed == null) {
+      changed = _changed[surfaceId] = {};
+      _record(() => _changed.remove(surfaceId));
+    }
+    final Set<String> set = changed;
+    final List<String> added = [
+      for (final String id in componentIds)
+        if (set.add(id)) id,
     ];
-    if (frames.isEmpty) return;
-    final SurfaceModel<ComponentApi>? surface = getSurface(surfaceId);
-    final Set<String>? changed = _changed[surfaceId];
-    final snapshot = _SurfaceSnapshot(
-      surface == null ? null : _cloneSurface(surface),
-      _assumed.contains(surfaceId),
-      changed == null ? null : {...changed},
-    );
-    for (final frame in frames) {
-      frame.surfaces[surfaceId] = snapshot;
+    if (added.isNotEmpty) _record(() => set.removeAll(added));
+  }
+
+  /// Stops holding what a surface changed against its next tree check.
+  void _forgetChanged(String surfaceId) {
+    final Set<String>? changed = _changed.remove(surfaceId);
+    if (changed == null) return;
+    _record(() => _changed[surfaceId] = changed);
+  }
+
+  /// Runs [message] through the processor, logging what it replaces.
+  ///
+  /// The processor checks a message whole before it changes a surface, so a
+  /// rejected message changes nothing. Should one fail part way all the same,
+  /// what it changed is undone before the error propagates.
+  void _process(AgentToRendererMessage message) {
+    final _Undo? undo = _open > 0 ? _undoFor(message) : null;
+    try {
+      _processUnlogged([message]);
+    } catch (_) {
+      if (undo != null) _undoQuietly(undo);
+      rethrow;
+    }
+    if (undo != null) _record(undo);
+  }
+
+  /// Runs [messages] through the processor, logging nothing.
+  void _processUnlogged(List<AgentToRendererMessage> messages) =>
+      _asValidationError(() => _processor.processMessages(messages));
+
+  /// How to undo [message], read before it is applied, or null when there is
+  /// nothing to undo.
+  _Undo? _undoFor(AgentToRendererMessage message) {
+    final SurfaceGroupModel<ComponentApi> model = _processor.model;
+    switch (message) {
+      case CreateSurfaceMessage(:final String surfaceId):
+        if (model.getSurface(surfaceId) != null) return null;
+        return () => model.deleteSurface(surfaceId);
+      case UpdateComponentsMessage():
+        return _componentsRestorer(message);
+      case UpdateDataModelMessage():
+        return _dataModelRestorer(message);
+      default:
+        // Function calls and responses change no surface.
+        return null;
     }
   }
 
-  /// Runs [messages] through the processor.
-  void _process(List<AgentToRendererMessage> messages) =>
-      _asValidationError(() => _processor.processMessages(messages));
+  /// Records the components an `updateComponents` adds or replaces.
+  ///
+  /// The core updates a component in place when the update keeps its type
+  /// and catalog, so the record holds a copy of the component's previous
+  /// properties and metadata, not the maps the update replaces them with.
+  /// It also holds the fields the surface reads references through, which
+  /// the processor replaces on each update.
+  ///
+  /// A component whose type or catalog changes is recreated at the end of
+  /// the surface, so for one the update may recreate, the record also holds
+  /// its position, which the undo puts it back at. The order matters: the
+  /// catalogs a surface's references are read through follow it. The
+  /// positions are found in one walk over the surface's ids that stops at
+  /// the last one needed.
+  _Undo? _componentsRestorer(UpdateComponentsMessage message) {
+    final String surfaceId = message.surfaceId;
+    final SurfaceModel<ComponentApi>? surface = getSurface(surfaceId);
+    if (surface == null) return null;
+    final SurfaceComponentsModel model = surface.componentsModel;
+    final previous = <_ComponentRecord>[];
+    // The ids of the components the update may recreate.
+    final movable = <String>{};
+    for (final Map<String, Object?> component in message.components) {
+      if (component['id'] case final String id) {
+        final ComponentModel? existing = model.get(id);
+        if (existing != null && _mayRecreate(component, existing)) {
+          movable.add(id);
+        }
+        previous.add(
+          _ComponentRecord(
+            id,
+            existing,
+            existing?.properties,
+            existing == null
+                ? const {}
+                : _deepCopy(existing.properties)! as Map<String, dynamic>,
+            _deepCopy(existing?.metadata) as Map<String, Object?>?,
+          ),
+        );
+      }
+    }
+    if (previous.isEmpty) return null;
+    // The processor replaces the fields references are read through on each
+    // update, so they are put back too.
+    final SavedReferenceFields referenceFields = model.saveReferenceFields();
+    final positions = <String, int>{};
+    if (movable.isNotEmpty) {
+      for (final (int position, String id) in model.keys.indexed) {
+        if (!movable.contains(id)) continue;
+        positions[id] = position;
+        if (positions.length == movable.length) break;
+      }
+    }
+    return () {
+      final SurfaceComponentsModel? components = getSurface(
+        surfaceId,
+      )?.componentsModel;
+      if (components == null) return;
+      final recreated = <(int?, ComponentModel)>[];
+      for (final _ComponentRecord record in previous.reversed) {
+        final ComponentModel? existing = record.existing;
+        final ComponentModel? current = components.get(record.id);
+        if (existing == null) {
+          components.removeComponent(record.id);
+        } else if (current != null &&
+            current.type == existing.type &&
+            current.catalog == existing.catalog) {
+          // Left as it was when the message failed before changing it.
+          if (identical(current, existing) &&
+              identical(current.properties, record.properties)) {
+            continue;
+          }
+          current.metadata = record.metadata;
+          current.properties = record.copy;
+        } else {
+          // The update replaced the component with one of another type or
+          // catalog, and the core disposed of the old one.
+          components.removeComponent(record.id);
+          recreated.add((
+            positions[record.id],
+            ComponentModel(
+              record.id,
+              existing.type,
+              record.copy,
+              catalog: existing.catalog,
+              metadata: record.metadata,
+            ),
+          ));
+        }
+      }
+      // Put back in the order they held, each at its position among the
+      // components already back in place, in one pass over the surface. One
+      // without a position, which only an update that recreates a component
+      // it was not expected to can leave, goes at the end.
+      final List<(int, ComponentModel)> placed = [
+        for (final (int? index, ComponentModel component) in recreated)
+          if (index != null) (index, component),
+      ]..sort((a, b) => a.$1.compareTo(b.$1));
+      components.insertComponents(placed);
+      for (final (int? index, ComponentModel component) in recreated) {
+        if (index == null) components.addComponent(component);
+      }
+      components.restoreReferenceFields(referenceFields);
+    };
+  }
+
+  /// Whether [component], an entry of an `updateComponents`, may recreate
+  /// [existing] rather than update it in place: it names another type, or
+  /// another catalog than the one [existing] names. An entry that names its
+  /// type and omits `catalogId` belongs to the surface's catalog; one that
+  /// omits both keeps the component's catalog.
+  static bool _mayRecreate(
+    Map<String, Object?> component,
+    ComponentModel existing,
+  ) {
+    final Object? type = component['component'];
+    if (type != null && type != existing.type) return true;
+    final Object? catalogId =
+        component['catalogId'] ?? (type == null ? existing.catalog : null);
+    return catalogId != existing.catalog;
+  }
+
+  /// Records the data model value an `updateDataModel` replaces.
+  ///
+  /// Setting a path creates the containers above it that are missing, and
+  /// pads a list up to the index it sets, so the record is taken at the first
+  /// segment of the path that does not hold a container yet. The value there
+  /// is replaced, not changed in place, and every later change to it has a
+  /// record of its own, so the record holds the value itself.
+  _Undo? _dataModelRestorer(UpdateDataModelMessage message) {
+    final String surfaceId = message.surfaceId;
+    final SurfaceModel<ComponentApi>? surface = getSurface(surfaceId);
+    if (surface == null) return null;
+    final List<String> tokens = _pointerTokens(message.path ?? '/');
+    final Object? root = surface.dataModel.get('/');
+    if (tokens.isEmpty) {
+      return () => getSurface(surfaceId)?.dataModel.set('/', root);
+    }
+    var parent = root;
+    for (var depth = 0; depth < tokens.length; depth++) {
+      if (parent is! Map<String, Object?> && parent is! List<Object?>) {
+        // The write fails before it changes anything.
+        return null;
+      }
+      final String token = tokens[depth];
+      final (bool exists, Object? child) = _childOf(parent!, token);
+      if (exists &&
+          depth < tokens.length - 1 &&
+          (child is Map<String, Object?> || child is List<Object?>)) {
+        parent = child;
+        continue;
+      }
+      final List<String> parentTokens = tokens.sublist(0, depth);
+      final int length = parent is List<Object?> ? parent.length : 0;
+      // A write of null deletes a key, and putting it back adds it at the end
+      // of its map, so the record holds where it was.
+      int? keyIndex;
+      if (exists && message.value == null && parent is Map<String, Object?>) {
+        for (final (int position, String key) in parent.keys.indexed) {
+          if (key == token) {
+            keyIndex = position;
+            break;
+          }
+        }
+      }
+      return () {
+        final DataModel? dataModel = getSurface(surfaceId)?.dataModel;
+        if (dataModel == null) return;
+        final String path = _toPointer([...parentTokens, token]);
+        final Object? container = dataModel.get(_toPointer(parentTokens));
+        if (container is List<Object?>) {
+          if (exists) {
+            dataModel.set(path, child);
+          } else if (container.length > length) {
+            // Notifies the slot's subscribers, then drops the padding.
+            dataModel.set(path, null);
+            container.length = length;
+          }
+        } else if (container is Map<String, Object?>) {
+          // Setting null removes the key.
+          dataModel.set(path, child);
+          if (exists && child == null) container[token] = null;
+          if (keyIndex != null) _moveKey(container, token, keyIndex);
+        }
+      };
+    }
+    return null;
+  }
+
+  /// Deletes the surface [message] names.
+  ///
+  /// While an [apply] or transaction is open, the surface is taken out of
+  /// the processor's model rather than disposed of, and the undo puts the
+  /// same object back, with its components in their order, its data model
+  /// and everything the processor set on it, so nothing is copied or checked
+  /// again. A surface still out when the outermost frame ends is disposed of
+  /// then.
+  void _deleteSurface(DeleteSurfaceMessage message) {
+    final SurfaceGroupModel<ComponentApi> model = _processor.model;
+    final SurfaceModel<ComponentApi>? surface = _open > 0
+        ? model.detachSurface(message.surfaceId)
+        : null;
+    try {
+      // With the surface out, the processor checks the message and deletes
+      // nothing, as for any unknown surface.
+      _processUnlogged([message]);
+    } catch (_) {
+      if (surface != null) model.addSurface(surface);
+      rethrow;
+    }
+    if (surface == null) return;
+    _detached.add(surface);
+    _record(() {
+      model.addSurface(surface);
+      _detached.remove(surface);
+    });
+  }
+
+  /// Disposes of the surfaces deleted while frames were open.
+  void _disposeDetached() {
+    for (final SurfaceModel<ComponentApi> surface in _detached) {
+      surface.dispose();
+    }
+    _detached.clear();
+  }
 
   /// Applies the message at [index] of [payload] and returns the surface it
   /// targets, if any.
@@ -302,27 +603,26 @@ class RendererState {
     final AgentToRendererMessage message = payload[index];
     final String? surfaceId = _target(message);
     if (surfaceId == null) {
-      _process([message]);
+      _process(message);
       return null;
     }
-    _save(surfaceId);
     switch (message) {
       case CreateSurfaceMessage():
         _checkCatalogActive(message);
-        _process([message]);
+        _process(message);
       case DeleteSurfaceMessage():
-        _process([message]);
-        _assumed.remove(surfaceId);
-        _changed.remove(surfaceId);
+        _deleteSurface(message);
+        _setAssumed(surfaceId, false);
+        _forgetChanged(surfaceId);
         return surfaceId;
       case _
           when getSurface(surfaceId) == null &&
               _assumes(surfaceId, payload, index):
         _assumeSurface(surfaceId, payload, index);
       case _:
-        _process([message]);
+        _process(message);
     }
-    _changed.putIfAbsent(surfaceId, () => {}).addAll(_componentIds(message));
+    _noteChanged(surfaceId, _componentIds(message));
     return surfaceId;
   }
 
@@ -340,15 +640,24 @@ class RendererState {
   /// Whether an update to a surface the state lacks assumes the surface.
   ///
   /// A payload state assumes a surface the payload never named before, but
-  /// not one that an earlier message of the payload deleted: a renderer
-  /// rejects updates to it.
+  /// not one that an earlier message of the payload deleted, nor one that a
+  /// later message creates before any message deletes it: a renderer rejects
+  /// updates to either, since the surface does not exist yet when they
+  /// arrive.
   bool _assumes(
     String surfaceId,
     List<AgentToRendererMessage> payload,
     int index,
-  ) =>
-      _assumesUnknownSurfaces &&
-      payload.take(index).every((m) => _target(m) != surfaceId);
+  ) {
+    if (!_assumesUnknownSurfaces) return false;
+    if (payload.take(index).any((m) => _target(m) == surfaceId)) return false;
+    for (final AgentToRendererMessage later in payload.skip(index + 1)) {
+      if (_target(later) != surfaceId) continue;
+      if (later is CreateSurfaceMessage) return false;
+      if (later is DeleteSurfaceMessage) break;
+    }
+    return true;
+  }
 
   /// Creates a placeholder for an unknown surface and applies the update.
   ///
@@ -384,15 +693,17 @@ class RendererState {
         catalogId: catalog.id,
       );
       try {
-        _process([placeholder, ...updates]);
+        // A trial on a surface deleted right after, which needs no undo.
+        _processUnlogged([placeholder, ...updates]);
       } on A2uiValidationError catch (error) {
         errors.add(error);
         continue;
       } finally {
         _processor.model.deleteSurface(surfaceId);
       }
-      _process([placeholder, message]);
-      _assumed.add(surfaceId);
+      _process(placeholder);
+      _process(message);
+      _setAssumed(surfaceId, true);
       return;
     }
     throw errors.first;
@@ -409,6 +720,13 @@ class RendererState {
         "${accepted.map((v) => "'$v'").join(' or ')}.",
       );
     }
+    if (message is CreateSurfaceMessage &&
+        message.components != null &&
+        message.components!.isEmpty) {
+      throw A2uiValidationError(
+        "Message $index (createSurface) has an empty 'components' list.",
+      );
+    }
     if (message is UpdateComponentsMessage && message.components.isEmpty) {
       throw A2uiValidationError(
         "Message $index (updateComponents) has an empty 'components' list.",
@@ -421,7 +739,8 @@ class RendererState {
 /// ones: an update to a surface it never saw created makes an empty
 /// placeholder for it, on the first catalog that defines the components of
 /// the payload's updates to it and accepts all of them. A surface that an
-/// earlier message of the payload deleted is not assumed again.
+/// earlier message of the payload deleted is not assumed again, nor is one
+/// that a later message creates before any message deletes it.
 ///
 /// For `validatePayload`; not exported.
 RendererState createPayloadState(List<CatalogApi> catalogs) =>
@@ -446,6 +765,16 @@ T _asValidationError<T>(T Function() body) {
     rethrow;
   } on A2uiError catch (error) {
     throw A2uiValidationError(error.message, cause: error);
+  }
+}
+
+/// Runs [undo] and drops what it throws, so that a failed undo neither stops
+/// a rollback nor hides the error that caused it.
+void _undoQuietly(_Undo undo) {
+  try {
+    undo();
+  } catch (_) {
+    // Dropped; the error that caused the rollback propagates.
   }
 }
 
@@ -504,41 +833,84 @@ Set<String> _componentTypes(List<AgentToRendererMessage> messages) => {
         if (component['component'] case final String type) type,
 };
 
-/// A copy of [surface]'s state in a new surface that shares its catalogs.
-SurfaceModel<ComponentApi> _cloneSurface(SurfaceModel<ComponentApi> surface) {
-  final clone = SurfaceModel<ComponentApi>(
-    surface.id,
-    defaultCatalog: surface.defaultCatalog,
-    availableCatalogs: surface.availableCatalogs.values,
-    theme: _deepCopy(surface.theme)! as Map<String, dynamic>,
-    sendDataModel: surface.sendDataModel,
-    protocolVersion: surface.protocolVersion,
-    rootId: surface.rootId,
-    metadata: _deepCopy(surface.metadata) as Map<String, dynamic>?,
-    callAgentFunction: surface.callAgentFunction,
+/// What an `updateComponents` replaced of one component.
+class _ComponentRecord {
+  const _ComponentRecord(
+    this.id,
+    this.existing,
+    this.properties,
+    this.copy,
+    this.metadata,
   );
-  clone.dataModel.set('/', _deepCopy(surface.dataModel.get('/')));
-  // A v0.9 surface draws on its default catalog alone, so the clone finds
-  // child references through that catalog, as the surface did.
-  for (final ComponentModel component in surface.componentsModel.values) {
-    clone.componentsModel.addComponent(
-      ComponentModel(
-        component.id,
-        component.type,
-        _deepCopy(component.properties)! as Map<String, dynamic>,
-        catalog: component.catalog,
-        metadata: _deepCopy(component.metadata) as Map<String, Object?>?,
-      ),
-    );
-  }
-  return clone;
+
+  final String id;
+
+  /// The component the update found, or null if it added a new one.
+  final ComponentModel? existing;
+
+  /// The properties map [existing] held, to tell whether the update replaced
+  /// it.
+  final Map<String, dynamic>? properties;
+
+  /// A copy of [properties].
+  final Map<String, dynamic> copy;
+
+  /// A copy of the metadata [existing] held.
+  final Map<String, Object?>? metadata;
 }
 
-/// A deep copy of [value], a JSON value.
+/// A non-negative list index, as a JSON Pointer segment spells it.
+final RegExp _index = RegExp(r'^(?:0|[1-9]\d*)$');
+
+/// The unescaped segments of the JSON Pointer [path], as `DataModel` splits
+/// it.
+List<String> _pointerTokens(String path) => [
+  for (final String token in path.split('/'))
+    if (token.isNotEmpty) token.replaceAll('~1', '/').replaceAll('~0', '~'),
+];
+
+/// The JSON Pointer of [tokens].
+String _toPointer(List<String> tokens) => tokens.isEmpty
+    ? '/'
+    : '/${tokens.map((t) => t.replaceAll('~', '~0').replaceAll('/', '~1')).join('/')}';
+
+/// Whether [container] holds the segment [token] of a path, and its value.
+(bool, Object?) _childOf(Object container, String token) {
+  if (container is List<Object?>) {
+    if (!_index.hasMatch(token)) return (false, null);
+    final int? index = int.tryParse(token);
+    if (index == null || index >= container.length) return (false, null);
+    return (true, container[index]);
+  }
+  if (container is Map<String, Object?> && container.containsKey(token)) {
+    return (true, container[token]);
+  }
+  return (false, null);
+}
+
+/// Moves [key], the last key of [map], to [index] in the map's order, by
+/// moving the keys from [index] on after it.
+void _moveKey(Map<String, Object?> map, String key, int index) {
+  final List<String> later = [
+    for (final String other in map.keys.skip(index))
+      if (other != key) other,
+  ];
+  for (final other in later) {
+    map[other] = map.remove(other);
+  }
+}
+
+/// A deep copy of [value], a JSON value. A map whose keys are all strings is
+/// copied as a `Map<String, dynamic>`, and any other keeps its keys.
 Object? _deepCopy(Object? value) => switch (value) {
-  final Map<Object?, Object?> map => <String, dynamic>{
+  final Map<Object?, Object?> map when map.keys.every((k) => k is String) =>
+    <String, dynamic>{
+      for (final MapEntry<Object?, Object?> entry in map.entries)
+        entry.key! as String: _deepCopy(entry.value),
+    },
+  final Map<Object?, Object?> map => <Object?, Object?>{
     for (final MapEntry<Object?, Object?> entry in map.entries)
-      entry.key! as String: _deepCopy(entry.value),
+      entry.key: _deepCopy(entry.value),
   },
   final List<Object?> list => [
     for (final Object? item in list) _deepCopy(item),

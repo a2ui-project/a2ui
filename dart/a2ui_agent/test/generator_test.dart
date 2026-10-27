@@ -211,10 +211,14 @@ void main() {
       );
     });
 
-    test('defaults to the direct JSON format', () {
+    test('defaults to the Express format', () {
       expect(
         A2uiGenerator(catalogs: [CatalogConfig(a)]).inferenceFormatFactory,
-        isA<DirectJsonFormatFactory>(),
+        isA<ExpressFormatFactory>(),
+      );
+      expect(
+        A2uiRequestProcessor(activeCatalogs: [a]).formatFactory,
+        isA<ExpressFormatFactory>(),
       );
     });
   });

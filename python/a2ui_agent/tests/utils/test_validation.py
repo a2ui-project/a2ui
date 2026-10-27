@@ -365,6 +365,17 @@ def test_surface_deleted_earlier_in_the_payload_is_not_assumed_again():
         )
 
 
+def test_update_before_the_payload_creates_its_surface_is_not_found():
+    with pytest.raises(A2uiValidationError, match="Surface not found"):
+        validate_payload(
+            [_BASIC],
+            [
+                _update(_COLUMN, _TEXT),
+                _create(_BASIC.catalog_id),
+            ],
+        )
+
+
 def test_surface_recreated_after_a_delete_in_the_payload_is_accepted():
     validate_payload(
         [_BASIC],
@@ -540,6 +551,36 @@ def test_updated_surface_is_checked_against_the_catalog_it_was_created_with():
     state.apply(_create("a"))
     with pytest.raises(A2uiValidationError, match="Unrecognized component type 'Card'"):
         state.apply(update)
+
+
+def test_updated_surface_with_a_known_catalog_is_checked_against_it_only():
+    catalogs = [_catalog("a", "Text"), _catalog("b", "Text", "Card")]
+    components = [{"id": "c", "component": "Card", "text": "Hi"}]
+
+    validate_payload(catalogs, [_update(*components)])
+    with pytest.raises(A2uiValidationError, match="Unrecognized component type 'Card'"):
+        validate_payload(
+            catalogs, [_update(*components)], surface_catalog_ids={"s": "a"}
+        )
+
+
+def test_updated_surface_on_a_known_catalog_that_is_not_held_is_rejected():
+    with pytest.raises(A2uiValidationError, match="isn't one of the active catalogs"):
+        validate_payload(
+            [_catalog("a", "Text")],
+            [_update({"id": "t", "component": "Text", "text": "Hi"})],
+            surface_catalog_ids={"s": "missing"},
+        )
+
+
+def test_created_surface_ignores_its_known_catalog():
+    catalogs = [_catalog("a", "Text"), _catalog("b", "Card")]
+
+    validate_payload(
+        catalogs,
+        [_create("b"), _update({"id": "root", "component": "Card", "text": "Hi"})],
+        surface_catalog_ids={"s": "a"},
+    )
 
 
 def test_a_payload_may_be_any_iterable_of_messages():

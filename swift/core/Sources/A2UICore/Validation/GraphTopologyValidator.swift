@@ -348,9 +348,9 @@ public enum GraphTopologyValidator {
     if isChildListSchema(schema) {
       switch value {
       case .array(let array):
-        for item in array {
+        for (index, item) in array.enumerated() {
           if let childID = item.stringValue {
-            result.append((childID, path))
+            result.append((childID, "\(path)[\(index)]"))
           }
         }
       case .object(let dict):

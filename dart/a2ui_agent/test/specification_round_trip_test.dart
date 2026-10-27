@@ -37,17 +37,20 @@ void main() {
       ).load(),
       examples: '../../specification/v0_9/catalogs/basic/examples',
       expressCannotWrite: const {
-        '00_incremental.json': 'updates the data model below its root',
+        '00_incremental.json': 'updates an item of a list in the data model',
       },
     );
   });
 
-  group('v1.0 basic catalog', skip: 'Not implemented yet for v1.0.', () {
+  group('v1.0 basic catalog', () {
     _roundTrips(
       basic: const FileSystemCatalogProvider(
         '../../catalogs/basic/v1/catalog.json',
       ).load(),
       examples: '../../catalogs/basic/v1/examples',
+      expressCannotWrite: const {
+        '00_incremental.json': 'updates an item of a list in the data model',
+      },
     );
   });
 }
@@ -90,9 +93,13 @@ void _roundTrips({
         final Parser parser = const DirectJsonFormatFactory().createFormat([
           basic,
         ]).createParser();
-        final List<AgentToRendererMessage> recompiled = parser.compile(
-          parser.decompile(messages),
-        );
+        final List<AgentToRendererMessage> recompiled = [
+          for (final List<AgentToRendererMessage> payload in _payloads(
+            name,
+            messages,
+          ))
+            ...parser.compile(parser.decompile(payload)),
+        ];
         expect(_json(recompiled), _json(messages));
       });
 
@@ -122,6 +129,25 @@ void _roundTrips({
     });
   }
 }
+
+/// Examples whose later updates replace a placeholder and leave it
+/// unreachable, which one payload may not do, since every surface it creates
+/// must be whole once it is applied.
+const Set<String> _incremental = {'31_incremental-dashboard.json'};
+
+/// The payloads the example [name] arrives in: its [messages] as one, or for
+/// an [_incremental] example, the surface and its first components, then
+/// each later update in a payload of its own, as later responses send them.
+List<List<AgentToRendererMessage>> _payloads(
+  String name,
+  List<AgentToRendererMessage> messages,
+) => _incremental.contains(name)
+    ? [
+        messages.take(2).toList(),
+        for (final AgentToRendererMessage message in messages.skip(2))
+          [message],
+      ]
+    : [messages];
 
 List<AgentToRendererMessage> _parse(
   List<Object?> json,

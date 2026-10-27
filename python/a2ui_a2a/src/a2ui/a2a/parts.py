@@ -29,6 +29,7 @@ from a2ui.parser import Parser
 from a2ui.parser import ResponsePart
 from a2ui.parser import ResponseStream
 from a2ui.parser import TextPart
+from a2ui.utils import RendererState
 from a2ui.utils import to_version_number
 
 logger = logging.getLogger(__name__)
@@ -46,12 +47,15 @@ def create_a2ui_part(
     Args:
         a2ui_data: The A2UI data dictionary.
         version: The A2UI version: a `ProtocolVersion`, or a version string with
-            or without a leading "v". Without one, or for v0.8 and v0.9, the
-            part uses the deprecated MIME type.
+            or without a leading "v". Defaults to the message's own `version`
+            field. Without either, or for v0.8 and v0.9, the part uses the
+            deprecated MIME type.
 
     Returns:
         An A2A Part with a DataPart containing the A2UI data.
     """
+    if version is None and isinstance(a2ui_data.get("version"), str):
+        version = a2ui_data["version"]
     mime_type = A2UI_MIME_TYPE
     if version is None or to_version_number(version) in ("0.8", "0.9"):
         mime_type = DEPRECATED_A2UI_MIME_TYPE
@@ -128,13 +132,15 @@ def parse_content_to_parts(
     parser: Parser,
     fallback_text: str | None = None,
     version: ProtocolVersion | str | None = None,
+    *,
+    state: RendererState | None = None,
 ) -> list[Part]:
     """Parses a whole LLM response into A2A Parts, dropping invalid A2UI.
 
-    The response is checked against a new renderer state. If it fails to
-    parse or validate, the error is logged and no parts are returned, so use
-    `to_a2a_parts` with `A2uiRequestProcessor.parse_response` to handle the
-    error instead.
+    The response is checked against `state`, or against a new renderer state
+    when there is none. If it fails to parse or validate, the error is logged
+    and no parts are returned, so use `to_a2a_parts` with
+    `A2uiRequestProcessor.parse_response` to handle the error instead.
 
     Args:
         content: The LLM response content, potentially containing A2UI delimiters.
@@ -142,15 +148,21 @@ def parse_content_to_parts(
         fallback_text: Optional text to return if no parts are successfully
           created.
         version: The A2UI version, as for `create_a2ui_part`.
+        state: The renderer state a canvas agent keeps for the conversation.
+          The response is checked against it and, if it passes, applied to it,
+          so a response may update a surface from an earlier turn.
 
     Returns:
         A list of A2A Part objects (TextPart and/or DataPart).
     """
     parts: list[Part] = []
     try:
-        parts = to_a2a_parts(parser.parse_response(content), version)
+        parts = to_a2a_parts(parser.parse_response(content, state=state), version)
     except Exception as e:
-        logger.warning("Failed to parse A2UI response: %s", e)
+        # The error may quote the response, so its text is only logged at
+        # debug level.
+        logger.warning("Failed to parse A2UI response: %s", type(e).__name__)
+        logger.debug("A2UI response parse error: %s", e)
 
     if not parts and fallback_text:
         parts.append(Part(root=A2aTextPart(text=fallback_text)))

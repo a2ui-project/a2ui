@@ -23,7 +23,10 @@ from typing import Any, Final
 from jsonschema import Draft202012Validator
 import jsonschema.exceptions
 from jsonschema.validators import extend
+import referencing
 import regex
+
+from ..exceptions import A2uiCatalogError
 
 
 # JSON Schema patterns are ECMA-262 regular expressions. `regex` natively
@@ -119,6 +122,32 @@ SchemaValidator: Any = extend(  # type: ignore[no-untyped-call]
     },
 )
 
+
+def _refuse_retrieval(uri: str) -> referencing.Resource[Any]:
+    # A2UI v1.0 "Cross-Catalog References": peers must already be held locally.
+    raise A2uiCatalogError(
+        f"Cannot resolve '{uri}': it names no catalog held locally, and"
+        " catalogs are never fetched over the network."
+    )
+
+
+# jsonschema combines any non-default registry with its bundled meta-schemas,
+# so those still resolve; any other unknown URI raises instead of being fetched.
+_NO_RETRIEVAL_REGISTRY: Final[referencing.Registry[Any]] = referencing.Registry(
+    retrieve=_refuse_retrieval  # type: ignore[call-arg]
+)
+
+_orig_init = SchemaValidator.__init__
+
+
+def _init_schema_validator(
+    self: Any, *args: Any, registry: Any = _NO_RETRIEVAL_REGISTRY, **kwargs: Any
+) -> None:
+    _orig_init(self, *args, registry=registry, **kwargs)
+
+
+SchemaValidator.__init__ = _init_schema_validator
+
 _orig_evolve = SchemaValidator.evolve
 
 
@@ -129,7 +158,7 @@ def _evolve_schema_validator(self: Any, **changes: Any) -> Any:
             schema=getattr(evolved, "schema"),
             resolver=getattr(evolved, "_ref_resolver"),
             format_checker=getattr(evolved, "format_checker"),
-            _registry=getattr(evolved, "_registry"),
+            registry=getattr(evolved, "_registry"),
             _resolver=getattr(evolved, "_resolver"),
         )
     return evolved

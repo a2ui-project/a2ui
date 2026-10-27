@@ -38,6 +38,9 @@ DEFAULT_PROGRESSIVE_KEYS = frozenset({
 
 # A2UI Metadata
 A2UI_CLIENT_CAPABILITIES_KEY = "a2uiClientCapabilities"
+# The message metadata key of the renderer capabilities in the v1.0 A2A
+# extension. v0.8 and v0.9 use `A2UI_CLIENT_CAPABILITIES_KEY`.
+A2UI_RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
 A2UI_CLIENT_DATA_MODEL_KEY = "a2uiClientDataModel"
 A2UI_CLIENT_DATA_MODEL_SURFACES_KEY = "surfaces"
 
@@ -70,7 +73,7 @@ A2UI_SCHEMA_BLOCK_END = "---END A2UI JSON SCHEMA---"
 DEFAULT_WORKFLOW_RULES = f"""
 The generated response MUST follow these rules:
 - The response can contain one or more A2UI JSON blocks.
-- Each A2UI JSON block MUST be wrapped in `{A2UI_OPEN_TAG}` and `{A2UI_CLOSE_TAG}` tags.
+- Each A2UI JSON block MUST be wrapped in literal `{A2UI_OPEN_TAG}` and `{A2UI_CLOSE_TAG}` tags (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as ```json).
 - Between or around these blocks, you can provide conversational text.
 - The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
 - Top-Down Component Ordering: Within the `components` list of a message:
