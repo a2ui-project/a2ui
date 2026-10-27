@@ -160,7 +160,7 @@ class A2uiSurface extends StatefulWidget {
 #### Responsibilities & Behavior:
 
 1. **Resolver Lifecycle**: Instantiates and retains a `NodeResolver` for the surface for the lifetime of the view. If the `surface` prop changes identity, disposes the old resolver and creates a new one. Disposes the resolver when the view unmounts.
-2. **Root Observation**: Observes `nodeResolver.rootNode`. While `rootNode` is empty, renders a framework-appropriate loading placeholder. Once `rootNode` resolves, renders the root `NodeView`.
+2. **Root Observation**: Observes `nodeResolver.rootNode`. While `rootNode` is empty, renders nothing. Once `rootNode` resolves, renders the root `NodeView`.
 3. **Ambient Context Injection**: Publishes the surface instance (which exposes the surface's catalogs and event dispatchers) and any host services implementations need, such as a markdown renderer, into the framework's ambient DI/context mechanism (React Context, Flutter `InheritedWidget`, SwiftUI `Environment`, Angular DI). A host app renders Markdown in the rest of its UI with its own framework-native view, so the adapter accepts that view for `Text` as well as a renderer that returns markup, and renders it inside the app's view tree, where it reads the app's context. An adapter that needs the markup renderer to reach a component written outside its framework, such as a web component, renders a placeholder there and fills it with the native view.
 4. **Rendering only**: `Surface` does not process messages, negotiate capabilities, or execute RPC. Those belong to the Core SDK's `MessageProcessor`.
 
@@ -351,8 +351,7 @@ function NodeView(node: ComponentNode): NativeView;
 
 1. **Check `node.state`**:
    - `resolved`: Render `node.impl`, the implementation the resolver already chose.
-   - `pending`: Render a non-blocking loading placeholder.
-   - `unknown-type` and `cyclic`: Render a visible diagnostic. The resolver has already reported `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE` to the surface, so the adapter does not report it again.
+   - `pending`, `unknown-type` and `cyclic`: Render nothing. These states are not meant for end users: a `pending` node is replaced in place when its component arrives, and the resolver has already reported `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE` to the surface, so the adapter does not report it again. Applications that want visible UI for these states will configure it through fallbacks (see [#2013](https://github.com/a2ui-project/a2ui/issues/2013)).
 2. **Subscribe to `node.props`**: Rebuild the view when the node's props emit, and pass the current props to the implementation. Unsubscribe when the view unmounts.
 3. **Invoke Builder**: Pass `node`, its current props and a `buildChild` callback to the implementation.
 4. **Provide `buildChild`**: Construct a closure `(child: ComponentNode) => NativeView` that recursively invokes `NodeView(child)`.
@@ -407,7 +406,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Tree Hierarchy**             | Loading a surface payload builds a native view tree exactly matching the `ComponentNode` graph, with children in declared order.                                                                                            |
 | **Single-message surface**     | A `createSurface` at v1.0 or later carrying `components` and `dataModel` renders without a following `updateComponents`.                                                                                                    |
-| **Progressive Arrival**        | When a component is referenced before its definition arrives, the adapter renders a placeholder, then upgrades to the real component in place without remounting the parent.                                                |
+| **Progressive Arrival**        | When a component is referenced before its definition arrives, the adapter renders nothing in its place, then upgrades to the real component in place without remounting the parent.                                         |
 | **Dynamic Repeaters (`List`)** | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings. A template item that reads `@index` shows its position.                                       |
 | **Two-Way Binding**            | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                                                                            |
 | **Action Execution**           | Triggering native events (clicks, taps) executes the action closure. An `event` action dispatches the client event with correctly scoped context; a `functionCall` action runs the function locally and dispatches nothing. |
@@ -416,7 +415,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 | **Validation results**         | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.        |
 | **Accessibility**              | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                               |
 | **Theme ignored**              | A `createSurface` at v1.0 or later that carries a `theme` object renders exactly as one without it.                                                                                                                         |
-| **Fallback States**            | Unknown component types and cyclic references render visual diagnostics without crashing, and the adapter reports nothing itself.                                                                                           |
+| **Fallback States**            | Pending components, unknown component types and cyclic references render nothing without crashing, and the adapter reports nothing itself.                                                                                  |
 | **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                           |
 
 ---

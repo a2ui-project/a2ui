@@ -18,6 +18,12 @@
 
 ## 0.0.1-wip003
 
+- **Breaking (rendering default):** a component that has not arrived, has an
+  unknown type, or repeats one of its ancestors now renders nothing, as does
+  the surface until its root arrives. Previously these showed a progress
+  indicator or a red diagnostic. Unknown types and cycles are still reported
+  to the surface's error listeners
+  ([#2013](https://github.com/a2ui-project/a2ui/issues/2013)).
 - An `accessibility.live` of `polite` or `assertive` makes a component a live
   region, and an `accessibility.hidden` that is true excludes it and its
   subtree from semantics.
