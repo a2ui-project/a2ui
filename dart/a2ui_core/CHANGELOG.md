@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Breaking:** Error and warning listeners run after the call that found
+  the problem returns, never during it, so a listener may update UI state
+  directly. Delivery is a microtask later. A test that checks what a
+  listener collected right after `processMessages`, `NodeResolver()`, a
+  data model write or `dispatchError` must first
+  `await Future<void>.delayed(Duration.zero)`, or `await tester.pump()` in a
+  widget test.
 - From v1.0, `Catalog.invoke` reads a `ValidationResult` (or a map carrying a
   `valid` key) that a function argument resolves to by its validity wherever
   the function's argument schema types that argument as `DynamicBoolean`, as
@@ -11,7 +18,6 @@
   validation as `false`, and such an argument no longer fails the argument
   schema check. Catalogs below v1.0, whose validation functions return
   booleans, are unchanged.
-
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several

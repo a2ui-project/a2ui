@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import Foundation
 
 /// Provides pre-configured Basic Catalog instances containing all 18 standard components
 /// and basic client-side functions across supported A2UI specification versions.
@@ -38,6 +39,31 @@ public enum BasicCatalog: Sendable {
       return V09BasicCatalog.v091Catalog
     case .v10:
       return V10BasicCatalog.catalog
+    }
+  }
+
+  /// Returns a new Basic Catalog instance for the specified A2UI protocol version whose
+  /// `formatNumber`, `formatCurrency` and `pluralize` functions use `locale`.
+  ///
+  /// `makeCatalog(version:)` returns shared instances that use `BasicFunctions.defaultLocale`.
+  public static func makeCatalog(version: A2UIProtocolVersion, locale: Locale) -> AnyCatalog {
+    switch version {
+    case .v09, .v091:
+      return Catalog(
+        id: catalogURI(version: version),
+        protocolVersion: version,
+        components: V09BasicCatalog.components,
+        functions: V09BasicFunctions.makeFunctions(locale: locale),
+        themeSchema: V09BasicCatalog.themeSchema
+      )
+    case .v10:
+      return Catalog(
+        id: catalogURI(version: version),
+        protocolVersion: version,
+        components: V10BasicCatalog.components,
+        functions: V10BasicFunctions.makeFunctions(locale: locale),
+        themeSchema: nil
+      )
     }
   }
 

@@ -13,24 +13,32 @@
 // limitations under the License.
 
 import A2UICore
+import Foundation
 
 /// Standard function implementations for the A2UI v0.9 and v0.9.1 Basic Catalog.
 public enum V09BasicFunctions: Sendable {
   /// Standard function implementations for A2UI Protocol v0.9 and v0.9.1.
-  public static let allFunctions: [any FunctionImplementation] = [
-    AndFunction(),
-    EmailFunction(returnValidationResult: false),
-    FormatCurrencyFunction(),
-    FormatDateFunction(),
-    FormatNumberFunction(),
-    FormatStringFunction(),
-    LengthFunction(returnValidationResult: false),
-    NotFunction(),
-    NumericFunction(returnValidationResult: false),
-    OpenURLFunction(),
-    OrFunction(),
-    PluralizeFunction(),
-    RegexFunction(returnValidationResult: false),
-    RequiredFunction(returnValidationResult: false),
-  ]
+  public static let allFunctions: [any FunctionImplementation] =
+    makeFunctions(locale: BasicFunctions.defaultLocale)
+
+  /// Returns new standard function implementations for A2UI Protocol v0.9 and v0.9.1 whose
+  /// `formatNumber`, `formatCurrency` and `pluralize` use `locale`.
+  public static func makeFunctions(locale: Locale) -> [any FunctionImplementation] {
+    [
+      AndFunction(),
+      EmailFunction(returnValidationResult: false),
+      FormatCurrencyFunction(locale: locale),
+      FormatDateFunction(),
+      FormatNumberFunction(locale: locale),
+      FormatStringFunction(),
+      LengthFunction(returnValidationResult: false),
+      NotFunction(),
+      NumericFunction(returnValidationResult: false),
+      OpenURLFunction(),
+      OrFunction(),
+      PluralizeFunction(locale: locale),
+      RegexFunction(returnValidationResult: false),
+      RequiredFunction(returnValidationResult: false),
+    ]
+  }
 }
