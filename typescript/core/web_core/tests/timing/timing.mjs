@@ -106,16 +106,31 @@ export function writePayload(template, size) {
 }
 
 /**
+ * Runs garbage collection when Node starts with `--expose-gc`.
+ *
+ * @param {{type?: 'major' | 'minor'}} [options] V8 garbage collection options.
+ */
+function collectGarbage(options) {
+  if (typeof globalThis.gc !== 'function') return;
+  try {
+    globalThis.gc(options);
+  } catch {
+    globalThis.gc();
+  }
+}
+
+/**
  * The time `body` takes, in milliseconds. When Node runs with `--expose-gc`,
- * garbage from earlier runs is collected first, so that it is not charged
- * to this one.
+ * the young generation is collected first so that nursery allocations from
+ * earlier runs are not charged to this one and old-space `Mark-Compact`
+ * does not deoptimize JIT-compiled code between timed runs.
  *
  * @param {() => void} body The code to time.
  * @param {() => number} now The clock, in milliseconds.
  * @returns {number} The elapsed time.
  */
 function time(body, now) {
-  if (typeof globalThis.gc === 'function') globalThis.gc();
+  collectGarbage({type: 'minor'});
   const start = now();
   body();
   return now() - start;
@@ -151,6 +166,7 @@ export function compareMedianTimes(
   baseline,
   {runs = DEFAULT_RUNS, now = () => performance.now()} = {},
 ) {
+  collectGarbage();
   baseline();
   measured();
   const baselineTimes = [];
