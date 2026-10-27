@@ -46,6 +46,8 @@ class A2uiGenerator {
   /// another.
   final InferenceFormatFactory inferenceFormatFactory;
 
+  final Map<_CacheKey, ProcessorCacheEntry> _processorCache = {};
+
   A2uiGenerator({
     required this.catalogs,
     this.examples = const [],
@@ -76,12 +78,16 @@ class A2uiGenerator {
       catalogs,
       rendererCapabilities,
     );
-    return A2uiRequestProcessor(
-      activeCatalogs: active,
-      examples: _examplesIn(catalogsProtocolVersion(active)),
-      formatFactory: inferenceFormatFactory ?? this.inferenceFormatFactory,
-      state: state,
-    );
+    final InferenceFormatFactory factory =
+        inferenceFormatFactory ?? this.inferenceFormatFactory;
+    final key = _CacheKey(active, factory);
+    final ProcessorCacheEntry entry = _processorCache[key] ??=
+        ProcessorCacheEntry(
+          activeCatalogs: active,
+          examples: _examplesIn(catalogsProtocolVersion(active)),
+          formatFactory: factory,
+        );
+    return A2uiRequestProcessor.fromCache(entry, state: state);
   }
 
   /// The turns of [examples] written in [version]: those whose every message
@@ -115,4 +121,35 @@ class A2uiGenerator {
     }
     return kept;
   }
+}
+
+class _CacheKey {
+  final List<CatalogApi> catalogs;
+  final InferenceFormatFactory formatFactory;
+
+  const _CacheKey(this.catalogs, this.formatFactory);
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! _CacheKey ||
+        other.formatFactory != formatFactory ||
+        other.catalogs.length != catalogs.length) {
+      return false;
+    }
+    for (var i = 0; i < catalogs.length; i++) {
+      if (catalogs[i].id != other.catalogs[i].id ||
+          catalogs[i].protocolVersion != other.catalogs[i].protocolVersion) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    formatFactory,
+    Object.hashAll([
+      for (final c in catalogs) Object.hash(c.id, c.protocolVersion),
+    ]),
+  );
 }

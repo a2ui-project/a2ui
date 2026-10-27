@@ -34,17 +34,27 @@ export interface A2uiRequestProcessorOptions {
   state?: RendererState;
 }
 
+/** Shared per-(catalogs, format) resources cached by `A2uiGenerator`. */
+export interface ProcessorCacheEntry {
+  readonly format: InferenceFormat;
+  parser?: Parser;
+  promptSnippet?: string;
+}
+
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
   private readonly _format: InferenceFormat;
   private _parser?: Parser;
+  private _promptSnippet?: string;
   private readonly _state?: RendererState;
+  private readonly _cacheEntry?: ProcessorCacheEntry;
 
   /**
    * @param catalogs The negotiated catalogs active for this request.
    * @param _examples Prompt examples, keyed by name.
    * @param formatFactory The inference format. Express by default.
    * @param options The renderer state to bind, if any.
+   * @param cacheEntry Internal shared cache entry from `A2uiGenerator`.
    * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
    */
   constructor(
@@ -52,9 +62,17 @@ export class A2uiRequestProcessor {
     private readonly _examples?: Record<string, AgentToRendererMessage[] | string>,
     formatFactory?: InferenceFormatFactory,
     options: A2uiRequestProcessorOptions = {},
+    cacheEntry?: ProcessorCacheEntry,
   ) {
-    const factory = formatFactory || new ExpressFormatFactory();
-    this._format = factory.createFormat(catalogs, _examples);
+    this._cacheEntry = cacheEntry;
+    if (cacheEntry) {
+      this._format = cacheEntry.format;
+      this._parser = cacheEntry.parser;
+      this._promptSnippet = cacheEntry.promptSnippet;
+    } else {
+      const factory = formatFactory || new ExpressFormatFactory();
+      this._format = factory.createFormat(catalogs, _examples);
+    }
     this.checkState(options.state);
     this._state = options.state;
   }
@@ -80,7 +98,17 @@ export class A2uiRequestProcessor {
    * developer writes the rest of the system prompt and places the snippet within it.
    */
   get promptSnippet(): string {
-    return this._format.promptGenerator.generate();
+    if (this._promptSnippet === undefined) {
+      if (this._cacheEntry?.promptSnippet !== undefined) {
+        this._promptSnippet = this._cacheEntry.promptSnippet;
+      } else {
+        this._promptSnippet = this._format.promptGenerator.generate();
+        if (this._cacheEntry) {
+          this._cacheEntry.promptSnippet = this._promptSnippet;
+        }
+      }
+    }
+    return this._promptSnippet;
   }
 
   /**
@@ -89,7 +117,16 @@ export class A2uiRequestProcessor {
    * A parser holds no state, so the processor creates one and reuses it.
    */
   get parser(): Parser {
-    this._parser ??= this._format.createParser();
+    if (this._parser === undefined) {
+      if (this._cacheEntry?.parser !== undefined) {
+        this._parser = this._cacheEntry.parser;
+      } else {
+        this._parser = this._format.createParser();
+        if (this._cacheEntry) {
+          this._cacheEntry.parser = this._parser;
+        }
+      }
+    }
     return this._parser;
   }
 

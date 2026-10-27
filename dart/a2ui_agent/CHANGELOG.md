@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `A2uiGenerator.createProcessor` caches example validation, `promptSnippet`,
+  and the stateless `Parser` per negotiated catalog list and format factory so
+  repeated requests do not re-validate static examples or rebuild the prompt
+  snippet from scratch.
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or

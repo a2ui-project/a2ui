@@ -486,5 +486,18 @@ void main() {
         isA<TextPart>().having((p) => p.text, 'text', response),
       ]);
     });
+
+    test('reuses promptSnippet and parser across createProcessor calls', () {
+      final A2uiGenerator gen = generator(
+        format: const DirectJsonFormatFactory(),
+        examples: [_example(a.id, 'Text')],
+      );
+      final caps = A2uiRendererCapabilities.forCatalogIds([a.id]);
+      final A2uiRequestProcessor p1 = gen.createProcessor(caps);
+      final A2uiRequestProcessor p2 = gen.createProcessor(caps);
+
+      expect(identical(p1.promptSnippet, p2.promptSnippet), isTrue);
+      expect(identical(p1.parser, p2.parser), isTrue);
+    });
   });
 }

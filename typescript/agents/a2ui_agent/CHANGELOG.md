@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `A2uiRequestProcessor.promptSnippet` is cached on the processor instance, and `A2uiGenerator.createProcessor` caches example validation, format creation, `promptSnippet`, and the stateless `Parser` per negotiated catalog list and format factory so repeated requests do not re-validate static examples or rebuild the prompt snippet from scratch.
+
 ## 0.0.2
 
 - Added `Skill`, `SkillSet`, and `SkillGenerator` to generate `SKILL.md` packages from inference formats and component catalogs.

@@ -351,7 +351,7 @@ export class DirectJsonResponseStream implements ResponseStream {
       try {
         ready.push(...this.applyMessage(this.committed, envelope, true));
       } catch (e) {
-        if (e instanceof A2uiError && this.raisesWhileArriving(envelope)) throw e;
+        if (!(e instanceof A2uiError) || this.raisesWhileArriving(envelope)) throw e;
         this.stalled = true;
         break;
       }
@@ -362,7 +362,7 @@ export class DirectJsonResponseStream implements ResponseStream {
         ready.push(...this.applyMessage(this.committed, open, false));
       } catch (e) {
         // Held back, and checked again as it grows.
-        if (e instanceof A2uiError && this.raisesWhileArriving(open)) throw e;
+        if (!(e instanceof A2uiError) || this.raisesWhileArriving(open)) throw e;
       }
     }
     if (ready.length > 0) parts.push({type: 'a2ui', a2ui: ready});

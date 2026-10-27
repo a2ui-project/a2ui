@@ -22,6 +22,31 @@ import '../parser/response_stream.dart';
 import '../utils/renderer_state.dart';
 import '../utils/validation.dart';
 
+/// Shared resources cached by `A2uiGenerator` for a negotiated catalog list
+/// and format factory.
+class ProcessorCacheEntry {
+  final List<CatalogApi> activeCatalogs;
+  final List<List<AgentToRendererMessage>> examples;
+  final InferenceFormatFactory formatFactory;
+  final InferenceFormat format;
+  String? promptSnippet;
+  Parser? parser;
+
+  ProcessorCacheEntry({
+    required this.activeCatalogs,
+    required this.examples,
+    required this.formatFactory,
+  }) : format = formatFactory.createFormat(activeCatalogs, examples: examples) {
+    for (final List<AgentToRendererMessage> example in examples) {
+      validatePayload(activeCatalogs, example);
+    }
+    // Writing the examples in the format can fail too, so it happens here.
+    if (examples.isNotEmpty) {
+      promptSnippet = format.promptGenerator.generate();
+    }
+  }
+}
+
 /// The per-request facade: the catalogs negotiated with one renderer, the
 /// prompt snippet describing them, and parsing of the LLM's response.
 ///
@@ -52,6 +77,7 @@ class A2uiRequestProcessor {
   final RendererState? state;
 
   final InferenceFormat _format;
+  final ProcessorCacheEntry? _cacheEntry;
 
   /// Checks each of [examples] on its own with [validatePayload], and then
   /// renders [promptSnippet], which writes each example in the format.
@@ -74,10 +100,8 @@ class A2uiRequestProcessor {
     this.examples = const [],
     this.formatFactory = const ExpressFormatFactory(),
     this.state,
-  }) : _format = formatFactory.createFormat(
-         activeCatalogs,
-         examples: examples,
-       ) {
+  }) : _format = formatFactory.createFormat(activeCatalogs, examples: examples),
+       _cacheEntry = null {
     _checkState(state);
     for (final List<AgentToRendererMessage> example in examples) {
       validatePayload(activeCatalogs, example);
@@ -88,19 +112,49 @@ class A2uiRequestProcessor {
     }
   }
 
+  /// Creates a processor backed by a pre-validated [ProcessorCacheEntry].
+  A2uiRequestProcessor.fromCache(ProcessorCacheEntry entry, {this.state})
+    : activeCatalogs = entry.activeCatalogs,
+      examples = entry.examples,
+      formatFactory = entry.formatFactory,
+      _format = entry.format,
+      _cacheEntry = entry,
+      _promptSnippet = entry.promptSnippet,
+      _parser = entry.parser {
+    _checkState(state);
+  }
+
   String? _promptSnippet;
+  Parser? _parser;
 
   /// The system prompt snippet teaching the LLM the format, the components
   /// and functions of [activeCatalogs], and [examples].
   ///
   /// The agent adds its own role and workflow instructions around it.
-  String get promptSnippet =>
-      _promptSnippet ??= _format.promptGenerator.generate();
+  String get promptSnippet {
+    if (_promptSnippet case final String cached) return cached;
+    if (_cacheEntry?.promptSnippet case final String shared) {
+      return _promptSnippet = shared;
+    }
+    final String generated = _format.promptGenerator.generate();
+    _promptSnippet = generated;
+    _cacheEntry?.promptSnippet = generated;
+    return generated;
+  }
 
   /// The parser for the format, bound to [activeCatalogs].
   ///
   /// A parser holds no state, so the processor creates one and reuses it.
-  late final Parser parser = _format.createParser();
+  Parser get parser {
+    if (_parser case final Parser cached) return cached;
+    if (_cacheEntry?.parser case final Parser shared) {
+      return _parser = shared;
+    }
+    final Parser created = _format.createParser();
+    _parser = created;
+    _cacheEntry?.parser = created;
+    return created;
+  }
 
   /// Creates an empty renderer state that holds [activeCatalogs].
   ///

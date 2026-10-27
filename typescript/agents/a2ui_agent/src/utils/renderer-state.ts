@@ -646,14 +646,14 @@ export class RendererState {
     const theme: unknown = structuredClone(surface.theme);
     const sendDataModel = surface.sendDataModel;
     const rootId = surface.rootId;
-    const metadata = structuredClone(surface.metadata);
+    const metadata = surface.metadata !== undefined ? structuredClone(surface.metadata) : undefined;
     const protocolVersion = surface.protocolVersion;
     const components = [...surface.componentsModel.values].map(component => ({
       id: component.id,
       type: component.type,
       properties: structuredClone(component.properties),
       catalog: component.catalog,
-      metadata: structuredClone(component.metadata),
+      metadata: component.metadata !== undefined ? structuredClone(component.metadata) : undefined,
     }));
     const data: unknown = structuredClone(surface.dataModel.get('/'));
     return () => {

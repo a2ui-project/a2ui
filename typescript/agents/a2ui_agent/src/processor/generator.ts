@@ -17,11 +17,15 @@
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {InferenceFormatFactory} from '../inference-format.js';
 import {ExpressFormatFactory} from '../inference-formats/express/format.js';
-import {AgentToRendererMessage, RendererCapabilities} from '../internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi, RendererCapabilities} from '../internal/web-core.js';
 import {resolveCatalogs} from '../utils/catalog-resolver.js';
 import {validatePayload} from '../utils/validation.js';
 import {CatalogConfig} from './catalog-config.js';
-import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js';
+import {
+  A2uiRequestProcessor,
+  A2uiRequestProcessorOptions,
+  ProcessorCacheEntry,
+} from './processor.js';
 
 /**
  * Agent-lifetime object holding every catalog the agent supports.
@@ -31,6 +35,11 @@ import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js'
  */
 export class A2uiGenerator {
   private readonly factory: InferenceFormatFactory;
+  private readonly processorCache: Array<{
+    catalogs: CatalogApi[];
+    factory: InferenceFormatFactory;
+    entry: ProcessorCacheEntry;
+  }> = [];
 
   constructor(
     private readonly catalogs: CatalogConfig[],
@@ -69,31 +78,57 @@ export class A2uiGenerator {
       );
     }
     const activeCatalogs = resolveCatalogs(this.catalogs, rendererCapabilities);
+    const formatFactory = inferenceFormatFactory || this.factory;
+    let cacheEntry = this.processorCache.find(
+      item =>
+        item.factory === formatFactory &&
+        item.catalogs.length === activeCatalogs.length &&
+        item.catalogs.every(
+          (c, i) =>
+            c.id === activeCatalogs[i].id &&
+            c.protocolVersion === activeCatalogs[i].protocolVersion,
+        ),
+    )?.entry;
 
-    if (this.examples) {
-      for (const [exampleName, msgs] of Object.entries(this.examples)) {
-        // Preformatted text examples are not parsed here.
-        if (typeof msgs === 'string') continue;
-        for (const msg of msgs) {
-          if (typeof msg !== 'object' || msg === null || Array.isArray(msg)) {
+    if (!cacheEntry) {
+      if (this.examples) {
+        for (const [exampleName, msgs] of Object.entries(this.examples)) {
+          // Preformatted text examples are not parsed here.
+          if (typeof msgs === 'string') continue;
+          for (const msg of msgs) {
+            if (typeof msg !== 'object' || msg === null || Array.isArray(msg)) {
+              throw new A2uiValidationError(
+                `Example '${exampleName}' contains a message that is not an object`,
+              );
+            }
+          }
+          try {
+            validatePayload(activeCatalogs, msgs);
+          } catch (e) {
+            if (!(e instanceof A2uiValidationError)) throw e;
             throw new A2uiValidationError(
-              `Example '${exampleName}' contains a message that is not an object`,
+              `Example '${exampleName}' is invalid for the negotiated catalogs: ${e.message}`,
+              e.details,
             );
           }
         }
-        try {
-          validatePayload(activeCatalogs, msgs);
-        } catch (e) {
-          if (!(e instanceof A2uiValidationError)) throw e;
-          throw new A2uiValidationError(
-            `Example '${exampleName}' is invalid for the negotiated catalogs: ${e.message}`,
-            e.details,
-          );
-        }
       }
+      cacheEntry = {
+        format: formatFactory.createFormat(activeCatalogs, this.examples),
+      };
+      this.processorCache.push({
+        catalogs: activeCatalogs,
+        factory: formatFactory,
+        entry: cacheEntry,
+      });
     }
 
-    const formatFactory = inferenceFormatFactory || this.factory;
-    return new A2uiRequestProcessor(activeCatalogs, this.examples, formatFactory, options);
+    return new A2uiRequestProcessor(
+      activeCatalogs,
+      this.examples,
+      formatFactory,
+      options,
+      cacheEntry,
+    );
   }
 }
