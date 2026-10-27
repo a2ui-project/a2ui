@@ -203,6 +203,85 @@ To test access and artifact staging without publishing anything, run the
 [Release Python SDKs](../../.github/workflows/release-pypi.yml) workflow with
 `dry_run: true`. See go/oss-exit-gate-builders and go/oss-exit-gate-onduty.
 
+### Swift Package Manager
+
+The Swift package is defined by [Package.swift](../../Package.swift) at the
+repository root. Its four libraries, `A2UISwiftCore`, `A2UISwiftUI`,
+`BasicCatalog` and `BasicCatalogSwiftUI`, are released together under one
+version, following [Semver](https://semver.org/). Before 1.0.0, a breaking change bumps the minor
+version.
+
+Swift has no package registry. Swift Package Manager installs a package from
+its git repository and takes versions from its tags, but it only reads plain
+version tags such as `1.2.3` or `v1.2.3` and skips any tag with a prefix.
+Tags in this repository carry a per-package prefix, so a Swift release goes to
+two places:
+
+1. This repository gets the tag `A2UISwiftCore-v<version>` on the released
+   commit. This is the `<package>-v<version>` form described in
+   [Dart automated publishing](https://dart.dev/tools/pub/automated-publishing),
+   with the package name from `Package.swift`.
+2. The mirror repository `a2ui-project/a2ui-swift` gets a copy of the package
+   files from that commit, tagged with the plain version `<version>`. Users
+   depend on the mirror:
+
+    ```swift
+    .package(url: "https://github.com/a2ui-project/a2ui-swift", from: "0.1.0")
+    ```
+
+    and name it `a2ui-swift` in their product dependencies, for example
+    `.product(name: "A2UISwiftUI", package: "a2ui-swift")`.
+
+**1. Choose the commit**
+
+Pick a commit on `main` where the
+[Swift Core (iOS)](../../.github/workflows/swift_build_and_test.yml) workflow
+passed. Its `test` job runs `swift test`, and its `ios-build` job builds the
+libraries and the sample app for the iOS Simulator.
+
+**2. Tag this repository**
+
+```bash
+git tag A2UISwiftCore-v<version> <commit>
+git push origin A2UISwiftCore-v<version>
+```
+
+Create a GitHub release for the tag with the release notes and a link to the
+mirror tag.
+
+**3. Update the mirror**
+
+From a clone of the mirror next to a clone of this repository:
+
+```bash
+git rm -rq --ignore-unmatch .
+git -C ../a2ui archive A2UISwiftCore-v<version> \
+  Package.swift LICENSE swift/core swift/swiftui specification catalogs conformance \
+  | tar -x
+swift build
+swift test --enable-swift-testing
+git add -A
+git commit -m "Release <version> from a2ui-project/a2ui@<commit>"
+git tag <version>
+git push origin HEAD:main <version>
+```
+
+The paths outside `swift/` are needed because the schema generator build
+plugin reads JSON schemas from `specification/` and `catalogs/`, and the test
+targets read the conformance suites from `conformance/`. If `swift build`
+fails in the mirror, a target has started reading a path that is missing from
+this list.
+
+**One-time setup**
+
+Before the first release, a maintainer creates the public repository
+`a2ui-project/a2ui-swift` under the Apache 2.0 license and gives push access to
+the people who release.
+
+Optionally, list the mirror on [Swift Package Index](https://swiftpackageindex.com)
+through its [add a package](https://swiftpackageindex.com/add-a-package) page.
+It needs at least one version tag first.
+
 ### Documentation website
 
 [MkDocs](https://www.mkdocs.org/), configured in [.github/workflows/docs.yml](../../.github/workflows/docs.yml), updates https://a2ui.org/ whenever the content of [docs/public](../public) changes.
