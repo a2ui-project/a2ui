@@ -1,5 +1,15 @@
 ## Unreleased
 
+- (v1_0) `DataContext` reads a `ValidationResult` dict that a function argument
+  resolves to by its `valid` boolean wherever the function's argument schema
+  types that argument as `DynamicBoolean`, as the specification defines the
+  type. This applies to every `DynamicBoolean` argument, in built-in and
+  custom catalogs, so `formatNumber`'s `grouping` and a custom function's
+  boolean parameters now read a failing validation as `False` rather than as
+  a truthy dict; `and`, `or` and `not` already did. Catalogs below v1.0, whose
+  validation functions return booleans, are unchanged.
+  [#3653](https://github.com/a2ui-project/a2ui/pull/3653)
+
 - Schema validation never fetches a `$ref` over the network. A cross-catalog
   `$ref` whose JSON Pointer passes through an array, such as
   `<peer>#/components/Button/allOf/1/properties/action`, now resolves against

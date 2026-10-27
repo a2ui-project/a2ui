@@ -519,7 +519,104 @@ def test_data_context_v10_nested_validators_feed_logical_functions():
     assert errors == []
 
 
-def test_data_context_validates_arguments_as_written():
+def _required(value: Any) -> dict[str, Any]:
+    return {"@call": "required", "args": {"value": value}}
+
+
+def test_data_context_v10_coerces_validation_result_to_dynamic_boolean():
+    """From v1.0 a ``ValidationResult`` resolved into a ``DynamicBoolean``
+    argument is read by its validity, in every function, not only in
+    ``and``/``or``/``not``: a dict is truthy, so ``formatNumber`` would
+    otherwise group when ``grouping`` is a failing validation."""
+    from a2ui.core.basic_catalog import v1_0
+
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel("s1", v1_0.BasicCatalog(), data_model=DataModel({}))
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    def format_number(grouping: Any) -> dict[str, Any]:
+        return {
+            "@call": "formatNumber",
+            "args": {"value": 1234, "decimals": 0, "grouping": grouping},
+        }
+
+    assert ctx.resolve_dynamic_value(format_number(_required(""))) == "1234"
+    assert ctx.resolve_dynamic_value(format_number(_required("x"))) == "1,234"
+    assert errors == []
+
+
+def test_data_context_v10_coerces_validation_result_in_document_function():
+    """The coercion follows a function schema read from a catalog document,
+    where a ``DynamicBoolean`` is a ``$ref`` into the common types."""
+    from a2ui.core.catalog import FunctionImplementation
+
+    seen: list[dict[str, Any]] = []
+
+    def echo(args: dict[str, Any], *_: Any) -> dict[str, Any]:
+        seen.append(args)
+        return args
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "on": {"$ref": "common_types.json#/$defs/DynamicBoolean"},
+            "all": {
+                "type": "array",
+                "items": {"$ref": "common_types.json#/$defs/DynamicBoolean"},
+            },
+            "payload": {"$ref": "common_types.json#/$defs/DynamicValue"},
+        },
+        "required": ["on"],
+    }
+    catalog = Catalog(
+        catalog_id="custom",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="echo", return_type="object", schema=schema, execute=echo
+            )
+        ],
+    )
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel(
+        "s1",
+        catalog,
+        data_model=DataModel({"result": {"valid": False, "message": "no"}}),
+    )
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    result = ctx.resolve_dynamic_value({
+        "@call": "echo",
+        "args": {
+            "on": {"@path": "/result"},
+            "all": [{"@path": "/result"}, True],
+            "payload": {"@path": "/result"},
+        },
+    })
+
+    assert errors == []
+    assert result == {
+        "on": False,
+        "all": [False, True],
+        "payload": {"valid": False, "message": "no"},
+    }
+
+
+def test_data_context_v09_leaves_valid_objects_alone():
+    """Before v1.0 the validators return booleans, so an object carrying a
+    ``valid`` key is an ordinary data-model object."""
+    catalog = v0_9.BasicCatalog()
+    surface = SurfaceModel(
+        "s1", catalog, data_model=DataModel({"flag": {"valid": False}})
+    )
+    ctx = DataContext(surface, path="/")
+
+    assert (
+        ctx.resolve_dynamic_value({"call": "not", "args": {"value": {"path": "/flag"}}})
+        is False
+    )
     """An argument the schema does not declare is rejected before resolution."""
     from a2ui.core.basic_catalog import v1_0
 

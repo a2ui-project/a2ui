@@ -44,6 +44,7 @@ import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {coerceValidationResults} from './validation_result_coercion.js';
 
 export type {ComponentChildRefs};
 export {inlinePeerAndLocalRefs};
@@ -942,7 +943,13 @@ function createCatalogInvoker<F extends FunctionApi>(
     }
 
     try {
-      const safeArgs = fn.schema.parse(rawArgs);
+      // From v1.0 a `DynamicBoolean` argument may resolve to the
+      // `ValidationResult` a validation function returns; it is read by its
+      // validity, as the specification defines the type.
+      const args = isAtLeastVersion(protocolVersion, SpecVersion.V1_0)
+        ? coerceValidationResults(fn.schema, rawArgs)
+        : rawArgs;
+      const safeArgs = fn.schema.parse(args);
       return execute.call(fn, safeArgs, ctx, abortSignal);
     } catch (e: any) {
       if (e?.name === 'ZodError' || e instanceof z.ZodError) {
