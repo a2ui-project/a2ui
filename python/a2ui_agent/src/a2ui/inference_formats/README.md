@@ -29,6 +29,7 @@ result = render_tool.call(
 ```
 
 Key benefits of tool mode:
+
 - **Zero UI model calls**: The language model only executes its normal function calling step.
 - **Fast execution**: Layout planning and expansion complete in 15 to 40 ms on local CPUs.
 - **Guaranteed schema validity**: Surfaces expand through validated catalog patterns without syntax errors or broken tags.
@@ -36,6 +37,7 @@ Key benefits of tool mode:
 ### 2. Chat Mode (Two-Stage Synthesis)
 
 In open-ended conversation where no domain tool exists, the agent operates in two stages:
+
 1. **Stage 1**: The language model converts the user's conversational request into a structured `DecisionBlock` containing `intent`, `payload`, and optional copy fields (`title`, `summary`) or layout hints (`layout: ["role:key,key", ...]`).
 2. **Stage 2**: The decision model scores layout families and archetypes, assigns payload pointers, and expands catalog components without making a second language model call.
 
@@ -60,6 +62,7 @@ output = await synthesizer.synthesize(
 ### 3. Variety and Zero-Cost Remix
 
 The archetype grammar supports exploration and layout variation:
+
 - **Variety Mode (`VarietyMode.NEAR_TOP`)**: Configured via `SynthesisConfig(variety=VarietyMode.NEAR_TOP, variety_margin=0.15)`. Options within the probability margin of the top candidate are sampled with a random seed rather than strictly choosing the argmax.
 - **Zero-Cost Remix**: Call `synthesizer.remix(intent, payload, answers, seed=42)` using the recorded `output.decision_answers`. This re-samples layout choices instantly with zero model calls and zero decision backend queries.
 
@@ -99,11 +102,11 @@ synthesizer = DecisionSynthesizer(
 
 The decision model backend is selected through `A2UI_DECISION_BACKEND` or configured directly in code:
 
-| Backend | Setup | Characteristics |
-| :--- | :--- | :--- |
-| `jev` | Set `A2UI_DECISION_URL` and `JEV_API_KEY` (or `A2UI_DECISION_AUTH`) | Remote TypeSafe Jev model over HTTP. |
-| `gev` | Set `A2UI_DECISION_URL` | Remote step-zero logprob scorer over HTTP. |
-| `mock` | Default offline fallback | Deterministic keyword-based heuristic for tests. |
+| Backend | Setup                                                               | Characteristics                                  |
+| :------ | :------------------------------------------------------------------ | :----------------------------------------------- |
+| `jev`   | Set `A2UI_DECISION_URL` and `JEV_API_KEY` (or `A2UI_DECISION_AUTH`) | Remote TypeSafe Jev model over HTTP.             |
+| `gev`   | Set `A2UI_DECISION_URL`                                             | Remote step-zero logprob scorer over HTTP.       |
+| `mock`  | Default offline fallback                                            | Deterministic keyword-based heuristic for tests. |
 
 ### Environment Variables
 

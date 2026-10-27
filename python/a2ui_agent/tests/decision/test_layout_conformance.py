@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Conformance harness for `conformance/agent/decision/archetypes.yaml`."""
+"""Conformance harness for `fixtures/archetypes.yaml`."""
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from a2ui.core import Catalog
@@ -36,11 +37,12 @@ from a2ui.inference_formats.decision import (
     inspect_payload_pointers,
 )
 import pytest
+import yaml
 
-from ..conformance.conformance_helpers import load_conformance_yaml
 from .layout_fixtures import ScriptedAnswers, ScriptedValue
 
-CASES: list[dict[str, Any]] = load_conformance_yaml("agent/decision/archetypes.yaml")
+_FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "archetypes.yaml"
+CASES: list[dict[str, Any]] = yaml.safe_load(_FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
 def _two_component_catalog() -> Catalog:
@@ -182,7 +184,7 @@ def _run_expand_block_case(case: Mapping[str, Any]) -> None:
 
 @pytest.mark.parametrize("case", CASES, ids=lambda c: c["name"])
 def test_layout_conformance(case: Mapping[str, Any]) -> None:
-    """Executes one case from `conformance/agent/decision/archetypes.yaml`."""
+    """Executes one case from `fixtures/archetypes.yaml`."""
     kind = case["args"]["kind"]
     if kind == "grammar":
         _run_grammar_case(case["expect"])
