@@ -59,6 +59,12 @@ export const A2uiSandboxMessageType = {
  */
 export const DEFAULT_INNER_SANDBOX = 'allow-scripts allow-forms allow-modals';
 
+/**
+ * Sandbox flags a host may keep when it provides its own `sandbox` value. Anything outside this
+ * set, including the flags `DEFAULT_INNER_SANDBOX` documents as omitted, is dropped.
+ */
+const ALLOWED_INNER_SANDBOX_FLAGS: ReadonlySet<string> = new Set(DEFAULT_INNER_SANDBOX.split(' '));
+
 /** Sensitive capabilities the inner frame never gets unless the host delegates them explicitly. */
 export const SENSITIVE_PERMISSIONS = [
   'camera',
@@ -424,9 +430,10 @@ export function startSandboxProxy(env: SandboxProxyEnvironment): void {
           isMcpResourceReady ? data['params'] : data,
         );
         if (sandbox !== undefined) {
+          // Keep only the flags the default sandbox grants, so a host cannot widen it.
           const safeSandbox = sandbox
             .split(/\s+/)
-            .filter(flag => flag.toLowerCase() !== 'allow-same-origin')
+            .filter(flag => ALLOWED_INNER_SANDBOX_FLAGS.has(flag.toLowerCase()))
             .join(' ');
           inner.setAttribute('sandbox', safeSandbox);
         }
