@@ -86,7 +86,7 @@ describe('ExpressDecompiler', () => {
       expect(new ExpressParser([catalog], 'default', version).compile(expected)).toEqual(messages);
     });
 
-    it('writes null when updateDataModel has a non-root path and no value, and omits empty root updateDataModel', () => {
+    it('writes null when updateDataModel has a non-root path and no value, and writes $/ = {} for an empty root updateDataModel', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
       const parser = new ExpressParser([catalog], 's1', version);
@@ -108,7 +108,9 @@ describe('ExpressDecompiler', () => {
         version: 'v1.0',
         updateDataModel: {surfaceId: 's1', path: '/', value: {}},
       } as unknown as AgentToRendererMessage;
-      expect(decompiler.decompile(emptyRoot)).toBe('');
+      const emptyRootDsl = decompiler.decompile(emptyRoot);
+      expect(emptyRootDsl).toBe('surface("s1")\n$/ = {}');
+      expect(parser.compile(emptyRootDsl)).toEqual([emptyRoot]);
     });
   });
 

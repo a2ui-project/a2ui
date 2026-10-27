@@ -851,6 +851,23 @@
     - '$/user = {name: "Ada", city: "London"}'
   expect_round_trip: true
 
+- name: test_decompile_express_update_data_model_empty_root
+  description: A standalone updateDataModel at the root path ("/") with an empty map value ({}) writes out as $/ = {} so that clearing the root data model round-trips.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/"
+        value: {}
+  expect_contains:
+    - 'surface("s1")'
+    - '$/ = {}'
+  expect_round_trip: true
+
 - name: test_decompile_express_map_with_keys_named_like_express_constructs
   description: In v1.0 only `@path` marks a data binding and `@call` a function call, so an object whose keys are plain `path` or `call`, or whose `event` or `functionCall` is not an object, is data and writes back out as a map literal.
   action: decompile

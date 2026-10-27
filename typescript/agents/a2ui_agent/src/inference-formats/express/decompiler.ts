@@ -600,9 +600,6 @@ export class ExpressDecompiler {
     const rawPath = typeof valOp.path === 'string' && valOp.path ? valOp.path : '/';
     const basePath = rawPath.replace(/\/+$/, '');
     const dataVal = basePath ? (valOp.value ?? null) : (valOp.value ?? {});
-    if (!basePath && !hasDataToWrite(dataVal)) {
-      return undefined;
-    }
     const valStr = this.decompileValue(dataVal, new Map(), false, helper, surfaceCatalogId);
     const pathStr = basePath ? `$${basePath}` : '$/';
 
