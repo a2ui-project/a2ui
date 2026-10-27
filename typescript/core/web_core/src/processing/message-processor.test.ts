@@ -934,7 +934,7 @@ describe('MessageProcessor', () => {
       assert.ok(emittedMessage);
       assert.strictEqual(emittedMessage.callAgentFunction.surfaceId, 's1');
       assert.strictEqual(emittedMessage.callAgentFunction.callFunction['@call'], 'fetchAgentData');
-      assert.ok(!('call' in emittedMessage.callAgentFunction.callFunction));
+      assert.ok(!Object.hasOwn(emittedMessage.callAgentFunction.callFunction, 'call'));
       const callId = emittedMessage.callAgentFunction.functionCallId;
 
       // Inbound response processed through standard message processing pipeline
