@@ -104,7 +104,7 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
     
     - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`.
 
-3. Complete the triage card in in go/a2ui-triage-notes and send to [the team chat][team-chat].
+3. Complete the triage card in go/a2ui-triage-notes and send to [the team chat][team-chat].
 
 ### For owners of `status: assigned-for-triage`
 
