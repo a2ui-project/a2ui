@@ -21,7 +21,7 @@ The Basic Catalog is just one example and is intentionally sparse to remain easi
 1.  **Define the Catalog**: Create a catalog definition (JSON Schema) listing the components, functions, and styles your application supports.
 2.  **Register the Catalog**: Register the catalog and its corresponding component implementations (renderers) with your client application.
 3.  **Announce Support**: The client informs the agent which catalogs it supports (via `supportedCatalogIds`).
-4.  **Agent Selects Catalog**: The agent chooses a catalog for a given UI surface (via `catalogId` inside the creation message, like `createSurface`).
+4.  **Agent Selects Catalog**: The agent chooses a catalog for a given UI surface (via `catalogId` inside the creation message, like `createSurface`). In v1.0 this is only the surface's default: individual components and function calls can set their own `catalogId` to use another supported catalog on the same surface.
 5.  **Agent Generates UI**: The agent generates component messages using the components defined in that catalog by name.
 
 ## Implementation Guide
