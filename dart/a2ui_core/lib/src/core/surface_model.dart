@@ -99,14 +99,23 @@ class SurfaceModel<T extends ComponentApi> {
   final _onAction = EventNotifier<A2uiRendererAction>();
   final _onError = EventNotifier<A2uiRendererError>();
   final _onWarning = EventNotifier<A2uiWarning>();
+  bool _disposed = false;
 
   /// Fires whenever an action is dispatched from this surface.
   EventSource<A2uiRendererAction> get onAction => _onAction;
 
   /// Fires whenever an error occurs on this surface.
+  ///
+  /// Each error arrives a microtask after the [dispatchError] call that
+  /// reported it, in dispatch order, so a later message may already have fixed
+  /// what it describes. Errors dispatched before the surface is disposed still
+  /// arrive, and later ones are dropped.
   EventSource<A2uiRendererError> get onError => _onError;
 
   /// Fires whenever a non-fatal warning occurs on this surface.
+  ///
+  /// Warnings arrive in the same order and at the same moments as [onError]
+  /// errors, interleaved with them.
   EventSource<A2uiWarning> get onWarning => _onWarning;
 
   /// Creates a surface whose items resolve against [defaultCatalog] or, when
@@ -284,30 +293,38 @@ class SurfaceModel<T extends ComponentApi> {
     // dispatched here.
   }
 
-  /// Dispatches an error from this surface.
+  /// Emits [error] on [onError] in a microtask, so listeners never run
+  /// inside the call that found it. Completes once the microtask is
+  /// scheduled.
   Future<void> dispatchError(A2uiRendererError error) async {
-    _onError.emit(error);
+    if (_disposed) return;
+    scheduleMicrotask(() => _onError.emit(error));
   }
 
-  /// Emits [warning] on [onWarning], stamped with this surface's id.
+  /// Emits [warning] on [onWarning] in a microtask, stamped with this
+  /// surface's id. Completes once the microtask is scheduled.
   Future<void> dispatchWarning(A2uiWarning warning) async {
-    _onWarning.emit(
-      A2uiWarning(
-        code: warning.code,
-        message: warning.message,
-        path: warning.path,
-        surfaceId: id,
-      ),
+    if (_disposed) return;
+    final stamped = A2uiWarning(
+      code: warning.code,
+      message: warning.message,
+      path: warning.path,
+      surfaceId: id,
     );
+    scheduleMicrotask(() => _onWarning.emit(stamped));
   }
 
   /// Disposes of the surface and its resources.
   void dispose() {
+    _disposed = true;
     dataModel.dispose();
     componentsModel.dispose();
     _onAction.dispose();
-    _onError.dispose();
-    _onWarning.dispose();
+    // Reports dispatched before this still reach their listeners.
+    scheduleMicrotask(() {
+      _onError.dispose();
+      _onWarning.dispose();
+    });
   }
 }
 
