@@ -1,4 +1,4 @@
-# Publishing Guide for A2UI Web Packages
+# Publishing Guide for A2UI NPM Packages
 
 This guide outlines the workflow for project maintainers publishing web packages
 (`@a2ui/*`) to npm through Google's internal Artifact Registry.
