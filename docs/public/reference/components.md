@@ -606,8 +606,8 @@ All components share:
 
 - `id` (required): Unique identifier within the surface.
 - `accessibility`: Attributes for assistive technologies such as screen readers. There is no `role` key.
-    - v0.9: `label` and `description`. Each takes a string or a dynamic value (a data binding or a function call).
-    - v1.0: adds `live` (`"off"`, `"polite"`, or `"assertive"`; default `"off"`) and `hidden` (a boolean or a dynamic value; default `false`). Any other key fails validation.
+    - v0.9 or later: `label` and `description`. Each takes a string or a dynamic value (a data binding or a function call).
+    - v1.0 or later: adds `live` (`"off"`, `"polite"`, or `"assertive"`; default `"off"`) and `hidden` (a boolean or a dynamic value; default `false`). Any other key fails validation.
 - `weight`: Flex-grow value when inside a Row or Column.
 
 In this v1.0 example, the label is static, the description comes from the data model, screen readers announce text changes politely, and the text is hidden from assistive technologies while `/order/visible` is false:
