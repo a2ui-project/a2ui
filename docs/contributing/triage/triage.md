@@ -123,8 +123,6 @@ Decide whether the PR should be reviewed, based on the [principles](#principles)
 
 If yes, review it and help land it. If it is faster, create a superseding PR instead.
 
-The triage is done once the PR has a decision.
-
 If no, post the reply below and close the PR. The **Close with comment** button does both. You may want to add the reply to your [GitHub saved replies](https://docs.github.com/en/get-started/writing-on-github/working-with-saved-replies).
 
 ```txt
