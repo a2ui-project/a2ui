@@ -163,16 +163,23 @@ interface ValueSlot {
 }
 
 /**
- * Descends a value slot into an array item (`items`) or an object property.
+ * Descends a value slot into the items of an array.
  *
- * @returns The nested slot, or undefined when the schema is unknown at that position.
+ * @returns The item slot, or undefined when the schema is unknown at that position.
  */
-function subSlot(slot: ValueSlot | undefined, key: string): ValueSlot | undefined {
-  if (!slot?.schema) {
-    return undefined;
-  }
-  const schema = slot.helper.resolveSubschema(slot.schema, key);
-  return schema ? {schema, helper: slot.helper} : undefined;
+function itemSlot(slot: ValueSlot | undefined): ValueSlot | undefined {
+  const schema = slot?.schema ? slot.helper.resolveItemSchema(slot.schema) : undefined;
+  return schema && slot ? {schema, helper: slot.helper} : undefined;
+}
+
+/**
+ * Descends a value slot into a property of an object, whatever the property is named.
+ *
+ * @returns The property's slot, or undefined when the schema is unknown at that position.
+ */
+function propertySlot(slot: ValueSlot | undefined, name: string): ValueSlot | undefined {
+  const schema = slot?.schema ? slot.helper.resolvePropertySchema(slot.schema, name) : undefined;
+  return schema && slot ? {schema, helper: slot.helper} : undefined;
 }
 
 /**
@@ -1509,8 +1516,9 @@ export class ExpressCompiler {
     slot?: ValueSlot,
   ): unknown {
     if (Array.isArray(val)) {
-      const itemSlot = subSlot(slot, 'items');
-      const itemIsAction = isAction || isActionSlot(itemSlot?.schema);
+      // Resolved once for the array, since every item shares the schema.
+      const itemsSlot = itemSlot(slot);
+      const itemIsAction = isAction || isActionSlot(itemsSlot?.schema);
       return val.map((item, index) =>
         this._compileValue(
           item,
@@ -1520,7 +1528,7 @@ export class ExpressCompiler {
           targetMajorMinor,
           itemIsAction,
           inlineCtx ? {...inlineCtx, index} : undefined,
-          itemSlot,
+          itemsSlot,
         ),
       );
     }
@@ -1529,7 +1537,7 @@ export class ExpressCompiler {
       // A map literal is always data, whatever its keys are.
       const dictRes: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(val.entries)) {
-        const entrySlot = subSlot(slot, k);
+        const entrySlot = propertySlot(slot, k);
         const entryIsAction = isAction || isActionSlot(entrySlot?.schema);
         setOwnEntry(
           dictRes,
@@ -1731,7 +1739,7 @@ export class ExpressCompiler {
         return;
       }
       if (Array.isArray(v)) {
-        const itemSchema = s ? helper.resolveSubschema(s, 'items') : undefined;
+        const itemSchema = s ? helper.resolveItemSchema(s) : undefined;
         for (const item of v) {
           walk(item, itemSchema, seen);
         }
@@ -1739,7 +1747,7 @@ export class ExpressCompiler {
       }
       if (isExpressNode(v, 'map')) {
         for (const [k, subVal] of Object.entries(v.entries)) {
-          const propSchema = s ? helper.resolveSubschema(s, k) : undefined;
+          const propSchema = s ? helper.resolvePropertySchema(s, k) : undefined;
           walk(subVal, propSchema, seen);
         }
       }

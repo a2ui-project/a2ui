@@ -567,6 +567,28 @@ describe('ExpressDecompiler', () => {
       expect(components.find(c => c.id === 'root')?.action).toEqual(action);
     });
 
+    it('writes an event with a userMessage as a map literal before v1.0', () => {
+      // v0.9 has no userMessage and its compiler rejects `userMessage=`, so the object is
+      // written as data that compiles back as written.
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const msg = {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 's1',
+          components: [
+            {
+              id: 'root',
+              component: 'Card',
+              child: {event: {name: 'go', userMessage: 'hi'}},
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const notation = new ExpressDecompiler([catalog], version).decompile(msg);
+      expect(notation).toMatch(/\{event: \{name: .*userMessage: .*\}\}/);
+      expect(notation).not.toContain('Event(');
+    });
+
     it('writes a function call userMessage and compiles it back unchanged', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const action = {

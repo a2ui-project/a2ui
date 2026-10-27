@@ -639,6 +639,69 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       ]);
     });
 
+    it('resolves a property named items as a property, not as the array items', () => {
+      const catalog = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        $id: 'https://a2ui.org/tests/menu_catalog_v1_0.json',
+        protocolVersion: '1.0',
+        catalogId: 'tests/menu',
+        components: {
+          Menu: {
+            type: 'object',
+            properties: {
+              component: {const: 'Menu'},
+              menu: {
+                type: 'object',
+                properties: {
+                  items: {
+                    type: 'array',
+                    items: {$ref: '#/$defs/MenuItem'},
+                  },
+                },
+              },
+            },
+            required: ['component', 'menu'],
+          },
+        },
+        functions: {
+          openUrl: {
+            type: 'object',
+            returnType: 'void',
+            properties: {
+              '@call': {const: 'openUrl'},
+              args: {type: 'object', properties: {url: {type: 'string'}}, required: ['url']},
+            },
+            required: ['@call', 'args'],
+          },
+        },
+        $defs: {
+          MenuItem: {
+            type: 'object',
+            properties: {
+              label: {type: 'string'},
+              action: {$ref: 'common_types.json#/$defs/Action'},
+            },
+            required: ['label', 'action'],
+          },
+        },
+      });
+      const compiler = new ExpressCompiler([catalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Menu({items: [{label: "Docs", action: openUrl("https://a2ui.org")}]})',
+        ),
+      ) as Array<{menu: {items: unknown[]}}>;
+
+      // The `items` entry is the object's property, whose item schema is reached through a
+      // local $ref.
+      expect(root.menu.items).toEqual([
+        {
+          label: 'Docs',
+          action: {functionCall: {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+        },
+      ]);
+    });
+
     it('wraps a function call reached through a variable', () => {
       const compiler = new ExpressCompiler([listItemActionCatalog], 'v1.0');
       const [root] = createSurfaceComponents(
