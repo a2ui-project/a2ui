@@ -99,15 +99,17 @@ class SurfaceModel<T extends ComponentApi> {
   final _onAction = EventNotifier<A2uiRendererAction>();
   final _onError = EventNotifier<A2uiRendererError>();
   final _onWarning = EventNotifier<A2uiWarning>();
+  bool _disposed = false;
 
   /// Fires whenever an action is dispatched from this surface.
   EventSource<A2uiRendererAction> get onAction => _onAction;
 
   /// Fires whenever an error occurs on this surface.
   ///
-  /// Errors arrive in the order they were dispatched, at the end of the
-  /// `MessageProcessor` message that found them, or a microtask after the
-  /// [dispatchError] call that queued them.
+  /// Each error arrives a microtask after the [dispatchError] call that
+  /// reported it, in dispatch order, so a later message may already have fixed
+  /// what it describes. Errors dispatched before the surface is disposed still
+  /// arrive, and later ones are dropped.
   EventSource<A2uiRendererError> get onError => _onError;
 
   /// Fires whenever a non-fatal warning occurs on this surface.
@@ -295,12 +297,14 @@ class SurfaceModel<T extends ComponentApi> {
   /// inside the call that found it. Completes once the microtask is
   /// scheduled.
   Future<void> dispatchError(A2uiRendererError error) async {
+    if (_disposed) return;
     scheduleMicrotask(() => _onError.emit(error));
   }
 
   /// Emits [warning] on [onWarning] in a microtask, stamped with this
   /// surface's id. Completes once the microtask is scheduled.
   Future<void> dispatchWarning(A2uiWarning warning) async {
+    if (_disposed) return;
     final stamped = A2uiWarning(
       code: warning.code,
       message: warning.message,
@@ -312,11 +316,15 @@ class SurfaceModel<T extends ComponentApi> {
 
   /// Disposes of the surface and its resources.
   void dispose() {
+    _disposed = true;
     dataModel.dispose();
     componentsModel.dispose();
     _onAction.dispose();
-    _onError.dispose();
-    _onWarning.dispose();
+    // Reports dispatched before this still reach their listeners.
+    scheduleMicrotask(() {
+      _onError.dispose();
+      _onWarning.dispose();
+    });
   }
 }
 
