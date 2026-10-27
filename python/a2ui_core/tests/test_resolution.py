@@ -604,6 +604,54 @@ def test_data_context_v10_coerces_validation_result_in_document_function():
     }
 
 
+def test_data_context_v10_coerces_validation_result_in_optional_list():
+    """An optional ``list[DynamicBoolean]`` field is coerced item by item,
+    like a required one."""
+    from pydantic import Field
+
+    from a2ui.core.catalog import FunctionImplementation
+    from a2ui.core.schema.v1_0.common_types import DynamicBoolean, StrictBaseModel
+
+    class FlagsArgs(StrictBaseModel):
+        flags: list[DynamicBoolean] | None = Field(default=None)
+        flag: DynamicBoolean | None = Field(default=None)
+
+    seen: list[dict[str, Any]] = []
+
+    def echo(args: dict[str, Any], *_: Any) -> dict[str, Any]:
+        seen.append(args)
+        return args
+
+    catalog = Catalog(
+        catalog_id="custom",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="echo", return_type="object", schema=FlagsArgs, execute=echo
+            )
+        ],
+    )
+    surface = SurfaceModel(
+        "s1",
+        catalog,
+        data_model=DataModel({"bad": {"valid": False}, "good": {"valid": True}}),
+    )
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    result = ctx.resolve_dynamic_value({
+        "@call": "echo",
+        "args": {
+            "flags": [{"@path": "/bad"}, True],
+            "flag": {"@path": "/good"},
+        },
+    })
+
+    assert errors == []
+    assert result == {"flags": [False, True], "flag": True}
+
+
 def test_data_context_v09_leaves_valid_objects_alone():
     """Before v1.0 the validators return booleans, so an object carrying a
     ``valid`` key is an ordinary data-model object."""

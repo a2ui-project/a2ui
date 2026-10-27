@@ -85,17 +85,29 @@ def is_dynamic_boolean_annotation(annotation: Any) -> bool:
         annotation: A model field's annotation.
     """
     members = _without_none(annotation)
-    return len(members) == len(_DYNAMIC_BOOLEAN_MEMBERS) and all(
-        any(member == expected for expected in _DYNAMIC_BOOLEAN_MEMBERS)
-        for member in members
+    return (
+        len(members) == len(_DYNAMIC_BOOLEAN_MEMBERS)
+        and all(member in _DYNAMIC_BOOLEAN_MEMBERS for member in members)
+        and all(expected in members for expected in _DYNAMIC_BOOLEAN_MEMBERS)
     )
 
 
 def _list_item_annotation(annotation: Any) -> Any | None:
-    """Returns the item annotation of a ``list[...]`` annotation, or None."""
+    """Returns the item annotation of a ``list[...]`` annotation, or None.
+
+    Looks through ``Annotated`` and through the members of an ``Optional``
+    or other union, so ``list[DynamicBoolean] | None`` yields
+    ``DynamicBoolean``.
+    """
     origin = typing.get_origin(annotation)
     if origin is typing.Annotated:
         return _list_item_annotation(typing.get_args(annotation)[0])
+    if origin in (typing.Union, types.UnionType):
+        for member in typing.get_args(annotation):
+            item = _list_item_annotation(member)
+            if item is not None:
+                return item
+        return None
     if origin in (list, typing.List):
         args = typing.get_args(annotation)
         return args[0] if args else None
