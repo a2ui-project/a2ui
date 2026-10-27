@@ -126,9 +126,21 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   }
 
   private applyAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
-    this.setOrRemoveAttribute('aria-label', a11y?.label);
-    this.setOrRemoveAttribute('aria-description', a11y?.description);
-    this.setOrRemoveAttribute('aria-live', a11y?.live);
+    if (this.hasAttributeValue(a11y?.label)) {
+      this.setAttribute('aria-label', String(a11y?.label));
+    } else {
+      this.removeAttribute('aria-label');
+    }
+    if (this.hasAttributeValue(a11y?.description)) {
+      this.setAttribute('aria-description', String(a11y?.description));
+    } else {
+      this.removeAttribute('aria-description');
+    }
+    if (this.hasAttributeValue(a11y?.live)) {
+      this.setAttribute('aria-live', String(a11y?.live));
+    } else {
+      this.removeAttribute('aria-live');
+    }
     if (typeof a11y?.hidden === 'boolean') {
       this.setAttribute('aria-hidden', String(a11y.hidden));
     } else {
@@ -136,11 +148,7 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
     }
   }
 
-  private setOrRemoveAttribute(attrName: string, value: unknown): void {
-    if (value !== undefined && value !== null && value !== '') {
-      this.setAttribute(attrName, String(value));
-    } else {
-      this.removeAttribute(attrName);
-    }
+  private hasAttributeValue(value: unknown): boolean {
+    return value !== undefined && value !== null && value !== '';
   }
 }

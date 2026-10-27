@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import os
 import re
+from typing import Any
 
 import pytest
 
@@ -42,7 +43,7 @@ from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.utils import load_examples, resolve_catalogs
+from a2ui.utils import load_examples, resolve_catalogs, validate_payload
 
 from .conformance_helpers import get_conformance_path
 from .conformance_helpers import load_conformance_json as load_json_file
@@ -172,22 +173,13 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
 KNOWN_GAPS: dict[str, str] = {
-    "test_compile_express_checks_on_uncheckable_component_is_a_validation_error": (
+    "test_compile_express_check_with_value_on_uncheckable_component_is_a_validation_error": (
         "ExpressCompiler does not reject check lists on components that do not"
         " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
     ),
     "test_compile_express_components_without_root_is_update_components": (
         "ExpressCompiler does not emit updateComponents for component blocks"
         " that omit root (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_compile_express_inline_array_id_collision_is_a_validation_error": (
-        "ExpressCompiler does not reject inline array child IDs that collide"
-        " with assigned variables"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_compile_express_inline_id_collision_is_a_validation_error": (
-        "ExpressCompiler does not reject inline child IDs that collide with"
-        " assigned variables (https://github.com/a2ui-project/a2ui/issues/3099)"
     ),
     "test_decompile_express_update_data_model_map_at_path": (
         "ExpressDecompiler does not flatten map values in updateDataModel at a"
@@ -259,6 +251,25 @@ def _protocol_version(catalogs) -> str:
     if not version:
         version = str(catalogs[0].protocol_version)
     return version if version.startswith("v") else f"v{version}"
+
+
+def compile_checked(parser, content):
+    """Compiles one block and checks its messages on their own.
+
+    A conformance `compile` case fixes the messages an agent sends for one
+    block, so they are checked the way `validate_payload` checks a payload: a
+    surface that the block updates without creating is assumed to exist. A
+    failure to compile that isn't an `A2uiError` is raised as
+    `A2uiCompilationError`, as `parse_response` raises it.
+    """
+    try:
+        messages = parser.compile(content)
+    except A2uiError:
+        raise
+    except Exception as e:
+        raise A2uiCompilationError(f"Failed to compile A2UI block: {e}", content) from e
+    validate_payload(parser.catalogs, messages)
+    return to_message_models(messages)
 
 
 def make_parser(args):
@@ -400,10 +411,10 @@ def test_compiler_conformance(name, test_case):
 
     if "expect_error" in test_case:
         with assert_raises(test_case["expect_error"]):
-            parser.compile(payload)
+            compile_checked(parser, payload)
         return
 
-    raw_compiled = parser.compile(payload)
+    raw_compiled = compile_checked(parser, payload)
     assert isinstance(raw_compiled, list)
     assert all(hasattr(m, "model_dump") for m in raw_compiled)
     compiled = to_message_dicts(raw_compiled)
@@ -427,6 +438,11 @@ def test_decompiler_conformance(name, test_case):
     parser = make_parser(test_case["args"])
     messages = test_case["messages"]
 
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            parser.decompile(to_message_models(messages))
+        return
+
     notation = parser.decompile(to_message_models(messages))
 
     for fragment in test_case.get("expect_contains", []):
@@ -435,13 +451,14 @@ def test_decompiler_conformance(name, test_case):
     for fragment in test_case.get("expect_absent", []):
         assert fragment not in notation, f"{fragment!r} unexpectedly in {notation!r}"
 
+    def recompile():
+        return to_message_dicts(compile_checked(parser, notation))
+
     if test_case.get("expect_round_trip"):
-        assert to_message_dicts(parser.compile(notation)) == messages
+        assert recompile() == messages
 
     if "expect_recompiled" in test_case:
-        assert (
-            to_message_dicts(parser.compile(notation)) == test_case["expect_recompiled"]
-        )
+        assert recompile() == test_case["expect_recompiled"]
 
 
 # --- Response Parser Conformance ---
@@ -514,7 +531,23 @@ def test_response_parser_conformance(name, test_case):
     action = test_case["action"]
 
     if action == "unwrap":
-        assert_raw_parts_match(parser.unwrap(test_case["input"]), test_case["expect"])
+        expected = test_case["expect"]
+        assert_raw_parts_match(parser.unwrap(test_case["input"]), expected)
+        has_any = any("a2ui_raw" in p for p in expected)
+        has_complete = any(
+            "a2ui_raw" in p and p.get("is_final", True) for p in expected
+        )
+        assert parser.has_format_content(test_case["input"]) is has_any
+        assert (
+            parser.has_format_content(test_case["input"], complete=True) is has_complete
+        )
+
+    elif action == "has_format_content":
+        complete = args.get("complete", False)
+        assert (
+            parser.has_format_content(test_case["input"], complete=complete)
+            is test_case["expect"]
+        )
 
     elif action == "wrap":
         parts = test_case["parts"]
@@ -528,7 +561,9 @@ def test_response_parser_conformance(name, test_case):
             assert_raw_parts_match(parser.unwrap(output), parts)
 
     elif action == "parse_response":
-        kwargs = {} if args.get("wrapped", True) else {"wrapped": False}
+        kwargs: dict[str, Any] = {}
+        if not args.get("wrapped", True):
+            kwargs["wrapped"] = False
 
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
@@ -549,11 +584,21 @@ cases_response_streaming = get_marked_conformance_cases(
 )
 
 
+def _merge_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    for p in parts:
+        if merged and "text" in merged[-1] and "text" in p:
+            merged[-1] = {"text": merged[-1]["text"] + p["text"]}
+        else:
+            merged.append(p)
+    return merged
+
+
 @pytest.mark.parametrize("name, test_case", cases_response_streaming)
 def test_response_streaming_conformance(name, test_case):
     args = test_case["args"]
     wrapped = args.get("wrapped", True)
-    parser = make_parser(args)
+    stream = make_parser(args).open_stream(wrapped=wrapped)
     chunks: list[str] = []
     yielded: list[dict] = []
 
@@ -562,18 +607,22 @@ def test_response_streaming_conformance(name, test_case):
         chunks.append(chunk)
         if "expect_error" in step:
             with assert_raises(step["expect_error"]):
-                parser.parse_chunk(chunk, wrapped=wrapped)
+                stream.feed(chunk)
             return
-        parts = parser.parse_chunk(chunk, wrapped=wrapped)
+        parts = stream.feed(chunk)
         assert_parts_match(parts, step["expect"])
         yielded.extend(part_to_dict(p) for p in parts)
+
+    yielded.extend(part_to_dict(p) for p in stream.close())
 
     if test_case.get("expect_matches_single_shot"):
         fresh_parser = make_parser(args)
         single_shot_parts = fresh_parser.parse_response(
             "".join(chunks), wrapped=wrapped
         )
-        assert [part_to_dict(p) for p in single_shot_parts] == yielded
+        assert _merge_text_parts(yielded) == _merge_text_parts(
+            [part_to_dict(p) for p in single_shot_parts]
+        )
 
 
 # --- Multi-Catalog Formats Conformance (Express, Elemental, Atom, Direct JSON) ---
@@ -621,9 +670,9 @@ def run_format_case(test_case, tmp_path):
         parser = make_parser(args)
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
-                parser.compile(test_case["input"])
+                compile_checked(parser, test_case["input"])
             return
-        raw_compiled = parser.compile(test_case["input"])
+        raw_compiled = compile_checked(parser, test_case["input"])
         assert isinstance(raw_compiled, list)
         assert all(hasattr(m, "model_dump") for m in raw_compiled)
         compiled = to_message_dicts(raw_compiled)
@@ -634,6 +683,10 @@ def run_format_case(test_case, tmp_path):
     elif action == "decompile":
         parser = make_parser(args)
         messages = test_case["messages"]
+        if "expect_error" in test_case:
+            with assert_raises(test_case["expect_error"]):
+                parser.decompile(to_message_models(messages))
+            return
         notation = parser.decompile(to_message_models(messages))
         _expect_snippet(
             notation,
@@ -641,7 +694,7 @@ def run_format_case(test_case, tmp_path):
             test_case.get("expect_absent", []),
         )
         if test_case.get("expect_round_trip"):
-            recompiled = to_message_dicts(parser.compile(notation))
+            recompiled = to_message_dicts(compile_checked(parser, notation))
             assert sort_components_by_id(recompiled) == sort_components_by_id(messages)
 
     elif action == "parse_response":
@@ -691,9 +744,9 @@ def run_format_case(test_case, tmp_path):
             chunks = args["probe_chunks"]
 
             def read(parser):
+                stream = parser.open_stream()
                 return [
-                    [part_to_dict(p) for p in parser.parse_chunk(chunk)]
-                    for chunk in chunks
+                    [part_to_dict(p) for p in stream.feed(chunk)] for chunk in chunks
                 ]
 
             first_parts = read(fmt.create_parser())
@@ -793,10 +846,14 @@ def run_create_processor_case(test_case, tmp_path):
     configs = [catalog_config_from_document(entry) for entry in args["catalogs"]]
     before = _describe_configs(configs)
     loaded_examples = stage_examples(args.get("examples", []), tmp_path)
-    base_factory = _factory_for(
-        args.get("format", "direct_json"),
-        allowed_messages=args.get("allowed_messages"),
-        progressive_keys=args.get("progressive_keys"),
+    base_factory = (
+        _factory_for(
+            args["format"],
+            allowed_messages=args.get("allowed_messages"),
+            progressive_keys=args.get("progressive_keys"),
+        )
+        if isinstance(args, dict) and args.get("format") is not None
+        else None
     )
     override_factory = (
         _factory_for(
@@ -804,7 +861,7 @@ def run_create_processor_case(test_case, tmp_path):
             allowed_messages=args.get("allowed_messages"),
             progressive_keys=args.get("progressive_keys"),
         )
-        if "format_override" in args
+        if isinstance(args, dict) and args.get("format_override") is not None
         else None
     )
     generator = A2uiGenerator(

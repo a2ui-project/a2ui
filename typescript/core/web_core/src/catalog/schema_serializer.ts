@@ -19,12 +19,14 @@ import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
 import {
   DEFAULT_COMMON_TYPES_URI,
   isSpecComponentSchema,
   isSpecFunctionSchema,
+  schemaRequiresArgs,
   SpecShaper,
 } from './spec_shape.js';
 import type {CatalogUnions, ComponentApi, FunctionApi} from './types.js';
@@ -260,10 +262,6 @@ function rewriteRefMarkers(
     return;
   }
 
-  if (Array.isArray(node.anyOf)) {
-    node.oneOf = node.anyOf;
-    delete node.anyOf;
-  }
   for (const key of ['additionalProperties', 'unevaluatedProperties']) {
     const value = node[key];
     if (isObject(value) && Object.keys(value).length === 0) node[key] = true;
@@ -286,6 +284,7 @@ function zodToUnbundledJson(
   const json = zodToJsonSchema(schema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
+    override: exclusiveUnionOverride,
   }) as JsonObject;
   delete json.definitions;
   delete json.$defs;
@@ -350,6 +349,7 @@ function serializeFunctionModel(
   isAtLeastV10: boolean,
   asListItem: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
+  defs?: Readonly<JsonObject>,
 ): JsonObject {
   const args = zodToUnbundledJson(fn.schema, localDefs, commonTypesUri);
   if (asListItem) {
@@ -367,7 +367,7 @@ function serializeFunctionModel(
   closeObjectSchema(args);
   // A call to a function without required parameters may omit `args`, as in
   // the validation schema.
-  const argsRequired = Array.isArray(args.required) && args.required.length > 0;
+  const argsRequired = schemaRequiresArgs(args, defs);
   const result: JsonObject = {type: 'object'};
   if (fn.description) result.description = fn.description;
   if (isAtLeastV10) {
@@ -516,7 +516,7 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
       name,
       loaded ??
         (!loadedDefinition(fn) && isSpecFunctionSchema(fn.schema)
-          ? deepFreeze(shaper.functionSchema(name, fn))
+          ? deepFreeze(shaper.functionSchema(name, fn, defs))
           : undefined),
     );
   }
@@ -590,7 +590,15 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       const definition = model.functions.get(name);
       return definition && isFunctionListItem(definition)
         ? deepCopyJson(definition)
-        : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, true, commonTypesUri);
+        : serializeFunctionModel(
+            name,
+            fn,
+            localDefs,
+            isAtLeastV10,
+            true,
+            commonTypesUri,
+            model.defs,
+          );
     });
   } else if (catalog.functionsLayout === 'map' || functionEntries.length > 0) {
     const functions: JsonObject = {};
@@ -599,7 +607,15 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       functions[name] =
         definition && !isFunctionListItem(definition)
           ? deepCopyJson(definition)
-          : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, false, commonTypesUri);
+          : serializeFunctionModel(
+              name,
+              fn,
+              localDefs,
+              isAtLeastV10,
+              false,
+              commonTypesUri,
+              model.defs,
+            );
     }
     doc.functions = functions;
   }

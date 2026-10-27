@@ -1024,12 +1024,11 @@ export class RpcHandler {
 #### RPC Execution Lifecycle & Safeguards
 
 1. **Inbound Call Execution (`handleCallRendererFunction`)**:
-   - **Catalog Resolution Order**: An explicit `catalogId` and its absence are two separate paths, not steps in one fallback chain.
-     1. If the call carries a `catalogId`, resolve it against the surface's `availableCatalogs`, then against the processor's global catalog list. If neither has it, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Do not fall through to the surface default: the caller named a catalog, and answering with a different one is worse than failing.
-     2. If the call carries no `catalogId`, use the surface's `defaultCatalog`.
-     3. If neither path yields a catalog, return `RpcErrorCode.INVALID_FUNCTION_CALL`.
+   - **Catalog Resolution Order**: Resolve the call's `catalogId` against the surface's `availableCatalogs`, then against the processor's global catalog list. If neither has it, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Do not fall through to the surface default.
 
-     Falling back to the first entry of the global catalog list is wrong for the same reason. It resolves against a catalog the surface may never have negotiated, so a typo in `catalogId` executes a same-named function from an unrelated catalog instead of failing. Once resolved, verify the catalog's `protocolVersion` is compatible with the surface before executing.
+     Falling back to the first entry of the global catalog list is also wrong. It resolves against a catalog the surface may never have negotiated, so a typo in `catalogId` executes a same-named function from an unrelated catalog instead of failing. Once resolved, verify the catalog's `protocolVersion` is compatible with the surface before executing.
+
+     A call with no `catalogId` should not reach this step. The schema requires `catalogId` on `callRendererFunction`, so inbound parsing should reject the message with `A2uiValidationError` and no `rendererFunctionResponse` will be sent. Agents should check this field against the schema before sending the message.
 
    - **Function Resolution & Argument Coercion**: Look up the function in the resolved catalog. If it is absent, or argument validation fails, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Execute with the coerced arguments returned by `validateFunction`, never the raw payload.
    - **Permission & Activation Boundaries**: Verifies execution permissions. If a function requires user activation (e.g., audio playback or clipboard write), execution checks that `isUserActivated === true`.

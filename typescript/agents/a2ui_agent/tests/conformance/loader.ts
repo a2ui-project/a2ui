@@ -71,6 +71,14 @@ const SUPERSEDED = new Map<string, string>([
     name,
     'superseded by catalog_resolution.yaml, which activates every catalog in common and adds inline catalogs alongside them',
   ]),
+  ...[
+    'test_parse_empty_response',
+    'test_parse_response_only_text_no_tags',
+    'test_parse_response_empty_tags',
+  ].map((name): [string, string] => [
+    name,
+    'superseded by direct_json/response_parser.yaml, where a response without tags is a text part, an empty response has no parts, and an empty block fails when it compiles',
+  ]),
 ]);
 
 /**
@@ -78,12 +86,17 @@ const SUPERSEDED = new Map<string, string>([
  *
  * `generate_prompt` assembled a full system prompt from role, workflow and UI descriptions.
  * The prompt generator now renders only the catalog snippet and leaves the rest of the
- * prompt to the agent developer.
+ * prompt to the agent developer. `process_chunk` drove a stream processor that a parser
+ * owned; a stream is now opened per response with `Parser.openStream`.
  */
 const SUPERSEDED_ACTIONS = new Map<string, string>([
   [
     'generate_prompt',
     'superseded by direct-json/prompt_generator.yaml, since the generator renders only the catalog snippet',
+  ],
+  [
+    'process_chunk',
+    'superseded by direct_json/response_streaming.yaml, which reads a stream through Parser.openStream',
   ],
 ]);
 
@@ -93,12 +106,7 @@ const SUPPORTED_FORMATS = new Set(['direct_json', 'express']);
  * Conformance actions this SDK has no implementation for. Their cases are skipped with the
  * reason given, rather than falling through the harness and passing without running.
  */
-const UNIMPLEMENTED_ACTIONS = new Map<string, string>([
-  ['from_format', 'skill generation is not implemented'],
-  ['core_syntax', 'skill generation is not implemented'],
-  ['from_catalog', 'skill generation is not implemented'],
-  ['skill_set', 'skill generation is not implemented'],
-]);
+const UNIMPLEMENTED_ACTIONS = new Map<string, string>([]);
 
 export function classify(testCase: TestCase) {
   const superseded = SUPERSEDED.get(testCase.name) ?? SUPERSEDED_ACTIONS.get(testCase.action);
@@ -122,7 +130,7 @@ export function classify(testCase: TestCase) {
   if (version === '1.0') version = 'v1.0';
   if (version === '0.8') version = 'v0.8';
 
-  let format = 'direct_json';
+  let format = 'express';
   if (typeof testCase.format === 'string') {
     format = testCase.format;
   } else if (testCase.args && typeof testCase.args.format === 'string') {

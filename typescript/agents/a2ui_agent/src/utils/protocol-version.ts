@@ -36,3 +36,16 @@ export function toWireProtocolVersion(raw: string | undefined | null): ProtocolV
   }
   return `v${normalized}` as ProtocolVersion;
 }
+
+/**
+ * Converts a catalog's declared protocol version into the release line it belongs to.
+ *
+ * v0.9 and v0.9.1 catalogs are interchangeable, as in the core's catalog compatibility, so
+ * both belong to `v0.9`. Every other version is its own release line, in wire form.
+ *
+ * @throws {A2uiCatalogError} If `raw` is empty or missing.
+ */
+export function toReleaseLine(raw: string | undefined | null): ProtocolVersion {
+  const wire = toWireProtocolVersion(raw);
+  return wire === 'v0.9.1' ? 'v0.9' : wire;
+}

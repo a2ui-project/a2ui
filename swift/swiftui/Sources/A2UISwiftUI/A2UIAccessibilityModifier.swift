@@ -15,10 +15,6 @@
 import A2UICore
 import SwiftUI
 
-#if canImport(UIKit)
-  import UIKit
-#endif
-
 /// Maps a node's A2UI `accessibility` attributes to the SwiftUI accessibility API.
 ///
 /// ``ComponentNodeView`` applies this modifier to every rendered component, so custom component
@@ -39,6 +35,8 @@ import SwiftUI
 public struct A2UIAccessibilityModifier: ViewModifier {
   public let node: Node
 
+  private let attributes: AccessibilityAttributes?
+
   /// Whether this modifier applies the label and hint. ``ComponentNodeView`` turns this off when
   /// the component applied them to its own control.
   let appliesLabelAndHint: Bool
@@ -49,11 +47,8 @@ public struct A2UIAccessibilityModifier: ViewModifier {
 
   init(node: Node, appliesLabelAndHint: Bool) {
     self.node = node
+    self.attributes = node.explicitAccessibilityAttributes
     self.appliesLabelAndHint = appliesLabelAndHint
-  }
-
-  private var attributes: AccessibilityAttributes? {
-    node.explicitAccessibilityAttributes
   }
 
   /// The explicit accessibility label, if the agent set a non-empty one.
@@ -108,14 +103,9 @@ public struct A2UIAccessibilityModifier: ViewModifier {
 
   @MainActor
   static func announce(_ text: String, assertive: Bool) {
-    if #available(iOS 17.0, macOS 14.0, *) {
-      var announcement = AttributedString(text)
-      announcement.accessibilitySpeechAnnouncementPriority = assertive ? .high : .default
-      AccessibilityNotification.Announcement(announcement).post()
-    } else {
-      #if canImport(UIKit)
-        UIAccessibility.post(notification: .announcement, argument: text)
-      #endif
-    }
+    guard !text.isEmpty else { return }
+    var announcement = AttributedString(text)
+    announcement.accessibilitySpeechAnnouncementPriority = assertive ? .high : .default
+    AccessibilityNotification.Announcement(announcement).post()
   }
 }

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
@@ -39,16 +38,6 @@ const String _rootDataPath = '/';
 typedef _ChildSlot = (String, int?, String?);
 typedef _EdgeKey = (ComponentNode?, _ChildSlot, String, String);
 typedef _DiagnosticScope = (String componentId, String dataPath);
-
-// Retain the reservation with the queued diagnostic so dropping an aborted
-// update releases only undelivered codes, not newer or reported scopes.
-class _QueuedError {
-  final A2uiRendererError error;
-  final _DiagnosticScope? scope;
-  final Set<String>? codes;
-
-  const _QueuedError(this.error, {this.scope, this.codes});
-}
 
 const _EdgeKey _rootEdgeKey = (null, ('root', null, null), 'root', '/');
 
@@ -123,10 +112,8 @@ class _NodeRecord<T extends ComponentApi> {
 /// removing a cyclic edge rearms its diagnostics. Expression errors are not
 /// deduplicated.
 ///
-/// Diagnostics associated with a tree update are delivered synchronously after
-/// its ownership and props are committed. If expression evaluation produces no
-/// changed binding value and therefore no tree update, its diagnostic is
-/// delivered in a fallback microtask. Disposal cancels pending diagnostics.
+/// Diagnostics are dispatched on the surface as they are found, so disposing
+/// the resolver drops none of them.
 class NodeResolver<T extends ComponentApi> {
   final SurfaceModel<T> _surface;
 
@@ -148,13 +135,8 @@ class NodeResolver<T extends ComponentApi> {
   bool _disposed = false;
   bool _disposeRequested = false;
   int _updateDepth = 0;
-  bool _dispatchingErrors = false;
-  bool _errorFlushScheduled = false;
-  final Queue<_QueuedError> _pendingErrors = Queue();
   final Map<_DiagnosticScope, Set<String>> _dispatchedErrors = {};
-  final Queue<String> _pendingWarnings = Queue();
   final Set<String> _warnedReferencePaths = {};
-  final Queue<A2uiWarning> _pendingSurfaceWarnings = Queue();
   final Set<String> _warnedMissingDataPaths = {};
 
   /// Builds a resolver over [_surface], subscribing to its component model and
@@ -192,9 +174,6 @@ class NodeResolver<T extends ComponentApi> {
     });
   }
 
-  // Error listeners can synchronously change the model. Commit the entire
-  // update, including root publication and binder subscriptions, before
-  // dispatching diagnostics so a listener cannot reenter a half-built tree.
   void _runUpdate(void Function() update) {
     if (_disposed) {
       return;
@@ -202,25 +181,14 @@ class NodeResolver<T extends ComponentApi> {
     _updateDepth++;
     try {
       batch(update);
-    } catch (_) {
-      _discardPendingErrors();
-      _pendingWarnings.clear();
-      _pendingSurfaceWarnings.clear();
-      rethrow;
     } finally {
       _updateDepth--;
-      if (_updateDepth == 0) {
-        if (_disposeRequested) {
-          dispose();
-        } else {
-          _flushErrors();
-        }
+      if (_updateDepth == 0 && _disposeRequested) {
+        dispose();
       }
     }
   }
 
-  // Record the condition when queued, not when delivered: sibling edges can
-  // discover it before the tree update reaches its diagnostic boundary.
   void _reportOnce(
     String code,
     String componentId,
@@ -232,12 +200,8 @@ class NodeResolver<T extends ComponentApi> {
       dataPath,
     ), () => {});
     if (!codes.add(code)) return;
-    _pendingErrors.add(
-      _QueuedError(
-        A2uiRendererError(code: code, surfaceId: _surface.id, message: message),
-        scope: (componentId, dataPath),
-        codes: codes,
-      ),
+    _surface.dispatchError(
+      A2uiRendererError(code: code, surfaceId: _surface.id, message: message),
     );
   }
 
@@ -247,66 +211,12 @@ class NodeResolver<T extends ComponentApi> {
 
   void _reportExpressionError(A2uiExpressionError error) {
     if (_disposed) return;
-    _pendingErrors.add(
-      _QueuedError(ComponentContext.clientErrorFor(_surface, error)),
-    );
-    _scheduleFallbackFlush();
+    _surface.dispatchError(ComponentContext.clientErrorFor(_surface, error));
   }
 
-  // Bindings resolve while binders build, so the warning waits for the
-  // update's diagnostic boundary like an expression error.
   void _reportMissingData(String path) {
     if (_disposed || !_warnedMissingDataPaths.add(path)) return;
-    _pendingSurfaceWarnings.add(missingDataBindingWarning(path));
-    _scheduleFallbackFlush();
-  }
-
-  void _scheduleFallbackFlush() {
-    if (_updateDepth == 0 && !_dispatchingErrors && !_errorFlushScheduled) {
-      // Normally drained synchronously once the rebuild finishes; a rebuild
-      // that changes no binding value emits nothing, so schedule a fallback.
-      _errorFlushScheduled = true;
-      scheduleMicrotask(() {
-        _errorFlushScheduled = false;
-        if (!_disposed) _flushErrors();
-      });
-    }
-  }
-
-  void _discardPendingErrors() {
-    for (final _QueuedError queued in _pendingErrors) {
-      final Set<String>? codes = queued.codes;
-      if (codes != null && identical(_dispatchedErrors[queued.scope], codes)) {
-        codes.remove(queued.error.code);
-        if (codes.isEmpty) _dispatchedErrors.remove(queued.scope);
-      }
-    }
-    _pendingErrors.clear();
-  }
-
-  void _flushErrors() {
-    if (_disposed || _dispatchingErrors) {
-      return;
-    }
-    _dispatchingErrors = true;
-    try {
-      while (_pendingErrors.isNotEmpty ||
-          _pendingSurfaceWarnings.isNotEmpty ||
-          _pendingWarnings.isNotEmpty) {
-        if (_pendingErrors.isNotEmpty) {
-          _surface.dispatchError(_pendingErrors.removeFirst().error);
-        } else if (_pendingSurfaceWarnings.isNotEmpty) {
-          _surface.dispatchWarning(_pendingSurfaceWarnings.removeFirst());
-        } else {
-          _log.warning(_pendingWarnings.removeFirst());
-        }
-      }
-    } finally {
-      _discardPendingErrors();
-      _pendingWarnings.clear();
-      _pendingSurfaceWarnings.clear();
-      _dispatchingErrors = false;
-    }
+    _surface.dispatchWarning(missingDataBindingWarning(path));
   }
 
   /// Number of live nodes (including placeholders). Exposed for tests and
@@ -338,10 +248,7 @@ class NodeResolver<T extends ComponentApi> {
       }
       _pendingParents.clear();
       _dispatchedErrors.clear();
-      _pendingErrors.clear();
-      _pendingWarnings.clear();
       _warnedReferencePaths.clear();
-      _pendingSurfaceWarnings.clear();
       _warnedMissingDataPaths.clear();
     });
   }
@@ -765,7 +672,7 @@ class NodeResolver<T extends ComponentApi> {
       } catch (_) {
         // Children created earlier in this pass have no owner until the
         // edges commit. Their diagnostic entries stay: a retained sibling
-        // can share one, and _runUpdate releases what this pass queued.
+        // can share one.
         for (final MapEntry<_EdgeKey, MutableComponentNode<T>> edge
             in newEdges.entries) {
           if (!identical(record.childEdges[edge.key], edge.value)) {
@@ -891,7 +798,7 @@ class NodeResolver<T extends ComponentApi> {
     }
     record.node.setProps(UnmodifiableMapView(next));
     if (!record.node.disposed) {
-      _queueUnresolvedReferenceWarnings(next);
+      _logUnresolvedReferenceWarnings(next);
     }
     // Includes same-key placeholder replacements. Their callbacks must see
     // the committed replacement, not their own already-disposed predecessor.
@@ -903,11 +810,11 @@ class NodeResolver<T extends ComponentApi> {
   /// Finds descriptors left after supported child references were materialized.
   /// Do not traverse mounted nodes or binding values: each node owns its props,
   /// and only literal maps and lists can contain unresolved structural output.
-  void _queueUnresolvedReferenceWarnings(NodeProps props) {
+  void _logUnresolvedReferenceWarnings(NodeProps props) {
     void visit(Object? value, String path) {
       if (value is ChildNode) {
         if (_warnedReferencePaths.add(path)) {
-          _pendingWarnings.add(
+          _log.warning(
             'Unresolved child reference at $path: this nested ChildList '
             'retains scoped descriptors and is not mounted as nodes.',
           );

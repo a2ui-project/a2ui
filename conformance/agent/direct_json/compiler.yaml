@@ -58,6 +58,9 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# A compile case checks the block on its own, as `validate_payload` does: a
+# surface that the block updates without creating is assumed to exist.
+
 - name: test_compile_json_message_list
   description: A well formed message list compiles to those messages.
   action: compile
@@ -171,3 +174,214 @@
   input: '[{"deleteSurface": {"surfaceId": "s1"}}]'
   expect_error:
     category: "ValidationError"
+
+- name: test_compile_json_newline_in_key_stripped
+  description: A raw line break inside a JSON object key is stripped so a wrapped key still names the property.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [{"version": "v1.0", "deleteSurface": {"surface
+    Id": "s1"}}]
+  expect:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "s1"
+
+- name: test_compile_json_newline_in_id_stripped
+  description: A raw line break inside an identifier property value such as id or child is stripped.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "ro
+    ot", "component": "Text", "text": "Hello"}]}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_json_newline_in_prose_kept
+  description: A raw line break inside a prose string value without spaces is kept rather than stripped.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Apples
+    Oranges"}]}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Apples\nOranges"
+
+- name: test_compile_json_newline_in_cjk_text_kept
+  description: A raw line break inside CJK text (which contains no ASCII spaces) is kept.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "第一行
+    第二行"}]}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "第一行\n第二行"
+
+- name: test_compile_json_crlf_in_prose_handled_uniformly
+  description: A raw CRLF sequence inside a prose string value is preserved identically across all SDKs.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "[{\"version\": \"v1.0\", \"createSurface\": {\"surfaceId\": \"s1\", \"catalogId\": \"conformance/simplified\"}}, {\"version\": \"v1.0\", \"updateComponents\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": \"Text\", \"text\": \"Line 1\r\nLine 2\"}]}}]"
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Line 1\r\nLine 2"
+
+- name: test_compile_json_inline_backticks_stripped
+  description: Backticks at the edges of a raw JSON block passed to compile are stripped across all SDKs.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '`[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]`'
+  expect:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "s1"
+
+- name: test_compile_json_newline_in_component_and_envelope_identifiers_stripped
+  description: Line breaks inside envelope keys and component identifier properties (id, component, child, children items, surfaceId, catalogId) are stripped.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s
+    1", "catalogId": "conformance/
+    simplified"}},
+      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [
+        {"id": "ro
+    ot", "component": "Ca
+    rd", "child": "bo
+    dy"},
+        {"id": "body", "component": "Text", "text": "Hello"}
+      ]}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_json_newline_in_data_model_value_preserved
+  description: Raw line breaks inside strings under updateDataModel value are preserved even if property names match identifier keys.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "v1.0", "updateDataModel": {"surfaceId": "s1", "value": {
+        "id": "item
+    1",
+        "component": "comp
+    2",
+        "notes": "line
+    3"
+      }}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        value:
+          id: "item\n1"
+          component: "comp\n2"
+          notes: "line\n3"
+
+- name: test_compile_json_newline_in_create_surface_data_model_preserved
+  description: Raw line breaks inside strings under createSurface.dataModel in v1.0 are preserved even if property names match identifier keys.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    [
+      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified", "dataModel": {
+        "id": "item
+    1",
+        "notes": "line
+    2"
+      }}}
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        dataModel:
+          id: "item\n1"
+          notes: "line\n2"

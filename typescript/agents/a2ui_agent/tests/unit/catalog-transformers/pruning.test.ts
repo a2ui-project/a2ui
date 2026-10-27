@@ -103,6 +103,26 @@ describe('Pruning Transformers', () => {
     expect(pruned.validationSchema).not.toBe(originalSchema);
   });
 
+  it('ComponentPruningTransformer keeps no components when given a null allowlist', () => {
+    const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
+    const transformer = new ComponentPruningTransformer(null);
+    const pruned = transformer.transform(catalog);
+
+    expect(transformer.allowedComponents.size).toBe(0);
+    expect(pruned.components.size).toBe(0);
+    expect(pruned.functions.size).toBe(2);
+  });
+
+  it('FunctionPruningTransformer keeps no functions when given a null allowlist', () => {
+    const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
+    const transformer = new FunctionPruningTransformer(null);
+    const pruned = transformer.transform(catalog);
+
+    expect(transformer.allowedFunctions.size).toBe(0);
+    expect(pruned.components.size).toBe(2);
+    expect(pruned.functions.size).toBe(0);
+  });
+
   describe('toJson of a pruned loaded catalog', () => {
     const document = {
       $schema: 'https://json-schema.org/draft/2020-12/schema',

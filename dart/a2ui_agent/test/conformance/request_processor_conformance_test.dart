@@ -50,9 +50,18 @@ const Map<String, String> _v1OnlyCases = {
   'test_processor_parses_multi_catalog_express_response':
       'v0.9 sends a surface\'s components in an updateComponents of their '
       'own rather than in its createSurface.',
+  'test_generator_defaults_to_express_format':
+      'v0.9 sends a surface\'s components in an updateComponents of their '
+      'own rather than in its createSurface.',
 };
 
 String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
+  if (testCase['name'] ==
+      'test_express_create_format_rejects_several_v0_9_catalogs') {
+    return 'See #3341: Express in this SDK currently accepts several v0.9 '
+        'catalogs, with each surface naming its catalog in '
+        'surface(id, catalogId).';
+  }
   if (version == SuiteVersion.v0_9) {
     if (_v1OnlyCases[testCase['name']] case final String reason) {
       return reason;
@@ -83,9 +92,14 @@ List<List<AgentToRendererMessage>> _examples(
 
 void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
-  final InferenceFormat format = _factory(
+  InferenceFormat create() => _factory(
     args['format'],
   ).createFormat(version.catalogs(args), examples: _examples(args, version));
+  if (testCase['expect_error'] case final Object error) {
+    expectThrowsCategory(create, error);
+    return;
+  }
+  final InferenceFormat format = create();
   final expected = testCase['expect']! as Map<String, Object?>;
   expectSnippet(format.promptGenerator.generate(), expected);
   if (expected['parsers_are_distinct'] == true) {
@@ -96,10 +110,14 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
       for (final Object? chunk in args['probe_chunks']! as List<Object?>)
         version.text(chunk! as String),
     ];
-    List<Object?> read(Parser parser) => [
-      for (final String chunk in chunks)
-        version.partsJson(parser.parseChunk(chunk)),
-    ];
+    List<Object?> read(Parser parser) {
+      final ResponseStream stream = parser.openStream();
+      return [
+        for (final String chunk in chunks)
+          version.partsJson(stream.feed(chunk)),
+      ];
+    }
+
     final Parser first = format.createParser();
     final List<Object?> firstParts = read(first);
     expect(firstParts.expand((p) => p! as List), isNotEmpty);
@@ -109,14 +127,19 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
 
 void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
-  final generator = A2uiGenerator(
-    catalogs: [
-      for (final Object? entry in args['catalogs']! as List<Object?>)
-        version.catalogConfig(entry),
-    ],
-    examples: _examples(args, version),
-    inferenceFormatFactory: _factory(args['format'] ?? 'direct_json'),
-  );
+  final List<CatalogConfig> configs = [
+    for (final Object? entry in args['catalogs']! as List<Object?>)
+      version.catalogConfig(entry),
+  ];
+  final List<List<AgentToRendererMessage>> examples = _examples(args, version);
+  final A2uiGenerator generator = switch (args['format']) {
+    null => A2uiGenerator(catalogs: configs, examples: examples),
+    final Object name => A2uiGenerator(
+      catalogs: configs,
+      examples: examples,
+      inferenceFormatFactory: _factory(name),
+    ),
+  };
   final List<Object?> before = _describe(generator);
   A2uiRequestProcessor create() => generator.createProcessor(
     version.capabilities(
