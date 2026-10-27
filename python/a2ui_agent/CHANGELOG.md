@@ -1,20 +1,19 @@
 ## Unreleased
 
-- **BREAKING**: `PromptGenerator.generate()` is now a final method that
-  returns `assemble_instructions(self)`, and a `PromptGenerator` subclass
-  implements the abstract `catalogs` property and the three hooks
-  (`generate_base_rules`, `generate_catalog_instructions`, `generate_examples`)
-  instead of overriding `generate()`. The Express, Direct JSON, Elemental and
-  Atom generators no longer override it; their snippets are unchanged.
-  `SkillGenerator.generate_skill()` builds its body with the same function, so
-  a monolithic skill for the format's own catalogs holds the prompt snippet.
-  `assemble_instructions(generator, catalogs=None)` is exported from
-  `a2ui.prompt` and caches the snippet for each generator's own catalogs.
-- **BREAKING**: `ExpressPromptGenerator`, `DirectJsonPromptGenerator`,
+- **BREAKING CHANGE**: `PromptGenerator.generate()` is now final and returns
+  `assemble_instructions(self)`, which `SkillGenerator.generate_skill()` also
+  uses, so a monolithic skill for a format's own catalogs holds its prompt
+  snippet. A `PromptGenerator` subclass now implements the abstract `catalogs`
+  property and the three hooks (`generate_base_rules`,
+  `generate_catalog_instructions`, `generate_examples`) instead of overriding
+  `generate()`; built-in snippets are unchanged.
+  [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
+- **BREAKING CHANGE**: `ExpressPromptGenerator`, `DirectJsonPromptGenerator`,
   `ElementalPromptGenerator` and `AtomPromptGenerator` are no longer exported
   from `a2ui.inference_formats` or their format packages. Reach a format's
   generator through `InferenceFormat.prompt_generator`, and subclass
   `PromptGenerator` to write a format of your own.
+  [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
 - **BREAKING CHANGE**: `DirectJsonPromptGenerator.generate_base_rules()` now
   returns the workflow rules followed by the protocol schemas (agent-to-renderer
   and pruned common types) and accepts `allowed_messages`, while
