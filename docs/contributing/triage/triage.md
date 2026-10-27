@@ -15,7 +15,7 @@ Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 
 ## Principles
 
-This section describes triage principles at a high level. See concrete steps in the section [Triage responsibilities](#triage-responsibilities).
+This section describes triage principles at a high level. See concrete steps in the section [Triage process](#triage-process).
 
 1. **Issues** priority (aligned with other teams in Dash):
 
@@ -33,14 +33,19 @@ This section describes triage principles at a high level. See concrete steps in 
 
 ## GitHub labels used in triage
 
+Fully automated:
+- [status: needs-triage][needs-triage-label] -  fully automated
+
+Partially automated:
+- [status: waiting-for-author-response][waiting-for-author-response] - removed after out-of-team comment
+
+Manually assigned:
 1. Priority labels: [P0][p0], [P1][p1], [P2][p2], [P3][p3], [P4][p4]
 2. [status: needs-team-input][needs-team-input]
-3. [status: needs-triage][needs-triage-label]
-4. [status: first-line-handled][first-line-handled]
-5. [size: small][size-small]
-6. [type: contributions-welcome][contributions-welcome]
-7. [status: waiting-for-author-response][waiting-for-author-response]
-8. [status: assigned-for-triage][assigned-for-triage]
+3. [status: first-line-handled][first-line-handled]
+4. [size: small][size-small]
+5. [type: contributions-welcome][contributions-welcome]
+6. [status: assigned-for-triage][assigned-for-triage]
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 
@@ -57,8 +62,6 @@ See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
 
-Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies. The bot also reads `status: assigned-for-triage`, which is applied and removed manually, and flags items that carry it without an assignee or for more than 14 days.
-
 ## Queues used in triage
 
 - [Not first line handled][not-first-line-handled]
@@ -69,9 +72,9 @@ Two of these labels are automated: `status: needs-triage` is managed entirely by
 [needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
 [needs-triage-minus-waiting]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22+-label%3A%22status%3A+needs-team-input%22
 
-## Triage responsibilities
+## Triage process
 
-### First line triage (daily)
+### First line triage (daily, by gardener)
 
 For each issue that is [not first-line-handled][not-first-line-handled]:
 
@@ -80,26 +83,31 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 
 ### Second line triage (weekly)
 
-Go through [items with label `status: needs-triage`][needs-triage]. For each item, do one of the following:
+Triage the new items with two steps:
 
-- Triage it yourself, as described in [Triage a PR](#triage-a-pr) or [Triage an issue](#triage-an-issue).
-- Assign it to a team member who will finish the triage, and add `status: assigned-for-triage`.
+1. Offline - burn [Needs triage minus waiting for team input][needs-triage-minus-waiting]:
 
-The [triage bot](automation.md) removes `status: needs-triage` once the item no longer matches any of its rules. You can remove the label manually to speed up the process, but if the item still matches a rule, the bot adds it back.
+    - Triage as described below, if it takes less than 1-2 minutes
+    - Otherwize assign [status: needs-team-input][needs-team-input], plus (optionally) add a comment
 
-Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (without P0-P4 label and _haven't_ had `status: needs-triage`, `status: needs-team-input` or `status: waiting-for-author-response` added to them). If you find such issues, triage them as well. This catches issues that somehow fell through the cracks.
+2. On a triage team meeting - burn [status: needs-team-input][needs-team-input]:
 
-When weekly triage is complete, the [`needs-triage`][needs-triage] list should ideally be empty.
+    - Triage as described below, if it takes less than 1-2 minutes
+    - Otherwize assign to an axpert in the area and add label [status: assigned-for-triage][assigned-for-triage]
 
 ### For owners of `status: assigned-for-triage`
 
 If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to triage the item within two weeks of the assignment, using the steps below.
 
+## Triage an item
+
 ### Use helpful labels
 
-1. Add `status: waiting-for-author-response` when a PR or an issue needs a response or clarification from its author or another contributor. The bot removes the label once someone outside the team replies, and the item goes back to the triage queue.
+1. Add [status: waiting-for-author-response][waiting-for-author-response] when a PR or an issue needs a response or clarification from its author or another contributor. The bot removes the label once someone outside the team replies, and the item goes back to the triage queue.
 
-2. Add `size: small` to highlight a small issue. 
+2. Add [size: small][size-small] to highlight a small issue.
+
+3. Add [type: contributions-welcome][contributions-welcome] for rare cases when an issue is specifically designed for external contributions.
 
 ### Triage a PR
 
@@ -137,3 +145,7 @@ What may help:
 5. For standard cases, such as an out-of-scope request, use the [standard replies for issues](templates-issues.md).
 
 The triage is done when the issue has a priority and no external comment is left unanswered.
+
+### Automation
+
+TODO(polina-c): create automation for the triage process.
