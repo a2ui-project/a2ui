@@ -133,39 +133,44 @@ struct RPCConformanceTests {
 
       // Inbound call
       if let messageJSON = testCase.args?["message"] {
-        let data = try JSONEncoder().encode(messageJSON)
+        let expectedErr = testCase.expect?["error"]?.objectValue
+        let message: AgentToRendererMessage?
         do {
-          let message = try JSONDecoder().decode(AgentToRendererMessage.self, from: data)
-          if case .callRendererFunction(let callMsg) = message {
-            let response = await rpcHandler.handleIncomingCall(
-              callMsg,
-              catalogs: catalogs,
-              userActivationPresent: userActivation
-            )
-
-            if let expectedResp = testCase.expect?["response"]?["rendererFunctionResponse"] {
-              let expectedCallID = expectedResp["functionCallId"]?.stringValue
-              #expect(response.functionCallID == expectedCallID)
-
-              if let expectedValue = expectedResp["value"] {
-                #expect(response.value == expectedValue)
-              }
-
-              if let expectedErr = expectedResp["error"] {
-                let expectedCode = expectedErr["code"]?.stringValue
-                let expectedMsg = expectedErr["message"]?.stringValue
-                #expect(response.error?.code == expectedCode)
-                if let expectedMsg {
-                  #expect(response.error?.message.contains(expectedMsg) == true)
-                }
-              }
-            }
-          }
+          // parseAll runs the version adapter's schema checks, which a bare
+          // JSONDecoder skips (e.g. a missing callFunction.catalogId).
+          message = try AgentToRendererMessage.parseAll(messageJSON).first
+          #expect(expectedErr == nil, "\(testCase.name): expected a validation error")
         } catch {
           // If schema validation rejected invalid payload (e.g. missing callFunction)
-          if let expectedErr = testCase.expect?["error"]?.objectValue {
-            let msgSub = expectedErr["message"]?.stringValue ?? ""
+          #expect(expectedErr != nil, "\(testCase.name): unexpected error \(error)")
+          if let msgSub = expectedErr?["message"]?.stringValue {
             #expect("\(error)".contains(msgSub))
+          }
+          message = nil
+        }
+        if case .callRendererFunction(let callMsg)? = message {
+          let response = await rpcHandler.handleIncomingCall(
+            callMsg,
+            catalogs: catalogs,
+            userActivationPresent: userActivation
+          )
+
+          if let expectedResp = testCase.expect?["response"]?["rendererFunctionResponse"] {
+            let expectedCallID = expectedResp["functionCallId"]?.stringValue
+            #expect(response.functionCallID == expectedCallID)
+
+            if let expectedValue = expectedResp["value"] {
+              #expect(response.value == expectedValue)
+            }
+
+            if let expectedErr = expectedResp["error"] {
+              let expectedCode = expectedErr["code"]?.stringValue
+              let expectedMsg = expectedErr["message"]?.stringValue
+              #expect(response.error?.code == expectedCode)
+              if let expectedMsg {
+                #expect(response.error?.message.contains(expectedMsg) == true)
+              }
+            }
           }
         }
       }
