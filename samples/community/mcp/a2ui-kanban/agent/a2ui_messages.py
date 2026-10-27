@@ -15,11 +15,12 @@
 """The A2UI v1.0 messages the agent sends.
 
 The surface mixes `basicCatalog` layout and display components (`Column`, `Row`,
-`Card`, `Tabs`, `Divider`, `Text`) with the `McpApp` component (`id: "board"`)
-that hosts the interactive Kanban board resource and its `data.paths` bindings.
+`Card`, `Tabs`, `Divider`, `Text`, `TextField`, `Button`) with the `McpApp`
+component and the `callMcpTool`, `transformData` and `updateDataModel`
+functions of `@a2ui/catalog-mcp`.
 The agent can both push new board state to `/kanban/board` (`updateDataModel`)
 and dynamically restructure the surface layout (`updateComponents`), rendering
-the `McpApp` inside different basic catalog containers.
+the `McpApp` and sibling controls inside different basic catalog containers.
 """
 
 from __future__ import annotations
@@ -34,6 +35,36 @@ MCP_CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"
 PROTOCOL_VERSION = "1.0"
 
 BOARD_PATH = "/kanban/board"
+SELECTION_PATH = "/kanban/selection"
+QUICK_ADD_PATH = "/kanban/quickAdd"
+QUICK_ADD_TITLE_PATH = f"{QUICK_ADD_PATH}/title"
+QUICK_ADD_ASSIGNEE_PATH = f"{QUICK_ADD_PATH}/assignee"
+
+DEFAULT_QUICK_ADD = {"title": "Document MCP catalog", "assignee": "Ana"}
+
+TODO_JMESPATH = (
+    "join('', ['Todo: ', to_string(length(columns[?id == 'todo'].cards[]))])"
+)
+WIP_JMESPATH = (
+    "columns[?id == 'review'] | [0] | join('', [title, ' ', "
+    "to_string(length(cards)), '/', to_string(wipLimit), "
+    "(length(cards) > wipLimit && ' (over limit)' || '')])"
+)
+DONE_JMESPATH = (
+    "join('', ['Done: ', to_string(length(columns[?id == 'done'].cards[]))])"
+)
+SELECTION_JMESPATH = (
+    "(selection.title && join('', ['Selected: ', selection.title, (selection.column &&"
+    " join('', [' in ', selection.column]) || ''), (selection.assignee && selection.due"
+    " && join('', [' (', selection.assignee, ', due ', selection.due, ')']) ||"
+    " selection.assignee && join('', [' (', selection.assignee, ')']) || selection.due"
+    " && join('', [' (due ', selection.due, ')']) || '')])) || 'No card selected'"
+)
+# Writes the board returned by `create_task` to the bound board and hands the
+# raw result to the app as its tool result.
+CREATE_TASK_JMESPATH = (
+    '{"/kanban/board": structuredContent, "/kanban/toolResult": toolResult}'
+)
 
 # Tools the board app may call through the host (`tools/call`).
 APP_ALLOWED_TOOLS = ["move_task", "create_task", "assign_task", "list_board"]
@@ -45,32 +76,153 @@ APP_DATA_PATHS = {
     "board": BOARD_PATH,
     "toolResult": "/kanban/toolResult",
     "modelContext": "/kanban/modelContext",
-    "selection": "/kanban/selection",
+    "selection": SELECTION_PATH,
 }
 
 LAYOUT_NAMES = ("default", "cards", "tabs", "split")
 
 
+def _mcp_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Builds an `@call` invocation against the MCP catalog."""
+    return {
+        "@call": name,
+        "catalogId": MCP_CATALOG_ID,
+        "args": args,
+    }
+
+
 def _text(
-    component_id: str, path_or_literal: str, *, literal: bool = False, variant: str = ""
+    component_id: str,
+    text_value: str | dict[str, Any],
+    *,
+    literal: bool = False,
+    variant: str = "",
 ) -> dict[str, Any]:
     comp: dict[str, Any] = {
         "id": component_id,
         "component": "Text",
-        "text": path_or_literal if literal else {"@path": path_or_literal},
+        "text": (
+            text_value
+            if literal or isinstance(text_value, dict)
+            else {"@path": text_value}
+        ),
     }
     if variant:
         comp["variant"] = variant
     return comp
 
 
+def _transform(data: dict[str, Any], jmespath: str) -> dict[str, Any]:
+    """`transformData` evaluating `jmespath` against `data`."""
+    return _mcp_call("transformData", {"jmespath": jmespath, "data": data})
+
+
 def _bound_leaf_components() -> list[dict[str, Any]]:
-    """Standard `Text` components bound to `/kanban/summary/*`."""
+    """Declarative sibling `Text` badges, behind-the-scenes captions, and Quick-Add bar."""
     return [
-        _text("todo_count", "/kanban/summary/todoText"),
-        _text("wip_badge", "/kanban/summary/wipText"),
-        _text("done_count", "/kanban/summary/doneText"),
-        _text("selection_text", "/kanban/summary/selectionText"),
+        _text(
+            "summary_caption",
+            "Counts and selection are computed from the board data and update"
+            " live as you move or select cards.",
+            literal=True,
+            variant="caption",
+        ),
+        _text(
+            "todo_count",
+            _transform({"@path": BOARD_PATH}, TODO_JMESPATH),
+        ),
+        _text(
+            "wip_badge",
+            _transform({"@path": BOARD_PATH}, WIP_JMESPATH),
+        ),
+        _text(
+            "done_count",
+            _transform({"@path": BOARD_PATH}, DONE_JMESPATH),
+        ),
+        _text(
+            "selection_text",
+            _transform({"@path": "/kanban"}, SELECTION_JMESPATH),
+        ),
+        {
+            "id": "quick_add_card",
+            "component": "Card",
+            "child": "quick_add_col",
+        },
+        {
+            "id": "quick_add_col",
+            "component": "Column",
+            "children": ["quick_add_caption", "quick_add_row"],
+            "align": "stretch",
+        },
+        _text(
+            "quick_add_caption",
+            "Add a task directly: the button calls the create_task tool and the"
+            " board updates in place, without a round trip to the agent.",
+            literal=True,
+            variant="caption",
+        ),
+        {
+            "id": "quick_add_row",
+            "component": "Row",
+            "children": [
+                "quick_add_title",
+                "quick_add_assignee",
+                "quick_add_button",
+            ],
+            "align": "center",
+        },
+        {
+            "id": "quick_add_title",
+            "component": "TextField",
+            "label": "Task title",
+            "value": {"@path": QUICK_ADD_TITLE_PATH},
+            "weight": 3,
+        },
+        {
+            "id": "quick_add_assignee",
+            "component": "TextField",
+            "label": "Assignee",
+            "value": {"@path": QUICK_ADD_ASSIGNEE_PATH},
+            "weight": 1,
+        },
+        {
+            "id": "quick_add_button",
+            "component": "Button",
+            "child": "quick_add_button_label",
+            "variant": "primary",
+            "action": {
+                "functionCall": _mcp_call(
+                    "updateDataModel",
+                    {
+                        "updates": _transform(
+                            _mcp_call(
+                                "callMcpTool",
+                                {
+                                    "name": "create_task",
+                                    "arguments": {
+                                        "title": {"@path": QUICK_ADD_TITLE_PATH},
+                                        "assignee": {"@path": QUICK_ADD_ASSIGNEE_PATH},
+                                    },
+                                },
+                            ),
+                            CREATE_TASK_JMESPATH,
+                        ),
+                    },
+                ),
+            },
+        },
+        _text(
+            "quick_add_button_label",
+            "Add task",
+            literal=True,
+        ),
+        _text(
+            "board_caption",
+            "The board is an MCP App running in a sandboxed iframe. It shares"
+            " its data with the counts and selection above.",
+            literal=True,
+            variant="caption",
+        ),
     ]
 
 
@@ -110,9 +262,12 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
                 "id": "root",
                 "component": "Column",
                 "children": [
+                    "summary_caption",
                     "metrics_row",
                     "selection_card",
+                    "quick_add_card",
                     "board_divider",
+                    "board_caption",
                     "board_card",
                 ],
                 "align": "stretch",
@@ -162,7 +317,7 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
             {
                 "id": "board_tab",
                 "component": "Column",
-                "children": ["board_card"],
+                "children": ["quick_add_card", "board_caption", "board_card"],
                 "align": "stretch",
             },
             {"id": "board_card", "component": "Card", "child": "board"},
@@ -171,6 +326,7 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
                 "component": "Column",
                 "children": [
                     "details_heading",
+                    "summary_caption",
                     "metrics_card",
                     "details_divider",
                     "selection_card",
@@ -200,7 +356,7 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
             {
                 "id": "root",
                 "component": "Row",
-                "children": ["inspector_card", "board_card"],
+                "children": ["inspector_card", "board_col"],
                 "justify": "spaceBetween",
                 "align": "start",
             },
@@ -215,6 +371,7 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
                 "component": "Column",
                 "children": [
                     "inspector_title",
+                    "summary_caption",
                     "inspector_divider_1",
                     "todo_count",
                     "wip_badge",
@@ -239,7 +396,14 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
                 literal=True,
                 variant="caption",
             ),
-            {"id": "board_card", "component": "Card", "child": "board", "weight": 3},
+            {
+                "id": "board_col",
+                "component": "Column",
+                "children": ["quick_add_card", "board_caption", "board_card"],
+                "align": "stretch",
+                "weight": 3,
+            },
+            {"id": "board_card", "component": "Card", "child": "board"},
             *leaves,
         ]
 
@@ -247,7 +411,14 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
         {
             "id": "root",
             "component": "Column",
-            "children": ["summary", "selection_text", "board"],
+            "children": [
+                "summary_caption",
+                "summary",
+                "selection_text",
+                "quick_add_card",
+                "board_caption",
+                "board",
+            ],
             "align": "stretch",
         },
         {
@@ -316,10 +487,17 @@ def prepare_custom_components(
                     break
             referenced.update({"custom_header", "board"})
 
-    for leaf in _bound_leaf_components():
-        leaf_id = leaf["id"]
-        if leaf_id in referenced and leaf_id not in by_id:
-            prepared.append(leaf)
+    leaf_by_id = {leaf["id"]: leaf for leaf in _bound_leaf_components()}
+    added_missing = True
+    while added_missing:
+        added_missing = False
+        for ref_id in list(referenced):
+            if ref_id in leaf_by_id and ref_id not in by_id:
+                leaf = copy.deepcopy(leaf_by_id[ref_id])
+                prepared.append(leaf)
+                by_id[ref_id] = leaf
+                referenced.update(_referenced_child_ids([leaf]))
+                added_missing = True
 
     return prepared
 
@@ -351,12 +529,7 @@ def board_surface_messages(
                     "board": board,
                     "toolResult": board,
                     "selection": None,
-                    "summary": {
-                        "todoText": "",
-                        "doneText": "",
-                        "wipText": "",
-                        "selectionText": "No card selected",
-                    },
+                    "quickAdd": dict(DEFAULT_QUICK_ADD),
                 },
             },
         },
