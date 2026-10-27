@@ -64,7 +64,7 @@ For each issue that is [not first-line-handled](https://github.com/a2ui-project/
 
 ### Second line triage (weekly)
 
-Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [the triage bot](#how-the-automated-triage-bot-works), disappears. Do at least one of the following:
+Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [the triage bot](automation.md), disappears. Do at least one of the following:
 
 - Set priority (P0-P4)
     - Be sure to assign P0/P1 issues to someone.
@@ -81,7 +81,7 @@ For items where you need input from the team, follow this process (passing any r
 3. drive the discussion to resolution
 4. remove the label `status: needs-team-input`
 
-Use [standard replies](triage-templates.md) that are provided for standard cases.
+Use [standard replies](templates.md) that are provided for standard cases.
 
 Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (without P0-P4 label and _haven't_ had `status: needs-triage`, `status: needs-team-input` or `status: waiting-for-author-response` added to them). If you find such issues, follow the `status: needs-triage` workflow above (This is just to check for issues which somehow fall through the cracks).
 
