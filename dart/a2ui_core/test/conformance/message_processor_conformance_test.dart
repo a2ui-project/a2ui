@@ -77,13 +77,13 @@ void _registerSuite(
 String _actionOf(Map<String, Object?> testCase) =>
     (testCase['action'] as String?) ?? 'process_messages';
 
-void _runCase(Map<String, Object?> testCase) {
+Future<void> _runCase(Map<String, Object?> testCase) async {
   final String action = _actionOf(testCase);
   switch (action) {
     case 'process_messages' || 'validate':
-      _runProcessMessagesCase(testCase);
+      await _runProcessMessagesCase(testCase);
     case 'get_renderer_data_model':
-      _runGetRendererDataModelCase(testCase);
+      await _runGetRendererDataModelCase(testCase);
     case 'get_renderer_capabilities':
       _runGetRendererCapabilitiesCase(testCase);
     case 'resolve_path':
@@ -93,7 +93,7 @@ void _runCase(Map<String, Object?> testCase) {
   }
 }
 
-void _runProcessMessagesCase(Map<String, Object?> testCase) {
+Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final isValidate = _actionOf(testCase) == 'validate';
   final bool strictMode = isValidate || testCase['strictMode'] == true;
@@ -104,7 +104,7 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
   );
 
   if (testCase['steps'] case final List<Object?> steps) {
-    _runSteps(
+    await _runSteps(
       processor,
       testCase,
       steps.cast<Map<String, Object?>>(),
@@ -115,7 +115,7 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
 
   final Object? expectError = testCase['expectError'];
   if (expectError != null) {
-    expect(
+    await expectLater(
       () => _process(processor, testCase, resolveNodes: isValidate),
       throwsA(_matchesError(expectError as Map<String, Object?>)),
       reason: name,
@@ -123,7 +123,7 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
     return;
   }
 
-  _process(processor, testCase, resolveNodes: isValidate);
+  await _process(processor, testCase, resolveNodes: isValidate);
 
   final Map<String, Object?> expected =
       (testCase['expect'] as Map<String, Object?>?) ?? const {};
@@ -134,12 +134,12 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
 ///
 /// A step's own `expectError` applies to that step, and the case's applies to
 /// the last one. The case's `expect` is checked once every step has run.
-void _runSteps(
+Future<void> _runSteps(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase,
   List<Map<String, Object?>> steps, {
   bool resolveNodes = false,
-}) {
+}) async {
   final name = testCase['name']! as String;
   for (var index = 0; index < steps.length; index++) {
     final Map<String, Object?> step = steps[index];
@@ -147,7 +147,7 @@ void _runSteps(
     final Object? expectError = step['expectError'] ??
         (index == steps.length - 1 ? testCase['expectError'] : null);
     if (expectError != null) {
-      expect(
+      await expectLater(
         () => _processPayload(
           processor,
           payload,
@@ -157,7 +157,7 @@ void _runSteps(
         reason: '$name: step $index',
       );
     } else {
-      _processPayload(processor, payload, resolveNodes: resolveNodes);
+      await _processPayload(processor, payload, resolveNodes: resolveNodes);
     }
   }
   _checkSurfaces(
@@ -169,7 +169,9 @@ void _runSteps(
 
 /// Runs a data model request, after the case's `messages` or, one batch per
 /// step, its `steps`. `args.version` is the version requested.
-void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
+Future<void> _runGetRendererDataModelCase(
+  Map<String, Object?> testCase,
+) async {
   final name = testCase['name']! as String;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
@@ -178,10 +180,10 @@ void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
   );
   if (testCase['steps'] case final List<Object?> steps) {
     for (final step in steps) {
-      _process(processor, step! as Map<String, Object?>);
+      await _process(processor, step! as Map<String, Object?>);
     }
   } else {
-    _process(processor, testCase);
+    await _process(processor, testCase);
   }
 
   final Map<String, Object?> args =
@@ -351,23 +353,22 @@ String _catalogIdOf(Map<String, Object?> testCase) =>
     _catalogIdsOf(testCase).firstOrNull ?? 'test-catalog';
 
 /// Processes the case's raw payload, in whichever shape it declares it.
-void _process(
+Future<void> _process(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase, {
   bool resolveNodes = false,
-}) {
-  _processPayload(
-    processor,
-    testCase['messages'] ?? testCase['payload'],
-    resolveNodes: resolveNodes,
-  );
-}
+}) =>
+    _processPayload(
+      processor,
+      testCase['messages'] ?? testCase['payload'],
+      resolveNodes: resolveNodes,
+    );
 
-void _processPayload(
+Future<void> _processPayload(
   MessageProcessor<ComponentApi> processor,
   Object? payload, {
   required bool resolveNodes,
-}) {
+}) async {
   processor.processMessages(payload);
   if (!resolveNodes) return;
   for (final SurfaceModel<ComponentApi> surface
@@ -378,6 +379,7 @@ void _processPayload(
     });
     final resolver = NodeResolver<ComponentApi>(surface);
     resolver.dispose();
+    await Future<void>.microtask(() {});
     sub.unsubscribe();
     if (reported != null) {
       throw A2uiValidationError(reported!.message);
