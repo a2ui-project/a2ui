@@ -70,7 +70,7 @@ configureMcpCatalog({
 
 Push every catalog before the first message arrives, since `getClientCapabilities` reports whatever the array holds when it is called.
 
-A surface resolves components through its default catalog, the `catalogId` of its `createSurface` message, unless a component names another registered catalog with its own `catalogId`. A payload that mixes basic components with `McpApp` therefore needs no composed catalog: it creates the surface with the basic catalog id and sets `"catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"` on the `McpApp` component.
+A surface resolves components through its default catalog, the `catalogId` of its `createSurface` message, unless a component names another registered catalog with its own `catalogId`. A payload that mixes basic components with `McpApp` therefore needs no composed catalog: it creates the surface with the basic catalog id and sets `"catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"` on the `McpApp` component, as the [catalog examples](../../../catalogs/mcp/v1/examples) do.
 
 Function calls in expressions (`${...}`, `@call`) are the exception: they always resolve through the surface's default catalog. A payload that calls `callMcpTool` from expressions next to basic components creates its surface with a catalog that carries both; build one under the id the agent uses (`mcpCatalog.id` is the canonical one):
 
@@ -174,7 +174,7 @@ Arguments may be data bindings, which resolve against the calling surface:
 
 ## The `McpApp` component
 
-`McpApp` renders an [MCP App](https://github.com/modelcontextprotocol/ext-apps) in a surface. The app is an HTML document the agent sends in the component's `htmlContent`; it runs in a sandboxed inner frame behind a proxy page served from the host's origin (see [Sandbox asset](#sandbox-asset)) and talks to the host with the MCP Apps JSON-RPC protocol over `postMessage`, using `AppBridge` from `@modelcontextprotocol/ext-apps` on the host side. An app written with the MCP Apps App SDK works as it is.
+`McpApp` renders an [MCP App](https://github.com/modelcontextprotocol/ext-apps) in a surface. The app is an HTML document the agent sends in the component's `htmlContent`; it runs in a sandboxed inner frame behind a proxy page served from the host's origin (see [Sandbox asset](#sandbox-asset)) and talks to the host with the MCP Apps JSON-RPC protocol over `postMessage`, using `AppBridge` from `@modelcontextprotocol/ext-apps` on the host side. An app written with the MCP Apps App SDK works as it is; the [catalog examples](../../../catalogs/mcp/v1/examples) show the raw protocol.
 
 ### Registration
 
@@ -187,14 +187,14 @@ import {mcpCatalog} from '@a2ui/catalog-mcp';
 const processor = new MessageProcessor([basicCatalog, mcpCatalog]);
 ```
 
-A surface resolves components through its default catalog (the `catalogId` of `createSurface`), and a component can name another registered catalog with its own `catalogId`. A payload that shows an app next to basic components creates the surface with the basic catalog id and marks the `McpApp` component:
+A surface resolves components through its default catalog (the `catalogId` of `createSurface`), and a component can name another registered catalog with its own `catalogId`. A payload that shows an app next to basic components creates the surface with the basic catalog id and marks the `McpApp` component, as the [3D geometry example](../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json) does:
 
 ```json
 {
-  "id": "order_app",
+  "id": "scene3d_app",
   "component": "McpApp",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
-  "title": "Order summary",
+  "title": "3D Holographic Geometry Studio",
   "htmlContent": "..."
 }
 ```
