@@ -4,8 +4,9 @@
 
 Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 
-1. External PRs are addressed
-2. Issues are prioritized and addressed
+1. Every external PR gets a decision: the team reviews it, or closes it with an explanation.
+2. Every issue has a priority, and every `P0` and `P1` issue has an assignee who is making progress on it.
+3. Every question or comment from outside the team gets an answer.
 
 ## References
 
@@ -21,7 +22,7 @@ This section describes triage principles at a high level. See concrete steps in 
 
     - **P0**: very urgent, and it should be assigned
     - **P1**: actively being worked on, and it should be assigned
-    - **P2**: is expected to be converted to P1 within three months, as part of regular planning process
+    - **P2**: expected to become P1 within three months, as part of the regular planning process
     - **P3**: not planned, but may become a priority
     - **P4**: we do not plan to invest in this issue
 
@@ -50,7 +51,7 @@ Added and removed manually:
 - [size: small][size-small]: the issue is small.
 - [type: contributions-welcome][contributions-welcome]: the issue is meant for external contributors.
 
-See [all github labels](https://github.com/a2ui-project/a2ui/labels).
+See [all GitHub labels](https://github.com/a2ui-project/a2ui/labels).
 
 [p0]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP0
 [p1]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP1
@@ -64,7 +65,6 @@ See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 [contributions-welcome]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22type%3A%20contributions-welcome%22
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
-
 [team-chat]: https://chat.google.com/room/AAQAvhq57Zo
 
 ## Queues used in triage
@@ -92,7 +92,7 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 
 1. Before the triage meeting, on your own:
 
-    - Copy and fill template of triage card in go/a2ui-triage-notes.
+    - In go/a2ui-triage-notes, copy the triage card template and start filling it in.
 
     - Burn [Needs triage, without team input][needs-triage-minus-waiting]. For each item:
         - If you can triage it in a couple of minutes, [triage it](#triage-an-item).
@@ -101,10 +101,9 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 2. At the triage meeting, go through [status: needs-team-input][needs-team-input]. For each item:
 
     - If the team can triage it in a couple of minutes, [triage it](#triage-an-item) and remove `status: needs-team-input`.
-    
     - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`.
 
-3. Complete the triage card in go/a2ui-triage-notes and send to [the team chat][team-chat].
+3. Complete the triage card in go/a2ui-triage-notes and send it to [the team chat][team-chat].
 
 ### For owners of `status: assigned-for-triage`
 
@@ -123,6 +122,8 @@ If you are assigned to a PR or an issue with the label `status: assigned-for-tri
 Decide whether the PR should be reviewed, based on the [principles](#principles). You do not have to prove your decision is right; use your intuition.
 
 If yes, review it and help land it. If it is faster, create a superseding PR instead.
+
+The triage is done once the PR has a decision.
 
 If no, post the reply below and close the PR. The **Close with comment** button does both. You may want to add the reply to your [GitHub saved replies](https://docs.github.com/en/get-started/writing-on-github/working-with-saved-replies).
 
@@ -146,7 +147,7 @@ What may help:
 ### Triage an issue
 
 1. If the issue is a duplicate, close it with a link to the original issue.
-2. Set a priority label, `P0` to `P4`, based on the [principles](#principles). A `P0` or `P1` issue needs an assignee.
+2. Set a priority label, `P0` to `P4`, based on the [principles](#principles). Assign someone to a `P0` or `P1` issue.
 3. Answer any open questions or comments from external contributors.
 4. For standard cases, such as an out-of-scope request, use the [standard replies for issues](templates-issues.md).
 
