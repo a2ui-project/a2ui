@@ -1,5 +1,10 @@
 ## Unreleased
 
+- The Express compiler strips `<a2ui>` and `</a2ui>` only where they start
+  or end a line, so a string literal that mentions a tag no longer drops the
+  lines before it or gets cut short
+  ([#3480](https://github.com/a2ui-project/a2ui/issues/3480)).
+  [#3668](https://github.com/a2ui-project/a2ui/pull/3668)
 - **BREAKING CHANGE**: `DirectJsonPromptGenerator.generate_base_rules()` now
   returns the workflow rules followed by the protocol schemas (agent-to-renderer
   and pruned common types) and accepts `allowed_messages`, while
