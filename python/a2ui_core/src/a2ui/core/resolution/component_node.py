@@ -115,8 +115,8 @@ class ComponentNode:
         self.validation_results: list[dict[str, Any]] = (
             validation_results if validation_results is not None else []
         )
-        self.on_updated: EventSource[dict[str, Any]] = EventSource()
-        self.on_destroyed: EventSource[None] = EventSource()
+        self.on_updated: EventSource = EventSource()
+        self.on_destroyed: EventSource = EventSource()
         self._cleanups: list[Callable[[], None]] = []
         self._disposed = False
 
