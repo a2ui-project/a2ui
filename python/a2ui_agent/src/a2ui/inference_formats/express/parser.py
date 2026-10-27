@@ -94,7 +94,9 @@ class ExpressParser(Parser):
         lexer = BlockLexer(
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
-            string_delimiters={"'", '"'},
+            # Express strings are double-quoted only, so an apostrophe in a
+            # comment such as `/* Chef's pick */` must not open a string.
+            string_delimiters={'"'},
             single_line_comments={"#", "//", "--"},
         )
         return lexer.tokenize(content)

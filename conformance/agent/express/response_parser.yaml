@@ -322,6 +322,23 @@
     - a2ui_raw: 'root = Text("Hello") -- end of greeting'
     - text: "Trailing text."
 
+- name: test_unwrap_express_apostrophe_in_comment_does_not_open_a_string
+  description: Express strings are double-quoted only, so an apostrophe in a comment does not open a string that would swallow the closing tag.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    /* Chef's 15-minute dinner */
+    root = Text("Hello")
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        /* Chef's 15-minute dinner */
+        root = Text("Hello")
+    - text: "Trailing text."
+
 - name: test_has_format_content_express_recovered_bare_payload
   description: A bare Express payload closed by </a2ui> counts as complete format content.
   action: has_format_content

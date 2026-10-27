@@ -85,7 +85,9 @@ export class ExpressParser extends Parser {
     this.lexer = new BlockLexer(
       A2UI_INFERENCE_OPEN_TAG,
       A2UI_INFERENCE_CLOSE_TAG,
-      new Set(["'", '"']),
+      // Express strings are double-quoted only, so an apostrophe in a comment
+      // such as `/* Chef's pick */` must not open a string.
+      new Set(['"']),
       new Set(['#', '//', '--']),
     );
     this.decompiler = new ExpressDecompiler(this.catalogs, this.version);
