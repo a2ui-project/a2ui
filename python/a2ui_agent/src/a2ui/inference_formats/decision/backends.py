@@ -1,0 +1,1684 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Inference backends for local decision-model A2UI synthesis.
+
+Environment variables:
+- `A2UI_DECISION_BACKEND`: Default backend kind ('mock', 'jev', 'systemone', 'step0').
+- `A2UI_DECISION_URL`: Default URL for remote backends.
+- `A2UI_DECISION_MODEL`: Default model identifier.
+- `A2UI_DECISION_TEMPERATURE`: Temperature scaling for probability distributions.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Callable, Mapping, Sequence
+import math
+import os
+import re
+import time
+from typing import Any, Protocol, TypeAlias, TypeVar, cast, runtime_checkable
+
+import httpx
+
+from a2ui.core import A2uiValidationError
+
+from .models import (
+    DecisionAnswer,
+    DecisionBackendType,
+    DecisionBatch,
+    DecisionDistribution,
+    DecisionQuery,
+    DecisionQuestion,
+    DecisionTask,
+    DecisionWireFormat,
+    QuestionKind,
+)
+
+_CAMEL_BOUNDARY_RE = re.compile(r"([a-z0-9])([A-Z])")
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+# Lifetime of a cached Application Default Credentials access token.
+_ADC_TOKEN_TTL_SECONDS = 1800.0
+
+_DEFAULT_TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone"
+_DEFAULT_VERCEL_TYPESAFE_SYSTEMONE_URL = (
+    "https://ai-gateway.vercel.sh/typesafe/v1/systemone"
+)
+
+_STEP_ZERO_LABELS: tuple[str, ...] = tuple("ABCDEFGHIJ")
+
+_BackendT = TypeVar("_BackendT", bound="_AsyncClosable")
+
+ScriptedAnswerSpec: TypeAlias = (
+    DecisionAnswer | float | int | str | tuple[str, float] | Mapping[str, float]
+)
+
+
+def _safe_nonneg_float(value: Any) -> float:
+    """Converts `value` to a finite non-negative float, returning 0.0 on invalid input."""
+    try:
+        parsed = float(value)
+    except (ValueError, TypeError):
+        return 0.0
+    if not math.isfinite(parsed) or parsed <= 0.0:
+        return 0.0
+    return parsed
+
+
+def _normalize_probabilities(
+    raw_probs: Mapping[str, Any],
+    candidates: tuple[str, ...],
+) -> dict[str, float]:
+    """Filters candidate probabilities and normalizes weights when sum > 1.0."""
+    if not candidates:
+        return {}
+    filtered = {c: _safe_nonneg_float(raw_probs.get(c, 0.0)) for c in candidates}
+    total = sum(filtered.values())
+    if total <= 0.0:
+        return {c: 0.0 for c in candidates}
+    raw_total = sum(_safe_nonneg_float(v) for v in raw_probs.values())
+    if total <= 1.0 and raw_total <= 1.0 + 1e-6:
+        return filtered
+    return {c: val / total for c, val in filtered.items()}
+
+
+def _fill_missing_logits(
+    logits: Mapping[str, float], candidates: Sequence[str]
+) -> dict[str, float]:
+    """Populates missing candidate logits with a low floor value."""
+    present = [logits[c] for c in candidates if c in logits]
+    floor = (min(present) - 10.0) if present else -20.0
+    return {c: logits.get(c, floor) for c in candidates}
+
+
+def _softmax_with_margin(
+    logits: Mapping[str, float],
+    candidates: Sequence[str],
+    *,
+    temperature: float = 1.0,
+) -> tuple[dict[str, float], float | None]:
+    """Computes temperature-scaled softmax probabilities and top-2 logit margin."""
+    if not candidates:
+        return {}, 0.0
+    full_logits = _fill_missing_logits(logits, candidates)
+    z_sorted = sorted(full_logits.values(), reverse=True)
+    margin = (z_sorted[0] - z_sorted[1]) if len(z_sorted) >= 2 else float("inf")
+    z_max = z_sorted[0]
+    exp_scores = {
+        c: math.exp((z - z_max) / temperature) for c, z in full_logits.items()
+    }
+    total = sum(exp_scores.values())
+    if total <= 0.0:
+        return {c: 0.0 for c in candidates}, margin
+    probs = {c: val / total for c, val in exp_scores.items()}
+    return probs, margin
+
+
+def _child_slot_clause(query: DecisionQuery, *, full_template: str) -> str | None:
+    """Formats the parent/slot clause when `query.task` is `child_component`."""
+    if query.task != "child_component":
+        return None
+    parent = query.context.get("parent_description") or query.context.get("parent")
+    slot = query.context.get("slot_description") or query.context.get("slot")
+    if parent and slot:
+        return full_template.format(parent=parent, slot=slot)
+    return f"Slot: {slot}" if slot else None
+
+
+def _pointers_summary(
+    context: Mapping[str, Any], label: str, *, max_pointers: int | None = 12
+) -> str | None:
+    """Formats the available payload pointers clause if present in `context`."""
+    pointers = context.get("pointers")
+    if isinstance(pointers, (list, tuple)) and pointers:
+        pts = list(pointers)
+        if max_pointers is not None and max_pointers > 0 and len(pts) > max_pointers:
+            pts = pts[:max_pointers]
+        return f"{label}: {', '.join(str(p) for p in pts)}"
+    return None
+
+
+def _candidate_description(
+    context: Mapping[str, Any], candidate: str, *, max_chars: int = 240
+) -> str | None:
+    """Returns the description string for `candidate` from `context`, if any."""
+    cand_descs = context.get("candidate_descriptions")
+    if isinstance(cand_descs, Mapping) and cand_descs.get(candidate):
+        desc = str(cand_descs[candidate])
+        if max_chars > 0 and len(desc) > max_chars:
+            desc = desc[:max_chars]
+        return desc
+    return None
+
+
+def _validate_step_zero_candidates(candidates: Sequence[str]) -> None:
+    """Raises `A2uiValidationError` when `candidates` exceeds the A-J label cap."""
+    if len(candidates) > len(_STEP_ZERO_LABELS):
+        raise A2uiValidationError(
+            "StepZeroLogprobBackend supports at most"
+            f" {len(_STEP_ZERO_LABELS)} options (A-J), got {len(candidates)}."
+        )
+
+
+def _format_step_zero_prompt(query: DecisionQuery, *, shared_prefix: str = "") -> str:
+    """Formats a structured DecisionQuery into a single-char (A-J) step-0 prompt."""
+    _validate_step_zero_candidates(query.candidates)
+    labeled = [
+        f"{_STEP_ZERO_LABELS[i]}: {cand}" for i, cand in enumerate(query.candidates)
+    ]
+    lines: list[str] = []
+    if shared_prefix:
+        lines.append(shared_prefix)
+    lines.append(f"Task: {query.task}")
+    lines.append(f"Candidates: [{', '.join(labeled)}]")
+    if query.context:
+        lines.append(f"Context: {query.context}")
+    lines.append(f"Intent: {query.prompt}")
+    lines.append("Selection:")
+    return "\n".join(lines)
+
+
+def _match_step_zero_logprobs(
+    candidates: Sequence[str], top_logprobs: Mapping[str, float]
+) -> dict[str, float]:
+    """Maps single-character label (`A`-`J`) or candidate token logprobs to option ids."""
+    matched: dict[str, float] = {}
+    for idx, cand in enumerate(candidates):
+        label = _STEP_ZERO_LABELS[idx]
+        if label in top_logprobs:
+            matched[cand] = top_logprobs[label]
+        elif cand in top_logprobs:
+            matched[cand] = top_logprobs[cand]
+        elif cand.strip() in top_logprobs:
+            matched[cand] = top_logprobs[cand.strip()]
+    return matched
+
+
+def _extract_http_error_detail(response: httpx.Response) -> str | None:
+    """Extracts a human-readable error message from a JSON error response, if any."""
+    try:
+        body = response.json()
+    except Exception:
+        return None
+    if not isinstance(body, Mapping):
+        return None
+    for key in ("error", "detail"):
+        val = body.get(key)
+        if isinstance(val, Mapping) and val.get("message"):
+            return str(val["message"])
+        if isinstance(val, str) and val:
+            return val
+    return None
+
+
+async def _post_json(
+    endpoint_url: str,
+    payload: Mapping[str, Any],
+    *,
+    client: httpx.AsyncClient,
+    timeout_seconds: float,
+    headers: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Sends an HTTP POST with JSON payload and returns the decoded JSON object."""
+    hdrs = dict(headers) if headers else None
+    response = await client.post(
+        endpoint_url, json=payload, headers=hdrs, timeout=timeout_seconds
+    )
+    if response.is_error:
+        detail = _extract_http_error_detail(response)
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as err:
+            if detail:
+                raise httpx.HTTPStatusError(
+                    f"{err}: {detail}",
+                    request=err.request,
+                    response=err.response,
+                ) from err
+            raise
+    return cast(dict[str, Any], response.json())
+
+
+def _record_token_logprob(result: dict[str, float], token: Any, logprob: Any) -> None:
+    """Inserts `token` and its stripped form into `result` with max `logprob`."""
+    lp = float(logprob)
+    token_str = str(token)
+    result[token_str] = lp
+    stripped = token_str.strip()
+    if stripped and (stripped not in result or lp > result[stripped]):
+        result[stripped] = lp
+
+
+def _extract_chat_logprobs(logprobs_obj: Mapping[str, Any]) -> dict[str, float] | None:
+    """Extracts chat-completion format `content[0].top_logprobs` if present."""
+    content_list = logprobs_obj.get("content")
+    if not isinstance(content_list, list) or not content_list:
+        return None
+    first_pos = content_list[0]
+    if not isinstance(first_pos, Mapping):
+        return None
+    chat_top = first_pos.get("top_logprobs")
+    if not isinstance(chat_top, list):
+        return None
+    result: dict[str, float] = {}
+    for entry in chat_top:
+        if isinstance(entry, Mapping) and "token" in entry and "logprob" in entry:
+            _record_token_logprob(result, entry["token"], entry["logprob"])
+    return result
+
+
+def _extract_top_logprobs(data: Mapping[str, Any]) -> dict[str, float]:
+    """Extracts token-to-logprob mappings from an OpenAI-compatible response."""
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return {}
+    logprobs_obj = choices[0].get("logprobs")
+    if not isinstance(logprobs_obj, Mapping):
+        return {}
+
+    chat_res = _extract_chat_logprobs(logprobs_obj)
+    if chat_res is not None:
+        return chat_res
+
+    top_list = logprobs_obj.get("top_logprobs")
+    if not isinstance(top_list, list) or not top_list:
+        return {}
+    first_step = top_list[0]
+    if not isinstance(first_step, Mapping):
+        return {}
+
+    result: dict[str, float] = {}
+    for token, logprob in first_step.items():
+        _record_token_logprob(result, token, logprob)
+    return result
+
+
+def _tokenize(text: str) -> set[str]:
+    """Splits camelCase, PascalCase, and punctuation into lowercase tokens."""
+    expanded = _CAMEL_BOUNDARY_RE.sub(r"\1 \2", text)
+    return set(_TOKEN_RE.findall(expanded.lower()))
+
+
+def _extract_context_tokens(context: Mapping[str, Any]) -> set[str]:
+    """Extracts searchable lowercase tokens from a query context dictionary."""
+    tokens: set[str] = set()
+    for key, value in context.items():
+        tokens.update(_tokenize(str(key)))
+        if isinstance(value, str):
+            tokens.update(_tokenize(value))
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                tokens.update(_tokenize(str(item)))
+        elif isinstance(value, Mapping):
+            for sub_k, sub_v in value.items():
+                tokens.update(_tokenize(str(sub_k)))
+                tokens.update(_tokenize(str(sub_v)))
+    return tokens
+
+
+def _score_candidate(
+    candidate: str,
+    prompt_lower: str,
+    prompt_tokens: set[str],
+    context_tokens: set[str],
+) -> float:
+    """Computes a deterministic relevance score for a candidate."""
+    cand_lower = candidate.lower()
+    cand_tokens = _tokenize(candidate)
+    score = 0.0
+    if cand_lower and cand_lower in prompt_lower:
+        score += 4.0
+    for tok in cand_tokens:
+        if tok in prompt_tokens:
+            score += 2.0
+        elif len(tok) >= 4 and any(
+            pt.startswith(tok) or tok.startswith(pt)
+            for pt in prompt_tokens
+            if len(pt) >= 4
+        ):
+            score += 1.5
+        if tok in context_tokens:
+            score += 1.0
+    return score
+
+
+@runtime_checkable
+class DecisionBackend(Protocol):
+    """Protocol for local decision-model inference backends.
+
+    Implementations that only score one query at a time should subclass
+    `PredictOnlyBackend`, which supplies `answer`, `aclose`,
+    `aclose_current_loop`, and the context-manager methods; objects that
+    predate `answer` can be adapted with `ensure_batch_backend`.
+    """
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Predicts a probability distribution over query candidates."""
+        ...
+
+    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Answers every question in `batch`, in order."""
+        ...
+
+    async def aclose(self) -> None:
+        """Releases resources owned by this backend."""
+        ...
+
+    async def aclose_current_loop(self) -> None:
+        """Releases resources bound to the running event loop only.
+
+        `DecisionSynthesizer.synthesize_sync` calls this before its temporary
+        loop closes; backends with no loop-scoped state implement it as a
+        no-op.
+        """
+        ...
+
+    async def __aenter__(self) -> DecisionBackend:
+        ...
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        ...
+
+
+def _question_query(
+    question: DecisionQuestion, shared_context: Mapping[str, Any]
+) -> DecisionQuery:
+    """Builds the `DecisionQuery` a predict-only backend scores for `question`.
+
+    The query context carries the batch's shared context, the question's own
+    context, ``question_id`` and ``question_kind``, and candidate descriptions
+    from `option_texts` (or the ``yes`` and ``no`` criteria texts in the
+    question context for boolean questions).
+    """
+    context: dict[str, Any] = {
+        **shared_context,
+        **question.context,
+        "question_id": question.id,
+        "question_kind": str(question.kind),
+    }
+    descriptions: dict[str, str] = {}
+    if question.option_texts:
+        descriptions = dict(zip(question.options, question.option_texts))
+    elif question.kind is QuestionKind.BOOLEAN:
+        descriptions = {
+            label: str(question.context[label])
+            for label in ("yes", "no")
+            if label in question.context
+        }
+    if descriptions:
+        context["candidate_descriptions"] = descriptions
+    return DecisionQuery(
+        task=question.task,
+        prompt=question.prompt,
+        candidates=question.candidates(),
+        context=context,
+    )
+
+
+def _boolean_answer(
+    question: DecisionQuestion, dist: DecisionDistribution
+) -> DecisionAnswer:
+    """Normalizes a yes/no distribution into ``{"yes": p, "no": 1 - p}``."""
+    yes = dist.probabilities.get("yes", 0.0)
+    total = yes + dist.probabilities.get("no", 0.0)
+    p_yes = yes / total if total > 0.0 else 0.0
+    return DecisionAnswer(
+        question_id=question.id,
+        distribution=DecisionDistribution(
+            probabilities={"yes": p_yes, "no": 1.0 - p_yes},
+            calibrated=dist.calibrated,
+            top_logit_margin=dist.top_logit_margin,
+        ),
+    )
+
+
+def _score_answer(
+    question: DecisionQuestion, dist: DecisionDistribution
+) -> DecisionAnswer:
+    """Normalizes a level distribution and computes its expected level index."""
+    weights = [
+        max(dist.probabilities.get(level, 0.0), 0.0) for level in question.options
+    ]
+    total = sum(weights)
+    if total <= 0.0:
+        return DecisionAnswer(question_id=question.id, distribution=dist)
+    probs = {level: w / total for level, w in zip(question.options, weights)}
+    expected = sum(p * idx for idx, p in enumerate(probs.values()))
+    return DecisionAnswer(
+        question_id=question.id,
+        distribution=DecisionDistribution(
+            probabilities=probs,
+            calibrated=dist.calibrated,
+            top_logit_margin=dist.top_logit_margin,
+        ),
+        expected=expected,
+    )
+
+
+def answer_from_distribution(
+    question: DecisionQuestion, dist: DecisionDistribution
+) -> DecisionAnswer:
+    """Converts a candidate distribution into the `DecisionAnswer` for `question`.
+
+    `CHOICE` answers keep the distribution as returned (over the options plus
+    ``"none"`` when `allow_none`); `BOOLEAN` answers are normalized to
+    ``{"yes": p, "no": 1 - p}``; `SCORE` answers are normalized over the
+    levels and carry ``expected = sum(p_i * i)``.
+    """
+    if question.kind is QuestionKind.BOOLEAN:
+        return _boolean_answer(question, dist)
+    if question.kind is QuestionKind.SCORE:
+        return _score_answer(question, dist)
+    return DecisionAnswer(question_id=question.id, distribution=dist)
+
+
+class _AsyncClosable:
+    """Mixin giving a backend `aclose()` and `async with` support.
+
+    Backends that own no resources inherit the no-op `aclose`; backends that
+    hold an HTTP client override it.
+    """
+
+    async def aclose(self) -> None:
+        """Releases resources owned by this backend. No-op by default."""
+
+    async def aclose_current_loop(self) -> None:
+        """Closes resources owned by the currently running event loop, if any."""
+
+    async def __aenter__(self: _BackendT) -> _BackendT:
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        await self.aclose()
+
+
+class PredictOnlyBackend(_AsyncClosable):
+    """Base class for backends that score one `DecisionQuery` at a time.
+
+    Subclasses implement `predict`; this class supplies `answer` by fanning a
+    batch out through `predict` with `asyncio.gather`, so backends that
+    coalesce concurrent requests batch naturally. `CHOICE` questions predict
+    over the options (plus ``"none"`` when `allow_none`), `BOOLEAN` questions
+    over ``("yes", "no")``, and `SCORE` questions over the level labels with
+    ``expected = sum(p_i * i)``.
+    """
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Predicts a probability distribution over `query.candidates`."""
+        raise NotImplementedError
+
+    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Answers every question in `batch` through `predict`, in order."""
+        queries = [_question_query(q, batch.shared_context) for q in batch.questions]
+        distributions = await asyncio.gather(*(self.predict(q) for q in queries))
+        return tuple(
+            answer_from_distribution(question, dist)
+            for question, dist in zip(batch.questions, distributions)
+        )
+
+
+class _PredictOnlyAdapter(PredictOnlyBackend):
+    """Wraps an object that has `predict` but not the rest of `DecisionBackend`."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        return cast(DecisionDistribution, await self.inner.predict(query))
+
+    async def aclose(self) -> None:
+        close = getattr(self.inner, "aclose", None)
+        if callable(close):
+            await close()
+
+
+def ensure_batch_backend(backend: Any) -> DecisionBackend:
+    """Returns `backend` as a full `DecisionBackend`, adapting predict-only objects.
+
+    Objects that already provide `answer` and `aclose_current_loop` are
+    returned unchanged. Anything else with an async `predict` is wrapped in an
+    adapter that supplies the rest of the protocol.
+
+    Raises:
+        TypeError: If `backend` has no callable `predict`.
+    """
+    if not callable(getattr(backend, "predict", None)):
+        raise TypeError(
+            "A decision backend must provide an async predict(query) method;"
+            f" got {type(backend).__name__}."
+        )
+    if callable(getattr(backend, "answer", None)) and callable(
+        getattr(backend, "aclose_current_loop", None)
+    ):
+        return cast(DecisionBackend, backend)
+    return _PredictOnlyAdapter(backend)
+
+
+class _HttpClientOwner(_AsyncClosable):
+    """Mixin that lazily owns an `httpx.AsyncClient` per active event loop.
+
+    An `httpx.AsyncClient` opens connections on the loop that first uses it,
+    so a client created on one loop fails when used from another (for
+    example when `DecisionSynthesizer.synthesize_sync` runs synthesis on a
+    helper thread). Owned clients are keyed by their `AbstractEventLoop` so
+    concurrent loops do not overwrite each other's client, and temporary
+    loops can close their own client via `aclose_current_loop()`.
+    """
+
+    _client: httpx.AsyncClient | None
+    _owned_clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient]
+    _timeout_seconds: float
+
+    def _init_http_client(
+        self, client: httpx.AsyncClient | None, timeout_seconds: float
+    ) -> None:
+        self._client = client
+        self._owned_clients = {}
+        self._timeout_seconds = timeout_seconds
+
+    @property
+    def _owned_client(self) -> httpx.AsyncClient | None:
+        """Returns the client owned by the current loop, or the most recent one."""
+        if not self._owned_clients:
+            return None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return next(reversed(self._owned_clients.values()))
+        return self._owned_clients.get(loop)
+
+    def _sweep_closed_loops(self) -> None:
+        """Removes entries whose event loop has already been closed."""
+        closed = [lp for lp in self._owned_clients if lp.is_closed()]
+        for lp in closed:
+            self._owned_clients.pop(lp, None)
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Returns the caller-supplied client or a loop-local owned one."""
+        if self._client is not None:
+            return self._client
+        self._sweep_closed_loops()
+        loop = asyncio.get_running_loop()
+        client = self._owned_clients.get(loop)
+        if client is None or client.is_closed:
+            client = httpx.AsyncClient(timeout=self._timeout_seconds)
+            self._owned_clients[loop] = client
+        return client
+
+    async def aclose_current_loop(self) -> None:
+        """Closes and removes the client owned by the currently running event loop."""
+        self._sweep_closed_loops()
+        loop = asyncio.get_running_loop()
+        client = self._owned_clients.pop(loop, None)
+        if client is not None and not client.is_closed:
+            await client.aclose()
+
+    async def aclose(self) -> None:
+        """Closes all internally owned `httpx.AsyncClient` instances."""
+        if not self._owned_clients:
+            return
+        current_loop = asyncio.get_running_loop()
+        items = list(self._owned_clients.items())
+        self._owned_clients.clear()
+        for loop, client in items:
+            if client.is_closed:
+                continue
+            if loop is current_loop or loop.is_closed():
+                await client.aclose()
+            else:
+                try:
+                    asyncio.run_coroutine_threadsafe(client.aclose(), loop)
+                except RuntimeError:
+                    pass
+
+
+def _get_adc_token_sync() -> str | None:
+    """Attempts to retrieve an ADC access token synchronously in a worker thread."""
+    try:
+        import google.auth
+        import google.auth.transport.requests
+
+        creds: Any
+        creds, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        creds.refresh(google.auth.transport.requests.Request())
+        if creds.token:
+            return str(creds.token)
+    except Exception:
+        pass
+
+    try:
+        import subprocess
+
+        res = subprocess.run(
+            ["gcloud", "auth", "print-access-token"],
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+            check=False,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+
+    return None
+
+
+def _build_systemone_request(query: DecisionQuery, model: str) -> dict[str, Any]:
+    """Builds a structured /v1/systemone choice request envelope."""
+    criteria = {
+        c: (
+            _candidate_description(query.context, c)
+            or f"Candidate component or template: {c}"
+        )
+        for c in query.candidates
+    }
+    slot_clause = _child_slot_clause(
+        query, full_template="Parent container: {parent}. Slot: {slot}"
+    )
+    ptr_clause = _pointers_summary(query.context, "Payload data fields")
+    state_parts = [
+        p for p in (f"User intent: {query.prompt}", slot_clause, ptr_clause) if p
+    ]
+    return {
+        "model": model,
+        "state": ". ".join(state_parts),
+        "questions": {
+            "q": {
+                "type": "choice",
+                "instructions": (
+                    "Evaluate which candidate best satisfies the user intent and"
+                    " UI structure."
+                ),
+                "criteria": criteria,
+            }
+        },
+    }
+
+
+def _probability_margin(probabilities: Mapping[str, float]) -> float:
+    """Computes log-ratio margin between the top two probabilities."""
+    sorted_probs = sorted(probabilities.values(), reverse=True)
+    if len(sorted_probs) < 2:
+        return float("inf") if sorted_probs and sorted_probs[0] > 0.0 else 0.0
+    p0, p1 = sorted_probs[0], sorted_probs[1]
+    if p0 <= 0.0:
+        return 0.0
+    return float("inf") if p1 <= 0.0 else math.log(p0 / p1)
+
+
+def _parse_systemone_response(
+    data: Mapping[str, Any], candidates: tuple[str, ...]
+) -> tuple[dict[str, float], bool, float | None]:
+    """Extracts probabilities and logit margin from /v1/systemone response."""
+    answers = data.get("answers")
+    if not isinstance(answers, Mapping) or not answers:
+        return {c: 0.0 for c in candidates}, True, 0.0
+
+    first_val = answers.get("q") or next(iter(answers.values()), None)
+    q_data = first_val if isinstance(first_val, Mapping) else {}
+    raw_probs = q_data.get("probabilities")
+    probs_map = raw_probs if isinstance(raw_probs, Mapping) else {}
+    probabilities = _normalize_probabilities(probs_map, candidates)
+    calibrated = "confidence" in q_data or bool(data.get("calibrated", True))
+    return probabilities, calibrated, _probability_margin(probabilities)
+
+
+def _serialize_native_question(question: DecisionQuestion) -> dict[str, Any]:
+    """Serializes one `DecisionQuestion` into a native Jev batch request item."""
+    entry: dict[str, Any] = {
+        "id": question.id,
+        "kind": question.kind.value,
+        "task": str(getattr(question.task, "value", question.task)),
+        "prompt": question.prompt,
+        "candidates": list(question.candidates()),
+    }
+    if question.options:
+        entry["options"] = list(question.options)
+    if question.option_texts:
+        entry["option_texts"] = list(question.option_texts)
+    if question.context:
+        entry["context"] = dict(question.context)
+    if question.kind is QuestionKind.CHOICE:
+        entry["allow_none"] = question.allow_none
+    return entry
+
+
+def _extract_native_answer_entry(
+    raw_answers: Any, question_id: str, index: int
+) -> Mapping[str, Any]:
+    """Finds the response object for `question_id` (or `index`) from `raw_answers`."""
+    if isinstance(raw_answers, Mapping):
+        item = raw_answers.get(question_id)
+        return item if isinstance(item, Mapping) else {}
+    if not isinstance(raw_answers, list):
+        return {}
+    for elem in raw_answers:
+        if (
+            isinstance(elem, Mapping)
+            and elem.get("id", elem.get("question_id")) == question_id
+        ):
+            return elem
+    indexed = raw_answers[index] if index < len(raw_answers) else None
+    return indexed if isinstance(indexed, Mapping) else {}
+
+
+def _parse_native_question_answer(
+    question: DecisionQuestion,
+    entry: Mapping[str, Any],
+    envelope: Mapping[str, Any],
+) -> DecisionAnswer:
+    """Builds a `DecisionAnswer` for `question` from a native Jev answer entry."""
+    raw_probs = entry.get("probabilities")
+    if not isinstance(raw_probs, Mapping) and "yes" in entry:
+        p_yes = _safe_nonneg_float(entry["yes"])
+        raw_probs = {"yes": p_yes, "no": max(0.0, 1.0 - p_yes)}
+    probs_map = raw_probs if isinstance(raw_probs, Mapping) else {}
+    candidates = question.candidates()
+    probabilities = _normalize_probabilities(probs_map, candidates)
+    calibrated = bool(entry.get("calibrated", envelope.get("calibrated", False)))
+    raw_margin = entry.get("top_logit_margin", envelope.get("top_logit_margin"))
+    top_logit_margin = float(raw_margin) if raw_margin is not None else None
+    dist = DecisionDistribution(
+        probabilities=probabilities,
+        calibrated=calibrated,
+        top_logit_margin=top_logit_margin,
+    )
+    answer = answer_from_distribution(question, dist)
+    if question.kind is QuestionKind.SCORE and entry.get("expected") is not None:
+        return DecisionAnswer(
+            question_id=question.id,
+            distribution=answer.distribution,
+            expected=float(entry["expected"]),
+        )
+    return answer
+
+
+def _build_systemone_state(shared_context: Mapping[str, Any]) -> str:
+    """Formats `shared_context` into a non-empty `/v1/systemone` state string."""
+    intent = shared_context.get("intent")
+    intent_part = f"User intent: {intent}" if intent else None
+    ptr_part = _pointers_summary(shared_context, "Payload data fields")
+    parts = [p for p in (intent_part, ptr_part) if p]
+    if not parts and shared_context:
+        parts = [f"{k}: {v}" for k, v in shared_context.items()]
+    return ". ".join(parts) if parts else "(no context)"
+
+
+def _serialize_systemone_choice_criteria(
+    question: DecisionQuestion,
+) -> dict[str, str]:
+    """Builds the candidate->description map for a `/v1/systemone` choice question."""
+    desc_map: dict[str, str] = {}
+    if question.option_texts:
+        desc_map.update(
+            (opt, str(txt))
+            for opt, txt in zip(question.options, question.option_texts)
+            if txt
+        )
+    cand_descs = question.context.get("candidate_descriptions")
+    if isinstance(cand_descs, Mapping):
+        desc_map.update((str(k), str(v)) for k, v in cand_descs.items() if v)
+    return {
+        c: (
+            desc_map.get(c)
+            or ("None of the above" if c == "none" else f"Candidate option: {c}")
+        )
+        for c in question.candidates()
+    }
+
+
+def _serialize_systemone_score_criteria(question: DecisionQuestion) -> list[str]:
+    """Serializes level criteria for a `/v1/systemone` score question."""
+    if question.option_texts and len(question.option_texts) == len(question.options):
+        return [
+            f"{lvl}: {txt}" if txt else str(lvl)
+            for lvl, txt in zip(question.options, question.option_texts)
+        ]
+    return [str(lvl) for lvl in question.options]
+
+
+def _serialize_systemone_question(question: DecisionQuestion) -> dict[str, Any]:
+    """Serializes one `DecisionQuestion` into a `/v1/systemone` question spec."""
+    if question.kind is QuestionKind.BOOLEAN:
+        spec: dict[str, Any] = {
+            "type": "noul",
+            "instructions": question.prompt,
+        }
+        criteria = {
+            target: str(question.context[src])
+            for src, target in (("yes", "true"), ("no", "false"))
+            if question.context.get(src)
+        }
+        if criteria:
+            spec["criteria"] = criteria
+        return spec
+    if question.kind is QuestionKind.SCORE:
+        return {
+            "type": "score",
+            "instructions": question.prompt,
+            "criteria": _serialize_systemone_score_criteria(question),
+        }
+    return {
+        "type": "choice",
+        "instructions": question.prompt,
+        "criteria": _serialize_systemone_choice_criteria(question),
+    }
+
+
+def _parse_systemone_boolean_probs(entry: Mapping[str, Any]) -> dict[str, float]:
+    """Extracts `{"yes": p, "no": 1 - p}` from a `/v1/systemone` noul/boolean answer."""
+    for key in ("noul", "probability", "yes"):
+        if key in entry:
+            p_yes = min(1.0, _safe_nonneg_float(entry[key]))
+            return {"yes": p_yes, "no": max(0.0, 1.0 - p_yes)}
+    raw_probs = entry.get("probabilities")
+    if isinstance(raw_probs, Mapping):
+        mapped = {
+            "yes": raw_probs.get("yes", raw_probs.get("true", 0.0)),
+            "no": raw_probs.get("no", raw_probs.get("false", 0.0)),
+        }
+        return _normalize_probabilities(mapped, ("yes", "no"))
+    return {"yes": 0.0, "no": 0.0}
+
+
+def _parse_systemone_score_probs(
+    question: DecisionQuestion, entry: Mapping[str, Any]
+) -> dict[str, float]:
+    """Extracts level probabilities from a `/v1/systemone` score answer."""
+    raw_probs = entry.get("probabilities")
+    mapped: dict[str, Any] = {}
+    if isinstance(raw_probs, Mapping):
+        for idx, level in enumerate(question.options):
+            if level in raw_probs:
+                mapped[level] = raw_probs[level]
+            elif str(idx) in raw_probs:
+                mapped[level] = raw_probs[str(idx)]
+            elif idx in raw_probs:
+                mapped[level] = raw_probs[idx]
+    elif isinstance(raw_probs, Sequence) and not isinstance(raw_probs, (str, bytes)):
+        for idx, level in enumerate(question.options):
+            if idx < len(raw_probs):
+                mapped[level] = raw_probs[idx]
+    return _normalize_probabilities(mapped, question.options)
+
+
+def _parse_systemone_question_answer(
+    question: DecisionQuestion,
+    entry: Mapping[str, Any],
+    envelope: Mapping[str, Any],
+) -> DecisionAnswer:
+    """Builds a `DecisionAnswer` for `question` from a `/v1/systemone` answer entry."""
+    if question.kind is QuestionKind.BOOLEAN:
+        probabilities = _parse_systemone_boolean_probs(entry)
+    elif question.kind is QuestionKind.SCORE:
+        probabilities = _parse_systemone_score_probs(question, entry)
+    else:
+        raw_probs = entry.get("probabilities")
+        probs_map = raw_probs if isinstance(raw_probs, Mapping) else {}
+        probabilities = _normalize_probabilities(probs_map, question.candidates())
+
+    calibrated = (
+        "confidence" in entry
+        or "noul" in entry
+        or bool(envelope.get("calibrated", True))
+    )
+    dist = DecisionDistribution(
+        probabilities=probabilities,
+        calibrated=calibrated,
+        top_logit_margin=_probability_margin(probabilities),
+    )
+    answer = answer_from_distribution(question, dist)
+    raw_score = entry.get("score", entry.get("expected"))
+    if question.kind is QuestionKind.SCORE and raw_score is not None:
+        if sum(answer.distribution.probabilities.values()) <= 0.0:
+            return DecisionAnswer(
+                question_id=question.id,
+                distribution=answer.distribution,
+                expected=float(raw_score),
+            )
+    return answer
+
+
+def _single_candidate_answer(question: DecisionQuestion) -> DecisionAnswer:
+    """Returns a deterministic `DecisionAnswer` for a `< 2` candidate choice."""
+    cands = question.candidates()
+    probs = {cands[0]: 1.0} if cands else {}
+    return DecisionAnswer(
+        question_id=question.id,
+        distribution=DecisionDistribution(
+            probabilities=probs,
+            calibrated=True,
+            top_logit_margin=float("inf") if probs else 0.0,
+        ),
+    )
+
+
+class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
+    """HTTP backend for local Jev /predict or /v1/systemone decision endpoints.
+
+    Supports `async with` to close the owned HTTP client on exit. ADC access
+    tokens (``auth="adc"``) are cached per instance for 30 minutes.
+    """
+
+    def __init__(
+        self,
+        endpoint_url: str,
+        *,
+        wire_format: DecisionWireFormat | str = DecisionWireFormat.AUTO,
+        model: str = "default",
+        auth: str | Callable[[], str | Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+        client: httpx.AsyncClient | None = None,
+        timeout_seconds: float = 5.0,
+    ) -> None:
+        self._endpoint_url = endpoint_url
+        self._wire_format = str(getattr(wire_format, "value", wire_format))
+        if "ai-gateway.vercel.sh/typesafe" in endpoint_url.lower() and model in (
+            "default",
+            "jev-latest",
+        ):
+            model = "jev"
+        self._model = model
+        self._auth = auth
+        self._headers = dict(headers) if headers else None
+        self._init_http_client(client, timeout_seconds)
+        self._adc_token: str | None = None
+        self._adc_expires_at: float = 0.0
+        self._adc_lock = asyncio.Lock()
+
+    @property
+    def endpoint_url(self) -> str:
+        """The HTTP endpoint URL queried by this backend."""
+        return self._endpoint_url
+
+    @property
+    def model(self) -> str:
+        """The decision model identifier sent on `/v1/systemone` requests."""
+        return self._model
+
+    def _is_systemone(self) -> bool:
+        """Returns whether this backend uses the /v1/systemone wire format."""
+        return self._wire_format == "systemone" or (
+            self._wire_format == "auto"
+            and self._endpoint_url.rstrip("/").endswith("/v1/systemone")
+        )
+
+    async def _resolve_adc_token(self) -> str | None:
+        """Returns this instance's cached ADC token, refreshing it when expired."""
+        now = time.time()
+        if self._adc_token and now < self._adc_expires_at:
+            return self._adc_token
+
+        async with self._adc_lock:
+            now = time.time()
+            if self._adc_token and now < self._adc_expires_at:
+                return self._adc_token
+            token = await asyncio.to_thread(_get_adc_token_sync)
+            if token:
+                self._adc_token = token
+                self._adc_expires_at = now + _ADC_TOKEN_TTL_SECONDS
+                return token
+            return None
+
+    async def _resolve_auth_token(self) -> str | None:
+        """Resolves bearer token string from auth argument or environment."""
+        auth_target = self._auth
+        if auth_target is None:
+            import os
+
+            auth_target = (
+                os.environ.get("A2UI_DECISION_TOKEN")
+                or os.environ.get("A2UI_DECISION_AUTH")
+                or os.environ.get("JEV_API_KEY")
+                or os.environ.get("TYPESAFE_API_KEY")
+            )
+            if not auth_target:
+                return None
+
+        if auth_target == "adc":
+            return await self._resolve_adc_token()
+        if callable(auth_target):
+            res = auth_target()
+            if asyncio.iscoroutine(res):
+                res = await res
+            return str(res) if res else None
+        token_str = str(auth_target).strip()
+        return token_str if token_str else None
+
+    async def _build_headers(self) -> dict[str, str]:
+        """Constructs headers including Authorization Bearer token if configured."""
+        headers = dict(self._headers or {})
+        token = await self._resolve_auth_token()
+        if token and "Authorization" not in headers:
+            headers["Authorization"] = f"Bearer {token}"
+        return headers
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Queries the decision endpoint and normalizes candidate probabilities."""
+        if not query.candidates:
+            return DecisionDistribution(
+                probabilities={},
+                calibrated=True,
+                top_logit_margin=0.0,
+            )
+
+        headers = await self._build_headers()
+        is_systemone = self._is_systemone()
+
+        if is_systemone:
+            payload = _build_systemone_request(query, self._model)
+        else:
+            payload = {
+                "task": query.task,
+                "prompt": query.prompt,
+                "candidates": list(query.candidates),
+                "context": query.context,
+            }
+
+        data = await _post_json(
+            self._endpoint_url,
+            payload,
+            client=self._get_client(),
+            timeout_seconds=self._timeout_seconds,
+            headers=headers,
+        )
+
+        if is_systemone or "answers" in data:
+            probs, calibrated, margin = _parse_systemone_response(
+                data, query.candidates
+            )
+            return DecisionDistribution(
+                probabilities=probs,
+                calibrated=calibrated,
+                top_logit_margin=margin,
+            )
+
+        raw_probs = data.get("probabilities")
+        probs_map = raw_probs if isinstance(raw_probs, Mapping) else {}
+        probabilities = _normalize_probabilities(probs_map, query.candidates)
+        calibrated = bool(data.get("calibrated", False))
+        raw_margin = data.get("top_logit_margin")
+        top_logit_margin = float(raw_margin) if raw_margin is not None else None
+        return DecisionDistribution(
+            probabilities=probabilities,
+            calibrated=calibrated,
+            top_logit_margin=top_logit_margin,
+        )
+
+    async def _answer_systemone(
+        self, batch: DecisionBatch
+    ) -> tuple[DecisionAnswer, ...]:
+        """Sends `batch` as one `/v1/systemone` request, short-circuiting 1-option choices."""
+        wire_questions = {
+            q.id: _serialize_systemone_question(q)
+            for q in batch.questions
+            if not (q.kind is QuestionKind.CHOICE and len(q.candidates()) < 2)
+        }
+        data: Mapping[str, Any] = {}
+        if wire_questions:
+            headers = await self._build_headers()
+            payload = {
+                "model": self._model,
+                "state": _build_systemone_state(batch.shared_context),
+                "questions": wire_questions,
+            }
+            data = await _post_json(
+                self._endpoint_url,
+                payload,
+                client=self._get_client(),
+                timeout_seconds=self._timeout_seconds,
+                headers=headers,
+            )
+        raw_answers = data.get("answers", {})
+        answers_map = raw_answers if isinstance(raw_answers, Mapping) else {}
+        fallback_q = answers_map.get("q")
+        fallback_entry = fallback_q if isinstance(fallback_q, Mapping) else {}
+        results: list[DecisionAnswer] = []
+        for q in batch.questions:
+            if q.kind is QuestionKind.CHOICE and len(q.candidates()) < 2:
+                results.append(_single_candidate_answer(q))
+                continue
+            raw_entry = answers_map.get(q.id)
+            entry = raw_entry if isinstance(raw_entry, Mapping) else fallback_entry
+            results.append(_parse_systemone_question_answer(q, entry, data))
+        return tuple(results)
+
+    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Sends `batch` as one request for both native Jev and `/v1/systemone`."""
+        if not batch.questions:
+            return ()
+        if self._is_systemone():
+            return await self._answer_systemone(batch)
+
+        headers = await self._build_headers()
+        payload: dict[str, Any] = {
+            "shared_context": dict(batch.shared_context),
+            "questions": [_serialize_native_question(q) for q in batch.questions],
+        }
+        data = await _post_json(
+            self._endpoint_url,
+            payload,
+            client=self._get_client(),
+            timeout_seconds=self._timeout_seconds,
+            headers=headers,
+        )
+        raw_answers = data.get("answers", data.get("questions", ()))
+        return tuple(
+            _parse_native_question_answer(
+                q,
+                _extract_native_answer_entry(raw_answers, q.id, idx),
+                data,
+            )
+            for idx, q in enumerate(batch.questions)
+        )
+
+
+class StepZeroLogprobBackend(PredictOnlyBackend, _HttpClientOwner):
+    """OpenAI-compatible step-0 top-logprob decision backend.
+
+    Supports `async with` to close the owned HTTP client on exit.
+    """
+
+    def __init__(
+        self,
+        endpoint_url: str,
+        model: str,
+        *,
+        temperature: float = 1.0,
+        max_logprobs: int = 20,
+        auth: str | Callable[[], str | Any] | None = None,
+        client: httpx.AsyncClient | None = None,
+        timeout_seconds: float = 20.0,
+    ) -> None:
+        if temperature <= 0.0:
+            raise ValueError(f"temperature must be positive, got {temperature}")
+        if not (1 <= max_logprobs <= 20):
+            raise ValueError(f"max_logprobs must be in [1, 20], got {max_logprobs}")
+        self._endpoint_url = endpoint_url
+        self._model = model
+        self._temperature = float(temperature)
+        self._max_logprobs = int(max_logprobs)
+        self._auth = auth
+        self._init_http_client(client, timeout_seconds)
+
+    def _build_headers(self) -> dict[str, str] | None:
+        """Builds optional Bearer authorization headers."""
+        if isinstance(self._auth, str) and self._auth.strip():
+            return {"Authorization": f"Bearer {self._auth.strip()}"}
+        return None
+
+    async def _predict_with_prefix(
+        self, query: DecisionQuery, *, shared_prefix: str = ""
+    ) -> DecisionDistribution:
+        """Queries step-0 logprobs using single-character `A`-`J` labels."""
+        calibrated = self._temperature != 1.0
+        if not query.candidates:
+            return DecisionDistribution(
+                probabilities={},
+                calibrated=calibrated,
+                top_logit_margin=0.0,
+            )
+        prompt = _format_step_zero_prompt(query, shared_prefix=shared_prefix)
+        num_logprobs = min(max(len(query.candidates), 5), self._max_logprobs)
+        if self._endpoint_url.rstrip("/").lower().endswith("/chat/completions"):
+            payload: dict[str, Any] = {
+                "model": self._model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Reply with ONLY the single uppercase letter (A-J)"
+                            " of the best candidate."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 1,
+                "temperature": 0.0,
+                "logprobs": True,
+                "top_logprobs": num_logprobs,
+            }
+        else:
+            payload = {
+                "model": self._model,
+                "prompt": prompt,
+                "max_tokens": 1,
+                "temperature": 0.0,
+                "logprobs": num_logprobs,
+            }
+        data = await _post_json(
+            self._endpoint_url,
+            payload,
+            client=self._get_client(),
+            timeout_seconds=self._timeout_seconds,
+            headers=self._build_headers(),
+        )
+        top_logprobs = _extract_top_logprobs(data)
+        matched = _match_step_zero_logprobs(query.candidates, top_logprobs)
+
+        default_floor = (min(matched.values()) - 10.0) if matched else -20.0
+        logits = {c: matched.get(c, default_floor) for c in query.candidates}
+        probabilities, top_logit_margin = _softmax_with_margin(
+            logits, query.candidates, temperature=self._temperature
+        )
+        return DecisionDistribution(
+            probabilities=probabilities,
+            calibrated=calibrated,
+            top_logit_margin=top_logit_margin,
+        )
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Queries step-0 logprobs and applies temperature-scaled softmax."""
+        return await self._predict_with_prefix(query)
+
+    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Answers all questions concurrently with a shared prefix for prefix caching."""
+        if not batch.questions:
+            return ()
+        for question in batch.questions:
+            _validate_step_zero_candidates(question.candidates())
+        shared_prefix = f"Shared context: {batch.shared_context}"
+        queries = [_question_query(q, batch.shared_context) for q in batch.questions]
+        distributions = await asyncio.gather(*(
+            self._predict_with_prefix(q, shared_prefix=shared_prefix) for q in queries
+        ))
+        return tuple(
+            answer_from_distribution(question, dist)
+            for question, dist in zip(batch.questions, distributions)
+        )
+
+
+def _choice_option_probabilities(
+    chosen: str, probability: float, candidates: tuple[str, ...]
+) -> dict[str, float]:
+    """Assigns `probability` to `chosen` and distributes the remainder evenly."""
+    if chosen not in candidates:
+        raise ValueError(f"Scripted option {chosen!r} is not among {candidates}.")
+    others = [c for c in candidates if c != chosen]
+    if not others:
+        return {chosen: 1.0}
+    rest = max(0.0, 1.0 - probability) / len(others)
+    return {c: probability if c == chosen else rest for c in candidates}
+
+
+def _score_expected_probabilities(
+    expected: float, levels: tuple[str, ...]
+) -> dict[str, float]:
+    """Constructs a level distribution whose expected index equals `expected`."""
+    top = len(levels) - 1
+    clamped = min(max(expected, 0.0), float(top))
+    low = min(int(math.floor(clamped)), top)
+    high = min(low + 1, top)
+    weight_high = clamped - low
+    probs = {level: 0.0 for level in levels}
+    probs[levels[low]] += 1.0 - weight_high
+    probs[levels[high]] += weight_high
+    return probs
+
+
+class DeterministicMockBackend(PredictOnlyBackend):
+    """Deterministic offline decision backend for tests and local evaluation."""
+
+    def __init__(
+        self,
+        scripted: Mapping[str, Mapping[str, float]] | None = None,
+        *,
+        scripted_answers: Mapping[str, ScriptedAnswerSpec] | None = None,
+        scorer: Callable[[DecisionQuery], DecisionDistribution] | None = None,
+        calibrated: bool = True,
+        default_logit_margin: float = 2.5,
+    ) -> None:
+        self._scripted: dict[str, dict[str, float]] = (
+            {k: dict(v) for k, v in scripted.items()} if scripted else {}
+        )
+        self._scripted_answers: dict[str, ScriptedAnswerSpec] = (
+            dict(scripted_answers) if scripted_answers else {}
+        )
+        self._scorer = scorer
+        self._calibrated = calibrated
+        self._default_logit_margin = float(default_logit_margin)
+        self.batches: list[DecisionBatch] = []
+
+    def _lookup_scripted_entry(
+        self, task: Any, prompt: str, question_id: str = ""
+    ) -> dict[str, float] | None:
+        """Finds a matching probability dict in `self._scripted`, if any."""
+        for key in (f"{task}:{prompt}", str(task), question_id):
+            if key and key in self._scripted:
+                return self._scripted[key]
+        return None
+
+    def _resolve_scripted_answer(
+        self, question: DecisionQuestion, spec: ScriptedAnswerSpec
+    ) -> DecisionAnswer:
+        """Converts a `scripted_answers` entry into a `DecisionAnswer`."""
+        if isinstance(spec, DecisionAnswer):
+            return spec
+        candidates = question.candidates()
+        if isinstance(spec, Mapping):
+            probs = _normalize_probabilities(spec, candidates)
+        elif isinstance(spec, tuple):
+            probs = _choice_option_probabilities(
+                str(spec[0]), float(spec[1]), candidates
+            )
+        elif isinstance(spec, str):
+            probs = _choice_option_probabilities(spec, 0.9, candidates)
+        elif question.kind is QuestionKind.BOOLEAN:
+            p_yes = min(max(float(spec), 0.0), 1.0)
+            probs = {"yes": p_yes, "no": 1.0 - p_yes}
+        elif question.kind is QuestionKind.SCORE:
+            probs = _score_expected_probabilities(float(spec), question.options)
+        else:
+            raise ValueError(
+                f"Numeric scripted_answers value {spec!r} requires boolean or"
+                f" score question, got {question.kind}."
+            )
+        dist = DecisionDistribution(
+            probabilities=probs,
+            calibrated=self._calibrated,
+            top_logit_margin=self._default_logit_margin,
+        )
+        return answer_from_distribution(question, dist)
+
+    def _heuristic_answer(
+        self, question: DecisionQuestion, shared_context: Mapping[str, Any]
+    ) -> DecisionAnswer:
+        """Computes a deterministic fallback answer for an unscripted question."""
+        if question.kind is QuestionKind.BOOLEAN:
+            dist = DecisionDistribution(
+                probabilities={"yes": 0.5, "no": 0.5},
+                calibrated=self._calibrated,
+                top_logit_margin=self._default_logit_margin,
+            )
+            return _boolean_answer(question, dist)
+        if question.kind is QuestionKind.SCORE:
+            midpoint = (len(question.options) - 1) / 2.0
+            probs = _score_expected_probabilities(midpoint, question.options)
+            dist = DecisionDistribution(
+                probabilities=probs,
+                calibrated=self._calibrated,
+                top_logit_margin=self._default_logit_margin,
+            )
+            return _score_answer(question, dist)
+        dist = self._heuristic_predict(_question_query(question, shared_context))
+        return answer_from_distribution(question, dist)
+
+    async def predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Returns a scripted, custom-scored, or heuristic distribution."""
+        if self._scorer is not None:
+            return self._scorer(query)
+
+        if not query.candidates:
+            return DecisionDistribution(
+                probabilities={},
+                calibrated=self._calibrated,
+                top_logit_margin=0.0,
+            )
+
+        q_id = str(query.context.get("question_id", ""))
+        scripted_entry = self._lookup_scripted_entry(query.task, query.prompt, q_id)
+        if scripted_entry is not None:
+            probabilities = _normalize_probabilities(scripted_entry, query.candidates)
+            return DecisionDistribution(
+                probabilities=probabilities,
+                calibrated=self._calibrated,
+                top_logit_margin=self._default_logit_margin,
+            )
+
+        return self._heuristic_predict(query)
+
+    async def _answer_question(
+        self, question: DecisionQuestion, shared_context: Mapping[str, Any]
+    ) -> DecisionAnswer:
+        """Answers one `DecisionQuestion` with `scripted_answers` taking priority."""
+        if question.id in self._scripted_answers:
+            return self._resolve_scripted_answer(
+                question, self._scripted_answers[question.id]
+            )
+        if self._scorer is not None:
+            dist = await self.predict(_question_query(question, shared_context))
+            return answer_from_distribution(question, dist)
+        scripted_entry = self._lookup_scripted_entry(
+            question.task, question.prompt, question.id
+        )
+        if scripted_entry is not None:
+            probs = _normalize_probabilities(scripted_entry, question.candidates())
+            dist = DecisionDistribution(
+                probabilities=probs,
+                calibrated=self._calibrated,
+                top_logit_margin=self._default_logit_margin,
+            )
+            return answer_from_distribution(question, dist)
+        return self._heuristic_answer(question, shared_context)
+
+    async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
+        """Records `batch` on `self.batches` and answers every question in order."""
+        self.batches.append(batch)
+        return tuple(
+            await asyncio.gather(*(
+                self._answer_question(q, batch.shared_context) for q in batch.questions
+            ))
+        )
+
+    def _heuristic_predict(self, query: DecisionQuery) -> DecisionDistribution:
+        """Computes a deterministic keyword/context heuristic distribution."""
+        prompt_lower = query.prompt.lower()
+        prompt_tokens = _tokenize(query.prompt)
+        context_tokens = _extract_context_tokens(query.context)
+
+        raw_scores: list[tuple[str, float]] = []
+        n = len(query.candidates)
+        for idx, candidate in enumerate(query.candidates):
+            base = _score_candidate(
+                candidate, prompt_lower, prompt_tokens, context_tokens
+            )
+            tie_breaker = (n - idx) * 0.01
+            raw_scores.append((candidate, base + tie_breaker))
+
+        best_candidate, _ = max(raw_scores, key=lambda item: item[1])
+        if n == 1:
+            return DecisionDistribution(
+                probabilities={query.candidates[0]: 1.0},
+                calibrated=self._calibrated,
+                top_logit_margin=self._default_logit_margin,
+            )
+
+        weights: dict[str, float] = {}
+        for candidate, score in raw_scores:
+            if candidate == best_candidate:
+                weights[candidate] = 9.0 * (1.0 + score)
+            else:
+                weights[candidate] = (1.0 + score * 0.1) / (n - 1)
+
+        probabilities = _normalize_probabilities(weights, query.candidates)
+        return DecisionDistribution(
+            probabilities=probabilities,
+            calibrated=self._calibrated,
+            top_logit_margin=self._default_logit_margin,
+        )
+
+
+def _infer_backend_kind(url: str | None) -> str:
+    """Picks a backend kind from the endpoint URL, or defaults to `MOCK`."""
+    if url:
+        clean_url = url.rstrip("/").lower()
+        if clean_url.endswith("/v1/systemone"):
+            return DecisionBackendType.SYSTEMONE.value
+        if clean_url.endswith("/v1/completions") or clean_url.endswith(
+            "/chat/completions"
+        ):
+            return DecisionBackendType.STEP_ZERO.value
+        return DecisionBackendType.JEV.value
+    return DecisionBackendType.MOCK.value
+
+
+def _require_url(kind: str, url: str | None) -> str:
+    """Returns `url`, or raises a ValueError naming the backend that needs it."""
+    if not url:
+        raise ValueError(
+            f"{kind} backend requires an endpoint URL (pass endpoint_url or set"
+            " A2UI_DECISION_URL)"
+        )
+    return url
+
+
+def _default_jev_url_and_model(
+    auth_val: str | Callable[[], str | Any] | None,
+) -> tuple[str | None, str]:
+    """Resolves the hosted `/v1/systemone` URL and default model when a key is present."""
+    import os
+
+    jev_model = os.environ.get("JEV_MODEL")
+    if isinstance(auth_val, str):
+        token = auth_val.strip()
+        if token and token != "adc":
+            if token.startswith("vcp_"):
+                return _DEFAULT_VERCEL_TYPESAFE_SYSTEMONE_URL, jev_model or "jev"
+            return _DEFAULT_TYPESAFE_SYSTEMONE_URL, jev_model or "jev-latest"
+    return None, jev_model or "default"
+
+
+def _create_jev_backend(
+    kind: str,
+    url: str | None,
+    model_name: str | None,
+    auth_val: str | Callable[[], str | Any] | None,
+) -> JevHttpBackend:
+    default_url, default_model = _default_jev_url_and_model(auth_val)
+    endpoint = _require_url(kind, url or default_url)
+    if kind == DecisionBackendType.SYSTEMONE.value or endpoint.rstrip("/").endswith(
+        "/v1/systemone"
+    ):
+        return JevHttpBackend(
+            endpoint,
+            wire_format=DecisionWireFormat.SYSTEMONE,
+            model=model_name or default_model,
+            auth=auth_val,
+        )
+    return JevHttpBackend(endpoint, wire_format=DecisionWireFormat.JEV, auth=auth_val)
+
+
+def _create_step_zero_backend(
+    url: str | None,
+    model_name: str | None,
+    temperature: float,
+    auth_val: str | Callable[[], str | Any] | None = None,
+) -> StepZeroLogprobBackend:
+    endpoint = _require_url(DecisionBackendType.STEP_ZERO.value, url)
+    return StepZeroLogprobBackend(
+        endpoint,
+        model=model_name or "default",
+        temperature=temperature,
+        auth=auth_val,
+    )
+
+
+def create_decision_backend(
+    backend_type: str | DecisionBackendType | None = None,
+    *,
+    endpoint_url: str | None = None,
+    model: str | None = None,
+    auth: str | Callable[[], str | Any] | None = None,
+    temperature: float | None = None,
+) -> DecisionBackend:
+    """Creates a DecisionBackend from explicit arguments or environment variables.
+
+    Args:
+        backend_type: A `DecisionBackendType` or its string value. When
+            omitted, read from `A2UI_DECISION_BACKEND`, then inferred from
+            the endpoint URL, then defaulted to `mock`.
+        endpoint_url: Endpoint for the HTTP backends.
+        model: Model identifier for remote backends.
+        auth: `"adc"`, a bearer token, or a callable returning one.
+        temperature: Softmax temperature for the step-0 backend.
+
+    Environment variables:
+        A2UI_DECISION_BACKEND: 'systemone', 'jev', 'step0', 'mock'
+        A2UI_DECISION_URL: Endpoint URL for HTTP backends
+        A2UI_DECISION_MODEL: Model identifier for remote backends
+        A2UI_DECISION_AUTH: 'adc', Bearer token string, or omitted
+        JEV_API_KEY / TYPESAFE_API_KEY: API key for hosted Jev (/v1/systemone)
+        A2UI_DECISION_TEMPERATURE: Float temperature scaling parameter
+
+    Raises:
+        ValueError: If the backend kind is unknown or needs a URL that is
+            missing.
+    """
+    import os
+
+    raw_kind = backend_type or os.environ.get("A2UI_DECISION_BACKEND")
+    url = endpoint_url or os.environ.get("A2UI_DECISION_URL")
+    model_name = model or os.environ.get("A2UI_DECISION_MODEL")
+    auth_val = (
+        auth
+        or os.environ.get("A2UI_DECISION_AUTH")
+        or os.environ.get("A2UI_DECISION_TOKEN")
+        or os.environ.get("JEV_API_KEY")
+        or os.environ.get("TYPESAFE_API_KEY")
+    )
+    temp = _resolve_temperature(
+        temperature, os.environ.get("A2UI_DECISION_TEMPERATURE")
+    )
+    kind = _normalize_backend_kind(raw_kind) or _infer_backend_kind(url)
+
+    builders: dict[str, Callable[[], DecisionBackend]] = {
+        DecisionBackendType.SYSTEMONE.value: lambda: _create_jev_backend(
+            kind, url, model_name, auth_val
+        ),
+        DecisionBackendType.JEV.value: lambda: _create_jev_backend(
+            kind, url, model_name, auth_val
+        ),
+        DecisionBackendType.STEP_ZERO.value: lambda: _create_step_zero_backend(
+            url, model_name, temp, auth
+        ),
+        DecisionBackendType.MOCK.value: DeterministicMockBackend,
+    }
+    builder = builders.get(kind)
+    if builder is None:
+        choices = ", ".join(f"'{k}'" for k in builders)
+        raise ValueError(
+            f"Unknown decision backend type '{raw_kind}'. Choose from: {choices}."
+        )
+    return builder()
+
+
+def _normalize_backend_kind(raw_kind: str | DecisionBackendType | None) -> str | None:
+    """Lower-cases a backend kind given as a string or enum; None stays None."""
+    if not raw_kind:
+        return None
+    return str(getattr(raw_kind, "value", raw_kind)).strip().lower()
+
+
+def _resolve_temperature(explicit: float | None, from_env: str | None) -> float:
+    """Picks the explicit temperature, else the environment value, else 1.0."""
+    if explicit is not None:
+        return float(explicit)
+    return float(from_env) if from_env else 1.0
+
+
+__all__ = [
+    "DecisionBackend",
+    "DeterministicMockBackend",
+    "JevHttpBackend",
+    "PredictOnlyBackend",
+    "StepZeroLogprobBackend",
+    "answer_from_distribution",
+    "create_decision_backend",
+    "ensure_batch_backend",
+]
