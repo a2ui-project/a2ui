@@ -42,13 +42,13 @@ Use the `functions` property to define a map of function schemas.
           "unevaluatedProperties": false
         }
       },
-      "required": ["@call", "args"],
-      "unevaluatedProperties": false
+      "required": ["@call", "args"]
     },
     "getScreenResolution": {
       "type": "object",
       "description": "Queries hardware for screen resolution.",
       "returnType": "array",
+      "allowedCallers": "rendererOrAgent",
       "properties": {
         "@call": {"const": "getScreenResolution"},
         "args": {
@@ -62,12 +62,13 @@ Use the `functions` property to define a map of function schemas.
           "unevaluatedProperties": false
         }
       },
-      "required": ["@call", "args"],
-      "unevaluatedProperties": false
+      "required": ["@call", "args"]
     }
   }
 }
 ```
+
+`allowedCallers` controls who can invoke a function. It defaults to `rendererOnly`, which limits the function to the renderer itself (component property bindings, `checks`, and actions), so `trim` needs no value. `getScreenResolution` sets it to `rendererOrAgent` so that the agent can also call it with a [`callRendererFunction`](a2ui_protocol.md#callrendererfunction) message. If the agent calls a `rendererOnly` function, the renderer rejects the call with an `INVALID_FUNCTION_CALL` error. Use `agentOnly` for functions that only the agent may call.
 
 ## 2. Make the functions available
 
