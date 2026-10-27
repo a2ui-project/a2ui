@@ -102,8 +102,7 @@ processor.model.dispose();
   transport metadata of each message to the agent, when it is not null.
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
-- An `onError` listener can run while an `A2uiSurface` builds, so a
-  `setState` it causes must wait for the next frame.
+- Error listeners may call `setState` directly.
 - On macOS, network images and media need the
   `com.apple.security.network.client` entitlement.
 
