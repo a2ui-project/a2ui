@@ -259,6 +259,13 @@ public struct ExpressionParser: Sendable {
       if token.isEmpty {
         return .string("")
       }
+      if token == "@index" {
+        return .object([
+          "call": .string("@index"),
+          "args": .object([:]),
+          "returnType": .string("any"),
+        ])
+      }
       return .object(["path": .string(token)])
     }
   }
@@ -311,7 +318,7 @@ public struct ExpressionParser: Sendable {
   private func scanPathOrIdentifier(_ scanner: inout Scanner) -> String {
     let start = scanner.pos
     while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "/" || c == "." || c == "_" || c == "-" {
+      if c.isLetter || c.isNumber || c == "/" || c == "." || c == "_" || c == "-" || c == "@" {
         _ = scanner.advance(by: 1)
       } else {
         break

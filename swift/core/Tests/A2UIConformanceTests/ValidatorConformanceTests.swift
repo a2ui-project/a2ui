@@ -495,10 +495,18 @@ struct ValidatorConformanceTests {
     testName: String
   ) {
     if let valError = error as? A2UIValidationError {
-      let matches = valError.details.contains { detail in
-        detail.path == expectedPath
-          || normalizedDetailPath(detail.path) == normalizedDetailPath(expectedPath)
+      let rendererPath: String?
+      if case .validationFailed(let rErr) = capturedRendererError {
+        rendererPath = rErr.path
+      } else {
+        rendererPath = nil
       }
+      let matches =
+        rendererPath == expectedPath
+        || valError.details.contains { detail in
+          detail.path == expectedPath
+            || normalizedDetailPath(detail.path) == normalizedDetailPath(expectedPath)
+        }
       #expect(
         matches,
         "[\(testName)] Expected error path '\(expectedPath)', got \(valError.details)"

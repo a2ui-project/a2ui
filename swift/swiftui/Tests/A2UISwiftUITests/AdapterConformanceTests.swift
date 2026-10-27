@@ -124,9 +124,6 @@ struct AdapterConformanceTests {
       validationConfig: .relaxed
     )
     let surfaceID = testCase["surfaceId"] as? String ?? "a11y_surface"
-    if let messages = testCase["messages"] {
-      try processor.processMessages(toJSONValue(messages))
-    }
     if let steps = testCase["steps"] as? [[String: Any]] {
       return try runAccessibilitySteps(
         steps,
@@ -134,6 +131,9 @@ struct AdapterConformanceTests {
         surfaceID: surfaceID,
         name: name
       )
+    }
+    if let messages = testCase["messages"] {
+      try processor.processMessages(toJSONValue(messages))
     }
     let assertions = (testCase["assertions"] as? [String: Any]) ?? testCase
     guard let expected = assertions["accessibilityTree"] as? [String: [String: Any]] else {

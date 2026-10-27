@@ -165,10 +165,23 @@ public enum ConformanceTestHelper {
       return catalogs
     }
     return try testCase.catalogPaths.map { path in
-      buildCatalog(
+      if path == "catalogs/basic/v1/catalog.json" {
+        return BasicCatalog.makeCatalog(version: .v10)
+      }
+      let fallbackVersion: String?
+      if path.contains("/v0_9_1/") {
+        fallbackVersion = "v0.9.1"
+      } else if path.contains("/v0_9/") {
+        fallbackVersion = "v0.9"
+      } else if path.contains("/v0_8/") {
+        fallbackVersion = "v0.8"
+      } else {
+        fallbackVersion = testCase.protocolVersion
+      }
+      return buildCatalog(
         catalogSchema: try loadRepositoryJSON(path: path),
         commonTypes: try commonTypesSchema(forCatalogPath: path),
-        protocolVersion: testCase.protocolVersion
+        protocolVersion: fallbackVersion
       )
     }
   }

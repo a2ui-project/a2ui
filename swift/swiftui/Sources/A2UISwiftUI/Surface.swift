@@ -257,8 +257,11 @@ extension Surface {
         )
       }
     }
+    let templateID =
+      childrenVal["componentId"]?.stringValue ?? childrenVal["template"]?.stringValue
     return (resolvedNode?.children(for: "children") ?? []).map { childNode in
-      let baseID = String(childNode.id.split(separator: ":").first ?? Substring(childNode.id))
+      let baseID =
+        templateID ?? String(childNode.id.split(separator: ":").first ?? Substring(childNode.id))
       return ViewNode(
         id: baseID,
         instanceID: childNode.id,
