@@ -155,7 +155,9 @@ export class SurfaceModel<
    * @param availableCatalogs Every catalog a payload on this surface may select
    *   by `catalogId`, keyed by that identifier. The message processor populates
    *   it with the catalogs whose protocol version is compatible with the
-   *   surface's own.
+   *   surface's own. Passing a plain object here is deprecated: it selects the
+   *   pre-1.0 argument order `(id, catalog, theme, sendDataModel?, dataModel?)`,
+   *   in which the object is the theme and the two arguments after it shift.
    * @param theme Theme to apply to this surface.
    * @param sendDataModel Whether the renderer sends the full data model with actions.
    * @param dataModel Optional custom DataModel instance. If provided, the SurfaceModel assumes

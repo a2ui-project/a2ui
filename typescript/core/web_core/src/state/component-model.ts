@@ -33,7 +33,8 @@ export class ComponentModel {
    * The catalog that defines this component's type.
    *
    * Always set by the message processor. Only pre-1.0 callers that construct
-   * a `ComponentModel` directly, such as unit tests, may leave it out.
+   * a `ComponentModel` directly, such as unit tests, may leave it out, in
+   * which case it is `undefined` at runtime despite the type.
    */
   readonly catalog!: Catalog<any, any>;
 
@@ -43,7 +44,8 @@ export class ComponentModel {
    * @param id The unique identifier for this component.
    * @param type The component type name.
    * @param initialProperties The initial properties for the component.
-   * @param catalog The catalog that defines this component's type.
+   * @param catalog The catalog that defines this component's type. Omitting
+   *   it is deprecated and kept only for pre-1.0 callers; pass the catalog.
    */
   constructor(
     readonly id: string,
