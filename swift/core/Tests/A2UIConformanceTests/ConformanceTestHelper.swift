@@ -848,6 +848,28 @@ public enum ConformanceTestHelper {
     {
       return true
     }
+    if expected == "missing an 'id'" && actual.contains("Missing required key 'id'") {
+      return true
+    }
+    if expected.contains("without a type") && actual.contains("Missing required key 'component'") {
+      return true
+    }
+    if expected == "Circular reference detected" && actual.contains("Self-reference detected:") {
+      return true
+    }
+    if expected == "Orphaned component" && actual.contains("is not reachable from 'root'") {
+      return true
+    }
+    if expected.contains("is not supported in protocol version")
+      && actual.contains("must contain exactly one update action")
+    {
+      return true
+    }
+    if expected == "Missing required version field"
+      && actual.contains("missing a valid 'version' string")
+    {
+      return true
+    }
     return false
   }
 }

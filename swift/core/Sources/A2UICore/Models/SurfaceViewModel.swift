@@ -77,15 +77,24 @@ public final class SurfaceViewModel: ObservableObject {
     protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
-    self.catalogs = catalogs
+    let compatibleCatalogs: [String: AnyCatalog]
+    if let protocolVersion {
+      compatibleCatalogs = catalogs.filter { _, cat in
+        guard let catVer = cat.a2uiProtocolVersion else { return true }
+        return catVer.isAtLeastV10 == protocolVersion.isAtLeastV10
+      }
+    } else {
+      compatibleCatalogs = catalogs
+    }
+    self.catalogs = compatibleCatalogs
     let allCatalogsAtLeastV10 =
-      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
+      !compatibleCatalogs.isEmpty && compatibleCatalogs.values.allSatisfy(\.isAtLeastV10)
     let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
     let resolvedDefaultCatalogID: String?
     if let defaultCatalogID {
       resolvedDefaultCatalogID = defaultCatalogID
-    } else if !isAtLeastV10, catalogs.count == 1 {
-      resolvedDefaultCatalogID = catalogs.keys.first
+    } else if !isAtLeastV10, compatibleCatalogs.count == 1 {
+      resolvedDefaultCatalogID = compatibleCatalogs.keys.first
     } else {
       resolvedDefaultCatalogID = nil
     }
@@ -98,13 +107,15 @@ public final class SurfaceViewModel: ObservableObject {
     if let protocolVersion {
       explicitVersion = protocolVersion
     } else if let resolvedDefaultCatalogID,
-      let defaultCat = catalogs[resolvedDefaultCatalogID],
+      let defaultCat = compatibleCatalogs[resolvedDefaultCatalogID],
       let catVer = defaultCat.a2uiProtocolVersion
     {
       explicitVersion = catVer
     } else if allCatalogsAtLeastV10 {
       explicitVersion = .v10
-    } else if catalogs.count == 1, let onlyCatVer = catalogs.values.first?.a2uiProtocolVersion {
+    } else if compatibleCatalogs.count == 1,
+      let onlyCatVer = compatibleCatalogs.values.first?.a2uiProtocolVersion
+    {
       explicitVersion = onlyCatVer
     } else {
       explicitVersion = nil
@@ -114,7 +125,7 @@ public final class SurfaceViewModel: ObservableObject {
     self.componentsModel = SurfaceComponentsModel()
     self.nodeResolver = NodeResolver(
       surfaceID: surfaceID,
-      catalogs: catalogs,
+      catalogs: compatibleCatalogs,
       defaultCatalogID: resolvedDefaultCatalogID,
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
