@@ -1134,15 +1134,6 @@
 </nav>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#cross-catalog-references">
-<span class="md-ellipsis">
-      
-        Cross-Catalog References
-      
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
 <a class="md-nav__link" href="#deprecating-catalog-properties">
 <span class="md-ellipsis">
       
@@ -2444,15 +2435,6 @@
 </nav>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#cross-catalog-references">
-<span class="md-ellipsis">
-      
-        Cross-Catalog References
-      
-    </span>
-</a>
-</li>
-<li class="md-nav__item">
 <a class="md-nav__link" href="#deprecating-catalog-properties">
 <span class="md-ellipsis">
       
@@ -3346,7 +3328,7 @@
 <li><code>functionCallId</code> (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent <code>rendererFunctionResponse</code> message.</li>
 <li><code>callFunction</code> (object, required): The description of the function call.<ul>
 <li><code>@call</code> (string, required): The registered name of the function to execute.</li>
-<li><code>catalogId</code> (string, required): The catalog ID defining the function to execute. <code>catalogId</code> MUST be specified on <code>callRendererFunction</code>; if omitted or unregistered, the renderer rejects the call with <code>code: "INVALID_FUNCTION_CALL"</code>.</li>
+<li><code>catalogId</code> (string, required): The catalog ID defining the function to execute. <code>catalogId</code> MUST be specified on <code>callRendererFunction</code>. A call without it violates the schema, so the message is malformed, and should be rejected. Agents should validate outgoing messages against the schema so that a missing <code>catalogId</code> never reaches the renderer. If <code>catalogId</code> names a catalog the renderer has not registered, the renderer rejects the call with <code>code: "INVALID_FUNCTION_CALL"</code>.</li>
 <li><code>args</code> (object, optional): Arguments passed to the function, as defined by its schema in the catalog.</li>
 </ul>
 </li>
@@ -3565,7 +3547,7 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <li>All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.</li>
 <li><strong>Restricted <code>$ref</code> Targets:</strong></li>
 <li>Local <code>$ref</code> targets are restricted to referencing the catalog's top-level components or functions (e.g., <code>#/components/Text</code>, <code>#/functions/required</code>).</li>
-<li>External <code>$ref</code> targets, other than references to peer catalogs (below), MUST reference the standard types inside <code>common_types.json</code> using the relative target format (<code>common_types.json#/$defs/...</code>). Allowed <code>$ref</code> targets are limited to the following schemas:<ul>
+<li>External <code>$ref</code> targets MUST reference the standard types inside <code>common_types.json</code> using the relative target format (<code>common_types.json#/$defs/...</code>). Allowed <code>$ref</code> targets are limited to the following schemas:<ul>
 <li><code>ComponentId</code></li>
 <li><code>Child</code></li>
 <li><code>ChildList</code></li>
@@ -3582,7 +3564,7 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <li><code>FunctionCall</code></li>
 </ul>
 </li>
-<li>External <code>$ref</code> targets MAY also reference a <strong>peer catalog</strong>, as described in <a href="#cross-catalog-references">Cross-Catalog References</a>. These are the only other external targets allowed.</li>
+<li>Any other external <code>$ref</code> target, such as a reference into another catalog, makes the catalog invalid. Implementations MUST report a catalog error when the catalog is loaded, and MUST NOT fetch the target over the network.</li>
 </ol>
 <blockquote>
 <p>[!NOTE]
@@ -3727,25 +3709,6 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 </span><span id="__span-12-88"><a href="#__codelineno-12-88" id="__codelineno-12-88" name="__codelineno-12-88"></a>  },
 </span><span id="__span-12-89"><a href="#__codelineno-12-89" id="__codelineno-12-89" name="__codelineno-12-89"></a>}
 </span></code></pre></div>
-<h4 id="cross-catalog-references">Cross-Catalog References<a class="headerlink" href="#cross-catalog-references" title="Permanent link">¶</a></h4>
-<p>A catalog MAY reuse definitions from another catalog, its <strong>peer</strong>, through an external <code>$ref</code>. For example, a custom catalog can inherit the basic catalog's <code>Text</code> and add a property, or reuse the <code>action</code> property of another catalog's <code>Button</code>. Cross-catalog references are still local: the peer MUST be a catalog that the agent or renderer already holds, because it is registered with the agent or renderer or supplied together with the referencing catalog. An implementation MUST NOT fetch or download a peer catalog over the network to resolve a reference.</p>
-<p>A cross-catalog <code>$ref</code> has the form <code>&lt;peer document&gt;#&lt;pointer&gt;</code>, and the pointer MUST address one of the peer's top-level components or functions, or a subschema inside one:</p>
-<ul>
-<li><code>&lt;peer document&gt;#/components/&lt;Name&gt;</code> inherits a whole component, usually as an <code>allOf</code> entry. The peer's <code>component</code> discriminator, <code>id</code> envelope and closure keywords (<code>unevaluatedProperties</code>, <code>additionalProperties</code>) are not inherited; the referencing component declares its own discriminator.</li>
-<li><code>&lt;peer document&gt;#/components/&lt;Name&gt;/properties/&lt;property&gt;</code> reuses the schema of one property.</li>
-<li><code>&lt;peer document&gt;#/functions/&lt;Name&gt;</code> and pointers into a function, such as <code>#/functions/&lt;Name&gt;/properties/args/properties/&lt;arg&gt;</code>, do the same for functions.</li>
-</ul>
-<p><code>&lt;peer document&gt;</code> names the peer by its <code>catalogId</code> or <code>$id</code>, or by a path or file name that ends one of them. Implementations MUST resolve it against the peer catalogs they hold in this order, and the first catalog that matches wins:</p>
-<ol>
-<li>A document named <code>common_types.json</code>, or a path ending in <code>/common_types.json</code>, refers to the protocol's common types and never to a peer.</li>
-<li>A document named exactly <code>catalog.json</code> refers to the referencing catalog itself, as in the envelope schemas.</li>
-<li><strong>Exact or path-suffix match:</strong> a peer whose <code>catalogId</code> or <code>$id</code> equals the document, ends with <code>/</code> followed by the document, or is itself a path suffix of the document (the document ends with <code>/</code> followed by it).</li>
-<li>A path ending in <code>/catalog.json</code> that no peer matches in step 3 refers to the referencing catalog itself.</li>
-<li><strong>File name match:</strong> a peer whose <code>$id</code> or <code>catalogId</code> has the same last path segment as the document.</li>
-</ol>
-<p>Only a document named exactly <code>catalog.json</code> is generic. A file whose name merely ends in <code>catalog.json</code>, such as <code>mcp_catalog.json</code>, is matched like any other name, and a full URI such as <code>https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json</code> resolves to the peer with that <code>$id</code> before it is treated as the referencing catalog. When several peers match in the same step, the one listed or registered first wins; catalog authors SHOULD write references that match exactly one peer, for example by using the peer's full <code>$id</code>.</p>
-<p>Inside the inherited content, the peer's own local references (<code>#/...</code>) resolve against the peer document, and its cross-catalog references resolve against the same set of peers. A catalog with a cross-catalog <code>$ref</code> that resolves to no peer the implementation holds is a catalog error. Implementations MUST NOT silently ignore such a reference or treat it as accepting any value; they report the error when the catalog is loaded or linked, or at the latest when a payload is validated against the affected component or function. The referencing catalog's own references MUST keep using local pointers (<code>#/components/...</code>) or <code>catalog.json</code>.</p>
-<p>Catalog documents keep cross-catalog references as authored, for example in prompts and in <code>inlineCatalogs</code>. A renderer or agent that receives such a catalog MUST already hold its peers, or bundle them before validating.</p>
 <h4 id="deprecating-catalog-properties">Deprecating Catalog Properties<a class="headerlink" href="#deprecating-catalog-properties" title="Permanent link">¶</a></h4>
 <ul>
 <li><strong><code>deprecated</code></strong> (boolean, optional): Standard JSON Schema annotation indicating that a component, function, or property is deprecated.</li>
