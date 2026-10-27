@@ -90,33 +90,3 @@ When weekly triage is complete, the [`needs-triage`][needs-triage] list should i
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 [unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 
-## Frequently asked questions
-
-### Why do we allow branches on the repo and thus create work for maintainers?
-
-Eval and e2e tests cannot be executed on pre-submit for PRs from forks, because they require an API key that is visible only on the original repo.
-
-We want evals and e2e's to run on pre-submit at least for team members.
-
-Watching branches is not big extra toil for triage process, because:
-
-1. If we forbid branches, the work will not disappear, it will just move to the fork
-2. It is easy to cleanup branches because ownership is clear
-3. As team members know it is part of triage to clean them up, they are more careful managing their branches
-
-### Why do we need P4? Why not just close the issue?
-
-We need the label P4, because:
-
-1. Just closing the issue will not give a clear searchable sign why it is closed
-2. External developers can reopen issue, but cannot change label
-
-It is better not to close P4, because:
-
-1. As we have label P4 anyway, closing the issue is an extra step.
-2. If P4 is open, it is a sign that this feature request is still:
-    1. not implemented
-    2. seems to be valuable
-    3. considered P4
-
-    which adds clarity and makes it harder to push for prioritization.
