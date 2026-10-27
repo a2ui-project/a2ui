@@ -11,7 +11,7 @@ Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 ## References
 
 - [How the automated triage bot works](automation.md)
-- [Standard triage replies for issues](templates-issues.md)
+- [Standard triage replies for issues](templates.md)
 - [Decisions made for this triage process](decisions.md)
 
 ## Principles
@@ -145,7 +145,7 @@ What may help:
 1. If the issue is a duplicate, close it with a link to the original issue.
 2. Set a priority label, `P0` to `P4`, based on the [principles](#principles). Assign someone to a `P0` or `P1` issue.
 3. Answer any open questions or comments from external contributors.
-4. For standard cases, such as an out-of-scope request, use the [standard replies for issues](templates-issues.md).
+4. For standard cases, such as an out-of-scope request, use the [standard replies for issues](templates.md).
 
 The triage is done when the issue has a priority and no external comment is left unanswered.
 
