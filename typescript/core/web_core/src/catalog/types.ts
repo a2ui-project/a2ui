@@ -784,14 +784,11 @@ export class Catalog<
     } else {
       protocolVersion = protocolVersionOrComponents;
       components = (componentsOrFunctions as ReadonlyArray<T>) ?? [];
-      functions = Array.isArray(functionsOrThemeSchemaOrOptions)
-        ? (functionsOrThemeSchemaOrOptions as ReadonlyArray<F>)
-        : [];
-      themeSchemaOrOptions = (
-        Array.isArray(functionsOrThemeSchemaOrOptions)
-          ? themeSchemaOrOptionsOrInstructions
-          : (functionsOrThemeSchemaOrOptions ?? themeSchemaOrOptionsOrInstructions)
-      ) as z.ZodTypeAny | CatalogOptions | undefined;
+      functions = (functionsOrThemeSchemaOrOptions as ReadonlyArray<F> | undefined) ?? [];
+      themeSchemaOrOptions = themeSchemaOrOptionsOrInstructions as
+        | z.ZodTypeAny
+        | CatalogOptions
+        | undefined;
       resolvedInstructions = instructions;
     }
 

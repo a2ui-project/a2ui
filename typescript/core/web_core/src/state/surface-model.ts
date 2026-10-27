@@ -196,10 +196,17 @@ export class SurfaceModel<
       !(availableCatalogs instanceof Map)
     ) {
       if (typeof availableCatalogs === 'object' && !Array.isArray(availableCatalogs)) {
-        // Legacy v0.9 signature: `new SurfaceModel(id, catalog, theme, ...)`.
+        // Legacy v0.9 signature:
+        // `new SurfaceModel(id, catalog, theme, sendDataModel?, dataModel?)`.
         // A plain object in the third slot is the theme of a pre-1.0 caller,
-        // which had no catalogs to pass here.
+        // which had no catalogs to pass here, so the arguments after it
+        // shift by one as well.
         this.theme = availableCatalogs;
+        this.sendDataModel = theme === true;
+        dataModel =
+          (sendDataModel as unknown) instanceof DataModel
+            ? (sendDataModel as unknown as DataModel)
+            : undefined;
         availableCatalogs = undefined;
       } else {
         throw new TypeError(

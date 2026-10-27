@@ -85,6 +85,11 @@ describe('Catalog Types', () => {
     assert.strictEqual(withSchema.themeSchema, themeSchema);
     assert.strictEqual(withSchema.instructions, 'B');
 
+    const withoutFunctions = new Catalog('cat', '1.0', [], undefined, {themeSchema}, 'C');
+    assert.strictEqual(withoutFunctions.functions.size, 0);
+    assert.strictEqual(withoutFunctions.themeSchema, themeSchema);
+    assert.strictEqual(withoutFunctions.instructions, 'C');
+
     assert.throws(() => new Catalog('cat', ''), /protocolVersion must be provided/);
   });
 

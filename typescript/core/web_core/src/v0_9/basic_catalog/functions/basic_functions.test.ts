@@ -126,6 +126,10 @@ describe('BASIC_FUNCTIONS', () => {
       assert.strictEqual(invoke('starts_with', {string: 'hello', prefix: 'he'}, context), true);
       assert.strictEqual(invoke('ends_with', {string: 'hello', suffix: 'lo'}, context), true);
       assert.strictEqual(invoke('ends_with', {string: 'hello', suffix: 'he'}, context), false);
+      assert.throws(
+        () => invoke('contains', {string: null, substring: 'null'}, context),
+        A2uiExpressionError,
+      );
     });
   });
 

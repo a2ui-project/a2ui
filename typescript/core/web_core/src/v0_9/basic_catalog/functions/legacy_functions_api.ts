@@ -30,7 +30,8 @@
 import {z} from 'zod';
 
 const nullableNumber = () => z.preprocess(v => (v === null ? undefined : v), z.coerce.number());
-const stringArg = () => z.preprocess(v => (v === undefined ? undefined : String(v)), z.string());
+const stringArg = () =>
+  z.preprocess(v => (v === undefined || v === null ? undefined : String(v)), z.string());
 const anyRequired = () => z.any().refine(v => v !== undefined, 'Required');
 
 export const AddApi = {

@@ -230,7 +230,23 @@ describe('SurfaceModel', () => {
     const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
     const legacy = new SurfaceModel('surface-legacy', v09Catalog, {primaryColor: 'red'} as any);
     assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
+    assert.strictEqual(legacy.sendDataModel, false);
     assert.strictEqual(legacy.availableCatalogs.get(v09Catalog.id), v09Catalog);
+  });
+
+  it('shifts sendDataModel and dataModel along with the pre-1.0 theme', () => {
+    const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
+    const customData = new DataModel({custom: 'data'});
+    const legacy = new SurfaceModel(
+      'surface-legacy',
+      v09Catalog,
+      {primaryColor: 'red'} as any,
+      true as any,
+      customData as any,
+    );
+    assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
+    assert.strictEqual(legacy.sendDataModel, true);
+    assert.strictEqual(legacy.dataModel, customData);
   });
 
   it('throws TypeError if 3rd argument is neither a Map, a theme object, nor undefined/null', () => {
