@@ -93,7 +93,7 @@ struct RPCConformanceTests {
 
     var catalogs: [String: AnyCatalog] = [:]
     for id in ["basic", "media_catalog", "system_catalog", "store_catalog"] {
-      catalogs[id] = Catalog(
+      catalogs[id] = Catalog<AnyComponentAPI>(
         id: id,
         protocolVersion: "v1.0",
         components: [],
@@ -102,7 +102,7 @@ struct RPCConformanceTests {
     }
     if let extraCatID = testCase.args?["catalogId"]?.stringValue {
       let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "v1.0"
-      catalogs[extraCatID] = Catalog(
+      catalogs[extraCatID] = Catalog<AnyComponentAPI>(
         id: extraCatID,
         protocolVersion: extraCatVersion,
         components: [],
@@ -259,7 +259,7 @@ struct RPCConformanceTests {
     if let expectedErr = expectedResp["error"] {
       let expectedCode = expectedErr["code"]?.stringValue
       let expectedMsg = expectedErr["message"]?.stringValue
-      #expect(response.error?.code.rawValue == expectedCode, "[\(testCase.name)] error.code mismatch")
+      #expect(response.error?.code == expectedCode, "[\(testCase.name)] error.code mismatch")
       if let expectedMsg {
         #expect(
           ConformanceTestHelper.messageMatches(response.error?.message ?? "", expected: expectedMsg),
