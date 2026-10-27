@@ -269,7 +269,7 @@
       message: "callFunction"
 
 - name: test_rpc_call_renderer_function_invalid_payload_missing_catalog_id
-  description: Verifies a callRendererFunction whose callFunction has no catalogId fails schema validation instead of being answered with INVALID_FUNCTION_CALL, even when a held catalog defines the function.
+  description: Verifies a callRendererFunction whose callFunction has no catalogId fails schema validation, even when a held catalog defines the function.
   catalog:
     protocolVersion: "v1.0"
   action: handle_rpc

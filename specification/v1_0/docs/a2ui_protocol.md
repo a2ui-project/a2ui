@@ -306,7 +306,7 @@ This message is sent by the agent to execute a function registered on the render
   - `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `rendererFunctionResponse` message.
   - `callFunction` (object, required): The description of the function call.
     - `@call` (string, required): The registered name of the function to execute.
-    - `catalogId` (string, required): The catalog ID defining the function to execute. `catalogId` MUST be specified on `callRendererFunction`. A call without it violates the schema, so the message is malformed, the same as one without `functionCallId`, and the renderer rejects it as invalid instead of answering it. Agents should validate outgoing messages against the schema so that a missing `catalogId` never reaches the renderer. If `catalogId` names a catalog the renderer has not registered, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
+    - `catalogId` (string, required): The catalog ID defining the function to execute. `catalogId` MUST be specified on `callRendererFunction`. A call without it violates the schema, so the message is malformed, and should be rejected. Agents should validate outgoing messages against the schema so that a missing `catalogId` never reaches the renderer. If `catalogId` names a catalog the renderer has not registered, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
     - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
 
 **Evaluation Scope and Ordering:**
