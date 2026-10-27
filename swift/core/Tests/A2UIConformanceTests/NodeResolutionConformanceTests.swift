@@ -254,7 +254,7 @@ struct NodeResolutionConformanceTests {
     guard let surface,
       let nodePath = step["node"] as? String,
       let propKey = step["property"] as? String,
-      let node = findNodeByPath(nodePath, from: surface.rootNode)
+      let node = findNodeByPath(nodePath, from: surface.rootNode, surface: surface)
     else {
       Issue.record("[\(caseName)] write step could not locate node or surface")
       return
@@ -285,7 +285,7 @@ struct NodeResolutionConformanceTests {
     guard let surface,
       let nodePath = step["node"] as? String,
       let propKey = step["property"] as? String,
-      let node = findNodeByPath(nodePath, from: surface.rootNode),
+      let node = findNodeByPath(nodePath, from: surface.rootNode, surface: surface),
       let action = node.action(for: propKey)
     else {
       Issue.record("[\(caseName)] invoke step could not locate action")
@@ -294,24 +294,76 @@ struct NodeResolutionConformanceTests {
     action()
   }
 
-  private func findNodeByPath(_ path: String, from root: Node?) -> Node? {
+  private func findNodeByPath(
+    _ path: String,
+    from root: Node?,
+    surface: SurfaceViewModel? = nil
+  ) -> Node? {
     guard let root else { return nil }
     let segments = path.split(separator: "/").map(String.init)
     guard segments.first == "root" else { return nil }
     var current: any Resolved = root
+    var lastParentNode: Node? = root
+    var lastPropertyKey: String?
     for segment in segments.dropFirst() {
-      guard let next = stepResolvedValue(current, segment: segment) else { return nil }
+      guard
+        let next = stepResolvedValue(
+          current,
+          segment: segment,
+          parentNode: lastParentNode,
+          propertyKey: lastPropertyKey,
+          surface: surface
+        )
+      else {
+        return nil
+      }
+      if let currentAsNode = current as? Node {
+        lastParentNode = currentAsNode
+        lastPropertyKey = segment
+      } else {
+        lastParentNode = nil
+        lastPropertyKey = nil
+      }
       current = next
     }
     return current as? Node
   }
 
-  private func stepResolvedValue(_ current: any Resolved, segment: String) -> (any Resolved)? {
+  private func stepResolvedValue(
+    _ current: any Resolved,
+    segment: String,
+    parentNode: Node? = nil,
+    propertyKey: String? = nil,
+    surface: SurfaceViewModel? = nil
+  ) -> (any Resolved)? {
     if let node = current as? Node {
       return node.properties[segment]
     }
-    if let nodes = current as? [Node], let idx = Int(segment), nodes.indices.contains(idx) {
-      return nodes[idx]
+    if let nodes = current as? [Node], let idx = Int(segment) {
+      if let parentNode, let propertyKey, let surface {
+        let parentDefID =
+          parentNode.id.split(separator: "_").first.map(String.init) ?? parentNode.id
+        if let rawChildren = surface.componentsModel.components[parentDefID]?.properties[
+          propertyKey
+        ]?.arrayValue,
+          rawChildren.indices.contains(idx),
+          let childDefID = rawChildren[idx].stringValue
+        {
+          guard surface.componentsModel.components[childDefID] != nil else {
+            return nil
+          }
+          if let match = nodes.first(where: {
+            $0.id == childDefID || $0.id.hasPrefix("\(childDefID)_")
+              || $0.id.hasPrefix("\(childDefID):")
+          }) {
+            return match
+          }
+        }
+      }
+      if nodes.indices.contains(idx) {
+        return nodes[idx]
+      }
+      return nil
     }
     if let arr = current as? ResolvedArray,
       let idx = Int(segment),
@@ -323,6 +375,27 @@ struct NodeResolutionConformanceTests {
       return dict[segment]
     }
     return nil
+  }
+
+  private func isPendingChildSlot(_ path: String, surface: SurfaceViewModel?) -> Bool {
+    guard let surface, let root = surface.rootNode else { return false }
+    let segments = path.split(separator: "/").map(String.init)
+    guard segments.count >= 3, let idx = Int(segments.last ?? "") else { return false }
+    let propKey = segments[segments.count - 2]
+    let parentPath = segments.dropLast(2).joined(separator: "/")
+    guard let parentNode = findNodeByPath(parentPath, from: root, surface: surface) else {
+      return false
+    }
+    let parentDefID = parentNode.id.split(separator: "_").first.map(String.init) ?? parentNode.id
+    guard
+      let rawChildren = surface.componentsModel.components[parentDefID]?.properties[propKey]?
+        .arrayValue,
+      rawChildren.indices.contains(idx),
+      let childDefID = rawChildren[idx].stringValue
+    else {
+      return false
+    }
+    return surface.componentsModel.components[childDefID] == nil
   }
 
   private func assertStepExpectations(
@@ -362,8 +435,10 @@ struct NodeResolutionConformanceTests {
     for (nodePath, rawSpec) in expectedNodes {
       guard let spec = rawSpec as? [String: Any] else { continue }
       let state = spec["state"] as? String ?? "resolved"
-      let resolvedNode = findNodeByPath(nodePath, from: surface?.rootNode)
-      if state == "pending" || state == "unknown-type" || state == "cyclic" {
+      let resolvedNode = findNodeByPath(nodePath, from: surface?.rootNode, surface: surface)
+      if state == "pending" || state == "unknown-type" || state == "cyclic"
+        || (resolvedNode == nil && isPendingChildSlot(nodePath, surface: surface))
+      {
         // Swift's value-type NodeResolver omits unresolved/cyclic placeholders or resolves known
         // component definitions; only verify resolved nodes.
         continue

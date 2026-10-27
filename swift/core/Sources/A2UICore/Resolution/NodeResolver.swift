@@ -134,14 +134,23 @@ public final class NodeResolver: Sendable {
     protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
-    self.catalogs = catalogs
+    let compatibleCatalogs: [String: AnyCatalog]
+    if let protocolVersion {
+      compatibleCatalogs = catalogs.filter { _, cat in
+        guard let catVer = cat.a2uiProtocolVersion else { return true }
+        return catVer.isAtLeastV10 == protocolVersion.isAtLeastV10
+      }
+    } else {
+      compatibleCatalogs = catalogs
+    }
+    self.catalogs = compatibleCatalogs
     let allCatalogsAtLeastV10 =
-      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
+      !compatibleCatalogs.isEmpty && compatibleCatalogs.values.allSatisfy(\.isAtLeastV10)
     let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
     if let defaultCatalogID {
       self.defaultCatalogID = defaultCatalogID
-    } else if !isAtLeastV10, catalogs.count == 1 {
-      self.defaultCatalogID = catalogs.keys.first
+    } else if !isAtLeastV10, compatibleCatalogs.count == 1 {
+      self.defaultCatalogID = compatibleCatalogs.keys.first
     } else {
       self.defaultCatalogID = nil
     }
@@ -1775,7 +1784,7 @@ extension NodeResolver: FunctionHandler {
     if name == "@index" {
       return catalogID == nil ? IndexFunction() : nil
     }
-    let callCatalogID = catalogID ?? defaultCatalogID
+    let callCatalogID = atLeastV10 ? (catalogID ?? defaultCatalogID) : defaultCatalogID
     return getCatalog(id: callCatalogID)?.functions[name]
   }
 
