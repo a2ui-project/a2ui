@@ -143,8 +143,9 @@ struct RPCConformanceTests {
         } catch {
           // If schema validation rejected invalid payload (e.g. missing callFunction)
           #expect(expectedErr != nil, "\(testCase.name): unexpected error \(error)")
-          let msgSub = expectedErr?["message"]?.stringValue ?? ""
-          #expect("\(error)".contains(msgSub))
+          if let msgSub = expectedErr?["message"]?.stringValue {
+            #expect("\(error)".contains(msgSub))
+          }
           message = nil
         }
         if case .callRendererFunction(let callMsg)? = message {
