@@ -480,7 +480,7 @@ When the agent creates a new surface, it picks from the client's `supportedCatal
 
 === "v1.0"
 
-    A surface can mix components and functions from any of the catalogs the client supports. The `catalogId` in `createSurface` is optional and sets the surface's default catalog. A component in `updateComponents` or a function call (`@call`) can set its own `catalogId` to use a different catalog. Anything without its own `catalogId` uses the surface default. If the surface has no default either, the renderer rejects it; it does not fall back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](../../../specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic) in the v1.0 specification for the normative rules.
+    A surface can mix components and functions from any of the catalogs the client supports. The `catalogId` in `createSurface` is optional and sets the surface's default catalog. A component in `updateComponents` or a function call (`@call`) can set its own `catalogId` to use a different catalog. Anything without its own `catalogId` uses the surface default. If the surface has no default either, the renderer rejects that component or function call; it does not fall back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](../../../specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic) in the v1.0 specification for the normative rules.
 
     In this example, the surface uses the Basic Catalog by default, and the `chart` component comes from a custom catalog:
 
