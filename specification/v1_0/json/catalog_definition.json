@@ -149,7 +149,8 @@
           "if": {
             "properties": {
               "requiresUserActivation": {"const": true}
-            }
+            },
+            "required": ["requiresUserActivation"]
           },
           "then": {
             "properties": {

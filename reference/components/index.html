@@ -3658,9 +3658,44 @@
 <p>All components share:</p>
 <ul>
 <li><code>id</code> (required): Unique identifier within the surface.</li>
-<li><code>accessibility</code>: Accessibility attributes (label, role).</li>
 <li><code>weight</code>: Flex-grow value when inside a Row or Column.</li>
+<li><code>accessibility</code>: Attributes for assistive technologies such as screen readers. There is no <code>role</code> key.<ul>
+<li>v0.9 or later: <code>label</code> and <code>description</code>. Each takes a string or a dynamic value (a data binding or a function call).</li>
+<li>v1.0 or later: adds <code>live</code> (<code>"off"</code>, <code>"polite"</code>, or <code>"assertive"</code>; default <code>"off"</code>) and <code>hidden</code> (a boolean or a dynamic value; default <code>false</code>). Any other key fails validation.</li>
 </ul>
+</li>
+</ul>
+<p>In these examples the label is static and the description comes from the data model. In v1.0, screen readers also announce text changes politely, and the text is hidden from assistive technologies while <code>/order/visible</code> is false:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="18:2"><input checked="checked" id="v09_17" name="__tabbed_18" type="radio" /><input id="v10" name="__tabbed_18" type="radio" /><div class="tabbed-labels"><label for="v09_17">v0.9</label><label for="v10">v1.0</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="language-json highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="p">{</span>
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;order_status&quot;</span><span class="p">,</span>
+</span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">  </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Text&quot;</span><span class="p">,</span>
+</span><span id="__span-32-4"><a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="w">  </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/order/status&quot;</span><span class="p">},</span>
+</span><span id="__span-32-5"><a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="w">  </span><span class="nt">&quot;accessibility&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-32-6"><a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="w">    </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Order status&quot;</span><span class="p">,</span>
+</span><span id="__span-32-7"><a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="w">    </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/order/statusDetails&quot;</span><span class="p">}</span>
+</span><span id="__span-32-8"><a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-32-9"><a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a><span class="p">}</span>
+</span></code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="language-json highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="p">{</span>
+</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;order_status&quot;</span><span class="p">,</span>
+</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">  </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Text&quot;</span><span class="p">,</span>
+</span><span id="__span-33-4"><a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="w">  </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;@path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/order/status&quot;</span><span class="p">},</span>
+</span><span id="__span-33-5"><a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="w">  </span><span class="nt">&quot;accessibility&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-33-6"><a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="w">    </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Order status&quot;</span><span class="p">,</span>
+</span><span id="__span-33-7"><a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="w">    </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;@path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/order/statusDetails&quot;</span><span class="p">},</span>
+</span><span id="__span-33-8"><a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="w">    </span><span class="nt">&quot;live&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;polite&quot;</span><span class="p">,</span>
+</span><span id="__span-33-9"><a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a><span class="w">    </span><span class="nt">&quot;hidden&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;@call&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;not&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;@path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/order/visible&quot;</span><span class="p">}}}</span>
+</span><span id="__span-33-10"><a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-33-11"><a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a><span class="p">}</span>
+</span></code></pre></div>
+</div>
+</div>
+</div>
 <h2 id="version-differences-summary">Version Differences Summary<a class="headerlink" href="#version-differences-summary" title="Permanent link">&para;</a></h2>
 <p>The component names and properties are largely the same across versions. The structural differences are:</p>
 <table>
@@ -3726,8 +3761,8 @@
 </table>
 <h2 id="live-examples">Live Examples<a class="headerlink" href="#live-examples" title="Permanent link">&para;</a></h2>
 <p>To see all components in action:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nb">cd</span><span class="w"> </span>samples/client/angular
-</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>yarn<span class="w"> </span>start<span class="w"> </span>gallery
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nb">cd</span><span class="w"> </span>samples/client/angular
+</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>yarn<span class="w"> </span>start<span class="w"> </span>gallery
 </span></code></pre></div>
 <div class="admonition note">
 <p><strong>Package Manager Usage:</strong> Running the built-in sample applications within the A2UI repository requires Yarn (<code>yarn start gallery</code>) as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).</p>
@@ -3735,7 +3770,7 @@
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p>NOTE: Schema Files</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="18:2"><input checked="checked" id="v08_17" name="__tabbed_18" type="radio" /><input id="v09_17" name="__tabbed_18" type="radio" /><div class="tabbed-labels"><label for="v08_17">v0.8</label><label for="v09_17">v0.9</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="19:2"><input checked="checked" id="v08_17" name="__tabbed_19" type="radio" /><input id="v09_18" name="__tabbed_19" type="radio" /><div class="tabbed-labels"><label for="v08_17">v0.8</label><label for="v09_18">v0.9</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p><a href="https://github.com/a2ui-project/a2ui/blob/main/specification/v0_8/json/standard_catalog_definition.json"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 3h2v2H5v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5h2v2H5c-1.07-.27-2-.9-2-2v-4a2 2 0 0 0-2-2H0v-2h1a2 2 0 0 0 2-2V5a2 2 0 0 1 2-2m14 0a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1v2h-1a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-2v-2h2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5h-2V3zm-7 12a1 1 0 0 1 1 1 1 1 0 0 1-1 1 1 1 0 0 1-1-1 1 1 0 0 1 1-1m-4 0a1 1 0 0 1 1 1 1 1 0 0 1-1 1 1 1 0 0 1-1-1 1 1 0 0 1 1-1m8 0a1 1 0 0 1 1 1 1 1 0 0 1-1 1 1 1 0 0 1-1-1 1 1 0 0 1 1-1"/></svg></span> Standard Catalog Definition (JSON Schema)</a></p>
