@@ -80,40 +80,114 @@ const SurfaceOperation = {
   SURFACE: 'surface',
 } as const;
 
+const ARRAY_INDEX_RE = /^(?:0|[1-9][0-9]*)$/;
+const MAX_ARRAY_INDEX = 10000;
+
+function stripPathPrefix(pathStr: string): string {
+  if (pathStr.startsWith('$/')) {
+    return pathStr.slice(2);
+  }
+  if (pathStr.startsWith('$')) {
+    return pathStr.slice(1);
+  }
+  return pathStr;
+}
+
+function toJsonPointer(pathStr: string): string {
+  return '/' + stripPathPrefix(pathStr);
+}
+
+function parseArrayIndex(segment: string, pathStr: string): number {
+  if (!ARRAY_INDEX_RE.test(segment)) {
+    throw new ExpressValidationError(
+      `Cannot use non-numeric segment '${segment}' on an array in path '${pathStr}'.`,
+    );
+  }
+  const idx = parseInt(segment, 10);
+  if (idx > MAX_ARRAY_INDEX) {
+    throw new ExpressValidationError(
+      `Cannot set path '${pathStr}': array index '${segment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+    );
+  }
+  return idx;
+}
+
+function stepPathContainer(
+  current: Record<string, unknown> | unknown[],
+  segment: string,
+  nextSegment: string,
+  pathStr: string,
+): Record<string, unknown> | unknown[] {
+  const isNextIndex = ARRAY_INDEX_RE.test(nextSegment);
+  if (!Array.isArray(current)) {
+    const existing = current[segment];
+    if (existing === undefined || existing === null) {
+      const created: Record<string, unknown> | unknown[] = isNextIndex ? [] : {};
+      current[segment] = created;
+      return created;
+    }
+    if (typeof existing === 'object') {
+      return existing as Record<string, unknown> | unknown[];
+    }
+    throw new ExpressValidationError(
+      `Cannot set path '${pathStr}': segment '${segment}' is a primitive value.`,
+    );
+  }
+  const idx = parseArrayIndex(segment, pathStr);
+  while (current.length <= idx) {
+    current.push(null);
+  }
+  const existing = current[idx];
+  if (existing === undefined || existing === null) {
+    const created: Record<string, unknown> | unknown[] = isNextIndex ? [] : {};
+    current[idx] = created;
+    return created;
+  }
+  if (typeof existing === 'object') {
+    return existing as Record<string, unknown> | unknown[];
+  }
+  throw new ExpressValidationError(
+    `Cannot set path '${pathStr}': segment '${segment}' is a primitive value.`,
+  );
+}
+
 /**
- * Populates a nested dictionary path from a JSON pointer-like string (compiler.py:48-73).
+ * Populates a nested dictionary or list path from an Express data path.
  *
  * @param d The target dictionary to mutate.
- * @param pathStr The data path string (e.g. "$/user/name").
+ * @param pathStr The data path string (e.g. "$/user/name" or "$/items/0/state").
  * @param val The value to set at the specified path.
  */
 export function setNestedPath(d: Record<string, unknown>, pathStr: string, val: unknown): void {
-  let cleanPath = pathStr;
-  if (cleanPath.startsWith('$/')) {
-    cleanPath = cleanPath.slice(2);
-  } else if (cleanPath.startsWith('$')) {
-    cleanPath = cleanPath.slice(1);
-  }
-
+  const cleanPath = stripPathPrefix(pathStr);
   if (!cleanPath) {
+    if (!val || typeof val !== 'object' || Array.isArray(val)) {
+      throw new ExpressValidationError(
+        `Cannot set root data model '${pathStr}' to a non-map value.`,
+      );
+    }
+    for (const k of Object.keys(d)) {
+      delete d[k];
+    }
+    Object.assign(d, val as Record<string, unknown>);
     return;
   }
 
   const keys = cleanPath.split('/');
-  let current = d;
+  let current: Record<string, unknown> | unknown[] = d;
   for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i];
-    if (
-      !(key in current) ||
-      typeof current[key] !== 'object' ||
-      current[key] === null ||
-      Array.isArray(current[key])
-    ) {
-      current[key] = {};
-    }
-    current = current[key] as Record<string, unknown>;
+    current = stepPathContainer(current, keys[i], keys[i + 1], pathStr);
   }
-  current[keys[keys.length - 1]] = val;
+  const lastKey = keys[keys.length - 1];
+  if (!Array.isArray(current)) {
+    current[lastKey] = val;
+    return;
+  }
+  const idx = parseArrayIndex(lastKey, pathStr);
+  while (current.length <= idx) {
+    current.push(null);
+  }
+  current[idx] = val;
 }
 
 /**
@@ -603,6 +677,7 @@ export class ExpressCompiler {
           units.push({kind: 'scope', scope: currentScope});
         }
         if (varName.startsWith('$')) {
+          delete currentScope.dataPathAssignments[varName];
           currentScope.dataPathAssignments[varName] = parsedVal;
         } else {
           currentScope.rawSymbols[varName] = parsedVal;
@@ -699,20 +774,6 @@ export class ExpressCompiler {
       }
     }
 
-    // Compile data model paths (compiler.py:401-405)
-    const dataModel: Record<string, unknown> = {};
-    for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
-      const compiledVal = this._compileValue(
-        astVal,
-        scope.rawSymbols,
-        compIds,
-        ctx,
-        targetMajorMinor,
-        false,
-      );
-      setNestedPath(dataModel, pathName, compiledVal);
-    }
-
     const compiledComponents: Record<string, unknown>[] = [];
     for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
       const compDict = this._compileAstNode(
@@ -735,18 +796,30 @@ export class ExpressCompiler {
     const hasRootComponent = compiledComponents.some(c => c.id === 'root');
 
     if (scope.update || !hasRootComponent) {
+      const dataUpdates: AgentToRendererMessage[] = [];
+      for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+        const compiledVal = this._compileValue(
+          astVal,
+          scope.rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          false,
+        );
+        dataUpdates.push(
+          asAgentToRendererMessage({
+            version: targetVersion,
+            [SurfaceOperation.UPDATE_DATA]: {
+              surfaceId: scopeSurfId,
+              path: toJsonPointer(pathName),
+              value: compiledVal,
+            },
+          }),
+        );
+      }
       if (compiledComponents.length === 0) {
-        if (Object.keys(scope.dataPathAssignments).length > 0) {
-          return [
-            asAgentToRendererMessage({
-              version: targetVersion,
-              [SurfaceOperation.UPDATE_DATA]: {
-                surfaceId: scopeSurfId,
-                path: '/',
-                value: dataModel,
-              },
-            }),
-          ];
+        if (dataUpdates.length > 0) {
+          return dataUpdates;
         }
         throw new ExpressUndefinedRootError('root');
       }
@@ -758,20 +831,22 @@ export class ExpressCompiler {
             components: compiledComponents,
           },
         }),
+        ...dataUpdates,
       );
-      if (Object.keys(dataModel).length > 0) {
-        resultMessages.push(
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.UPDATE_DATA]: {
-              surfaceId: scopeSurfId,
-              path: '/',
-              value: dataModel,
-            },
-          }),
-        );
-      }
       return resultMessages;
+    }
+
+    const dataModel: Record<string, unknown> = {};
+    for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+      const compiledVal = this._compileValue(
+        astVal,
+        scope.rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        false,
+      );
+      setNestedPath(dataModel, pathName, compiledVal);
     }
 
     const createPayload: Record<string, unknown> = {

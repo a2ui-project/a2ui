@@ -384,8 +384,12 @@ class ExpressDecompiler {
     final lines = <String>[];
     void visit(String path, Object? value) {
       if (value is Map && value.isNotEmpty) {
-        for (final MapEntry<Object?, Object?> entry in value.entries) {
-          final key = '${entry.key}';
+        final List<MapEntry<String, Object?>> entries = [
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            MapEntry('${entry.key}', entry.value),
+        ]..sort((a, b) => a.key.compareTo(b.key));
+        for (final entry in entries) {
+          final String key = entry.key;
           if (!_pathSegment.hasMatch(key)) {
             throw A2uiValidationError(
               "The data model key '$key' at '${path.isEmpty ? '/' : path}' has "
@@ -405,15 +409,10 @@ class ExpressDecompiler {
   }
 
   /// Whether [path] is a data path Express can assign at, such as
-  /// `/user/name`: one naming map keys, since the assignment compiles to an
-  /// update of the root that holds a map along the path, and so not one
-  /// naming an item of a list.
+  /// `/user/name` or `/items/0`.
   bool _isDataPath(String path) =>
       path.startsWith('/') &&
-      path
-          .substring(1)
-          .split('/')
-          .every((s) => _pathSegment.hasMatch(s) && int.tryParse(s) == null);
+      path.substring(1).split('/').every(_pathSegment.hasMatch);
 
   List<String> _componentLines(
     List<Map<String, Object?>> components,

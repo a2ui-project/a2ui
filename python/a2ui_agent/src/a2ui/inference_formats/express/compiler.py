@@ -112,25 +112,90 @@ def _to_json_pointer(path_str: str) -> str:
     return "/" + _strip_path_prefix(path_str)
 
 
+_ARRAY_INDEX_RE = re.compile(r"^(?:0|[1-9][0-9]*)$")
+_MAX_ARRAY_INDEX = 10_000
+
+
+def _parse_array_index(segment: str, path_str: str) -> int:
+    """Parses a canonical non-negative array index segment within bounds."""
+    if not _ARRAY_INDEX_RE.match(segment):
+        raise ExpressValidationError(
+            f"Cannot use non-numeric segment {segment!r} on an array in path"
+            f" {path_str!r}."
+        )
+    idx = int(segment)
+    if idx > _MAX_ARRAY_INDEX:
+        raise ExpressValidationError(
+            f"Cannot set path {path_str!r}: array index {segment!r} exceeds"
+            f" maximum supported index ({_MAX_ARRAY_INDEX})."
+        )
+    return idx
+
+
+def _step_path_container(
+    current: dict[str, Any] | list[Any],
+    segment: str,
+    next_segment: str,
+    path_str: str,
+) -> dict[str, Any] | list[Any]:
+    """Advances one path segment through a dict or list, auto-vivifying if needed."""
+    is_next_index = bool(_ARRAY_INDEX_RE.match(next_segment))
+    if isinstance(current, dict):
+        existing = current.get(segment)
+        if existing is None:
+            child: dict[str, Any] | list[Any] = [] if is_next_index else {}
+            current[segment] = child
+            return child
+        if isinstance(existing, (dict, list)):
+            return existing
+        raise ExpressValidationError(
+            f"Cannot set path {path_str!r}: segment {segment!r} is a primitive value."
+        )
+    idx = _parse_array_index(segment, path_str)
+    while len(current) <= idx:
+        current.append(None)
+    existing = current[idx]
+    if existing is None:
+        child = [] if is_next_index else {}
+        current[idx] = child
+        return child
+    if isinstance(existing, (dict, list)):
+        return existing
+    raise ExpressValidationError(
+        f"Cannot set path {path_str!r}: segment {segment!r} is a primitive value."
+    )
+
+
 def _set_nested_path(d: dict[str, Any], path_str: str, val: Any) -> None:
-    """Populates a nested dictionary path from a JSON pointer-like string.
+    """Populates a nested dictionary or list path from an Express data path.
 
     Args:
         d: The target dictionary to mutate.
-        path_str: The data path string (e.g. "$/user/name").
+        path_str: The data path string (e.g. "$/user/name" or "$/items/0/state").
         val: The value to set at the specified path.
     """
     clean_path = _strip_path_prefix(path_str)
     if not clean_path:
+        if not isinstance(val, dict):
+            raise ExpressValidationError(
+                f"Cannot set root data model {path_str!r} to a non-map value."
+            )
+        d.clear()
+        d.update(val)
         return
 
     keys = clean_path.split("/")
-    current = d
-    for key in keys[:-1]:
-        if key not in current or not isinstance(current[key], dict):
-            current[key] = {}
-        current = current[key]
-    current[keys[-1]] = val
+    current: dict[str, Any] | list[Any] = d
+    for i, key in enumerate(keys[:-1]):
+        current = _step_path_container(current, key, keys[i + 1], path_str)
+    last_key = keys[-1]
+    if isinstance(current, dict):
+        current[last_key] = val
+        return
+    idx = _parse_array_index(last_key, path_str)
+    while len(current) <= idx:
+        current.append(None)
+    current[idx] = val
 
 
 def _schema_allows_databinding(schema: Any) -> bool:
@@ -744,6 +809,7 @@ class ExpressCompiler:
                     current_scope = _SurfaceScope(surface_id=surface_id)
                     units.append(current_scope)
                 if var_name.startswith("$"):
+                    current_scope.data_path_assignments.pop(var_name, None)
                     current_scope.data_path_assignments[var_name] = parsed_val
                 else:
                     current_scope.raw_symbols[var_name] = parsed_val
@@ -845,66 +911,45 @@ class ExpressCompiler:
         self, scope: _SurfaceScope, ctx: _CompileContext
     ) -> list[dict[str, Any]]:
         """Compiles a `surface(...)` scope, or the implicit default scope."""
-        data_model: dict[str, Any] = {}
-        for path_name, ast_val in scope.data_path_assignments.items():
-            compiled_val = self._compile_data_value(scope, ast_val, ctx)
-            if not _strip_path_prefix(path_name) and isinstance(compiled_val, dict):
-                data_model.update(compiled_val)
-            else:
-                _set_nested_path(data_model, path_name, compiled_val)
-
         compiled_components = self._compile_components(scope, ctx)
         surf_id = scope.surface_id
-        if len(scope.data_path_assignments) == 1:
-            only_path, only_ast = next(iter(scope.data_path_assignments.items()))
-            pointer = _to_json_pointer(only_path)
-            if pointer.count("/") > 1 or pointer == "/":
-                data_update = {
-                    "version": ctx.version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surf_id,
-                        "path": pointer,
-                        "value": self._compile_data_value(scope, only_ast, ctx),
-                    },
-                }
-            else:
-                data_update = {
-                    "version": ctx.version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surf_id,
-                        "path": "/",
-                        "value": data_model,
-                    },
-                }
-        else:
-            data_update = {
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_DATA: {
-                    "surfaceId": surf_id,
-                    "path": "/",
-                    "value": data_model,
-                },
-            }
-
-        if scope.is_update or not any(
+        is_create = not scope.is_update and any(
             c.get("id") == "root" for c in compiled_components
-        ):
+        )
+
+        if not is_create:
+            data_updates = [
+                {
+                    "version": ctx.version,
+                    SurfaceOperation.UPDATE_DATA: {
+                        "surfaceId": surf_id,
+                        "path": _to_json_pointer(path_name),
+                        "value": self._compile_data_value(scope, ast_val, ctx),
+                    },
+                }
+                for path_name, ast_val in scope.data_path_assignments.items()
+            ]
             if not compiled_components:
-                if scope.data_path_assignments:
-                    return [data_update]
+                if data_updates:
+                    return data_updates
                 raise ExpressUndefinedRootError("root")
             if not scope.has_surface_directive:
                 raise ExpressUndefinedRootError("root")
-            messages = [{
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_COMPONENTS: {
-                    "surfaceId": surf_id,
-                    "components": compiled_components,
+            return [
+                {
+                    "version": ctx.version,
+                    SurfaceOperation.UPDATE_COMPONENTS: {
+                        "surfaceId": surf_id,
+                        "components": compiled_components,
+                    },
                 },
-            }]
-            if data_model:
-                messages.append(data_update)
-            return messages
+                *data_updates,
+            ]
+
+        data_model: dict[str, Any] = {}
+        for path_name, ast_val in scope.data_path_assignments.items():
+            compiled_val = self._compile_data_value(scope, ast_val, ctx)
+            _set_nested_path(data_model, path_name, compiled_val)
 
         create: dict[str, Any] = {"surfaceId": surf_id}
         cat_id = surface_catalog_id(self._catalogs)
@@ -929,7 +974,14 @@ class ExpressCompiler:
             },
         ]
         if data_model:
-            messages.append(data_update)
+            messages.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_DATA: {
+                    "surfaceId": surf_id,
+                    "path": "/",
+                    "value": data_model,
+                },
+            })
         return messages
 
     def _compile_standalone_call(

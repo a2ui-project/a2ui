@@ -147,18 +147,76 @@ describe('ExpressCompiler', () => {
       ]);
     });
 
-    it('compiles data assignments alone into one updateDataModel', () => {
+    it('compiles data assignments alone into per-path updateDataModel messages', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('$/user/name = "Alice"\n$/user/age = 30')).toEqual([
         {
           version: 'v1.0',
           updateDataModel: {
             surfaceId: 'default_surface',
-            path: '/',
-            value: {user: {name: 'Alice', age: 30}},
+            path: '/user/name',
+            value: 'Alice',
+          },
+        },
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'default_surface',
+            path: '/user/age',
+            value: 30,
           },
         },
       ]);
+    });
+
+    it('compiles root $/ assignment into a root updateDataModel message', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(compiler.compile('$/ = {user: {name: "Alice"}}')).toEqual([
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'default_surface',
+            path: '/',
+            value: {user: {name: 'Alice'}},
+          },
+        },
+      ]);
+    });
+
+    it('preserves array elements when overriding nested array item properties in createSurface', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const messages = compiler.compile(
+        '$/items = [{id: "w1", state: "Draft"}, {id: "w2", state: "Open"}]\n' +
+          '$/items/0/state = "Ready"\n' +
+          '$/auto/1 = "second"\n' +
+          'root = Text($/items/0/state)',
+      );
+      expect(messages[0]).toMatchObject({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'default_surface',
+          dataModel: {
+            items: [
+              {id: 'w1', state: 'Ready'},
+              {id: 'w2', state: 'Open'},
+            ],
+            auto: [null, 'second'],
+          },
+        },
+      });
+    });
+
+    it('rejects invalid array or primitive path traversal in createSurface', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      expect(() =>
+        compiler.compile('$/items = ["a"]\n$/items/foo = "b"\nroot = Text("ok")'),
+      ).toThrow(ExpressValidationError);
+      expect(() =>
+        compiler.compile('$/user = "Ada"\n$/user/name = "Bob"\nroot = Text("ok")'),
+      ).toThrow(ExpressValidationError);
+      expect(() => compiler.compile('$/items/10001 = "x"\nroot = Text("ok")')).toThrow(
+        ExpressValidationError,
+      );
     });
   });
 
@@ -217,7 +275,7 @@ describe('ExpressCompiler', () => {
       expect(compiler.compile('$/only/data = 123')).toEqual([
         {
           version: 'v0.9',
-          updateDataModel: {surfaceId: 'default_surface', path: '/', value: {only: {data: 123}}},
+          updateDataModel: {surfaceId: 'default_surface', path: '/only/data', value: 123},
         },
       ]);
     });
@@ -393,7 +451,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(messages).toEqual([
         {
           version: 'v1.0',
-          updateDataModel: {surfaceId: 'default_surface', path: '/', value: {foo: 123}},
+          updateDataModel: {surfaceId: 'default_surface', path: '/foo', value: 123},
         },
       ]);
     });

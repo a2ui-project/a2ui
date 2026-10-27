@@ -83,13 +83,7 @@ describe('ExpressDecompiler', () => {
       expect(decompiler.decompile(messages)).toBe(expected);
       expect(decompiler.decompile(messages[1])).toBe('surface("default")\n$/zero = 0');
       expect(decompiler.decompile(messages[4])).toBe('surface("default")\n$/nothing = {}');
-      expect(new ExpressParser([catalog], 'default', version).compile(expected)).toEqual([
-        write('/', {empty: ''}),
-        write('/', {zero: 0}),
-        write('/', {off: false}),
-        write('/', {none: []}),
-        write('/', {nothing: {}}),
-      ]);
+      expect(new ExpressParser([catalog], 'default', version).compile(expected)).toEqual(messages);
     });
 
     it('writes null when updateDataModel has a non-root path and no value, and omits empty root updateDataModel', () => {
@@ -106,7 +100,7 @@ describe('ExpressDecompiler', () => {
       expect(parser.compile(dsl)).toEqual([
         {
           version: 'v1.0',
-          updateDataModel: {surfaceId: 's1', path: '/', value: {x: null}},
+          updateDataModel: {surfaceId: 's1', path: '/x', value: null},
         },
       ]);
 
@@ -646,7 +640,7 @@ describe('ExpressDecompiler', () => {
         csADoc,
         {
           version: 'v1.0',
-          updateDataModel: {surfaceId: 'default_surface', path: '/', value: {x: 1}},
+          updateDataModel: {surfaceId: 'default_surface', path: '/x', value: 1},
         },
       ]);
 

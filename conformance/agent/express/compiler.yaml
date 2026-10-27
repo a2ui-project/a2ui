@@ -476,7 +476,7 @@
           title: "Hello"
 
 - name: test_compile_express_data_model_only_block
-  description: A block of nothing but data path assignments updates the data model rather than creating a surface.
+  description: A block of nothing but data path assignments updates each assigned path in the data model rather than creating a surface or replacing the root data model.
   action: compile
   args:
     format: express
@@ -488,10 +488,102 @@
     - version: "v1.0"
       updateDataModel:
         surfaceId: "default_surface"
+        path: "/icon"
+        value: "check"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "default_surface"
+        path: "/title"
+        value: "Enable notifications"
+
+- name: test_compile_express_root_data_model_replacement
+  description: Assigning a map literal directly to $/ in a non-create block emits an updateDataModel targeting path "/" to replace the entire root data model.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    $/ = {icon: "check", title: "Enable notifications"}
+  expect:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "default_surface"
         path: "/"
         value:
           icon: "check"
           title: "Enable notifications"
+
+- name: test_compile_express_data_model_update_array_element_paths
+  description: A non-create scope with multiple data path assignments, including an array element sub-path, emits one updateDataModel per assigned path in statement order.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("board")
+    $/subtitle = "Wave 2"
+    $/items/0/state = "Ready"
+  expect:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "board"
+        path: "/subtitle"
+        value: "Wave 2"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "board"
+        path: "/items/0/state"
+        value: "Ready"
+
+- name: test_compile_express_create_surface_array_override_in_scope
+  description: In a createSurface scope, assigning a sub-path under an already-assigned array mutates that array element in place rather than overwriting the array with a map.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    $/items = [{id: "w1", state: "Draft"}, {id: "w2", state: "Open"}]
+    $/items/0/state = "Ready"
+    root = Text($/items/0/state)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/items/0/state"
+        dataModel:
+          items:
+            - id: "w1"
+              state: "Ready"
+            - id: "w2"
+              state: "Open"
+
+- name: test_compile_express_create_surface_numeric_path_autovivifies_list
+  description: In a createSurface scope, a numeric segment in a data path assignment auto-vivifies a list when the parent key is not yet defined.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    $/items/0/name = "Ada"
+    root = Text($/items/0/name)
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/items/0/name"
+        dataModel:
+          items:
+            - name: "Ada"
 
 - name: test_compile_express_surface_targeting
   description: A surface line names the surface the block is for, in place of the default id.

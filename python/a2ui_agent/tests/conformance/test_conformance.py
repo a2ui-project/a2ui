@@ -193,11 +193,6 @@ KNOWN_GAPS: dict[str, str] = {
         "ExpressCompiler does not reject inline child IDs that collide with"
         " assigned variables (https://github.com/a2ui-project/a2ui/issues/3099)"
     ),
-    "test_decompile_express_update_data_model_map_at_path": (
-        "ExpressDecompiler does not flatten map values in updateDataModel at a"
-        " non-root path into per-leaf assignments"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
 }
 
 # Cases this SDK has no API to run at all, as opposed to running and
@@ -686,6 +681,11 @@ def run_format_case(test_case, tmp_path):
         if test_case.get("expect_round_trip"):
             recompiled = to_message_dicts(parser.compile(notation))
             assert sort_components_by_id(recompiled) == sort_components_by_id(messages)
+        if "expect_recompiled" in test_case:
+            recompiled = to_message_dicts(parser.compile(notation))
+            assert sort_components_by_id(recompiled) == sort_components_by_id(
+                test_case["expect_recompiled"]
+            )
 
     elif action == "parse_response":
         parser = make_parser(args)

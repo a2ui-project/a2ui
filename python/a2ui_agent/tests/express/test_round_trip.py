@@ -76,18 +76,42 @@ def _decompiler_v09(catalog_v09):
     return ExpressDecompiler([catalog_v09])
 
 
+def _flatten_leaves(val: Any, path: str) -> list[tuple[str, Any]]:
+    if isinstance(val, dict) and val:
+        prefix = "" if path == "/" else path.rstrip("/")
+        leaves: list[tuple[str, Any]] = []
+        for k, v in val.items():
+            leaves.extend(_flatten_leaves(v, f"{prefix}/{k}"))
+        return leaves
+    return [(path, val)]
+
+
 def _normalize(messages: Any) -> list[dict[str, Any]]:
     """Coalesces a payload so that split and merged surface creation compare equal.
 
-    A root `updateDataModel` may omit `path`; the DSL writes it as `$/`, so an
-    absent path is compared as `/`.
+    A standalone `updateDataModel` whose value is a non-empty map writes out in
+    Express as sorted per-leaf assignments (`$/a/b = ...`), which recompile into
+    per-leaf `updateDataModel` messages.
     """
     normalized = []
     for item in coalesce_surface_messages(to_message_dicts(messages)):
         message = item.message
         update = message.get("updateDataModel")
-        if isinstance(update, dict) and not update.get("path"):
-            update["path"] = "/"
+        if isinstance(update, dict):
+            raw_path = update.get("path") or "/"
+            val = update.get("value")
+            if isinstance(val, dict) and val:
+                for leaf_path, leaf_val in sorted(_flatten_leaves(val, raw_path)):
+                    normalized.append({
+                        "version": message["version"],
+                        "updateDataModel": {
+                            "surfaceId": update["surfaceId"],
+                            "path": leaf_path,
+                            "value": leaf_val,
+                        },
+                    })
+                continue
+            update["path"] = raw_path
         normalized.append(message)
     return normalized
 

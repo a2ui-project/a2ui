@@ -204,6 +204,87 @@ root = Text($/user/name)
       );
     });
 
+    test(
+      'standalone data assignments emit targeted updateDataModel messages',
+      () {
+        final List<AgentToRendererMessage> messages = ExpressCompiler([basic])
+            .compile(r'''
+surface("main")
+$/user/name = "Ada"
+$/items/0 = "updated"
+''');
+        expect(
+          [for (final m in messages) m.toJson()],
+          [
+            {
+              'version': 'v0.9',
+              'updateDataModel': {
+                'surfaceId': 'main',
+                'path': '/user/name',
+                'value': 'Ada',
+              },
+            },
+            {
+              'version': 'v0.9',
+              'updateDataModel': {
+                'surfaceId': 'main',
+                'path': '/items/0',
+                'value': 'updated',
+              },
+            },
+          ],
+        );
+      },
+    );
+
+    test('root data model replacement and array override on createSurface', () {
+      expect(
+        (compile(r'''
+$/stale = "remove_me"
+$/ = {items: ["a", "b"]}
+$/items/1 = "B"
+$/matrix/0/1 = "cell"
+root = Text("hi")
+''').last['updateDataModel']!
+            as Map)['value'],
+        {
+          'items': ['a', 'B'],
+          'matrix': [
+            [null, 'cell'],
+          ],
+        },
+      );
+    });
+
+    test(
+      'rejects invalid list or primitive path traversal on createSurface',
+      () {
+        expect(
+          () => compile(r'''
+$/items = ["a", "b"]
+$/items/foo = "bar"
+root = Text("hi")
+'''),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => compile(r'''
+$/user = "Ada"
+$/user/name = "Lovelace"
+root = Text("hi")
+'''),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => compile(r'''
+$/items/99999 = "too_large"
+root = Text("hi")
+'''),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
+
     test('data assignments into a map assigned earlier', () {
       expect(
         (compile(r'''

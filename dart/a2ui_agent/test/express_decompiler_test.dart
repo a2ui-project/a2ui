@@ -273,6 +273,19 @@ void main() {
       ]);
     });
 
+    test('an update of an item of a list in the data model', () {
+      final String written = roundTrip([
+        {
+          'updateDataModel': {
+            'surfaceId': 's',
+            'path': '/items/0',
+            'value': 'x',
+          },
+        },
+      ]);
+      expect(written, 'surface("s")\n\$/items/0 = "x"');
+    });
+
     test('several operations as paragraphs', () {
       final String written = roundTrip([
         create('a'),
@@ -399,15 +412,6 @@ void main() {
         components('s', [
           {'id': 'root', 'component': 'Text', 'text': 'x'},
         ]),
-      ],
-      'an update of an item of a list in the data model': [
-        {
-          'updateDataModel': {
-            'surfaceId': 's',
-            'path': '/items/0',
-            'value': 'x',
-          },
-        },
       ],
       'a removal below the root of the data model': [
         {

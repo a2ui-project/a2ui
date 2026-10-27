@@ -209,7 +209,13 @@
   expect_contains:
     - 'surface("s1")'
     - '$/title = "Hello"'
-  expect_round_trip: true
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/title"
+        value: "Hello"
 
 - name: test_decompile_express_delete_surface
   description: A deleteSurface writes back out as the statement of that name, which is what lets a lifecycle turn be shown to a model as an example.
@@ -337,7 +343,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_nested_data_model_is_one_assignment_per_leaf
-  description: A data model of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
+  description: A data model of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, and recompiles to one updateDataModel per leaf path.
   action: decompile
   args:
     format: express
@@ -354,7 +360,18 @@
   expect_contains:
     - '$/user/name = "Ada"'
     - '$/user/city = "London"'
-  expect_round_trip: true
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/user/city"
+        value: "London"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/user/name"
+        value: "Ada"
 
 - name: test_decompile_express_list_of_numbers
   description: A property holding plain numbers writes out as an array of them, with no quoting and no component references. Every other decompile case writes a list of child ids, which a decompiler could produce by treating array entries as names.
@@ -749,7 +766,7 @@
           status: "loaded"
 
 - name: test_decompile_express_update_data_model_scalar_at_path
-  description: An updateDataModel setting a scalar value at a non-root path ("/title") writes out as a single path assignment ($/title = "x").
+  description: An updateDataModel setting a scalar value at a non-root path ("/title") writes out as a single path assignment ($/title = "x") and round-trips back to the same updateDataModel message.
   action: decompile
   args:
     format: express
@@ -763,17 +780,10 @@
   expect_contains:
     - 'surface("s1")'
     - '$/title = "x"'
-  expect_round_trip: false
-  expect_recompiled:
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/"
-        value:
-          title: "x"
+  expect_round_trip: true
 
 - name: test_decompile_express_update_data_model_map_at_path
-  description: An updateDataModel setting a map at a non-root path ("/user") prefixes each leaf assignment with that path ($/user/name = ...).
+  description: An updateDataModel setting a map at a non-root path ("/user") prefixes each leaf assignment with that path ($/user/name = ...) and recompiles to one updateDataModel per leaf path.
   action: decompile
   args:
     format: express
@@ -795,8 +805,10 @@
     - version: "v1.0"
       updateDataModel:
         surfaceId: "s1"
-        path: "/"
-        value:
-          user:
-            city: "London"
-            name: "Ada"
+        path: "/user/city"
+        value: "London"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/user/name"
+        value: "Ada"

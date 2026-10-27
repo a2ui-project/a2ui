@@ -491,10 +491,11 @@ class ExpressDecompiler:
         else:
             raw_path = body.get("path") or "/"
             value = body.get("value")
-            if raw_path == "/" and isinstance(value, dict) and value:
+            if isinstance(value, dict) and value:
+                prefix = "" if raw_path == "/" else raw_path.rstrip("/")
                 for rel_path, val in sorted(_flatten_data_model(value)):
                     val_str = self._decompile_value(val, {}, False, catalog_id)
-                    dsl_lines.append(f"${rel_path} = {val_str}")
+                    dsl_lines.append(f"${prefix}{rel_path} = {val_str}")
             else:
                 val_str = self._decompile_value(value, {}, False, catalog_id)
                 dsl_lines.append(f"{_decompile_path(raw_path)} = {val_str}")

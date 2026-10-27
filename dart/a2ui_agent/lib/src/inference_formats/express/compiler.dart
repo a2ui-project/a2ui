@@ -193,6 +193,7 @@ class ExpressCompiler {
           // when a call before it named its variables.
           if (!operations.contains(current)) operations.add(current);
           if (statement.isDataPath) {
+            current.data.removeWhere((e) => e.$1 == statement.target);
             current.data.add((statement.target, statement.value));
           } else {
             current.symbols[statement.target] = statement.value;
@@ -378,21 +379,17 @@ class _SurfaceCompiler {
       ? 'any active catalog (${compiler._catalogHelpers.keys.join(', ')})'
       : "catalog '${surface.helper!.catalog.id}'";
 
+  List<Map<String, Object?>> _dataUpdates(String surfaceId) => [
+    for (final (String path, ExpressNode node) in surface.data)
+      compiler._envelope('updateDataModel', {
+        'surfaceId': surfaceId,
+        'path': path.isEmpty ? '/' : (path.startsWith('/') ? path : '/$path'),
+        'value': _value(node, _Context(idPrefix: 'data', hoisted: _noHoisting)),
+      }),
+  ];
+
   List<Map<String, Object?>> compile() {
     final String surfaceId = surface.surfaceId;
-    final dataModel = <String, Object?>{};
-    for (final (String path, ExpressNode node) in surface.data) {
-      final Object? value = _value(
-        node,
-        _Context(idPrefix: 'data', hoisted: _noHoisting),
-      );
-      _setPath(dataModel, path, value);
-    }
-    final Map<String, Object?> dataUpdate = compiler._envelope(
-      'updateDataModel',
-      {'surfaceId': surfaceId, 'path': '/', 'value': dataModel},
-    );
-
     final bool hasComponents = surface.symbols.values.any(
       (node) => node is CallNode && _isComponent(node),
     );
@@ -400,7 +397,7 @@ class _SurfaceCompiler {
     // surface created by an earlier response.
     final bool creates = surface.symbols.containsKey('root');
     if (!creates && !hasComponents) {
-      if (surface.data.isNotEmpty) return [dataUpdate];
+      if (surface.data.isNotEmpty) return _dataUpdates(surfaceId);
       throw A2uiValidationError(
         "Surface '$surfaceId' has no components and no data. Assign the top "
         "component to 'root', such as 'root = Column([...])'.",
@@ -420,39 +417,56 @@ class _SurfaceCompiler {
       }
     }
 
-    if (!_v1) {
-      final CatalogSchemaHelper helper = surface.helper!;
-      components.forEach(helper.validator.validateComponent);
+    if (!creates) {
+      if (!_v1) {
+        components.forEach(surface.helper!.validator.validateComponent);
+      }
       return [
-        if (creates)
-          compiler._envelope('createSurface', {
-            'surfaceId': surfaceId,
-            'catalogId': helper.catalog.id,
-          }),
         compiler._envelope('updateComponents', {
           'surfaceId': surfaceId,
           'components': components,
         }),
-        if (surface.data.isNotEmpty) dataUpdate,
+        ..._dataUpdates(surfaceId),
       ];
     }
-    if (creates) {
+
+    final dataModel = <String, Object?>{};
+    for (final (String path, ExpressNode node) in surface.data) {
+      final Object? value = _value(
+        node,
+        _Context(idPrefix: 'data', hoisted: _noHoisting),
+      );
+      _setPath(dataModel, path, value);
+    }
+
+    if (!_v1) {
+      final CatalogSchemaHelper helper = surface.helper!;
+      components.forEach(helper.validator.validateComponent);
       return [
         compiler._envelope('createSurface', {
           'surfaceId': surfaceId,
-          if (surface.helper case final CatalogSchemaHelper helper)
-            'catalogId': helper.catalog.id,
-          'components': components,
-          if (surface.data.isNotEmpty) 'dataModel': dataModel,
+          'catalogId': helper.catalog.id,
         }),
+        compiler._envelope('updateComponents', {
+          'surfaceId': surfaceId,
+          'components': components,
+        }),
+        if (surface.data.isNotEmpty)
+          compiler._envelope('updateDataModel', {
+            'surfaceId': surfaceId,
+            'path': '/',
+            'value': dataModel,
+          }),
       ];
     }
     return [
-      compiler._envelope('updateComponents', {
+      compiler._envelope('createSurface', {
         'surfaceId': surfaceId,
+        if (surface.helper case final CatalogSchemaHelper helper)
+          'catalogId': helper.catalog.id,
         'components': components,
+        if (surface.data.isNotEmpty) 'dataModel': dataModel,
       }),
-      if (surface.data.isNotEmpty) dataUpdate,
     ];
   }
 
@@ -1086,6 +1100,66 @@ final List<Map<String, Object?>> _noHoisting = List.unmodifiable(
   <Map<String, Object?>>[],
 );
 
+final RegExp _canonicalIndex = RegExp(r'^(?:0|[1-9][0-9]*)$');
+const int _maxAutovivifyIndex = 10000;
+
+int? _parseArrayIndex(String segment) {
+  if (!_canonicalIndex.hasMatch(segment)) return null;
+  final int? index = int.tryParse(segment);
+  if (index == null || index > _maxAutovivifyIndex) {
+    throw A2uiValidationError(
+      'Array index $segment exceeds maximum supported index '
+      '($_maxAutovivifyIndex).',
+    );
+  }
+  return index;
+}
+
+Object _materializeChild(
+  Object? existing,
+  String key,
+  String nextKey,
+  int? nextIdx,
+) {
+  if (existing == null) {
+    return nextIdx != null ? <Object?>[] : <String, Object?>{};
+  }
+  // A map or list assigned earlier is copied rather than written into: its
+  // element type may be narrower than Object?, as it is for an Event's map.
+  if (existing is Map) return Map<String, Object?>.from(existing);
+  if (existing is List) return List<Object?>.from(existing);
+  throw A2uiValidationError(
+    "Cannot traverse path segment '$nextKey' through primitive value at "
+    "'$key'.",
+  );
+}
+
+Object _stepPathContainer(Object current, String key, String nextKey) {
+  final int? nextIdx = _parseArrayIndex(nextKey);
+  if (current is List<Object?>) {
+    final int? idx = _parseArrayIndex(key);
+    if (idx == null) {
+      throw A2uiValidationError(
+        "Cannot traverse non-numeric segment '$key' on a list in data model.",
+      );
+    }
+    while (current.length <= idx) {
+      current.add(null);
+    }
+    final Object child = _materializeChild(current[idx], key, nextKey, nextIdx);
+    current[idx] = child;
+    return child;
+  }
+  if (current is Map<String, Object?>) {
+    final Object child = _materializeChild(current[key], key, nextKey, nextIdx);
+    current[key] = child;
+    return child;
+  }
+  throw A2uiValidationError(
+    "Cannot traverse path segment '$key' through primitive value.",
+  );
+}
+
 /// Sets [value] at [path], a data path such as `/user/name`, in [model].
 void _setPath(Map<String, Object?> model, String path, Object? value) {
   final List<String> keys = [
@@ -1100,18 +1174,28 @@ void _setPath(Map<String, Object?> model, String path, Object? value) {
         r'Only a map can be assigned to the whole data model, $/.',
       );
     }
-    model.addAll(value);
+    model
+      ..clear()
+      ..addAll(value);
     return;
   }
-  var current = model;
-  for (final String key in keys.take(keys.length - 1)) {
-    // A map assigned earlier is copied rather than written into: its value
-    // type may be narrower than Object?, as it is for an Event's map.
-    final Object? existing = current[key];
-    final child = existing is Map
-        ? Map<String, Object?>.from(existing)
-        : <String, Object?>{};
-    current = current[key] = child;
+  Object current = model;
+  for (var i = 0; i < keys.length - 1; i++) {
+    current = _stepPathContainer(current, keys[i], keys[i + 1]);
   }
-  current[keys.last] = value;
+  final String lastKey = keys.last;
+  if (current is List<Object?>) {
+    final int? idx = _parseArrayIndex(lastKey);
+    if (idx == null) {
+      throw A2uiValidationError(
+        "Cannot assign non-numeric segment '$lastKey' on a list in data model.",
+      );
+    }
+    while (current.length <= idx) {
+      current.add(null);
+    }
+    current[idx] = value;
+  } else if (current is Map<String, Object?>) {
+    current[lastKey] = value;
+  }
 }
