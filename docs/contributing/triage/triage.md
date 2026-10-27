@@ -81,8 +81,6 @@ See [all GitHub labels](https://github.com/a2ui-project/a2ui/labels).
 
 ### First line triage (daily, by gardener)
 
-The gardener is the team member on triage duty.
-
 For each issue that is [not first-line-handled][not-first-line-handled]:
 
 - If it is P0, add the label `P0` and notify [the team chat][team-chat].
@@ -98,7 +96,7 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
         - If you can triage it in a couple of minutes, [triage it](#triage-an-item).
         - Otherwise, add [status: needs-team-input][needs-team-input]. Optionally, add a comment with your thoughts.
 
-2. At the triage meeting, go through [status: needs-team-input][needs-team-input]. For each item:
+2. At the triage meeting, burn [status: needs-team-input][needs-team-input]. For each item:
 
     - If the team can triage it in a couple of minutes, [triage it](#triage-an-item) and remove `status: needs-team-input`.
     - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`.
