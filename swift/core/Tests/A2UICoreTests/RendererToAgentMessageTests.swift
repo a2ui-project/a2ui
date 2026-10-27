@@ -371,8 +371,7 @@ struct RendererToAgentMessageTests {
         callFunction: CallFunctionPayload(
           call: "fetchData",
           catalogID: "custom",
-          args: ["query": .string("weather")],
-          returnType: "string"
+          args: ["query": .string("weather")]
         ),
         version: .v10
       )

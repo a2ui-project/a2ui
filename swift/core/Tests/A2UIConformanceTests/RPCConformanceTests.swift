@@ -185,7 +185,7 @@ struct RPCConformanceTests {
 
         // `callAgentFunction` registers the pending call before it sends the outbound
         // message, so once the message arrives the response can be routed.
-        var callTask: Task<JSONValue, any Error>!
+        var callTask: Task<JSONValue, any Error>?
         let outbound = await withCheckedContinuation { continuation in
           callTask = Task {
             try await rpcHandler.callAgentFunction(
@@ -222,7 +222,7 @@ struct RPCConformanceTests {
           rpcHandler.handleAgentResponse(agentResp)
         }
 
-        let result = try await callTask.value
+        let result = try await #require(callTask).value
         let expectedResult = testCase.expect?["result"]
         #expect(result == expectedResult)
       }

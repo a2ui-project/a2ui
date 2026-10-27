@@ -17,33 +17,28 @@ import OrderedJSON
 /// Describes a function call invocation envelope.
 ///
 /// Encodes as a v1.0 `FunctionCall`: the function name goes under `@call`. Decoding also accepts
-/// the legacy `call` key.
+/// the legacy `call` key. v1.0 `FunctionCall` has no `returnType`; it lives only on the catalog's
+/// `FunctionAPI`.
 public struct CallFunctionPayload: Codable, Sendable, Equatable {
   public let call: String
   public let catalogID: String?
   public let args: [String: JSONValue]?
-  /// Decoded when present but never encoded: v1.0 `FunctionCall` has no `returnType`, so it
-  /// stays local.
-  public let returnType: String?
 
   private enum CodingKeys: String, CodingKey {
     case atCall = "@call"
     case call
     case catalogID = "catalogId"
     case args
-    case returnType
   }
 
   public init(
     call: String,
     catalogID: String? = nil,
-    args: [String: JSONValue]? = nil,
-    returnType: String? = nil
+    args: [String: JSONValue]? = nil
   ) {
     self.call = call
     self.catalogID = catalogID
     self.args = args
-    self.returnType = returnType
   }
 
   public init(from decoder: Decoder) throws {
@@ -55,7 +50,6 @@ public struct CallFunctionPayload: Codable, Sendable, Equatable {
     }
     catalogID = try container.decodeIfPresent(String.self, forKey: .catalogID)
     args = try container.decodeIfPresent([String: JSONValue].self, forKey: .args)
-    returnType = try container.decodeIfPresent(String.self, forKey: .returnType)
   }
 
   public func encode(to encoder: Encoder) throws {
