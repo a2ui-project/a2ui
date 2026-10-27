@@ -21,13 +21,6 @@ import OrderedCollections
 import OrderedJSON
 import Testing
 
-private struct PeerCatalogDocument {
-  let path: String
-  let schemaID: String?
-  let catalogID: String?
-  let document: JSONValue
-}
-
 private struct LoadedCatalogInfo {
   let catalog: AnyCatalog
   let rawSchema: JSONValue
@@ -156,13 +149,10 @@ struct CatalogConformanceTests {
     let resolvedVersion = resolveProtocolVersion(testCase: testCase, rawSchema: rawSchema)
     if resolvedVersion == "v1.0" {
       try validateV10CatalogIdentifiers(rawSchema)
+      try checkV10ExternalRefs(rawSchema)
     }
-    let peerPaths = (testCase["peerCatalogPaths"] as? [String]) ?? []
-    let peers = try loadPeerCatalogs(paths: peerPaths)
-    let resolvedSchema =
-      peers.isEmpty ? rawSchema : resolvePeerReferences(in: rawSchema, peers: peers)
     let catalog = try buildFilteredCatalog(
-      rawSchema: resolvedSchema,
+      rawSchema: rawSchema,
       catalogID: catalogID,
       protocolVersion: resolvedVersion,
       catalogPath: catalogPath
@@ -248,165 +238,39 @@ struct CatalogConformanceTests {
     }
   }
 
-  // MARK: - Peer Catalog Resolution
+  // MARK: - External $ref Validation
 
-  private func loadPeerCatalogs(paths: [String]) throws -> [PeerCatalogDocument] {
-    try paths.map { path in
-      let doc = try ConformanceTestHelper.loadRepositoryJSON(path: path)
-      return PeerCatalogDocument(
-        path: path,
-        schemaID: doc["$id"]?.stringValue,
-        catalogID: doc["catalogId"]?.stringValue,
-        document: doc
-      )
+  private func isSupportedV10Ref(_ ref: String) -> Bool {
+    let document =
+      ref.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(
+        String.init
+      ) ?? ""
+    if document.isEmpty || document == "catalog.json" {
+      return true
     }
+    return document.split(separator: "/", omittingEmptySubsequences: false).last
+      == "common_types.json"
   }
 
-  private func resolvePeerReferences(
-    in schema: JSONValue,
-    peers: [PeerCatalogDocument]
-  ) -> JSONValue {
-    guard var rootObj = schema.objectValue else { return schema }
-    if let compsObj = rootObj["components"]?.objectValue {
-      var resolvedComps: OrderedDictionary<String, JSONValue> = [:]
-      for (name, compVal) in compsObj {
-        resolvedComps[name] = resolvePeerComponent(compVal, peers: peers)
+  private func checkV10ExternalRefs(_ node: JSONValue, pointer: String = "") throws {
+    if let obj = node.objectValue {
+      if let ref = obj["$ref"]?.stringValue, !isSupportedV10Ref(ref) {
+        throw A2UICatalogError(
+          "Unsupported external $ref '\(ref)' at \(pointer)/$ref: a v1.0 catalog may only reference its own components and functions (#/...) or common_types.json."
+        )
       }
-      rootObj["components"] = .object(resolvedComps)
-    }
-    if let funcsObj = rootObj["functions"]?.objectValue {
-      var resolvedFuncs: OrderedDictionary<String, JSONValue> = [:]
-      for (name, funcVal) in funcsObj {
-        resolvedFuncs[name] = inlinePeerSubschemas(in: funcVal, peers: peers)
+      for (key, value) in obj {
+        let escapedKey = key.replacingOccurrences(of: "~", with: "~0").replacingOccurrences(
+          of: "/",
+          with: "~1"
+        )
+        try checkV10ExternalRefs(value, pointer: "\(pointer)/\(escapedKey)")
       }
-      rootObj["functions"] = .object(resolvedFuncs)
-    }
-    return .object(rootObj)
-  }
-
-  private func resolvePeerComponent(
-    _ compVal: JSONValue,
-    peers: [PeerCatalogDocument]
-  ) -> JSONValue {
-    guard var compObj = compVal.objectValue else { return compVal }
-    var mergedProps: OrderedDictionary<String, JSONValue> = [:]
-    var mergedRequired: [String] = []
-
-    if let allOf = compObj["allOf"]?.arrayValue {
-      var remainingAllOf: [JSONValue] = []
-      for item in allOf {
-        if let ref = item["$ref"]?.stringValue,
-          let peerTarget = resolvePeerPointer(ref: ref, peers: peers)?.objectValue
-        {
-          mergeInheritedProperties(
-            from: peerTarget,
-            intoProps: &mergedProps,
-            intoRequired: &mergedRequired
-          )
-        } else {
-          remainingAllOf.append(item)
-        }
+    } else if let arr = node.arrayValue {
+      for (index, item) in arr.enumerated() {
+        try checkV10ExternalRefs(item, pointer: "\(pointer)/\(index)")
       }
-      compObj["allOf"] = remainingAllOf.isEmpty ? nil : .array(remainingAllOf)
     }
-
-    for (key, val) in compObj["properties"]?.objectValue ?? [:] {
-      mergedProps[key] = inlinePeerSubschemas(in: val, peers: peers)
-    }
-    compObj["properties"] = .object(mergedProps)
-    appendUniqueStrings(
-      compObj["required"]?.arrayValue?.compactMap(\.stringValue) ?? [],
-      into: &mergedRequired
-    )
-    if !mergedRequired.isEmpty {
-      compObj["required"] = .array(mergedRequired.map(JSONValue.string))
-    }
-    return .object(compObj)
-  }
-
-  private func mergeInheritedProperties(
-    from peerTarget: OrderedDictionary<String, JSONValue>,
-    intoProps mergedProps: inout OrderedDictionary<String, JSONValue>,
-    intoRequired mergedRequired: inout [String]
-  ) {
-    for (key, val) in peerTarget["properties"]?.objectValue ?? [:] where key != "component" {
-      mergedProps[key] = val
-    }
-    let peerReq = peerTarget["required"]?.arrayValue?.compactMap(\.stringValue) ?? []
-    appendUniqueStrings(peerReq.filter { $0 != "component" }, into: &mergedRequired)
-  }
-
-  private func appendUniqueStrings(_ items: [String], into target: inout [String]) {
-    for item in items where !target.contains(item) {
-      target.append(item)
-    }
-  }
-
-  private func inlinePeerSubschemas(
-    in value: JSONValue,
-    peers: [PeerCatalogDocument]
-  ) -> JSONValue {
-    if let obj = value.objectValue {
-      if let ref = obj["$ref"]?.stringValue,
-        let resolved = resolvePeerPointer(ref: ref, peers: peers)
-      {
-        return resolved
-      }
-      var newObj: OrderedDictionary<String, JSONValue> = [:]
-      for (k, v) in obj {
-        newObj[k] = inlinePeerSubschemas(in: v, peers: peers)
-      }
-      return .object(newObj)
-    }
-    if let arr = value.arrayValue {
-      return .array(arr.map { inlinePeerSubschemas(in: $0, peers: peers) })
-    }
-    return value
-  }
-
-  private func resolvePeerPointer(
-    ref: String,
-    peers: [PeerCatalogDocument]
-  ) -> JSONValue? {
-    let parts = ref.split(separator: "#", maxSplits: 1).map(String.init)
-    guard parts.count == 2, !parts[0].isEmpty else { return nil }
-    let docRef = parts[0]
-    let pointer = parts[1]
-    guard let matchedPeer = matchPeerDocument(docRef: docRef, peers: peers) else { return nil }
-    return navigateJSONPointer(pointer, in: matchedPeer.document)
-  }
-
-  private func matchPeerDocument(
-    docRef: String,
-    peers: [PeerCatalogDocument]
-  ) -> PeerCatalogDocument? {
-    if let exact = peers.first(where: { peerMatchesIDOrSuffix($0, docRef: docRef) }) {
-      return exact
-    }
-    let fileName = (docRef as NSString).lastPathComponent
-    guard fileName != "catalog.json" else { return nil }
-    return peers.first { peer in
-      (peer.path as NSString).lastPathComponent == fileName
-        || (peer.schemaID.map { ($0 as NSString).lastPathComponent == fileName } ?? false)
-    }
-  }
-
-  private func peerMatchesIDOrSuffix(_ peer: PeerCatalogDocument, docRef: String) -> Bool {
-    guard docRef != "catalog.json" else { return false }
-    let candidates = [peer.schemaID, peer.catalogID, peer.path].compactMap { $0 }
-    return candidates.contains { candidate in
-      candidate == docRef || candidate.hasSuffix("/" + docRef)
-    }
-  }
-
-  private func navigateJSONPointer(_ pointer: String, in document: JSONValue) -> JSONValue? {
-    let segments = pointer.split(separator: "/").map(String.init)
-    var current = document
-    for segment in segments {
-      guard let next = current[segment] else { return nil }
-      current = next
-    }
-    return current
   }
 
   // MARK: - Building Filtered Catalog
@@ -476,6 +340,7 @@ struct CatalogConformanceTests {
         remoteSchemas[idStr] = commonTypes
       }
       remoteSchemas["common_types.json"] = commonTypes
+      remoteSchemas["https://a2ui.org/specification/v1_0/common_types.json"] = commonTypes
       remoteSchemas["https://a2ui.org/specification/v0_9/common_types.json"] = commonTypes
       remoteSchemas["https://a2ui.org/schemas/v0_9_1/common.json"] = commonTypes
       for (k, v) in commonTypes["$defs"]?.objectValue ?? [:] {
