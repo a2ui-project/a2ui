@@ -112,6 +112,10 @@ export function writePayload(template, size) {
  */
 function collectGarbage(options) {
   if (typeof globalThis.gc !== 'function') return;
+  if (options === undefined) {
+    globalThis.gc();
+    return;
+  }
   try {
     globalThis.gc(options);
   } catch {

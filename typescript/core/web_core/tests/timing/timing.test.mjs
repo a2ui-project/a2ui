@@ -112,8 +112,8 @@ describe('compareMedianTimes', () => {
     const {now, spend} = fakeClock();
     const originalGc = globalThis.gc;
     const gcCalls = [];
-    globalThis.gc = options => {
-      gcCalls.push(options);
+    globalThis.gc = (...args) => {
+      gcCalls.push(args);
     };
     try {
       compareMedianTimes(spend(8), spend(2), {runs: 2, now});
@@ -121,11 +121,11 @@ describe('compareMedianTimes', () => {
       globalThis.gc = originalGc;
     }
     assert.deepEqual(gcCalls, [
-      undefined,
-      {type: 'minor'},
-      {type: 'minor'},
-      {type: 'minor'},
-      {type: 'minor'},
+      [],
+      [{type: 'minor'}],
+      [{type: 'minor'}],
+      [{type: 'minor'}],
+      [{type: 'minor'}],
     ]);
   });
 
@@ -133,8 +133,8 @@ describe('compareMedianTimes', () => {
     const {now, spend} = fakeClock();
     const originalGc = globalThis.gc;
     let zeroArgCalls = 0;
-    globalThis.gc = options => {
-      if (options !== undefined) {
+    globalThis.gc = (...args) => {
+      if (args.length > 0) {
         throw new Error('options unsupported');
       }
       zeroArgCalls++;
