@@ -34,7 +34,7 @@ This section describes triage principles at a high level. See concrete steps in 
 ## GitHub labels used in triage
 
 Fully automated:
-- [status: needs-triage][needs-triage-label] -  fully automated
+- [status: needs-triage][needs-triage-label] - fully automated
 
 Partially automated:
 - [status: waiting-for-author-response][waiting-for-author-response] - removed after out-of-team comment
