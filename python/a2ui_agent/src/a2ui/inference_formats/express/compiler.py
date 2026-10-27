@@ -660,11 +660,14 @@ class ExpressCompiler:
             trimmed = line.strip()
             if trimmed.startswith("<a2ui>"):
                 inside_a2ui = True
-                line = trimmed.removeprefix("<a2ui>")
+                # Slice the tag out of the original line to keep its indentation.
+                idx = line.find("<a2ui>")
+                line = line[:idx] + line[idx + len("<a2ui>") :]
                 trimmed = line.strip()
             if trimmed.endswith("</a2ui>"):
                 inside_a2ui = False
-                line = trimmed.removesuffix("</a2ui>")
+                idx = line.rfind("</a2ui>")
+                line = line[:idx] + line[idx + len("</a2ui>") :]
                 if line.strip():
                     lines.append(line)
                 continue

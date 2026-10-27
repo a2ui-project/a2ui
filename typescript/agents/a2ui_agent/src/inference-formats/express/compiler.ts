@@ -463,12 +463,15 @@ export class ExpressCompiler {
       let trimmed = curLine.trim();
       if (trimmed.startsWith('<a2ui>')) {
         insideA2ui = true;
-        curLine = trimmed.slice('<a2ui>'.length);
+        // Slice the tag out of the original line to keep its indentation.
+        const idx = curLine.indexOf('<a2ui>');
+        curLine = curLine.slice(0, idx) + curLine.slice(idx + '<a2ui>'.length);
         trimmed = curLine.trim();
       }
       if (trimmed.endsWith('</a2ui>')) {
         insideA2ui = false;
-        curLine = trimmed.slice(0, -'</a2ui>'.length);
+        const idx = curLine.lastIndexOf('</a2ui>');
+        curLine = curLine.slice(0, idx) + curLine.slice(idx + '</a2ui>'.length);
         if (curLine.trim()) {
           lines.push(curLine);
         }
