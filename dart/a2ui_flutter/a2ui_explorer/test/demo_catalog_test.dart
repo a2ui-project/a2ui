@@ -32,6 +32,7 @@ Future<ExampleRun> _render(
   const surfaceId = 'test';
   final run = ExampleRun(
     Example(
+      version: A2uiProtocolVersion.v0_9,
       fileName: 'test.json',
       name: 'Test',
       description: '',
