@@ -125,6 +125,22 @@
       deleteSurface:
         surfaceId: "s1"
 
+- name: test_compile_json_preserves_typographic_quotes_in_strings
+  description: Typographic quotes inside valid JSON string values are kept as written (#2934).
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Willkommen im „Café Central“"}]}}]'
+  expect:
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Willkommen im „Café Central“"
+
 - name: test_compile_json_malformed_is_a_parse_error
   description: Payload text that is not JSON is a parse error.
   action: compile
