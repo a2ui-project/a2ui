@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Removed the internal `parseAndFix` and `removeTrailingCommas` helpers (`src/parser/payload-fixer.ts`), which the package didn't export or use: the Direct JSON parser's reader makes the same repairs while it compiles a block. The conformance harness skips the legacy `fix_payload` cases, which the legacy Kotlin SDK still runs. [#3632](https://github.com/a2ui-project/a2ui/pull/3632)
+
 ## 0.0.2
 
 - Added `Skill`, `SkillSet`, and `SkillGenerator` to generate `SKILL.md` packages from inference formats and component catalogs.
