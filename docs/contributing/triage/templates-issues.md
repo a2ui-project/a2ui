@@ -21,7 +21,6 @@ queue with nothing else to decide.
 I assigned a P2 priority to move this out of the triage queue. Please adjust the priority
 if needed to better reflect the issue's status.
 
-
 ## Stale assigned P1 issue
 
 **Case**: The issue is P1 and has an assignee, but has been stale for a while.

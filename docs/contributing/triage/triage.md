@@ -102,7 +102,24 @@ If you are assigned to PR or issue with label `status: assigned-for-triage`, thi
 
 - **For a PR**:
 
-  Decide if the PR should be reviewed [PR review prinicples] )
+  Decide if the PR should be reviewed, based on the [prinicples](#principles).
+
+  If yes, review it and help to land. Do not hesitate to create a supersiding PR, it it adds efficiency.
+
+  If no, post the response (consider adding it to your [GitHub saved replies](https://docs.github.com/en/get-started/writing-on-github/working-with-saved-replies)):
+
+  ```txt
+  Thank you for taking the time to contribute to A2UI. We appreciate it. nfortunately, we must decline this PR at this time.
+
+  Our team is small, so we can't review every PR. We review a PR when:
+
+    - it is a minor change (such as a docs fix or a small bug fix with a test), or it addresses an issue that is assigned to you,
+    - it doesn't overlap with work already in progress, and
+    - it brings a change that we can maintain long term.
+
+    What may help:
+  ```
+
     
 
 - **For an issue**:
