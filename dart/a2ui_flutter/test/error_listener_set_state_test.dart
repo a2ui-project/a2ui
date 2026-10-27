@@ -19,6 +19,8 @@ import 'package:a2ui_flutter/basic_catalog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/error_counting_host.dart';
+
 void main() {
   testWidgets('an error listener may call setState directly', (tester) async {
     final processor = MessageProcessor<ComponentImplementation>(
@@ -46,7 +48,7 @@ void main() {
     final SurfaceModel<ComponentImplementation> surface = processor.model
         .getSurface('s')!;
 
-    await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(surface)));
+    await tester.pumpWidget(MaterialApp(home: ErrorCountingHost(surface)));
     expect(tester.takeException(), isNull);
     await tester.pump();
 
@@ -79,51 +81,12 @@ void main() {
         }),
       );
 
-      await tester.pumpWidget(MaterialApp(home: _ErrorCountingHost(surface)));
+      await tester.pumpWidget(MaterialApp(home: ErrorCountingHost(surface)));
       expect(tester.takeException(), isNull);
       await tester.pump();
 
       expect(tester.takeException(), isNull);
       expect(find.text('errors: 1'), findsOneWidget);
     },
-  );
-}
-
-/// Counts [surface]'s errors with a plain `setState`, as an app would.
-class _ErrorCountingHost extends StatefulWidget {
-  const _ErrorCountingHost(this.surface);
-
-  final SurfaceModel<ComponentImplementation> surface;
-
-  @override
-  State<_ErrorCountingHost> createState() => _ErrorCountingHostState();
-}
-
-class _ErrorCountingHostState extends State<_ErrorCountingHost> {
-  int _errors = 0;
-  late final Subscription _subscription;
-
-  @override
-  void initState() {
-    super.initState();
-    _subscription = widget.surface.onError.subscribe(
-      (_) => setState(() => _errors++),
-    );
-  }
-
-  @override
-  void dispose() {
-    _subscription.unsubscribe();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Column(
-      children: [
-        Text('errors: $_errors'),
-        A2uiSurface(surface: widget.surface),
-      ],
-    ),
   );
 }
