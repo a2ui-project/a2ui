@@ -227,7 +227,7 @@ public enum ConformanceTestHelper {
   /// Builds a `Catalog` from a catalog schema and an optional common types schema.
   public static func buildCatalog(
     catalogSchema: JSONValue,
-    commonTypes: JSONValue?,
+    commonTypes: JSONValue? = nil,
     protocolVersion: String? = nil
   ) -> AnyCatalog {
     let (remoteSchemas, allDefinitions) = collectSchemaContextInputs(

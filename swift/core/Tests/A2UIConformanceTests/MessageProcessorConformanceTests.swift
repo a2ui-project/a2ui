@@ -174,7 +174,7 @@ struct MessageProcessorConformanceTests {
     from testCase: [String: Any],
     explicitVersion: String?,
     defaultVersion: String,
-    commonTypes: Schema?
+    commonTypes: JSONValue?
   ) throws -> [AnyCatalog] {
     var catalogPaths = testCase["catalogPaths"] as? [String] ?? []
     if let catalogPath = testCase["catalogPath"] as? String {
@@ -215,7 +215,7 @@ struct MessageProcessorConformanceTests {
   private func buildInlineProcessorCatalogs(
     from catalogList: [[String: Any]],
     action: String,
-    commonTypes: Schema?
+    commonTypes: JSONValue?
   ) throws -> [AnyCatalog] {
     let openSchema = try Schema(instance: "{\"type\": \"object\"}")
     let containerSchema = try makeContainerSchema()
