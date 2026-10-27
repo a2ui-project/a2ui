@@ -19,7 +19,7 @@ from typing import override
 
 from a2a.server.agent_execution import RequestContext
 from a2ui.a2a import try_activate_a2ui_extension
-from a2ui.adk import A2uiEventConverter
+from a2ui.adk import A2uiEventConverter, A2uiProcessorStore
 from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats import to_message_models
@@ -29,16 +29,14 @@ from a2ui.processor import A2uiRequestProcessor
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig
-from google.adk.agents.invocation_context import new_invocation_context_id
 from google.adk.agents.readonly_context import ReadonlyContext
-from google.adk.events.event import Event
-from google.adk.events.event_actions import EventActions
 from google.adk.runners import Runner
 
 logger = logging.getLogger(__name__)
 
-_A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_PROCESSOR_KEY = "system:a2ui_processor"
+# The processor of each session's latest request. It can't be kept in session
+# state, which ADK's session services save as JSON and copy on each load.
+_A2UI_PROCESSORS = A2uiProcessorStore()
 
 
 def _load_example_turns(path: str | None) -> list[list[AgentToRendererMessage]]:
@@ -52,7 +50,7 @@ def _load_example_turns(path: str | None) -> list[list[AgentToRendererMessage]]:
 
 
 def get_a2ui_processor(ctx: ReadonlyContext) -> A2uiRequestProcessor:
-    """Retrieves the request's A2UI processor from the session state.
+    """Retrieves the request's A2UI processor.
 
     Args:
         ctx: The ReadonlyContext for resolving the processor.
@@ -60,7 +58,10 @@ def get_a2ui_processor(ctx: ReadonlyContext) -> A2uiRequestProcessor:
     Returns:
         The A2uiRequestProcessor negotiated for the client's capabilities.
     """
-    return ctx.state[_A2UI_PROCESSOR_KEY]
+    processor = _A2UI_PROCESSORS.get(ctx)
+    if processor is None:
+        raise ValueError(f"Session {ctx.session.id} has no A2UI processor.")
+    return processor
 
 
 def get_a2ui_enabled(ctx: ReadonlyContext):
@@ -72,7 +73,7 @@ def get_a2ui_enabled(ctx: ReadonlyContext):
     Returns:
         True if A2UI is enabled, False otherwise.
     """
-    return ctx.state.get(_A2UI_ENABLED_KEY, False)
+    return _A2UI_PROCESSORS.is_enabled(ctx)
 
 
 from agent import RizzchartsAgent
@@ -89,7 +90,9 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
         self._base_url = base_url
         self._agent = agent
 
-        config = A2aAgentExecutorConfig(event_converter=A2uiEventConverter())
+        config = A2aAgentExecutorConfig(
+            event_converter=A2uiEventConverter(a2ui_processor=_A2UI_PROCESSORS.get)
+        )
         # Use the text runner as the default runner.
         super().__init__(runner=self._agent.get_runner(None), config=config)
 
@@ -110,6 +113,7 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
         if "base_url" not in session.state:
             session.state["base_url"] = self._base_url
 
+        processor: A2uiRequestProcessor | None = None
         if active_ui_version:
             capabilities = (
                 context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
@@ -130,18 +134,6 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                 format_factory=DirectJsonFormatFactory(),
             )
 
-            await runner.session_service.append_event(
-                session,
-                Event(
-                    invocation_id=new_invocation_context_id(),
-                    author="system",
-                    actions=EventActions(
-                        state_delta={
-                            _A2UI_ENABLED_KEY: True,
-                            _A2UI_PROCESSOR_KEY: processor,
-                        }
-                    ),
-                ),
-            )
+        _A2UI_PROCESSORS.set(session.id, processor)
 
         return session

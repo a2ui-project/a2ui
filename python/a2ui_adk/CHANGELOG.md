@@ -7,10 +7,10 @@
   agent, the bound `RendererState`. `A2uiCatalogsProvider` and
   `A2uiExamplesProvider` are removed; markdown examples are no longer accepted,
   so pass example turns to `A2uiGenerator` or `A2uiRequestProcessor`. To
-  migrate, store `generator.create_processor(capabilities)` under
-  `system:a2ui_processor` and pass a provider that reads it. A canvas agent
-  keeps its `RendererState` outside session state, which ADK copies each time
-  it loads a session, and passes a provider that binds it.
+  migrate, put `generator.create_processor(capabilities)` in an
+  `A2uiProcessorStore` and pass `A2uiProcessorStore.get` as the
+  provider. A canvas agent binds its `RendererState` to the processor it puts
+  there.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 - **BREAKING CHANGE**: The tool reads its argument, renamed from `a2ui_json` to
   `a2ui_payload`, in the processor's inference format (Express by default)
@@ -30,13 +30,29 @@
   surface it does not create is then rejected and logged. Each part is labeled
   with its message's protocol version.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- **BREAKING CHANGE**: `A2uiEventConverter` reads the request's processor from
-  the `system:a2ui_processor` session-state key (renamable with the keyword
-  argument `processor_key`), and logs a warning when the key holds something
-  else. Its `catalogs_key` argument and the `system:a2ui_catalogs` key are
-  removed. When the processor's format can stream, it opens one
-  `ResponseStream` per response, feeds it each partial ADK event, and closes it
-  on the final event.
+- **BREAKING CHANGE**: `A2uiEventConverter` takes the request's processor, or
+  a provider that returns it or None, in the required keyword argument
+  `a2ui_processor`, instead of reading catalogs from session state. Its
+  `catalogs_key` argument and the `system:a2ui_catalogs` key are removed. When
+  the processor's format can stream, it opens one `ResponseStream` per
+  response, feeds it each partial ADK event, and closes it on the final event.
+  A response is keyed by its invocation and its event's branch or author, so
+  the sub-agents of a `ParallelAgent` don't share a stream. A stream that gets
+  no event for `stream_idle_timeout` seconds (600 by default), as when a run is
+  cancelled, is dropped.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `A2uiProcessorStore` keeps each session's request processor in memory, since
+  ADK's persistent session services save state as JSON and can't hold one. Its
+  `get` and `is_enabled` methods are providers for `SendA2uiToClientToolset`
+  and `A2uiEventConverter`.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `SendA2uiToClientToolset` and `A2uiEventConverter` log a warning when they
+  get one processor for every request with a `RendererState` bound to it,
+  since every conversation would share that state.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- Tool and parse errors, which may quote the A2UI payload, are logged by type
+  at warning level and in full only at debug level.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 
 ## 0.1.0 (2026-10-17)

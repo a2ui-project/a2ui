@@ -39,9 +39,9 @@ Available with the `a2a` extra:
 
 - `A2uiPartConverter` and `A2uiEventConverter` (also in `a2ui.adk.a2a`)
   convert ADK events and GenAI parts into A2A parts with A2UI data, using the
-  request's `A2uiRequestProcessor`. `A2uiEventConverter` reads the processor
-  from the `system:a2ui_processor` session-state key. Pass it to ADK's
-  `A2aAgentExecutor`.
+  request's `A2uiRequestProcessor`. `A2uiEventConverter` gets the processor
+  from its `a2ui_processor` argument, such as `A2uiProcessorStore.get`. Pass
+  it to ADK's `A2aAgentExecutor`.
 - `A2uiSubagentMap` and `SurfaceIdAlreadyExistsError` (also in
   `a2ui.adk.orchestration`) track which subagent owns each surface in an
   orchestrator that talks to its subagents over A2A.

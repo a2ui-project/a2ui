@@ -89,22 +89,26 @@ def test_to_a2a_parts_splits_messages_and_drops_empty_text():
     assert all(is_a2ui_part(part) for part in parts[1:])
 
 
-def test_parse_content_to_parts_falls_back_when_the_response_is_invalid():
+def test_parse_content_to_parts_falls_back_when_the_response_is_invalid(caplog):
     """A response that updates an unknown surface is dropped, not raised."""
     update = {
         "version": "v0.9",
         "updateComponents": {
-            "surfaceId": "unknown",
+            "surfaceId": "secret-surface",
             "components": [{"id": "root", "component": "Text", "text": "Hi"}],
         },
     }
     content = f"<a2ui-json>{json.dumps([update])}</a2ui-json>"
 
-    parts = parse_content_to_parts(
-        content, DirectJsonParser([_BASIC]), fallback_text="OK."
-    )
+    with caplog.at_level("WARNING"):
+        parts = parse_content_to_parts(
+            content, DirectJsonParser([_BASIC]), fallback_text="OK."
+        )
 
     assert [part.root.text for part in parts] == ["OK."]
+    # The error may quote the response, so only its type is logged.
+    assert "Failed to parse A2UI response" in caplog.text
+    assert "secret-surface" not in caplog.text
 
 
 def test_parse_content_to_parts_checks_a_canvas_turn_against_its_state():

@@ -98,9 +98,12 @@ class A2uiPartConverter:
                 response_dict = function_response.response or {}
 
                 if constants.A2UI_TOOL_ERROR_KEY in response_dict:
-                    logger.warning(
-                        "A2UI tool call failed:"
-                        f" {response_dict[constants.A2UI_TOOL_ERROR_KEY]}"
+                    # The error may quote the payload, so it is only logged at
+                    # debug level.
+                    logger.warning("A2UI tool call failed.")
+                    logger.debug(
+                        "A2UI tool error: %s",
+                        response_dict[constants.A2UI_TOOL_ERROR_KEY],
                     )
                     return []
 

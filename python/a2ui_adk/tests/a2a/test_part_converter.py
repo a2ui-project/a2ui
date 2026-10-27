@@ -93,21 +93,24 @@ def test_converter_class_convert_valid_tool_response_v0_9_1():
     assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V0_9_1)
 
 
-def test_converter_class_convert_tool_error_response():
+def test_converter_class_convert_tool_error_response(caplog):
     converter = _converter()
 
     function_response = genai_types.FunctionResponse(
         name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
         response={
             SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_ERROR_KEY: (
-                "Some error"
+                "Some error quoting the payload"
             )
         },
     )
     part = genai_types.Part(function_response=function_response)
 
-    a2a_parts = converter.convert(part)
+    with caplog.at_level("WARNING"):
+        a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 0
+    assert "A2UI tool call failed" in caplog.text
+    assert "quoting the payload" not in caplog.text
 
 
 def test_converter_class_convert_tool_response_no_result():

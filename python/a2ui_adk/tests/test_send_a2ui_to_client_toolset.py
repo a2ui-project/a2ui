@@ -519,3 +519,35 @@ async def test_run_async_accepts_a_block_whose_closing_tag_is_missing(
     )
 
     assert result == {_RESULT: payload}
+
+
+def test_toolset_warns_about_one_processor_with_a_bound_state(caplog):
+    with caplog.at_level("WARNING"):
+        SendA2uiToClientToolset(
+            a2ui_enabled=True, a2ui_processor=_processor(state=RendererState([_BASIC]))
+        )
+    assert "every conversation shares that state" in caplog.text
+
+
+def test_toolset_does_not_warn_about_a_provider_or_a_stateless_processor(caplog):
+    with caplog.at_level("WARNING"):
+        SendA2uiToClientToolset(a2ui_enabled=True, a2ui_processor=_processor())
+        SendA2uiToClientToolset(
+            a2ui_enabled=True,
+            a2ui_processor=lambda ctx: _processor(state=RendererState([_BASIC])),
+        )
+    assert caplog.text == ""
+
+
+@pytest.mark.asyncio
+async def test_run_async_logs_an_error_without_the_payload(caplog):
+    tool = _tool(format_factory=DirectJsonFormatFactory())
+    with caplog.at_level("INFO"):
+        result = await tool.run_async(
+            args={_ARG: json.dumps([_update({"hunter2": "x"})])},
+            tool_context=MagicMock(),
+        )
+    # The LLM gets the details to fix its payload; the logs don't.
+    assert "hunter2" in result[_Tool.TOOL_ERROR_KEY]
+    assert "Failed to call A2UI tool" in caplog.text
+    assert "hunter2" not in caplog.text

@@ -221,53 +221,49 @@ Here is how the flow wires up:
 
 ### 4.1 Session Preparation (Executor)
 
-The execution layer (e.g., `RizzchartsAgentExecutor`) intercepts the incoming message to detect if A2UI is enabled and what catalogs the client supports. It negotiates an `A2uiRequestProcessor` for the client's capabilities and saves it to the session state under `system:a2ui_processor`.
+The execution layer (e.g., `RizzchartsAgentExecutor`) intercepts the incoming message to detect if A2UI is enabled and what catalogs the client supports. It negotiates an `A2uiRequestProcessor` for the client's capabilities and puts it in an `A2uiProcessorStore`, keyed by the session ID. The processor stays out of ADK's session state, which the persistent session services save as JSON.
 
 ```python
 # In agent_executor.py
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.adk import A2uiProcessorStore
 from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 
+processors = A2uiProcessorStore()
+
+processor = None
 active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
 if active_ui_version:
     capabilities = (context.message.metadata or {}).get(A2UI_CLIENT_CAPABILITIES_KEY)
     processor = self._agent.create_processor(active_ui_version, capabilities)
 
-    # Save to session (Event contains state_delta)
-    await runner.session_service.append_event(
-        session,
-        Event(
-            actions=EventActions(
-                state_delta={
-                    "system:a2ui_enabled": True,
-                    "system:a2ui_processor": processor,
-                }
-            ),
-        ),
-    )
+# A request without A2UI clears the processor of an earlier one.
+processors.set(session.id, processor)
 ```
 
 ### 4.2 Agent Tool Setup
 
-The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client. Pass a provider that reads the request's processor from session state, or pass one processor directly when the catalogs do not vary per request.
+The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client. Pass the store's provider, or pass one processor directly when the catalogs do not vary per request.
 
 ```python
 from a2ui.adk import SendA2uiToClientToolset
 
 agent.tools = [
     SendA2uiToClientToolset(
-        a2ui_enabled=lambda ctx: ctx.state.get("system:a2ui_enabled", False),
-        a2ui_processor=lambda ctx: ctx.state["system:a2ui_processor"],
+        a2ui_enabled=processors.is_enabled,
+        a2ui_processor=processors.get,
     )
 ]
 ```
 
 ### 4.3 Tool Execution
 
-Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_adk/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload. The converter reads the request's processor from the `system:a2ui_processor` session-state key, so store it there when the session is prepared.
+Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_adk/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload. The converter gets the request's processor from the same store.
 
 ```python
 from a2ui.adk import A2uiEventConverter
 
-config = A2aAgentExecutorConfig(event_converter=A2uiEventConverter())
+config = A2aAgentExecutorConfig(
+    event_converter=A2uiEventConverter(a2ui_processor=processors.get)
+)
 ```

@@ -33,19 +33,19 @@ Key Components:
 
 Usage Examples:
 
-  1. A processor per request, stored in session state by the agent's executor:
+  1. A processor per request, which the agent's executor puts in an
+     `A2uiProcessorStore`:
 
     ```python
-    def get_processor(ctx: ReadonlyContext) -> A2uiRequestProcessor:
-      return ctx.state["system:a2ui_processor"]
-
+    processors = A2uiProcessorStore()
     toolset = SendA2uiToClientToolset(
-        a2ui_enabled=lambda ctx: "system:a2ui_processor" in ctx.state,
-        a2ui_processor=get_processor,
+        a2ui_enabled=processors.is_enabled,
+        a2ui_processor=processors.get,
     )
     ```
 
-  2. One processor for every request, such as for fixed catalogs:
+  2. One processor for every request, such as for fixed catalogs. It must not
+     have a renderer state bound to it, since every conversation would share it:
 
     ```python
     processor = A2uiRequestProcessor([MY_CATALOG], examples=MY_EXAMPLE_TURNS)
@@ -89,7 +89,7 @@ A2uiEnabledProvider: TypeAlias = Callable[
 ]
 A2uiProcessorProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext],
-    A2uiRequestProcessor | Awaitable[A2uiRequestProcessor],
+    A2uiRequestProcessor | None | Awaitable[A2uiRequestProcessor | None],
 ]
 
 
@@ -108,20 +108,30 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             a2ui_enabled: Whether A2UI is enabled, or a provider that decides it
               per context.
             a2ui_processor: The request processor for the client's catalogs, or
-              a provider that returns it per context, such as one that reads
-              the processor the agent's executor stores in session state. The
-              processor's inference format, catalogs and example turns make
-              the prompt, and the tool's argument is read in its format. A
-              canvas agent binds the conversation's `RendererState` to the
-              processor, so each payload is checked against the state and, if
-              it passes, applied to it. ADK's session services copy
-              `ctx.state` each time they load a session, so a state stored
-              there, directly or bound to a stored processor, would not keep
-              one turn's changes for the next. Keep the state, or a processor
-              bound to it, in a store keyed by `ctx.session.id`, and pass a
-              provider that reads it.
+              a provider that returns it per context, such as
+              `A2uiProcessorStore.get`. The processor's inference format,
+              catalogs and example turns make the prompt, and the tool's
+              argument is read in its format. A canvas agent binds the
+              conversation's `RendererState` to the processor, so each payload
+              is checked against the state and, if it passes, applied to it.
+              Don't keep the processor in session state: ADK's session services
+              save state as JSON, which a processor can't be written as, and
+              copy it each time they load a session, so a bound state would not
+              keep one turn's changes for the next. A processor given for every
+              request must not have a state bound to it, since every
+              conversation would share that state.
         """
         super().__init__()
+        if (
+            isinstance(a2ui_processor, A2uiRequestProcessor)
+            and a2ui_processor.state is not None
+        ):
+            logger.warning(
+                "SendA2uiToClientToolset got one processor for every request,"
+                " with a RendererState bound to it: every conversation shares"
+                " that state. Pass a provider that returns each conversation's"
+                " processor instead."
+            )
         self._a2ui_enabled = a2ui_enabled
         self._ui_tool = self._SendA2uiJsonToClientTool(a2ui_processor)
         self._ui_tools: list[base_tool.BaseTool] = [self._ui_tool]
@@ -243,7 +253,8 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
             Raises:
                 TypeError: If the provider returns something else than an
-                  `A2uiRequestProcessor`.
+                  `A2uiRequestProcessor`, such as None when the context has no
+                  processor.
             """
             if isinstance(self._processor, A2uiRequestProcessor):
                 return self._processor
@@ -251,9 +262,14 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             if inspect.isawaitable(processor):
                 processor = await processor
             if not isinstance(processor, A2uiRequestProcessor):
+                hint = (
+                    " A2UI is enabled for a context that has no processor."
+                    if processor is None
+                    else ""
+                )
                 raise TypeError(
                     f"Tool {self.TOOL_NAME} expects an A2uiRequestProcessor,"
-                    f" got {type(processor).__name__}."
+                    f" got {type(processor).__name__}.{hint}"
                 )
             return processor
 
@@ -392,7 +408,12 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
             except Exception as e:
                 err = f"Failed to call A2UI tool {self.TOOL_NAME}: {e}"
-                logger.error(err)
+                # The error may quote the payload, so its text goes back to the
+                # LLM but is only logged at debug level.
+                logger.error(
+                    "Failed to call A2UI tool %s: %s", self.TOOL_NAME, type(e).__name__
+                )
+                logger.debug(err)
 
                 return {self.TOOL_ERROR_KEY: err}
 

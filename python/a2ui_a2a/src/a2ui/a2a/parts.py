@@ -159,7 +159,10 @@ def parse_content_to_parts(
     try:
         parts = to_a2a_parts(parser.parse_response(content, state=state), version)
     except Exception as e:
-        logger.warning("Failed to parse A2UI response: %s", e)
+        # The error may quote the response, so its text is only logged at
+        # debug level.
+        logger.warning("Failed to parse A2UI response: %s", type(e).__name__)
+        logger.debug("A2UI response parse error: %s", e)
 
     if not parts and fallback_text:
         parts.append(Part(root=A2aTextPart(text=fallback_text)))

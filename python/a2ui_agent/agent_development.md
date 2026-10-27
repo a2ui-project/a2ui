@@ -212,8 +212,8 @@ agent = LlmAgent(
 runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
 ```
 
-An agent that uses the ADK `SendA2uiToClientToolset` can instead put the
-request's processor into the session state; see
+An agent that uses the ADK `SendA2uiToClientToolset` can instead give the
+toolset each request's processor; see
 [Dynamic Schemas](#2-dynamic-schemas-context-aware).
 
 ### Step 4: Process Request and Stream UI
@@ -476,90 +476,86 @@ e.g., Charts vs. Maps).
 
 **Example Sample:** [rizzcharts](../../samples/community/agent/adk/rizzcharts/python)
 
-#### 2a. Injecting Catalogs into Session State
+#### 2a. Negotiating a Processor per Request
 
 In a dynamic scenario, the agent's instruction doesn't name a catalog. Instead,
 you configure an `A2uiGenerator` once with `CatalogConfig(catalog)` and
 `accepts_inline_catalogs=True`, and call `generator.create_processor(capabilities)`
 for each request (e.g., during session preparation) to negotiate the active
-catalogs, and store the processor in the session state. The processor holds
-the catalogs, the example turns and the inference format.
+catalogs. The processor holds the catalogs, the example turns and the
+inference format.
 
-A canvas agent also needs the conversation's `RendererState`, but it can't keep
-it in session state: ADK's session services copy the session state each time
-they load a session, so changes made to a stored `RendererState`, directly or
-through a stored processor bound to it, are lost after the turn. Keep the
-state in a store of the agent's own, keyed by session ID, and give the toolset
-a provider that binds it; see [Canvas agents](#canvas-agents).
+Don't store the processor in ADK's session state. The database, SQLite and
+Vertex AI session services save state as JSON, which a processor can't be
+written as, and every session service copies the state each time it loads a
+session, so a `RendererState` bound to a stored processor loses each turn's
+changes. Put it in an `A2uiProcessorStore` instead, which keeps the processor
+of each session's latest request in memory.
 
 ```python
+from a2ui.adk import A2uiProcessorStore
 from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
+
+processors = A2uiProcessorStore()
+
 
 # In your AgentExecutor subclass
 async def _prepare_session(self, context, run_request, runner):
   session = await super()._prepare_session(context, run_request, runner)
 
-  # 1. Determine client capabilities from metadata, keyed by protocol version,
-  #    for example {"v0.9": {"supportedCatalogIds": [...]}}
-  capabilities = (context.message.metadata or {}).get(A2UI_CLIENT_CAPABILITIES_KEY)
+  processor = None
+  if try_activate_a2ui_extension(context, self.agent_card):
+    # 1. Determine client capabilities from metadata, keyed by protocol
+    #    version, for example {"v0.9": {"supportedCatalogIds": [...]}}
+    capabilities = (context.message.metadata or {}).get(A2UI_CLIENT_CAPABILITIES_KEY)
 
-  # 2. Negotiate a request processor for the client capabilities
-  processor = self.generator.create_processor(capabilities)
+    # 2. Negotiate a request processor for the client capabilities
+    processor = self.generator.create_processor(capabilities)
 
-  # 3. Store in session state for tool and converter access
-  await runner.session_service.append_event(
-      session,
-      Event(
-          actions=EventActions(
-              state_delta={
-                  "system:a2ui_enabled": True,
-                  "system:a2ui_processor": processor,
-              }
-          ),
-      ),
-  )
+  # 3. Store it for the toolset and the converter. A request without A2UI
+  #    clears the processor of an earlier one.
+  processors.set(session.id, processor)
   return session
 ```
 
-#### 2b. Reading the Processor from Session State
+The store holds one processor per session and evicts nothing on its own, so
+call `processors.remove(session_id)` when a session ends.
 
-`SendA2uiToClientToolset` takes the request's processor, or a **provider**: a
-callable that returns it from the current context at runtime.
-`A2uiEventConverter` reads the same `system:a2ui_processor` key.
+#### 2b. Reading the Processor
+
+`SendA2uiToClientToolset` and `A2uiEventConverter` each take the request's
+processor, or a **provider**: a callable that returns it from the current
+context at runtime. `A2uiProcessorStore.get` is such a provider, and
+`A2uiProcessorStore.is_enabled` tells the toolset whether the request has a
+processor.
 
 ```python
 from a2ui.adk import A2uiEventConverter, SendA2uiToClientToolset
 
-
-def get_a2ui_processor(ctx: ReadonlyContext) -> A2uiRequestProcessor:
-  return ctx.state["system:a2ui_processor"]
-
-
-def get_a2ui_enabled(ctx: ReadonlyContext) -> bool:
-  return ctx.state.get("system:a2ui_enabled", False)
-
-
 ui_toolset = SendA2uiToClientToolset(
-    a2ui_enabled=get_a2ui_enabled,
-    a2ui_processor=get_a2ui_processor,
+    a2ui_enabled=processors.is_enabled,
+    a2ui_processor=processors.get,
 )
-config = A2aAgentExecutorConfig(event_converter=A2uiEventConverter())
+config = A2aAgentExecutorConfig(
+    event_converter=A2uiEventConverter(a2ui_processor=processors.get)
+)
 ```
 
 An agent whose catalogs don't depend on the request can pass one processor
-instead: `SendA2uiToClientToolset(a2ui_enabled=True, a2ui_processor=processor)`.
+instead: `SendA2uiToClientToolset(a2ui_enabled=True, a2ui_processor=processor)`
+and `A2uiEventConverter(a2ui_processor=processor)`. That processor must not
+have a `RendererState` bound to it, since every conversation would share the
+state; both log a warning if it has one.
 
 ##### Canvas agents
 
-A canvas agent checks each tool call against the conversation's
-`RendererState`. Keep the states outside ADK's session state, which is copied
-each time a session is loaded. Build the request's processor with the state
-bound when the session is prepared, and give the toolset a provider that looks
-it up:
+A canvas agent checks each tool call and each text-based A2UI block against
+the conversation's `RendererState`. Keep the states in memory, keyed by session
+ID, and bind the session's state to the request's processor when the session
+is prepared:
 
 ```python
 renderer_states: dict[str, RendererState] = {}
-processors: dict[str, A2uiRequestProcessor] = {}
 
 
 # In your AgentExecutor subclass, after negotiating `processor` as above
@@ -567,19 +563,13 @@ state = renderer_states.get(session.id)
 if state is None or not processor.accepts_state(state):
   # A new conversation, or the client's catalogs changed.
   state = renderer_states[session.id] = processor.create_state()
-processors[session.id] = self.generator.create_processor(capabilities, state=state)
-
-# In the agent
-ui_toolset = SendA2uiToClientToolset(
-    a2ui_enabled=get_a2ui_enabled,
-    a2ui_processor=lambda ctx: processors[ctx.session.id],
+processors.set(
+    session.id, self.generator.create_processor(capabilities, state=state)
 )
 ```
 
-`A2uiEventConverter` reads the processor from session state, so the state bound
-there is a copy for the current turn. That is enough for tool calls, which
-reach the converter already validated, but text-based A2UI that the converter
-checks against the state is not remembered for the next turn.
+The toolset and the converter both get this processor from the store, so the
+changes from tool calls and from text-based A2UI are kept for the next turn.
 
 #### 2c. Runtime Validation
 
