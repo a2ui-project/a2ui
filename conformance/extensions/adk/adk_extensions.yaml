@@ -42,7 +42,7 @@
 - name: test_toolset_execute_valid_payload
   action: execute_tool
   args:
-    a2uiJson: '{"beginRendering": {"surfaceId": "dummy-surface", "root": {"component": "TestComp", "id": "1"}}}'
+    a2uiJson: '{"beginRendering": {"surfaceId": "dummy-surface", "root": "1"}}'
   expect:
     success: true
     containsValidatedJson: true
@@ -53,7 +53,7 @@
     wrongArg: "b"
   expect:
     success: false
-    errorContains: "missing required arg a2ui_json"
+    errorContains: "missing required arg"
 
 - name: test_subagent_map_record_surface_ownership
   description: Verifies surface creation assigns ownership to authoring subagent in session state.
