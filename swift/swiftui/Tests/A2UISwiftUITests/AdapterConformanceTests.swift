@@ -69,6 +69,8 @@ private final class IncrementCounterFunction: FunctionImplementation, Sendable {
 /// against `A2UISwiftUI.Surface`, `SurfaceViewModel`, and `A2UIAccessibilityModifier`.
 @MainActor
 struct AdapterConformanceTests {
+  private typealias Node = A2UICore.Node
+
   private static var conformanceDirectory: URL {
     if let envDir = ProcessInfo.processInfo.environment["A2UI_CONFORMANCE_DIR"], !envDir.isEmpty {
       let url = URL(fileURLWithPath: envDir)
@@ -274,7 +276,7 @@ struct AdapterConformanceTests {
     var coreCatalogs: [AnyCatalog] = BasicCatalog.allCatalogs.map { cat in
       Catalog(
         id: cat.id,
-        protocolVersion: cat.a2uiProtocolVersion,
+        protocolVersion: cat.protocolVersion,
         components: Array(cat.components.values),
         functions: Array(cat.functions.values) + [incrementFn],
         themeSchema: cat.themeSchema
@@ -563,7 +565,7 @@ struct AdapterConformanceTests {
         #expect(actual.message == expMsg, "\(context): result message mismatch")
       }
       if let expSev = expRes["severity"] as? String {
-        let actualSeverity = (actual.severity ?? .error).rawValue
+        let actualSeverity = (actual.severity ?? ValidationSeverity.error).rawValue
         #expect(actualSeverity == expSev, "\(context): result severity mismatch")
       }
     }
