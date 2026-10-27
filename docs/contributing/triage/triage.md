@@ -70,7 +70,6 @@ For each issue that is [not first-line-handled](https://github.com/a2ui-project/
 - Add label `status: first-line-handled`
 
 ### Second line triage (weekly)
-
 Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [the triage bot](automation.md), disappears:
 
 - Set priority (P0-P4) to issues. Assign P0/P1 to someone.
@@ -98,34 +97,40 @@ When weekly triage is complete, the [`needs-triage`][needs-triage] list should i
 
 ### Owners of `status: assigned-for-triage`
 
-If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to triage the item within two weeks of the assignment.
+If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to triage the item within two weeks of the assignment, using the steps below.
 
-- **For a PR**:
+### Use lyfecycle labels
 
-    Decide whether the PR should be reviewed, based on the [principles](#principles) (you do not have to prove your decision is right - it is ok to use intuition).
+Assign `status: waiting-for-author-response`, when PR or issue needs aouthor's or other contributor's respons eor clarification.
 
-    If yes, review it and help to land it. Do not hesitate to create a superseding PR if it is more efficient.
+### Triage a PR
 
-    If no:
+Decide whether the PR should be reviewed, based on the [principles](#principles) (you do not have to prove your decision is right - it is ok to use intuition).
 
-    1. Close the PR.
-    2. Post the reply below. You may want to add it to your [GitHub saved replies](https://docs.github.com/en/get-started/writing-on-github/working-with-saved-replies).
+If yes, review it and help to land it. Do not hesitate to create a superseding PR if it is more efficient.
 
-        ```txt
-        Thank you for taking the time to contribute to A2UI. We appreciate it. Unfortunately, we must decline this PR at this time.
+If no:
 
-        Our team is small, so we can't review every PR. We review a PR when:
+1. Close the PR.
+2. Post the comment (you may want to add it to your [GitHub saved replies](https://docs.github.com/en/get-started/writing-on-github/working-with-saved-replies)):
 
-        - it is a minor change (such as a docs fix or a small bug fix with a test), or it addresses an issue that is assigned to you,
-        - it doesn't overlap with work already in progress, and
-        - it brings a change that we can maintain long term.
+```txt
+Thank you for taking the time to contribute to A2UI. We appreciate it. Unfortunately, we must decline this PR at this time.
 
-        What may help, but without guarantees:
+Our team is small, so we can't review every PR. We review a PR when:
 
-        - If there is no issue for this change yet, open one that describes the problem, and mention this PR as a possible solution.
-        - If there is an issue, ask if your contribution on it will be accepted. If you get positive response, reopen this PR.
-        - Split a large change into small PRs valuable independently.
-        - Before you start, check open issues and PRs for related work, so that your change does not overlap with them.
-        ```
+- it is a minor change (such as a docs fix or a small bug fix with a test), or it addresses an issue that is assigned to you,
+- it doesn't overlap with work already in progress, and
+- it brings a change that we can maintain long term.
 
-- **For an issue**:
+What may help, but without guarantees:
+
+- If there is no issue for this change yet, open one that describes the problem, and mention this PR as a possible solution.
+- If there is an issue, ask if your contribution on it will be accepted. If you get positive response, reopen this PR.
+- Split a large change into small PRs valuable independently.
+- Before you start, check open issues and PRs for related work, so that your change does not overlap with them.
+```
+
+### Triage an issue
+
+
