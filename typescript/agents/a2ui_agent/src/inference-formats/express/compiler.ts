@@ -452,20 +452,23 @@ export class ExpressCompiler {
     const ctx = new CompileContext(defaultKeys);
 
     // Sentinel tag stripping (compiler.py:235-254; load-bearing per plan §9)
-    const hasSentinels = dslText.includes('<a2ui>');
+    // Tags only count at the start or end of a line, so a string literal such as
+    // Text("Wrap it in <a2ui>") is left alone.
+    const rawLines = dslText.split(/\r?\n/);
+    const hasSentinels = rawLines.some(line => line.trim().startsWith('<a2ui>'));
     const lines: string[] = [];
     let insideA2ui = !hasSentinels;
-    for (const line of dslText.split(/\r?\n/)) {
+    for (const line of rawLines) {
       let curLine = line;
       let trimmed = curLine.trim();
-      if (trimmed.includes('<a2ui>')) {
+      if (trimmed.startsWith('<a2ui>')) {
         insideA2ui = true;
-        curLine = curLine.replace('<a2ui>', '');
+        curLine = trimmed.slice('<a2ui>'.length);
         trimmed = curLine.trim();
       }
-      if (trimmed.includes('</a2ui>')) {
+      if (trimmed.endsWith('</a2ui>')) {
         insideA2ui = false;
-        curLine = curLine.split('</a2ui>')[0];
+        curLine = trimmed.slice(0, -'</a2ui>'.length);
         if (curLine.trim()) {
           lines.push(curLine);
         }

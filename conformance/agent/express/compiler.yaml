@@ -743,6 +743,33 @@
             component: "Text"
             text: "width=100"
 
+- name: test_compile_express_string_containing_sentinel_tags
+  description: Sentinel tags inside a string are content. A compiler that strips `<a2ui>` and `</a2ui>` wherever they appear would drop the lines before the string and cut the string short.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("doc_surface")
+    header = Text("Welcome")
+    body = Text("Wrap your DSL in <a2ui> and </a2ui> tags.")
+    root = Column([header, body])
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "doc_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "header"
+            component: "Text"
+            text: "Welcome"
+          - id: "body"
+            component: "Text"
+            text: "Wrap your DSL in <a2ui> and </a2ui> tags."
+          - id: "root"
+            component: "Column"
+            children: ["header", "body"]
+
 - name: test_compile_express_comments_are_ignored
   description: The grammar skips all three comment forms, so a model that annotates what it is building compiles to the same messages as one that does not.
   action: compile

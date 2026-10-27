@@ -650,18 +650,21 @@ class ExpressCompiler:
 
     def _parse_statements(self, dsl_text: str, is_final: bool) -> list[Any]:
         """Strips sentinel tags and parses the DSL body into statements."""
-        has_sentinels = "<a2ui>" in dsl_text
+        # Tags only count at the start or end of a line, so a string literal such
+        # as Text("Wrap it in <a2ui>") is left alone.
+        raw_lines = dsl_text.splitlines()
+        has_sentinels = any(line.strip().startswith("<a2ui>") for line in raw_lines)
         lines = []
         inside_a2ui = not has_sentinels
-        for line in dsl_text.splitlines():
+        for line in raw_lines:
             trimmed = line.strip()
-            if "<a2ui>" in trimmed:
+            if trimmed.startswith("<a2ui>"):
                 inside_a2ui = True
-                line = line.replace("<a2ui>", "")
+                line = trimmed.removeprefix("<a2ui>")
                 trimmed = line.strip()
-            if "</a2ui>" in trimmed:
+            if trimmed.endswith("</a2ui>"):
                 inside_a2ui = False
-                line = line.split("</a2ui>")[0]
+                line = trimmed.removesuffix("</a2ui>")
                 if line.strip():
                     lines.append(line)
                 continue
