@@ -305,6 +305,10 @@ async def test_rate_command_records_preference_and_summarizes(
     bad_mode = await collect(agent, "/rate glitter", "s-rate")
     assert "Unknown mode `glitter`" in status_text(bad_mode)
 
+    # Rate mode not rendered in previous turn
+    unrendered_mode = await collect(agent, "/rate express", "s-rate")
+    assert "was not rendered in the previous turn" in status_text(unrendered_mode)
+
     # Rate with comment
     rated = await collect(agent, "/rate decision Very fast and clean", "s-rate")
     assert (

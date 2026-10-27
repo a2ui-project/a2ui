@@ -91,6 +91,7 @@ def test_stage1_user_text_pins_pasted_json_only_when_present() -> None:
     assert pinned.startswith('Render {"name": "Casa Verde"}')
     assert "Use this JSON verbatim as the payload" in pinned
     assert '"name": "Casa Verde"' in pinned
+    assert stage1_user_text(pinned) == pinned
     action = f'{UI_ACTION_PREFIX} action `submit` with context {{"x": 1}}.'
     assert stage1_user_text(action) == action
 

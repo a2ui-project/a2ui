@@ -33,7 +33,9 @@ from a2ui.inference_formats.decision import (
     DecisionBlock,
     decision_rules,
 )
-from a2ui.parser import BlockLexer, RawA2uiPart, parse_and_fix
+from a2ui.inference_formats.direct_json.blocks import clean
+from a2ui.inference_formats.direct_json.json_reader import read_json
+from a2ui.parser import BlockLexer, RawA2uiPart
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +115,8 @@ def stage1_user_text(query: str) -> str:
     """
     if query.startswith(UI_ACTION_PREFIX):
         return query
+    if "Use this JSON verbatim as the payload:" in query:
+        return query
     pasted = extract_pasted_json(query)
     if pasted is None:
         return query
@@ -136,8 +140,8 @@ def extract_block(text: str) -> DecisionBlock | None:
     if not raw_parts:
         return None
     try:
-        parsed: Any = parse_and_fix(raw_parts[0].a2ui_raw)
-    except Exception as exc:  # parse_and_fix raises several JSON error types
+        parsed: Any = read_json(clean(raw_parts[0].a2ui_raw))
+    except Exception as exc:  # read_json raises ValueError on invalid JSON
         logger.warning("Stage 1 block is not valid JSON: %s", exc)
         return None
     item = parsed[0] if isinstance(parsed, list) and parsed else parsed

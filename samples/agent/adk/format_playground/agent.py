@@ -718,6 +718,13 @@ class PlaygroundAgent:
         if last_turn is None:
             return ["No previous turn to rate. Render an interface first."]
         query, candidates = last_turn
+        candidate_modes = [mode.value for mode, _, _ in candidates]
+        if winner not in candidate_modes:
+            rendered = ", ".join(f"`{m}`" for m in candidate_modes)
+            return [
+                f"Mode `{winner}` was not rendered in the previous turn (rendered:"
+                f" {rendered})."
+            ]
         candidate_dicts = [
             {
                 "mode": mode.value,

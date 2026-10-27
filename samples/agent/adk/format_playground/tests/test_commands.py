@@ -91,6 +91,7 @@ def test_classify_data_part_shapes() -> None:
     assert classify_data_part(user) == ("action", user["userAction"])
     pasted = {"name": "Casa Verde", "rating": 4.6}
     assert classify_data_part(pasted) == ("payload", pasted)
+    assert classify_data_part([1, 2, 3]) == ("payload", [1, 2, 3])
 
 
 def test_build_query_prefers_actions_then_payloads_then_text() -> None:

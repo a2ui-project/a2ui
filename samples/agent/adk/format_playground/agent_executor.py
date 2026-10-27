@@ -46,13 +46,15 @@ logger = logging.getLogger(__name__)
 DataPartKind = Literal["streaming", "action", "payload"]
 
 
-def classify_data_part(data: Mapping[str, Any]) -> tuple[DataPartKind, Any]:
+def classify_data_part(data: Any) -> tuple[DataPartKind, Any]:
     """Classifies one `DataPart` payload.
 
     Returns ``("streaming", bool)`` for the `useStreaming` flag,
     ``("action", mapping)`` for a v0.9 `action` or a `userAction` payload, and
     ``("payload", data)`` for anything else (a pasted JSON object).
     """
+    if not isinstance(data, Mapping):
+        return "payload", data
     if "useStreaming" in data:
         return "streaming", bool(data["useStreaming"])
     if data.get("version") == ProtocolVersion.V0_9 and isinstance(
