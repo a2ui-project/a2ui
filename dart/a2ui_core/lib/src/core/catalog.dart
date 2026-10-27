@@ -1340,8 +1340,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         final bool keep = ref.startsWith(r'#/$defs/') &&
             (authored.contains(defName) || isCommonTypeDef(defName));
         if (!keep) {
-          final String key = localRefVisitKey(root, ref);
-          if (visited.contains(key)) return current;
+          if (visited.contains(ref)) return current;
           final Object? target = followJsonPointer(root, ref.substring(1));
           if (target is! Map) {
             if (ref.startsWith(r'#/$defs/')) return current;
@@ -1350,7 +1349,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           final Object? resolved = _keepAuthoredDefRefs(
             target,
             root,
-            {...visited, key},
+            {...visited, ref},
           );
           if (resolved is! Map) return current;
           final merged = <String, Object?>{
@@ -2269,7 +2268,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             _keepAuthoredDefRefs(
               authoredDefs[refName],
               _document,
-              peerDocuments,
             ),
           );
           _restoreRefs(copy);
