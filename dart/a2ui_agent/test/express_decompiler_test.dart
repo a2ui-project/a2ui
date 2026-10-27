@@ -684,6 +684,127 @@ void main() {
       );
     });
 
+    test('a functionCall in an item slot reached through a \$ref', () {
+      final CatalogApi menu = Catalog.fromJson({
+        'catalogId': 'https://example.com/menu.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Menu': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Menu'},
+              'items': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/MenuItem'},
+              },
+            },
+            'required': ['component', 'items'],
+          },
+        },
+        'functions': {
+          'openUrl': {
+            'type': 'object',
+            'returnType': 'void',
+            'properties': {
+              '@call': {'const': 'openUrl'},
+              'args': {
+                'type': 'object',
+                'properties': {
+                  'url': {'type': 'string'},
+                },
+                'required': ['url'],
+              },
+            },
+            'required': ['@call', 'args'],
+          },
+        },
+        r'$defs': {
+          'MenuItem': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'action': {r'$ref': r'common_types.json#/$defs/Action'},
+            },
+            'required': ['label', 'action'],
+          },
+        },
+      });
+      final String written = ExpressDecompiler([menu]).decompile([
+        AgentToRendererMessage.fromJson({
+          'version': 'v1.0',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': menu.id,
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Menu',
+                'items': [
+                  {
+                    'label': 'Docs',
+                    'action': {
+                      'functionCall': {
+                        '@call': 'openUrl',
+                        'args': {'url': 'https://a2ui.org'},
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      ]);
+      expect(
+        written,
+        contains(
+          'root = Menu([{label: "Docs", action: openUrl("https://a2ui.org")}])',
+        ),
+      );
+    });
+
+    test('an event with a userMessage as a map literal before v1.0', () {
+      // v0.9 has no userMessage and its compiler rejects `userMessage=`, so
+      // the object stays data that compiles back as written.
+      final CatalogApi v09 = Catalog.fromJson({
+        'catalogId': 'https://example.com/v09.json',
+        'protocolVersion': '0.9',
+        'components': {
+          'Card': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Card'},
+              'child': {'type': 'object'},
+            },
+            'required': ['component', 'child'],
+          },
+        },
+      });
+      final String written = ExpressDecompiler([v09]).decompile([
+        AgentToRendererMessage.fromJson({
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's1', 'catalogId': v09.id},
+        }),
+        AgentToRendererMessage.fromJson({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Card',
+                'child': {
+                  'event': {'name': 'go', 'userMessage': 'hi'},
+                },
+              },
+            ],
+          },
+        }),
+      ]);
+      expect(written, isNot(contains('Event(')));
+      expect(written, contains('{event: {name:'));
+    });
+
     test('a functionCall in a list item action slot as a plain call', () {
       expect(
         roundTripV1([

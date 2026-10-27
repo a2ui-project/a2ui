@@ -326,12 +326,17 @@ class _Slot {
   /// Whether the slot takes an action.
   bool get holdsAction => isAction(schema);
 
-  /// The slot of an array item, when [key] is `items`, or of the entry [key]
-  /// of a map, or null when the schema declares none at that position.
-  _Slot? sub(String key) => switch (helper.resolveSubschema(schema, key)) {
-    final Map<String, Object?> found => _Slot(found, helper),
-    null => null,
-  };
+  /// The slot of the items of an array, or null when the schema declares
+  /// none.
+  _Slot? get item => _of(helper.resolveItemSchema(schema));
+
+  /// The slot of the property [name] of an object, whatever the property is
+  /// named, or null when the schema declares none.
+  _Slot? property(String name) =>
+      _of(helper.resolvePropertySchema(schema, name));
+
+  _Slot? _of(Map<String, Object?>? found) =>
+      found == null ? null : _Slot(found, helper);
 }
 
 /// Where a value is being compiled.
@@ -339,7 +344,6 @@ class _Context {
   _Context({
     required this.idPrefix,
     required this.hoisted,
-    this.isAction = false,
     this.valueBinding,
     this.slot,
   });
@@ -350,8 +354,8 @@ class _Context {
   /// Components written inline, to emit after their parent.
   final List<Map<String, Object?>> hoisted;
 
-  /// Whether the value fills an action slot.
-  final bool isAction;
+  /// Whether the value fills an action slot, which its schema says.
+  bool get isAction => slot?.holdsAction ?? false;
 
   /// The binding of the enclosing component's `value`, which a check tests.
   final Map<String, Object?>? valueBinding;
@@ -368,18 +372,14 @@ class _Context {
     valueBinding: valueBinding,
   );
 
-  /// The context of an array item, when [key] is `items`, or of the map
-  /// entry [key], at the sub-schema of [slot] at that position.
-  _Context sub(Object suffix, String key) {
-    final _Slot? sub = slot?.sub(key);
-    return _Context(
-      idPrefix: '${idPrefix}_$suffix',
-      hoisted: hoisted,
-      isAction: sub?.holdsAction ?? false,
-      valueBinding: valueBinding,
-      slot: sub,
-    );
-  }
+  /// The context of the value at [suffix] inside this one, in [slot]: an
+  /// array item's or a map entry's.
+  _Context at(Object suffix, _Slot? slot) => _Context(
+    idPrefix: '${idPrefix}_$suffix',
+    hoisted: hoisted,
+    valueBinding: valueBinding,
+    slot: slot,
+  );
 }
 
 class _SurfaceCompiler {
@@ -791,7 +791,6 @@ class _SurfaceCompiler {
         _Context(
           idPrefix: '${id}_$property',
           hoisted: hoisted,
-          isAction: isAction(schema),
           slot: schema == null ? null : _Slot(schema, helper),
         ),
       );
@@ -941,13 +940,13 @@ class _SurfaceCompiler {
     SkippedNode() => throw A2uiValidationError(
       "'_' can only stand in for an argument.",
     ),
-    ArrayNode(:final List<ExpressNode> items) => [
-      for (final (int index, ExpressNode item) in items.indexed)
-        _value(item, context.sub(index, 'items')),
-    ],
+    ArrayNode(:final List<ExpressNode> items) => _list(items, context),
     MapNode(:final Map<String, ExpressNode> entries) => {
       for (final MapEntry<String, ExpressNode> entry in entries.entries)
-        entry.key: _value(entry.value, context.sub(entry.key, entry.key)),
+        entry.key: _value(
+          entry.value,
+          context.at(entry.key, context.slot?.property(entry.key)),
+        ),
     },
     VariableNode(:final String name) => _variable(name, context),
     CheckNode() => _check(node, context).$1,
@@ -1094,6 +1093,16 @@ class _SurfaceCompiler {
       'componentId': _value(template, context.child('template')),
       'path': path.path,
     };
+  }
+
+  /// The values of an array, each in the slot of the array's items, which is
+  /// resolved once since every item shares it.
+  List<Object?> _list(List<ExpressNode> items, _Context context) {
+    final _Slot? itemSlot = context.slot?.item;
+    return [
+      for (final (int index, ExpressNode item) in items.indexed)
+        _value(item, context.at(index, itemSlot)),
+    ];
   }
 
   /// `Event(name, context?, userMessage=?, context=?)`: an action sent to

@@ -472,6 +472,10 @@ class _Component {
 
   String get _id => '${json['id']}';
 
+  /// The helper of the component's catalog, set once [write] resolves it,
+  /// through which nested schemas are reached.
+  CatalogSchemaHelper? _helper;
+
   String write() {
     final id = json['id']! as String;
     final String varName = variables[id]!;
@@ -486,6 +490,7 @@ class _Component {
       component: true,
       subject: "Component '$id'",
     );
+    _helper = helper;
     final List<String> properties = helper.properties(type);
     for (final String key in json.keys) {
       if (key == 'id' || key == 'component' || key == 'checks') continue;
@@ -545,8 +550,11 @@ class _Component {
       Map() =>
         _binding(value) ??
             _call(value) ??
-            _mapLiteral(value, (key) => _propertySchema(schema, key)),
-      List() => _list(value, _itemSchema(schema)),
+            _mapLiteral(
+              value,
+              (key) => _helper?.resolvePropertySchema(schema, key),
+            ),
+      List() => _list(value, _helper?.resolveItemSchema(schema)),
       _ => _literal(value),
     };
   }
@@ -569,10 +577,13 @@ class _Component {
             name is String &&
             event.keys.every(keys.contains) &&
             (context == null || (context is Map && context.isNotEmpty)) &&
+            // Before v1.0 an event has no userMessage, and the compiler
+            // rejects `userMessage=`, so the object stays a map literal.
             (userMessage == null ||
-                userMessage is String ||
-                _binding(_asMap(userMessage)) != null ||
-                _call(_asMap(userMessage)) != null);
+                (_v1 &&
+                    (userMessage is String ||
+                        _binding(_asMap(userMessage)) != null ||
+                        _call(_asMap(userMessage)) != null)));
         if (isEvent) {
           final arguments = <String>[
             _string(name),
@@ -860,25 +871,6 @@ bool _equal(Object? a, Object? b) => switch ((a, b)) {
         [for (var i = 0; i < x.length; i++) i].every((i) => _equal(x[i], y[i])),
   _ => a == b,
 };
-
-Map<String, Object?>? _propertySchema(
-  Map<String, Object?>? schema,
-  String key,
-) {
-  if (schema == null) return null;
-  if (schema['properties'] case final Map<Object?, Object?> properties) {
-    if (properties[key] case final Map<Object?, Object?> property) {
-      return property.cast<String, Object?>();
-    }
-  }
-  return null;
-}
-
-Map<String, Object?>? _itemSchema(Map<String, Object?>? schema) =>
-    switch (schema?['items']) {
-      final Map<Object?, Object?> items => items.cast<String, Object?>(),
-      _ => null,
-    };
 
 A2uiValidationError _noNotation(String what) =>
     A2uiValidationError('$what has no Express notation.');

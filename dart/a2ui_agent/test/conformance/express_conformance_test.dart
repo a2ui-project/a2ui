@@ -62,13 +62,13 @@ const String _reservedPlainKeys =
     'function calls, so a map literal that uses them runs as written in v1.0 '
     'only.';
 
-/// Cases that state what v0.9 cannot, or that are already written against a
-/// v0.9 catalog, so they run in [SuiteVersion.v1_0] (as written) only, with
-/// the reason for each.
 const String _noUserMessage =
     'The v0.9 Action has no userMessage field, so an event carrying one runs '
     'as written in v1.0 only.';
 
+/// Cases that state what v0.9 cannot, or that are already written against a
+/// v0.9 catalog, so they run in [SuiteVersion.v1_0] (as written) only, with
+/// the reason for each.
 const Map<String, String> _v1OnlyCases = {
   'test_compile_express_event_user_message': _noUserMessage,
   'test_compile_express_event_user_message_binding_with_context':

@@ -116,17 +116,32 @@ class CatalogSchemaHelper {
     return check(schema);
   }
 
-  /// The schema [schema] declares for an array item, when [key] is `items`,
-  /// or for the property named [key] of an object, or null if it declares
-  /// none.
+  /// The schema the catalog declares for the items of an array, or null if
+  /// it declares none.
   ///
   /// Follows `$ref`s into the definitions of [catalog]'s validation schema,
   /// which bundles the common types, and the members of `allOf`, `oneOf` and
   /// `anyOf`, so that a nested slot such as `items: [{label, action}]` is
   /// found whichever way the catalog writes it.
-  Map<String, Object?>? resolveSubschema(
+  Map<String, Object?>? resolveItemSchema(Map<String, Object?>? schema) =>
+      _resolveAt(schema, null);
+
+  /// The schema the catalog declares for the property [name] of an object,
+  /// or `additionalProperties` when it declares no such property, or null.
+  ///
+  /// Follows `$ref`s and the members of `allOf`, `oneOf` and `anyOf` as
+  /// [resolveItemSchema] does. A property named `items` is looked up as a
+  /// property, not as the array items.
+  Map<String, Object?>? resolvePropertySchema(
     Map<String, Object?>? schema,
-    String key,
+    String name,
+  ) => _resolveAt(schema, name);
+
+  /// The schema at the property [property], or at the array items when
+  /// [property] is null.
+  Map<String, Object?>? _resolveAt(
+    Map<String, Object?>? schema,
+    String? property,
   ) {
     final Object? defsObj = catalog.validationSchema[r'$defs'];
     final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
@@ -135,13 +150,13 @@ class CatalogSchemaHelper {
 
     Map<String, Object?>? resolve(Map<String, Object?>? s) {
       if (s == null) return null;
-      if (key == 'items') {
+      if (property == null) {
         if (s['items'] case final Map<Object?, Object?> items) {
           return items.cast<String, Object?>();
         }
       } else {
-        if (_properties(s)[key] case final Map<Object?, Object?> property) {
-          return property.cast<String, Object?>();
+        if (_properties(s)[property] case final Map<Object?, Object?> found) {
+          return found.cast<String, Object?>();
         }
         if (s['additionalProperties'] case final Map<Object?, Object?> more) {
           return more.cast<String, Object?>();

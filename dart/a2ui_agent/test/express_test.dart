@@ -1090,6 +1090,203 @@ surface("s1")
       );
     });
 
+    /// The `root` component [block] compiles to, against [catalog].
+    Map<String, Object?> rootOf(CatalogApi catalog, String block) {
+      final List<AgentToRendererMessage> messages = ExpressCompiler([
+        catalog,
+      ]).compile(block);
+      final components =
+          (messages.single.toJson()['createSurface']! as Map)['components']!
+              as List;
+      return (components.single as Map).cast<String, Object?>();
+    }
+
+    const Map<String, Object?> openUrlFunction = {
+      'type': 'object',
+      'returnType': 'void',
+      'properties': {
+        '@call': {'const': 'openUrl'},
+        'args': {
+          'type': 'object',
+          'properties': {
+            'url': {'type': 'string'},
+          },
+          'required': ['url'],
+        },
+      },
+      'required': ['@call', 'args'],
+    };
+    const Map<String, Object?> wrappedOpenUrl = {
+      'functionCall': {
+        '@call': 'openUrl',
+        'args': {'url': 'https://a2ui.org'},
+      },
+    };
+
+    test(
+      'resolves a property named items as a property, not the array items',
+      () {
+        // The item schema is reached through a local $ref too.
+        final CatalogApi menu = Catalog.fromJson({
+          'catalogId': 'https://example.com/menu.json',
+          'protocolVersion': '1.0',
+          'components': {
+            'Menu': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Menu'},
+                'menu': {
+                  'type': 'object',
+                  'properties': {
+                    'items': {
+                      'type': 'array',
+                      'items': {r'$ref': r'#/$defs/MenuItem'},
+                    },
+                  },
+                },
+              },
+              'required': ['component', 'menu'],
+            },
+          },
+          'functions': {'openUrl': openUrlFunction},
+          r'$defs': {
+            'MenuItem': {
+              'type': 'object',
+              'properties': {
+                'label': {'type': 'string'},
+                'action': {r'$ref': r'common_types.json#/$defs/Action'},
+              },
+              'required': ['label', 'action'],
+            },
+          },
+        });
+        expect(
+          rootOf(
+            menu,
+            'root = Menu({items: [{label: "Docs", '
+            'action: openUrl("https://a2ui.org")}]})',
+          )['menu'],
+          {
+            'items': [
+              {'label': 'Docs', 'action': wrappedOpenUrl},
+            ],
+          },
+        );
+      },
+    );
+
+    test('finds action slots through allOf, anyOf, additionalProperties', () {
+      final CatalogApi mixins = Catalog.fromJson({
+        'catalogId': 'https://example.com/mixins.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Board': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Board'},
+              // The item schema is an allOf of two mixins, one of which holds
+              // the action under anyOf.
+              'cards': {
+                'type': 'array',
+                'items': {
+                  'allOf': [
+                    {r'$ref': r'#/$defs/Labelled'},
+                    {
+                      'anyOf': [
+                        {
+                          'type': 'object',
+                          'properties': {
+                            'action': {
+                              r'$ref': r'common_types.json#/$defs/Action',
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+              // Every entry of the map is an action.
+              'shortcuts': {
+                'type': 'object',
+                'additionalProperties': {
+                  r'$ref': r'common_types.json#/$defs/Action',
+                },
+              },
+            },
+            'required': ['component', 'cards'],
+          },
+        },
+        'functions': {'openUrl': openUrlFunction},
+        r'$defs': {
+          'Labelled': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+            },
+          },
+        },
+      });
+      final Map<String, Object?> root = rootOf(
+        mixins,
+        'root = Board([{label: "Docs", action: openUrl("https://a2ui.org")}], '
+        'shortcuts={help: openUrl("https://a2ui.org")})',
+      );
+      expect(root['cards'], [
+        {'label': 'Docs', 'action': wrappedOpenUrl},
+      ]);
+      expect(root['shortcuts'], {'help': wrappedOpenUrl});
+    });
+
+    test('follows a definition that refers to itself without looping', () {
+      final CatalogApi tree = Catalog.fromJson({
+        'catalogId': 'https://example.com/tree.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Tree': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Tree'},
+              'nodes': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/Node'},
+              },
+            },
+            'required': ['component', 'nodes'],
+          },
+        },
+        'functions': {'openUrl': openUrlFunction},
+        r'$defs': {
+          'Node': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'action': {r'$ref': r'common_types.json#/$defs/Action'},
+              'children': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/Node'},
+              },
+            },
+          },
+        },
+      });
+      expect(
+        rootOf(
+          tree,
+          'root = Tree([{label: "a", children: [{label: "b", '
+          'action: openUrl("https://a2ui.org")}]}])',
+        )['nodes'],
+        [
+          {
+            'label': 'a',
+            'children': [
+              {'label': 'b', 'action': wrappedOpenUrl},
+            ],
+          },
+        ],
+      );
+    });
+
     test('keeps a function call outside an action slot as a plain call', () {
       expect(
         items(
