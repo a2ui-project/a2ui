@@ -15,8 +15,8 @@ respect target boundaries:
    - **Purpose**: A2UI-specific JSON Schema definitions for types used across the v0.9.1 protocol.
    - **Dependencies**: `JSONSchema`, `OrderedJSON` (from `swift-json-schema`).
    - **Rule**: Common type schemas are generated from `specification/` via
-     `A2UISchemaGeneratorPlugin` as raw `JSONValue` definitions and registered into
-     `Context.remoteSchemaStorage` for `$ref` resolution.
+     `A2UISchemaGeneratorPlugin` as raw `JSONValue` definitions and registered in
+     `A2UICommonSchema.allSchemas` (passed as `remoteSchema` to `Context`) for `$ref` resolution.
 
 2. **`A2UICore`** (`swift/core/Sources/A2UICore/`):
    - **Purpose**: Stateful runtime engine managing message processing, JSON pointer evaluation,
