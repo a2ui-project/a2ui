@@ -52,6 +52,42 @@ describe('Catalog Types', () => {
     assert.strictEqual(catalog.functions.get('mockFunc'), mockFunc);
   });
 
+  it('defaults to v0.9 when constructed with the pre-1.0 argument order', () => {
+    const mockComponent = {name: 'MockComp', schema: z.object({})} satisfies ComponentApi;
+    const mockFunc = createFunctionImplementation(
+      {name: 'mockFunc', returnType: 'string', schema: z.object({})},
+      () => 'result',
+    );
+    const themeSchema = z.object({primaryColor: z.string()});
+
+    const legacy = new Catalog('legacy-cat', [mockComponent], [mockFunc], themeSchema, 'Use it');
+
+    assert.strictEqual(legacy.protocolVersion, '0.9');
+    assert.strictEqual(legacy.components.get('MockComp'), mockComponent);
+    assert.strictEqual(legacy.functions.get('mockFunc'), mockFunc);
+    assert.strictEqual(legacy.themeSchema, themeSchema);
+    assert.strictEqual(legacy.instructions, 'Use it');
+
+    const bare = new Catalog('bare-cat');
+    assert.strictEqual(bare.protocolVersion, '0.9');
+    assert.strictEqual(bare.components.size, 0);
+    assert.strictEqual(bare.functions.size, 0);
+  });
+
+  it('keeps the 1.0 argument order when a protocol version is given', () => {
+    const themeSchema = z.object({primaryColor: z.string()});
+    const withOptions = new Catalog('cat', '1.0', [], [], {themeSchema, instructions: 'A'});
+    assert.strictEqual(withOptions.protocolVersion, '1.0');
+    assert.strictEqual(withOptions.themeSchema, themeSchema);
+    assert.strictEqual(withOptions.instructions, 'A');
+
+    const withSchema = new Catalog('cat', '1.0', [], [], themeSchema, 'B');
+    assert.strictEqual(withSchema.themeSchema, themeSchema);
+    assert.strictEqual(withSchema.instructions, 'B');
+
+    assert.throws(() => new Catalog('cat', ''), /protocolVersion must be provided/);
+  });
+
   it('throws A2uiExpressionError when function is not found', () => {
     const catalog = new Catalog('test-cat', '1.0', []);
     const ctx = {} as any;

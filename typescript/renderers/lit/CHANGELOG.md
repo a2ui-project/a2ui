@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `<a2ui-surface>` tolerates a surface whose `componentsModel` has no `onCreated` or `onDeleted` event source, such as a partial test double, instead of throwing while subscribing to the root.
+
 ## 0.14.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.

@@ -1,5 +1,8 @@
 ## Unreleased
 
+- `new AngularCatalog(id, components?, functions?, themeSchema?, instructions?)` without a `protocolVersion` constructs a `'0.9'` catalog (deprecated overload), so catalogs written against 0.9.x keep constructing. `new AngularCatalog(id, protocolVersion, ...)` is unchanged.
+- (v0_9) Re-export `DefaultMarkdownRenderer` from `@a2ui/angular/v0_9`.
+
 ## 0.13.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.

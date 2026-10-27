@@ -732,11 +732,69 @@ export class Catalog<
   constructor(
     id: string,
     protocolVersion: ProtocolVersion | string,
-    components: T[] = [],
-    functions: F[] = [],
+    components?: ReadonlyArray<T>,
+    functions?: ReadonlyArray<F>,
     themeSchemaOrOptions?: z.ZodTypeAny | CatalogOptions,
     instructions?: string,
+  );
+  /**
+   * Initializes a new v0.9 `Catalog` with the pre-1.0 argument order.
+   *
+   * @deprecated Pass the protocol version as the second argument instead.
+   *   Kept so catalogs written against `@a2ui/web_core` 0.9.x keep
+   *   constructing without a `protocolVersion`.
+   * @param id Unique identifier for the catalog, usually a URI.
+   * @param components Component definitions to register.
+   * @param functions Function definitions to register.
+   * @param themeSchemaOrOptions Optional schema for this catalog's theme
+   *   parameters, or a `CatalogOptions` object.
+   * @param instructions Optional system instructions or usage guidelines.
+   */
+  constructor(
+    id: string,
+    components?: ReadonlyArray<T>,
+    functions?: ReadonlyArray<F>,
+    themeSchemaOrOptions?: z.ZodTypeAny | CatalogOptions,
+    instructions?: string,
+  );
+  constructor(
+    id: string,
+    protocolVersionOrComponents: ProtocolVersion | string | ReadonlyArray<T> = '0.9',
+    componentsOrFunctions: ReadonlyArray<T> | ReadonlyArray<F> = [],
+    functionsOrThemeSchemaOrOptions?: ReadonlyArray<F> | z.ZodTypeAny | CatalogOptions,
+    themeSchemaOrOptionsOrInstructions?: z.ZodTypeAny | CatalogOptions | string,
+    instructions?: string,
   ) {
+    let protocolVersion: ProtocolVersion | string;
+    let components: ReadonlyArray<T>;
+    let functions: ReadonlyArray<F>;
+    let themeSchemaOrOptions: z.ZodTypeAny | CatalogOptions | undefined;
+    let resolvedInstructions: string | undefined;
+
+    if (typeof protocolVersionOrComponents !== 'string') {
+      // Legacy v0.9 signature: `new Catalog(id, components, functions, ...)`.
+      protocolVersion = '0.9';
+      components = protocolVersionOrComponents ?? [];
+      functions = (componentsOrFunctions as ReadonlyArray<F>) ?? [];
+      themeSchemaOrOptions = functionsOrThemeSchemaOrOptions as
+        | z.ZodTypeAny
+        | CatalogOptions
+        | undefined;
+      resolvedInstructions = themeSchemaOrOptionsOrInstructions as string | undefined;
+    } else {
+      protocolVersion = protocolVersionOrComponents;
+      components = (componentsOrFunctions as ReadonlyArray<T>) ?? [];
+      functions = Array.isArray(functionsOrThemeSchemaOrOptions)
+        ? (functionsOrThemeSchemaOrOptions as ReadonlyArray<F>)
+        : [];
+      themeSchemaOrOptions = (
+        Array.isArray(functionsOrThemeSchemaOrOptions)
+          ? themeSchemaOrOptionsOrInstructions
+          : (functionsOrThemeSchemaOrOptions ?? themeSchemaOrOptionsOrInstructions)
+      ) as z.ZodTypeAny | CatalogOptions | undefined;
+      resolvedInstructions = instructions;
+    }
+
     if (!protocolVersion) {
       throw new A2uiCatalogError('protocolVersion must be provided.');
     }
@@ -760,7 +818,7 @@ export class Catalog<
       ? {themeSchema: themeSchemaOrOptions}
       : (themeSchemaOrOptions ?? {});
     this.themeSchema = options.themeSchema;
-    this.instructions = options.instructions ?? instructions;
+    this.instructions = options.instructions ?? resolvedInstructions;
     this.schemaUri = options.schemaUri;
     this.schemaId = options.schemaId;
     this.title = options.title;

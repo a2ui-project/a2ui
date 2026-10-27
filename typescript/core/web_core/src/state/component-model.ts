@@ -30,6 +30,14 @@ export class ComponentModel {
   readonly onUpdated: EventSource<ComponentModel> = this._onUpdated;
 
   /**
+   * The catalog that defines this component's type.
+   *
+   * Always set by the message processor. Only pre-1.0 callers that construct
+   * a `ComponentModel` directly, such as unit tests, may leave it out.
+   */
+  readonly catalog!: Catalog<any, any>;
+
+  /**
    * Initializes a new `ComponentModel` instance.
    *
    * @param id The unique identifier for this component.
@@ -41,10 +49,11 @@ export class ComponentModel {
     readonly id: string,
     readonly type: string,
     initialProperties: Record<string, any>,
-    readonly catalog: Catalog<any, any>,
+    catalog?: Catalog<any, any>,
     public metadata?: Record<string, unknown>,
   ) {
     this._properties = initialProperties;
+    this.catalog = catalog as Catalog<any, any>;
   }
 
   /**

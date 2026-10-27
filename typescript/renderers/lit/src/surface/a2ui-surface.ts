@@ -104,21 +104,21 @@ export class A2uiSurface extends LitElement {
     this._hasRoot = !!components?.get('root');
     if (!components) return;
 
-    const created = components.onCreated.subscribe(comp => {
+    const created = components.onCreated?.subscribe(comp => {
       if (comp.id === 'root') {
         this._hasRoot = true;
         this.requestUpdate();
       }
     });
-    const deleted = components.onDeleted.subscribe(id => {
+    const deleted = components.onDeleted?.subscribe(id => {
       if (id === 'root') {
         this._hasRoot = !!components.get('root');
         this.requestUpdate();
       }
     });
     this.unsubscribe = () => {
-      created.unsubscribe();
-      deleted.unsubscribe();
+      created?.unsubscribe();
+      deleted?.unsubscribe();
     };
   }
 

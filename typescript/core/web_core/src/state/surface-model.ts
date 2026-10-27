@@ -173,7 +173,11 @@ export class SurfaceModel<
      * catalog explicitly, or `undefined` when the surface names none.
      */
     readonly defaultCatalog: Catalog<T, F> | undefined,
-    availableCatalogs: ReadonlyMap<string, Catalog<T, F>> | null | undefined = new Map(),
+    availableCatalogs:
+      | ReadonlyMap<string, Catalog<T, F>>
+      | Record<string, unknown>
+      | null
+      | undefined = new Map(),
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
     dataModel?: DataModel,
@@ -191,9 +195,17 @@ export class SurfaceModel<
       availableCatalogs !== null &&
       !(availableCatalogs instanceof Map)
     ) {
-      throw new TypeError(
-        'availableCatalogs must be a Map, or undefined/null. Note that availableCatalogs is now the 3rd argument to SurfaceModel and theme is the 4th argument.',
-      );
+      if (typeof availableCatalogs === 'object' && !Array.isArray(availableCatalogs)) {
+        // Legacy v0.9 signature: `new SurfaceModel(id, catalog, theme, ...)`.
+        // A plain object in the third slot is the theme of a pre-1.0 caller,
+        // which had no catalogs to pass here.
+        this.theme = availableCatalogs;
+        availableCatalogs = undefined;
+      } else {
+        throw new TypeError(
+          'availableCatalogs must be a Map, or undefined/null. Note that availableCatalogs is now the 3rd argument to SurfaceModel and theme is the 4th argument.',
+        );
+      }
     }
     const catalogs = new Map(availableCatalogs ?? []);
     if (defaultCatalog?.id && !catalogs.has(defaultCatalog.id)) {
@@ -209,10 +221,11 @@ export class SurfaceModel<
    *
    * @deprecated Use {@link defaultCatalog}. Renamed for symmetry with the other
    *   SDKs now that a surface can carry more than one catalog. This alias will
-   *   be removed in a future release.
+   *   be removed in a future release. Typed as always present because every
+   *   pre-1.0 surface has a default catalog.
    */
-  get catalog(): Catalog<T, F> | undefined {
-    return this.defaultCatalog;
+  get catalog(): Catalog<T, F> {
+    return this.defaultCatalog!;
   }
 
   /**
