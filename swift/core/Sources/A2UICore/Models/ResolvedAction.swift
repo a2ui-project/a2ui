@@ -35,6 +35,8 @@ public struct ResolvedAction: Sendable {
   /// data items has an identical ``identity`` but dispatches values from a different scope.
   public let dataContextPath: String?
 
+  package let rawUserMessage: JSONValue?
+
   private let triggerClosure: @Sendable @MainActor () -> Void
 
   /// Creates a new resolved action with the specified identity and
@@ -43,11 +45,13 @@ public struct ResolvedAction: Sendable {
     identity: Identity,
     sourceComponentID: String? = nil,
     dataContextPath: String? = nil,
+    rawUserMessage: JSONValue? = nil,
     trigger: @escaping @Sendable @MainActor () -> Void
   ) {
     self.identity = identity
     self.sourceComponentID = sourceComponentID
     self.dataContextPath = dataContextPath
+    self.rawUserMessage = rawUserMessage
     self.triggerClosure = trigger
   }
 
@@ -60,7 +64,9 @@ public struct ResolvedAction: Sendable {
 
 extension ResolvedAction: Equatable {
   public static func == (lhs: ResolvedAction, rhs: ResolvedAction) -> Bool {
-    lhs.identity == rhs.identity && lhs.dataContextPath == rhs.dataContextPath
+    lhs.identity == rhs.identity
+      && lhs.dataContextPath == rhs.dataContextPath
+      && lhs.rawUserMessage == rhs.rawUserMessage
   }
 }
 

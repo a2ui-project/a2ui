@@ -57,13 +57,8 @@ const Set<String> _reservedHelpers = {'Event', '_template'};
 class ExpressCompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ///
-  /// [catalogs] are linked with one another, as by [linkCatalogs], so a
-  /// cross-catalog `$ref` resolves; the catalogs passed in are not changed.
-  ExpressCompiler(List<CatalogApi> catalogs)
-    : catalogs = linkCatalogs(catalogs);
+  ExpressCompiler(this.catalogs);
 
-  /// The catalogs this compiler knows, linked with one another.
   final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _catalogHelpers = {

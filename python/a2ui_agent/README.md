@@ -61,8 +61,6 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`lexer.py`**: Defines `BlockLexer` for sentinel-tag tokenization (`<a2ui-json>...</a2ui-json>`).
 - **`errors.py`**: Defines `A2uiCompilationError` and its subclasses `A2uiCompilationParseError` and `A2uiCompilationValidationError`.
 - **`messages.py`**: `to_message_models` and `to_message_dicts` convert between message dictionaries and typed models.
-- **`payload_fixer.py`**: Utilities to automatically correct common LLM output
-  issues in A2UI payloads.
 
 ### Prompt & Inference Formats (`src/a2ui/prompt`, `src/a2ui/inference_formats`)
 
