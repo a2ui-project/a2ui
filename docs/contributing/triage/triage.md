@@ -10,7 +10,8 @@ Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 ## References
 
 - [How the automated triage bot works](automation.md)
-- [Standard triage replies](templates.md)
+- [Standard triage replies for issues](templates-issues.md)
+- [Standard triage replies for PRs](templates-prs.md)
 - [Decisions made for triage process](decisions.md)
 
 ## Principles
@@ -86,7 +87,7 @@ For items where you need input from the team, follow this process (passing any r
 3. drive the discussion to resolution
 4. remove the label `status: needs-team-input`
 
-Use [standard replies](templates.md) that are provided for standard cases.
+Use the standard replies provided for [issues](templates-issues.md) and [PRs](templates-prs.md) in standard cases.
 
 Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (without P0-P4 label and _haven't_ had `status: needs-triage`, `status: needs-team-input` or `status: waiting-for-author-response` added to them). If you find such issues, follow the `status: needs-triage` workflow above (This is just to check for issues which somehow fall through the cracks).
 
