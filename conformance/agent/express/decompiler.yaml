@@ -865,7 +865,7 @@
         value: {}
   expect_contains:
     - 'surface("s1")'
-    - '$/ = {}'
+    - "$/ = {}"
   expect_round_trip: true
 
 - name: test_decompile_express_map_with_keys_named_like_express_constructs
