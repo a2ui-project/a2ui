@@ -135,6 +135,11 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     assert.strictEqual(emittedMessage.version, 'v1.0');
     assert.strictEqual(emittedMessage.callAgentFunction.functionCallId, 'agent-call-100');
+    assert.deepStrictEqual(emittedMessage.callAgentFunction.callFunction, {
+      '@call': 'fetchRemoteData',
+      catalogId: 'basic',
+      args: {query: 'test'},
+    });
 
     handler.handleAgentFunctionResponse({
       version: 'v1.0',
