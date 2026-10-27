@@ -520,7 +520,7 @@ struct ValidatorConformanceTests {
 
   private func assertErrorDetails(
     error: Error,
-    expectedDetails: [ValidationErrorDetail],
+    expectedDetails: [A2UIErrorDetail],
     testName: String
   ) {
     let actualDetails = (error as? A2UIValidationError)?.details ?? []
@@ -528,17 +528,12 @@ struct ValidatorConformanceTests {
       let found = actualDetails.contains { actualDetail in
         detailMatches(actual: actualDetail, expected: expectedDetail)
       }
-      #expect(
-        found,
-        """
-        [\(testName)] Expected detail with path '\(expectedDetail.path)', \
-        code '\(expectedDetail.code)', message '\(expectedDetail.message)' in \(actualDetails)
-        """
-      )
+      let message = "[\(testName)] Expected detail with path '\(expectedDetail.path)', code '\(expectedDetail.code)', message '\(expectedDetail.message)' in \(actualDetails)"
+      #expect(found, Comment(rawValue: message))
     }
   }
 
-  private func detailMatches(actual: ValidationErrorDetail, expected: ValidationErrorDetail) -> Bool {
+  private func detailMatches(actual: A2UIErrorDetail, expected: A2UIErrorDetail) -> Bool {
     guard actual.code == expected.code,
       detailPathMatches(actual: actual.path, expected: expected.path)
     else {

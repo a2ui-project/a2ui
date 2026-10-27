@@ -393,7 +393,7 @@ struct RPCConformanceTests {
     let call =
       outboundCall["callFunction"]?["@call"]?.stringValue
       ?? outboundCall["callFunction"]?["call"]?.stringValue ?? ""
-    let timeoutMs = outboundCall["timeoutMs"]?.numberValue ?? 10.0
+    let timeoutMs = outboundCall["timeoutMs"]?.doubleValue ?? 10.0
 
     do {
       _ = try await rpcHandler.callAgentFunction(
