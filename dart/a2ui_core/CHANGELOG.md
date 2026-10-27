@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `regex` with an invalid pattern puts the parse message in the error's
+  `details` instead of the `FormatException` object, so the error encodes as
+  JSON.
 - **Breaking:** Error and warning listeners run after the call that found
   the problem returns, never during it, so a listener may update UI state
   directly. Delivery is a microtask later. A test that checks what a
