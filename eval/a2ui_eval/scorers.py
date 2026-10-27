@@ -379,7 +379,16 @@ def _solver_failure_score(state: TaskState) -> Score | None:
         )
     answer_text = state.output.completion or ""
     if answer_text.strip().startswith("Compilation/validation failed:"):
-        first_line = answer_text.strip().splitlines()[0]
+        lines = [
+            line.strip()
+            for line in answer_text.strip().splitlines()
+            if line.strip()
+        ]
+        first_line = (
+            f"Compilation/validation failed: {lines[1]}"
+            if len(lines) > 1 and lines[0] == "Compilation/validation failed:"
+            else lines[0]
+        )
         return _stage12_score(
             state,
             0.0,

@@ -635,6 +635,21 @@ async def test_scorer_marks_solver_failure_in_metadata() -> None:
     assert score is not None
     assert score.value == 0.0
     assert state.metadata[STAGE12_PASSED_KEY] is False
+    assert score.explanation == "Compilation/validation failed: nope"
+
+
+@pytest.mark.asyncio
+async def test_scorer_preserves_multiline_solver_failure_explanation() -> None:
+    state = _state_with_completion(
+        "Compilation/validation failed:\nComponent 'root' references missing node"
+    )
+    score = await a2ui_scorer(version="0.9.1")(state, Target(""))
+    assert score is not None
+    assert score.value == 0.0
+    assert (
+        score.explanation
+        == "Compilation/validation failed: Component 'root' references missing node"
+    )
 
 
 # --- measured_model_graded_qa: Stage 3 gating ------------------------------
