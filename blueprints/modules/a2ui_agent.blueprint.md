@@ -82,6 +82,7 @@ a2ui_agent/
 │       ├── compiler           # ExpressCompiler class
 │       ├── decompiler         # ExpressDecompiler class
 │       ├── parser             # ExpressParser class
+│       ├── response_stream    # ExpressResponseStream, which reads one streamed response block by block
 │       └── prompt_generator   # ExpressPromptGenerator class
 ├── parser/                    # Common Parser contracts and data structures
 │   ├── parser                 # Abstract Parser base class
@@ -394,13 +395,18 @@ class Parser(ABC):
 
     @property
     def supports_streaming(self) -> bool:
-        """Whether this parser can read a response incrementally through open_stream.
+        """Whether this parser implements open_stream.
 
-        A format can only stream if a partial block already means something. Direct JSON
-        can, because an unfinished object can be healed and re-read as it grows. Express
-        cannot: its notation resolves references across the whole block, so a block is
-        read once it is closed and not before. A parser that returns False here buffers
-        the response and is parsed whole through parse_response.
+        Every format an SDK ships streams, so its parser returns True. How soon a stream
+        emits a payload depends on the format. Direct JSON emits each message as soon as
+        it reads, because an unfinished object can be healed and re-read as it grows.
+        Express emits a block once its close tag arrives, because its notation resolves
+        references across the whole block. Either way, text reaches the caller as it
+        arrives, and an agent streams a response the same way whatever the format.
+
+        The default False is for a format added outside the SDK that has no stream yet.
+        An agent using such a format buffers the response and parses it whole through
+        parse_response.
         """
         return False
 
@@ -411,8 +417,8 @@ class Parser(ABC):
     ) -> ResponseStream:
         """Opens a stream that reads one response chunk by chunk.
 
-        Implemented only by parsers whose supports_streaming is True. The default refuses,
-        so that a caller handed a non-streaming parser fails at the call rather than
+        Implemented by every parser whose supports_streaming is True. The default refuses,
+        so that a caller handed a parser without a stream fails at the call rather than
         silently receiving nothing.
 
         Args:
@@ -437,9 +443,19 @@ class ResponseStream(ABC):
 
     Each message the stream emits has been applied to its state, in the order emitted, and
     no other message has, so the state mirrors what a renderer that received the emitted
-    parts holds. What earlier chunks emitted cannot be rolled back, since the renderer has
-    already received it. Each feed runs inside a transaction of the state, so the one
-    thing a failure undoes is what the failing chunk applied, which it never returned.
+    parts holds. A growing `updateDataModel` is the one exception: it is emitted again as
+    its value grows, and applied again only once it closes. What earlier chunks emitted
+    cannot be rolled back, since the renderer has already received it. Each feed runs
+    inside a transaction of the state, so the one thing a failure undoes is what the
+    failing chunk applied, which it never returned.
+
+    How soon a payload is emitted depends on the format (see supports_streaming and
+    section 4). Text outside blocks is emitted as it arrives, less a tail that could
+    still start an open tag, which the next chunk settles. A block is checked on its
+    own once it closes: the trees of the surfaces it touched must be complete then. So
+    a response whose first block names a component that a later block defines is
+    accepted by parse_response, which checks a response as a whole, and rejected by a
+    stream, which has already sent the first block.
 
     When the stream fails, in feed or in close, the surfaces that the open block had
     already emitted messages to are marked checked with `RendererState.mark_checked`: the
@@ -463,10 +479,10 @@ class ResponseStream(ABC):
         """Reads the next chunk and returns the parts that became ready since the last one.
 
         If it raises, the stream has ended: a response cannot be read further once part of
-        it is rejected, and a later feed raises too, with an error that says the stream has
-        ended. A chunk that raises returns nothing, so what it applied is undone, including
-        a block that closed earlier in the same chunk, and the state holds only what earlier
-        chunks emitted.
+        it is rejected, and a later feed raises too, with the language's invalid-state
+        error (Python's ValueError) saying the stream has ended. A chunk that raises
+        returns nothing, so what it applied is undone, including a block that closed
+        earlier in the same chunk, and the state holds only what earlier chunks emitted.
 
         Raises:
             A2uiParseError: If a block cannot be read.
@@ -479,11 +495,15 @@ class ResponseStream(ABC):
         """Ends the response and returns the parts still held back.
 
         Called after the last chunk: text that could still have started a tag is held until
-        then, and an unwrapped response is checked as a whole only then. Closing a stream
-        that has ended returns nothing.
+        then, and an unwrapped response is checked as a whole only then. A block that the
+        end of the response cut off is compiled with `is_final` False, as parse_response
+        compiles one: a format that can read part of a block, such as Express, applies
+        what it compiles and marks the surfaces it touched checked without checking their
+        trees, and Direct JSON raises. Closing a stream that has ended returns nothing.
 
         Raises:
-            A2uiParseError: If a block is still open.
+            A2uiParseError: If a block is still open and the format cannot read part of
+                a block.
             A2uiValidationError: If the messages the response left behind are rejected.
         """
         pass
@@ -613,10 +633,10 @@ The processor inside the state applies messages with references, a missing root 
 
 Undoing costs what the undone messages changed, not the size of the surfaces they touched. A state keeps an undo log:
 
-1. The processor checks a message whole before it changes a surface, so a rejected message changes nothing.
-2. Each applied message records what it replaced: the components it added or replaced, and the data model value at its path. A failed transaction or `apply` reverts those records in reverse order.
+1. The processor checks a message whole before it changes a surface, so a rejected message changes nothing. Where an SDK's core cannot yet check part of a message first, the state undoes that part as soon as the message is rejected (see "Where the SDKs differ").
+2. Each applied message records what it replaced: the components it added or replaced, with their positions, and the data model value at its path. A failed transaction or `apply` reverts those records in reverse order.
 3. Core updates a component in place when a message names an existing id with the same type and catalog, so the record holds a copy of the component's previous properties, not a reference to the object the update then changes.
-4. A deleted surface is the one change recorded whole. It is restored by replaying it through the processor, which also restores the children its components find through other catalogs. The replay keeps each component's own `catalogId`, so a v1.0 surface whose components come from several catalogs comes back as it was, and it restores the v0.8 updates buffered for the surface.
+4. A deleted surface is the one change recorded whole. The state keeps the surface it removed and puts it back as it was, with each component's own `catalogId`, so a v1.0 surface whose components come from several catalogs comes back unchanged. It is not replayed through the processor: the processor would check the surface again as one message, and could reject a surface that it accepted when many messages built it. The v0.8 updates buffered for the surface come back from their own records in the log.
 5. The log also records the state's own bookkeeping: the components changed since the surface's tree was last checked (what `check_topology` holds a later turn to), the effect of `mark_checked`, the surfaces a payload state assumes, and the v0.8 updates buffered before `beginRendering`.
 6. A transaction is a position in the log. A failed transaction reverts the log to its own position, so a failed inner transaction undoes only what was applied inside it, and the outer one goes on.
 
@@ -662,23 +682,28 @@ Parsing a response whole, and streaming it in chunks of a few tokens, take time 
 
 Every SDK must meet three requirements for this to hold. Any one of them left out makes a response of n messages to one surface take time that grows with the square of n:
 
-1. Core: under a `ValidationConfig` that defers the graph checks, the processor checks an `updateComponents` against the components it changes. It does not copy the surface's components or walk the whole surface for each message; see [`a2ui_core.blueprint.md`](a2ui_core.blueprint.md).
+1. Core: under a `ValidationConfig` that defers the graph checks, the processor checks an `updateComponents` against the components it changes. It does not copy the surface's components or walk the whole surface for each message. It may fall back to a whole-surface check when what it recorded cannot show that an update passes, such as for the first update to a surface or after a state reverts a change, as long as the fallback does not run for every message of a response; see [`a2ui_core.blueprint.md`](a2ui_core.blueprint.md).
 2. `RendererState`: `apply` and `transaction` cost what they change. The state keeps an undo log, as `RendererState` describes, and never copies a surface when a message is applied or a transaction opens.
-3. `ResponseStream`: a stream reads each chunk once. The scan for the close tag and the read of the open block resume where the previous chunk left them. A message that has closed is not read or checked again. A message that grows in place is checked for what it gains: an `updateComponents` for the components it adds, and an `updateDataModel` for the lists and maps its value gains. The `updateDataModel` is applied again once it closes.
+3. `ResponseStream`: a stream reads each chunk once. The scan for the close tag and the read of the open block resume where the previous chunk left them, and the block text is not copied whole for each chunk. While a block is open, a message that has closed is not read or checked again. A message that grows in place is checked for what it gains: an `updateComponents` for the components it adds, and an `updateDataModel` for the lists and maps its value gains. The `updateDataModel` is applied again once it closes. When the block closes, it is read and applied once more, in full. A format that emits a block only once it closes, such as Express, compiles it once, then.
 
-Only `check_topology` walks a whole surface: once for a response parsed whole, and once for each block of a stream that touches the surface.
+Apart from the fallback in requirement 1, only `check_topology` walks a whole surface: once for a response parsed whole, and once for each block of a stream that touches the surface.
 
 #### Where the SDKs differ
 
-The SDKs implement this interface: Python ([#3326](https://github.com/a2ui-project/a2ui/pull/3326), [#3268](https://github.com/a2ui-project/a2ui/pull/3268) to [#3271](https://github.com/a2ui-project/a2ui/pull/3271)), TypeScript ([#3327](https://github.com/a2ui-project/a2ui/pull/3327), [#3278](https://github.com/a2ui-project/a2ui/pull/3278), [#3279](https://github.com/a2ui-project/a2ui/pull/3279)) and Dart ([#3276](https://github.com/a2ui-project/a2ui/pull/3276), [#3277](https://github.com/a2ui-project/a2ui/pull/3277)). All three keep an undo log, and Python and TypeScript meet all three requirements of "Cost of a response". The SDKs differ from this document, and from each other, in these places. Each is a gap to fix in the SDK, and its entry is removed once the SDKs follow the rule:
+The SDKs implement this interface: Python ([#3326](https://github.com/a2ui-project/a2ui/pull/3326), [#3268](https://github.com/a2ui-project/a2ui/pull/3268) to [#3271](https://github.com/a2ui-project/a2ui/pull/3271)), TypeScript ([#3327](https://github.com/a2ui-project/a2ui/pull/3327), [#3278](https://github.com/a2ui-project/a2ui/pull/3278), [#3279](https://github.com/a2ui-project/a2ui/pull/3279)) and Dart ([#3276](https://github.com/a2ui-project/a2ui/pull/3276), [#3277](https://github.com/a2ui-project/a2ui/pull/3277)). All three keep an undo log, restore a deleted surface without replaying it, and check a growing `updateComponents` for the components it adds. The SDKs differ from this document, and from each other, in these places. Each is a gap to fix in the SDK, and its entry is removed once the SDKs follow the rule:
 
-1. Stream reads: Dart resumes the close-tag scan and the read of the open block, but builds a new string of the whole block text for every chunk, and applies a growing message again whole rather than checking what it gains (requirement 3).
-2. `compile`: Dart's has no `is_final` argument, so a cut Express block raises rather than compiling as far as it goes.
-3. Errors: Dart lets an error that is not an A2UI error escape from `compile`, such as a `StateError` from the Express compiler, and its errors carry no `partial_results`.
-4. `transaction`: Dart does not reject a callback that returns a future.
-5. v0.8: only Python implements a v0.8 state.
-6. `validate_payload`: Python and TypeScript accept one message on its own. Dart's signature takes a list of messages.
-7. `accepts_state`: Python and TypeScript compare normalized protocol versions. Dart compares the version strings, so a v0.9.1 state is refused by a v0.9 processor, although `RendererState` treats the two as one version.
+1. Express streaming: Python's and Dart's `ExpressParser` do not open a stream yet, so `open_stream` raises for the default format. TypeScript adds the block-by-block stream in [#3633](https://github.com/a2ui-project/a2ui/pull/3633).
+2. Stream reads: Dart copies the whole block text for every chunk, and builds a new list of a growing message's components and a new set of their ids for every chunk (requirement 3).
+3. Growing data model: Python checks nothing in a growing `updateDataModel` until it closes, so a value the close then rejects has already been emitted (requirement 3).
+4. Core fallback: Dart's processor checks the composition constraints of an update against the whole surface whenever a catalog other than the surface's default declares any (requirement 1).
+5. Message checks: Python's core processor can change a surface before rejecting a `createSurface` whose components or data model it rejects, or a data model update that fails part way. Its `RendererState` undoes these changes at once (undo log rule 1).
+6. `compile`: Dart's has no `is_final` argument, so a cut Express block raises rather than compiling as far as it goes.
+7. Errors: Dart lets an error that is not an A2UI error escape from `compile`, such as a `StateError` from the Express compiler, and its errors carry no `partial_results`. TypeScript names its parse error `ParseError` rather than `A2uiParseError`.
+8. `transaction`: Dart does not reject a callback that returns a future.
+9. v0.8: only Python implements a v0.8 state.
+10. `validate_payload`: Python and TypeScript accept one message on its own. Dart's signature takes a list of messages.
+11. `accepts_state`: TypeScript compares normalized protocol versions. Python and Dart compare the exact versions, so a v0.9.1 state is refused by a v0.9 processor, although `RendererState` treats the two as one version.
+12. Examples: TypeScript checks a processor's examples in `A2uiGenerator.create_processor`, not in the `A2uiRequestProcessor` constructor, so a processor constructed directly does not check them.
 
 ---
 
@@ -952,6 +977,7 @@ class A2uiRequestProcessor:
             A2uiCatalogError: If no catalogs are given, or `state` holds other catalogs, in
                 another order or of other versions, as accepts_state decides. The order
                 matters because it is the priority order the state resolves catalogs in.
+            A2uiValidationError: If an example is rejected by validate_payload.
         """
         pass
 
@@ -1174,7 +1200,15 @@ class DirectJsonPromptGenerator(PromptGenerator):
         self.allowed_messages = allowed_messages
 
     def generate(self) -> str:
-        """Renders system instructions containing pruned JSON schemas inside <a2ui_schema> tags and <a2ui-json> output instructions.
+        """Renders the base rules, then the catalog schemas, then the examples.
+
+        The base rules are the workflow rules, including the <a2ui-json> output
+        instructions, and the protocol schemas: the agent-to-renderer schema, pruned to
+        allowed_messages, and the common types the catalogs use. The protocol schemas
+        belong to the base rules rather than to a catalog, so output that combines
+        several catalogs' instructions, such as a skill, holds them once. Each catalog's
+        schema, pruned by its transformers, follows. Each schema sits between
+        `---BEGIN A2UI JSON SCHEMA---` and `---END A2UI JSON SCHEMA---` lines.
 
         Returns:
             Formatted system prompt instruction snippet string.
@@ -1205,11 +1239,15 @@ class DirectJsonParser(Parser):
         """Direct JSON reads incrementally, so this parser implements open_stream."""
         return True
 
-    def compile(self, format_content: str) -> list[AgentToRendererMessage]:
+    def compile(
+        self, format_content: str, is_final: bool = True
+    ) -> list[AgentToRendererMessage]:
         """Parses and fixes JSON payload content string into AgentToRendererMessage objects, without checking them.
 
         Args:
             format_content: Raw JSON string extracted from <a2ui-json> tags.
+            is_final: False for a block cut off before its close tag. Direct JSON does
+                not compile part of a block, so it raises A2uiParseError.
 
         Returns:
             List of compiled AgentToRendererMessage objects.
@@ -1238,7 +1276,7 @@ class DirectJsonParser(Parser):
 
 `DirectJsonResponseStream` heals the partial JSON of each chunk, healing the values of `progressive_keys` in real time. It emits a message once the message reads and its state accepts it, and again each time a later chunk changes it. Only `updateComponents` and `updateDataModel` (v0.8's `surfaceUpdate` and `dataModelUpdate`) are emitted while they grow. Any other message, such as `createSurface`, v0.8's `beginRendering`, `deleteSurface` or `callRendererFunction`, is held until its object closes, so it is emitted once, and the messages after it wait with it. A message the state rejects, such as an update to a surface that does not exist yet, is held back with the messages after it, and the block raises when it closes. From v1.0 a component is held until its object closes, so an `updateComponents` whose components have closed cannot change, and the chunk that closes a rejected one raises.
 
-The stream checks each message against the state rather than building a processor per message, and keeps no copy of the surfaces of its own. It reads each chunk once, as "Cost of a response" requires: it resumes after the last message that closed, and checks a growing message for what it gains. When a block closes, the messages it holds are applied in full and the trees of the surfaces it touched are checked.
+The stream checks each message against the state rather than building a processor per message, and keeps no copy of the surfaces of its own. It reads each chunk once, as "Cost of a response" requires: it resumes after the last message that closed, and checks a growing message for what it gains. When a block closes, it is read once more, the messages it holds are applied in full, and the trees of the surfaces it touched are checked. A response that ends inside a block raises on `close`, since Direct JSON does not compile part of a block.
 
 ---
 
@@ -1253,6 +1291,7 @@ The Express format package under `a2ui/inference_formats/express/` contains:
 - `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures.
 - `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
 - `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.
+- `response_stream`: `ExpressResponseStream` (subclassing `ResponseStream`), reading a streamed response block by block.
 
 ```python
 class ExpressFormatFactory(InferenceFormatFactory):
@@ -1268,7 +1307,15 @@ class ExpressFormatFactory(InferenceFormatFactory):
         self.allowed_messages = allowed_messages
 ```
 
-Express does not stream. `ExpressParser.supports_streaming` is False and its `open_stream` raises: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
+Express streams a block at a time. `ExpressParser.supports_streaming` is True, and its `open_stream` returns an `ExpressResponseStream`, so an agent streams an Express response as it streams a Direct JSON one:
+
+1. Text outside blocks is emitted as it arrives, less a tail that could still start an open tag, or a Markdown fence around one, which the next chunk settles. A fence line right before an open tag or right after a close tag is dropped, as `unwrap` drops it.
+2. A block is held until its close tag arrives. It is then compiled whole, applied to the state and its touched trees checked in one transaction, and emitted as one `A2uiPart`. The statements of an open block are not applied as they arrive: an Express block resolves references across its whole body, so a partial block names components that are not yet defined.
+3. A block the model wrote without its open tag, which `parse_response` recovers from the close tag, is read as text, since the text before the close tag has been emitted by the time the tag arrives.
+4. A response read with `wrapped` False is one block, compiled and applied on `close`.
+5. A response that ends inside a block is compiled on `close` as far as it goes, as `parse_response` compiles a cut-off block, and the surfaces it touched are marked checked without checking their trees.
+
+The stream resumes the close-tag scan where the previous chunk left it and compiles each block once, so it takes time in proportion to the response. A stream that applies the statements of an open block as they arrive needs a streaming Express compiler, which is a follow-up ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
 
 #### Grammar and parser generation
 
@@ -1292,7 +1339,7 @@ generator = A2uiGenerator(
         CatalogConfig(BasicCatalog("v1.0")),
         CatalogConfig.from_path("./catalogs/custom_catalog.json"),
     ],
-    examples=load_examples("./prompts/examples/**")
+    examples=example_turns,  # Each turn is a list of AgentToRendererMessage objects.
 )
 
 # 2. In Request Handler: Negotiate this request's processor from the capabilities the client sent.
@@ -1315,7 +1362,8 @@ response_parts = processor.parse_response(llm_output_text, state=conversation_st
 
 # 5. Deliver A2UI payloads to the renderer
 
-# Streaming instead of step 4: each part is sent as soon as it is checked.
+# Streaming instead of step 4: each part is sent as soon as it is checked. Every format
+# streams: Direct JSON sends each message as it reads, Express each block once it closes.
 stream = processor.open_stream(state=conversation_state)
 for chunk in myagent.stream_llm(processor.prompt_snippet, request_context):
     send(stream.feed(chunk))
@@ -1336,12 +1384,12 @@ The suites covering this document live under `conformance/agent/`:
 | `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                              |
 | `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
 | `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
-| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for the one format that streams                      |
+| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream` for Direct JSON                                       |
 | `<format>/scaling.yaml`               | How the time to parse or stream a payload grows with the payload; see "Cost of a response"      |
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 
-There is no `express/response_streaming.yaml`, because Express does not stream. Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
+There is no `express/response_streaming.yaml` yet: only one SDK streams Express so far, and the suite belongs here once the others do. Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 

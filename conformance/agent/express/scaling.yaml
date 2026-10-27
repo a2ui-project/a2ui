@@ -18,8 +18,8 @@
 # 4n. Its `max_ratio` is the largest value allowed for the time at 4n divided by
 # the time at n. `agent/direct_json/scaling.yaml` explains the measure and the
 # limit of 8, how a harness times a case, and why the cases run apart from the
-# other tests. The Express parser does not stream, so there is nothing else to
-# time.
+# other tests. An Express stream compiles each block once, when it closes, so
+# timing `compile` covers what a stream adds over scanning for the close tag.
 
 - name: test_scaling_compile_express_v10
   description: Compiling a block of n components takes about four times as long at 4n.

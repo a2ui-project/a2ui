@@ -104,11 +104,11 @@
 # a healed payload into two emissions, which is the one thing chunking is
 # allowed to change.
 #
-# This suite has no Express counterpart. Streaming is the one thing the two
-# formats do not share: the Express parser does not stream, so
-# an Express agent buffers a response and parses it whole. The rules above about
-# tags and text would hold for Express if it ever streams, and a counterpart
-# suite belongs here on the day it does.
+# This suite has no Express counterpart yet. An Express stream holds each block
+# until its close tag arrives and emits it whole, so the rules above about
+# messages emitted while a block grows do not apply to it, while those about
+# tags and text do. Only one SDK streams Express so far, and a counterpart suite
+# belongs here once the others do.
 #
 # The catalogs under test live in `args`, and the version a case runs under is
 # the one its catalog document declares. The rule that a component is emitted
