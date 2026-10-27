@@ -128,9 +128,7 @@ def build_named_backend(name: str) -> DecisionBackend:
             model=os.environ.get("JEV_MODEL"),
             auth=key,
         )
-    raise ValueError(
-        f"Unknown decision backend `{name}`; choose jev, gev, or mock."
-    )
+    raise ValueError(f"Unknown decision backend `{name}`; choose jev, gev, or mock.")
 
 
 def stage2_user_text(block: DecisionBlock, surface_id: str) -> str:
