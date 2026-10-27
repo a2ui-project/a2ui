@@ -81,6 +81,41 @@ update_message = UpdateComponentsMessage(
 )
 ```
 
+### Protocol v1.0 builders
+
+Protocol v1.0 components and models are available under `a2ui.builder.v1_0`. In v1.0:
+
+- Components like `Button` take a `child: Child` component slot (e.g. `Text`), `TextField` supports `placeholder`, `Slider` supports `steps`, and `Video` supports `poster_url` (`posterUrl`).
+- `DataBinding` serializes to `{"@path": "..."}` and `FunctionCall` to `{"@call": "..."}`.
+- `CreateSurfaceMessage` allows direct bundling of initial `components` and `data_model`:
+
+```python
+from a2ui.builder.v1_0 import Action, ActionEvent, Button, Card, Column, DataBinding, Text, TextField
+from a2ui.core.schema.v1_0 import CreateSurface, CreateSurfaceMessage
+
+tree = Card(
+    child=Column(
+        children=[
+            Text(text="Account Overview", variant="body", weight=1.0),
+            TextField(label="Email", placeholder="user@example.com", value=DataBinding(path="/user/email")),
+            Button(
+                child=Text(text="Save"),
+                action=Action(event=ActionEvent(name="save_profile", user_message="Profile saved")),
+            ),
+        ]
+    )
+)
+
+# In v1.0, createSurface can bundle initial components directly:
+message = CreateSurfaceMessage(
+    create_surface=CreateSurface(
+        surface_id="surface_main",
+        catalog_id="https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        components=tree.flatten(),
+    )
+)
+```
+
 ### Data bindings
 
 `DataBinding` constructs dynamic references to client data model paths. The path is emitted exactly as written, because the leading slash is meaningful:
@@ -221,15 +256,22 @@ Because `MetricCard` inherits from `ComponentBuilderNode` and annotates `icon` a
 
 ## Code generation
 
-Everything under `v0_9/catalogs/` is generated from the catalog JSON schema by the A2UI CLI (`dart/a2ui_cli`) and should never be edited by hand. Only the runtime in `core/` and `v0_9/` is written directly.
+Everything under `v0_9/catalogs/` and `v1_0/catalogs/` is generated from the catalog JSON schema by the A2UI CLI (`dart/a2ui_cli`) and should never be edited by hand. Only the runtime in `core/`, `v0_9/`, and `v1_0/` is written directly.
 
 To regenerate after a catalog change:
 
 ```sh
 cd dart/a2ui_cli
+
+# Protocol v0.9 / v0.9.1:
 dart run bin/a2ui.dart codegen \
   --catalog ../../specification/v0_9_1/catalogs/basic/catalog.json \
   --out ../../python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
+
+# Protocol v1.0:
+dart run bin/a2ui.dart codegen \
+  --catalog ../../catalogs/basic/v1/catalog.json \
+  --out ../../python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/
 ```
 
 Pointing `--out` at the directory lets the generator name the module from the catalog ID, which is how the committed filename and the generator stay in step. Passing an explicit `.py` path works too, and is how a catalog whose ID does not make a good module name is handled.
