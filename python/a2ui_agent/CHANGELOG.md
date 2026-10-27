@@ -1,5 +1,14 @@
 ## Unreleased
 
+- Introduce typesafe fluent builder package for A2UI Protocol v1.0 (`a2ui.builder.v1_0`),
+  re-exporting v1.0 common types (`DataBinding`, `FunctionCall`,
+  `AccessibilityAttributes`, `ActionEvent`, and `CheckRule`) from
+  `a2ui.core.schema.v1_0`, defining builder models (`ComponentBuilderNode` with
+  `catalog_id`, `accessibility`, and `extensions`, `Action`, and
+  `DynamicChildList`), and generating the v1.0 basic catalog components (`Button`
+  with child slot, `TextField` with `placeholder`, `Slider` with `steps`, and
+  `Video` with `posterUrl`)
+  ([#3070](https://github.com/a2ui-project/a2ui/pull/3070)).
 - **BREAKING**: `Skill` and `SkillSet` raise `A2uiValidationError` (a `ValueError`) for a `filename` that is absolute or has an empty, `.` or `..` segment, which they used to accept; the check runs on construction, on assignment, and in `SkillSet.add`. `SkillSet.export_to_directory` now removes only the directory that holds each skill file (for example `src/skills/nested` for `src/skills/nested/SKILL.md`) instead of the first path segment (`src`), removes a symlink or file at that path instead of following it, and raises before touching anything when a skill directory's parent is a symlink out of the output directory.
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,

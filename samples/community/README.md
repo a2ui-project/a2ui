@@ -10,8 +10,8 @@ rather than on the monorepo workspace, and the folder carries its own
 `.github/workflows/community_code.yml` validates this folder on changes:
 
 - **web** — `yarn install` then builds the Angular (`a2a-chat-canvas`,
-  `orchestrator`) and Lit (`mcp-apps-in-a2ui-sample`, `personalized_learning`)
-  samples.
-- **python** — `uv sync` for each agent under `agent/adk`.
+  `orchestrator`) and Lit (`mcp-apps-in-a2ui-sample`, `personalized_learning`,
+  `a2ui-kanban`) samples.
+- **python** — `uv sync` for each agent under `samples/community`.
 
 TODO: move samples out of this repository - https://github.com/a2ui-project/a2ui/issues/1698
