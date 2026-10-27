@@ -11,8 +11,7 @@ Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 
 - [How the automated triage bot works](automation.md)
 - [Standard triage replies for issues](templates-issues.md)
-- [Standard triage replies for PRs](templates-prs.md)
-- [Decisions made for triage process](decisions.md)
+- [Decisions made for this triage process](decisions.md)
 
 ## Principles
 
@@ -60,6 +59,12 @@ See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 
 Two of these labels are automated: `status: needs-triage` is managed entirely by the bot, and `status: waiting-for-author-response` is applied manually and automatically cleared once the author replies. The bot also reads `status: assigned-for-triage`, which is applied and removed manually, and flags items that carry it without an assignee or for more than 14 days.
 
+## Queues used in triage
+
+[Not first line handled][not-first-line-handled]
+[Needs triage][needs-triage]
+[Needs triage minus waiting for team input][]
+
 ## Triage responsibilities
 
 ### First line triage (daily)
@@ -70,38 +75,37 @@ For each issue that is [not first-line-handled](https://github.com/a2ui-project/
 - Add label `status: first-line-handled`
 
 ### Second line triage (weekly)
-Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [the triage bot](automation.md), disappears:
 
-- Set priority (P0-P4) to issues. Assign P0/P1 to someone.
-- Answer external comments.
-- Add `status: waiting-for-author-response` when you need more information from the author
-- Assign the item to a team member who will finish the triage, and add `status: assigned-for-triage`.
+Go through [items with label `status: needs-triage`][needs-triage]. For each item, do one of the following:
 
-You can remove the `needs-triage` label manually to speed up the process, but if the item still matches a rule, the label will come back because the label will be re-applied by the triage bot.
+- Triage it yourself, as described in [Triage a PR](#triage-a-pr) or [Triage an issue](#triage-an-issue).
+- Assign it to a team member who will finish the triage, and add `status: assigned-for-triage`.
 
-For items where you need input from the team, follow this process (passing any remaining follow-up to the next gardener if still in progress):
+The [triage bot](automation.md) removes `status: needs-triage` once the item no longer matches any of its rules. You can remove the label manually to speed up the process, but if the item still matches a rule, the bot adds it back.
 
-1. add the `status: needs-team-input` label
-2. post a message to the team chat, suggesting options and/or asking for input
-3. drive the discussion to resolution
-4. remove the label `status: needs-team-input`
-
-Use the standard replies provided for [issues](templates-issues.md) and [PRs](templates-prs.md) in standard cases.
-
-Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (without P0-P4 label and _haven't_ had `status: needs-triage`, `status: needs-team-input` or `status: waiting-for-author-response` added to them). If you find such issues, follow the `status: needs-triage` workflow above (This is just to check for issues which somehow fall through the cracks).
+Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (without P0-P4 label and _haven't_ had `status: needs-triage`, `status: needs-team-input` or `status: waiting-for-author-response` added to them). If you find such issues, triage them as well. This catches issues that somehow fell through the cracks.
 
 When weekly triage is complete, the [`needs-triage`][needs-triage] list should ideally be empty.
 
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 [unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 
-### Owners of `status: assigned-for-triage`
+### For owners of `status: assigned-for-triage`
 
 If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to triage the item within two weeks of the assignment, using the steps below.
 
-### Use lyfecycle labels
+### Use helpful labels
 
-Assign `status: waiting-for-author-response`, when PR or issue needs aouthor's or other contributor's respons eor clarification.
+1. Add `status: waiting-for-author-response` when a PR or an issue needs a response or clarification from its author or another contributor. The bot removes the label once someone outside the team replies, and the item goes back to the triage queue.
+
+2. Add 
+
+When you need input from the team:
+
+1. Add the `status: needs-team-input` label.
+2. Post a message to the team chat, suggesting options or asking for input.
+3. Drive the discussion to resolution. If it is still open at the end of your triage shift, pass it to the next gardener.
+4. Remove the `status: needs-team-input` label.
 
 ### Triage a PR
 
@@ -126,11 +130,16 @@ Our team is small, so we can't review every PR. We review a PR when:
 What may help, but without guarantees:
 
 - If there is no issue for this change yet, open one that describes the problem, and mention this PR as a possible solution.
-- If there is an issue, ask if your contribution on it will be accepted. If you get positive response, reopen this PR.
-- Split a large change into small PRs valuable independently.
+- If there is an issue, ask if your contribution on it will be accepted. If you get a positive response, reopen this PR.
+- Split a large change into small PRs that are each valuable on their own.
 - Before you start, check open issues and PRs for related work, so that your change does not overlap with them.
 ```
 
 ### Triage an issue
 
+1. If the issue is a duplicate, close it with a link to the original issue.
+2. Set a priority label, `P0` to `P4`, based on the [principles](#principles). A `P0` or `P1` issue needs an assignee.
+4. Answer any open questions or comments from external contributors.
+5. For standard cases, such as an out-of-scope request, use the [standard replies for issues](templates-issues.md).
 
+The triage is done when the issue has a priority and no external comment is left unanswered.
