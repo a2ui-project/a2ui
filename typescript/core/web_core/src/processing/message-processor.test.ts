@@ -730,6 +730,31 @@ describe('MessageProcessor', () => {
       assert.strictEqual(responses[0].rendererFunctionResponse.error, undefined);
     });
 
+    it('hands the RpcHandler a callRendererFunction message that names the function with @call', async () => {
+      const proc = new MessageProcessor([rpcCatalog]);
+      const received: any[] = [];
+      const original = proc.rpc.handleCallRendererFunction.bind(proc.rpc);
+      proc.rpc.handleCallRendererFunction = (msg, ...rest) => {
+        received.push(msg);
+        return original(msg, ...rest);
+      };
+
+      await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-call-at',
+          callFunction: {'@call': 'echoFunction', catalogId: 'rpc-cat', args: {text: 'A'}},
+        },
+      });
+
+      assert.strictEqual(received.length, 1);
+      assert.deepStrictEqual(received[0].callRendererFunction.callFunction, {
+        '@call': 'echoFunction',
+        catalogId: 'rpc-cat',
+        args: {text: 'A'},
+      });
+    });
+
     it('targets the specified surfaceId data model when surfaceId is provided, uses an isolated empty model when omitted, and returns INVALID_FUNCTION_CALL when surfaceId does not exist', async () => {
       const readModelApi = {
         name: 'readUserName',
@@ -914,7 +939,8 @@ describe('MessageProcessor', () => {
 
       assert.ok(emittedMessage);
       assert.strictEqual(emittedMessage.callAgentFunction.surfaceId, 's1');
-      assert.strictEqual(emittedMessage.callAgentFunction.callFunction.call, 'fetchAgentData');
+      assert.strictEqual(emittedMessage.callAgentFunction.callFunction['@call'], 'fetchAgentData');
+      assert.ok(!Object.hasOwn(emittedMessage.callAgentFunction.callFunction, 'call'));
       const callId = emittedMessage.callAgentFunction.functionCallId;
 
       // Inbound response processed through standard message processing pipeline

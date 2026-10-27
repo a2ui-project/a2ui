@@ -682,7 +682,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
-            call: op.call,
+            '@call': op.call,
             catalogId: op.catalogId,
             args: op.args,
           },
@@ -710,7 +710,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
-            call: op.call,
+            '@call': op.call,
             catalogId: op.catalogId,
             args: op.args,
           },
