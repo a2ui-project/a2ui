@@ -49,6 +49,8 @@ worktrees/
 
 # Playwright test artifacts
 .playwright/
+playwright-report/
+test-results/
 
 # Local-only scratch files.
 .local/
