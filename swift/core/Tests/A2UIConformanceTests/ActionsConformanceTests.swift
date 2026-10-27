@@ -35,8 +35,8 @@ private final class ConformanceActionFunctionHandler: FunctionHandler {
     )
     map["incrementCounter"] = ActionTestFunction(name: "incrementCounter") { args, context in
       guard let path = args["path"]?.stringValue else { return .null }
-      let step = args["step"]?.integerValue ?? 1
-      let current = context.dataModel.get(path)?.integerValue ?? 0
+      let step = args["step"]?.intValue ?? 1
+      let current = context.dataModel.get(path)?.intValue ?? 0
       context.set(path, value: .integer(current + step))
       return .integer(current + step)
     }
