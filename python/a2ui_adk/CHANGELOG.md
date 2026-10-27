@@ -8,8 +8,9 @@
   `A2uiExamplesProvider` are removed; markdown examples are no longer accepted,
   so pass example turns to `A2uiGenerator` or `A2uiRequestProcessor`. To
   migrate, store `generator.create_processor(capabilities)` under
-  `system:a2ui_processor` and pass
-  `a2ui_processor=lambda ctx: ctx.state["system:a2ui_processor"]`.
+  `system:a2ui_processor` and pass a provider that reads it. A canvas agent
+  keeps its `RendererState` outside session state, which ADK copies each time
+  it loads a session, and passes a provider that binds it.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 - **BREAKING CHANGE**: The tool reads its argument, renamed from `a2ui_json` to
   `a2ui_payload`, in the processor's inference format (Express by default)
@@ -21,20 +22,21 @@
   examples) that the agent's system instruction already holds, such as when the
   instruction includes `processor.prompt_snippet`.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- **BREAKING CHANGE**: `A2uiPartConverter(processor, *, bypass_tool_check=False,
-fallback_text=None)` takes the processor instead of `catalogs`, `parser`,
-  `version` and `state`. It reads text-based A2UI with the processor's parser
-  and checks it against the processor's bound state, as a response that shows
-  new UI when there is none, so a response that updates a surface it does not
-  create is then rejected and logged. Each part is labeled with its message's
-  protocol version.
+- **BREAKING CHANGE**: `A2uiPartConverter` takes the processor, plus the
+  keyword arguments `bypass_tool_check` and `fallback_text`, instead of
+  `catalogs`, `parser`, `version` and `state`. It reads text-based A2UI with the
+  processor's parser and checks it against the processor's bound state, as a
+  response that shows new UI when there is none, so a response that updates a
+  surface it does not create is then rejected and logged. Each part is labeled
+  with its message's protocol version.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- **BREAKING CHANGE**: `A2uiEventConverter(bypass_tool_check=False,
-fallback_text=None, *, processor_key="system:a2ui_processor")` reads the
-  request's processor from session state. Its `catalogs_key` argument and the
-  `system:a2ui_catalogs` key are removed. When the processor's format can
-  stream, it opens one `ResponseStream` per response, feeds it each partial ADK
-  event, and closes it on the final event.
+- **BREAKING CHANGE**: `A2uiEventConverter` reads the request's processor from
+  the `system:a2ui_processor` session-state key (renamable with the keyword
+  argument `processor_key`), and logs a warning when the key holds something
+  else. Its `catalogs_key` argument and the `system:a2ui_catalogs` key are
+  removed. When the processor's format can stream, it opens one
+  `ResponseStream` per response, feeds it each partial ADK event, and closes it
+  on the final event.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 
 ## 0.1.0 (2026-10-17)

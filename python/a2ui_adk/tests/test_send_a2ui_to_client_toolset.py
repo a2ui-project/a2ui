@@ -488,3 +488,34 @@ async def test_run_async_validates_and_updates_the_bound_renderer_state(factory)
 
 
 # endregion
+
+
+@pytest.mark.parametrize(
+    "factory, tags",
+    [
+        (ExpressFormatFactory(), ("<a2ui>", "</a2ui>")),
+        (DirectJsonFormatFactory(), ("<a2ui-json>", "</a2ui-json>")),
+    ],
+    ids=["express", "direct_json"],
+)
+@pytest.mark.parametrize("bound_state", [False, True], ids=["stateless", "state"])
+@pytest.mark.asyncio
+async def test_run_async_accepts_a_block_whose_closing_tag_is_missing(
+    factory, tags, bound_state
+):
+    processor = _processor(
+        format_factory=factory,
+        state=RendererState([_BASIC]) if bound_state else None,
+    )
+    payload = [_create(), _update({"text": "Hello"})]
+    block = (
+        json.dumps(payload)
+        if isinstance(processor.parser, DirectJsonParser)
+        else processor.parser.decompile(to_message_models(payload))
+    )
+
+    result = await _Tool(processor).run_async(
+        args={_ARG: f"{tags[0]}\n{block}"}, tool_context=_tool_context()
+    )
+
+    assert result == {_RESULT: payload}

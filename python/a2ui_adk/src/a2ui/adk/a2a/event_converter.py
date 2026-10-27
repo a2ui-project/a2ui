@@ -103,6 +103,13 @@ class A2uiEventConverter:
         """Converts an ADK event to A2A events, using the session processor if available."""
         processor = invocation_context.session.state.get(self._processor_key)
         if not isinstance(processor, A2uiRequestProcessor):
+            if processor is not None:
+                logger.warning(
+                    "Ignoring session state[%r]: expected an A2uiRequestProcessor,"
+                    " got %s.",
+                    self._processor_key,
+                    type(processor).__name__,
+                )
             return adk_event_converter.convert_event_to_a2a_events(
                 event, invocation_context, task_id, context_id, part_converter_func
             )
@@ -122,9 +129,25 @@ class A2uiEventConverter:
             if processor.format.supports_streaming
             else a2ui_part_converter.convert
         )
-        return adk_event_converter.convert_event_to_a2a_events(
+        a2a_events = adk_event_converter.convert_event_to_a2a_events(
             event, invocation_context, task_id, context_id, convert_part
         )
+        invocation_id = invocation_context.invocation_id
+        if (
+            getattr(event, "partial", None) is not True
+            and invocation_id in self._streams
+        ):
+            # A final event with no parts, such as an error, never reaches
+            # convert_part, so the stream would stay open. Its trailing parts
+            # have no event to go in.
+            if trailing := self._close_stream(invocation_id):
+                logger.warning(
+                    "Dropped %d A2UI parts left in the stream of invocation %s,"
+                    " whose final event has no parts.",
+                    len(trailing),
+                    invocation_id,
+                )
+        return a2a_events
 
     def _close_stream(self, invocation_id: str) -> list[a2a_types.Part]:
         """Closes and removes the invocation's open stream, returning any trailing parts."""

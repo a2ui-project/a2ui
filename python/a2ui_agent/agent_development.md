@@ -483,8 +483,14 @@ you configure an `A2uiGenerator` once with `CatalogConfig(catalog)` and
 `accepts_inline_catalogs=True`, and call `generator.create_processor(capabilities)`
 for each request (e.g., during session preparation) to negotiate the active
 catalogs, and store the processor in the session state. The processor holds
-the catalogs, the example turns, the inference format, and, for a canvas agent,
-the conversation's `RendererState` (`create_processor(..., state=...)`).
+the catalogs, the example turns and the inference format.
+
+A canvas agent also needs the conversation's `RendererState`, but it can't keep
+it in session state: ADK's session services copy the session state each time
+they load a session, so changes made to a stored `RendererState`, directly or
+through a stored processor bound to it, are lost after the turn. Keep the
+state in a store of the agent's own, keyed by session ID, and give the toolset
+a provider that binds it; see [Canvas agents](#canvas-agents).
 
 ```python
 from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
@@ -542,6 +548,38 @@ config = A2aAgentExecutorConfig(event_converter=A2uiEventConverter())
 
 An agent whose catalogs don't depend on the request can pass one processor
 instead: `SendA2uiToClientToolset(a2ui_enabled=True, a2ui_processor=processor)`.
+
+##### Canvas agents
+
+A canvas agent checks each tool call against the conversation's
+`RendererState`. Keep the states outside ADK's session state, which is copied
+each time a session is loaded. Build the request's processor with the state
+bound when the session is prepared, and give the toolset a provider that looks
+it up:
+
+```python
+renderer_states: dict[str, RendererState] = {}
+processors: dict[str, A2uiRequestProcessor] = {}
+
+
+# In your AgentExecutor subclass, after negotiating `processor` as above
+state = renderer_states.get(session.id)
+if state is None or not processor.accepts_state(state):
+  # A new conversation, or the client's catalogs changed.
+  state = renderer_states[session.id] = processor.create_state()
+processors[session.id] = self.generator.create_processor(capabilities, state=state)
+
+# In the agent
+ui_toolset = SendA2uiToClientToolset(
+    a2ui_enabled=get_a2ui_enabled,
+    a2ui_processor=lambda ctx: processors[ctx.session.id],
+)
+```
+
+`A2uiEventConverter` reads the processor from session state, so the state bound
+there is a copy for the current turn. That is enough for tool calls, which
+reach the converter already validated, but text-based A2UI that the converter
+checks against the state is not remembered for the next turn.
 
 #### 2c. Runtime Validation
 

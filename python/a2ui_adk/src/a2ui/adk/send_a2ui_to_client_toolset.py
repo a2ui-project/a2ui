@@ -75,7 +75,7 @@ from google.genai import types as genai_types
 from a2ui.constants import A2UI_TOOL_ERROR_KEY, A2UI_TOOL_NAME, A2UI_VALIDATED_JSON_KEY
 from a2ui.core import A2uiParseError, A2uiValidationError
 from a2ui.inference_formats import to_message_dicts
-from a2ui.parser import A2uiPart, RawA2uiPart
+from a2ui.parser import A2uiPart, RawA2uiPart, RawResponsePart
 from a2ui.processor import A2uiRequestProcessor
 from a2ui.utils import validate_payload
 
@@ -114,7 +114,12 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
               the prompt, and the tool's argument is read in its format. A
               canvas agent binds the conversation's `RendererState` to the
               processor, so each payload is checked against the state and, if
-              it passes, applied to it.
+              it passes, applied to it. ADK's session services copy
+              `ctx.state` each time they load a session, so a state stored
+              there, directly or bound to a stored processor, would not keep
+              one turn's changes for the next. Keep the state, or a processor
+              bound to it, in a store keyed by `ctx.session.id`, and pass a
+              provider that reads it.
         """
         super().__init__()
         self._a2ui_enabled = a2ui_enabled
@@ -309,21 +314,37 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             """Compiles and validates the tool's argument into A2UI JSON messages.
 
             The argument is one block in the processor's inference format. It
-            may still be wrapped in the format's tags, which are then removed.
+            may still be in the format's tags, which are then removed, even if
+            the closing tag is missing: the argument is complete either way.
 
             With a renderer state bound to the processor, the messages are
-            checked against it and applied to it, all or nothing. Without one, the payload is checked on its own, as
-            `validate_payload` does: a surface that the payload only updates
-            may have been created by an earlier call.
+            checked against it and applied to it, all or nothing. Without one,
+            the payload is checked on its own, as `validate_payload` does: a
+            surface that the payload only updates may have been created by an
+            earlier call.
 
             Raises:
                 A2uiError: If the block cannot be read or the messages are
                   invalid.
             """
             parser = processor.parser
-            wrapped = parser.has_format_content(payload, complete=True)
+            blocks = (
+                [
+                    raw.part.a2ui_raw
+                    for raw in parser.unwrap(payload)
+                    if isinstance(raw.part, RawA2uiPart)
+                ]
+                if parser.has_format_content(payload)
+                else [payload]
+            )
             if processor.state is not None:
-                parts = processor.parse_response(payload, wrapped)
+                # Rewrap the blocks with closing tags, so each one is read as
+                # complete and the surfaces they touch are checked.
+                closed = parser.wrap([
+                    RawResponsePart(part=RawA2uiPart(a2ui_raw=block), is_final=True)
+                    for block in blocks
+                ])
+                parts = processor.parse_response(closed)
                 messages = [
                     message
                     for part in parts
@@ -334,15 +355,6 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                     raise A2uiParseError("The payload holds no A2UI messages.")
                 return to_message_dicts(messages)
 
-            blocks = (
-                [
-                    raw.part.a2ui_raw
-                    for raw in parser.unwrap(payload)
-                    if isinstance(raw.part, RawA2uiPart)
-                ]
-                if wrapped
-                else [payload]
-            )
             compiled: list[Any] = []
             for block in blocks:
                 compiled.extend(parser.compile(block))
