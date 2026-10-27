@@ -26,11 +26,11 @@ This section describes triage principles at a high level. See concrete steps in 
     - **P3**: not planned, but may become a priority
     - **P4**: we do not plan to invest in this issue
 
-2. **PRs**: We review contributions if they help our team to move forward:
+2. **PRs**: We review a PR when all of the following are true:
 
-    - they are easy to review
-    - they align well with the rest of the work, without stepping on each other's toes
-    - we have cycles to review, land, and maintain them over time
+    - It is a minor change (such as a docs fix or a small bug fix with a test), or it addresses an issue that is assigned to the PR author.
+    - It does not overlap with work already in progress.
+    - It brings a change that the team can maintain long term.
 
 ## GitHub labels used in triage
 
@@ -98,29 +98,34 @@ When weekly triage is complete, the [`needs-triage`][needs-triage] list should i
 
 ### Owners of `status: assigned-for-triage`
 
-If you are assigned to PR or issue with label `status: assigned-for-triage`, this means you are treated as an expert in the area and your job is to triage the item within two weeks after assignment.
+If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to triage the item within two weeks of the assignment.
 
 - **For a PR**:
 
-  Decide if the PR should be reviewed, based on the [prinicples](#principles).
+    Decide whether the PR should be reviewed, based on the [principles](#principles) (you do not have to prove your decision is right - it is ok to use intuition).
 
-  If yes, review it and help to land. Do not hesitate to create a supersiding PR, it it adds efficiency.
+    If yes, review it and help to land it. Do not hesitate to create a superseding PR if it is more efficient.
 
-  If no, post the response (consider adding it to your [GitHub saved replies](https://docs.github.com/en/get-started/writing-on-github/working-with-saved-replies)):
+    If no:
 
-  ```txt
-  Thank you for taking the time to contribute to A2UI. We appreciate it. nfortunately, we must decline this PR at this time.
+    1. Close the PR.
+    2. Post the reply below. You may want to add it to your [GitHub saved replies](https://docs.github.com/en/get-started/writing-on-github/working-with-saved-replies).
 
-  Our team is small, so we can't review every PR. We review a PR when:
+        ```txt
+        Thank you for taking the time to contribute to A2UI. We appreciate it. Unfortunately, we must decline this PR at this time.
 
-    - it is a minor change (such as a docs fix or a small bug fix with a test), or it addresses an issue that is assigned to you,
-    - it doesn't overlap with work already in progress, and
-    - it brings a change that we can maintain long term.
+        Our team is small, so we can't review every PR. We review a PR when:
 
-    What may help:
-    
-  ```
+        - it is a minor change (such as a docs fix or a small bug fix with a test), or it addresses an issue that is assigned to you,
+        - it doesn't overlap with work already in progress, and
+        - it brings a change that we can maintain long term.
 
-    
+        What may help, but without guarantees:
+
+        - If there is no issue for this change yet, open one that describes the problem, and mention this PR as a possible solution.
+        - If there is an issue, ask if your contribution on it will be accepted. If you get positive response, reopen this PR.
+        - Split a large change into small PRs valuable independently.
+        - Before you start, check open issues and PRs for related work, so that your change does not overlap with them.
+        ```
 
 - **For an issue**:
