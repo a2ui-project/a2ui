@@ -46,11 +46,11 @@ The decision backend is chosen by `A2UI_DECISION_BACKEND` and the other
 `A2UI_DECISION_*` variables, as `create_decision_backend()` documents
 them. The resolved backend is shown in `/help` and in every footer.
 
-| Backend | Setup | What to expect |
-| :-- | :-- | :-- |
-| `mock` | Nothing. Runs offline. | A deterministic keyword heuristic. Layouts are plain; use it to check the wiring, not the quality. |
-| `jev` / `systemone` | `A2UI_DECISION_BACKEND=jev A2UI_DECISION_URL=https://... A2UI_DECISION_AUTH=adc` | Remote decision model over HTTP. |
-| `step0` | `A2UI_DECISION_BACKEND=step0 A2UI_DECISION_URL=https://.../v1/completions` | Step-0 single-token logprob scoring over an OpenAI-compatible completions endpoint. |
+| Backend             | Setup                                                                            | What to expect                                                                                     |
+| :------------------ | :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| `mock`              | Nothing. Runs offline.                                                           | A deterministic keyword heuristic. Layouts are plain; use it to check the wiring, not the quality. |
+| `jev` / `systemone` | `A2UI_DECISION_BACKEND=jev A2UI_DECISION_URL=https://... A2UI_DECISION_AUTH=adc` | Remote decision model over HTTP.                                                                   |
+| `step0`             | `A2UI_DECISION_BACKEND=step0 A2UI_DECISION_URL=https://.../v1/completions`       | Step-0 single-token logprob scoring over an OpenAI-compatible completions endpoint.                |
 
 ## Running the client
 
@@ -73,15 +73,15 @@ the quickest way to try your own data shapes.
 
 ## Commands
 
-| Command | Effect |
-| :-- | :-- |
-| `/mode decision` \| `express` \| `direct` \| `tool` | Picks how the next requests render. |
-| `/compare` | Renders the next request through all three chat modes from the same data. |
-| `/trace` | Shows the planner's questions, answers, and thresholds for the last `decision` render. |
-| `/rate <mode> [comment]` | Records a preference vote for the last rendered turn. |
-| `/ratings` | Summarizes recorded mode preference win counts from the ratings log. |
-| `/remix [seed]` | Re-samples the last decision layout with 0 model calls and 0 decision backend queries. |
-| `/help` | Shows the active settings and these commands. |
+| Command                                             | Effect                                                                                 |
+| :-------------------------------------------------- | :------------------------------------------------------------------------------------- |
+| `/mode decision` \| `express` \| `direct` \| `tool` | Picks how the next requests render.                                                    |
+| `/compare`                                          | Renders the next request through all three chat modes from the same data.              |
+| `/trace`                                            | Shows the planner's questions, answers, and thresholds for the last `decision` render. |
+| `/rate <mode> [comment]`                            | Records a preference vote for the last rendered turn.                                  |
+| `/ratings`                                          | Summarizes recorded mode preference win counts from the ratings log.                   |
+| `/remix [seed]`                                     | Re-samples the last decision layout with 0 model calls and 0 decision backend queries. |
+| `/help`                                             | Shows the active settings and these commands.                                          |
 
 Anything else is a render request. A message that contains a JSON object or
 array uses it verbatim as the payload. Pressing a button on a rendered surface

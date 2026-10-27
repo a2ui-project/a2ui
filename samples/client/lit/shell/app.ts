@@ -29,12 +29,7 @@ import {renderMarkdown} from '@a2ui/markdown-it';
 
 // Configurations
 import {A2UIClient} from './client.js';
-import {
-  restaurantConfig,
-  localConfig,
-  playgroundConfig,
-  AppConfig,
-} from './configs/configs.js';
+import {restaurantConfig, localConfig, playgroundConfig, AppConfig} from './configs/configs.js';
 import {styleMap} from 'lit/directives/style-map.js';
 const configs: Record<string, AppConfig> = {
   restaurant: restaurantConfig,

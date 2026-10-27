@@ -20,10 +20,6 @@ export const playgroundConfig: AppConfig = {
   key: 'playground',
   title: 'A2UI Format Playground',
   placeholder: 'Describe a UI, paste JSON, or type /help',
-  loadingText: [
-    'Describing the interface...',
-    'Planning the layout...',
-    'Rendering...',
-  ],
+  loadingText: ['Describing the interface...', 'Planning the layout...', 'Rendering...'],
   serverUrl: 'http://localhost:10010',
 };
