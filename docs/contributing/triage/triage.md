@@ -61,15 +61,19 @@ Two of these labels are automated: `status: needs-triage` is managed entirely by
 
 ## Queues used in triage
 
-[Not first line handled][not-first-line-handled]
-[Needs triage][needs-triage]
-[Needs triage minus waiting for team input][]
+- [Not first line handled][not-first-line-handled]
+- [Needs triage][needs-triage-all]
+- [Needs triage minus waiting for team input][needs-triage-minus-waiting]
+
+[not-first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc
+[needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
+[needs-triage-minus-waiting]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22+-label%3A%22status%3A+needs-team-input%22
 
 ## Triage responsibilities
 
 ### First line triage (daily)
 
-For each issue that is [not first-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc):
+For each issue that is [not first-line-handled][not-first-line-handled]:
 
 - If it is P0, add label `P0` and notify team chat
 - Add label `status: first-line-handled`
@@ -87,9 +91,6 @@ Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (w
 
 When weekly triage is complete, the [`needs-triage`][needs-triage] list should ideally be empty.
 
-[needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
-[unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
-
 ### For owners of `status: assigned-for-triage`
 
 If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to triage the item within two weeks of the assignment, using the steps below.
@@ -98,14 +99,7 @@ If you are assigned to a PR or an issue with the label `status: assigned-for-tri
 
 1. Add `status: waiting-for-author-response` when a PR or an issue needs a response or clarification from its author or another contributor. The bot removes the label once someone outside the team replies, and the item goes back to the triage queue.
 
-2. Add 
-
-When you need input from the team:
-
-1. Add the `status: needs-team-input` label.
-2. Post a message to the team chat, suggesting options or asking for input.
-3. Drive the discussion to resolution. If it is still open at the end of your triage shift, pass it to the next gardener.
-4. Remove the `status: needs-team-input` label.
+2. Add `size: small` to highlight a small issue. 
 
 ### Triage a PR
 
