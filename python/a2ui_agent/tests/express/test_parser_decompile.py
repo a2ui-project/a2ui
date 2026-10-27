@@ -343,6 +343,38 @@ class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
             'Event("reply", userMessage=openUrl("https://a2ui.org"))', decompiled
         )
 
+    def test_event_with_user_message_is_a_map_literal_before_v1(self):
+        """v0.9 has no userMessage and its compiler rejects `userMessage=`, so the object stays data."""
+        catalog = Catalog.from_json(
+            {
+                "catalogId": "test/v09",
+                "components": {
+                    "Card": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Card"},
+                            "child": {"type": "object"},
+                        },
+                        "required": ["component", "child"],
+                    }
+                },
+            },
+            protocol_version="0.9",
+        )
+        decompiled = ExpressParser([catalog], version="v0.9").decompile([{
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{
+                    "id": "root",
+                    "component": "Card",
+                    "child": {"event": {"name": "go", "userMessage": "hi"}},
+                }],
+            },
+        }])
+        self.assertNotIn("Event(", decompiled)
+        self.assertIn("{event: {name:", decompiled)
+
     def test_function_call_in_list_item_action_slot_is_written_as_a_call(self):
         decompiled = self._round_trip(
             'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}])'

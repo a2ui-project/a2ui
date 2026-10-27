@@ -833,7 +833,12 @@ class ExpressDecompiler:
             if isinstance(bound_path, str) and len(val) == 1:
                 return _decompile_path(bound_path)
 
-            if isinstance(val.get("event"), dict):
+            # Before v1.0 an event has no userMessage, and the compiler rejects
+            # `userMessage=`, so such an object is written as a map literal that
+            # compiles back as written.
+            if isinstance(val.get("event"), dict) and (
+                self._v1 or val["event"].get("userMessage") is None
+            ):
                 evt = val["event"]
                 event_args = [_decompile_string(evt.get("name", ""))]
                 # An empty context is written out so that it compiles back.

@@ -494,22 +494,41 @@ class CatalogSchemaHelper:
 
         return _check(schema, False)
 
-    def resolve_subschema(self, schema: Any, key: str) -> dict[str, Any] | None:
-        """Resolves the schema of an array item or an object property.
+    def resolve_item_schema(self, schema: Any) -> dict[str, Any] | None:
+        """Resolves the schema of an array's items.
 
         Follows `$ref` (into both the common types and the catalog document),
         `allOf`, `oneOf` and `anyOf` to find the schema declared at that
         position.
 
         Args:
-            schema: The parent JSON schema to inspect.
-            key: `items` for array items, or the property name for object
-                properties. A property name falls back to
-                `additionalProperties` when it is not declared.
+            schema: The array's JSON schema.
 
         Returns:
-            The resolved sub-schema, or None if none is declared.
+            The resolved item schema, or None if none is declared.
         """
+        return self._resolve_at(schema, None)
+
+    def resolve_property_schema(self, schema: Any, name: str) -> dict[str, Any] | None:
+        """Resolves the schema of an object's property.
+
+        Follows `$ref` (into both the common types and the catalog document),
+        `allOf`, `oneOf` and `anyOf` to find the schema declared at that
+        position, and falls back to `additionalProperties` when the property
+        is not declared. A property named `items` is looked up as a property,
+        not as the array items.
+
+        Args:
+            schema: The object's JSON schema.
+            name: The property name.
+
+        Returns:
+            The resolved property schema, or None if none is declared.
+        """
+        return self._resolve_at(schema, name)
+
+    def _resolve_at(self, schema: Any, prop: str | None) -> dict[str, Any] | None:
+        """Resolves the schema at a property, or at the array items when `prop` is None."""
         visited: set[int] = set()
 
         def _resolve(s: Any, in_common_types: bool) -> dict[str, Any] | None:
@@ -517,15 +536,15 @@ class CatalogSchemaHelper:
                 return None
             visited.add(id(s))
 
-            if key == "items":
+            if prop is None:
                 items = s.get("items")
                 if isinstance(items, dict):
                     return items
             else:
                 props = s.get("properties")
-                prop = props.get(key) if isinstance(props, dict) else None
-                if isinstance(prop, dict):
-                    return prop
+                declared = props.get(prop) if isinstance(props, dict) else None
+                if isinstance(declared, dict):
+                    return declared
                 additional = s.get("additionalProperties")
                 if isinstance(additional, dict):
                     return additional

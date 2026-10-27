@@ -503,6 +503,78 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
             )
         self.assertIn("got a map literal.", str(ctx.exception))
 
+    def test_property_named_items_is_a_property_not_the_array_items(self):
+        """A map key `items` is an object property; its item schema is reached through a local $ref."""
+        catalog = Catalog.from_json(
+            {
+                "catalogId": "test/menu",
+                "components": {
+                    "Menu": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Menu"},
+                            "menu": {
+                                "type": "object",
+                                "properties": {
+                                    "items": {
+                                        "type": "array",
+                                        "items": {"$ref": "#/$defs/MenuItem"},
+                                    }
+                                },
+                            },
+                        },
+                        "required": ["component", "menu"],
+                    }
+                },
+                "functions": {
+                    "openUrl": {
+                        "type": "object",
+                        "returnType": "void",
+                        "properties": {
+                            "@call": {"const": "openUrl"},
+                            "args": {
+                                "type": "object",
+                                "properties": {"url": {"type": "string"}},
+                                "required": ["url"],
+                            },
+                        },
+                        "required": ["@call", "args"],
+                    }
+                },
+                "$defs": {
+                    "MenuItem": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
+                        },
+                        "required": ["label", "action"],
+                    }
+                },
+            },
+            protocol_version="1.0",
+        )
+        compiler = ExpressCompiler([catalog], version="v1.0")
+        messages = to_message_dicts(
+            compiler.compile(
+                'root = Menu({items: [{label: "Docs", action:'
+                ' openUrl("https://a2ui.org")}]})'
+            )
+        )
+        root = messages[0]["createSurface"]["components"][0]
+        self.assertEqual(
+            root["menu"]["items"],
+            [{
+                "label": "Docs",
+                "action": {
+                    "functionCall": {
+                        "@call": "openUrl",
+                        "args": {"url": "https://a2ui.org"},
+                    }
+                },
+            }],
+        )
+
     def test_event_too_many_positional_args_is_a_validation_error(self):
         with self.assertRaises(ExpressValidationError):
             self.compiler.compile(

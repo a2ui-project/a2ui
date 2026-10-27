@@ -84,15 +84,27 @@ class _ValueSlot:
     helper: CatalogSchemaHelper
 
 
-def _sub_slot(slot: _ValueSlot | None, key: str) -> _ValueSlot | None:
-    """Descends a value slot into an array item (`items`) or an object property.
+def _item_slot(slot: _ValueSlot | None) -> _ValueSlot | None:
+    """Descends a value slot into the items of an array.
 
     Returns:
-        The nested slot, or None when the schema is unknown at that position.
+        The item slot, or None when the schema is unknown at that position.
     """
     if slot is None:
         return None
-    schema = slot.helper.resolve_subschema(slot.schema, key)
+    schema = slot.helper.resolve_item_schema(slot.schema)
+    return _ValueSlot(schema, slot.helper) if schema else None
+
+
+def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
+    """Descends a value slot into a property of an object, whatever its name.
+
+    Returns:
+        The property's slot, or None when the schema is unknown at that position.
+    """
+    if slot is None:
+        return None
+    schema = slot.helper.resolve_property_schema(slot.schema, name)
     return _ValueSlot(schema, slot.helper) if schema else None
 
 
@@ -1592,7 +1604,7 @@ class ExpressCompiler:
         if isinstance(val, dict):
             dict_res: dict[str, Any] = {}
             for k, v in val.items():
-                entry_slot = _sub_slot(slot, k)
+                entry_slot = _property_slot(slot, k)
                 entry_is_action = is_action or (
                     entry_slot is not None and is_action_slot(entry_slot.schema)
                 )
@@ -1602,7 +1614,8 @@ class ExpressCompiler:
             return dict_res
 
         if isinstance(val, list):
-            item_slot = _sub_slot(slot, "items")
+            # Resolved once for the list, since every item shares the schema.
+            item_slot = _item_slot(slot)
             item_is_action = is_action or (
                 item_slot is not None and is_action_slot(item_slot.schema)
             )
