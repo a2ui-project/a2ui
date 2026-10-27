@@ -13,9 +13,9 @@ Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 - [Standard triage replies](templates.md)
 - [Decisions made for triage process](decisions.md)
 
-## Invariant we want to keep
+## Principles
 
-This section describes goals at a high level. See concrete steps in the section [Triage responsibilities](#triage-responsibilities).
+This section describes triage principles at a high level. See concrete steps in the section [Triage responsibilities](#triage-responsibilities).
 
 1. **Issues** priority (aligned with other teams in Dash):
 
@@ -25,7 +25,7 @@ This section describes goals at a high level. See concrete steps in the section 
     - **P3**: not planned, but may become a priority
     - **P4**: we do not plan to invest in this issue
 
-2. **PRs**: We review contributions if:
+2. **PRs**: We review contributions if they help our team to move forward:
 
     - they are easy to review
     - they align well with the rest of the work, without stepping on each other's toes
@@ -97,5 +97,11 @@ When weekly triage is complete, the [`needs-triage`][needs-triage] list should i
 
 ### Owners of `status: assigned-for-triage`
 
-If you are assigned to PR or issue with label `status: assigned-for-triage`, this means you are treated as an expert in the area and your job is to triage the item.
+If you are assigned to PR or issue with label `status: assigned-for-triage`, this means you are treated as an expert in the area and your job is to triage the item within two weeks after assignment.
 
+- **For a PR**:
+
+  Decide if the PR should be reviewed [PR review prinicples] )
+    
+
+- **For an issue**:
