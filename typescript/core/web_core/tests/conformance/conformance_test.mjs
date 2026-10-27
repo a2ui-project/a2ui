@@ -119,6 +119,43 @@ const CONFORMANCE_ROOT =
   process.env.CONFORMANCE_ROOT || path.resolve(__dirname, '../../../../../conformance');
 const CORE_DIR = path.join(CONFORMANCE_ROOT, 'core');
 const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
+const CONFORMANCE_CACHE_DIR = path.join(CONFORMANCE_ROOT, '.cache');
+
+function getCacheFileName(url) {
+  let name = url.replace(/[^a-zA-Z0-9_.-]/g, '_');
+  if (!name.endsWith('.json')) {
+    name += '.json';
+  }
+  return name;
+}
+
+async function fetchJsonWithCache(url) {
+  const noCache = process.env.A2UI_CONFORMANCE_NO_CACHE === '1';
+  const cacheFile = path.join(CONFORMANCE_CACHE_DIR, getCacheFileName(url));
+
+  if (!noCache && fs.existsSync(cacheFile)) {
+    try {
+      return JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+    } catch {
+      // Corrupt cache file, re-fetch.
+    }
+  }
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch catalog from ${url}: ${res.status} ${res.statusText}`);
+  }
+  const data = await res.json();
+  if (!noCache) {
+    try {
+      fs.mkdirSync(CONFORMANCE_CACHE_DIR, {recursive: true});
+      fs.writeFileSync(cacheFile, JSON.stringify(data, null, 2), 'utf8');
+    } catch {
+      // Best-effort cache write.
+    }
+  }
+  return data;
+}
 
 /**
  * Transition skip list containing specific test case names to skip.
@@ -391,13 +428,13 @@ async function runConformanceHarness() {
             validateGetRendererCapabilitiesTestCase(testCase);
             break;
           case 'validation_schema':
-            validateValidationSchemaTestCase(testCase);
+            await validateValidationSchemaTestCase(testCase);
             break;
           case 'round_trip':
-            validateRoundTripTestCase(testCase);
+            await validateRoundTripTestCase(testCase);
             break;
           case 'to_json':
-            validateToJsonTestCase(testCase);
+            await validateToJsonTestCase(testCase);
             break;
           case 'data_model':
             validateDataModelTestCase(testCase);
@@ -406,7 +443,7 @@ async function runConformanceHarness() {
             validateResolvePathTestCase(testCase);
             break;
           case 'from_json':
-            validateFromJsonTestCase(testCase);
+            await validateFromJsonTestCase(testCase);
             break;
           case 'select_catalog':
             validateSelectCatalogTestCase(testCase);
@@ -1180,12 +1217,21 @@ function linkPeerCatalogs(testCase, catalog, pVer) {
   return catalog.withPeerCatalogs(peers);
 }
 
-function validateFromJsonTestCase(testCase) {
-  const rawSchema = testCase.catalogPath
-    ? JSON.parse(
-        fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', testCase.catalogPath), 'utf8'),
-      )
-    : testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
+async function validateFromJsonTestCase(testCase) {
+  const url = testCase.catalogUrl || testCase.url;
+  let rawSchema;
+  if (url) {
+    rawSchema = await fetchJsonWithCache(url);
+  } else if (testCase.catalogPath) {
+    const cPath = testCase.catalogPath;
+    if (cPath.startsWith('http://') || cPath.startsWith('https://')) {
+      rawSchema = await fetchJsonWithCache(cPath);
+    } else {
+      rawSchema = JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', cPath), 'utf8'));
+    }
+  } else {
+    rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
+  }
   const pVer =
     testCase.protocolVersion ||
     (rawSchema && typeof rawSchema === 'object' ? rawSchema.protocolVersion : undefined) ||
@@ -1471,16 +1517,25 @@ function loadValidationSchemaCatalog(testCase, rawSchema, pVer) {
 }
 
 /** Runs a `validation_schema` case against its golden `expectFile`. */
-function validateValidationSchemaTestCase(testCase) {
+async function validateValidationSchemaTestCase(testCase) {
   const pVer =
     testCase.protocolVersion || testCase.args?.version || resolveProtocolVersion(testCase);
-  const cPath = testCase.catalogPath || testCase.catalogFile;
+  const url = testCase.catalogUrl || testCase.url;
   let rawSchema;
-  if (cPath) {
-    const fullP = path.resolve(CONFORMANCE_ROOT, '../', cPath);
-    rawSchema = JSON.parse(fs.readFileSync(fullP, 'utf8'));
+  if (url) {
+    rawSchema = await fetchJsonWithCache(url);
   } else {
-    rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
+    const cPath = testCase.catalogPath || testCase.catalogFile;
+    if (cPath) {
+      if (cPath.startsWith('http://') || cPath.startsWith('https://')) {
+        rawSchema = await fetchJsonWithCache(cPath);
+      } else {
+        const fullP = path.resolve(CONFORMANCE_ROOT, '../', cPath);
+        rawSchema = JSON.parse(fs.readFileSync(fullP, 'utf8'));
+      }
+    } else {
+      rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
+    }
   }
 
   if (testCase.expectError) {
@@ -1511,14 +1566,21 @@ function validateValidationSchemaTestCase(testCase) {
 
 /**
  * Reads the catalog document of a `round_trip` or `to_json` case: the file at
- * `catalogPath`, or the inline `catalog`.
+ * `catalogPath`, the URL at `catalogUrl`, or the inline `catalog`.
  */
-function readCaseCatalogDocument(testCase) {
+async function readCaseCatalogDocument(testCase) {
+  const url = testCase.catalogUrl || testCase.url;
+  if (url) {
+    return await fetchJsonWithCache(url);
+  }
   const cPath = testCase.catalogPath || testCase.catalogFile;
   if (cPath) {
+    if (cPath.startsWith('http://') || cPath.startsWith('https://')) {
+      return await fetchJsonWithCache(cPath);
+    }
     return JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', cPath), 'utf8'));
   }
-  assert.ok(testCase.catalog, 'Case declares neither catalog nor catalogPath.');
+  assert.ok(testCase.catalog, 'Case declares neither catalog, catalogPath, nor catalogUrl.');
   return JSON.parse(JSON.stringify(testCase.catalog));
 }
 
@@ -1548,8 +1610,8 @@ function assertJsonSetEqual(actual, expected, message) {
   assert.deepStrictEqual(normalizeSetArrays(actual), normalizeSetArrays(expected), message);
 }
 
-function validateRoundTripTestCase(testCase) {
-  const document = readCaseCatalogDocument(testCase);
+async function validateRoundTripTestCase(testCase) {
+  const document = await readCaseCatalogDocument(testCase);
   const pVer = testCase.protocolVersion;
   const out = Catalog.fromJson(document, pVer, testCase.catalogId).toJson();
   assertJsonSetEqual(out, document, 'toJson() does not equal the loaded document.');
@@ -1562,14 +1624,14 @@ function validateRoundTripTestCase(testCase) {
  * (`builtinCatalog: basic`) or the catalog loaded with `fromJson`, and compares
  * the document exactly with `expectFile`.
  */
-function validateToJsonTestCase(testCase) {
+async function validateToJsonTestCase(testCase) {
   assert.ok(testCase.expectFile, 'to_json case requires expectFile.');
   let catalog;
   if (testCase.builtinCatalog !== undefined) {
     assert.strictEqual(testCase.builtinCatalog, 'basic', 'Unknown builtinCatalog.');
     catalog = sdkBasicCatalog(testCase.protocolVersion);
   } else {
-    const document = readCaseCatalogDocument(testCase);
+    const document = await readCaseCatalogDocument(testCase);
     catalog = Catalog.fromJson(document, testCase.protocolVersion, testCase.catalogId);
   }
   const expected = JSON.parse(

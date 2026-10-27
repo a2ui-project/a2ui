@@ -780,6 +780,12 @@
   action: round_trip
   catalogPath: "conformance/test_data/catalogs/function_metadata_catalog_v1_0.json"
 
+- name: test_v09_gemini_enterprise_composite_catalog_round_trip
+  description: Tests that the production Gemini Enterprise composite catalog, fetched from its public URL, round-trips unchanged.
+  action: round_trip
+  protocolVersion: "v0.9"
+  catalogUrl: "https://www.gstatic.com/vertexaisearch/a2ui/v0_9/gemini_enterprise_composite_catalog.json"
+
 # ==============================================================================
 # 4. validation_schema
 # ==============================================================================
