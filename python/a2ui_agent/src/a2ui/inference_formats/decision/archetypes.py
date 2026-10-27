@@ -354,13 +354,17 @@ class SlotSpec:
         )
 
 
-def _parse_slots(raw: Mapping[str, Any]) -> dict[str, SlotSpec]:
+def _parse_slots(raw: Mapping[str, Any] | None) -> dict[str, SlotSpec]:
     """Parses a ``slots`` or ``fields`` mapping, preserving order."""
+    if not raw:
+        return {}
     return {name: SlotSpec.from_json(name, spec) for name, spec in raw.items()}
 
 
-def _parse_questions(raw: Mapping[str, Any]) -> dict[str, QuestionSpec]:
+def _parse_questions(raw: Mapping[str, Any] | None) -> dict[str, QuestionSpec]:
     """Parses an ``anatomy``, ``instance``, or ``job`` mapping."""
+    if not raw:
+        return {}
     return {name: QuestionSpec.from_json(spec) for name, spec in raw.items()}
 
 

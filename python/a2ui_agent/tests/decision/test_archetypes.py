@@ -478,3 +478,10 @@ def test_lint_rejects_retired_fallback_keywords() -> None:
     raw["blocks"][1]["fallback"] = ["facts", "repeat-in-parent"]
     with pytest.raises(GrammarError, match="fallback entry 'repeat-in-parent'"):
         ArchetypeGrammar.from_json(raw)
+
+
+def test_parse_slots_and_questions_handle_none() -> None:
+    from a2ui.inference_formats.decision.archetypes import SlotSpec
+
+    slot = SlotSpec.from_json("items", {"from": ["array_of_objects"], "fields": None})
+    assert slot.fields == {}

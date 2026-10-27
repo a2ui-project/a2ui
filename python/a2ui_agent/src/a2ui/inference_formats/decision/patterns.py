@@ -948,7 +948,7 @@ def _matches_item_identity(scope: _ExpansionScope, target: str) -> bool:
 
 def _is_self_author(scope: _ExpansionScope) -> bool:
     """Returns whether the current message item belongs to the `self` author."""
-    self_author = scope.knobs.get("self") or scope.instances.get("self")
+    self_author = _lookup_instance_or_knob(scope, "self")
     if not self_author or self_author == "none":
         return False
     if self_author in ("true", "yes"):
@@ -1103,10 +1103,11 @@ def _eval_mapping_property(raw: Mapping[str, Any], scope: _ExpansionScope) -> An
     for key, handler in _DIRECTIVE_HANDLERS.items():
         if key in raw:
             return handler(raw, scope)
-    if "call" in raw and "args" in raw:
+    call_fn = raw.get("call") or raw.get("@call")
+    if call_fn and "args" in raw:
         args = _eval_property_value(raw["args"], scope)
         return make_function_call(
-            str(raw["call"]),
+            str(call_fn),
             args if isinstance(args, Mapping) else {},
             is_v10=scope.is_v10,
         )

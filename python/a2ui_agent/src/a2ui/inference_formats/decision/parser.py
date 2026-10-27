@@ -22,6 +22,8 @@ from typing import Any
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import A2uiError, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats.direct_json.blocks import clean
+from a2ui.inference_formats.direct_json.json_reader import read_json
 from a2ui.parser import (
     A2uiCompilationError,
     A2uiCompilationParseError,
@@ -31,7 +33,6 @@ from a2ui.parser import (
     RawA2uiPart,
     RawResponsePart,
     TextPart,
-    parse_and_fix,
 )
 
 from .decision_block import DecisionBlock, decision_block_from_messages
@@ -106,7 +107,7 @@ class DecisionParser(Parser):
     def read_blocks(self, format_content: str) -> list[DecisionBlock]:
         """Parses the JSON body of a block into one or more decision blocks."""
         try:
-            parsed: Any = parse_and_fix(format_content)
+            parsed: Any = read_json(clean(format_content))
         except Exception as exc:
             raise A2uiCompilationParseError(
                 message=f"Decision block is not valid JSON: {exc}",

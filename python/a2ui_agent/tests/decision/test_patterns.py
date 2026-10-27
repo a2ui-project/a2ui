@@ -1056,3 +1056,28 @@ def test_eligible_archetypes_is_pure_and_synthesizer_cache_is_per_instance() -> 
     assert synth_a._eligible_archetypes(ptrs) == first
     assert synth_a._eligibility_cache is not synth_b._eligibility_cache
     assert len(synth_b._eligibility_cache) == 0
+
+
+def test_is_self_author_resolves_item_qualified_instance_keys() -> None:
+    catalog = BasicCatalog("v1.0")
+    graph = CatalogDecisionGraph([catalog])
+    expander = PatternExpander(MergedPatternLibrary.for_catalogs([catalog]), graph)
+    comps = expander.expand_block(
+        "messages",
+        "conversation",
+        BlockBindings(
+            slots={
+                "messages": SlotBinding(
+                    items=(
+                        {
+                            "author": SlotBinding(literal="Alex"),
+                            "text": SlotBinding(literal="Hi there"),
+                        },
+                    )
+                )
+            }
+        ),
+        instances={"0": {"self": "Alex"}},
+    )
+    validate_payload([catalog], _wrap_surface(comps))
+    assert any(c["id"] == "messages_msg_0" and c.get("justify") == "end" for c in comps)
