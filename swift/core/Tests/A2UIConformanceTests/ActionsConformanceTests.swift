@@ -41,13 +41,13 @@ private final class ConformanceActionFunctionHandler: FunctionHandler {
       return .integer(current + step)
     }
     map["failingAction"] = ActionTestFunction(name: "failingAction") { _, _ in
-      throw FunctionError.executionFailed(function: "failingAction", reason: "Simulated action error")
+      throw FunctionError.executionFailed(name: "failingAction", message: "Simulated action error")
     }
     if !userActivation {
       map["openUrl"] = ActionTestFunction(name: "openUrl") { _, _ in
         throw FunctionError.executionFailed(
-          function: "openUrl",
-          reason: "Function 'openUrl' requires user activation."
+          name: "openUrl",
+          message: "Function 'openUrl' requires user activation."
         )
       }
     }

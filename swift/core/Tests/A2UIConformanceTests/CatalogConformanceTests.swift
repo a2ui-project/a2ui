@@ -752,7 +752,7 @@ struct CatalogConformanceTests {
     expect: [String: Any],
     caseName: String
   ) throws {
-    let version = A2UIProtocolVersion(lenientRawValue: loaded.resolvedProtocolVersion)
+    let version = A2UIProtocolVersion(lenientRawValue: loaded.resolvedProtocolVersion) ?? .v10
     let config = ValidationConfig(allowUnknownElements: false, protocolVersion: version)
     let validator = PayloadValidator(catalog: loaded.catalog, config: config)
 
