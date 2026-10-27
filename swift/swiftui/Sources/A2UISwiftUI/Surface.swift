@@ -71,11 +71,10 @@ public struct Surface: View {
     return viewModel.rootNode != nil ? max(1, count) : count
   }
 
-  /// Unmounts the surface, disposing its data model subscriptions and resolver state.
+  /// Unmounts the surface and disposes its data model subscriptions.
   public func unmount() {
     lifecycleState.isMounted = false
     viewModel.dataModel.dispose()
-    viewModel.nodeResolver.clearReportedExpressionErrors()
   }
 
   public var body: some View {
