@@ -212,6 +212,11 @@
   that declare none, and a function call given to a property with a static
   type. Elemental output whose top-level element has no `id="root"` is
   rejected, as its prompt requires.
+- The Express response parser treats only `"` as a string delimiter, as
+  Express does, so an apostrophe in a comment (`/* Chef's pick */`) no longer
+  swallows the closing `</a2ui>` tag
+  ([#3479](https://github.com/a2ui-project/a2ui/issues/3479)).
+  [#3670](https://github.com/a2ui-project/a2ui/pull/3670)
 
 ## 0.9.0 (2026-10-17)
 
