@@ -50,7 +50,15 @@ Inspect the TypeScript and web files in `git diff main --stat` and read only the
   - Any unit test (`*.test.ts`, `*.spec.ts`), integration test, mock setup, or test fixture is added or modified.
   - Catalog component implementations are modified (verify adjacent unit tests exist and cover all component primitives).
 
-### 6. TypeScript Public API AST Inspection (`ts-morph`)
+### 6. Yarn Workspace Tooling & Script Invocation
+
+- **Document**: [`yarn-workspace-tooling.md`](yarn-workspace-tooling.md)
+- **Activate if**:
+  - `package.json` scripts, GitHub workflow steps, publishing workflows, or shell scripts that run Node tooling or publish packages are added or modified.
+  - Test runner configuration that spawns a dev server (`webServer` in Playwright, Vitest, or Karma configs) is touched.
+  - READMEs or documentation snippets containing `npm`, `npx`, or `pnpm` commands are added or edited.
+
+### 7. TypeScript Public API AST Inspection (`ts-morph`)
 
 - **Document**: [`references/inspecting-typescript-public-api.md`](references/inspecting-typescript-public-api.md)
 - **Activate if**:
