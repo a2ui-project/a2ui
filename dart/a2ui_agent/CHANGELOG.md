@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `DirectJsonPromptGenerator.generate()` follows the prompt layout
+  the other SDKs use: the rules without the `## Workflow Description:` heading,
+  then a schema block with the protocol schemas, then one schema block per
+  catalog, then the examples under `### Examples:` followed by a blank line.
+  Add your own heading around the snippet if you want one.
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or

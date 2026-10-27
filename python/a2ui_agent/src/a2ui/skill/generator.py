@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Optional
 
+from a2ui.constants import EXAMPLES_HEADING
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
 
@@ -68,7 +69,7 @@ class SkillGenerator:
         if cat_blocks:
             body_parts.extend(cat_blocks)
         if ex_blocks:
-            body_parts.append("### Examples:\n\n" + "\n\n".join(ex_blocks))
+            body_parts.append(EXAMPLES_HEADING + "\n\n".join(ex_blocks))
 
         content_str = "\n\n".join(body_parts) + "\n"
         desc = (
@@ -127,7 +128,7 @@ class SkillGenerator:
             or ""
         )
         if examples:
-            cat_body += f"\n\n### Examples:\n\n{examples}"
+            cat_body += f"\n\n{EXAMPLES_HEADING}{examples}"
 
         # The catalog document's own `description` describes the catalog, not
         # when to use the skill, so it is not used here.

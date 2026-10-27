@@ -38,6 +38,10 @@ const String _schemaBlockStart = '---BEGIN A2UI JSON SCHEMA---';
 const String _schemaBlockEnd = '---END A2UI JSON SCHEMA---';
 const String _defsRefPrefix = r'#/$defs/';
 
+/// Wraps [sections] between the schema block start and end lines.
+String _schemaBlock(List<String> sections) =>
+    [_schemaBlockStart, ...sections, _schemaBlockEnd].join('\n\n');
+
 /// Renders the system prompt snippet teaching a model to write A2UI messages
 /// as JSON inside `<a2ui-json>` tags.
 class DirectJsonPromptGenerator extends PromptGenerator {
@@ -108,24 +112,23 @@ class DirectJsonPromptGenerator extends PromptGenerator {
       [...catalogDocs, ...peerResolvedDocs, a2rSchema],
     );
 
-    final schemaSections = <String>[
-      _schemaBlockStart,
+    // The protocol schemas sit in one schema block after the rules, and each
+    // catalog schema in a block of its own, so the snippet is the rules, the
+    // catalogs' blocks and the examples joined, as the other SDKs render it.
+    final protocolSections = <String>[
       '### Agent to Renderer Schema:\n${jsonEncode(a2rSchema)}',
     ];
     final Object? commonDefs = commonTypesSchema[r'$defs'];
     if (commonDefs is Map && commonDefs.isNotEmpty) {
-      schemaSections.add(
+      protocolSections.add(
         '### Common Types Schema:\n${jsonEncode(commonTypesSchema)}',
       );
     }
-    for (final catalogDoc in catalogDocs) {
-      schemaSections.add('### Catalog Schema:\n${jsonEncode(catalogDoc)}');
-    }
-    schemaSections.add(_schemaBlockEnd);
 
     final parts = <String>[
-      '## Workflow Description:\n$_defaultWorkflowRules',
-      schemaSections.join('\n\n'),
+      '$_defaultWorkflowRules\n\n${_schemaBlock(protocolSections)}',
+      for (final catalogDoc in catalogDocs)
+        _schemaBlock(['### Catalog Schema:\n${jsonEncode(catalogDoc)}']),
     ];
     if (examples.isNotEmpty) {
       const encoder = JsonEncoder.withIndent('  ');
@@ -135,7 +138,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
               '${encoder.convert(turn.map(_exampleMessageJson).toList())}\n'
               '</a2ui-json>',
       ];
-      parts.add('### Examples:\n${blocks.join('\n\n')}');
+      parts.add('### Examples:\n\n${blocks.join('\n\n')}');
     }
     return parts.join('\n\n');
   }
