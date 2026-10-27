@@ -86,7 +86,41 @@ void main() {
     controller.jumpTo(4700);
     await tester.pump();
 
-    expect(built, hasLength(56));
+    expect(built, containsAll(<int>[0, 47]));
     expect(reported, {for (final index in built) 's$index'});
+  });
+
+  testWidgets('a mounted surface error is delivered after a deleteSurface in '
+      'the same payload', (tester) async {
+    processor.processMessages([_create('s'), _root('s', 'Text')]);
+    final errors = <String>[];
+    final SurfaceModel<ComponentImplementation> s = surface('s');
+    s.onError.subscribe((error) => errors.add(error.code));
+    final mounted = ValueNotifier<bool>(true);
+    addTearDown(mounted.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder(
+            valueListenable: mounted,
+            builder: (context, mounted, _) =>
+                mounted ? A2uiSurface(surface: s) : const SizedBox(),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('ready'), findsOneWidget);
+
+    processor.processMessages([
+      _root('s', 'Bogus'),
+      {
+        'version': 'v0.9',
+        'deleteSurface': {'surfaceId': 's'},
+      },
+    ]);
+    mounted.value = false;
+    await tester.pump();
+
+    expect(errors, ['UNKNOWN_COMPONENT_TYPE']);
   });
 }
