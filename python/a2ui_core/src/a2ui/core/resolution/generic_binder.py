@@ -19,9 +19,11 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import cache
 from typing import Any, Callable, Final
+
 from ..common import Subscription
 from ..schema._dynamic_types import dynamic_literal_kinds
 from ..schema.common_types_schema import get_all_dynamic_type_names
+from ..schema.v1_0 import ValidationResult
 from .component_context import ComponentContext
 
 
@@ -614,9 +616,11 @@ class GenericBinder:
         return closure
 
     @staticmethod
-    def _process_rule_val(val: Any, fallback_msg: str | None) -> dict[str, Any]:
-        from ..schema.v1_0.catalog_definition import ValidationResult
-
+    def _process_rule_val(
+        val: Any,
+        explicit_rule_msg: str | None = None,
+        fallback_msg: str = "Validation failed",
+    ) -> dict[str, Any]:
         is_obj = False
         if isinstance(val, dict):
             is_obj = "severity" in val or "code" in val
@@ -631,14 +635,19 @@ class GenericBinder:
         else:
             raw = {"valid": bool(val)}
 
-        if not raw.get("valid") and not raw.get("message") and fallback_msg:
+        if explicit_rule_msg is not None:
+            raw["message"] = explicit_rule_msg
+        elif not raw.get("message"):
             raw["message"] = fallback_msg
 
         try:
             vr = ValidationResult.model_validate(raw)
             dumped = vr.model_dump(exclude_none=True)
         except Exception:
-            dumped = {"valid": False, "message": fallback_msg or "Validation failed"}
+            dumped = {
+                "valid": False,
+                "message": explicit_rule_msg or fallback_msg or "Validation failed",
+            }
 
         if not dumped.get("valid") and "severity" not in dumped:
             dumped["severity"] = "error"
@@ -702,29 +711,30 @@ class GenericBinder:
 
         for idx, rule in enumerate(rules):
             condition = rule
-            message = "Validation failed"
+            explicit_msg: str | None = None
             if isinstance(rule, dict):
                 condition = rule.get("condition", rule)
-                message = rule.get("message", "Validation failed")
+                if isinstance(rule.get("message"), str):
+                    explicit_msg = rule["message"]
 
-            rule_results[idx]["message"] = message
+            rule_results[idx]["message"] = explicit_msg or "Validation failed"
 
-            def make_on_change(i: int, fallback: str) -> Callable[[Any], None]:
+            def make_on_change(i: int, exp_msg: str | None) -> Callable[[Any], None]:
                 def on_change(new_val: Any) -> None:
-                    rule_results[i] = self._process_rule_val(new_val, fallback)
+                    rule_results[i] = self._process_rule_val(new_val, exp_msg)
                     _apply_validation_state(reactive=True)
 
                 return on_change
 
             bound = self.context.data_context.subscribe_dynamic_value(
-                condition, make_on_change(idx, message)
+                condition, make_on_change(idx, explicit_msg)
             )
             if not is_sync:
                 self.data_listeners.append(bound)
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = self._process_rule_val(bound.value, message)
+            rule_results[idx] = self._process_rule_val(bound.value, explicit_msg)
 
         _apply_validation_state(reactive=False)
         return value

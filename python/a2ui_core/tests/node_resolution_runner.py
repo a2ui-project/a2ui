@@ -25,13 +25,13 @@ import yaml
 
 from a2ui.core.catalog import Catalog, FunctionImplementation
 from a2ui.core.processing import MessageProcessor
-from a2ui.core.resolution.component_node import (
+from a2ui.core.resolution import (
     ComponentNode,
+    NodeResolver,
     ResolvedBinding,
     is_component_node,
     is_writable,
 )
-from a2ui.core.resolution.node_resolver import NodeResolver
 from a2ui.core.state import ComponentModel, SurfaceModel
 
 

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .component_context import ComponentContext
-from .component_node import ComponentNode, NodeState
+from .component_node import ComponentNode, NodeState, is_component_node
 from .data_context import DataContext, MissingDataBindingWarning
 from .generic_binder import GenericBinder
 from .node_resolver import NodeResolver
@@ -29,5 +29,6 @@ __all__ = [
     "NodeState",
     "ResolvedBinding",
     "WritableBinding",
+    "is_component_node",
     "is_writable",
 ]
