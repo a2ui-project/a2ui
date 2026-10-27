@@ -19,7 +19,7 @@
   schemas in one schema block after the rules and each catalog schema in a
   schema block of its own, and `generate_catalog_instructions()` with no
   catalog returns one block per catalog. `a2ui.constants.EXAMPLES_HEADING` holds
-  the examples heading.
+  the examples heading. [#3567](https://github.com/a2ui-project/a2ui/pull/3567)
 - Introduce typesafe fluent builder package for A2UI Protocol v1.0 (`a2ui.builder.v1_0`),
   re-exporting v1.0 common types (`DataBinding`, `FunctionCall`,
   `AccessibilityAttributes`, `ActionEvent`, and `CheckRule`) from
