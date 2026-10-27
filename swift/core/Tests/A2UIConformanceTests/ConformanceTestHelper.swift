@@ -371,6 +371,19 @@ public enum ConformanceTestHelper {
       remoteSchemas: &remoteSchemas,
       allDefinitions: &allDefinitions
     )
+    // An inline catalog that names no common types schema refers to the
+    // published one for its protocol version, as in the other SDKs, so that
+    // references such as `#/$defs/ChildList` resolve.
+    if catalogConfiguration["common_types_schema"] == nil,
+      catalogConfiguration["commonTypesSchema"] == nil,
+      let commonTypes = try? commonTypesSchema(forProtocolVersion: protocolVersion ?? "v1.0")
+    {
+      loadCommonTypesDefinitions(
+        from: ["commonTypesSchema": commonTypes],
+        remoteSchemas: &remoteSchemas,
+        allDefinitions: &allDefinitions
+      )
+    }
 
     guard
       let catalogSchemaJSON = loadCatalogDefinitions(

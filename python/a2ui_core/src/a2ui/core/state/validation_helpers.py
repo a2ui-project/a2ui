@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..exceptions import (
@@ -259,6 +259,21 @@ def validate_composition_constraints(
         check_allowed_children(
             comp_id, model, component_api, child_map.get(comp_id, []), type_map.get
         )
+
+
+def declares_composition_rules(catalog: Any) -> bool:
+    """Whether any component type of a catalog declares `allowed_parents` or `allowed_children`.
+
+    A catalog that does not list its component types is assumed to declare some.
+    """
+    components = getattr(catalog, "components", None)
+    if not isinstance(components, Mapping):
+        return catalog is not None
+    return any(
+        getattr(component, "allowed_parents", None)
+        or getattr(component, "allowed_children", None)
+        for component in components.values()
+    )
 
 
 def composition_api(model: ComponentModel) -> Any:
