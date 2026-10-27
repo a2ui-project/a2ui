@@ -12,6 +12,7 @@
       {"$ref": "#/$defs/FromCatalogTest"},
       {"$ref": "#/$defs/SkillSetTest"},
       {"$ref": "#/$defs/ExportToDirectoryTest"},
+      {"$ref": "#/$defs/MonolithicSkillEqualsPromptSnippetTest"},
       {"$ref": "#/$defs/TransformCatalogTest"},
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
@@ -74,6 +75,7 @@
             "is_a2ui_part",
             "load",
             "load_catalog",
+            "monolithic_skill_equals_prompt_snippet",
             "parse_chunk",
             "parse_expression_template",
             "parse_full",
@@ -921,6 +923,29 @@
         }
       },
       "required": ["action", "args", "expected_files"]
+    },
+    "MonolithicSkillEqualsPromptSnippetTest": {
+      "type": "object",
+      "description": "Builds one format from the listed catalogs and checks that its monolithic skill's body equals its prompt snippet.",
+      "properties": {
+        "action": {
+          "const": "monolithic_skill_equals_prompt_snippet"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"type": "string"},
+            "catalogs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string"},
+              "description": "Catalog document paths, relative to the repository root."
+            }
+          },
+          "required": ["format", "catalogs"]
+        }
+      },
+      "required": ["action", "args"]
     },
     "AgentCatalogRef": {
       "description": "A catalog document, either a path relative to `conformance/` or the document inlined in the case.",
