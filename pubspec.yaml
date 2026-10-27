@@ -28,6 +28,8 @@ workspace:
   - dart/a2ui_core
   - dart/a2ui_cli
   - dart/a2ui_flutter
+  - dart/a2ui_flutter/e2e_test_v0_9
+  - dart/a2ui_flutter/example_v0_9
 
 flutter:
   uses-material-design: true
