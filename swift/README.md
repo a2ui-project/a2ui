@@ -47,11 +47,24 @@ swift test
 
 ---
 
+## Formatting locale
+
+`formatNumber`, `formatCurrency` and `pluralize` use `BasicFunctions.defaultLocale` (`en_US`) by
+default, like the web and Dart implementations, so their output doesn't depend on the device
+locale. To format for another locale, build the catalog with it:
+
+```swift
+let catalog = BasicCatalog.makeCatalog(version: .v10, locale: Locale(identifier: "de_DE"))
+// SwiftUI:
+let swiftUICatalog = BasicCatalogImplementation.makeCatalog(version: .v10, locale: .current)
+```
+
 ## Plural selection
 
 `BasicCatalog` uses Foundation by default for `pluralize`. Set its language with
-`PluralizeFunction(locale: Locale(identifier: "ar"))`, or omit the locale to use `.current`.
-Applications can continue to supply their own `PluralResolver`.
+`PluralizeFunction(locale: Locale(identifier: "ar"))`, or omit the locale to use
+`BasicFunctions.defaultLocale` (`en_US`). Applications can continue to supply their own
+`PluralResolver`.
 
 The function uses Foundation's public localized formatting API and the package's bundled
 `PluralCategories.stringsdict`. This single, unlocalized resource contains category names, not
@@ -71,5 +84,5 @@ For AI agents and contributors working in this directory hierarchy:
   spec compliance hierarchy, and verification protocols.
 - **[CODING_STANDARDS.md](CODING_STANDARDS.md)**: Coding standards, safe optional handling,
   and Swift Testing patterns.
-- **[.agents/skills/a2ui-swift-development/](../.agents/skills/a2ui-swift-development/SKILL.md)**:
-  Specialized skill for Swift development.
+- **[.agents/skills/coding-principles/subskills/swift/](../.agents/skills/coding-principles/subskills/swift/INDEX.md)**:
+  Progressive discovery router and coding standards subskills for Swift development.

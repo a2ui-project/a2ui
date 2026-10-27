@@ -119,6 +119,7 @@ def parser() -> ExpressParser:
 
 
 def _compile(parser: ExpressParser, dsl: str) -> list[dict[str, Any]]:
+    """Compiles DSL into messages, without checking them against a renderer state."""
     return to_message_dicts(parser.compile(dsl))
 
 
@@ -312,6 +313,17 @@ def test_check_binds_component_value_implicitly(parser: ExpressParser) -> None:
     assert "?required" in _round_trip(parser, messages)
 
 
+def test_map_literal_shaped_like_a_binding_does_not_bind_checks(
+    parser: ExpressParser,
+) -> None:
+    messages = _compile(
+        parser, 'surface("s1")\nroot = Input({"@path": "/name"}, ?required)'
+    )
+    component = messages[0]["createSurface"]["components"][0]
+    assert component["value"] == {"@path": "/name"}
+    assert "value" not in component["checks"][0]["condition"].get("args", {})
+
+
 def test_decompile_reads_bare_call_check_as_its_condition(
     parser: ExpressParser,
 ) -> None:
@@ -400,6 +412,32 @@ def test_v0_9_rejects_per_component_and_per_function_catalog_ids(dsl: str) -> No
         compiler.compile(dsl)
 
 
+@pytest.mark.parametrize(
+    ("dsl", "match"),
+    [
+        (
+            (
+                'root = Input("x", ?sharedFn("a", "b", {catalogId: "test/primary",'
+                " extra: 1}))"
+            ),
+            "Unsupported key",
+        ),
+        (
+            (
+                'root = Input("x", ?sharedFn("a", "b", {catalogId: "test/primary"},'
+                ' {catalogId: "test/secondary"}))'
+            ),
+            "conflicting catalogId",
+        ),
+        ('root = Input("x", ?sharedFn("a", "b", {catalogId: 1}))', "catalogId"),
+    ],
+)
+def test_check_catalog_options_are_validated(dsl: str, match: str) -> None:
+    compiler = ExpressCompiler([_primary(), _secondary()])
+    with pytest.raises(ExpressValidationError, match=match):
+        compiler.compile(dsl)
+
+
 def test_v0_9_allows_a_surface_catalog() -> None:
     compiler = ExpressCompiler([_primary("v0.9")], version="v0.9")
     msgs = to_message_dicts(
@@ -459,7 +497,7 @@ def test_update_components_on_non_default_surface_round_trips(
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
-                    "id": "sub",
+                    "id": "root",
                     "component": "Panel",
                     "catalogId": SECONDARY,
                     "headline": "B",
@@ -468,7 +506,7 @@ def test_update_components_on_non_default_surface_round_trips(
         },
     ]
     dsl = _round_trip(parser, messages)
-    assert dsl.count('surface("s2")') == 2
+    assert dsl.count('surface("s2"') == 2
     assert "catalogId" not in dsl
 
 
@@ -489,7 +527,7 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
-                    "id": "greeting",
+                    "id": "root",
                     "component": "Input",
                     "value": {"@path": "/v"},
                     "action": {
@@ -503,8 +541,8 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
         },
     ]
     dsl = parser.decompile(to_message_models(messages))
-    assert dsl.count('surface("s2")') == 2
-    assert 'greeting = Input($/v, sharedFn("p", catalogId="test/primary"))' in dsl
+    assert dsl.count('surface("s2"') == 2
+    assert 'root = Input($/v, sharedFn("p", catalogId="test/primary"))' in dsl
     recompiled = _compile(parser, dsl)
     assert recompiled[1]["updateComponents"]["components"][0]["catalogId"] == PRIMARY
 
@@ -548,8 +586,8 @@ def test_update_surface_components_carry_their_catalog(parser: ExpressParser) ->
         """
 surface("s2")
 root = Panel("A")
-surface("s2")
-sub = Panel("B")
+surface("s2", update=true)
+root = Panel("B")
 """,
     )
     assert messages[1] == {
@@ -557,7 +595,7 @@ sub = Panel("B")
         "updateComponents": {
             "surfaceId": "s2",
             "components": [{
-                "id": "sub",
+                "id": "root",
                 "component": "Panel",
                 "catalogId": SECONDARY,
                 "headline": "B",

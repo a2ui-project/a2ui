@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- `argumentErrors`, the argument check of `Catalog.invoke` and of a
+  `callRendererFunction`, checks a `ValidationResult` argument as its JSON
+  object instead of throwing `StateError`, and on a catalog for v1.0 or later
+  accepts one, or any object with a boolean `valid`, in a boolean position, so
+  `and`, `or` and `not` over validation rules run.
+- A component's `accessibility.hidden` resolves as a dynamic value, as its
+  `label` and `description` do, so it reaches `node.props` as a binding to
+  its value, and a `hidden` bound to a data path follows the data.
+- `regex` with an invalid pattern puts the parse message in the error's
+  `details` instead of the `FormatException` object, so the error encodes as
+  JSON.
+- **Breaking:** Error and warning listeners run after the call that found
+  the problem returns, never during it, so a listener may update UI state
+  directly. Delivery is a microtask later. A test that checks what a
+  listener collected right after `processMessages`, `NodeResolver()`, a
+  data model write or `dispatchError` must first
+  `await Future<void>.delayed(Duration.zero)`, or `await tester.pump()` in a
+  widget test.
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several

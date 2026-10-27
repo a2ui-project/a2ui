@@ -13,6 +13,20 @@ description: >-
 
 ---
 
+## Specification and Blueprint Grounding
+
+Before modifying or implementing code in any language, consult the authoritative specifications and blueprints:
+
+- **Protocol JSON Schemas**: [`specification/v0_9_1/json/`](../../../specification/v0_9_1/json/) and [`specification/v1_0/json/`](../../../specification/v1_0/json/) define wire-format envelopes, types, and validation constraints.
+- **Component Catalogs**: [`catalogs/basic/v1/catalog.json`](../../../catalogs/basic/v1/catalog.json) defines standard components, properties, and function signatures.
+- **Core Module Blueprint**: [`a2ui_core.blueprint.md`](../../../blueprints/modules/a2ui_core.blueprint.md) specifies state containers (`DataModel`, `SurfaceModel`), `MessageProcessor`, JSON pointer rules, auto-vivification, and error semantics.
+- **Agent SDK Blueprint**: [`a2ui_agent.blueprint.md`](../../../blueprints/modules/a2ui_agent.blueprint.md) specifies `A2uiGenerator`, `A2uiRequestProcessor`, inference format strategies, and prompt generation.
+- **Framework Adapter Blueprint**: [`a2ui_framework_adapter.blueprint.md`](../../../blueprints/modules/a2ui_framework_adapter.blueprint.md) specifies view mapping, reactive subscription lifecycles, and layout behavior.
+- **Typesafe Builder Blueprint**: [`typesafe_builder_api.blueprint.md`](../../../blueprints/features/typesafe_builder_api.blueprint.md) specifies fluent builder hierarchies.
+- **Reference Implementation**: [`typescript/core/web_core/`](../../../typescript/core/web_core/) serves as the canonical behavioral reference for edge-case resolution.
+
+---
+
 ## Progressive Discoverability: Two-Level Subskill Routing
 
 Because the A2UI repository spans multiple languages (`typescript/`, `python/`, `dart/`, `swift/`) and shared specifications (`specification/`, `catalogs/`), agents must use a two-level progressive discovery workflow:
@@ -71,9 +85,9 @@ Inspect the file extensions and directories in `git diff main --stat` and follow
 | Language / Ecosystem                                            | Matching Paths & Extensions                                                              | Progressive Discovery Target                                                                                                                                                                                                   |
 | :-------------------------------------------------------------- | :--------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **TypeScript & Web** (Lit, Angular, React, Web Core, CSS, HTML) | `*.ts`, `*.tsx`, `*.css`, `typescript/`, `samples/client/{lit,angular,react}/`, `tools/` | Read the TypeScript & Web router: [`subskills/typescript/INDEX.md`](subskills/typescript/INDEX.md) to activate specific TypeScript, reactive lifecycle, CSS theming, accessibility, DOM testing, and AST public API subskills. |
-| **Python** (Core, Agent SDK, Builders, Evaluators, Scripts)     | `*.py`, `python/`, `eval/`, `samples/agent/`, `tools/`, `scripts/`                       | Read [`a2ui-python-development`](../a2ui-python-development/SKILL.md) (and [`a2ui-generate-pydantic-models`](../a2ui-generate-pydantic-models/SKILL.md) when modifying schema-generated Pydantic models).                      |
-| **Swift & SwiftUI** (Core, SwiftUI Adapter, iOS Sample)         | `*.swift`, `swift/`, `Package.swift`                                                     | Read [`a2ui-swift-development`](../a2ui-swift-development/SKILL.md).                                                                                                                                                           |
-| **Dart & Flutter** (Core, Agent SDK, Flutter Adapter)           | `*.dart`, `dart/`, `samples/client/flutter/`, `pubspec.yaml`                             | Read [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md) when touching changelogs or package versions, and adhere to [`analysis_options.yaml`](../../../analysis_options.yaml).                                         |
+| **Python** (Core, Agent SDK, Builders, Evaluators, Scripts)     | `*.py`, `python/`, `eval/`, `samples/agent/`, `tools/`, `scripts/`                       | Read the Python router: [`subskills/python/INDEX.md`](subskills/python/INDEX.md) to activate Python package architecture, facade conventions, typing, and verification subskills.                                              |
+| **Swift & SwiftUI** (Core, SwiftUI Adapter, iOS Sample)         | `*.swift`, `swift/`, `Package.swift`                                                     | Read the Swift & SwiftUI router: [`subskills/swift/INDEX.md`](subskills/swift/INDEX.md) to activate Swift target architecture, coding standards, and `Testing` subskills.                                                      |
+| **Dart & Flutter** (Core, Agent SDK, Flutter Adapter)           | `*.dart`, `dart/`, `samples/client/flutter/`, `pubspec.yaml`                             | Read the Dart & Flutter router: [`subskills/dart/INDEX.md`](subskills/dart/INDEX.md) to activate Dart analyzer rules, package versioning, and changelog subskills.                                                             |
 
 ---
 

@@ -1109,6 +1109,86 @@ describe('specification annotations', () => {
       assert.deepStrictEqual(docFn.required, valFn.required);
     }
   });
+
+  it('requires args when every branch of a union function argument schema requires arguments', () => {
+    const unionSchema = z.union([
+      z.object({kind: z.literal('a'), value: z.string()}),
+      z.object({kind: z.literal('b'), count: z.number()}),
+    ]);
+    const choose = createFunctionImplementation(
+      {
+        name: 'choose',
+        returnType: 'string',
+        schema: unionSchema,
+      },
+      () => 'result',
+    );
+    const chooseSpec = createFunctionImplementation(
+      {
+        name: 'chooseSpec',
+        returnType: 'string',
+        schema: spec(unionSchema, {}),
+      },
+      () => 'result',
+    );
+    for (const [version, callKey] of [
+      ['0.9', 'call'],
+      ['1.0', '@call'],
+    ] as const) {
+      const cat = new Catalog(
+        `https://example.com/union-required/${version}`,
+        version,
+        [],
+        [choose, chooseSpec],
+      );
+      const docFns = cat.toJson().functions as Record<string, any>;
+      const valFns = cat.validationSchema.functions as Record<string, any>;
+      assert.deepStrictEqual(docFns.choose.required, [callKey, 'args']);
+      assert.deepStrictEqual(valFns.choose.required, [callKey, 'args']);
+      assert.deepStrictEqual(docFns.chooseSpec.required, [callKey, 'args']);
+      assert.deepStrictEqual(valFns.chooseSpec.required, [callKey, 'args']);
+    }
+  });
+
+  it('omits args from required when at least one branch of a union function schema has no required arguments', () => {
+    const optionalBranchUnion = z.union([
+      z.object({kind: z.literal('a'), value: z.string()}),
+      z.object({format: z.string().optional()}),
+    ]);
+    const chooseOptional = createFunctionImplementation(
+      {
+        name: 'chooseOptional',
+        returnType: 'string',
+        schema: optionalBranchUnion,
+      },
+      () => 'result',
+    );
+    const chooseOptionalSpec = createFunctionImplementation(
+      {
+        name: 'chooseOptionalSpec',
+        returnType: 'string',
+        schema: spec(optionalBranchUnion, {}),
+      },
+      () => 'result',
+    );
+    for (const [version, callKey] of [
+      ['0.9', 'call'],
+      ['1.0', '@call'],
+    ] as const) {
+      const cat = new Catalog(
+        `https://example.com/union-optional/${version}`,
+        version,
+        [],
+        [chooseOptional, chooseOptionalSpec],
+      );
+      const docFns = cat.toJson().functions as Record<string, any>;
+      const valFns = cat.validationSchema.functions as Record<string, any>;
+      assert.deepStrictEqual(docFns.chooseOptional.required, [callKey]);
+      assert.deepStrictEqual(valFns.chooseOptional.required, [callKey]);
+      assert.deepStrictEqual(docFns.chooseOptionalSpec.required, [callKey]);
+      assert.deepStrictEqual(valFns.chooseOptionalSpec.required, [callKey]);
+    }
+  });
 });
 
 describe('built-in basic catalogs', () => {

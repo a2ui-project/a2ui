@@ -172,6 +172,27 @@ export function isComponentReferenceProperty(propSchema: unknown): boolean {
 }
 
 /**
+ * Writes a number the way ECMAScript `Number.prototype.toString` does, which is
+ * the spelling the Express grammar and every SDK's decompiler agree on: plain
+ * decimal for 1e-6 ≤ |v| < 1e21, otherwise exponent form such as `1e-7` or
+ * `1.5e+21`. Negative zero is written `-0.0`, since `String(-0)` is `"0"`.
+ *
+ * @param val The number to decompile.
+ * @returns The Express number literal.
+ * @throws {A2uiValidationError} When `val` is `NaN` or infinite, which Express
+ *   has no notation for.
+ */
+export function decompileNumber(val: number): string {
+  if (!Number.isFinite(val)) {
+    throw new A2uiValidationError(`The number ${val} has no Express notation.`);
+  }
+  if (Object.is(val, -0)) {
+    return '-0.0';
+  }
+  return String(val);
+}
+
+/**
  * Formats a string literal using the cleanest/most readable representation.
  *
  * @param val The string value to decompile.
@@ -956,7 +977,7 @@ export class ExpressDecompiler {
     }
 
     if (typeof val === 'number') {
-      return String(val);
+      return decompileNumber(val);
     }
 
     if (typeof val === 'string') {
@@ -994,8 +1015,10 @@ export class ExpressDecompiler {
         return `_template(${pathRepr}, ${compIdRepr})`;
       }
 
+      // A data binding is an object whose only key is the version's binding key, so a plain
+      // `path` key in v1.0, or a binding key beside other keys, is data.
       const boundPath = obj[helper.keys.path];
-      if (typeof boundPath === 'string') {
+      if (typeof boundPath === 'string' && Object.keys(obj).length === 1) {
         const pathStr = boundPath;
         if (pathStr.startsWith('/')) {
           return `$/${pathStr.slice(1)}`;
@@ -1028,9 +1051,8 @@ export class ExpressDecompiler {
         );
       }
 
-      const callName =
-        obj[helper.keys.call] ??
-        ('call' in obj && ('args' in obj || 'catalogId' in obj) ? obj.call : undefined);
+      // Only the version's function call key names a call, so a plain `call` key in v1.0 is data.
+      const callName = obj[helper.keys.call];
       if (typeof callName === 'string') {
         return this.formatFunctionCall(obj, varNames, surfaceCatalogId);
       }
