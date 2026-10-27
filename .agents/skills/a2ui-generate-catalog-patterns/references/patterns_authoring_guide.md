@@ -13,9 +13,7 @@ This guide defines the JSON schemas, expansion directives, and design recipes fo
 ```json
 {
   "$schema": "https://a2ui.org/specification/v1_0/decision/pattern_definition.json",
-  "catalogIds": [
-    "https://example.com/catalogs/my_catalog/v1/catalog.json"
-  ],
+  "catalogIds": ["https://example.com/catalogs/my_catalog/v1/catalog.json"],
   "version": "1",
   "patterns": {
     "page": {
@@ -29,11 +27,7 @@ This guide defines the JSON schemas, expansion directives, and design recipes fo
         {
           "id": "page_col",
           "component": "Column",
-          "children": [
-            "page_title",
-            {"$if": "subtitle", "id": "page_subtitle"},
-            {"$blocks": true}
-          ]
+          "children": ["page_title", {"$if": "subtitle", "id": "page_subtitle"}, {"$blocks": true}]
         },
         {
           "id": "page_title",
@@ -52,6 +46,7 @@ This guide defines the JSON schemas, expansion directives, and design recipes fo
 ```
 
 Each entry under `"patterns"` defines:
+
 - `"slots"`: Array of slot names bound by `LayoutPlanner` for this pattern.
 - `"knobs"` (optional): Map of anatomy question names to their allowed string values.
 - `"fieldVariants"` (optional): Named component templates selected per element via `{"$byInstance": "<question>"}` (used in `form` and `groups`).
@@ -61,44 +56,44 @@ Each entry under `"patterns"` defines:
 
 `PatternExpander` evaluates the following directives inside `"components"` templates:
 
-| Directive | Location | Behavior |
-| :--- | :--- | :--- |
-| `{"$slot": "<name>", "$default": <val>}` | Component property | Binds to the slot's JSON Pointer (`{"@path": "/..."}` on v1.0, `{"path": "/..."}` on v0.9) or literal value. If unbound, emits `"$default"` when present or omits the property. |
-| `{"$text": "### {title}"}` | String/DynamicString property | Interpolates one or more `{slot}` placeholders. Emits a direct binding for a single `{slot}`, a `formatString` function call when mixing static text with pointers, or a literal string. |
-| `{"$if": "<slot>", "id": "<comp_id>"}` | Container `children` list | Includes `<comp_id>` only when `<slot>` is bound. May be combined with `"$ifKnob"`. |
-| `{"$ifKnob": {"<knob>": ["<val>"]}, "id": "<comp_id>"}` | Container `children` list | Includes `<comp_id>` only when `<knob>` matches one of the listed values. |
-| `{"$ifSelf": {"true": "<id_a>", "false": "<id_b>"}}` | Container `children` list or property | Branches on whether the current `conversation` message author represents `"self"` (`you`, `me`, `user`, `self`). |
-| `{"$ifInstance": {"<key>": "<val>"}, "value": <expr>}` | Component property | Evaluates and emits `"value"` only when the per-element instance answer or knob `<key>` equals `<val>`; omits the property otherwise. |
-| `{"$byInstance": "<key>", "<opt1>": <v1>, "<opt2>": <v2>}` | Component property or `$repeat.component` | In a property, selects `<v1>` or `<v2>` based on instance answer `<key>`. In `$repeat.component`, selects the matching template from `"fieldVariants"`. |
-| `{"$byType": "<slot>", "video_url": "<id1>", "audio_url": "<id2>"}` | Container `children` list | Selects the child component ID matching the semantic type of `<slot>`. |
-| `{"$repeat": "<slot>", "component": "<comp_id>", "order": "primaryLast"}` | Container `children` property | Expands `<comp_id>` across a repeated slot. Emits a `TemplateChildList` (`{"path": ..., "componentId": ...}`) for array pointers with relative fields, or unrolls indexed component copies when items are unrolled. |
-| `{"$map": "<key>", "<opt1>": <v1>, "$default": <v0>}` | Component property | Maps knob or instance answer `<key>` to a catalog-specific enum or literal value. |
-| `{"$event": "<slot_or_name>", "context": {"$item": true}}` | Action property | Emits `{"event": {"name": "...", "context": ...}}` for button or interactive component actions. |
-| `{"$blocks": true}` | `page` container `children` list | Splices the root component IDs of all expanded content blocks into the `page` container. |
+| Directive                                                                 | Location                                  | Behavior                                                                                                                                                                                                            |
+| :------------------------------------------------------------------------ | :---------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `{"$slot": "<name>", "$default": <val>}`                                  | Component property                        | Binds to the slot's JSON Pointer (`{"@path": "/..."}` on v1.0, `{"path": "/..."}` on v0.9) or literal value. If unbound, emits `"$default"` when present or omits the property.                                     |
+| `{"$text": "### {title}"}`                                                | String/DynamicString property             | Interpolates one or more `{slot}` placeholders. Emits a direct binding for a single `{slot}`, a `formatString` function call when mixing static text with pointers, or a literal string.                            |
+| `{"$if": "<slot>", "id": "<comp_id>"}`                                    | Container `children` list                 | Includes `<comp_id>` only when `<slot>` is bound. May be combined with `"$ifKnob"`.                                                                                                                                 |
+| `{"$ifKnob": {"<knob>": ["<val>"]}, "id": "<comp_id>"}`                   | Container `children` list                 | Includes `<comp_id>` only when `<knob>` matches one of the listed values.                                                                                                                                           |
+| `{"$ifSelf": {"true": "<id_a>", "false": "<id_b>"}}`                      | Container `children` list or property     | Branches on whether the current `conversation` message author represents `"self"` (`you`, `me`, `user`, `self`).                                                                                                    |
+| `{"$ifInstance": {"<key>": "<val>"}, "value": <expr>}`                    | Component property                        | Evaluates and emits `"value"` only when the per-element instance answer or knob `<key>` equals `<val>`; omits the property otherwise.                                                                               |
+| `{"$byInstance": "<key>", "<opt1>": <v1>, "<opt2>": <v2>}`                | Component property or `$repeat.component` | In a property, selects `<v1>` or `<v2>` based on instance answer `<key>`. In `$repeat.component`, selects the matching template from `"fieldVariants"`.                                                             |
+| `{"$byType": "<slot>", "video_url": "<id1>", "audio_url": "<id2>"}`       | Container `children` list                 | Selects the child component ID matching the semantic type of `<slot>`.                                                                                                                                              |
+| `{"$repeat": "<slot>", "component": "<comp_id>", "order": "primaryLast"}` | Container `children` property             | Expands `<comp_id>` across a repeated slot. Emits a `TemplateChildList` (`{"path": ..., "componentId": ...}`) for array pointers with relative fields, or unrolls indexed component copies when items are unrolled. |
+| `{"$map": "<key>", "<opt1>": <v1>, "$default": <v0>}`                     | Component property                        | Maps knob or instance answer `<key>` to a catalog-specific enum or literal value.                                                                                                                                   |
+| `{"$event": "<slot_or_name>", "context": {"$item": true}}`                | Action property                           | Emits `{"event": {"name": "...", "context": ...}}` for button or interactive component actions.                                                                                                                     |
+| `{"$blocks": true}`                                                       | `page` container `children` list          | Splices the root component IDs of all expanded content blocks into the `page` container.                                                                                                                            |
 
 ### 1.3 The 19 Grammar Block Contracts
 
-| Block ID | Primary Pattern | Fallback Chain | Slots (`*` = required, `[]` = repeat) | Anatomy Knobs | Instance Questions |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `banner` | `banner` | `banner -> prose` | `title*`, `text` | - | `tone` |
-| `picture` | `picture` | `picture` | `picture*`, `caption`, `width`, `height`, `aspectRatio`, `orientation` | `framing`, `prominence` | - |
-| `filters` | `filters` | `filters` | `query`, `categories` | - | - |
-| `headline` | `headline` | `headline -> facts` | `items*[]` (`label*`, `value*`, `delta`, `min`, `max`) | `deltas`, `gauge` | `state_tone` |
-| `media` | `media` | `media -> facts` | `source*`, `poster`, `title`, `duration` | - | - |
-| `chart` | `chart` | `chart -> headline -> collection` | `series*`, `title` | `form` | - |
-| `facts` | `facts` | `facts -> prose` | `rows*[]` (`label*`, `value*`) | `density` | - |
-| `prose` | `prose` | `prose` | `heading`, `body*` | - | - |
-| `collection` | `collection` | `collection` | `items*[]` (`headline*`, `supporting`, `picture`, `meta`, `badge`, `rating`) | `layout`, `leading`, `trailing` | - |
-| `comparison` | `comparison` | `comparison -> collection:cards -> collection:rows` | `options*[]` (`headline*`, `picture`, `attributes*`, `highlight`) | - | - |
-| `steps` | `steps` | `steps -> collection:rows` | `items*[]` (`title*`, `detail`, `done`) | - | - |
-| `form` | `form` | `form -> facts` | `fields*[]` (`label*`, `value*`, `options`, `min`, `max`) | - | `control`, `input_format`, `required` |
-| `groups` | `groups` | `groups -> form` | `groups*[]` (`heading*`, `rows*`) | - | `control` |
-| `actions` | `actions` | `actions` | `buttons*[]` (`label*`) | - | `primary`, `destructive` |
-| `timeline` | `timeline` | `timeline -> steps -> collection:rows` | `events*[]` (`time*`, `title*`, `detail`, `state`) | `state` | - |
-| `map` | `map` | `map -> facts` | `location*`, `label`, `pins[]` | - | - |
-| `conversation` | `conversation` | `conversation -> collection:rows` | `messages*[]` (`author*`, `text*`, `time`, `avatar`, `attachment`) | - | - |
-| `compose` | `compose` | `compose` | `draft*`, `sendLabel` | - | - |
-| `outcome` | `outcome` | `outcome -> banner -> prose` | `headline*`, `detail` | - | `tone` |
+| Block ID       | Primary Pattern | Fallback Chain                                      | Slots (`*` = required, `[]` = repeat)                                        | Anatomy Knobs                   | Instance Questions                    |
+| :------------- | :-------------- | :-------------------------------------------------- | :--------------------------------------------------------------------------- | :------------------------------ | :------------------------------------ |
+| `banner`       | `banner`        | `banner -> prose`                                   | `title*`, `text`                                                             | -                               | `tone`                                |
+| `picture`      | `picture`       | `picture`                                           | `picture*`, `caption`, `width`, `height`, `aspectRatio`, `orientation`       | `framing`, `prominence`         | -                                     |
+| `filters`      | `filters`       | `filters`                                           | `query`, `categories`                                                        | -                               | -                                     |
+| `headline`     | `headline`      | `headline -> facts`                                 | `items*[]` (`label*`, `value*`, `delta`, `min`, `max`)                       | `deltas`, `gauge`               | `state_tone`                          |
+| `media`        | `media`         | `media -> facts`                                    | `source*`, `poster`, `title`, `duration`                                     | -                               | -                                     |
+| `chart`        | `chart`         | `chart -> headline -> collection`                   | `series*`, `title`                                                           | `form`                          | -                                     |
+| `facts`        | `facts`         | `facts -> prose`                                    | `rows*[]` (`label*`, `value*`)                                               | `density`                       | -                                     |
+| `prose`        | `prose`         | `prose`                                             | `heading`, `body*`                                                           | -                               | -                                     |
+| `collection`   | `collection`    | `collection`                                        | `items*[]` (`headline*`, `supporting`, `picture`, `meta`, `badge`, `rating`) | `layout`, `leading`, `trailing` | -                                     |
+| `comparison`   | `comparison`    | `comparison -> collection:cards -> collection:rows` | `options*[]` (`headline*`, `picture`, `attributes*`, `highlight`)            | -                               | -                                     |
+| `steps`        | `steps`         | `steps -> collection:rows`                          | `items*[]` (`title*`, `detail`, `done`)                                      | -                               | -                                     |
+| `form`         | `form`          | `form -> facts`                                     | `fields*[]` (`label*`, `value*`, `options`, `min`, `max`)                    | -                               | `control`, `input_format`, `required` |
+| `groups`       | `groups`        | `groups -> form`                                    | `groups*[]` (`heading*`, `rows*`)                                            | -                               | `control`                             |
+| `actions`      | `actions`       | `actions`                                           | `buttons*[]` (`label*`)                                                      | -                               | `primary`, `destructive`              |
+| `timeline`     | `timeline`      | `timeline -> steps -> collection:rows`              | `events*[]` (`time*`, `title*`, `detail`, `state`)                           | `state`                         | -                                     |
+| `map`          | `map`           | `map -> facts`                                      | `location*`, `label`, `pins[]`                                               | -                               | -                                     |
+| `conversation` | `conversation`  | `conversation -> collection:rows`                   | `messages*[]` (`author*`, `text*`, `time`, `avatar`, `attachment`)           | -                               | -                                     |
+| `compose`      | `compose`       | `compose`                                           | `draft*`, `sendLabel`                                                        | -                               | -                                     |
+| `outcome`      | `outcome`       | `outcome -> banner -> prose`                        | `headline*`, `detail`                                                        | -                               | `tone`                                |
 
 ### 1.4 Pattern Design Recipes
 
@@ -125,11 +120,7 @@ When a catalog is `fixed_surface` (no multi-child container component) or `hybri
     "order_entry_ticket": {
       "description": "Order entry ticket for equity and ETF trades.",
       "surfaceId": "order_entry_ticket_surface",
-      "requiredPointers": [
-        "/symbol",
-        "/quantity",
-        "/limitPrice"
-      ],
+      "requiredPointers": ["/symbol", "/quantity", "/limitPrice"],
       "isMutable": true,
       "components": [
         {
