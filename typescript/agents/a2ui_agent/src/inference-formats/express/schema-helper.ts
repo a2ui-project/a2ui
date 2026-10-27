@@ -371,7 +371,22 @@ export class CatalogSchemaHelper {
   private loadMappings(): void {
     const findEnum = (s: unknown): string[] | undefined => {
       if (s && typeof s === 'object') {
-        const obj = s as Record<string, unknown>;
+        let obj = s as Record<string, unknown>;
+        const visitedPointers = new Set<string>();
+        let ref = localRef(obj);
+        while (ref) {
+          if (visitedPointers.has(ref)) {
+            break;
+          }
+          visitedPointers.add(ref);
+          const resolved = this.resolveJsonPointer(this.catalog, ref);
+          if (resolved && typeof resolved === 'object') {
+            obj = resolved as Record<string, unknown>;
+            ref = localRef(obj);
+          } else {
+            break;
+          }
+        }
         if (Array.isArray(obj.enum)) {
           return obj.enum as string[];
         }
@@ -717,7 +732,31 @@ export class CatalogSchemaHelper {
       if (subObj.properties && typeof subObj.properties === 'object') {
         const props = subObj.properties as Record<string, unknown>;
         if (propertyName in props) {
-          return props[propertyName] as Record<string, unknown>;
+          const propVal = props[propertyName];
+          if (!propVal || typeof propVal !== 'object') {
+            return undefined;
+          }
+          const current = propVal as Record<string, unknown>;
+          const visitedPointers = new Set<string>();
+          let ref = localRef(current);
+          let merged: Record<string, unknown> = current;
+          while (ref) {
+            if (visitedPointers.has(ref)) {
+              break;
+            }
+            visitedPointers.add(ref);
+            const resolved = this.resolveJsonPointer(this.catalog, ref);
+            if (resolved && typeof resolved === 'object') {
+              merged = {
+                ...(resolved as Record<string, unknown>),
+                ...merged,
+              };
+              ref = localRef(resolved);
+            } else {
+              break;
+            }
+          }
+          return merged;
         }
       }
     }

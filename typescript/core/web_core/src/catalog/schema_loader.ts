@@ -311,7 +311,7 @@ function convertAllOfPropertyToZod(
   propSchema: Record<string, unknown>,
   rootDoc: Record<string, unknown> | undefined,
   visitedPointers: Set<string>,
-  defCache: ConversionCache,
+  defCache: Map<string, z.ZodTypeAny>,
 ): z.ZodTypeAny | undefined {
   const rawBranches = propSchema.allOf as unknown[];
   const branches = rawBranches.filter(
@@ -323,7 +323,6 @@ function convertAllOfPropertyToZod(
     const subSchemas = collectComponentSubSchemas(
       propSchema,
       rootDoc,
-      defCache.scope,
       new Set(visitedPointers),
       false,
     );
@@ -351,7 +350,7 @@ function convertAllOfPropertyToZod(
           (s.schema.properties as Record<string, unknown>) || {},
           requiredSet,
           false,
-          s.rootDoc,
+          rootDoc,
           new Set(visitedPointers),
           defCache,
         );
