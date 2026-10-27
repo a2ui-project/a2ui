@@ -16,9 +16,19 @@ from __future__ import annotations
 
 import copy
 import inspect
-import warnings
 from typing import Any, Callable, Final
+import warnings
+
 from ..catalog import is_system_function_name, system_functions_for
+from ..common.events import AbortSignal, EventSource, Signal, Subscription
+from ..common.semver import is_at_least_version
+from ..exceptions import (
+    A2uiCatalogError,
+    A2uiErrorDetail,
+    A2uiExpressionError,
+    A2uiValidationError,
+)
+from ..schema import ProtocolVersion
 from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import (
@@ -26,9 +36,6 @@ from ..validation.payload_validator import (
     PayloadValidator,
     validate_system_function,
 )
-from ..common.events import Subscription, EventSource, Signal, AbortSignal
-from ..schema import ProtocolVersion
-from ..common.semver import is_at_least_version
 from .validation_result_coercion import coerce_validation_results
 
 
@@ -79,8 +86,6 @@ def validate_reserved_directives(keys: Any, protocol_version: str | None) -> Non
         return
     for k in keys:
         if is_single_at_key(k) and k not in RESERVED_DIRECTIVES:
-            from ..exceptions import A2uiErrorDetail, A2uiValidationError
-
             msg = (
                 f"Unrecognized reserved protocol directive '{k}' in v1.0 dynamic"
                 " object. Reserved keys must be in"
@@ -502,8 +507,6 @@ class DataContext:
     def _resolve_function_error_code(
         err: Exception, is_action: bool, in_body: bool
     ) -> str:
-        from ..exceptions import A2uiCatalogError
-
         if isinstance(err, A2uiCatalogError):
             return "CATALOG_ERROR"
         if is_action and in_body:
@@ -536,8 +539,6 @@ class DataContext:
         to no catalog, so a call to one that names a catalog is a malformed
         expression: it is reported as an ``EXPRESSION_ERROR`` and not run.
         """
-        from ..exceptions import A2uiExpressionError
-
         in_body = False
         try:
             if isinstance(raw_args, dict) and len(raw_args) > MAX_FUNCTION_CALL_ARGS:

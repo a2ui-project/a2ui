@@ -31,13 +31,12 @@ from .component_node import (
     ComponentNode,
     MutableComponentNode,
     NodeState,
-    ResolvedBinding,
-    WritableBinding,
     is_component_node,
     same_binding,
 )
 from .data_context import DataContext
 from .generic_binder import BehaviorNode, BehaviorType, GenericBinder
+from .resolved_binding import ResolvedBinding, WritableBinding
 
 ROOT_COMPONENT_ID = "root"
 ROOT_DATA_PATH = "/"
@@ -107,11 +106,13 @@ def _lookup_component_api(catalog: Any, comp_type: str) -> Any:
 
 
 def _resolve_ref_spec(
-    surface: SurfaceModel, model: ComponentModel | None
+    surface: SurfaceModel,
+    model: ComponentModel | None,
+    fallback_catalog: Any = None,
 ) -> ComponentRefSpec:
     if model is None:
         return ComponentRefSpec()
-    cat = model.catalog or surface.default_catalog
+    cat = model.catalog or fallback_catalog or surface.default_catalog
     if cat is None:
         return ComponentRefSpec()
     get_map = getattr(cat, "get_component_ref_map", None)
@@ -185,7 +186,7 @@ def _wrap_dynamic_object(
         )
     for key, child_behavior in shape.items():
         if child_behavior.type == BehaviorType.DYNAMIC and key not in out:
-            out[key] = ResolvedBinding(None, writable=False)
+            out[key] = ResolvedBinding(None)
     return out
 
 
@@ -219,17 +220,12 @@ def _wrap_dynamic_values(
     if behavior.type == BehaviorType.DYNAMIC:
         path = _extract_binding_path(raw, data_context.at_least_v10)
         if path is None:
-            return ResolvedBinding(value, writable=False)
+            return ResolvedBinding(value)
 
-        def _set_val(new_val: Any) -> None:
+        def _setter(new_val: Any) -> None:
             data_context.set(path, new_val)
 
-        return WritableBinding(
-            value=value,
-            set=_set_val,
-            path=path,
-            writable=True,
-        )
+        return WritableBinding(value, _setter, path)
     if behavior.type == BehaviorType.ARRAY and isinstance(value, list):
         return _wrap_dynamic_array(value, behavior, raw, data_context)
     if behavior.type == BehaviorType.OBJECT and isinstance(value, dict):
@@ -284,6 +280,7 @@ class NodeResolver:
         catalog: Any = None,
     ) -> None:
         self.surface = surface
+        self._catalog = catalog
         self.root_id = surface.root_id or ROOT_COMPONENT_ID
         self._records: dict[MutableComponentNode, _NodeRecord] = {}
         self._nodes_by_edge: dict[str, MutableComponentNode] = {}
@@ -464,7 +461,7 @@ class NodeResolver:
             return self._create_pending_node(
                 component_id, norm_path, edge_key, parent, occurrence
             )
-        cat = model.catalog or self.surface.default_catalog
+        cat = model.catalog or self._catalog or self.surface.default_catalog
         api = _lookup_component_api(cat, model.type)
         if api is None:
             return self._create_unknown_type_node(
@@ -567,7 +564,7 @@ class NodeResolver:
             edge_key=edge_key,
             parent=parent,
             occurrence=occurrence,
-            ref_spec=_resolve_ref_spec(self.surface, model),
+            ref_spec=_resolve_ref_spec(self.surface, model, self._catalog),
             behavior=binder.behavior_tree,
             component_model=model,
             binder=binder,
@@ -607,7 +604,11 @@ class NodeResolver:
             or record.occurrence != occurrence
         ):
             return False
-        cat = (model.catalog or self.surface.default_catalog) if model else None
+        cat = (
+            (model.catalog or self._catalog or self.surface.default_catalog)
+            if model
+            else None
+        )
         api = _lookup_component_api(cat, model.type) if model else None
         if existing.is_placeholder:
             return (model is None and existing.state == "pending") or (

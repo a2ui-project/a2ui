@@ -343,6 +343,7 @@ class SurfaceComponentsModel:
         """
         if config is not None and config.root_id != "root":
             root_id = config.root_id
+        batch_index_map = self._build_batch_index_map(new_components, surface_id)
         if config is None:
             if self._may_have_composition_rules(new_components):
                 prospective_components = dict(self._components)
@@ -356,7 +357,6 @@ class SurfaceComponentsModel:
                 )
             return
 
-        batch_index_map = self._build_batch_index_map(new_components, surface_id)
         self._collect_batch_component_errors(new_components, config, surface_id)
 
         batch = {comp_model.id: comp_model for comp_model in new_components}

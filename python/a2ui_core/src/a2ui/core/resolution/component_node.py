@@ -16,15 +16,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import itertools
-from typing import Any, Callable, Final, Generic, Literal, TypeGuard, TypeVar
+from typing import Any, Callable, Final, Literal, TypeGuard
 
 from ..common.events import EventSource
 from .component_context import ComponentContext
 from .data_context import DataContext
-
-T = TypeVar("T")
+from .resolved_binding import ResolvedBinding, WritableBinding, is_writable
 
 PLACEHOLDER_TYPE: Final[str] = "Placeholder"
 
@@ -36,28 +34,6 @@ _node_id_counter = itertools.count(1)
 
 def _next_node_id() -> str:
     return f"node-{next(_node_id_counter)}"
-
-
-@dataclass
-class ResolvedBinding(Generic[T]):
-    """Read-only resolved property binding on a ComponentNode."""
-
-    value: T
-    writable: bool = False
-
-
-@dataclass
-class WritableBinding(ResolvedBinding[T]):
-    """Two-way resolved property binding with a data-model setter."""
-
-    set: Callable[[T], None] = lambda _: None
-    path: str = ""
-    writable: bool = True
-
-
-def is_writable(binding: Any) -> TypeGuard[WritableBinding[Any]]:
-    """Returns True when binding is a WritableBinding with writable=True."""
-    return isinstance(binding, WritableBinding) and bool(binding.writable)
 
 
 def _shallow_equal_props(a: dict[str, Any], b: dict[str, Any]) -> bool:
