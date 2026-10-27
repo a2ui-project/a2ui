@@ -301,10 +301,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// no config.
   ///
   /// Errors and warnings that surfaces report while a message is applied
-  /// reach their listeners once that message has been applied, before the
-  /// next message and before an exception from it propagates. When this is
-  /// called from inside one of those listeners, `NodeResolver` work or a
-  /// catalog function, they are delivered after that call returns.
+  /// reach their listeners in a microtask after this returns or throws.
   ///
   /// Throws [A2uiValidationError] for a payload of any other shape, an
   /// envelope that is not a well-formed message of the version it declares, a

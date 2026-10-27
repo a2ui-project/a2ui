@@ -285,10 +285,10 @@
           code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "s"
 
-- name: X1_delete_surface_before_delivery_drops_evaluation_items
+- name: X1_delete_surface_before_delivery_still_delivers
   description: >-
-    deleteSurface before delivery drops that surface's undelivered
-    evaluation-time items while preserving other surfaces' items.
+    deleteSurface before delivery still delivers what that surface reported
+    before it was deleted.
   protocolVersion: "v0.9"
   action: report_problems
   steps:
@@ -327,6 +327,8 @@
       expect_reports: []
     - op: await_delivery
       expect_reports:
+        - code: "UNKNOWN_COMPONENT_TYPE"
+          surfaceId: "a"
         - code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "b"
 
