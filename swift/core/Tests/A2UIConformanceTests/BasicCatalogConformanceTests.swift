@@ -61,12 +61,6 @@ private final class SurfaceFunctionErrorRecorder: FunctionHandler {
 
 @MainActor
 struct BasicCatalogConformanceTests {
-  /// `validate` cases whose output depends on the host locale until #3144 is fixed.
-  private static let hostLocaleDependent: Set<String> = [
-    "test_function_format_currency_locale_and_symbol",
-    "test_function_pluralize_categories",
-  ]
-
   /// Surface cases that fail because of a known gap in the Swift SDK, with the reason.
   private static let knownSurfaceGaps: [String: Comment] = [
     "test_evaluate_function_v09_ignores_call_catalog_id":
@@ -229,17 +223,7 @@ struct BasicCatalogConformanceTests {
       ConformanceTestHelper.parseTestCases(from: [rawCase]).first,
       "\(name): case could not be parsed"
     )
-    guard Self.hostLocaleDependent.contains(name) else {
-      try ConformanceTestHelper.runValidateCase(testCase)
-      return
-    }
-    // Only a locale mismatch is known. Raw directive JSON (`{"@call":…}`) in the output is a
-    // real evaluation failure and must still fail the test.
-    try withKnownIssue("#3144: formatting uses the host locale", isIntermittent: true) {
-      try ConformanceTestHelper.runValidateCase(testCase)
-    } matching: { issue in
-      !String(describing: issue).contains("{\"")
-    }
+    try ConformanceTestHelper.runValidateCase(testCase)
   }
 
   /// Runs an `evaluate_function` case with a `surface` block: evaluates
