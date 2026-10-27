@@ -125,7 +125,7 @@ If yes, review it and help land it. If it is faster, create a superseding PR ins
 
 If no, post the reply below and close the PR. The **Close with comment** button does both. You may want to add the reply to your [GitHub saved replies](https://docs.github.com/en/get-started/writing-on-github/working-with-saved-replies).
 
-```txt
+```
 Thank you for taking the time to contribute to A2UI. We appreciate it. Unfortunately, we must decline this PR at this time.
 
 Our team is small, so we can't review every PR. We review a PR when:
