@@ -2,7 +2,7 @@
 
 - Restore pre-1.0 call sites that the 1.0 API changes broke, without changing the 1.0 signatures:
   - `new Catalog(id, components?, functions?, themeSchemaOrOptions?, instructions?)` without a `protocolVersion` constructs a `'0.9'` catalog (deprecated overload). `new Catalog(id, protocolVersion, ...)` is unchanged.
-  - `new SurfaceModel(id, catalog, theme)` with a plain object in the third slot takes it as the theme, as 0.9.x callers passed it. A `Map` is still `availableCatalogs`, and an array still throws.
+  - `new SurfaceModel(id, catalog, theme, sendDataModel?, dataModel?)` with a plain object in the third slot is read in the 0.9.x order: the object is the theme and the arguments after it shift. A `Map` is still `availableCatalogs`, and an array still throws.
   - The deprecated `SurfaceModel.catalog` getter is typed `Catalog<T, F>` again, since every pre-1.0 surface has a default catalog.
   - `new ComponentModel(id, type, properties)` constructs without a `catalog`.
   - `MessageProcessor.getClientCapabilities()` takes no arguments (defaulting to `{versions: ['v0.9']}`) and accepts the pre-1.0 `{version}` option.
