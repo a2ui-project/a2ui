@@ -298,14 +298,14 @@ def _build_template_candidate(comp: ComponentSummary) -> TemplateCandidate:
 
     required_slots = {k: v for k, v in all_slots.items() if k in req_set}
     optional_slots = {k: v for k, v in all_slots.items() if k not in req_set}
-    req_Data_ptrs = tuple(
+    req_data_ptrs = tuple(
         f"/{name}"
         for name in comp.required
         if name in comp.data_slots or name in comp.enum_slots
     )
-    if not req_Data_ptrs and comp.data_slots:
+    if not req_data_ptrs and comp.data_slots:
         first_data = next(iter(comp.data_slots))
-        req_Data_ptrs = (f"/{first_data}",)
+        req_data_ptrs = (f"/{first_data}",)
 
     return TemplateCandidate(
         component=comp.name,
@@ -313,7 +313,7 @@ def _build_template_candidate(comp: ComponentSummary) -> TemplateCandidate:
         description=comp.description,
         required_slots=required_slots,
         optional_slots=optional_slots,
-        suggested_required_pointers=req_Data_ptrs,
+        suggested_required_pointers=req_data_ptrs,
         is_mutable=comp.supports_checks or bool(comp.action_slots and comp.data_slots),
     )
 
