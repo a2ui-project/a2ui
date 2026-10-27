@@ -379,11 +379,12 @@ def _solver_failure_score(state: TaskState) -> Score | None:
         )
     answer_text = state.output.completion or ""
     if answer_text.strip().startswith("Compilation/validation failed:"):
+        first_line = answer_text.strip().splitlines()[0]
         return _stage12_score(
             state,
             0.0,
             answer=answer_text,
-            explanation="Format compilation/validation failed during solver step.",
+            explanation=first_line,
         )
     return None
 
