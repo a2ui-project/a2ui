@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "A2UI Decision Plan Benchmark Cases Schema",
+  "description": "Schema for golden decision plan cases used to benchmark layout synthesis and backend accuracy.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Unique identifier for this decision case."
+      },
+      "intent": {
+        "type": "string",
+        "description": "User intent or instruction driving the UI synthesis."
+      },
+      "payload": {
+        "type": "object",
+        "description": "Structured JSON data payload passed to the decision synthesizer."
+      },
+      "mutable_paths": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Optional list of JSON pointer paths that are mutable."
+      },
+      "expected": {
+        "type": "object",
+        "description": "Expected synthesis outcomes for calibration and accuracy scoring.",
+        "properties": {
+          "family": {
+            "type": "string",
+            "description": "Expected high-level UI family (e.g. monitor, browse, inspect, act, input, follow)."
+          },
+          "archetypes": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "description": "Acceptable archetype names for this case."
+          },
+          "blocks": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Block IDs required in the synthesized layout plan."
+              },
+              "forbidden": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Block IDs that must not appear in the synthesized layout plan."
+              }
+            },
+            "additionalProperties": false
+          },
+          "action_gate": {
+            "type": "string",
+            "enum": ["pass", "abstain", "any"],
+            "default": "pass",
+            "description": "Expected action gate behavior: pass means synthesized, abstain means blocked by action gate."
+          }
+        },
+        "required": ["family", "archetypes"],
+        "additionalProperties": false
+      },
+      "tags": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Classification tags (e.g. smoke, regression)."
+      },
+      "verified": {
+        "type": "boolean",
+        "description": "Whether this case has been human-verified as a ground truth target."
+      },
+      "source": {
+        "type": "object",
+        "properties": {
+          "log_path": {"type": "string"},
+          "sample_id": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "required": ["name", "intent", "payload", "expected", "verified"],
+    "additionalProperties": false
+  }
+}
