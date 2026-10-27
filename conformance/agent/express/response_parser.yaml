@@ -323,7 +323,7 @@
     - text: "Trailing text."
 
 - name: test_unwrap_express_apostrophe_in_comment_does_not_open_a_string
-  description: Express strings are double-quoted only, so an apostrophe in a comment does not open a string that would swallow the closing tag.
+  description: Express strings are double-quoted only, so an apostrophe in a `/* */` block comment does not open a string that would swallow the closing tag. A `//` comment would not test this, since the lexer already skips single-line comments.
   action: unwrap
   args:
     format: express

@@ -94,8 +94,9 @@ class ExpressParser(Parser):
         lexer = BlockLexer(
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
-            # Express strings are double-quoted only, so an apostrophe in a
-            # comment such as `/* Chef's pick */` must not open a string.
+            # Express strings are double-quoted only. The lexer does not
+            # recognize `/* */` comments, so an apostrophe in one, such as
+            # `/* Chef's pick */`, must not open a string.
             string_delimiters={'"'},
             single_line_comments={"#", "//", "--"},
         )
