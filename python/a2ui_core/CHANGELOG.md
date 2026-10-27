@@ -9,13 +9,23 @@
   a truthy dict; `and`, `or` and `not` already did. Catalogs below v1.0, whose
   validation functions return booleans, are unchanged.
   [#3653](https://github.com/a2ui-project/a2ui/pull/3653)
-
-- Schema validation never fetches a `$ref` over the network. A cross-catalog
-  `$ref` whose JSON Pointer passes through an array, such as
-  `<peer>#/components/Button/allOf/1/properties/action`, now resolves against
-  the held peer catalog; previously it was left in place and jsonschema
-  downloaded the peer. A `$ref` into a catalog that isn't held now fails
-  validation with an unresolvable-reference error instead.
+- **BREAKING CHANGE**: Cross-catalog `$ref` resolution across peer catalogs is
+  removed. `Catalog.peer_catalogs`, `Catalog.with_peer_catalogs` and
+  `link_catalogs` are gone, `inline_local_refs` no longer takes a `peers`
+  argument, and `MessageProcessor` no longer links the catalogs passed to it.
+  A catalog resolves `$ref`s only against its own document and the protocol's
+  `common_types.json`. `Catalog.from_json` raises `A2uiCatalogError` for a
+  v1.0 catalog with a `$ref` to any other document, such as
+  `basic_catalog.json#/components/Text` or an absolute catalog URI, and never
+  fetches it; v0.8 and v0.9 catalogs load as before. Recommended migration:
+  bundle referenced components, properties and functions into each catalog so
+  it is standalone.
+  [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
+  [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- Schema validation never fetches a `$ref` over the network. A `$ref` to a
+  document that is not available locally fails validation with an
+  unresolvable-reference error instead of being downloaded
+  ([#3554](https://github.com/a2ui-project/a2ui/pull/3554)).
 - `SchemaValidator.evolve` no longer raises `TypeError` (`_registry`) for a
   subschema that declares its own `$schema`, and keeps the validator's
   registry.
