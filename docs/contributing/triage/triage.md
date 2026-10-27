@@ -90,7 +90,7 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 
 1. Before the triage meeting, on your own:
 
-    - In go/a2ui-triage-notes, copy the triage card template and start filling it in.
+    - In go/a2ui-triage-log, copy the triage card template and start filling it in.
 
     - Burn [Needs triage, without team input][needs-triage-minus-waiting]. For each item:
         - If you can triage it in a couple of minutes, [triage it](#triage-an-item).
@@ -101,7 +101,7 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
     - If the team can triage it in a couple of minutes, [triage it](#triage-an-item) and remove `status: needs-team-input`.
     - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`.
 
-3. Complete the triage card in go/a2ui-triage-notes and send it to [the team chat][team-chat].
+3. Complete the triage card in go/a2ui-triage-log and send it to [the team chat][team-chat].
 
 ### By owners of `status: assigned-for-triage`
 
