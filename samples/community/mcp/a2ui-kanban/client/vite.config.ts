@@ -1,0 +1,77 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// `vitest/config` re-exports Vite's `defineConfig` widened with the `test` block.
+import {defineConfig} from 'vitest/config';
+import {fileURLToPath} from 'node:url';
+
+/**
+ * Monorepo builds of the `@a2ui/*` packages this sample imports.
+ *
+ * TODO(https://github.com/a2ui-project/a2ui/issues/1698): drop these aliases
+ * and declare `@a2ui/catalog-mcp` as a normal dependency once it is published
+ * to npm. `samples/community/` is a self-contained Yarn root that consumes the
+ * published `@a2ui/*` packages rather than the monorepo workspace, so it
+ * cannot reference the catalog as `workspace:*`. Until the package ships, it
+ * resolves to the monorepo `dist/` (built by `yarn workspace @a2ui/catalog-mcp
+ * run build` and `yarn workspace @a2ui/lit run build` at the repository root),
+ * and so do `@a2ui/lit` and `@a2ui/web_core`, which the catalog imports from
+ * there, so the bundle holds one copy of `@a2ui/web_core`.
+ */
+const monorepoAliases = Object.entries({
+  '@a2ui/catalog-mcp': 'typescript/catalogs/mcp/dist/index.js',
+  '@a2ui/lit': 'typescript/renderers/lit/dist/src/index.js',
+  '@a2ui/web_core': 'typescript/core/web_core/dist/src/index.js',
+  '@a2ui/web_core/v0_9': 'typescript/core/web_core/dist/src/v0_9/index.js',
+  '@a2ui/web_core/v1_0': 'typescript/core/web_core/dist/src/v1_0/index.js',
+}).map(([specifier, path]) => ({
+  find: exactly(specifier),
+  replacement: fileURLToPath(new URL(`../../../../../${path}`, import.meta.url)),
+}));
+
+/**
+ * Matches one specifier and nothing beneath it.
+ *
+ * A string `find` matches by prefix, which would send `zod/v4` to
+ * `…/zod/index.js/v4`. Subpaths must keep resolving on their own.
+ */
+function exactly(specifier: string): RegExp {
+  return new RegExp(`^${specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+}
+
+export default defineConfig({
+  resolve: {
+    dedupe: ['lit', '@lit/context', '@lit-labs/signals'],
+    alias: monorepoAliases,
+  },
+  build: {
+    target: 'esnext',
+  },
+  server: {
+    host: true,
+    allowedHosts: true,
+    port: 5173,
+    fs: {
+      // The aliases above point outside this Yarn root.
+      allow: [fileURLToPath(new URL('../../../../../', import.meta.url))],
+    },
+  },
+  test: {
+    // The host uses the A2UI data model and DOM-free logic; jsdom covers the custom elements.
+    environment: 'jsdom',
+    include: ['src/**/*.test.ts'],
+  },
+});
