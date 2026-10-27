@@ -52,7 +52,7 @@ Each folder is self-contained. A rule that holds for both formats has a case in 
 
 #### Legacy agent suites (`agent/legacy/`)
 
-`agent/legacy/` holds the suites for the earlier agent interface, the one implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`. They stay until those SDKs move to the blueprint interface. New cases belong in the suites above.
+`agent/legacy/` holds the suites for the earlier agent interface, the one implemented by `kotlin/agent_sdk_legacy`. They stay until it moves to the blueprint interface. The TypeScript harness still reads some of them, as `typescript/agents/a2ui_agent/KNOWN_GAPS.md` records. New cases belong in the suites above.
 
 - `agent/legacy/streaming_parser.yaml`: Streaming parser cases, verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
 - `agent/legacy/parser.yaml`: Non-streaming parsing and payload fixing.
@@ -136,7 +136,7 @@ A case states allowlists literally. Keeping everything is said by applying no tr
 
 Parser cases use the part union from the blueprint. `unwrap` returns raw parts, each carrying either `text` or `a2ui_raw` with an `is_final` flag; `parse_response` and `parse_chunk` return parts carrying either `text` or compiled `a2ui` messages. Text that precedes a payload is its own part, which is the difference from the legacy suites under `agent/legacy/`, where one item carried both.
 
-The `parse_chunk` action keeps the name of the method the streaming cases were first written against. A harness runs it through the stream interface: it calls `Parser.open_stream` once, with `args.wrapped`, then `ResponseStream.feed` with the `input` of each step, comparing what each call returns with that step's `expect`, and then `close`, which must return no parts and raise nothing, since every case ends on a complete response. A step with `expect_error` is the last step of its case: its `feed` must raise the error, and the harness stops there without calling `close`. The `parse_chunk` operation of the timing suites (`scaling.yaml`) reads a response the same way.
+The `parse_chunk` action keeps the name of the method the streaming cases were first written against. A harness runs it through the stream interface: it calls `Parser.open_stream` once, with `args.wrapped`, then `ResponseStream.feed` with the `input` of each step, comparing what each call returns with that step's `expect`, and then `close`, which must raise nothing. What `close` returns is added to the yielded parts that `expect_matches_single_shot` compares, since a stream may hold back text, such as a trailing backtick, until the response ends. A step with `expect_error` is the last step of its case: its `feed` must raise the error, and the harness stops there without calling `close`. The `parse_chunk` operation of the timing suites (`scaling.yaml`) opens, feeds and closes a stream the same way, but a timing harness may first seed the state with the surfaces the payload updates, and ignore the final tree check.
 
 A `create_processor` case can parse a response through the processor it just built, by way of a `then_parse` block holding an `input` and its own `expect` or `expect_error`. It sits beside `expect` rather than inside it because it is a call made on the processor, not a property read off it. Use it only for rules that need negotiation to have happened first; a rule about parsing as such belongs in the per-format `response_parser.yaml`, and one about what a payload compiles to in `compiler.yaml`.
 

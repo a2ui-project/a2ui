@@ -1335,7 +1335,7 @@
     },
     "ParseChunkTest": {
       "type": "object",
-      "description": "Feeding a response to a parser one chunk at a time. Each step states the parts that chunk yields, so a case fixes both what is emitted and when. The action keeps the name of the method it was written against: a harness calls `Parser.open_stream` once with `args.wrapped`, then `ResponseStream.feed` with the `input` of each step, then `close`, which must return no parts and raise nothing. A step with `expect_error` is the last step of its case: its `feed` must raise, and the harness stops there without calling `close`.",
+      "description": "Feeding a response to a parser one chunk at a time. Each step states the parts that chunk yields, so a case fixes both what is emitted and when. The action keeps the name of the method it was written against: a harness calls `Parser.open_stream` once with `args.wrapped`, then `ResponseStream.feed` with the `input` of each step, then `close`, which must raise nothing; what it returns is added to the parts compared under `expect_matches_single_shot`. A step with `expect_error` is the last step of its case: its `feed` must raise, and the harness stops there without calling `close`.",
       "properties": {
         "action": {"const": "parse_chunk"},
         "args": {
@@ -1420,7 +1420,7 @@
     },
     "MeasuredOperation": {
       "enum": ["parse_chunk", "compile", "process_messages"],
-      "description": "The call a timing case times. `parse_chunk` opens a stream on a new parser, feeds it the response `<a2ui-json>`, payload, `</a2ui-json>`, in chunks of `chunk_size` characters, and closes it, as `ParseChunkTest` describes. `compile` hands a new parser the payload whole. `process_messages` hands a new processor the messages of the payload, a JSON list decoded before the timing starts, in one call."
+      "description": "The call a timing case times. `parse_chunk` opens a stream on a new parser, feeds it the response `<a2ui-json>`, payload, `</a2ui-json>`, in chunks of `chunk_size` characters, and closes it, as `ParseChunkTest` describes, except that the harness may first seed the state with the surfaces the payload updates and ignore the final tree check. `compile` hands a new parser the payload whole. `process_messages` hands a new processor the messages of the payload, a JSON list decoded before the timing starts, in one call."
     },
     "MeasureGrowthTest": {
       "type": "object",

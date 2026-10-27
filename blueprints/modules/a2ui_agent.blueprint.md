@@ -224,6 +224,8 @@ class RawResponsePart:
     part: Union[TextPart, RawA2uiPart]
     is_final: bool = True
 
+An SDK may represent `RawResponsePart` as a tagged union of the two parts rather than a wrapper. `is_final` only matters for an A2UI block: text is always emitted whole.
+
 @dataclass
 class A2uiPart:
     """Represents extracted and compiled A2UI payload messages.
@@ -315,9 +317,12 @@ class Parser(ABC):
         """Translates a raw format content string into A2UI messages.
 
         Compiling reports what the notation itself gets wrong, such as text that is not JSON
-        or an Express reference to an undefined variable. It does not check the messages
-        against the catalogs or a renderer state: parse_response and open_stream do, and
-        parse_response(block, wrapped=False) compiles and checks one block.
+        or an Express reference to an undefined variable. A format may consult the catalogs
+        to translate the notation, such as Express resolving a component, a function or a
+        positional argument, and it then rejects a name or property the catalogs do not
+        declare. It does not check the messages against a renderer state: parse_response
+        and open_stream do, and parse_response(block, wrapped=False) compiles and checks one
+        block.
 
         Compile-time repairs tolerate stray unescaped line breaks inside object keys,
         identifier/reference properties, at single-line string edges, and in data paths or
@@ -336,6 +341,9 @@ class Parser(ABC):
         Raises:
             A2uiParseError: If the text cannot be read, or the block is cut off and the format
                 cannot read part of a block.
+            A2uiValidationError: If the text reads but names something the catalogs do not
+                declare (Express raises A2uiCompilationValidationError), or a message does
+                not match the protocol's message schema.
         """
         pass
 
@@ -447,7 +455,8 @@ class ResponseStream(ABC):
     its value grows, and applied again only once it closes. What earlier chunks emitted
     cannot be rolled back, since the renderer has already received it. Each feed runs
     inside a transaction of the state, so the one thing a failure undoes is what the
-    failing chunk applied, which it never returned.
+    failing chunk applied, which it never returned (see "Where the SDKs differ" for
+    TypeScript's Express stream).
 
     How soon a payload is emitted depends on the format (see supports_streaming and
     section 4). Text outside blocks is emitted as it arrives, less a tail that could
@@ -697,13 +706,26 @@ The SDKs implement this interface: Python ([#3326](https://github.com/a2ui-proje
 3. Growing data model: Python checks nothing in a growing `updateDataModel` until it closes, so a value the close then rejects has already been emitted (requirement 3).
 4. Core fallback: Dart's processor checks the composition constraints of an update against the whole surface whenever a catalog other than the surface's default declares any (requirement 1).
 5. Message checks: Python's core processor can change a surface before rejecting a `createSurface` whose components or data model it rejects, or a data model update that fails part way. Its `RendererState` undoes these changes at once (undo log rule 1).
-6. `compile`: Dart's has no `is_final` argument, so a cut Express block raises rather than compiling as far as it goes.
+6. `compile`: Dart's has no `is_final` argument, so a cut Express block raises rather than compiling as far as it goes, and a cut Direct JSON block whose JSON is complete is accepted rather than refused.
 7. Errors: Dart lets an error that is not an A2UI error escape from `compile`, such as a `StateError` from the Express compiler, and its errors carry no `partial_results`. TypeScript names its parse error `ParseError` rather than `A2uiParseError`.
 8. `transaction`: Dart does not reject a callback that returns a future.
 9. v0.8: only Python implements a v0.8 state.
-10. `validate_payload`: Python and TypeScript accept one message on its own. Dart's signature takes a list of messages.
+10. `RendererState.apply` and `validate_payload`: Python and TypeScript accept one message on its own. Dart's take a list of messages, not a core `AgentToRendererMessagePayload`.
 11. `accepts_state`: TypeScript compares normalized protocol versions. Python and Dart compare the exact versions, so a v0.9.1 state is refused by a v0.9 processor, although `RendererState` treats the two as one version.
 12. Examples: TypeScript checks a processor's examples in `A2uiGenerator.create_processor`, not in the `A2uiRequestProcessor` constructor, so a processor constructed directly does not check them.
+13. Example shape: TypeScript takes examples as a record keyed by example name rather than a list of turns, and an entry may be preformatted text, which `create_processor` does not check.
+14. Express stream transactions: TypeScript's Express stream ([#3633](https://github.com/a2ui-project/a2ui/pull/3633)) applies each block in its own transaction rather than running each `feed` in one. A chunk that closes a block and then fails leaves that block applied to the state but not returned.
+15. Express close-tag scan: TypeScript's Express stream skips the scan for a chunk that cannot complete a close tag, and otherwise rescans the open block from its start, so a block with many `<` characters is scanned more than once (requirement 3).
+16. Catalog transformers: only Dart's are generic over the component and function types. Python's and TypeScript's take and return a `CatalogApi`.
+17. `PromptGenerator`: Python's and TypeScript's base classes add template-method hooks (`generate_base_rules`, `generate_catalog_instructions`, `generate_examples`), and TypeScript's constructor takes the catalogs and raises `A2uiCatalogError` for none.
+18. Empty catalogs: Dart's `A2uiRequestProcessor` constructor does not reject an empty catalog list. The `A2uiCatalogError` is raised when the prompt is first generated.
+19. `RawResponsePart`: Dart's text parts carry no `is_final`.
+20. Capabilities: TypeScript's `resolve_catalogs` reads the bare-entry shape for every version key, not only v0.8.
+21. Catalog providers: TypeScript treats a declared `catalogId` or `protocolVersion` that is not a string as undeclared, and a document that is not an object fails with a `TypeError` rather than `A2uiCatalogError`.
+22. Inline catalogs: TypeScript's and Dart's `A2uiGenerator` take no `accepts_inline_catalogs`, so a processor they create never activates inline catalogs.
+23. Direct JSON `allowed_messages`: TypeScript's `DirectJsonFormatFactory` and `DirectJsonFormat` do not take it; only its `DirectJsonPromptGenerator` does.
+24. Direct JSON `progressive_keys`: TypeScript's `DirectJsonFormat` defaults to `['text']` rather than empty, so its processors heal `text` values while streaming unless told otherwise.
+25. Direct JSON protocol schemas: TypeScript puts them in each catalog's instructions rather than the base rules, so a skill that combines several catalogs repeats them, and the core skill holds none.
 
 ---
 
@@ -906,6 +928,7 @@ class A2uiGenerator:
         catalogs: Sequence[CatalogConfig],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         inference_format_factory: Optional[InferenceFormatFactory] = None,
+        accepts_inline_catalogs: bool = False,
     ):
         """Initializes A2uiGenerator with supported catalog configurations and format factory.
 
@@ -913,6 +936,8 @@ class A2uiGenerator:
             catalogs: List of supported CatalogConfig configurations.
             examples: Optional list of prompt example turns.
             inference_format_factory: Optional default InferenceFormatFactory (defaults to ExpressFormatFactory).
+            accepts_inline_catalogs: Passed to resolve_catalogs by create_processor, so a
+                processor can activate the inline catalogs a renderer sends.
         """
         pass
 
@@ -1389,11 +1414,11 @@ The suites covering this document live under `conformance/agent/`:
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 
-There is no `express/response_streaming.yaml` yet: only one SDK streams Express so far, and the suite belongs here once the others do. Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
+There is no `express/response_streaming.yaml` yet: only one SDK streams Express so far, and the suite belongs here once the others do. Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `kotlin/agent_sdk_legacy`, and stay until it moves to the interface above. The TypeScript harness still reads some of them, as its `KNOWN_GAPS.md` records.
 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 
-A `compile` or `decompile` case checks a block on its own, the way `validate_payload` does, so a surface the block only updates is assumed to exist. A `parse_response` or streaming case is read as one chat turn, against a renderer that holds no surfaces, so a case that updates a surface creates it in its input. The streaming action is still named `parse_chunk`, after the method the cases were first written against: a harness calls `open_stream`, then `feed` for each step, then `close()`, which must return nothing more. A case whose last step expects an error ends there, without `close()`. The header of `response_streaming.yaml` and the conformance README state this.
+A `compile` or `decompile` case checks a block on its own, the way `validate_payload` does, so a surface the block only updates is assumed to exist. A `parse_response` or streaming case is read as one chat turn, against a renderer that holds no surfaces, so a case that updates a surface creates it in its input. The streaming action is still named `parse_chunk`, after the method the cases were first written against: a harness calls `open_stream`, then `feed` for each step, then `close()`, which must not raise. What `close()` returns is added to the parts the case compares with the single-shot parse, since a stream may hold back text, such as a trailing backtick, until the response ends. A case whose last step expects an error ends there, without `close()`. The header of `response_streaming.yaml` and the conformance README state this.
 
 No suite covers `RendererState` itself, a canvas turn (a response checked against a state that earlier turns built), or `validate_payload` yet. These rules are checked only by each SDK's unit tests until such suites are added, which is a follow-up.
 

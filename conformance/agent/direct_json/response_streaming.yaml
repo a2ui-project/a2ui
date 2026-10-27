@@ -24,8 +24,9 @@
 # The `parse_chunk` action keeps the name of the method these cases were first
 # written against. A harness runs a case through the stream interface: it calls
 # `Parser.open_stream` once, with `args.wrapped`, then `ResponseStream.feed` with
-# the `input` of each step, and then `close`. Every case ends on a complete
-# response, so `close` must return no parts and raise nothing. A step with
+# the `input` of each step, and then `close`, which must raise nothing.
+# What `close` returns is added to the yielded parts, since a stream may hold
+# back text, such as a trailing backtick, until the response ends. A step with
 # `expect_error` is the last step of its case: its `feed` must raise, the stream
 # has then ended, and the harness does not call `close`.
 #
