@@ -670,16 +670,15 @@ Only `check_topology` walks a whole surface: once for a response parsed whole, a
 
 #### Where the SDKs differ
 
-The SDK pull requests that implement this interface are Python ([#3326](https://github.com/a2ui-project/a2ui/pull/3326), [#3268](https://github.com/a2ui-project/a2ui/pull/3268) to [#3271](https://github.com/a2ui-project/a2ui/pull/3271)), TypeScript ([#3327](https://github.com/a2ui-project/a2ui/pull/3327), [#3278](https://github.com/a2ui-project/a2ui/pull/3278), [#3279](https://github.com/a2ui-project/a2ui/pull/3279)) and Dart ([#3276](https://github.com/a2ui-project/a2ui/pull/3276), [#3277](https://github.com/a2ui-project/a2ui/pull/3277)). Python and TypeScript meet the three requirements of "Cost of a response". The SDKs differ from this document, and from each other, in these places. Each is a gap to fix in the SDK, and its entry is removed once the SDKs follow the rule:
+The SDKs implement this interface: Python ([#3326](https://github.com/a2ui-project/a2ui/pull/3326), [#3268](https://github.com/a2ui-project/a2ui/pull/3268) to [#3271](https://github.com/a2ui-project/a2ui/pull/3271)), TypeScript ([#3327](https://github.com/a2ui-project/a2ui/pull/3327), [#3278](https://github.com/a2ui-project/a2ui/pull/3278), [#3279](https://github.com/a2ui-project/a2ui/pull/3279)) and Dart ([#3276](https://github.com/a2ui-project/a2ui/pull/3276), [#3277](https://github.com/a2ui-project/a2ui/pull/3277)). All three keep an undo log, and Python and TypeScript meet all three requirements of "Cost of a response". The SDKs differ from this document, and from each other, in these places. Each is a gap to fix in the SDK, and its entry is removed once the SDKs follow the rule:
 
-1. Rollback: Dart copies a surface the first time a transaction changes it, rather than keeping an undo log (requirement 2 of "Cost of a response").
-2. Stream reads: Dart resumes the close-tag scan and the read of the open block, but builds a new string of the whole block text for every chunk, and applies a growing message again whole rather than checking what it gains (requirement 3).
-3. `compile`: Dart's has no `is_final` argument, so a cut Express block raises rather than compiling as far as it goes.
-4. Errors: Dart lets an error that is not an A2UI error escape from `compile`, such as a `StateError` from the Express compiler, and its errors carry no `partial_results`.
-5. `transaction`: Dart does not reject a callback that returns a future.
-6. v0.8: only Python implements a v0.8 state.
-7. `validate_payload`: Python and TypeScript accept one message on its own. Dart's signature takes a list of messages.
-8. `accepts_state`: Python and TypeScript compare normalized protocol versions. Dart compares the version strings, so a v0.9.1 state is refused by a v0.9 processor, although `RendererState` treats the two as one version.
+1. Stream reads: Dart resumes the close-tag scan and the read of the open block, but builds a new string of the whole block text for every chunk, and applies a growing message again whole rather than checking what it gains (requirement 3).
+2. `compile`: Dart's has no `is_final` argument, so a cut Express block raises rather than compiling as far as it goes.
+3. Errors: Dart lets an error that is not an A2UI error escape from `compile`, such as a `StateError` from the Express compiler, and its errors carry no `partial_results`.
+4. `transaction`: Dart does not reject a callback that returns a future.
+5. v0.8: only Python implements a v0.8 state.
+6. `validate_payload`: Python and TypeScript accept one message on its own. Dart's signature takes a list of messages.
+7. `accepts_state`: Python and TypeScript compare normalized protocol versions. Dart compares the version strings, so a v0.9.1 state is refused by a v0.9 processor, although `RendererState` treats the two as one version.
 
 ---
 
