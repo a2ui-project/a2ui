@@ -90,6 +90,7 @@ uv run main.py --strategies decision --decision-backend local
 ```
 
 The `decision` strategy evaluates the two-stage decision-model synthesis route. In Stage 1, the model emits intent and payload in a `<a2ui>` block. In Stage 2, the decision synthesizer plans and expands the surface without an additional UI generation model call.
+
 - `--decision-backend`: `local` (default), `jev`, or `mock`.
 - `--decision-temperature`: Temperature scaling applied to logits (default `1.0`).
 - `--decision-variety`: Sampling mode (`argmax` or `near_top`).
@@ -329,6 +330,7 @@ uv run ./bin/compare_strategies.py logs/decision_vs_express --json logs/decision
 ```
 
 It reports:
+
 - Pass@1 accuracy and delta with statistical significance (p-value from McNemar's test).
 - Token usage: prompt and output tokens per turn, and token reduction percentage.
 - Latency: median and 95th percentile wall-clock response time.
@@ -350,6 +352,7 @@ uv run ./bin/decision_bench.py --backend jev --repeat 3 --markdown
 ```
 
 The benchmark reports:
+
 - Job family and layout archetype classification accuracy.
 - Block recall: whether all required semantic blocks were planned.
 - Calibration: Brier score and Expected Calibration Error (ECE) across probability buckets.
