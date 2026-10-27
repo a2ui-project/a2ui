@@ -268,6 +268,28 @@
     error:
       message: "callFunction"
 
+- name: test_rpc_call_renderer_function_invalid_payload_missing_catalog_id
+  description: Verifies a callRendererFunction whose callFunction has no catalogId fails schema validation instead of being answered with INVALID_FUNCTION_CALL, even when a held catalog defines the function.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-110"
+        callFunction:
+          "@call": "playMedia"
+          args:
+            mediaId: "video-789"
+    functionMetadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    error:
+      message: "catalogId"
+
 - name: test_rpc_agent_function_response_inbound
   description: Verifies inbound agentFunctionResponse message processing by MessageProcessor.
   catalog:
