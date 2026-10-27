@@ -218,7 +218,7 @@ For simplicity we recommend building catalogs that directly reflect a client's d
 
 ## Building a Catalog
 
-A catalog is a JSON Schema file that conforms to the catalog schema for its protocol version ([v1.0](../../../specification/v1_0/json/catalog_definition.json), [v0.9](../../../specification/v0_9/json/client_capabilities.json)) and defines the components, themes and functions an agent can use when building a surface.
+A catalog is a JSON Schema file that conforms to the catalog schema for its protocol version ([v1.0](../../../specification/v1_0/json/catalog_definition.json), [v0.9](../../../specification/v0_9/json/client_capabilities.json)) and defines the components, functions, and (in v0.9) themes an agent can use when building a surface.
 
 ### Example: A Minimal Catalog
 
