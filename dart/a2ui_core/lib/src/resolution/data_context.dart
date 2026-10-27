@@ -706,9 +706,7 @@ class DataContext {
       );
     }
     final String? catalogId = atLeastV10 ? call.catalogId : null;
-    if (catalogId == null) {
-      return _invoke(name, args, this);
-    }
+    if (catalogId == null) return _invoke(name, args, this);
     final CatalogInvokerResolver? invokerForCatalog = _invokerForCatalog;
     if (invokerForCatalog == null) {
       throw A2uiCatalogResolutionError(
