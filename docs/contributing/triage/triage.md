@@ -103,7 +103,7 @@ If you are assigned to a PR or an issue with the label `status: assigned-for-tri
 
 ### Triage a PR
 
-Decide whether the PR should be reviewed, based on the [principles](#principles) (you do not have to prove your decision is right - it is ok to use intuition).
+Decide whether the PR should be reviewed, based on the [principles](#principles) (you do not have to prove your decision is right, just use your intuition).
 
 If yes, review it and help to land it. Do not hesitate to create a superseding PR if it is more efficient.
 
@@ -121,7 +121,7 @@ Our team is small, so we can't review every PR. We review a PR when:
 - it doesn't overlap with work already in progress, and
 - it brings a change that we can maintain long term.
 
-What may help, but without guarantees:
+What may help:
 
 - If there is no issue for this change yet, open one that describes the problem, and mention this PR as a possible solution.
 - If there is an issue, ask if your contribution on it will be accepted. If you get a positive response, reopen this PR.
