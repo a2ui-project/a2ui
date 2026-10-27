@@ -22,12 +22,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {
-  CatalogApi,
-  inlinePeerAndLocalRefs,
-  V09_STANDARD_DEFS,
-  V10_STANDARD_DEFS,
-} from '../../internal/web-core.js';
+import {CatalogApi, V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 
 const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;
@@ -205,9 +200,7 @@ export class CatalogSchemaHelper {
   private readonly functionRequired = new Map<string, string[]>();
 
   constructor(catalog: CatalogApi, protocolVersion: string) {
-    const rawCatalog = catalog.toJson();
-    const peers = catalog.peerCatalogs ?? [];
-    this.catalog = inlinePeerAndLocalRefs(rawCatalog, rawCatalog, peers) as Record<string, unknown>;
+    this.catalog = catalog.toJson();
     try {
       this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
       this.commonTypesLoaded = true;
@@ -272,16 +265,22 @@ export class CatalogSchemaHelper {
     return ref ? this.resolveJsonPointer(this.catalog, ref) : undefined;
   }
 
+  /**
+   * Lists the sub-schemas of a component in the order its properties are read.
+   *
+   * The component's own schema comes first, so its own definition of a property
+   * overrides an inherited one. Then come the allOf entries that declare
+   * `component` (the specific schemas), then the other allOf entries (the
+   * common mixins). Each allOf entry is expanded depth first: a local `#/...`
+   * reference is resolved against the catalog, and the entries of its own
+   * allOf follow it. References into `common_types.json` are kept as is.
+   *
+   * @param schema The component schema.
+   * @returns The ordered sub-schemas.
+   */
   private orderedComponentSubSchemas(schema: Record<string, unknown>): Record<string, unknown>[] {
     const specific: Record<string, unknown>[] = [];
     const inherited: Record<string, unknown>[] = [];
-    if (
-      schema.properties &&
-      typeof schema.properties === 'object' &&
-      'component' in (schema.properties as Record<string, unknown>)
-    ) {
-      specific.push(schema);
-    }
     if (Array.isArray(schema.allOf)) {
       for (let sub of schema.allOf) {
         if (localRef(sub)) {
@@ -306,11 +305,9 @@ export class CatalogSchemaHelper {
         }
       }
     }
-    if (specific.length === 0 && schema.properties && typeof schema.properties === 'object') {
-      specific.push(schema);
-    }
 
-    const expanded: Record<string, unknown>[] = [];
+    const expanded: Record<string, unknown>[] = [schema];
+    const visited = new Set<Record<string, unknown>>([schema]);
     const expand = (node: Record<string, unknown>) => {
       let target = node;
       if (localRef(target)) {
@@ -319,6 +316,10 @@ export class CatalogSchemaHelper {
           target = resolved as Record<string, unknown>;
         }
       }
+      if (visited.has(target)) {
+        return;
+      }
+      visited.add(target);
       expanded.push(target);
       if (Array.isArray(target.allOf)) {
         for (const child of target.allOf) {
@@ -328,15 +329,7 @@ export class CatalogSchemaHelper {
         }
       }
     };
-
-    for (const s of specific) {
-      if (s === schema) {
-        expanded.push(s);
-      } else {
-        expand(s);
-      }
-    }
-    for (const s of inherited) {
+    for (const s of [...specific, ...inherited]) {
       expand(s);
     }
     return expanded;
@@ -477,14 +470,20 @@ export class CatalogSchemaHelper {
 
       for (const subObj of subSchemas) {
         if (subObj.properties && typeof subObj.properties === 'object') {
-          const subProps = subObj.properties as Record<string, unknown>;
-          for (const [pk, pv] of Object.entries(subProps)) {
-            if (!(pk in props)) {
-              props[pk] = pv;
-              const enumVal = findEnum(pv);
-              if (enumVal) {
-                this.componentPropertyEnums.set(`${name}.${pk}`, enumVal);
-              }
+          // `subSchemas` lists the component's own schema first, then its
+          // specific allOf entries, then its mixins, each with its nested
+          // allOf. The first definition of a property wins, as in
+          // `getPropertySchema`, so the component's own definition overrides
+          // an inherited one, and a property keeps the position where it is
+          // first declared.
+          for (const [pk, pv] of Object.entries(subObj.properties as Record<string, unknown>)) {
+            if (Object.hasOwn(props, pk)) {
+              continue;
+            }
+            props[pk] = pv;
+            const enumVal = findEnum(pv);
+            if (enumVal) {
+              this.componentPropertyEnums.set(`${name}.${pk}`, enumVal);
             }
           }
         }
@@ -497,10 +496,10 @@ export class CatalogSchemaHelper {
         }
       }
 
-      // Filter out structural properties 'component', 'id', and 'catalogId'
+      // Filter out structural properties 'component' and 'id'
       const orderedKeys: string[] = [];
       for (const k of Object.keys(props)) {
-        if (k !== 'component' && k !== 'id' && k !== 'catalogId') {
+        if (k !== 'component' && k !== 'id') {
           orderedKeys.push(k);
         }
       }
@@ -699,6 +698,11 @@ export class CatalogSchemaHelper {
 
   /**
    * Crawls all sub-schemas of a component to retrieve a property's schema definition.
+   *
+   * The sub-schemas are searched in the order `orderedComponentSubSchemas`
+   * lists them, the component's own schema first, and the first definition
+   * found is returned, so the component's own definition of a property
+   * overrides an inherited one, including one from a nested allOf.
    */
   getPropertySchema(
     componentName: string,
@@ -709,9 +713,7 @@ export class CatalogSchemaHelper {
       return undefined;
     }
 
-    const subSchemas = this.orderedComponentSubSchemas(schema);
-
-    for (const subObj of subSchemas) {
+    for (const subObj of this.orderedComponentSubSchemas(schema)) {
       if (subObj.properties && typeof subObj.properties === 'object') {
         const props = subObj.properties as Record<string, unknown>;
         if (propertyName in props) {
