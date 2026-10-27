@@ -255,7 +255,8 @@ void main() {
         return ComponentContext(s, root).dataContext.resolveDynamicValue(value);
       }
 
-      test('dispatches CATALOG_ERROR for a call naming an unknown catalog', () {
+      test('dispatches CATALOG_ERROR for a call naming an unknown catalog',
+          () async {
         final SurfaceModel<ComponentApi> s = v1Surface();
 
         expect(
@@ -266,6 +267,7 @@ void main() {
           }),
           isNull,
         );
+        await Future<void>.delayed(Duration.zero);
         expect(v1Errors, hasLength(1));
         expect(v1Errors.single.code, 'CATALOG_ERROR');
         expect(v1Errors.single.message, contains('Catalog not found'));
@@ -273,13 +275,14 @@ void main() {
 
       test(
           'dispatches CATALOG_ERROR for a call naming no catalog on a surface '
-          'without a default', () {
+          'without a default', () async {
         final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
 
         expect(
           resolve(s, {'@call': 'capitalize', 'args': <String, Object?>{}}),
           isNull,
         );
+        await Future<void>.delayed(Duration.zero);
         expect(v1Errors, hasLength(1));
         expect(v1Errors.single.code, 'CATALOG_ERROR');
         expect(v1Errors.single.message, contains('no default catalogId'));
@@ -287,37 +290,41 @@ void main() {
 
       test(
           'dispatches EXPRESSION_ERROR for a function missing from the '
-          'resolved catalog', () {
+          'resolved catalog', () async {
         final SurfaceModel<ComponentApi> s = v1Surface();
 
         expect(
           resolve(s, {'@call': 'missing', 'args': <String, Object?>{}}),
           isNull,
         );
+        await Future<void>.delayed(Duration.zero);
         expect(v1Errors, hasLength(1));
         expect(v1Errors.single.code, 'EXPRESSION_ERROR');
         expect(v1Errors.single.message, contains('Function not found'));
       });
 
-      test('dispatches EXPRESSION_ERROR for an unknown system function', () {
+      test('dispatches EXPRESSION_ERROR for an unknown system function',
+          () async {
         final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
 
         expect(
           resolve(s, {'@call': '@missing', 'args': <String, Object?>{}}),
           isNull,
         );
+        await Future<void>.delayed(Duration.zero);
         expect(v1Errors, hasLength(1));
         expect(v1Errors.single.code, 'EXPRESSION_ERROR');
       });
     });
 
-    test('dispatches an expression error immediately by default', () {
+    test('dispatches an expression error to the surface by default', () async {
       final componentContext = ComponentContext(surface, component);
 
       expect(
         componentContext.dataContext.resolveDynamicValue({'call': 'missing'}),
         isNull,
       );
+      await Future<void>.delayed(Duration.zero);
       expect(clientErrors, hasLength(1));
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.surfaceId, 'surf-1');
@@ -326,7 +333,7 @@ void main() {
 
     test(
       'an override replaces surface dispatch and follows child contexts',
-      () {
+      () async {
         final componentContext = ComponentContext(
           surface,
           component,
@@ -347,6 +354,7 @@ void main() {
         expect(child.dataContext.path, '/users/0');
         expect(errors, hasLength(2));
         expect(errors.map((error) => error.expression), ['missing', 'missing']);
+        await Future<void>.delayed(Duration.zero);
         expect(clientErrors, isEmpty);
       },
     );
