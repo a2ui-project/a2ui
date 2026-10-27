@@ -36,10 +36,12 @@ on:
     types: [submitted]
   pull_request_review_comment:
     types: [created]
-  # PR lifecycle events (opened/synchronize/...) are deliberately absent: the
-  # only PR rule needs a day of maintainer silence, and pushes and edits are
-  # not contributions, so none of those events can change a flag when they
-  # fire. Comments, reviews and the daily cron cover every transition.
+  # PR lifecycle events (opened, labeled, assigned, ...) are deliberately
+  # absent, so a new PR or a label or assignee change on a PR waits for the
+  # daily cron. The `issues` events above fire for issues only, and a plain
+  # `pull_request` trigger gets a read-only token on PRs from forks, so it
+  # cannot label them. `pull_request_target` could, but zizmor rejects it as
+  # an insecure trigger.
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
 
