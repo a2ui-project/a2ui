@@ -82,6 +82,35 @@ describe('DataContext', () => {
     assert.strictEqual(model.get('/user/name'), 'Bob');
   });
 
+  it('stores null on a pre-1.0 surface and removes the entry from v1.0', () => {
+    const v09Surface = new SurfaceModel(
+      's09',
+      new Catalog('c09', '0.9', []),
+      null,
+      {},
+      false,
+      model,
+    );
+    new DataContext(v09Surface, '/user').set('name', null);
+    assert.strictEqual(model.get('/user/name'), null);
+    assert.ok('name' in model.get('/user'));
+
+    const v10Surface = new SurfaceModel(
+      's10',
+      new Catalog('c10', '1.0', []),
+      null,
+      {},
+      false,
+      model,
+    );
+    new DataContext(v10Surface, '/user').set('name', null);
+    assert.ok(!('name' in model.get('/user')));
+
+    model.set('/user/name', 'Alice');
+    new DataContext(model, '/user').set('name', null);
+    assert.ok(!('name' in model.get('/user')));
+  });
+
   it('creates nested context', () => {
     const addressContext = context.nested('address');
     assert.strictEqual(addressContext.path, '/user/address');

@@ -403,7 +403,10 @@ export class DataContext {
    */
   set(path: string, value: unknown): void {
     const absolutePath = this.resolvePath(path);
-    this.dataModel.set(absolutePath, value);
+    // Pre-1.0 data models store `null`; v1.0 removes the entry. A context with
+    // no surface has no protocol version and follows the v1.0 behavior.
+    const preserveNull = Boolean(this.surfaceProtocolVersion && !this.atLeastV10);
+    this.dataModel.set(absolutePath, value, preserveNull);
   }
 
   /**
