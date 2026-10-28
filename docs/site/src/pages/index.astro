@@ -27,6 +27,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       content="A2UI is the open Agent-to-UI protocol and SDK suite that lets AI agents respond with stateful, native user interfaces across the entire Generative UI Spectrum."
     />
     <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    />
     <script is:inline>
       // Sync theme with Starlight's localStorage key ('starlight-theme')
       (function () {
@@ -65,7 +71,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
         --shadow-md: 0 12px 28px -6px rgba(0, 0, 0, 0.5), 0 4px 10px -2px rgba(0, 0, 0, 0.35);
         --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.65);
-        --font-sans: "Inter", "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-sans: "Plus Jakarta Sans", "Inter", "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
 
@@ -1265,15 +1271,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
           </a>
           <span class="a2-nav__slash" aria-hidden="true">/</span>
           <nav class="a2-nav__links" aria-label="Primary section navigation">
-            <a class="a2-nav__link is-active" href={`${base}/`}>Overview</a>
+            <a class="a2-nav__link is-active" href={`${base}/`} aria-current="page">Overview</a>
             <a class="a2-nav__link" href={`${base}/quickstart/`}>Docs</a>
             <a class="a2-nav__link" href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
-            <a class="a2-nav__link" href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener">Composer ↗</a>
+            <a class="a2-nav__link" href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener noreferrer">Composer ↗</a>
           </nav>
         </div>
 
         <div class="a2-nav__actions">
-          <a class="a2-search-pill" href={`${base}/quickstart/`} title="Jump to Documentation & Search">
+          <a class="a2-search-pill" id="a2-search-shortcut" href={`${base}/quickstart/`} title="Jump to Documentation & Search (⌘K / Ctrl+K)">
             <span>🔍 Search docs...</span>
             <kbd>⌘K</kbd>
           </a>
@@ -1366,9 +1372,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     </div>
                     <div class="a2-flight-leg__controls">
                       <div class="a2-stepper">
-                        <button type="button" class="a2-stepper__btn" data-action="out-dec">−</button>
+                        <button type="button" class="a2-stepper__btn" data-action="out-dec" aria-label="Decrease outbound passengers">−</button>
                         <span class="a2-stepper__label" id="out-pax-label">1 Passenger</span>
-                        <button type="button" class="a2-stepper__btn" data-action="out-inc">+</button>
+                        <button type="button" class="a2-stepper__btn" data-action="out-inc" aria-label="Increase outbound passengers">+</button>
                       </div>
                       <strong style="font-family: var(--font-mono); font-size: 14px;" id="out-price">€455</strong>
                     </div>
@@ -1384,9 +1390,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                     </div>
                     <div class="a2-flight-leg__controls">
                       <div class="a2-stepper">
-                        <button type="button" class="a2-stepper__btn" data-action="ret-dec">−</button>
+                        <button type="button" class="a2-stepper__btn" data-action="ret-dec" aria-label="Decrease return passengers">−</button>
                         <span class="a2-stepper__label" id="ret-pax-label">2 Passengers</span>
-                        <button type="button" class="a2-stepper__btn" data-action="ret-inc">+</button>
+                        <button type="button" class="a2-stepper__btn" data-action="ret-inc" aria-label="Increase return passengers">+</button>
                       </div>
                       <strong style="font-family: var(--font-mono); font-size: 14px;" id="ret-price">€996 (€498 × 2)</strong>
                     </div>
@@ -1439,26 +1445,26 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
               <span>Fully Open · Agent Owns the Canvas ▶</span>
             </div>
 
-            <div class="a2-spectrum-bands">
-              <button type="button" class="a2-band-card" data-band="prebuilt">
+            <div class="a2-spectrum-bands" role="tablist" aria-label="Generative UI Spectrum Bands">
+              <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="prebuilt">
                 <span class="a2-band-card__tag">BAND 1 · DETERMINISTIC SDUI</span>
                 <h3 class="a2-band-card__title">Prebuilt &amp; Fixed Schema</h3>
                 <p class="a2-band-card__sub">Server code emits exact UI structures and streams live <code>updateDataModel</code> updates with zero LLM latency.</p>
               </button>
 
-              <button type="button" class="a2-band-card is-active" data-band="controlled">
+              <button type="button" role="tab" aria-selected="true" class="a2-band-card is-active" data-band="controlled">
                 <span class="a2-band-card__tag">BAND 2 · CONTROLLED GEN UI</span>
                 <h3 class="a2-band-card__title">Controlled &amp; Server Macros</h3>
                 <p class="a2-band-card__sub">The workhorse band: register domain <code>@macro</code> templates so the agent picks the component and fills typed data.</p>
               </button>
 
-              <button type="button" class="a2-band-card" data-band="declarative">
+              <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="declarative">
                 <span class="a2-band-card__tag">BAND 3 · DECLARATIVE GEN UI</span>
                 <h3 class="a2-band-card__title">Composable Catalogs</h3>
                 <p class="a2-band-card__sub">Where the long tail lives: declare a catalog of Lego-like building blocks that the agent assembles on demand.</p>
               </button>
 
-              <button type="button" class="a2-band-card" data-band="open">
+              <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="open">
                 <span class="a2-band-card__tag">BAND 4 · MCP APPS &amp; OPEN</span>
                 <h3 class="a2-band-card__title">MCP Apps &amp; Sandboxes</h3>
                 <p class="a2-band-card__sub">Inject 3rd-party <code>ui://</code> MCP App iframes inside A2UI surfaces, or ship A2UI surfaces inside Claude &amp; ChatGPT.</p>
@@ -1522,31 +1528,31 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
 
           <!-- Interactive Placeholder Logo Bar -->
           <div class="a2-logos-strip" role="tablist" aria-label="Production Use Cases">
-            <button type="button" class="a2-logo-tab is-active" data-usecase="app-01">
+            <button type="button" role="tab" aria-selected="true" class="a2-logo-tab is-active" data-usecase="app-01">
               <div class="a2-logo-placeholder-box">[ LOGO 01 ]</div>
               <span class="a2-logo-tab__name">App Example 01</span>
               <span class="a2-logo-tab__role">Smart Home Controls</span>
             </button>
 
-            <button type="button" class="a2-logo-tab" data-usecase="app-02">
+            <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-02">
               <div class="a2-logo-placeholder-box">[ LOGO 02 ]</div>
               <span class="a2-logo-tab__name">App Example 02</span>
               <span class="a2-logo-tab__role">Research Synthesis</span>
             </button>
 
-            <button type="button" class="a2-logo-tab" data-usecase="app-03">
+            <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-03">
               <div class="a2-logo-placeholder-box">[ LOGO 03 ]</div>
               <span class="a2-logo-tab__name">App Example 03</span>
               <span class="a2-logo-tab__role">IDE Agentic Surfaces</span>
             </button>
 
-            <button type="button" class="a2-logo-tab" data-usecase="app-04">
+            <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-04">
               <div class="a2-logo-placeholder-box">[ LOGO 04 ]</div>
               <span class="a2-logo-tab__name">App Example 04</span>
               <span class="a2-logo-tab__role">Data Intelligence UI</span>
             </button>
 
-            <button type="button" class="a2-logo-tab" data-usecase="app-05">
+            <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-05">
               <div class="a2-logo-placeholder-box">[ LOGO 05 ]</div>
               <span class="a2-logo-tab__name">App Example 05</span>
               <span class="a2-logo-tab__role">Native Mobile GenUI</span>
@@ -1630,7 +1636,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
 
           <!-- Three Major Points Side-by-Side -->
           <div class="a2-why-pillars" role="tablist" aria-label="Why A2UI Pillars">
-            <button type="button" class="a2-why-card is-active" data-why-tab="inference">
+            <button type="button" role="tab" aria-selected="true" class="a2-why-card is-active" data-why-tab="inference">
               <div>
                 <div class="a2-why-card__num">
                   <span>01 · SPEED &amp; FLEXIBILITY</span>
@@ -1644,7 +1650,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
               <div class="a2-why-card__cta">Inspect Express vs. Wire JSON ↓</div>
             </button>
 
-            <button type="button" class="a2-why-card" data-why-tab="macros">
+            <button type="button" role="tab" aria-selected="false" class="a2-why-card" data-why-tab="macros">
               <div>
                 <div class="a2-why-card__num">
                   <span>02 · HYBRID SDUI + GEN UI</span>
@@ -1658,7 +1664,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
               <div class="a2-why-card__cta">Inspect 3-Stage Macro Expansion ↓</div>
             </button>
 
-            <button type="button" class="a2-why-card" data-why-tab="native">
+            <button type="button" role="tab" aria-selected="false" class="a2-why-card" data-why-tab="native">
               <div>
                 <div class="a2-why-card__num">
                   <span>03 · EVERY CLIENT SURFACE</span>
@@ -1858,13 +1864,13 @@ root = <span class="a2-tok-comp">FlightCard</span>(
                 <span style="font-size: 13px; color: var(--text-secondary);">Inherits system dark mode, Dynamic Type, and VoiceOver / TalkBack accessibility.</span>
               </div>
 
-              <div class="a2-platform-tabs" role="tablist">
-                <button type="button" class="a2-plat-tab is-active" data-plat="swiftui">🍎 SwiftUI (iOS / macOS)</button>
-                <button type="button" class="a2-plat-tab" data-plat="compose">🤖 Jetpack Compose</button>
-                <button type="button" class="a2-plat-tab" data-plat="flutter">💙 Flutter (Multi-Platform)</button>
-                <button type="button" class="a2-plat-tab" data-plat="react">⚛️ React (@a2ui/react)</button>
-                <button type="button" class="a2-plat-tab" data-plat="angular">🅰️ Angular (@a2ui/angular)</button>
-                <button type="button" class="a2-plat-tab" data-plat="lit">🔥 Lit (@a2ui/lit)</button>
+              <div class="a2-platform-tabs" role="tablist" aria-label="Native Platform Renderers">
+                <button type="button" role="tab" aria-selected="true" class="a2-plat-tab is-active" data-plat="swiftui">🍎 SwiftUI (iOS / macOS)</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="compose">🤖 Jetpack Compose</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="flutter">💙 Flutter (Multi-Platform)</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="react">⚛️ React (@a2ui/react)</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="angular">🅰️ Angular (@a2ui/angular)</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="lit">🔥 Lit (@a2ui/lit)</button>
               </div>
 
               <div class="a2-platform-showcase">
@@ -1947,7 +1953,7 @@ struct AgentSurfaceScreen: View &#123;
 
     <script is:inline>
       (function () {
-        // 1. Theme Toggle
+        // 1. Theme Toggle, Copy Prompt & Cmd+K Shortcut
         const themeBtn = document.getElementById('a2-theme-toggle');
         if (themeBtn) {
           themeBtn.addEventListener('click', () => {
@@ -1959,6 +1965,55 @@ struct AgentSurfaceScreen: View &#123;
             } catch (_) {}
           });
         }
+
+        const copyBtn = document.getElementById('a2-copy-prompt');
+        if (copyBtn) {
+          const placeholderPrompt = [
+            'Integrate A2UI (the open Agent-to-UI protocol) into this application so our AI agent can stream stateful, native UI surfaces.',
+            '',
+            'Guidelines:',
+            '- Always use the official A2UI Agent and Renderer SDKs (Python/TypeScript agent SDKs; Lit, React, Angular, Flutter, SwiftUI, or Jetpack Compose client renderers) rather than hand-rolling wire messages.',
+            '- Consult the official A2UI documentation and specifications before writing code:',
+            '  - Documentation & Quickstart: https://a2ui.org/quickstart/',
+            '  - Protocol Specification (v1.0): https://a2ui.org/specification/v1.0-a2ui/',
+            '  - LLM Context Reference: https://a2ui.org/llms.txt',
+            '  - Official Repository & SDKs: https://github.com/a2ui-project/a2ui',
+          ].join('\n');
+
+          copyBtn.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(placeholderPrompt);
+              const originalText = copyBtn.textContent;
+              copyBtn.textContent = '✓ Copied Agent Prompt!';
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+              }, 2000);
+            } catch (_) {}
+          });
+        }
+
+        document.addEventListener('keydown', (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+            const searchLink = document.getElementById('a2-search-shortcut') || document.querySelector('.a2-search-pill');
+            if (searchLink && searchLink.getAttribute('href')) {
+              e.preventDefault();
+              window.location.href = searchLink.getAttribute('href');
+            }
+          }
+        });
+
+        document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
+          tablist.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
+            const idx = tabs.indexOf(document.activeElement);
+            if (idx === -1) return;
+            e.preventDefault();
+            const nextIdx = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+            tabs[nextIdx].focus();
+            tabs[nextIdx].click();
+          });
+        });
 
         // 2. Travel Booking Interactive Surface
         const state = { outPax: 1, retPax: 2, premium: false, bags: true, booked: false };
@@ -2076,7 +2131,11 @@ root = Card(Column([
             const key = card.getAttribute('data-band');
             const data = bands[key];
             if (!data) return;
-            document.querySelectorAll('[data-band]').forEach((c) => c.classList.toggle('is-active', c === card));
+            document.querySelectorAll('[data-band]').forEach((c) => {
+              const active = c === card;
+              c.classList.toggle('is-active', active);
+              c.setAttribute('aria-selected', String(active));
+            });
             document.getElementById('band-title').textContent = data.title;
             document.getElementById('band-brush').textContent = data.brush;
             document.getElementById('band-bestfor').textContent = data.bestfor;
@@ -2190,7 +2249,11 @@ root = Card(Column([
             const key = tab.getAttribute('data-usecase');
             const data = useCases[key];
             if (!data) return;
-            document.querySelectorAll('[data-usecase]').forEach((t) => t.classList.toggle('is-active', t === tab));
+            document.querySelectorAll('[data-usecase]').forEach((t) => {
+              const active = t === tab;
+              t.classList.toggle('is-active', active);
+              t.setAttribute('aria-selected', String(active));
+            });
             document.getElementById('uc-eyebrow').textContent = data.eyebrow;
             document.getElementById('uc-title').textContent = data.title;
             document.getElementById('uc-desc').textContent = data.desc;
@@ -2205,7 +2268,11 @@ root = Card(Column([
         document.querySelectorAll('[data-why-tab]').forEach((card) => {
           card.addEventListener('click', () => {
             const target = card.getAttribute('data-why-tab');
-            document.querySelectorAll('[data-why-tab]').forEach((c) => c.classList.toggle('is-active', c === card));
+            document.querySelectorAll('[data-why-tab]').forEach((c) => {
+              const active = c === card;
+              c.classList.toggle('is-active', active);
+              c.setAttribute('aria-selected', String(active));
+            });
             document.querySelectorAll('[data-why-panel]').forEach((panel) => {
               panel.classList.toggle('is-active', panel.getAttribute('data-why-panel') === target);
             });
@@ -2301,7 +2368,11 @@ export const renderSurface = (processor) => html\`
             const key = tab.getAttribute('data-plat');
             const data = platforms[key];
             if (!data) return;
-            document.querySelectorAll('[data-plat]').forEach((t) => t.classList.toggle('is-active', t === tab));
+            document.querySelectorAll('[data-plat]').forEach((t) => {
+              const active = t === tab;
+              t.classList.toggle('is-active', active);
+              t.setAttribute('aria-selected', String(active));
+            });
             document.getElementById('plat-chrome-label').textContent = data.chrome;
             document.getElementById('plat-pkg-label').textContent = data.pkg;
             document.getElementById('plat-code-title').textContent = data.title;

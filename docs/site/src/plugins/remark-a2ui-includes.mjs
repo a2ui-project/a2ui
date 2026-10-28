@@ -137,7 +137,10 @@ function preprocessMarkdown(rawMarkdown, filePath) {
     const startLine = parts[1] ? parseInt(parts[1], 10) : null;
     const endLine = parts[2] ? parseInt(parts[2], 10) : null;
 
-    const absPath = path.join(repoRoot, relFile);
+    const absPath = path.resolve(repoRoot, relFile);
+    if (!absPath.startsWith(repoRoot + path.sep)) {
+      return `> **Warning:** Included file path escapes repository root: \`${relFile}\``;
+    }
     if (!fs.existsSync(absPath)) {
       return `> **Warning:** Included file not found: \`${relFile}\``;
     }
@@ -168,12 +171,13 @@ function preprocessMarkdown(rawMarkdown, filePath) {
   };
 
   expanded = expanded.replace(
-    /(?:^>[ \t]*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*([^\n]*)\n)((?:^>[^\n]*(?:\n|$))*)/gm,
-    (_, type, customTitle, bodyLines) => {
+    /(```[\s\S]*?```)|(?:^>[ \t]*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*([^\r\n]*)\r?\n)((?:^>[^\r\n]*(?:\r?\n|$))*)/gm,
+    (match, codeFence, type, customTitle, bodyLines) => {
+      if (codeFence) return match;
       const meta = alertTypes[type] || alertTypes.NOTE;
       const title = customTitle.trim() || meta.label;
       const cleanBody = bodyLines
-        .split('\n')
+        .split(/\r?\n/)
         .map(line => line.replace(/^>[ \t]?/, ''))
         .join('\n')
         .trim();

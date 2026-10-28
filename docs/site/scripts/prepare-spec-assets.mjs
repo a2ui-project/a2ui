@@ -24,8 +24,13 @@ const siteRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(siteRoot, '../..');
 const publicDir = path.join(siteRoot, 'public');
 
-function copyRecursive(src, dest) {
-  if (!fs.existsSync(src)) return;
+function copyRecursive(src, dest, {required = true} = {}) {
+  if (!fs.existsSync(src)) {
+    if (required) {
+      throw new Error(`[prepare-spec-assets] Required source path not found: ${src}`);
+    }
+    return;
+  }
   fs.cpSync(src, dest, {recursive: true, force: true});
 }
 

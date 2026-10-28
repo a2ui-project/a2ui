@@ -35,9 +35,9 @@ const isDocs = !isSpec && pathname !== `${base}/` && pathname !== '/';
     <span class="a2-sl-header__slash" aria-hidden="true">/</span>
     <nav class="a2-sl-header__tabs" aria-label="Primary section navigation">
       <a href={`${base}/`} class="a2-sl-tab">Overview</a>
-      <a href={`${base}/quickstart/`} class:list={['a2-sl-tab', { 'is-active': isDocs }]}>Docs</a>
-      <a href={`${base}/specification/v1.0-a2ui/`} class:list={['a2-sl-tab', { 'is-active': isSpec }]}>Specification</a>
-      <a href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener" class="a2-sl-tab">Composer ↗</a>
+      <a href={`${base}/quickstart/`} class:list={['a2-sl-tab', { 'is-active': isDocs }]} aria-current={isDocs ? 'page' : undefined}>Docs</a>
+      <a href={`${base}/specification/v1.0-a2ui/`} class:list={['a2-sl-tab', { 'is-active': isSpec }]} aria-current={isSpec ? 'page' : undefined}>Specification</a>
+      <a href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener noreferrer" class="a2-sl-tab">Composer ↗</a>
     </nav>
   </div>
 
@@ -97,6 +97,12 @@ const isDocs = !isSpec && pathname !== `${base}/` && pathname !== '/';
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .a2-sl-header__tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .a2-sl-tab {
