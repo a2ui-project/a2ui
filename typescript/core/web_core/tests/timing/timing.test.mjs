@@ -107,6 +107,27 @@ describe('compareMedianTimes', () => {
     assert.equal(run, 6);
     assert.deepEqual(result, {measuredMs: 3, baselineMs: 1, ratio: 3});
   });
+
+  it('collects full garbage once before warmup and minor garbage before each timed run', () => {
+    const {now, spend} = fakeClock();
+    const originalGc = globalThis.gc;
+    const gcCalls = [];
+    globalThis.gc = (...args) => {
+      gcCalls.push(args);
+    };
+    try {
+      compareMedianTimes(spend(8), spend(2), {runs: 2, now});
+    } finally {
+      globalThis.gc = originalGc;
+    }
+    assert.deepEqual(gcCalls, [
+      [],
+      [{type: 'minor'}],
+      [{type: 'minor'}],
+      [{type: 'minor'}],
+      [{type: 'minor'}],
+    ]);
+  });
 });
 
 describe('measureGrowth', () => {
