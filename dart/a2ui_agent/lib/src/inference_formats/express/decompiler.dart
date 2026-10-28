@@ -57,13 +57,8 @@ typedef _SurfaceCatalog = ({bool known, String? catalogId});
 class ExpressDecompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ///
-  /// [catalogs] are linked with one another, as by [linkCatalogs], so a
-  /// cross-catalog `$ref` resolves; the catalogs passed in are not changed.
-  ExpressDecompiler(List<CatalogApi> catalogs)
-    : catalogs = linkCatalogs(catalogs);
+  ExpressDecompiler(this.catalogs);
 
-  /// The catalogs this decompiler knows, linked with one another.
   final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _helpers = {
@@ -250,14 +245,12 @@ class ExpressDecompiler {
         'with anything but a map.',
       );
     }
-    // Below the root the value is assigned at its path, which compiles to an
-    // update of the root holding it.
     return [
       _surfaceLine(
         message.surfaceId,
         created[message.surfaceId] ?? catalogs.first.id,
       ),
-      ..._dataLines(value, at: atRoot ? '' : path),
+      '\$${atRoot ? '/' : path} = ${_literal(value)}',
     ].join('\n');
   }
 
@@ -378,14 +371,17 @@ class ExpressDecompiler {
       : 'surface(${_string(surfaceId)}, ${_string(catalogId!)})';
 
   /// One assignment per leaf of [model], since the compiler builds nested
-  /// maps back up from the paths.
-  List<String> _dataLines(Object? model, {String at = ''}) {
-    if (at.isEmpty && model is Map && model.isEmpty) return [r'$/ = {}'];
+  /// maps back up from the paths on surface creation.
+  List<String> _dataLines(Map<Object?, Object?> model) {
     final lines = <String>[];
     void visit(String path, Object? value) {
       if (value is Map && value.isNotEmpty) {
-        for (final MapEntry<Object?, Object?> entry in value.entries) {
-          final key = '${entry.key}';
+        final List<MapEntry<String, Object?>> entries = [
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            MapEntry('${entry.key}', entry.value),
+        ]..sort((a, b) => a.key.compareTo(b.key));
+        for (final entry in entries) {
+          final String key = entry.key;
           if (!_pathSegment.hasMatch(key)) {
             throw A2uiValidationError(
               "The data model key '$key' at '${path.isEmpty ? '/' : path}' has "
@@ -400,20 +396,15 @@ class ExpressDecompiler {
       }
     }
 
-    visit(at, model);
+    visit('', model);
     return lines;
   }
 
   /// Whether [path] is a data path Express can assign at, such as
-  /// `/user/name`: one naming map keys, since the assignment compiles to an
-  /// update of the root that holds a map along the path, and so not one
-  /// naming an item of a list.
+  /// `/user/name` or `/items/0`.
   bool _isDataPath(String path) =>
       path.startsWith('/') &&
-      path
-          .substring(1)
-          .split('/')
-          .every((s) => _pathSegment.hasMatch(s) && int.tryParse(s) == null);
+      path.substring(1).split('/').every(_pathSegment.hasMatch);
 
   List<String> _componentLines(
     List<Map<String, Object?>> components,

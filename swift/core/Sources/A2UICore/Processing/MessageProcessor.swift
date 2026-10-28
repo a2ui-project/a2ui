@@ -656,8 +656,7 @@ public final class MessageProcessor: ObservableObject {
       callFunction: CallFunctionPayload(
         call: op.call,
         catalogID: op.catalogID,
-        args: op.args,
-        returnType: op.returnType
+        args: op.args
       ),
       version: op.version
     )
@@ -707,7 +706,6 @@ public final class MessageProcessor: ObservableObject {
   ///   - functionName: The name of the function to execute on the agent.
   ///   - catalogID: Optional catalog identifier.
   ///   - args: Named argument dictionary.
-  ///   - returnType: Expected return type name.
   ///   - version: The A2UI protocol version for the outbound message.
   ///   - timeoutSeconds: Maximum duration to wait before timing out (default 30s).
   /// - Returns: The evaluated JSONValue returned by the agent.
@@ -718,7 +716,6 @@ public final class MessageProcessor: ObservableObject {
     catalogID: String? = nil,
     functionCallID: String? = nil,
     args: [String: JSONValue]? = nil,
-    returnType: String? = nil,
     version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0
   ) async throws -> JSONValue {
@@ -731,7 +728,6 @@ public final class MessageProcessor: ObservableObject {
       catalogID: catalogID,
       functionCallID: functionCallID,
       args: args,
-      returnType: returnType,
       version: version,
       timeoutSeconds: timeoutSeconds,
       sendOutbound: listener
@@ -1107,7 +1103,6 @@ public final class MessageProcessor: ObservableObject {
         props[key] = val
       }
 
-      surface.nodeResolver.clearReportedExpressionErrors(forComponentID: id)
       let existing = surface.componentsModel.get(id)
       if let existing, existing.type != type || existing.catalogID != componentCatalogID {
         removedIDs.append(id)
