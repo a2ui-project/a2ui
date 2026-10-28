@@ -780,6 +780,43 @@ struct MessageProcessorTests {
     #expect(surface.metadata?["extensions"]?["custom_ext"]?["enabled"]?.boolValue == true)
     #expect(surface.dataModel.get("/a~1b~0c")?.stringValue == "escapedValue")
   }
+
+  @Test func processPayloadResolvesLenientV10VersionOnError() throws {
+    let catalogV09 = Catalog(
+      id: "cat-v09",
+      protocolVersion: .v09,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+    let catalogV10 = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+    let processor = MessageProcessor(catalogs: [catalogV09, catalogV10])
+    var capturedVersion: String?
+    _ = processor.onOutboundMessage.subscribe { msg in
+      capturedVersion = msg["version"]?.stringValue
+    }
+    let payload = try JSONValue.parse(
+      """
+      {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "missing-surface",
+          "components": [
+            { "id": "root", "component": "Text" }
+          ]
+        }
+      }
+      """
+    )
+    processor.process(payload: payload)
+    #expect(capturedVersion == "1.0")
+  }
 }
 
 private struct TestAddFunction: FunctionImplementation {

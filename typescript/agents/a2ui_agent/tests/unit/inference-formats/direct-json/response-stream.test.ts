@@ -161,7 +161,7 @@ describe('DirectJsonResponseStream', () => {
     }
 
     const partial = (error as {partialResults: ResponsePart[]}).partialResults;
-    expect(messagesOf(partial)).toEqual([JSON.parse(create)]);
+    expect(messagesOf(partial)).toEqual([{...JSON.parse(create), version: '1.0'}]);
     expect(opened.state.surfaceIds).toEqual(['main']);
   });
 
@@ -294,7 +294,7 @@ describe('DirectJsonResponseStream', () => {
     );
 
     const expected = {
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {surfaceId: 's1', value: {greeting: value}},
     };
     expect(messages).toEqual(healed ? [expected] : []);
@@ -406,7 +406,7 @@ describe('DirectJsonResponseStream', () => {
 
     expect(messages.length).toBeGreaterThan(2);
     expect(messages[messages.length - 1]).toEqual({
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {surfaceId: 's1', path: '/', value},
     });
     expect(state.getSurface('s1')!.dataModel.get('/')).toEqual(value);
@@ -496,7 +496,9 @@ describe('DirectJsonResponseStream', () => {
       );
 
       expect(first.map(part => part.type)).toEqual(['a2ui', 'error']);
-      expect(messagesOf(first.filter(part => part.type !== 'error'))).toEqual([JSON.parse(create)]);
+      expect(messagesOf(first.filter(part => part.type !== 'error'))).toEqual([
+        {...JSON.parse(create), version: '1.0'},
+      ]);
       expect(second).toEqual([{type: 'text', text: 'Done.'}]);
       expect(opened.state.surfaceIds).toEqual(['main']);
     });

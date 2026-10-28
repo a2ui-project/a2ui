@@ -55,6 +55,12 @@ def test_supported_protocol_versions():
     assert "0.8" in SUPPORTED_PROTOCOL_VERSIONS
     assert "1.1" not in SUPPORTED_PROTOCOL_VERSIONS
     assert "0.9" in DEFAULT_CATALOG_COMPATIBILITY.get("0.9.1", frozenset())
+    assert ProtocolVersion("1.0") == ProtocolVersion.V1_0
+    assert ProtocolVersion(" 1.0 ") == ProtocolVersion.V1_0
+    assert ProtocolVersion("v1.0") == ProtocolVersion.V1_0
+    assert ProtocolVersion("V1.0") == ProtocolVersion.V1_0
+    assert ProtocolVersion("V0.9") == ProtocolVersion.V0_9
+    assert ProtocolVersion(" v0.9.1 ") == ProtocolVersion.V0_9_1
 
 
 def test_is_catalog_version_compatible():

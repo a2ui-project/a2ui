@@ -34,10 +34,10 @@ class A2uiProtocolVersion(str, Enum):
     @classmethod
     def _missing_(cls, value: object) -> "A2uiProtocolVersion | None":
         if isinstance(value, str):
-            stripped = value.strip()
-            alt = stripped[1:] if stripped.lower().startswith("v") else f"v{stripped}"
+            stripped = value.strip().lower()
+            alt = stripped[1:] if stripped.startswith("v") else f"v{stripped}"
             for member in cls:
-                if member.value == alt:
+                if member.value in (stripped, alt):
                     return member
         return None
 

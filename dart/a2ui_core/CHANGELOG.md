@@ -4,11 +4,10 @@
 
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
-  `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.value` is now
-  `'1.0'`), while accepting `'v1.0'` as an input alias in
-  `A2uiProtocolVersion.tryParse`, `VersionAdapterFactory`, message schemas, and
-  `Catalog.fromJson`. `Catalog.protocolVersion` is typed as
-  `A2uiProtocolVersion` ([#3097](https://github.com/a2ui-project/a2ui/issues/3097)).
+  `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
+  now `'1.0'`), while accepting `'v1.0'` as an input alias in
+  `A2uiProtocolVersion.fromJson`, `A2uiProtocolVersion.tryParse`, message
+  schemas, and `Catalog.fromJson` ([#3097](https://github.com/a2ui-project/a2ui/issues/3097)).
 - **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
   of the list the processor was created with, and adding to it throws
   `UnsupportedError`. Pass every catalog when creating the processor
