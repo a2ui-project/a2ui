@@ -865,8 +865,8 @@ void main() {
             'version': 'v1.0',
             'updateDataModel': {
               'surfaceId': 'default_surface',
-              'path': '/',
-              'value': {'count': 2},
+              'path': '/count',
+              'value': 2,
             },
           },
         ],

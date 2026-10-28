@@ -941,3 +941,132 @@ def test_validation_schema_flattens_mixins_and_preserves_extra_keywords() -> Non
     assert box["allOf"] == [{"oneOf": [{"required": ["a"]}, {"required": ["b"]}]}]
     assert "Weighted" not in catalog.validation_schema["$defs"]
     assert catalog.to_json() == document
+
+
+def _catalog_with_ref(ref: str, version: str = "v1.0") -> dict[str, Any]:
+    return {
+        "catalogId": "https://example.com/catalogs/refs",
+        "protocolVersion": version,
+        "components": {
+            "Label": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Label"},
+                    "text": {"$ref": ref},
+                },
+                "required": ["component", "text"],
+            }
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "basic_catalog.json#/components/Text",
+        "other_catalog.json#/$defs/Shared",
+        "foo/catalog.json#/components/Text",
+        "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json#/components/Text",
+        "common_types.json.bak#/$defs/DynamicString",
+        "my_common_types.json#/$defs/DynamicString",
+    ],
+)
+def test_v10_from_json_rejects_external_refs(ref: str) -> None:
+    with pytest.raises(A2uiCatalogError) as excinfo:
+        Catalog.from_json(_catalog_with_ref(ref))
+
+    assert str(excinfo.value) == (
+        f"Unsupported external $ref '{ref}' at"
+        " /components/Label/properties/text/$ref: a v1.0 catalog may only"
+        " reference its own components and functions (#/...) or"
+        " common_types.json."
+    )
+
+
+def test_v10_from_json_rejects_external_ref_in_function_args() -> None:
+    ref = "other_catalog.json#/functions/formatString/properties/args"
+    document = {
+        "catalogId": "https://example.com/catalogs/function_refs",
+        "protocolVersion": "v1.0",
+        "functions": {
+            "formatBadge": {
+                "type": "object",
+                "returnType": "string",
+                "properties": {
+                    "@call": {"const": "formatBadge"},
+                    "args": {
+                        "type": "object",
+                        "properties": {"value": {"$ref": ref}},
+                        "required": ["value"],
+                    },
+                },
+                "required": ["@call", "args"],
+            }
+        },
+    }
+
+    with pytest.raises(A2uiCatalogError, match="Unsupported external") as excinfo:
+        Catalog.from_json(document)
+
+    assert (
+        f"'{ref}' at /functions/formatBadge/properties/args/properties/value/$ref:"
+        in str(excinfo.value)
+    )
+
+
+def test_v10_from_json_rejects_external_ref_in_defs_and_escapes_pointer() -> None:
+    document = _catalog_with_ref("#/$defs/a~b/c")
+    document["$defs"] = {
+        "a~b/c": {"anyOf": [{"type": "string"}, {"$ref": "peer.json#/$defs/X"}]}
+    }
+
+    with pytest.raises(A2uiCatalogError) as excinfo:
+        Catalog.from_json(document)
+
+    assert "'peer.json#/$defs/X' at /$defs/a~0b~1c/anyOf/1/$ref:" in str(excinfo.value)
+
+
+def test_v10_from_json_reports_the_first_external_ref_in_document_order() -> None:
+    document = _catalog_with_ref("first.json#/$defs/A")
+    document["$defs"] = {"Later": {"$ref": "second.json#/$defs/B"}}
+
+    with pytest.raises(A2uiCatalogError, match="'first.json#/\\$defs/A'"):
+        Catalog.from_json(document)
+
+
+def test_v10_from_json_rejects_external_ref_when_version_is_passed() -> None:
+    document = _catalog_with_ref("peer.json#/$defs/X")
+    del document["protocolVersion"]
+
+    with pytest.raises(A2uiCatalogError, match="Unsupported external \\$ref"):
+        Catalog.from_json(document, protocol_version="1.0")
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "#/$defs/Local",
+        "#/components/Label",
+        "common_types.json#/$defs/DynamicString",
+        "./common_types.json#/$defs/DynamicString",
+        "../v1_0/common_types.json#/$defs/DynamicString",
+        "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+        "catalog.json#/components/Label",
+    ],
+)
+def test_v10_from_json_accepts_local_and_common_types_refs(ref: str) -> None:
+    document = _catalog_with_ref(ref)
+    document["$defs"] = {"Local": {"type": "string"}}
+
+    catalog = Catalog.from_json(document)
+
+    assert set(catalog.components) == {"Label"}
+
+
+@pytest.mark.parametrize("version", ["0.9", "0.9.1"])
+def test_v09_from_json_keeps_external_refs(version: str) -> None:
+    ref = "basic_catalog.json#/components/Text"
+
+    catalog = Catalog.from_json(_catalog_with_ref(ref, version))
+
+    assert catalog.components["Label"].schema["properties"]["text"] == {"$ref": ref}
