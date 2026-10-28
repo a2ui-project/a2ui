@@ -79,6 +79,10 @@ const SUPERSEDED = new Map<string, string>([
     name,
     'superseded by direct_json/response_parser.yaml, where a response without tags is a text part, an empty response has no parts, and an empty block fails when it compiles',
   ]),
+  [
+    'test_parse_response_invalid_json',
+    'superseded by direct_json/compiler.yaml, which checks the ParseError without the removed payload fixer\'s "Failed to parse" message',
+  ],
 ]);
 
 /**
@@ -87,7 +91,9 @@ const SUPERSEDED = new Map<string, string>([
  * `generate_prompt` assembled a full system prompt from role, workflow and UI descriptions.
  * The prompt generator now renders only the catalog snippet and leaves the rest of the
  * prompt to the agent developer. `process_chunk` drove a stream processor that a parser
- * owned; a stream is now opened per response with `Parser.openStream`.
+ * owned; a stream is now opened per response with `Parser.openStream`. `fix_payload`
+ * called a standalone payload fixer; the Direct JSON parser's reader now makes those
+ * repairs while it compiles a block.
  */
 const SUPERSEDED_ACTIONS = new Map<string, string>([
   [
@@ -97,6 +103,10 @@ const SUPERSEDED_ACTIONS = new Map<string, string>([
   [
     'process_chunk',
     'superseded by direct_json/response_streaming.yaml, which reads a stream through Parser.openStream',
+  ],
+  [
+    'fix_payload',
+    'superseded by direct_json/compiler.yaml, since the Direct JSON parser repairs a payload while it compiles it',
   ],
 ]);
 
