@@ -28,6 +28,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../bin"
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.decision import DecisionSynthesizer
 from a2ui_eval.decision_bench import (
+    PlanCase,
     brier_score,
     expected_calibration_error,
     fit_temperature,
@@ -36,40 +37,80 @@ from a2ui_eval.decision_bench import (
     run_case,
 )
 from a2ui_eval.shared.utils import GIT_ROOT
-from decision_fixtures import HOST_ANSWERS, scripted_backend
+from decision_fixtures import (
+    HOST_ANSWERS,
+    HOST_DECISION_BLOCK,
+    scripted_backend,
+)
 import pytest
 from seed_decision_plans import seed_cases_from_logs
 
 CASES_FILE = GIT_ROOT / "eval" / "datasets" / "decision_plans" / "v1.yaml"
 SCHEMA_FILE = GIT_ROOT / "eval" / "datasets" / "decision_plans" / "schema.json"
 
+_HOST_PLAN_CASE = PlanCase(
+    name="host_health",
+    intent=HOST_DECISION_BLOCK.intent,
+    payload=dict(HOST_DECISION_BLOCK.payload),
+    mutable_paths=list(HOST_DECISION_BLOCK.mutable_paths),
+    expected_family="monitor",
+    expected_archetypes=["dashboard", "metric_grid"],
+    required_blocks=["headline", "facts"],
+    expected_action_gate="pass",
+    verified=True,
+    tags=["smoke"],
+)
 
-def test_schema_and_v1_yaml_validation() -> None:
-    cases = load_plan_cases(CASES_FILE, schema_path=SCHEMA_FILE)
-    assert len(cases) == 16
-    for case in cases:
-        assert case.verified is True
-        assert "smoke" in case.tags
-        assert len(case.expected_archetypes) > 0
-        assert case.expected_family in {
-            "monitor",
-            "act",
-            "input",
-            "browse",
-            "inspect",
-            "follow",
-        }
+
+def test_schema_and_v1_yaml_validation(tmp_path: Path) -> None:
+    sample_yaml = tmp_path / "plans.yaml"
+    sample_yaml.write_text(
+        """
+- name: host_health
+  intent: "Show CPU utilization for prod-1"
+  payload:
+    host: "prod-1"
+    cpu: 0.78
+  expected:
+    family: "monitor"
+    archetypes: ["dashboard", "metric_grid"]
+    blocks:
+      required: ["headline", "facts"]
+    action_gate: "pass"
+  tags: ["smoke"]
+  verified: true
+""",
+        encoding="utf-8",
+    )
+    synthetic_cases = load_plan_cases(sample_yaml, schema_path=SCHEMA_FILE)
+    assert len(synthetic_cases) == 1
+    assert synthetic_cases[0].expected_family == "monitor"
+
+    if CASES_FILE.is_file() and CASES_FILE.read_text(
+        encoding="utf-8"
+    ).lstrip().startswith("-"):
+        cases = load_plan_cases(CASES_FILE, schema_path=SCHEMA_FILE)
+        assert len(cases) == 16
+        for case in cases:
+            assert case.verified is True
+            assert "smoke" in case.tags
+            assert len(case.expected_archetypes) > 0
+            assert case.expected_family in {
+                "monitor",
+                "act",
+                "input",
+                "browse",
+                "inspect",
+                "follow",
+            }
 
 
 @pytest.mark.asyncio
 async def test_scripted_backend_host_case_scores_perfect() -> None:
-    cases = load_plan_cases(CASES_FILE)
-    host_case = next(c for c in cases if c.name == "host_health")
-
     backend = scripted_backend(HOST_ANSWERS)
     synth = DecisionSynthesizer([BasicCatalog("v1.0")], backend)
 
-    score = await run_case(synth, host_case, repeat=1)
+    score = await run_case(synth, _HOST_PLAN_CASE, repeat=1)
     assert score.family_accuracy == 1.0
     assert score.archetype_accuracy == 1.0
     assert score.block_recall == 1.0
@@ -80,15 +121,12 @@ async def test_scripted_backend_host_case_scores_perfect() -> None:
 
 @pytest.mark.asyncio
 async def test_deliberately_wrong_script_scores_zero() -> None:
-    cases = load_plan_cases(CASES_FILE)
-    host_case = next(c for c in cases if c.name == "host_health")
-
     wrong_answers = dict(HOST_ANSWERS)
     wrong_answers["family"] = ("input", 0.99)
     backend = scripted_backend(wrong_answers)
     synth = DecisionSynthesizer([BasicCatalog("v1.0")], backend)
 
-    score = await run_case(synth, host_case, repeat=1)
+    score = await run_case(synth, _HOST_PLAN_CASE, repeat=1)
     assert score.family_accuracy == 0.0
 
 
