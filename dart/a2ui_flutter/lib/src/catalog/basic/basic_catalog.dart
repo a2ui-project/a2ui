@@ -32,26 +32,24 @@ import 'slider.dart';
 import 'tabs.dart';
 import 'text.dart';
 import 'text_field.dart';
-import 'theme.dart';
 import 'video.dart';
 
-/// The v0.9 basic catalog: every basic component, and the functions of
-/// [BasicCatalog.v0_9] formatting for [locale], under the basic catalog's id,
-/// theme schema, title, description, protocol version and instructions.
+/// The v1.0 basic catalog: every basic component, and the functions of
+/// [BasicCatalog.v1_0] formatting for [locale], under the basic catalog's id,
+/// title, description, protocol version and instructions.
 ///
-/// An `openUrl` call, which fails without [openUrl], may run whenever a bound
-/// property resolves, not only on a tap.
+/// An `openUrl` call fails without [openUrl], and runs only from a user
+/// activation, such as a Button's action.
 CatalogImplementation basicCatalog({
   String locale = 'en-US',
   OpenUrlCallback? openUrl,
 }) => CatalogImplementation(
-  id: BasicCatalog.v0_9Id,
+  id: BasicCatalog.v1_0Id,
   components: BasicComponents.all,
-  functions: BasicCatalog.v0_9(
+  functions: BasicCatalog.v1_0(
     locale: locale,
     openUrl: openUrl,
   ).functions.values.toList(),
-  themeSchema: BasicComponents.api.themeSchema,
   schemaId: BasicComponents.api.schemaId,
   title: BasicComponents.api.title,
   description: BasicComponents.api.description,
@@ -60,11 +58,10 @@ CatalogImplementation basicCatalog({
   definitions: BasicComponents.api.definitions,
 );
 
-/// The v0.9 basic catalog's component implementations.
+/// The v1.0 basic catalog's component implementations.
 abstract final class BasicComponents {
-  /// The basic catalog's specification: every component and function schema
-  /// and the theme schema.
-  static final CatalogApi api = BasicCatalog.v0_9();
+  /// The basic catalog's specification: every component and function schema.
+  static final CatalogApi api = BasicCatalog.v1_0();
 
   /// The basic `AudioPlayer` component.
   static final ComponentImplementation audioPlayer = _implement(
@@ -175,8 +172,6 @@ abstract final class BasicComponents {
   ) => ComponentImplementation(
     name: name,
     schema: api.components[name]!.schema,
-    builder: (context, node, props, buildChild) => BasicTheme(
-      builder: (context) => builder(context, node, props, buildChild),
-    ),
+    builder: builder,
   );
 }

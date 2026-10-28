@@ -55,6 +55,12 @@ const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 /// Cases whose expected outcome Dart does not produce, with the reason.
 const Map<String, String> _knownDivergences = {};
 
+/// `from_json` error cases whose expected message is worded for another SDK,
+/// so only the error's category is checked.
+const Set<String> _messageWordedDifferently = {
+  'test_catalog_from_json_missing_catalog_id_error',
+};
+
 /// The built-in catalogs this package implements, by catalog id.
 final Map<String, CatalogApi> _builtinCatalogs = {
   for (final CatalogApi catalog in [BasicCatalog.v0_9(), BasicCatalog.v1_0()])
@@ -102,22 +108,32 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
   final A2uiProtocolVersion version =
       _version(testCase) ?? A2uiProtocolVersion.v0_9;
 
-  if (testCase['expectError'] != null) {
+  if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    final String? message = _messageWordedDifferently.contains(name)
+        ? null
+        : expectError['message'] as String?;
     expect(
       () => Catalog.fromJson(
         input,
         protocolVersion: version,
         catalogId: catalogId,
       ),
-      throwsA(isA<A2uiCatalogError>()),
+      throwsA(
+        isA<A2uiCatalogError>().having(
+          (error) => error.message,
+          'message',
+          message == null ? anything : contains(message),
+        ),
+      ),
       reason: name,
     );
     return;
   }
 
-  final CatalogApi catalog = _withPeers(
-    testCase,
-    Catalog.fromJson(input, protocolVersion: version, catalogId: catalogId),
+  final CatalogApi catalog = Catalog.fromJson(
+    input,
+    protocolVersion: version,
+    catalogId: catalogId,
   );
   final Map<String, Object?> expected =
       (testCase['expect'] as Map?)?.cast<String, Object?>() ?? const {};
@@ -285,9 +301,9 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final Map<String, Object?> document = _withPeers(
+  final Map<String, Object?> document = _load(
     testCase,
-    _load(testCase, source),
+    source,
   ).validationSchema;
   final String goldenPath = resolveConformancePath(
     testCase['expectFile']! as String,
@@ -498,18 +514,6 @@ CatalogApi _load(
       protocolVersion: _version(testCase),
       catalogId: testCase['catalogId'] as String?,
     );
-
-/// [catalog] linked with the catalogs at the case's `peerCatalogPaths`, each
-/// loaded with [Catalog.fromJson], in order; [catalog] itself when the case
-/// lists none.
-CatalogApi _withPeers(Map<String, Object?> testCase, CatalogApi catalog) {
-  final Object? paths = testCase['peerCatalogPaths'];
-  if (paths is! List || paths.isEmpty) return catalog;
-  return catalog.withPeerCatalogs([
-    for (final Object? path in paths)
-      Catalog.fromJson(_document(path), protocolVersion: _version(testCase)),
-  ]);
-}
 
 /// The names under a document's `components`, `functions` or `$defs`, in
 /// either form `functions` takes.

@@ -120,9 +120,16 @@ function declaredComponent(doc: Schema, commonDefs: Record<string, Schema>, name
       ...commonCheckLists,
     ]),
   ];
+  // The first definition of a property wins, so the component's own definition
+  // overrides one it inherits.
   const enums = new Map<string, unknown>();
+  const defined = new Set<string>();
   for (const props of ownProperties) {
     for (const [propName, prop] of Object.entries(props)) {
+      if (defined.has(propName)) {
+        continue;
+      }
+      defined.add(propName);
       const values = findEnum(prop);
       if (values) {
         enums.set(propName, values);
@@ -429,6 +436,167 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
       expect(expectsOptionObjects(null)).toBe(false);
       expect(expectsOptionObjects('string')).toBe(false);
+    });
+  });
+
+  describe('a property both a component and what it inherits define', () => {
+    const doc: Record<string, unknown> = {
+      catalogId: 'test_own_property_override',
+      protocolVersion: '1.0',
+      components: {
+        Badge: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/BadgeMixin'},
+            {
+              type: 'object',
+              properties: {
+                size: {type: 'string', enum: ['inline-s', 'inline-m']},
+                tone: {type: 'string', enum: ['inline-calm', 'inline-loud']},
+              },
+            },
+          ],
+          properties: {
+            component: {const: 'Badge'},
+            label: {type: 'string'},
+            tone: {type: 'string', enum: ['own-calm', 'own-loud']},
+            size: {type: 'string', enum: ['own-s', 'own-m']},
+          },
+        },
+      },
+      functions: {},
+      $defs: {
+        BadgeMixin: {
+          type: 'object',
+          properties: {
+            size: {type: 'string', enum: ['mixin-s', 'mixin-m']},
+            label: {type: 'number'},
+            extra: {type: 'string'},
+          },
+        },
+      },
+    };
+    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), 'v1.0');
+
+    it("uses the component's own definition over an allOf entry and a local mixin", () => {
+      expect(helper.getPropertyEnum('Badge', 'tone')).toEqual(['own-calm', 'own-loud']);
+      expect(helper.getPropertyEnum('Badge', 'size')).toEqual(['own-s', 'own-m']);
+      expect(helper.getPropertySchema('Badge', 'tone')?.enum).toEqual(['own-calm', 'own-loud']);
+      expect(helper.getPropertySchema('Badge', 'size')?.enum).toEqual(['own-s', 'own-m']);
+      expect(helper.getPropertySchema('Badge', 'label')?.type).toBe('string');
+    });
+
+    it('keeps each property where it is first declared', () => {
+      expect(helper.getComponentProperties('Badge')).toEqual(['label', 'tone', 'size', 'extra']);
+    });
+  });
+
+  describe('a local mixin with its own allOf (v0.9)', () => {
+    const common = 'https://a2ui.org/specification/v0_9/common_types.json#/$defs';
+    const doc: Record<string, unknown> = {
+      catalogId: 'test_nested_mixin',
+      components: {
+        MaterialText: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialText'},
+                text: {type: 'string'},
+                usageHint: {type: 'string', enum: ['h1', 'body']},
+              },
+              required: ['component', 'text'],
+            },
+          ],
+        },
+        MaterialHeading: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialHeading'},
+                text: {type: 'string'},
+                weight: {type: 'string', enum: ['own-light', 'own-bold']},
+              },
+            },
+          ],
+        },
+        MaterialButton: {
+          type: 'object',
+          allOf: [
+            {$ref: `${common}/Checkable`},
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialButton'},
+                child: {type: 'string'},
+                action: {$ref: `${common}/Action`},
+              },
+            },
+          ],
+        },
+      },
+      functions: {},
+      $defs: {
+        MaterialComponentCommon: {
+          allOf: [
+            {$ref: `${common}/ComponentCommon`},
+            {
+              type: 'object',
+              properties: {
+                weight: {type: 'number'},
+                style: {type: 'object'},
+              },
+              required: ['style'],
+            },
+          ],
+        },
+      },
+    };
+    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), 'v0.9');
+
+    it('lists the properties of the nested allOf after the component’s own', () => {
+      expect(helper.getComponentProperties('MaterialText')).toEqual([
+        'text',
+        'usageHint',
+        'weight',
+        'style',
+      ]);
+      expect(helper.getComponentRequired('MaterialText')).toEqual(['component', 'text', 'style']);
+    });
+
+    it('finds the schema of a property of the nested allOf', () => {
+      expect(helper.getPropertySchema('MaterialText', 'weight')).toEqual({type: 'number'});
+      expect(helper.getPropertySchema('MaterialText', 'style')).toEqual({type: 'object'});
+    });
+
+    it("uses the component's own definition over one in the nested allOf", () => {
+      expect(helper.getComponentProperties('MaterialHeading')).toEqual(['text', 'weight', 'style']);
+      expect(helper.getPropertySchema('MaterialHeading', 'weight')?.enum).toEqual([
+        'own-light',
+        'own-bold',
+      ]);
+      expect(helper.getPropertyEnum('MaterialHeading', 'weight')).toEqual([
+        'own-light',
+        'own-bold',
+      ]);
+    });
+
+    it('appends checks from the common Checkable once, last', () => {
+      expect(helper.getComponentProperties('MaterialButton')).toEqual([
+        'child',
+        'action',
+        'weight',
+        'style',
+        'checks',
+      ]);
+      expect(helper.isCheckable('MaterialButton')).toBe(true);
+      expect(isActionSlot(helper.getPropertySchema('MaterialButton', 'action'))).toBe(true);
     });
   });
 
