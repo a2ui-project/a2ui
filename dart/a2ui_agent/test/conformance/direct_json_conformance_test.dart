@@ -69,6 +69,21 @@ const Set<String> _v1OnlyCases = {
   'test_stream_catalog_id_split_across_chunks_v10',
 };
 
+/// Cases for `partialResults`, reading past a rejected block and
+/// `isInBlock` on a response stream, which this SDK does not implement yet:
+/// https://github.com/a2ui-project/a2ui/issues/3699
+const Set<String> _unportedCases = {
+  'test_chunk_error_carries_the_text_before_the_failing_block',
+  'test_chunk_error_carries_a_block_finished_in_the_same_chunk',
+  'test_chunk_continue_returns_an_error_part_for_an_unreadable_block',
+  'test_chunk_continue_takes_back_a_block_rejected_whole',
+  'test_chunk_continue_keeps_the_messages_emitted_before_the_rejection',
+  'test_chunk_continue_skips_the_rest_of_a_rejected_block',
+  'test_chunk_continue_returns_an_error_part_for_a_block_still_open_at_the_end',
+  'test_chunk_in_block_from_the_open_tag_to_the_close_tag',
+  'test_chunk_in_block_for_an_unwrapped_response',
+};
+
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
 bool _targetsV1(Map<String, Object?> testCase) =>
     switch (caseCatalogVersion(testCase['args']! as Map<String, Object?>)) {
@@ -81,6 +96,10 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   if (caseCatalogVersion(args) == '0.8') {
     return 'This SDK does not implement v0.8.';
+  }
+  if (_unportedCases.contains(testCase['name'])) {
+    return 'Not implemented yet: '
+        'https://github.com/a2ui-project/a2ui/issues/3699';
   }
   if (version == SuiteVersion.v0_9) {
     if (_v1OnlyCases.contains(testCase['name'])) {
