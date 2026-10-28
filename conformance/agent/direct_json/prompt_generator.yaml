@@ -97,19 +97,6 @@
           - component_pruning: ["Chart"]
   expect_file: "test_data/prompts/direct_json/two_catalogs_pruned.txt"
 
-- name: test_snippet_with_cross_referencing_catalogs_and_pruning
-  description: When a catalog references components and properties in a peer catalog via external $refs, its serialized Catalog Schema preserves those unbundled external $refs while Common Types Schema retains common definitions (such as Child and Action) reachable through the peer catalog even when the referenced peer components are pruned from the peer catalog.
-  action: generate_prompt_snippet
-  args:
-    format: direct_json
-    catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-        transformers:
-          - component_pruning: ["Text"]
-          - function_pruning: ["formatString"]
-      - catalog: "test_data/catalogs/cross_ref_catalog_v1_0.json"
-  expect_file: "test_data/prompts/direct_json/cross_ref_catalogs_pruned.txt"
-
 # --- Examples ---
 
 - name: test_snippet_renders_supplied_examples

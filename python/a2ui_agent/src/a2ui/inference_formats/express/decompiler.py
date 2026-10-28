@@ -591,14 +591,8 @@ class ExpressDecompiler:
             )
         else:
             raw_path = body.get("path") or "/"
-            value = body.get("value")
-            if raw_path == "/" and isinstance(value, dict) and value:
-                for rel_path, val in sorted(_flatten_data_model(value)):
-                    val_str = self._decompile_value(val, {}, False, catalog_id)
-                    dsl_lines.append(f"${rel_path} = {val_str}")
-            else:
-                val_str = self._decompile_value(value, {}, False, catalog_id)
-                dsl_lines.append(f"{_decompile_path(raw_path)} = {val_str}")
+            val_str = self._decompile_value(body.get("value"), {}, False, catalog_id)
+            dsl_lines.append(f"{_decompile_path(raw_path)} = {val_str}")
         return "\n".join(dsl_lines)
 
     def _decompile_renderer_call(
