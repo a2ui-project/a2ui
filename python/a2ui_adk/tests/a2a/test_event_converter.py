@@ -28,6 +28,7 @@ from a2ui.adk.a2a import A2uiEventConverter, A2uiPartConverter
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.inference_formats.experimental.elemental import ElementalFormatFactory
 from a2ui.processor import A2uiRequestProcessor
 from a2ui.utils import RendererState
 
@@ -58,14 +59,27 @@ def _convert(converter: A2uiEventConverter, invocation_context=None, event=None)
     return mock_base_converter.call_args[0][4]
 
 
+def _part_converter(
+    converter: A2uiEventConverter, invocation_context=None, event=None
+) -> A2uiPartConverter:
+    """Returns the A2uiPartConverter instance used by the event converter."""
+    fn = _convert(converter, invocation_context, event)
+    if hasattr(fn, "__self__") and isinstance(fn.__self__, A2uiPartConverter):
+        return fn.__self__
+    for cell in fn.__closure__ or ():
+        if isinstance(cell.cell_contents, A2uiPartConverter):
+            return cell.cell_contents
+    raise AssertionError(f"No A2uiPartConverter found in {fn}")
+
+
 def test_event_converter_uses_the_processor_and_its_bound_state():
     catalog = BasicCatalog(ProtocolVersion.V1_0)
     state = RendererState([catalog])
     processor = A2uiRequestProcessor([catalog], state=state)
 
-    part_converter = _convert(
+    part_converter = _part_converter(
         A2uiEventConverter(a2ui_processor=lambda ctx: processor)
-    ).__self__
+    )
 
     assert isinstance(part_converter, A2uiPartConverter)
     assert part_converter._processor is processor
@@ -94,7 +108,7 @@ def test_event_converter_reads_the_processor_from_a_store():
     store.set("session-1", processor)
     converter = A2uiEventConverter(a2ui_processor=store.get)
 
-    assert _convert(converter, _context()).__self__._processor is processor
+    assert _part_converter(converter, _context())._processor is processor
     effective = _convert(converter, _context(session_id="other"))
     assert effective is adk_part_converter.convert_genai_part_to_a2a_part
 
@@ -102,7 +116,7 @@ def test_event_converter_reads_the_processor_from_a_store():
 def test_event_converter_takes_one_processor_for_every_request():
     processor = A2uiRequestProcessor([BasicCatalog("1.0")])
 
-    part_converter = _convert(A2uiEventConverter(a2ui_processor=processor)).__self__
+    part_converter = _part_converter(A2uiEventConverter(a2ui_processor=processor))
 
     assert part_converter._processor is processor
 
@@ -146,11 +160,11 @@ def test_event_converter_does_not_warn_about_a_provider(caplog):
 def test_event_converter_passes_its_options_to_the_part_converter():
     processor = A2uiRequestProcessor([BasicCatalog("1.0")])
 
-    part_converter = _convert(
+    part_converter = _part_converter(
         A2uiEventConverter(
             bypass_tool_check=True, fallback_text="Sorry.", a2ui_processor=processor
         )
-    ).__self__
+    )
 
     assert part_converter._bypass_tool_check
     assert part_converter._fallback_text == "Sorry."
@@ -256,7 +270,9 @@ def test_event_converter_converts_a_response_without_partial_events_whole():
 
 def test_event_converter_does_not_stream_a_format_that_cannot():
 
-    processor = A2uiRequestProcessor([BasicCatalog("0.9")])  # Express
+    processor = A2uiRequestProcessor(
+        [BasicCatalog("0.9")], format_factory=ElementalFormatFactory()
+    )
     invocation_context = _context()
     converter = A2uiEventConverter(a2ui_processor=processor)
 
@@ -269,6 +285,44 @@ def test_event_converter_does_not_stream_a_format_that_cannot():
 
     assert isinstance(effective.__self__, A2uiPartConverter)
     assert converter._streams == {}
+
+
+def test_event_converter_streams_partial_events_with_default_express_format():
+
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
+    state = RendererState([catalog])
+    processor = A2uiRequestProcessor([catalog], state=state)
+    invocation_context = _context()
+    converter = A2uiEventConverter(a2ui_processor=processor)
+
+    with patch(
+        "google.adk.a2a.converters.event_converter.convert_event_to_a2a_events"
+    ) as mock_base_converter:
+        mock_base_converter.return_value = []
+
+        def convert(event, text):
+            converted = []
+            mock_base_converter.side_effect = lambda *args: converted.extend(
+                args[4](genai_types.Part(text=text))
+            )
+            converter(event, invocation_context)
+            return converted
+
+        parts1 = convert(
+            _event(partial=True),
+            'Hello <a2ui>\nsurface("s1")\nroot = Text("Hi")\n',
+        )
+        assert len(parts1) >= 2
+        assert ("inv-1", "agent") in converter._streams
+
+        parts2 = convert(_event(partial=True), "</a2ui>")
+        assert parts2 == []
+
+        parts_final = convert(_event(partial=False), "aggregated ignored")
+        assert parts_final == []
+        assert converter._streams == {}
+
+    assert state.get_surface("s1") is not None
 
 
 def test_event_converter_drops_the_rest_of_a_response_after_a_failed_chunk():

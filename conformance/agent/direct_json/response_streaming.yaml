@@ -93,11 +93,9 @@
 # a healed payload into two emissions, which is the one thing chunking is
 # allowed to change.
 #
-# This suite has no Express counterpart. Streaming is the one thing the two
-# formats do not share: the Express parser does not implement `parse_chunk`, so
-# an Express agent buffers a response and parses it whole. The rules above about
-# tags and text would hold for Express if it ever streams, and a counterpart
-# suite belongs here on the day it does.
+# The Express counterpart of this suite is
+# `agent/express/response_streaming.yaml`, which tests incremental statement
+# and progressive-key streaming for `<a2ui>` blocks.
 #
 # The catalogs under test live in `args`, and the version a case runs under is
 # the one its catalog document declares. The rule that a component is emitted

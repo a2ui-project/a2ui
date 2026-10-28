@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Add incremental streaming support for the Express inference format via
+  `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
+  `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,
+  `ExpressFormat`, and `ExpressParser` accept `progressiveKeys` (defaulting to
+  `defaultExpressProgressiveKeys = {'text'}`) to heal unclosed string literals
+  in matching component properties and data path assignments as chunks arrive,
+  while gating initial `createSurface` emission on `root = ...` for new
+  surfaces, emitting delta `updateComponents` and per-path `updateDataModel`
+  messages on subsequent chunks, and holding statements with unresolved value
+  variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
+  `surface(...)` also accepts `update=` and `sendDataModel=` keyword arguments
+  to update an existing surface without emitting `createSurface` or to request
+  client data model echoing on surface creation.
 - Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
   scopes that update a surface (scopes without a `root` assignment) now emit one
   targeted `updateDataModel` message per assigned path at its JSON Pointer

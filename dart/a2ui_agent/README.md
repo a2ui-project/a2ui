@@ -8,8 +8,8 @@ The package follows the
 [agent SDK blueprint](../../blueprints/modules/a2ui_agent.blueprint.md). It
 implements the whole API of the blueprint for A2UI protocols v0.9 and v1.0,
 with two inference formats: [Express](../../specification/proposals/express/README.md),
-the default, a compact notation read once the response is complete, and direct
-JSON, which can be read as it streams.
+the default compact notation, and direct JSON, both of which can be read either
+once complete or as they stream.
 
 The protocol version is the one the catalogs target. A v1.0 catalog document
 declares it as `protocolVersion`; a v0.9 document declares none, so a catalog
@@ -47,8 +47,8 @@ Implemented:
   format, when a processor is created.
 - For both formats, `Parser` wraps and unwraps responses, and compiles and
   decompiles payloads. A parser holds no state, so one parser reads every
-  response of a request. The direct JSON parser also reads a streamed
-  response through the `ResponseStream` that `openStream` returns.
+  response of a request. Both the Express and direct JSON parsers also read a
+  streamed response through the `ResponseStream` that `openStream` returns.
 
 What v1.0 adds to both formats:
 
@@ -94,17 +94,16 @@ final String llmOutput = await callLlm(processor.promptSnippet, userMessage);
 final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
-To show the UI while the model is still writing it, configure a processor with
-`DirectJsonFormatFactory` and read the direct JSON response as it streams,
-through a stream opened for that response. Each part carries the text, or the
-messages, that are new or changed since the previous chunk. Call `close` after
-the last chunk: it returns the text held back as a possible tag, and throws if a
-block is still open:
+To show the UI while the model is still writing it, read the Express or direct
+JSON response as it streams, through a stream opened for that response. Each
+part carries the text, or the messages, that are new or changed since the
+previous chunk. Call `close` after the last chunk: it returns the text held back
+as a possible tag, throws if an `<a2ui>` or `<a2ui-json>` block is still open,
+and checks the tree of an unwrapped response:
 
 ```dart
 final A2uiRequestProcessor processor = generator.createProcessor(
   rendererCapabilities,
-  inferenceFormatFactory: const DirectJsonFormatFactory(),
 );
 final ResponseStream stream = processor.openStream();
 await for (final String chunk in llmStream) {
@@ -114,8 +113,8 @@ stream.close().forEach(deliver);
 ```
 
 To heal a string while it streams, such as the text of a `Text` component,
-name its key in `progressiveKeys` of the `DirectJsonFormatFactory` given to
-the generator.
+name its key in `progressiveKeys` of the `ExpressFormatFactory` or
+`DirectJsonFormatFactory` given to the generator.
 
 ### Chat and canvas
 

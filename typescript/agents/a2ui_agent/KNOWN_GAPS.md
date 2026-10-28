@@ -8,9 +8,9 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Partial protocol version support and unimplemented formats
 
-- **What it is:** The package supports `v1.0`, `v0.9` and `v0.9.1`, a patch release that shares the v0.9 schemas. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
+- **What it is:** The package supports `v1.0`, `v0.9` and `v0.9.1`, a patch release that shares the v0.9 schemas. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented, including incremental streaming.
 - **Why it exists:** An explicit scope decision to add protocol support incrementally, starting with `v1.0`. `v0.8` is out of scope for this SDK.
-- **What it blocks:** Elemental and Atom use cases, and streaming Express output.
+- **What it blocks:** Elemental and Atom use cases.
 - **Done looks like:** The `InferenceFormat` seam is populated with implementations for Elemental and Atom.
 
 ### Express compilation errors have one parent class

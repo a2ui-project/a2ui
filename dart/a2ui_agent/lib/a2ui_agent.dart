@@ -15,9 +15,9 @@
 /// The A2UI agent SDK: capability negotiation, prompting and response parsing
 /// for agents that generate A2UI.
 ///
-/// Implements protocols v0.9 and v1.0 in two inference formats: direct JSON,
-/// which can be read as it streams, and Express. The protocol version is the
-/// one the active catalogs target, which the agent negotiates with each
+/// Implements protocols v0.9 and v1.0 in two inference formats: direct JSON
+/// and Express, both of which can be read as they stream. The protocol version
+/// is the one the active catalogs target, which the agent negotiates with each
 /// renderer.
 library;
 
@@ -32,6 +32,8 @@ export 'src/inference_formats/express/decompiler.dart';
 export 'src/inference_formats/express/format.dart';
 export 'src/inference_formats/express/parser.dart';
 export 'src/inference_formats/express/prompt_generator.dart';
+export 'src/inference_formats/express/response_stream.dart'
+    show ExpressResponseStream, defaultExpressProgressiveKeys;
 export 'src/parser/parser.dart';
 export 'src/parser/response_part.dart';
 export 'src/parser/response_stream.dart';

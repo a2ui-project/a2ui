@@ -59,7 +59,7 @@ A response parsed whole is applied to the state all or nothing. To check one pay
 
 ## Streaming
 
-Direct JSON responses can be read as they arrive. `openStream` returns a `ResponseStream` for one response: pass each chunk to `feed` and call `close` after the last one. Each message the stream emits has been checked and applied to the state, so a canvas state matches what the client received even when a response fails part way.
+Both Express and Direct JSON responses can be read as they arrive. `openStream` returns a `ResponseStream` for one response: pass each chunk to `feed` and call `close` after the last one. Each message the stream emits has been checked and applied to the state, so a canvas state matches what the client received even when a response fails part way.
 
 ```ts
 const stream = processor.openStream({state});
@@ -69,7 +69,7 @@ for await (const chunk of modelStream) {
 for (const part of stream.close()) send(part);
 ```
 
-`close` emits text that was held back because it could have started a tag, throws a `ParseError` if a block is still open, and checks the tree of a response read with `wrapped: false`. A stream that throws has ended. Express responses are read whole.
+`close` emits text that was held back because it could have started a tag, throws a `ParseError` if a block is still open, and checks the tree of a response read with `wrapped: false`. A stream that throws has ended.
 
 ## Loading catalogs
 

@@ -664,9 +664,113 @@ surface("s1")
       ]);
     });
 
-    test('does not stream', () {
-      expect(parser.supportsStreaming, isFalse);
-      expect(parser.openStream, throwsUnsupportedError);
+    test('streams incrementally', () {
+      expect(parser.supportsStreaming, isTrue);
+      final ResponseStream stream = parser.openStream();
+      expect(stream, isA<ExpressResponseStream>());
+      final List<ResponsePart> first = stream.feed(
+        'Intro <a2ui>\nroot = Text("Hel',
+      );
+      expect(first, hasLength(2));
+      expect((first[0] as TextPart).text, 'Intro');
+      final List<AgentToRendererMessage> firstMsgs =
+          (first[1] as A2uiPart).a2ui;
+      expect(firstMsgs, hasLength(2));
+      expect(firstMsgs[0], isA<CreateSurfaceMessage>());
+      expect((firstMsgs[1] as UpdateComponentsMessage).components, [
+        {'id': 'root', 'component': 'Text', 'text': 'Hel'},
+      ]);
+
+      final List<ResponsePart> second = stream.feed('lo")\n</a2ui> Outro');
+      expect(second, hasLength(2));
+      expect(
+        ((second[0] as A2uiPart).a2ui.single as UpdateComponentsMessage)
+            .components,
+        [
+          {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+        ],
+      );
+      expect((second[1] as TextPart).text, 'Outro');
+
+      final List<ResponsePart> tail = stream.close();
+      expect(tail, isEmpty);
+    });
+
+    test('streams unwrapped blocks and rolls back failed chunks', () {
+      final ResponseStream unwrapped = parser.openStream(wrapped: false);
+      expect(unwrapped.feed('root = Text("Hi")\n'), hasLength(1));
+      expect(unwrapped.close(), isEmpty);
+
+      final state = RendererState([basic]);
+      final ResponseStream failing = parser.openStream(state: state);
+      expect(
+        () => failing.feed('<a2ui>\nroot = UnknownComp("x")\n</a2ui>'),
+        throwsError<A2uiValidationError>(),
+      );
+      expect(state.surfaceIds, isEmpty);
+      expect(() => failing.feed('more'), throwsStateError);
+    });
+
+    test(
+      'heals progressive strings and skips URLs and non-component calls',
+      () {
+        final ResponseStream stream = parser.openStream();
+        final List<ResponsePart> first = stream.feed(
+          '<a2ui>\nsurface("s1")\nroot = Text("""Hello "',
+        );
+        expect(first, hasLength(1));
+        expect(
+          ((first.single as A2uiPart).a2ui[1] as UpdateComponentsMessage)
+              .components,
+          [
+            {'id': 'root', 'component': 'Text', 'text': 'Hello "'},
+          ],
+        );
+        final List<ResponsePart> second = stream.feed('world""")\n</a2ui>');
+        expect(second, hasLength(1));
+        expect(stream.close(), isEmpty);
+
+        final urlParser = ExpressParser([basic], progressiveKeys: {'url'});
+        final ResponseStream urlStream = urlParser.openStream();
+        expect(
+          urlStream.feed(
+            '<a2ui>\nsurface("s1")\nroot = Image("https://example.com/a',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test('throws A2uiParseError on close when a wrapped block is open', () {
+      final ResponseStream stream = parser.openStream();
+      expect(
+        stream.feed('<a2ui>\nsurface("s1")\nroot = Text("Ready")\n'),
+        hasLength(1),
+      );
+      expect(stream.close, throwsError<A2uiParseError>());
+    });
+
+    test('discards speculative healed update rejected by RendererState', () {
+      final variantParser = ExpressParser(
+        [basic],
+        progressiveKeys: {'variant'},
+      );
+      final ResponseStream stream = variantParser.openStream();
+      final List<ResponsePart> first = stream.feed(
+        '<a2ui>\nsurface("s1")\nroot = Column([t1, t2])\n'
+        't1 = Text("First")\nt2 = Text("Second", variant="h',
+      );
+      expect(first, hasLength(1));
+      final List<ResponsePart> second = stream.feed('1")\n</a2ui>');
+      expect(second, hasLength(1));
+      expect(
+        ((second.single as A2uiPart).a2ui.single as UpdateComponentsMessage)
+            .components,
+        [
+          {'id': 't2', 'component': 'Text', 'text': 'Second', 'variant': 'h1'},
+        ],
+      );
+      expect(stream.close(), isEmpty);
     });
   });
 

@@ -1,0 +1,552 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Streaming an Express response: what an Express parser emits as chunks arrive.
+#
+# A case feeds one response to `open_stream()` in chunks. Each step states the
+# parts that chunk yields as a delta since the previous chunk. An empty list
+# means the parser is buffering until a statement boundary, root declaration, or
+# closing tag arrives.
+#
+# Key rules tested by this suite:
+# 1. Text outside `<a2ui>...</a2ui>` blocks streams immediately, holding back
+#    trailing whitespace, edge backticks, and any tail that could be the prefix
+#    of an `<a2ui>` sentinel tag.
+# 2. When an entire `<a2ui>...</a2ui>` block opens and closes in a single
+#    `feed()` call (or when pre-`root` statements are buffered until the final
+#    chunk), the parser emits a single v1.0 `createSurface` message containing
+#    both `components` and `dataModel`, matching single-shot `parse_response`.
+# 3. For a new surface (`update != true` and not yet in `RendererState`),
+#    statements before `root = ...` (`$/path = ...` and bottom-up child
+#    variables) are held until `root = ...` arrives, then flushed together with
+#    `root` in `createSurface`. Subsequent chunks emit delta `updateComponents`
+#    and per-path `updateDataModel` messages.
+# 4. Forward component ID references in `ComponentId` and `ChildList` slots are
+#    emitted immediately using the variable name as the provisional ID, and
+#    re-emitted if the child later declares an explicit `id="..."`.
+# 5. Components that reference an undefined value variable (`Event`, function
+#    call, `_template`, check, map, or literal) are held until that variable is
+#    defined.
+# 6. When `progressive_keys` is non-empty (defaulting to `["text"]`), a trailing
+#    incomplete string literal inside a matching component argument or data path
+#    assignment is healed on a scratch copy and emitted progressively.
+# 7. At `</a2ui>`, any remaining undefined variable or broken topology raises
+#    `ValidationError`.
+
+# --- 1. Text and sentinel tags across chunk boundaries ---
+
+- name: test_express_stream_text_and_single_chunk_block
+  description: Conversational text streams as it arrives and a whole block in one chunk matches single-shot parsing.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "Here is the "
+      expect:
+        - text: "Here is the"
+    - input: "greeting.\n"
+      expect:
+        - text: " greeting."
+    - input: "<a2ui>surface(\"s1\")\nroot = Text(\"Hello\")</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello"
+    - input: "\nAll done."
+      expect:
+        - text: "All done."
+  expect_matches_single_shot: true
+
+- name: test_express_stream_split_open_and_close_sentinel_tags
+  description: Split `<a2ui>` and `</a2ui>` tags are held across chunk boundaries and never leak into text parts.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "Preparing surface.\n<a2"
+      expect:
+        - text: "Preparing surface."
+    - input: "ui>\nsurface(\"s1\")\nroot = Text(\"Ready\")\n</a2"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Ready"
+    - input: "ui>\nFinished."
+      expect:
+        - text: "Finished."
+  expect_matches_single_shot: true
+
+# --- 2. Top-down component and data model streaming across chunks ---
+
+- name: test_express_stream_top_down_components_across_chunks
+  description: Top-down statements emit createSurface once root is seen and delta updateComponents for children in later chunks.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\n$/title = \"Menu\"\nroot = Card(col)\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "col"
+                dataModel:
+                  title: "Menu"
+    - input: "col = Column([item1])\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "col"
+                    component: "Column"
+                    children: ["item1"]
+    - input: "item1 = Text($/title)\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "item1"
+                    component: "Text"
+                    text:
+                      "@path": "/title"
+
+- name: test_express_stream_post_root_data_model_emits_per_path_deltas
+  description: Data path assignments arriving in chunks after createSurface emit per-path updateDataModel messages.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text($/title)\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text:
+                      "@path": "/title"
+    - input: "$/title = \"Welcome\"\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                path: "/title"
+                value: "Welcome"
+    - input: "</a2ui>"
+      expect: []
+
+# --- 3. Pre-root gating on new surfaces ---
+
+- name: test_express_stream_pre_root_statements_held_until_root
+  description: On a new surface, data model assignments and bottom-up child definitions before root are held and flushed with root in createSurface.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\n$/title = \"Menu\"\n"
+      expect: []
+    - input: "body = Text($/title)\n"
+      expect: []
+    - input: "root = Card(body)\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "body"
+                    component: "Text"
+                    text:
+                      "@path": "/title"
+                  - id: "root"
+                    component: "Card"
+                    child: "body"
+                dataModel:
+                  title: "Menu"
+  expect_matches_single_shot: true
+
+# --- 4. Progressive string healing (progressive_keys) ---
+
+- name: test_express_stream_progressive_text_healing_positional
+  description: An unclosed positional text string on Text is healed while streaming and updated when the string closes.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: ["text"]
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Hello "
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello "
+    - input: "world\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello world"
+
+- name: test_express_stream_progressive_keys_disabled_waits_for_statement_close
+  description: When progressive_keys is empty, an unclosed Text string waits until the statement finishes.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Hello "
+      expect: []
+    - input: "world\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello world"
+  expect_matches_single_shot: true
+
+- name: test_express_stream_progressive_data_path_healing
+  description: An unclosed string in a post-root data path assignment heals progressively when progressive_keys is active.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: ["text"]
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text($/greeting)\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text:
+                      "@path": "/greeting"
+    - input: "$/greeting = \"Good "
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                path: "/greeting"
+                value: "Good "
+    - input: "morning\"\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                path: "/greeting"
+                value: "Good morning"
+
+# --- 5. Forward value variable holdback ---
+
+- name: test_express_stream_forward_value_variable_held_until_defined
+  description: A component referencing an undefined Event variable waits until that variable is defined before emitting.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Button(Text(\"Save\"), action=save_evt)\n"
+      expect: []
+    - input: "save_evt = Event(\"save\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Button"
+                    child: "root_child"
+                    action:
+                      event:
+                        name: "save"
+                  - id: "root_child"
+                    component: "Text"
+                    text: "Save"
+  expect_matches_single_shot: true
+
+# --- 6. Forward component with explicit id="..." override ---
+
+- name: test_express_stream_forward_component_explicit_id_re_emits_parent
+  description: When a forward-referenced child later declares an explicit id, both the child and the updated parent are emitted in the delta.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(hdr)\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "hdr"
+    - input: "hdr = Text(\"Header\", id=\"custom_hdr\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "custom_hdr"
+                  - id: "custom_hdr"
+                    component: "Text"
+                    text: "Header"
+
+# --- 7. Updating existing surfaces and deleteSurface ---
+
+- name: test_express_stream_update_existing_surface_and_delete_surface
+  description: Updating an already-created surface streams updateDataModel and updateComponents without waiting for root, followed by deleteSurface.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(body)\nbody = Text($/msg)\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "body"
+                  - id: "body"
+                    component: "Text"
+                    text:
+                      "@path": "/msg"
+    - input: "<a2ui>\nsurface(\"s1\", update=true)\n$/msg = \"Updated\"\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                path: "/msg"
+                value: "Updated"
+    - input: "body = Text(\"Replaced\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "body"
+                    component: "Text"
+                    text: "Replaced"
+    - input: "<a2ui>\ndeleteSurface(\"s1\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              deleteSurface:
+                surfaceId: "s1"
+
+- name: test_express_stream_delete_and_recreate_surface_in_same_block
+  description: Deleting an existing surface and recreating the same surface ID in later chunks of the same block emits deleteSurface followed by createSurface.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"First\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "First"
+    - input: "<a2ui>\ndeleteSurface(\"s1\")\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              deleteSurface:
+                surfaceId: "s1"
+    - input: "surface(\"s1\")\nroot = Text(\"Second\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Second"
+
+- name: test_express_stream_comment_with_apostrophe_before_close_tag
+  description: A single-line comment with an apostrophe or quote before the closing tag does not swallow the closing tag.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\n# user's \"card\nroot = Text(\"Hello\")\n</a2ui>\nDone."
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello"
+        - text: "Done."
+  expect_matches_single_shot: true
+
+# --- 8. Error and cut-off handling ---
+
+- name: test_express_stream_dangling_forward_component_raises_validation_error_on_close
+  description: A forward component reference that is never defined raises a ValidationError when the block closes.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(missing_child)\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "missing_child"
+    - input: "</a2ui>"
+      expect_error:
+        category: "ValidationError"
+
+- name: test_express_stream_dangling_value_variable_raises_validation_error_on_close
+  description: A value variable reference that is never defined is held during streaming and raises a ValidationError when the block closes.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(missing_var)\n"
+      expect: []
+    - input: "</a2ui>"
+      expect_error:
+        category: "ValidationError"
+
+- name: test_express_stream_unknown_component_raises_validation_error
+  description: Calling a component that is not in the catalog raises a ValidationError on the chunk that completes the statement.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = UnknownWidget(\"Hello\")\n"
+      expect_error:
+        category: "ValidationError"
+
+- name: test_express_stream_cutoff_block_raises_parse_error_on_close
+  description: A stream cut off inside an open block after emitting completed statements raises a ParseError when closed.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Complete\")\nextra = Text(\"Cut off"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Complete"
+  expect_error:
+    category: "ParseError"

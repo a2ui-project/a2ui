@@ -21,43 +21,24 @@
  * delegating compilation to ExpressCompiler and decompilation to ExpressDecompiler.
  */
 
-import {Parser} from '../../parser/parser.js';
-import {RawResponsePart} from '../../parser/response-part.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
 import {BlockLexer} from '../../parser/lexer.js';
-import {A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG} from '../../parser/constants.js';
+import {ParseOptions, Parser} from '../../parser/parser.js';
+import {RawResponsePart} from '../../parser/response-part.js';
+import {RendererState} from '../../utils/renderer-state.js';
 import {resolveExpressVersion, toCatalogList} from './catalogs.js';
-import {
-  A2uiCompilationError,
-  A2uiCompilationParseError,
-  A2uiCompilationValidationError,
-} from '../../errors.js';
-import {ExpressCompiler, formatErrorMessage} from './compiler.js';
+import {ExpressCompiler} from './compiler.js';
 import {ExpressDecompiler} from './decompiler.js';
 import {
-  ExpressCompilerError,
-  ExpressParseError,
-  ExpressSyntaxError,
-  ExpressValidationError,
-} from './errors.js';
+  DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+  ExpressResponseStream,
+  wrapExpressCompilationError,
+} from './response-stream.js';
 
-function compilationErrorClass(error: ExpressCompilerError): new (
-  message: string,
-  options: {
-    rawContent: string;
-    line?: number;
-    column?: number;
-    helpMessage?: string;
-  },
-) => A2uiCompilationError {
-  if (error instanceof ExpressValidationError) {
-    return A2uiCompilationValidationError;
-  }
-  const cause = (error as {cause?: unknown}).cause;
-  if (error instanceof ExpressParseError || cause instanceof ExpressSyntaxError) {
-    return A2uiCompilationParseError;
-  }
-  return A2uiCompilationError;
+/** Options for configuring an `ExpressParser`. */
+export interface ExpressParserOptions {
+  progressiveKeys?: ReadonlySet<string> | Iterable<string>;
 }
 
 /**
@@ -67,6 +48,7 @@ export class ExpressParser extends Parser {
   readonly catalogs: CatalogApi[];
   readonly surfaceId: string;
   readonly version: string;
+  readonly progressiveKeys: ReadonlySet<string>;
   private readonly lexer: BlockLexer;
   private readonly decompiler: ExpressDecompiler;
 
@@ -76,12 +58,22 @@ export class ExpressParser extends Parser {
    * @param catalogs The component catalog, or several. A `surface(...)` line picks one by id.
    * @param surfaceId Surface identifier for compiled messages.
    * @param version Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
+   * @param options Optional streaming and parser configuration.
    */
-  constructor(catalogs: CatalogApi | CatalogApi[], surfaceId = 'main', version?: string) {
+  constructor(
+    catalogs: CatalogApi | CatalogApi[],
+    surfaceId = 'main',
+    version?: string,
+    options: ExpressParserOptions = {},
+  ) {
     super();
     this.catalogs = toCatalogList(catalogs);
     this.version = resolveExpressVersion(this.catalogs, version);
     this.surfaceId = surfaceId;
+    this.progressiveKeys =
+      options.progressiveKeys !== undefined
+        ? new Set(options.progressiveKeys)
+        : DEFAULT_EXPRESS_PROGRESSIVE_KEYS;
     this.lexer = new BlockLexer(
       A2UI_INFERENCE_OPEN_TAG,
       A2UI_INFERENCE_CLOSE_TAG,
@@ -89,6 +81,19 @@ export class ExpressParser extends Parser {
       new Set(['#', '//', '--']),
     );
     this.decompiler = new ExpressDecompiler(this.catalogs, this.version);
+  }
+
+  override get supportsStreaming(): boolean {
+    return true;
+  }
+
+  override openStream({wrapped = true, state}: ParseOptions = {}): ExpressResponseStream {
+    return new ExpressResponseStream(
+      this,
+      wrapped,
+      state ?? new RendererState(this.catalogs),
+      this.progressiveKeys,
+    );
   }
 
   hasFormatContent(content: string, {complete = false}: {complete?: boolean} = {}): boolean {
@@ -112,33 +117,7 @@ export class ExpressParser extends Parser {
     try {
       return compiler.compile(formatContent, this.surfaceId, isFinal);
     } catch (e) {
-      if (e instanceof ExpressCompilerError) {
-        const cause = (e as {cause?: unknown}).cause;
-        let line: number | undefined;
-        let column: number | undefined;
-
-        if (e instanceof ExpressSyntaxError) {
-          line = e.line;
-          column = e.column;
-        } else if (cause instanceof ExpressSyntaxError) {
-          line = cause.line;
-          column = cause.column;
-        }
-
-        const helpMessage = e.helpMessage || 'Please correct the syntax error in your Express DSL.';
-        const ErrorClass = compilationErrorClass(e);
-        const message = formatErrorMessage(e);
-
-        const wrapped = new ErrorClass(message, {
-          rawContent: formatContent,
-          line,
-          column,
-          helpMessage,
-        });
-        (wrapped as {cause?: unknown}).cause = e;
-        throw wrapped;
-      }
-      throw e;
+      throw wrapExpressCompilationError(e, formatContent);
     }
   }
 

@@ -21,7 +21,7 @@ v0.9.1 or v1.0).
 The grammar for A2UI Express is defined in Express.g4.
 """
 
-from collections.abc import Sequence
+from collections.abc import Container, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 import re
 from typing import Any, Literal
@@ -487,10 +487,14 @@ def _string_call_arg(
     return val
 
 
+class _PendingVariableError(Exception):
+    """Raised during streaming when an expression references an undefined value variable."""
+
+
 class _CompileContext:
     """Holds mutable state for a single compiler execution thread."""
 
-    def __init__(self, version: str):
+    def __init__(self, version: str, *, allow_pending: bool = False):
         self.version = version
         self.at_least_v10 = is_at_least_version(version, ProtocolVersion.V1_0)
         # v1.0 spells data bindings and function calls with reserved `@` keys.
@@ -503,6 +507,7 @@ class _CompileContext:
         # The variables whose values are being compiled, to catch a variable
         # whose value refers back to it.
         self.resolving: set[str] = set()
+        self.allow_pending: bool = allow_pending
 
     def check_catalog_override(self, target: str) -> None:
         """Rejects a per-component or per-function catalogId below v1.0.
@@ -547,6 +552,351 @@ class _DeleteSurface:
 class _StandaloneCall:
     node: CallNode
     scope: _SurfaceScope | None
+
+
+@dataclass
+class _ScopeStreamState:
+    """Incremental emission state for a single surface scope in an open block."""
+
+    surface_created: bool = False
+    emitted_components: dict[str, dict[str, Any]] = field(default_factory=dict)
+    emitted_data_paths: dict[str, Any] = field(default_factory=dict)
+
+    def clone(self) -> "_ScopeStreamState":
+        return _ScopeStreamState(
+            surface_created=self.surface_created,
+            emitted_components=dict(self.emitted_components),
+            emitted_data_paths=dict(self.emitted_data_paths),
+        )
+
+
+class ExpressScopeSession:
+    """Tracks incremental statement compilation across chunks of an `<a2ui>` block."""
+
+    def __init__(
+        self,
+        compiler: "ExpressCompiler",
+        *,
+        surface_id: str = "default_surface",
+        version: str | None = None,
+    ) -> None:
+        self.compiler = compiler
+        self.surface_id = surface_id
+        self.version = version or compiler.version
+        self._scope_states: dict[int, _ScopeStreamState] = {}
+        self._emitted_units: set[int] = set()
+        self.has_emitted: bool = False
+        self._cached_prefix: str = ""
+        self._cached_statements: list[tuple[str | None, Any]] = []
+
+    def snapshot(
+        self,
+    ) -> tuple[
+        dict[int, _ScopeStreamState],
+        set[int],
+        bool,
+        str,
+        list[tuple[str | None, Any]],
+    ]:
+        """Returns a lightweight snapshot of the session state for rollback."""
+        return (
+            {k: v.clone() for k, v in self._scope_states.items()},
+            set(self._emitted_units),
+            self.has_emitted,
+            self._cached_prefix,
+            list(self._cached_statements),
+        )
+
+    def restore(
+        self,
+        snap: tuple[
+            dict[int, _ScopeStreamState],
+            set[int],
+            bool,
+            str,
+            list[tuple[str | None, Any]],
+        ],
+    ) -> None:
+        """Restores session state from a prior `snapshot()`."""
+        (
+            self._scope_states,
+            self._emitted_units,
+            self.has_emitted,
+            self._cached_prefix,
+            self._cached_statements,
+        ) = snap
+
+    def _parse_incremental_statements(
+        self, dsl_text: str, *, is_final: bool, cache_prefix: bool
+    ) -> list[tuple[str | None, Any]]:
+        if self._cached_prefix and dsl_text.startswith(self._cached_prefix):
+            delta = dsl_text[len(self._cached_prefix) :]
+            if not delta.strip():
+                statements = list(self._cached_statements)
+            else:
+                delta_stmts = self.compiler._parse_statements(delta, is_final)
+                statements = [*self._cached_statements, *delta_stmts]
+        else:
+            statements = self.compiler._parse_statements(dsl_text, is_final)
+        if cache_prefix:
+            self._cached_prefix = dsl_text
+            self._cached_statements = list(statements)
+        return statements
+
+    def compile_step(
+        self,
+        dsl_text: str,
+        *,
+        is_final: bool,
+        existing_surfaces: Iterable[str],
+        cache_prefix: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Compiles any newly ready statements from `dsl_text` into delta messages."""
+        ctx = _CompileContext(self.version, allow_pending=not is_final)
+        if self.compiler._is_multi_catalog and not ctx.at_least_v10:
+            raise A2uiCatalogError(
+                "Several catalogs need A2UI v1.0 or later, but the target version is"
+                f" {self.version}."
+            )
+        statements = self._parse_incremental_statements(
+            dsl_text, is_final=is_final, cache_prefix=cache_prefix
+        )
+        units = self.compiler._build_units(statements, self.surface_id)
+        if not units:
+            if is_final:
+                raise ExpressUndefinedRootError("root")
+            return []
+
+        active_surfaces = set(existing_surfaces)
+        result_messages: list[dict[str, Any]] = []
+        for idx, unit in enumerate(units):
+            result_messages.extend(
+                self._compile_unit(
+                    idx,
+                    unit,
+                    ctx,
+                    is_final=is_final,
+                    active_surfaces=active_surfaces,
+                )
+            )
+        return result_messages
+
+    def _compile_unit(
+        self,
+        idx: int,
+        unit: _SurfaceScope | _DeleteSurface | _StandaloneCall,
+        ctx: _CompileContext,
+        *,
+        is_final: bool,
+        active_surfaces: set[str],
+    ) -> list[dict[str, Any]]:
+        if isinstance(unit, _DeleteSurface):
+            active_surfaces.discard(unit.surface_id)
+            if idx in self._emitted_units:
+                return []
+            self._emitted_units.add(idx)
+            self.has_emitted = True
+            return [{
+                "version": self.version,
+                SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
+            }]
+        if isinstance(unit, _StandaloneCall):
+            if idx in self._emitted_units:
+                return []
+            try:
+                msg = self.compiler._compile_standalone_call(unit, ctx)
+            except _PendingVariableError:
+                return []
+            self._emitted_units.add(idx)
+            self.has_emitted = True
+            return [msg]
+        state = self._scope_states.setdefault(idx, _ScopeStreamState())
+        surface_exists = unit.surface_id in active_surfaces
+        messages = self._compile_scope_delta(
+            unit,
+            state,
+            ctx,
+            is_final=is_final,
+            surface_exists=surface_exists,
+        )
+        if state.surface_created or surface_exists:
+            active_surfaces.add(unit.surface_id)
+        return messages
+
+    def _compile_scope_delta(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        ctx: _CompileContext,
+        *,
+        is_final: bool,
+        surface_exists: bool,
+    ) -> list[dict[str, Any]]:
+        """Compiles ready components and data paths for a single scope."""
+        compiled_components, has_pending = self._collect_ready_components(scope, ctx)
+        compiled_data = self._collect_ready_data(scope, ctx)
+        needs_create = (
+            not scope.is_update and not state.surface_created and not surface_exists
+        )
+        if needs_create:
+            return self._compile_initial_create(
+                scope, state, compiled_components, compiled_data, ctx, is_final=is_final
+            )
+        return self._compile_incremental_updates(
+            scope,
+            state,
+            compiled_components,
+            compiled_data,
+            ctx,
+            is_final=is_final,
+            has_pending=has_pending,
+        )
+
+    def _compile_initial_create(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        compiled_components: list[dict[str, Any]],
+        compiled_data: dict[str, Any],
+        ctx: _CompileContext,
+        *,
+        is_final: bool,
+    ) -> list[dict[str, Any]]:
+        has_root = any(c.get("id") == "root" for c in compiled_components)
+        if not has_root:
+            if not is_final:
+                return []
+            if compiled_data and not compiled_components:
+                return self._compile_incremental_updates(
+                    scope,
+                    state,
+                    compiled_components,
+                    compiled_data,
+                    ctx,
+                    is_final=True,
+                    has_pending=False,
+                )
+            raise ExpressUndefinedRootError("root")
+        data_model: dict[str, Any] = {}
+        for path_name, val in compiled_data.items():
+            _set_nested_path(data_model, path_name, val)
+            state.emitted_data_paths[path_name] = val
+        for comp in compiled_components:
+            state.emitted_components[comp["id"]] = comp
+        state.surface_created = True
+        self.has_emitted = True
+        return self.compiler._build_create_messages(
+            scope, compiled_components, data_model, ctx
+        )
+
+    def _compile_incremental_updates(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        compiled_components: list[dict[str, Any]],
+        compiled_data: dict[str, Any],
+        ctx: _CompileContext,
+        *,
+        is_final: bool,
+        has_pending: bool,
+    ) -> list[dict[str, Any]]:
+        delta_components = [
+            c
+            for c in compiled_components
+            if state.emitted_components.get(c["id"]) != c
+        ]
+        for comp in delta_components:
+            state.emitted_components[comp["id"]] = comp
+
+        data_updates = self._build_data_updates(scope, state, compiled_data, ctx)
+        if (
+            is_final
+            and not state.emitted_components
+            and not state.emitted_data_paths
+            and not has_pending
+        ):
+            raise ExpressUndefinedRootError("root")
+
+        messages: list[dict[str, Any]] = []
+        if delta_components:
+            if not scope.has_surface_directive and not state.surface_created:
+                raise ExpressUndefinedRootError("root")
+            messages.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_COMPONENTS: {
+                    "surfaceId": scope.surface_id,
+                    "components": delta_components,
+                },
+            })
+        messages.extend(data_updates)
+        if messages:
+            self.has_emitted = True
+        return messages
+
+    def _collect_ready_components(
+        self, scope: _SurfaceScope, ctx: _CompileContext
+    ) -> tuple[list[dict[str, Any]], bool]:
+        compiled: list[dict[str, Any]] = []
+        has_pending = False
+        for var_name, ast in scope.raw_symbols.items():
+            try:
+                comp_dict = self.compiler._compile_ast_node(
+                    var_name, ast, scope.raw_symbols, ctx
+                )
+            except _PendingVariableError:
+                ctx.extra_components = []
+                has_pending = True
+                continue
+            if comp_dict:
+                compiled.append(comp_dict)
+                compiled.extend(ctx.extra_components)
+                ctx.extra_components = []
+        return compiled, has_pending
+
+    def _collect_ready_data(
+        self, scope: _SurfaceScope, ctx: _CompileContext
+    ) -> dict[str, Any]:
+        compiled: dict[str, Any] = {}
+        for path_name, ast_val in scope.data_path_assignments.items():
+            try:
+                compiled[path_name] = self.compiler._compile_data_value(
+                    scope, ast_val, ctx
+                )
+            except _PendingVariableError:
+                continue
+        return compiled
+
+    def _build_data_updates(
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        compiled_data: dict[str, Any],
+        ctx: _CompileContext,
+    ) -> list[dict[str, Any]]:
+        updates: list[dict[str, Any]] = []
+        for path_name, val in compiled_data.items():
+            if (
+                path_name in state.emitted_data_paths
+                and type(state.emitted_data_paths[path_name]) is type(val)
+                and state.emitted_data_paths[path_name] == val
+            ):
+                continue
+            pointer = _to_json_pointer(path_name)
+            if pointer == "/" and not isinstance(val, dict):
+                raise ExpressValidationError(
+                    "Cannot assign a non-map value to the root data path"
+                    f" '$/' (got {type(val).__name__})."
+                )
+            state.emitted_data_paths[path_name] = val
+            updates.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_DATA: {
+                    "surfaceId": scope.surface_id,
+                    "path": pointer,
+                    "value": val,
+                },
+            })
+        return updates
 
 
 class ExpressCompiler:
@@ -806,7 +1156,28 @@ class ExpressCompiler:
                 f" {target_version}."
             )
         statements = self._parse_statements(dsl_text, is_final)
+        units = self._build_units(statements, surface_id)
+        if not units:
+            raise ExpressUndefinedRootError("root")
 
+        result_messages: list[dict[str, Any]] = []
+        for unit in units:
+            if isinstance(unit, _DeleteSurface):
+                result_messages.append({
+                    "version": target_version,
+                    SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
+                })
+            elif isinstance(unit, _StandaloneCall):
+                result_messages.append(self._compile_standalone_call(unit, ctx))
+            else:
+                result_messages.extend(self._compile_create_scope(unit, ctx))
+
+        return to_message_models(result_messages)
+
+    def _build_units(
+        self, statements: list[Any], surface_id: str
+    ) -> list[_SurfaceScope | _DeleteSurface | _StandaloneCall]:
+        """Groups parsed AST statements into surface scopes, deletes, and standalone calls."""
         units: list[_SurfaceScope | _DeleteSurface | _StandaloneCall] = []
         current_scope: _SurfaceScope | None = None
 
@@ -842,23 +1213,7 @@ class ExpressCompiler:
                     current_scope.data_path_assignments[var_name] = parsed_val
                 else:
                     current_scope.raw_symbols[var_name] = parsed_val
-
-        if not units:
-            raise ExpressUndefinedRootError("root")
-
-        result_messages: list[dict[str, Any]] = []
-        for unit in units:
-            if isinstance(unit, _DeleteSurface):
-                result_messages.append({
-                    "version": target_version,
-                    SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
-                })
-            elif isinstance(unit, _StandaloneCall):
-                result_messages.append(self._compile_standalone_call(unit, ctx))
-            else:
-                result_messages.extend(self._compile_create_scope(unit, ctx))
-
-        return to_message_models(result_messages)
+        return units
 
     def _check_header_catalog(self, statement: str, catalog_id: str) -> None:
         """Checks the catalog that a `surface` line names.
@@ -983,6 +1338,17 @@ class ExpressCompiler:
             compiled_val = self._compile_data_value(scope, ast_val, ctx)
             _set_nested_path(data_model, path_name, compiled_val)
 
+        return self._build_create_messages(scope, compiled_components, data_model, ctx)
+
+    def _build_create_messages(
+        self,
+        scope: _SurfaceScope,
+        compiled_components: list[dict[str, Any]],
+        data_model: dict[str, Any],
+        ctx: _CompileContext,
+    ) -> list[dict[str, Any]]:
+        """Builds the createSurface message(s) for a surface creation scope."""
+        surf_id = scope.surface_id
         create: dict[str, Any] = {"surfaceId": surf_id}
         cat_id = surface_catalog_id(self._catalogs)
         if cat_id is not None:
@@ -1216,6 +1582,13 @@ class ExpressCompiler:
                 comp_dict[prop_name] = None
                 continue
 
+            prop_type = comp_helper.get_property_type(comp_name, prop_name)
+            if prop_type is None and not comp_helper.common_types_loaded:
+                if prop_name == "child":
+                    prop_type = "Child"
+                elif prop_name == "children":
+                    prop_type = "ChildList"
+
             mapped_val = self._compile_value(
                 arg,
                 raw_symbols,
@@ -1223,6 +1596,10 @@ class ExpressCompiler:
                 is_action=(prop_name in ["action", "submitAction"]),
                 parent_id=comp_id,
                 parent_prop=prop_name,
+                allow_component_ref=(prop_type == "Child"),
+                allow_list_component_refs=(
+                    prop_type == "ChildList" and isinstance(arg, list)
+                ),
             )
             prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
@@ -1377,6 +1754,8 @@ class ExpressCompiler:
         parent_id: str | None = None,
         parent_prop: str | None = None,
         list_index: int | None = None,
+        allow_component_ref: bool = False,
+        allow_list_component_refs: bool = False,
     ) -> Any:
         """Compiles an individual AST node value into valid A2UI equivalents.
 
@@ -1388,6 +1767,10 @@ class ExpressCompiler:
             parent_id: The parent component ID if compiling a component property.
             parent_prop: The parent component property name.
             list_index: The index within an array property if applicable.
+            allow_component_ref: Whether an undefined variable in this slot is a
+                forward component ID reference.
+            allow_list_component_refs: Whether elements of a list in this slot are
+                forward component ID references.
 
         Returns:
             The semantically correct A2UI JSON structure.
@@ -1401,6 +1784,12 @@ class ExpressCompiler:
         if isinstance(val, VariableNode):
             ref_name = val.name
             if ref_name not in raw_symbols:
+                if not allow_component_ref:
+                    if ctx.allow_pending:
+                        raise _PendingVariableError(ref_name)
+                    raise ExpressValidationError(
+                        f"Variable '{ref_name}' is not assigned in surface."
+                    )
                 return ref_name
             symbol_val = raw_symbols[ref_name]
             if isinstance(symbol_val, CallNode):
@@ -1420,6 +1809,8 @@ class ExpressCompiler:
                     raw_symbols,
                     ctx,
                     is_action,
+                    allow_component_ref=allow_component_ref,
+                    allow_list_component_refs=allow_list_component_refs,
                 )
             finally:
                 ctx.resolving.discard(ref_name)
@@ -1456,6 +1847,7 @@ class ExpressCompiler:
                     parent_id=parent_id,
                     parent_prop=parent_prop,
                     list_index=idx,
+                    allow_component_ref=allow_list_component_refs,
                 )
                 for idx, item in enumerate(val)
             ]
@@ -1490,7 +1882,9 @@ class ExpressCompiler:
                     "The first argument to _template must be a dynamic data"
                     f" binding path (prefixed by $), got: {fn_args[0]}"
                 )
-            comp_id_val = self._compile_value(fn_args[1], raw_symbols, ctx, is_action)
+            comp_id_val = self._compile_value(
+                fn_args[1], raw_symbols, ctx, is_action, allow_component_ref=True
+            )
             # A child list template keeps the plain `path` key in every version.
             return {"path": template_path, "componentId": comp_id_val}
 
