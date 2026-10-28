@@ -15,6 +15,7 @@
  */
 
 import tipCalculatorExample from '../../../../catalogs/iframe/examples/srcdoc-tip-calculator.json' with {type: 'json'};
+import orderTrackerExample from '../../../../catalogs/iframe/examples/url-order-tracker.json' with {type: 'json'};
 import {
   basicCatalog,
   isWebComponentImplementation,
@@ -49,19 +50,25 @@ describe('iframeCatalog', () => {
     }
   });
 
-  it('renders the frame of the catalog examples next to the basic catalog', () => {
+  it('renders the frames of the catalog examples next to the basic catalog', () => {
     const processor = new MessageProcessor<WebComponentImplementation>([
       basicCatalog,
       iframeCatalog,
     ]);
 
     processor.processMessages(parseExampleMessages(tipCalculatorExample));
+    processor.processMessages(parseExampleMessages(orderTrackerExample));
 
     const tipCalculator = processor.model.getSurface('gallery-iframe-tip-calculator')!;
     expect(tipCalculator.defaultCatalog).toBe(basicCatalog);
     const calculator = tipCalculator.componentsModel.get('tip_calculator')!;
     expect(calculator.type).toBe('WebAppFrameSrcdoc');
     expect(calculator.catalog).toBe(iframeCatalog);
+    const orderTrackerSurface = processor.model.getSurface('gallery-iframe-order-tracker')!;
+    const tracker = orderTrackerSurface.componentsModel.get('order_tracker')!;
+    expect(tracker.type).toBe('WebAppFrameUrl');
+    expect(tracker.catalog).toBe(iframeCatalog);
     tipCalculator.dispose();
+    orderTrackerSurface.dispose();
   });
 });

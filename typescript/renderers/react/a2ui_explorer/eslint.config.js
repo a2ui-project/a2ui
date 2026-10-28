@@ -30,6 +30,12 @@ export default [
     },
   },
   {
-    ignores: ['public/a2ui-sandbox/**', 'src/generated/**', 'dist/**', 'node_modules/**'],
+    ignores: [
+      'public/a2ui-sandbox/**',
+      'public/a2ui-fixtures/**',
+      'src/generated/**',
+      'dist/**',
+      'node_modules/**',
+    ],
   },
 ];

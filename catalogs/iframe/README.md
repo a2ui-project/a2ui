@@ -32,6 +32,7 @@ The allowlists deny by default: the host drops any action, function call or data
 The [examples](examples/) directory holds A2UI message sequences that validate against this catalog combined with the basic catalog:
 
 - [srcdoc-tip-calculator.json](examples/srcdoc-tip-calculator.json) covers every `WebAppFrameSrcdoc` interaction in one tip calculator: it reads the bill from bound data, takes its currency and locale from `config`, writes the total back through `mutableData`, formats it with `formatCurrency`, reports the saved receipt as an action, sizes its frame and declares `open_url` for its help link. `typescript/catalogs/iframe/tests/examples/` runs it end to end.
+- [url-order-tracker.json](examples/url-order-tracker.json) covers every `WebAppFrameUrl` interaction in one order tracker: it takes its theme and locale from `config`, reads the orders from bound data, writes a status summary back through `mutableData`, reports selected and delivered orders as actions and sizes its frame. The `url` is a placeholder; `typescript/catalogs/iframe/tests/examples/` runs it end to end against `tests/fixtures/apps/order_tracker.html`.
 
 `specification/scripts/validate.py` validates these examples in CI.
 
