@@ -11,7 +11,7 @@
   `generate_base_rules()` with `schema_to_prompt()` (such as
   `SendA2uiToClientToolset` users) should use `DEFAULT_WORKFLOW_RULES` instead.
   [#3559](https://github.com/a2ui-project/a2ui/pull/3559)
-- The Direct JSON prompt rule says the JSON part is a JSON array of A2UI messages that follows the schema, instead of "a single, raw JSON object (usually a list of A2UI messages)" that "MUST validate" against it. [#3576](https://github.com/a2ui-project/a2ui/issues/3576)
+- The Direct JSON prompt rule says the JSON part is a JSON array of A2UI messages that follows the schema, instead of "a single, raw JSON object (usually a list of A2UI messages)" that "MUST validate" against it. [#3721](https://github.com/a2ui-project/a2ui/pull/3721)
 - Introduce typesafe fluent builder package for A2UI Protocol v1.0 (`a2ui.builder.v1_0`),
   re-exporting v1.0 common types (`DataBinding`, `FunctionCall`,
   `AccessibilityAttributes`, `ActionEvent`, and `CheckRule`) from
