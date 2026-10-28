@@ -1493,7 +1493,7 @@ public final class NodeResolver: Sendable {
     {
       return makeEventResolvedAction(
         name: name,
-        eventObj: eventObj,
+        eventObject: eventObj,
         checks: checks,
         basePath: basePath,
         index: index,
@@ -1507,8 +1507,8 @@ public final class NodeResolver: Sendable {
     {
       return makeFunctionResolvedAction(
         call: call,
-        funcCallVal: funcCallVal,
-        funcCallDict: funcCallDict,
+        functionCallValue: funcCallVal,
+        functionCallDictionary: funcCallDict,
         checks: checks,
         basePath: basePath,
         index: index,
