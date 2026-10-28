@@ -39,3 +39,5 @@ The [examples](examples/) directory holds A2UI message sequences that validate a
 ## Implementations
 
 The components originated in the [Angular MCP calculator sample](../../samples/community/client/angular/projects/mcp_calculator/src/a2ui-catalog/), which implements a v0.9 predecessor of this catalog under its own sample catalog ID.
+
+The [Iframe catalog guide](../../docs/public/guides/iframe-catalog.md) covers installing the `@a2ui/catalog-iframe` package, serving the sandbox proxy the components load and registering the catalog with a web renderer.
