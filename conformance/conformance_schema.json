@@ -324,9 +324,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "catalogId"
-          ],
+          "required": ["catalogId"],
           "additionalProperties": false
         },
         "expect": {
@@ -336,37 +334,25 @@
           "$ref": "#/$defs/ExpectError"
         }
       },
-      "required": [
-        "name",
-        "action",
-        "args"
-      ],
+      "required": ["name", "action", "args"],
       "allOf": [
         {
           "oneOf": [
             {
-              "required": [
-                "catalog"
-              ]
+              "required": ["catalog"]
             },
             {
-              "required": [
-                "catalogPath"
-              ]
+              "required": ["catalogPath"]
             }
           ]
         },
         {
           "oneOf": [
             {
-              "required": [
-                "expect"
-              ]
+              "required": ["expect"]
             },
             {
-              "required": [
-                "expectError"
-              ]
+              "required": ["expectError"]
             }
           ]
         }

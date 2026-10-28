@@ -118,7 +118,7 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
-    - input: 'Text <a2ui-json>['
+    - input: "Text <a2ui-json>["
       expect_parts:
         - text: "Text"
       expect_in_block: true
