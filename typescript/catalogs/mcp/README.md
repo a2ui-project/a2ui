@@ -11,7 +11,7 @@ A2UI separates UI layout from backend logic through catalogs. This catalog provi
 - The host supplies one hook, `getMcpClientForTool(toolName)`. The catalog uses the returned client for tool execution, UI resource reads, and tool discovery.
 - Tool results are processed automatically. The catalog fetches and caches UI resources referenced by results, then applies any A2UI messages embedded in the result content.
 - Tool arguments support data bindings, allowing form state to pass directly into tool calls.
-- `updateDataModel` writes path-value pairs to the surface data model, so a payload can update several paths at once from a literal object, a binding or a function call.
+- `callMcpTool` returns the text, parsed JSON and structured content of each result, and can write them to `targetDataPath`. `updateDataModel` writes path-value pairs to the surface data model, so a payload can update several paths at once from a literal object, a binding or a function call.
 - The `McpApp` component embeds MCP Apps in a sandboxed double-iframe and connects them to the host through `AppBridge`.
 - The catalog works with any A2UI web renderer built on `MessageProcessor`.
 
@@ -25,11 +25,22 @@ The canonical schema lives at [`catalogs/mcp/v1/catalog.json`](../../../catalogs
 | :--------------- | :-------------- | :---------------- | :--------------------------------------------------------------------------------------------------------- |
 | `name`           | `DynamicString` | Yes               | The MCP tool to execute.                                                                                   |
 | `arguments`      | `object`        | No (default `{}`) | Arguments passed to the tool: an object of dynamic values, or a function call that returns one.            |
-| `targetDataPath` | `DynamicString` | No                | Optional JSON Pointer path on the surface data model where a resolved MCP App resource payload is written. |
+| `targetDataPath` | `DynamicString` | No                | Optional JSON Pointer path on the surface data model where the payload of each successful call is written. |
 
 Tools are addressed by name only. A2UI payloads never name a server, because multi-server routing is resolved by the host inside `getMcpClientForTool`.
 
-The function returns the raw MCP `CallToolResult`. It throws an `A2uiExpressionError` if the client cannot be resolved, the call returns no result, or the result has `isError: true`.
+The function returns a payload with these fields:
+
+| Field               | Value                                                                                                                                                                                   |
+| :------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolName`          | The name of the tool.                                                                                                                                                                   |
+| `toolInput`         | The resolved arguments.                                                                                                                                                                 |
+| `toolResult`        | The raw MCP `CallToolResult`.                                                                                                                                                           |
+| `structuredContent` | `toolResult.structuredContent`, unchanged, when the server sends one.                                                                                                                   |
+| `text`              | The `text` content blocks, joined with `\n`.                                                                                                                                            |
+| `json`              | The parsed value of `text` when it is a JSON object or array. When instead two or more text blocks are each a JSON object or array, the array of their parsed values. Absent otherwise. |
+
+When the result has an MCP App resource, the payload also carries its `resourceUri`, `html`, `csp` and `permissions`. With `targetDataPath`, each call replaces the object at that path with its payload. A call whose response arrives after a newer call to the same path has started does not write, so out-of-order responses, such as autocomplete suggestions, never overwrite newer ones; it still returns its payload. The function throws an `A2uiExpressionError`, and writes nothing, if the client cannot be resolved, the call returns no result, or the result has `isError: true`.
 
 `updateDataModel` writes path-value pairs to the surface data model:
 
@@ -81,7 +92,7 @@ Push every catalog before the first message arrives, since `getClientCapabilitie
 
 A surface resolves components and function calls through its default catalog, the `catalogId` of its `createSurface` message, unless the component or the `@call` object names another registered catalog with its own `catalogId`. A payload that mixes basic components with `McpApp` and the MCP functions therefore needs no composed catalog: it creates the surface with the basic catalog id and sets `"catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"` on the `McpApp` component and on each MCP function call, as the [catalog examples](../../../catalogs/mcp/v1/examples) do.
 
-Function calls in expressions (`${...}`, `@call`) are the exception: they always resolve through the surface's default catalog. A payload that calls `callMcpTool` from expressions next to basic components creates its surface with a catalog that carries both; build one under the id the agent uses (`mcpCatalog.id` is the canonical one):
+Function calls inside `${...}` string expressions are the exception: they resolve through the surface's default catalog. A payload that calls `callMcpTool` that way next to basic components creates its surface with a catalog that carries both; build one under the id the agent uses (`mcpCatalog.id` is the canonical one):
 
 ```typescript
 import {basicCatalog, Catalog, MessageProcessor} from '@a2ui/web_core/v1_0';
@@ -130,7 +141,7 @@ On each invocation the catalog:
 4. Fetches each UI resource through `resources/read`, once per URI, and decodes every content block whose `mimeType` is `application/a2ui+json`. A resource carrying several such blocks contributes all of them, and one carrying none contributes nothing.
 5. Processes each UI resource in the order its URI appeared, skipping any that would recreate a live surface.
 6. Processes the A2UI messages inlined in `result.content`, in content order. Only an embedded resource block declaring `application/a2ui+json` counts: a text block is prose for the model, even when it holds a message.
-7. Returns the `CallToolResult` unchanged to the caller.
+7. Builds the payload, writes it to `targetDataPath` unless a newer call to that path has started, and returns it.
 
 ### Invoke a tool during bootstrap
 
@@ -160,28 +171,21 @@ await CallMcpToolImplementation.execute(
 
 ### Trigger tools from A2UI payloads
 
-A surface created under a catalog that includes `callMcpTool` can invoke server tools:
+A v1.0 payload calls `callMcpTool` from any surface whose host registered `mcpCatalog`, naming the catalog on the call. Arguments may be data bindings, which resolve against the calling surface, and `targetDataPath` writes the returned payload into the data model so components can bind to its fields (such as `/weather/json/temperature` or `/weather/text`):
 
 ```json
 {
-  "createSurface": {
-    "surfaceId": "weather-widget",
-    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json"
-  }
-}
-```
-
-Arguments may be data bindings, which resolve against the calling surface:
-
-```json
-{
-  "call": "callMcpTool",
+  "@call": "callMcpTool",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
   "args": {
     "name": "get_weather",
-    "arguments": {"city": {"path": "/form/city"}}
+    "arguments": {"city": {"@path": "/form/city"}},
+    "targetDataPath": "/weather"
   }
 }
 ```
+
+A surface created with the MCP catalog id as its default needs no `catalogId` on the call.
 
 ## The `McpApp` component
 
@@ -332,7 +336,7 @@ The component owns its bridge: `McpAppBridge` (`src/components/mcp_app_bridge.ts
 | `src/index.ts`                         | Package entry: `mcpCatalog`, `A2uiMcpApp`, `configureMcpCatalog` and the `*Api` and `*Implementation` of every function                                                              |
 | `src/catalog.ts`                       | `MCP_CATALOG_ID` and `mcpCatalog`: the `McpApp` component, `callMcpTool` and `updateDataModel`                                                                                       |
 | `src/mcp_catalog_config.ts`            | `configureMcpCatalog`: the host's MCP client resolver, message processor and sandbox location                                                                                        |
-| `src/functions/callMcpTool.ts`         | MCP tool execution, UI resource discovery, caching, and message decoding                                                                                                             |
+| `src/functions/callMcpTool.ts`         | MCP tool execution, the tool data payload, UI resource discovery, caching, and message decoding                                                                                      |
 | `src/functions/update_data_model.ts`   | `updateDataModel`                                                                                                                                                                    |
 | `src/dynamic-values.ts`                | Resolution of dynamic values nested in literal containers                                                                                                                            |
 | `src/components/mcp_app.ts`            | The `McpApp` universal component and its API                                                                                                                                         |

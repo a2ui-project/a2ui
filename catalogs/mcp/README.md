@@ -37,6 +37,12 @@ For `updateDataModel`, keys starting with `/` are absolute paths, while relative
 
 The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares `callMcpTool` and `updateDataModel`, with argument and return types taken from the v1.0 `common_types.json`, and the `McpApp` component.
 
+### Tool data payload
+
+In the v1 catalog, `callMcpTool` returns a payload with `toolName`, `toolInput`, `toolResult` (the raw `CallToolResult`), `structuredContent` (when the server sends one), `text` (the `text` blocks joined with `\n`) and `json` (the parsed value of `text` when it is a JSON object or array; when instead several text blocks are each a JSON object or array, the array of their parsed values; absent otherwise). When the result has an MCP App resource, the payload also carries its `resourceUri`, `html`, `csp` and `permissions`.
+
+The optional `targetDataPath` argument writes the payload of each successful call to that path, replacing the object there. A call whose response arrives after a newer call to the same path has started does not write, so the latest call wins. A result flagged `isError` fails the call and writes nothing.
+
 ### Data functions
 
 | Function          | Arguments | Returns                                                                     |
