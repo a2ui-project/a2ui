@@ -782,6 +782,7 @@ struct MessageProcessorTests {
   }
 
   @Test func processPayloadResolvesLenientV10VersionOnError() throws {
+    let handler = TestProcessorActionHandler()
     let catalogV09 = Catalog(
       id: "cat-v09",
       protocolVersion: .v09,
@@ -796,11 +797,10 @@ struct MessageProcessorTests {
         AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
       ]
     )
-    let processor = MessageProcessor(catalogs: [catalogV09, catalogV10])
-    var capturedVersion: String?
-    _ = processor.onOutboundMessage.subscribe { msg in
-      capturedVersion = msg["version"]?.stringValue
-    }
+    let processor = MessageProcessor(
+      catalogs: [catalogV09, catalogV10],
+      actionHandler: handler
+    )
     let payload = try JSONValue.parse(
       """
       {
@@ -815,7 +815,8 @@ struct MessageProcessorTests {
       """
     )
     processor.process(payload: payload)
-    #expect(capturedVersion == "1.0")
+    let capturedError = try #require(handler.capturedErrors.first)
+    #expect(capturedError.version == .v10)
   }
 }
 
