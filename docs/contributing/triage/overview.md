@@ -12,7 +12,7 @@ Continuously make sure that:
 
 ## GitHub labels used in triage
 
-Added and removed by the triage bot, [scripts/triage.mjs](../../../scripts/triage.mjs):
+Added and removed by the [triage bot](flagging_automation.md):
 
 - [status: needs-triage][needs-triage-label]: the item needs triage. The [needs triage queue][needs-triage-all] lists all of them.
 

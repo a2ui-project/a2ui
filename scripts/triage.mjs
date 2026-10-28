@@ -16,8 +16,9 @@
 
 // Reconciles the 'status: needs-triage' and 'status:
 // waiting-for-author-response' labels across all open issues and PRs.
-// `flagReason` holds the rules that decide which items need triage. The triage
-// process that uses these labels is in docs/contributing/triage/triage.md.
+//
+// For detailed rules and documentation on how the triage automation works, see:
+// https://github.com/a2ui-project/a2ui/blob/main/docs/contributing/triage/flagging_automation.md
 //
 // Implementation notes:
 // - Items are selected by query, but the query alone is not trusted: GitHub's

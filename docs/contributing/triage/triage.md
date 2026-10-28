@@ -2,16 +2,20 @@
 
 For the goals of triage and the meaning of each label, see the [triage overview](overview.md).
 
-## Triage process
+Queues used in triage:
 
-### First line triage (daily, by gardener)
+- [Not first line handled][not-first-line-handled]: new issues for [first line triage](#first-line-triage-daily-by-gardener).
+- [Needs triage][needs-triage-all]: everything the bot flagged.
+- [Needs triage, without team input][needs-triage-minus-waiting]: the flagged items for [second line triage](#second-line-triage-weekly-by-triager).
+
+## First line triage (daily, by gardener)
 
 For each issue that is [not first-line-handled][not-first-line-handled]:
 
 - If it is P0, add the label `P0` and notify [the team chat][team-chat].
 - Add the label `status: first-line-handled`.
 
-### Second line triage (weekly, by triager)
+## Second line triage (weekly, by triager)
 
 1. In go/a2ui-triage-log, copy the triage card template and start filling it in.
 
@@ -23,9 +27,13 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 3. Go through [status: needs-team-input][needs-team-input] with other team members. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item) and remove `status: needs-team-input`.
-    - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`. The expert triages the item within two weeks and removes `status: assigned-for-triage`.
+    - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`. The expert [finishes the triage](#by-owners-of-status-assigned-for-triage).
 
 4. Complete the triage card in go/a2ui-triage-log and send it to [the team chat][team-chat].
+
+## By owners of `status: assigned-for-triage`
+
+If you are assigned to a PR or an issue with the label `status: assigned-for-triage`, you are treated as an expert in its area, and your job is to [triage the item](#triage-an-item) within two weeks of the assignment. Then you can remove the label and unassign yourself.
 
 ## Triage an item
 
@@ -84,6 +92,7 @@ What may help:
 The triage is done when the issue has a priority and no external comment is left unanswered.
 
 [not-first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc
+[needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
 [needs-triage-minus-waiting]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22+-label%3A%22status%3A+needs-team-input%22
 [needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-team-input%22
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
