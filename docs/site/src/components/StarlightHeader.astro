@@ -17,7 +17,6 @@
 import config from 'virtual:starlight/user-config';
 import LanguageSelect from 'virtual:starlight/components/LanguageSelect';
 import Search from 'virtual:starlight/components/Search';
-import SiteTitle from 'virtual:starlight/components/SiteTitle';
 import SocialIcons from 'virtual:starlight/components/SocialIcons';
 
 const shouldRenderSearch =
@@ -31,13 +30,20 @@ const isDocs = !isSpec && pathname !== `${base}/` && pathname !== '/';
 
 <div class="a2-sl-header sl-flex">
   <div class="a2-sl-header__left sl-flex">
-    <SiteTitle />
+    <a href={`${base}/`} class="a2-sl-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="2.5" y="3.5" width="19" height="17" rx="4" stroke="currentColor" stroke-width="2" />
+        <circle cx="8.5" cy="11" r="1.6" fill="#14b8a6" />
+        <circle cx="15.5" cy="11" r="1.6" fill="#14b8a6" />
+        <path d="M8.5 15.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </svg>
+      <span>A2UI</span>
+    </a>
     <span class="a2-sl-header__slash" aria-hidden="true">/</span>
     <nav class="a2-sl-header__tabs" aria-label="Primary section navigation">
       <a href={`${base}/`} class="a2-sl-tab">Overview</a>
       <a href={`${base}/quickstart/`} class:list={['a2-sl-tab', { 'is-active': isDocs }]} aria-current={isDocs ? 'page' : undefined}>Docs</a>
       <a href={`${base}/specification/v1.0-a2ui/`} class:list={['a2-sl-tab', { 'is-active': isSpec }]} aria-current={isSpec ? 'page' : undefined}>Specification</a>
-      <a href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener noreferrer" class="a2-sl-tab">Composer ↗</a>
     </nav>
   </div>
 
@@ -76,27 +82,48 @@ const isDocs = !isSpec && pathname !== `${base}/` && pathname !== '/';
     justify-content: space-between;
     align-items: center;
     height: 100%;
-    gap: 1rem;
+    width: 100%;
+    gap: 16px;
   }
 
   .a2-sl-header__left {
+    display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 8px;
     min-width: 0;
+  }
+
+  .a2-sl-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 18px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--sl-color-white);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .a2-sl-brand:hover {
+    color: var(--sl-color-white);
   }
 
   .a2-sl-header__slash {
     color: var(--sl-color-gray-4);
-    font-size: 1.1rem;
+    font-size: 18px;
     font-weight: 300;
-    margin: 0 0.25rem;
+    line-height: 1;
+    margin: 0 4px;
     user-select: none;
   }
 
   .a2-sl-header__tabs {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 4px;
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -106,11 +133,12 @@ const isDocs = !isSpec && pathname !== `${base}/` && pathname !== '/';
   }
 
   .a2-sl-tab {
-    font-size: 0.875rem;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
     color: var(--sl-color-gray-2);
     text-decoration: none;
-    padding: 0.35rem 0.7rem;
+    padding: 6px 12px;
     border-radius: 6px;
     white-space: nowrap;
     transition: color 0.15s ease, background-color 0.15s ease;

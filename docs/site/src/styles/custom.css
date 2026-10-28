@@ -34,7 +34,9 @@
   --sl-color-hairline-shade: #1e293b;
   --sl-color-hairline-light: #1e293b;
   --sl-color-hairline: #1e293b;
-  --sl-nav-height: 3.75rem;
+  --sl-nav-height: 60px;
+  --sl-nav-pad-x: 24px;
+  --sl-nav-pad-y: 0px;
 }
 
 :root[data-theme='light'] {
@@ -52,6 +54,9 @@
 
 /* Header & Sidebar visual alignment with landing page */
 header.header {
+  height: 60px !important;
+  padding: 0 24px !important;
+  box-sizing: border-box;
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--sl-color-hairline);
 }
