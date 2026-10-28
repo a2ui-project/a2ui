@@ -248,6 +248,49 @@ function generateCatalogDefinition({pureCommonNames, helperNames}) {
       );
     }
 
+    if (name === 'LeafDefinition') {
+      // json-schema-to-zod drops required: ['const'] on an object without properties
+      // and loses array "contains" inside "not".
+      code = code.replace(
+        /z\.object\(\{\s*["']component["']:\s*z\.record\(z\.string\(\),\s*z\.any\(\)\)\s*\}\)/,
+        "z.object({'component': z.record(z.string(), z.any()).refine(c => 'const' in c)})",
+      );
+      code = code.replace(
+        /z\.object\(\{\s*["']allOf["']:\s*z\.array\(z\.any\(\)\)\s*\}\)/,
+        `z.object({
+          'allOf': z.array(z.any()).refine(
+            arr =>
+              arr.some(
+                item =>
+                  Boolean(
+                    item &&
+                      typeof item === 'object' &&
+                      'properties' in item &&
+                      item.properties &&
+                      typeof item.properties === 'object' &&
+                      'component' in item.properties &&
+                      item.properties.component &&
+                      typeof item.properties.component === 'object' &&
+                      'const' in item.properties.component,
+                  ),
+              ),
+            'Contains component schema',
+          ),
+        })`,
+      );
+    }
+
+    if (name === 'ComponentDefinition') {
+      // json-schema-to-zod ignores root-level "not" when combined with allOf/properties.
+      code = code.replace(
+        '.describe("Describes a component\'s validation schema and composition constraints.")',
+        `.refine(
+          val => !('anyOf' in val) && !('oneOf' in val),
+          'ComponentDefinition must not have root-level anyOf or oneOf.',
+        ).describe("Describes a component's validation schema and composition constraints.")`,
+      );
+    }
+
     code += `\nexport type ${name}Input = z.input<typeof ${name}Schema>;`;
     bodyCode += code + '\n\n';
   }

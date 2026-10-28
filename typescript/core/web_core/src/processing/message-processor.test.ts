@@ -57,6 +57,7 @@ function assertConformsToV10CatalogDefinition(doc: Record<string, any>): void {
     'title',
     'description',
     'catalogId',
+    'metadata',
     'instructions',
     'components',
     'functions',
@@ -68,7 +69,8 @@ function assertConformsToV10CatalogDefinition(doc: Record<string, any>): void {
   if (doc.protocolVersion !== undefined) {
     assert.match(doc.protocolVersion, /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$/);
   }
-  assert.deepStrictEqual(Object.keys(doc.$defs ?? {}).sort(), ['anyComponent', 'anyFunction']);
+  assert.ok('anyComponent' in (doc.$defs ?? {}), 'Expected $defs.anyComponent');
+  assert.ok('anyFunction' in (doc.$defs ?? {}), 'Expected $defs.anyFunction');
   assert.ok(!('Surface' in (doc.components ?? {})), "'Surface' is not a valid component name");
   const returnTypes = [
     'string',
@@ -178,7 +180,11 @@ describe('MessageProcessor', () => {
       const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
 
       assertConformsToV10CatalogDefinition(inlineCat);
-      assert.deepStrictEqual(Object.keys(inlineCat.$defs).sort(), ['anyComponent', 'anyFunction']);
+      assert.deepStrictEqual(Object.keys(inlineCat.$defs).sort(), [
+        'Weight',
+        'anyComponent',
+        'anyFunction',
+      ]);
       assert.strictEqual(inlineCat.protocolVersion, '1.0');
       assert.strictEqual(inlineCat.theme, undefined);
       assert.strictEqual(
