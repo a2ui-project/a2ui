@@ -368,7 +368,7 @@ class ContactAgent:
                 )
 
                 # Already validated, so we can return the parts.
-                if ui_version:
+                if ui_version and processor:
                     return to_a2a_parts(response_parts)
                 else:
                     return [Part(root=TextPart(text=final_response_content))]

@@ -495,6 +495,7 @@ class ContactAgent:
             )
 
             full_content_list = []
+            response_parts = None
             is_valid = False
             error_message = ""
             stream_failed = False
@@ -626,9 +627,12 @@ class ContactAgent:
                     f" (Attempt {attempt}). ---"
                 )
 
-                final_parts = to_a2a_parts(response_parts, ui_version) or [
-                    Part(root=TextPart(text="OK."))
-                ]
+                if response_parts is not None:
+                    final_parts = to_a2a_parts(response_parts, ui_version)
+                elif final_response_content:
+                    final_parts = [Part(root=TextPart(text=final_response_content))]
+                else:
+                    final_parts = [Part(root=TextPart(text="OK."))]
 
                 yield {
                     "is_task_complete": True,
