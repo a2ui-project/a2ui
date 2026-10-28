@@ -140,8 +140,17 @@ class TestExpressParser(unittest.TestCase):
             compiler.compile(incomplete_dsl)
 
         res_partial = to_message_dicts(compiler.compile(incomplete_dsl, is_final=False))
-        self.assertEqual(res_partial[0]["updateDataModel"]["value"]["foo"], 123)
-        self.assertNotIn("bar", res_partial[0]["updateDataModel"]["value"])
+        self.assertEqual(
+            res_partial,
+            [{
+                "version": "v1.0",
+                "updateDataModel": {
+                    "surfaceId": "default_surface",
+                    "path": "/foo",
+                    "value": 123,
+                },
+            }],
+        )
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
