@@ -40,11 +40,9 @@ from .messages import (
 from .parser import Parser
 from .response_part import (
     A2uiPart,
-    ErrorPart,
     RawA2uiPart,
     RawResponsePart,
     ResponsePart,
-    StreamPart,
     TextPart,
 )
 from .response_stream import ResponseStream
@@ -55,7 +53,6 @@ __all__ = [
     "A2uiCompilationValidationError",
     "A2uiPart",
     "BlockLexer",
-    "ErrorPart",
     "DEFAULT_ROOT_ID",
     "MSG_TYPE_AGENT_FUNCTION_RESPONSE",
     "MSG_TYPE_BEGIN_RENDERING",
@@ -72,7 +69,6 @@ __all__ = [
     "RawResponsePart",
     "ResponsePart",
     "ResponseStream",
-    "StreamPart",
     "TextPart",
     "normalize_prompt_example_messages",
     "to_message_dicts",

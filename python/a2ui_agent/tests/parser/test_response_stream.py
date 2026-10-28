@@ -23,13 +23,12 @@ import json
 
 import pytest
 
-from a2ui.core import A2uiParseError, A2uiValidationError, Catalog
+from a2ui.core import A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import (
     A2uiPart,
-    ErrorPart,
     MSG_TYPE_BEGIN_RENDERING,
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_DELETE_SURFACE,
@@ -147,217 +146,43 @@ def test_create_surface_streamed_in_pieces_is_emitted_once():
     }]
 
 
-def _v09_block(catalog, surface_id, root):
-    """A v0.9 block that creates a surface with one root component."""
-    return (
-        A2UI_OPEN_TAG
-        + json.dumps([
-            {
-                "version": "v0.9",
-                "createSurface": {
-                    "surfaceId": surface_id,
-                    "catalogId": catalog.catalog_id,
-                },
-            },
-            {
-                "version": "v0.9",
-                "updateComponents": {
-                    "surfaceId": surface_id,
-                    "components": [{"id": "root", **root}],
-                },
-            },
-        ])
-        + A2UI_CLOSE_TAG
-    )
-
-
-def _v10_create(catalog, surface_id):
-    return json.dumps({
-        "version": "v1.0",
-        "createSurface": {"surfaceId": surface_id, "catalogId": catalog.catalog_id},
-    })
-
-
-_V10_BOGUS_ROOT = json.dumps({
-    "version": "v1.0",
-    "updateComponents": {
-        "surfaceId": "main",
-        "components": [{"id": "root", "component": "Bogus"}],
-    },
-})
-
-
-def test_chunk_that_fails_keeps_and_returns_the_block_it_finished():
-    """A chunk that raises keeps the block it finished, and returns it with the error."""
+def test_chunk_that_fails_after_applying_a_block_leaves_the_state_unchanged():
+    """A chunk that raises returns no parts, so the state keeps none of it."""
     catalog = BasicCatalog("v0.9")
     parser = DirectJsonParser([catalog])
     state = RendererState([catalog])
+
+    def block(surface_id, text_component):
+        return (
+            A2UI_OPEN_TAG
+            + json.dumps([
+                {
+                    "version": "v0.9",
+                    "createSurface": {
+                        "surfaceId": surface_id,
+                        "catalogId": catalog.catalog_id,
+                    },
+                },
+                {
+                    "version": "v0.9",
+                    "updateComponents": {
+                        "surfaceId": surface_id,
+                        "components": [{"id": "root", **text_component}],
+                    },
+                },
+            ])
+            + A2UI_CLOSE_TAG
+        )
+
     stream = parser.open_stream(state=state)
-    chunk = (
-        "Before "
-        + _v09_block(catalog, "s1", {"component": "Text", "text": "Hi"})
-        + " between "
-        + _v09_block(catalog, "s2", {"component": "Text"})
+    chunk = block("s1", {"component": "Text", "text": "Hi"}) + block(
+        "s2", {"component": "Text"}
     )
 
-    with pytest.raises(A2uiValidationError) as raised:
+    with pytest.raises(A2uiValidationError):
         stream.feed(chunk)
 
-    partial = raised.value.partial_results
-    assert [type(p) for p in partial] == [TextPart, A2uiPart, TextPart]
-    assert partial[0] == TextPart(text="Before")
-    assert partial[2] == TextPart(text="between")
-    assert state.surface_ids == ["s1"]
-
-
-def test_chunk_that_fails_returns_what_it_emitted_from_the_failing_block(
-    basic_catalog_v10,
-):
-    stream = DirectJsonParser([basic_catalog_v10]).open_stream()
-    create = _v10_create(basic_catalog_v10, "main")
-
-    with pytest.raises(A2uiValidationError) as raised:
-        stream.feed(f"{A2UI_OPEN_TAG}[{create}, {_V10_BOGUS_ROOT}")
-
-    partial = raised.value.partial_results
-    assert [to_message_dicts(p.a2ui) for p in partial] == [[json.loads(create)]]
-    assert stream.state.surface_ids == ["main"]
-
-
-def test_close_sets_partial_results_on_the_error_it_raises():
-    stream = DirectJsonParser([BasicCatalog("v0.9")]).open_stream()
-    stream.feed(f"{A2UI_OPEN_TAG}[")
-
-    with pytest.raises(A2uiParseError) as raised:
-        stream.close()
-
-    assert raised.value.partial_results == []
-
-
-def test_is_in_block_from_opening_tag_to_closing_tag():
-    catalog = BasicCatalog("v0.9")
-    stream = DirectJsonParser([catalog]).open_stream()
-
-    stream.feed("Hello <a2ui")
-    assert not stream.is_in_block
-    stream.feed("-json>[")
-    assert stream.is_in_block
-    create = {
-        "version": "v0.9",
-        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
-    }
-    stream.feed(f"{json.dumps(create)}] </a2ui")
-    assert stream.is_in_block
-    stream.feed("-json> after")
-    assert not stream.is_in_block
-
-
-def test_is_in_block_for_an_unwrapped_stream_until_it_ends():
-    catalog = BasicCatalog("v0.9")
-    stream = DirectJsonParser([catalog]).open_stream(wrapped=False)
-    create = {
-        "version": "v0.9",
-        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
-    }
-
-    assert stream.is_in_block
-    stream.feed(json.dumps([create]))
-    assert stream.is_in_block
-    stream.close()
-    assert not stream.is_in_block
-
-
-def test_is_in_block_is_false_once_the_stream_ended_inside_a_block():
-    stream = DirectJsonParser([BasicCatalog("v0.9")]).open_stream()
-    stream.feed(f"{A2UI_OPEN_TAG}[")
-
-    with pytest.raises(A2uiParseError):
-        stream.close()
-
-    assert not stream.is_in_block
-
-
-def test_continue_returns_an_error_part_in_place_of_a_rejected_block():
-    catalog = BasicCatalog("v0.9")
-    stream = DirectJsonParser([catalog]).open_stream(after_rejected_block="continue")
-
-    parts = stream.feed(
-        "Before "
-        + _v09_block(catalog, "s1", {"component": "Text"})
-        + " between "
-        + _v09_block(catalog, "s2", {"component": "Text", "text": "Hi"})
-        + " after"
-    )
-
-    assert [type(p) for p in parts] == [
-        TextPart,
-        ErrorPart,
-        TextPart,
-        A2uiPart,
-        TextPart,
-    ]
-    assert isinstance(parts[1].error, A2uiValidationError)
-    assert stream.state.surface_ids == ["s2"]
-    assert stream.close() == []
-
-
-def test_continue_keeps_what_a_rejected_block_emitted_and_skips_the_rest(
-    basic_catalog_v10,
-):
-    stream = DirectJsonParser([basic_catalog_v10]).open_stream(
-        after_rejected_block="continue"
-    )
-    create = _v10_create(basic_catalog_v10, "main")
-    skipped = _v10_create(basic_catalog_v10, "skipped")
-
-    first = stream.feed(f"{A2UI_OPEN_TAG}[{create}, {_V10_BOGUS_ROOT}, ")
-    second = stream.feed(f"{skipped}]{A2UI_CLOSE_TAG} Done.")
-
-    assert [type(p) for p in first] == [A2uiPart, ErrorPart]
-    assert to_message_dicts(first[0].a2ui) == [json.loads(create)]
-    assert second == [TextPart(text="Done.")]
-    assert stream.state.surface_ids == ["main"]
-
-
-def test_continue_reports_a_block_that_cannot_be_read():
-    stream = DirectJsonParser([BasicCatalog("v0.9")]).open_stream(
-        after_rejected_block="continue"
-    )
-
-    parts = stream.feed(f"{A2UI_OPEN_TAG}not json{A2UI_CLOSE_TAG} after")
-
-    assert [type(p) for p in parts] == [ErrorPart, TextPart]
-
-
-def test_continue_returns_an_error_part_for_a_block_open_at_the_end():
-    stream = DirectJsonParser([BasicCatalog("v0.9")]).open_stream(
-        after_rejected_block="continue"
-    )
-    stream.feed(f"Text {A2UI_OPEN_TAG}[")
-
-    parts = stream.close()
-
-    assert [type(p) for p in parts] == [ErrorPart]
-    assert isinstance(parts[0].error, A2uiParseError)
-
-
-def test_continue_returns_an_error_part_for_a_rejected_unwrapped_response():
-    stream = DirectJsonParser([BasicCatalog("v0.9")]).open_stream(
-        wrapped=False, after_rejected_block="continue"
-    )
-
-    assert stream.feed("not json") == []
-    assert [type(p) for p in stream.close()] == [ErrorPart]
-
-
-def test_continue_still_ends_the_stream_on_an_error_that_rejects_no_block():
-    stream = DirectJsonParser([BasicCatalog("v0.9")]).open_stream(
-        after_rejected_block="continue"
-    )
-    stream.close()
-
-    with pytest.raises(ValueError, match="The response stream is closed."):
-        stream.feed("text")
+    assert state.surface_ids == []
 
 
 def test_fenced_block_streamed_one_character_at_a_time_is_read_whole():

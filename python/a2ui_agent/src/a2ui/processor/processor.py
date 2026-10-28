@@ -17,14 +17,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal, overload
 
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
 from a2ui.inference_formats.express import ExpressFormatFactory
-from a2ui.parser import Parser, ResponsePart, ResponseStream, StreamPart
+from a2ui.parser import Parser, ResponsePart, ResponseStream
 from a2ui.utils import RendererState, validate_payload
 
 __all__ = [
@@ -149,41 +148,15 @@ class A2uiRequestProcessor:
         target = self._resolve_state(state)
         return self.parser.parse_response(content, wrapped, state=target)
 
-    @overload
     def open_stream(
-        self,
-        *,
-        wrapped: bool = True,
-        state: RendererState | None = None,
-        after_rejected_block: Literal["end"] = "end",
-    ) -> ResponseStream[ResponsePart]:
-        ...
-
-    @overload
-    def open_stream(
-        self,
-        *,
-        wrapped: bool = True,
-        state: RendererState | None = None,
-        after_rejected_block: Literal["end", "continue"],
-    ) -> ResponseStream[StreamPart]:
-        ...
-
-    def open_stream(
-        self,
-        *,
-        wrapped: bool = True,
-        state: RendererState | None = None,
-        after_rejected_block: Literal["end", "continue"] = "end",
-    ) -> ResponseStream[StreamPart]:
+        self, *, wrapped: bool = True, state: RendererState | None = None
+    ) -> ResponseStream:
         """Opens a stream that reads one LLM response chunk by chunk.
 
         Args:
             wrapped: False if the whole response is one block, without tags.
             state: The renderer state to check the response against and apply
                 it to, as for `parse_response`.
-            after_rejected_block: Whether to read past a rejected block, as
-                for `Parser.open_stream`.
 
         Raises:
             A2uiCatalogError: If the state holds other catalogs than the
@@ -191,9 +164,7 @@ class A2uiRequestProcessor:
             NotImplementedError: If the format cannot be read incrementally.
         """
         target = self._resolve_state(state)
-        return self.parser.open_stream(
-            wrapped=wrapped, state=target, after_rejected_block=after_rejected_block
-        )
+        return self.parser.open_stream(wrapped=wrapped, state=target)
 
     def _resolve_state(self, state: RendererState | None) -> RendererState | None:
         if state is None:

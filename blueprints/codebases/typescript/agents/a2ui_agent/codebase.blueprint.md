@@ -1,7 +1,7 @@
 ---
 codebase_path: typescript/agents/a2ui_agent
 associated_module: a2ui_agent
-module_blueprint_commit: 48c3fdf13e90f6be26186456075e5d221c455e7b
+module_blueprint_commit: 47f4988ab66c88be77bd48ca8c92dffb8b39ea11
 implemented_features:
   - skill_generator
 local_development:

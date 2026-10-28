@@ -51,7 +51,6 @@ from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
 from a2ui.a2a import to_a2a_parts
-from a2ui.parser import ResponsePart
 from a2ui.parser import ResponseStream
 from a2ui.processor import A2uiRequestProcessor
 
@@ -80,7 +79,7 @@ class _OpenStream:
     """The stream of a response that is still streaming."""
 
     # None once a chunk of the response failed.
-    stream: ResponseStream[ResponsePart] | None
+    stream: ResponseStream | None
     last_used: float
 
 

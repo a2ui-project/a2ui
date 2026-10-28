@@ -19,9 +19,7 @@ from abc import abstractmethod
 from collections.abc import Mapping
 from collections.abc import Sequence
 from typing import Any
-from typing import Literal
 from typing import TYPE_CHECKING
-from typing import overload
 
 from a2ui.core import A2uiError
 from a2ui.core import CatalogApi
@@ -32,7 +30,6 @@ from .response_part import A2uiPart
 from .response_part import RawA2uiPart
 from .response_part import RawResponsePart
 from .response_part import ResponsePart
-from .response_part import StreamPart
 from .response_part import TextPart
 from .response_stream import ResponseStream
 
@@ -230,47 +227,15 @@ class Parser(ABC):
         """Whether `open_stream` can read a response from this format chunk by chunk."""
         return False
 
-    @overload
     def open_stream(
-        self,
-        *,
-        wrapped: bool = True,
-        state: RendererState | None = None,
-        after_rejected_block: Literal["end"] = "end",
-    ) -> ResponseStream[ResponsePart]:
-        ...
-
-    @overload
-    def open_stream(
-        self,
-        *,
-        wrapped: bool = True,
-        state: RendererState | None = None,
-        after_rejected_block: Literal["end", "continue"],
-    ) -> ResponseStream[StreamPart]:
-        ...
-
-    def open_stream(
-        self,
-        *,
-        wrapped: bool = True,
-        state: RendererState | None = None,
-        after_rejected_block: Literal["end", "continue"] = "end",
-    ) -> ResponseStream[StreamPart]:
+        self, *, wrapped: bool = True, state: RendererState | None = None
+    ) -> ResponseStream:
         """Opens a stream that reads one response chunk by chunk.
 
         Args:
           wrapped: False if the whole response is one block, without tags.
           state: The state to check and apply the messages against. A new
             state for this call when None.
-          after_rejected_block: What the stream does once it rejects a block.
-            With "end", the stream ends: `feed` or `close` raises. With
-            "continue", the stream returns an `ErrorPart` in place of the block
-            and reads on: the messages the block emitted before it was rejected
-            stay, the rest of the block is skipped, and the text and blocks
-            after it are read as usual. A block is rejected when it cannot be
-            read or the state rejects one of its messages. Any other error ends
-            the stream either way.
 
         Raises:
           NotImplementedError: If the format cannot be read incrementally.

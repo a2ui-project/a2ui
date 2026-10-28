@@ -171,7 +171,7 @@ def parse_content_to_parts(
 
 
 async def stream_response_to_parts(
-    stream: ResponseStream[ResponsePart],
+    stream: ResponseStream,
     token_stream: AsyncIterable[str],
     version: ProtocolVersion | str | None = None,
 ) -> AsyncIterable[Part]:

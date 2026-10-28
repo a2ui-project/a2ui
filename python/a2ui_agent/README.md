@@ -13,7 +13,6 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`processor.py`**: Defines `A2uiRequestProcessor`, which binds the active catalogs negotiated for a request to an inference format and exposes prompt generation and response parsing. An agent creates one for each request with `A2uiGenerator.create_processor`, from the capabilities that the client sent.
 - **`catalog_config.py`**: Defines `CatalogConfig`, which binds a `Catalog` (or loads one from a path via `CatalogConfig.from_path`) with an optional sequence of `CatalogTransformer` instances into `transformed_catalog`.
 - **`catalog_providers.py`**: Defines `CatalogProvider`, `FileSystemCatalogProvider`, and `InMemoryCatalogProvider` for loading catalogs.
-- **`streamed_answer.py`**: Defines `StreamedAnswer`, for an app that is both the agent and the renderer. It reads one streamed answer into the renderer's `MessageProcessor` through `RendererState.of`, reads past rejected blocks, and keeps the answer's `parts` in the order the model wrote them: text (`AnswerTextPart`), one part per surface it creates (`AnswerSurfacePart`), and an `ErrorPart` per rejected block.
 
 ### Constants (`src/a2ui/constants.py`)
 
@@ -52,15 +51,13 @@ The following directories contain the base protocol logic, parsing, and schema o
   agent keeps one state for the whole conversation. `validate_payload` checks
   one payload the way a renderer holding the catalogs would, on a short-lived
   `RendererState`, and raises `A2uiValidationError` if the renderer would
-  reject it. `RendererState.of(processor)` makes a state on the
-  `MessageProcessor` a renderer renders from, so an app that is both the agent
-  and the renderer checks and applies each message once.
+  reject it.
 
 ### Parser (`src/a2ui/parser`)
 
 - **`parser.py`**: Defines the `Parser` abstract base class. A format implements `compile` and `decompile`, which translate between its notation and A2UI messages, and `wrap` and `unwrap`, which handle its tags. The base class reads model responses with `parse_response`. `open_stream` reads a response chunk by chunk; the base class raises `NotImplementedError`, and only formats that stream, whose `supports_streaming` is true, implement it. Both check every message against a `RendererState`. A parser holds no per-response state, so one parser can be reused across turns.
-- **`response_stream.py`**: Defines the `ResponseStream` that `open_stream` returns. When `feed` or `close` raises, the error's `partial_results` holds the parts the call made ready before the failure, which are applied to the state. By default the first rejected block ends the stream; a stream opened with `after_rejected_block="continue"` returns an `ErrorPart` in place of a rejected block and reads on. `is_in_block` tells whether the response read so far ends inside a block, so a client that joins the chunks of a paused and resumed response knows whether a space between them could break a block.
-- **`response_part.py`**: Defines `ResponsePart` (`TextPart` / `A2uiPart`), `ErrorPart`, `StreamPart` (`ResponsePart` or `ErrorPart`) and `RawResponsePart` (`RawA2uiPart`).
+- **`response_stream.py`**: Defines the `ResponseStream` that `open_stream` returns.
+- **`response_part.py`**: Defines `ResponsePart` (`TextPart` / `A2uiPart`) and `RawResponsePart` (`RawA2uiPart`).
 - **`lexer.py`**: Defines `BlockLexer` for sentinel-tag tokenization (`<a2ui-json>...</a2ui-json>`).
 - **`errors.py`**: Defines `A2uiCompilationError` and its subclasses `A2uiCompilationParseError` and `A2uiCompilationValidationError`.
 - **`messages.py`**: `to_message_models` and `to_message_dicts` convert between message dictionaries and typed models.
