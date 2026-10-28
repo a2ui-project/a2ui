@@ -44,6 +44,15 @@
   with the `instructions` it is given, and does not keep the source's `$id`,
   title, description or instructions.
   [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
+- (v1_0) Relaxed v1.0 `CatalogDefinition` schema rules to permit non-object
+  catalog `$defs` (such as primitive, enum, or union design tokens), property
+  `$ref`s to `#/$defs/...`, and arbitrary vendor/metadata extension keys on
+  components and functions. Factored `weight` in the v1.0 basic catalog into
+  `#/$defs/Weight` (annotated with `CatalogDef`), inlining leaf catalog `$defs`
+  into component schemas in `Catalog.from_json` and
+  `Catalog.resolved_component_schema` while restoring `#/$defs/...` references
+  in `Catalog.to_json()` and `Catalog.validation_schema`
+  ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - Schema validation never fetches a `$ref` over the network. A `$ref` to a
   document that is not available locally fails validation with an
   unresolvable-reference error instead of being downloaded

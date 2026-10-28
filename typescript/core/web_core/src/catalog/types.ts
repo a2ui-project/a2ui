@@ -20,6 +20,7 @@ import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {isThenable, settleDeep} from '../common/settle_deep.js';
 import {SpecVersion} from '../spec_versions.js';
 import {parseCatalogSchema} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
@@ -928,25 +929,38 @@ function createCatalogInvoker<F extends FunctionApi>(
       );
     }
 
-    try {
-      // From v1.0 a `DynamicBoolean` argument may resolve to the
-      // `ValidationResult` a validation function returns; it is read by its
-      // validity, as the specification defines the type.
-      const args = isAtLeastVersion(protocolVersion, SpecVersion.V1_0)
-        ? coerceValidationResults(fn.schema, rawArgs)
-        : rawArgs;
-      const safeArgs = fn.schema.parse(args);
-      return execute.call(fn, safeArgs, ctx, abortSignal);
-    } catch (e: any) {
-      if (e?.name === 'ZodError' || e instanceof z.ZodError) {
-        throw new A2uiExpressionError(
-          `Validation failed for function '${name}': ${e.message}`,
-          name,
-          e.errors ?? e.issues,
-        );
+    const parseAndExecute = (resolvedArgs: unknown): unknown => {
+      try {
+        // From v1.0 a `DynamicBoolean` argument may resolve to the
+        // `ValidationResult` a validation function returns; it is read by its
+        // validity, as the specification defines the type.
+        const args = isAtLeastVersion(protocolVersion, SpecVersion.V1_0)
+          ? coerceValidationResults(fn.schema, resolvedArgs)
+          : resolvedArgs;
+        const safeArgs = fn.schema.parse(args);
+        return execute.call(fn, safeArgs, ctx, abortSignal);
+      } catch (e: any) {
+        if (e?.name === 'ZodError' || e instanceof z.ZodError) {
+          throw new A2uiExpressionError(
+            `Validation failed for function '${name}': ${e.message}`,
+            name,
+            e.errors ?? e.issues,
+          );
+        }
+        throw e;
       }
-      throw e;
+    };
+
+    // An argument produced by an asynchronous function arrives as a pending
+    // Promise. Validation and execution wait for every such argument, while
+    // fully settled arguments keep the call synchronous.
+    const settledArgs = settleDeep(rawArgs);
+    if (!isThenable(settledArgs)) {
+      return parseAndExecute(settledArgs);
     }
+    return Promise.resolve(settledArgs).then(resolvedArgs =>
+      abortSignal?.aborted ? undefined : parseAndExecute(resolvedArgs),
+    );
   };
 }
 

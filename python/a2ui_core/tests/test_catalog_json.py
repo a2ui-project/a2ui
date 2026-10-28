@@ -618,8 +618,10 @@ def test_v10_basic_catalog_to_json_is_a_valid_unbundled_document() -> None:
     _catalog_definition_validator().validate(out)
     assert out["protocolVersion"] == "1.0"
     assert out["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-    assert set(out["$defs"]) == {"anyComponent", "anyFunction"}
-    assert not [ref for ref in _refs(out) if ref.startswith("#/$defs/")]
+    assert set(out["$defs"]) == {"Weight", "anyComponent", "anyFunction"}
+    assert {ref for ref in _refs(out) if ref.startswith("#/$defs/")} == {
+        "#/$defs/Weight"
+    }
     assert "@index" not in out["functions"]
     for name, component in out["components"].items():
         assert "id" not in component.get("properties", {}), name
@@ -1063,6 +1065,104 @@ def test_validation_schema_flattens_mixins_and_preserves_extra_keywords() -> Non
     assert box["allOf"] == [{"oneOf": [{"required": ["a"]}, {"required": ["b"]}]}]
     assert "Weighted" not in catalog.validation_schema["$defs"]
     assert catalog.to_json() == document
+
+
+def test_catalog_def_inlined_in_memory_and_restored_in_json() -> None:
+    catalog = v1_0.BasicCatalog()
+    text_raw = catalog.components["Text"].schema
+    raw_weight_branch = text_raw["properties"]["weight"]["anyOf"][0]
+    assert raw_weight_branch["type"] == "number"
+    assert "$ref" not in raw_weight_branch
+    assert raw_weight_branch["x-a2ui-catalog-def"] == "Weight"
+
+    text_in_memory = catalog.resolved_component_schema("Text")
+    weight_branch = text_in_memory["properties"]["weight"]["anyOf"][0]
+    assert weight_branch["type"] == "number"
+    assert "$ref" not in weight_branch
+    assert "x-a2ui-catalog-def" not in weight_branch
+
+    to_json_doc = catalog.to_json()
+    assert to_json_doc["components"]["Text"]["properties"]["weight"] == {
+        "$ref": "#/$defs/Weight"
+    }
+    assert to_json_doc["$defs"]["Weight"]["type"] == "number"
+
+    val_schema = catalog.validation_schema
+    assert val_schema["components"]["Text"]["properties"]["weight"] == {
+        "$ref": "#/$defs/Weight"
+    }
+    assert val_schema["$defs"]["Weight"]["type"] == "number"
+
+    parsed = Catalog.from_json(to_json_doc)
+    parsed_raw_weight = parsed.components["Text"].schema["properties"]["weight"]
+    assert parsed_raw_weight["type"] == "number"
+    assert "$ref" not in parsed_raw_weight
+    assert parsed_raw_weight["x-a2ui-catalog-def"] == "Weight"
+
+    parsed_text = parsed.resolved_component_schema("Text")
+    assert parsed_text["properties"]["weight"]["type"] == "number"
+    assert "$ref" not in parsed_text["properties"]["weight"]
+    assert "x-a2ui-catalog-def" not in parsed_text["properties"]["weight"]
+    assert parsed.to_json() == to_json_doc
+    assert parsed.validation_schema == val_schema
+
+
+def test_catalog_def_preserves_field_level_description_and_default_overrides() -> None:
+    from typing import Literal
+    from pydantic import Field
+    from a2ui.core.catalog.components import ModelComponentApi
+    from a2ui.core.schema.v1_0.common_types import ComponentCommon
+
+    class CustomWeightedComponent(ComponentCommon):
+        component: Literal["CustomWeighted"] = "CustomWeighted"
+        weight: v1_0.Weight = Field(
+            ...,
+            description="Custom weight override",
+            json_schema_extra={"default": 2},
+        )
+
+    catalog = Catalog(
+        catalog_id="https://example.com/catalogs/custom-weight",
+        protocol_version="1.0",
+        components=[ModelComponentApi(CustomWeightedComponent)],
+    )
+    doc = catalog.to_json()
+    assert doc["$defs"]["Weight"] == {
+        "type": "number",
+        "description": (
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    }
+    assert doc["components"]["CustomWeighted"]["properties"]["weight"] == {
+        "$ref": "#/$defs/Weight",
+        "description": "Custom weight override",
+        "default": 2,
+    }
+    assert Catalog.from_json(doc).to_json() == doc
+
+
+def test_catalog_definition_validates_catalog_schema_relaxation_cases() -> None:
+    from pathlib import Path
+    from pydantic import ValidationError
+    from a2ui.core.schema.v1_0.catalog_definition import CatalogDefinition
+
+    suite_path = (
+        Path(REPO_ROOT)
+        / "specification"
+        / "v1_0"
+        / "test"
+        / "cases"
+        / "catalog_schema_relaxation.json"
+    )
+    suite = json.loads(suite_path.read_text(encoding="utf-8"))
+    for case in suite["tests"]:
+        if case["valid"]:
+            CatalogDefinition.model_validate(case["data"])
+        else:
+            with pytest.raises(ValidationError):
+                CatalogDefinition.model_validate(case["data"])
 
 
 def _catalog_with_ref(ref: str, version: str = "v1.0") -> dict[str, Any]:

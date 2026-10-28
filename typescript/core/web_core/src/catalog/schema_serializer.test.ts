@@ -645,7 +645,7 @@ describe('Catalog.fromJson', () => {
     assert.strictEqual(catalog.functionsLayout, 'map');
     // The unions list exactly the entries, so they are computed, not kept.
     assert.deepStrictEqual(catalog.unions, {anyComponent: true, anyFunction: true});
-    assert.deepStrictEqual(catalog.defs, {});
+    assert.deepStrictEqual(catalog.defs, {Weight: document.$defs.Weight});
     assert.strictEqual(catalog.extensionFields, undefined);
     const checkBox = catalog.components.get('CheckBox');
     const openUrl = catalog.functions.get('openUrl');
@@ -895,8 +895,11 @@ describe('entry definitions', () => {
 
   it('writes a loaded entry as its definition, and a spread copy from its schema', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
-    const loadedText = Catalog.fromJson(document).components.get('Text')!;
-    const reused = new Catalog('https://example.com/reused', '1.0', [loadedText]);
+    const loaded = Catalog.fromJson(document);
+    const loadedText = loaded.components.get('Text')!;
+    const reused = new Catalog('https://example.com/reused', '1.0', [loadedText], [], {
+      defs: loaded.defs,
+    });
     assert.deepStrictEqual(
       (reused.toJson().components as Record<string, unknown>).Text,
       document.components.Text,
@@ -1259,6 +1262,85 @@ describe('built-in basic catalogs', () => {
       }
     });
   }
+
+  it('preserves specDef references across .describe(), avoids leaking def metadata, and resolves union disjointness', () => {
+    const ColorToken = specDef('ColorToken', z.enum(['primary', 'secondary']).default('primary'), {
+      keywords: {title: 'ColorToken'},
+    });
+    const ColorValue = specDef('ColorValue', z.union([ColorToken, z.number()]));
+    const BoxComponent: ComponentApi = {
+      name: 'Box',
+      schema: spec(
+        z
+          .object({
+            id: z.string(),
+            component: z.literal('Box'),
+            color: ColorValue.describe('Override color description').optional(),
+            token: ColorToken.optional(),
+          })
+          .strict(),
+        {mixins: []},
+      ),
+    };
+    const cat = new Catalog('https://example.com/cat', '1.0', [BoxComponent], []);
+    const doc = cat.toJson();
+    const defs = doc.$defs as Record<string, any>;
+    assert.deepStrictEqual(defs.ColorToken, {
+      type: 'string',
+      enum: ['primary', 'secondary'],
+      title: 'ColorToken',
+      default: 'primary',
+    });
+    assert.deepStrictEqual(defs.ColorValue, {
+      oneOf: [{$ref: '#/$defs/ColorToken'}, {type: 'number'}],
+    });
+    const boxProps = (doc.components as Record<string, any>).Box.properties;
+    assert.deepStrictEqual(boxProps.color, {
+      $ref: '#/$defs/ColorValue',
+      description: 'Override color description',
+    });
+    assert.deepStrictEqual(boxProps.token, {
+      $ref: '#/$defs/ColorToken',
+    });
+  });
+
+  it('validates LeafDefinitionSchema and ComponentDefinitionSchema against catalog_schema_relaxation.json', async () => {
+    const {LeafDefinitionSchema, ComponentDefinitionSchema} =
+      await import('../v1_0/schema/catalog-definition.js');
+    const suite = readRepoJson('specification/v1_0/test/cases/catalog_schema_relaxation.json');
+    const validCatalog = suite.tests[0].data;
+    for (const [defName, defSchema] of Object.entries(validCatalog.$defs)) {
+      if (defName === 'anyComponent' || defName === 'anyFunction') continue;
+      assert.strictEqual(
+        LeafDefinitionSchema.safeParse(defSchema).success,
+        true,
+        `Expected valid leaf def ${defName} to pass LeafDefinitionSchema`,
+      );
+    }
+    for (const [compName, compSchema] of Object.entries(validCatalog.components)) {
+      assert.strictEqual(
+        ComponentDefinitionSchema.safeParse(compSchema).success,
+        true,
+        `Expected valid component ${compName} to pass ComponentDefinitionSchema`,
+      );
+    }
+    assert.strictEqual(
+      LeafDefinitionSchema.safeParse(suite.tests[1].data.$defs.BadComponentDef).success,
+      false,
+    );
+    assert.strictEqual(
+      LeafDefinitionSchema.safeParse(suite.tests[2].data.$defs.BadWrappedComponentDef).success,
+      false,
+    );
+    assert.strictEqual(
+      ComponentDefinitionSchema.safeParse(suite.tests[3].data.components.Card).success,
+      false,
+    );
+    assert.strictEqual(
+      ComponentDefinitionSchema.safeParse(suite.tests[4].data.components.Card).success,
+      false,
+    );
+  });
 });
 
 describe('Catalog.derive', () => {

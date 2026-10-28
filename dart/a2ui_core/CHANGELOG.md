@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- (v1_0) Factored `weight` in the v1.0 basic catalog into `#/$defs/Weight`.
+  Component schemas in `BasicCatalog.v1_0`, `Catalog.fromJson` (for leaf
+  catalog `$defs`), and `Catalog.resolvedComponentSchemas` inline catalog-local
+  `$defs` with `catalogDefRef` markers so in-memory component schemas remain
+  self-contained, while `Catalog.toJson()` and `Catalog.validationSchema`
+  restore `#/$defs/...` references
+  ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
   of the list the processor was created with, and adding to it throws
   `UnsupportedError`. Pass every catalog when creating the processor
