@@ -17,7 +17,7 @@ This skill guides you through the process of auditing the repository's codebase 
 1. **Run Check Compliance Script**:
    - Run the compliance checker script to generate the baseline status of the repository:
      ```bash
-     python3 blueprints/skills/a2ui-blueprint-compliance/scripts/check_compliance.py
+     python3 .agents/skills/a2ui-blueprint-compliance/scripts/check_compliance.py
      ```
    - This script automatically discovers codebase blueprints, parses their pinned commits, compares them against module blueprints git logs, and formats the baseline Markdown report structure.
 
@@ -54,3 +54,9 @@ This skill guides you through the process of auditing the repository's codebase 
      - **Implemented Optional Features**: A list of optional features verified as implemented in the code.
      - **Missing Commits / Spec Diffs**: The list of git commits since the pinned hash.
    - Return this Markdown report as your final response.
+
+---
+
+## **References**
+
+- Consult the authoritative [Spec-Driven Development Methodology Guide](../a2ui-blueprint-navigator/references/spec_driven_development.md) for full context on codebase blueprint compliance, pinned module commits, and auditing guidelines.
