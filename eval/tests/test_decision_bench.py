@@ -22,6 +22,7 @@ from pathlib import Path
 import sys
 from unittest.mock import patch
 
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../bin")))
 
 from a2ui.core.basic_catalog import BasicCatalog
@@ -35,9 +36,9 @@ from a2ui_eval.decision_bench import (
     run_case,
 )
 from a2ui_eval.shared.utils import GIT_ROOT
+from decision_fixtures import HOST_ANSWERS, scripted_backend
 import pytest
 from seed_decision_plans import seed_cases_from_logs
-from tests.decision_fixtures import HOST_ANSWERS, scripted_backend
 
 CASES_FILE = GIT_ROOT / "eval" / "datasets" / "decision_plans" / "v1.yaml"
 SCHEMA_FILE = GIT_ROOT / "eval" / "datasets" / "decision_plans" / "schema.json"

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any
 from unittest.mock import patch
 
@@ -28,11 +29,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.solver import Generate, TaskState
 import pytest
-from tests.decision_fixtures import (
-    HOST_ANSWERS,
-    HOST_BLOCK,
-    scripted_backend,
-)
+
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from a2ui_eval.decision_common import (
     DECISION_METADATA_KEYS,
@@ -42,6 +40,11 @@ from a2ui_eval.strategies.decision import (
     compile_decision_payload,
     decision_solver,
     decision_system_prompt,
+)
+from decision_fixtures import (
+    HOST_ANSWERS,
+    HOST_BLOCK,
+    scripted_backend,
 )
 
 

@@ -16,7 +16,12 @@
 
 from __future__ import annotations
 
+import os
+import sys
+
 import pytest
+
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from a2ui.inference_formats.decision import (
     DecisionBlock,
@@ -31,7 +36,7 @@ from a2ui_eval.decision_common import (
     build_decision_backend,
     decision_metadata,
 )
-from tests.decision_fixtures import (
+from decision_fixtures import (
     HOST_ANSWERS,
     HOST_BLOCK,
     HOST_DECISION_BLOCK,
