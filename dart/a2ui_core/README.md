@@ -99,6 +99,24 @@ void main() {
 }
 ```
 
+### Deriving a Catalog
+
+`catalog.derive` returns a new catalog under its own id, built from entries of
+`catalog` and new ones. `components` and `functions` name the entries to keep,
+and `addComponents` and `addFunctions` add new ones. The new catalog does not
+keep the source's `$id`, title, description or instructions, since the
+instructions of the basic catalog, for example, name its id in their examples:
+
+```dart
+final chatCatalog = BasicCatalog.v1_0().derive(
+  catalogId: 'https://example.com/catalogs/chat.json',
+  components: ['Text', 'Image', 'Row', 'Column', 'Button'],
+  addComponents: [carousel],
+  functions: ['openUrl'],
+  instructions: instructions,
+);
+```
+
 ### Resolving a Reactive Component Tree
 
 ```dart

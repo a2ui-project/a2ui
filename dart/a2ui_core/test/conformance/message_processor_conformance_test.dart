@@ -19,22 +19,6 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
-/// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
-/// reason each is currently failing.
-const Map<String, String> _v10ExpectedFailures = {
-  'test_v10_call_validation_config_relaxes_strict_processor':
-      _callValidationConfigNotPorted,
-  'test_v10_call_validation_config_tightens_permissive_processor':
-      _callValidationConfigNotPorted,
-  'test_v10_call_validation_config_leaves_out_rules_as_strict':
-      _callValidationConfigNotPorted,
-};
-
-/// Why the cases that pass a validation config to one call fail.
-const String _callValidationConfigNotPorted =
-    'A per-call validation config is not ported to Dart yet: '
-    'https://github.com/a2ui-project/a2ui/issues/3699';
-
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.
 const Map<String, String> _reservedKeysExpectedFailures = {};
@@ -51,10 +35,7 @@ const Map<String, String> _functionsExpectedFailures = {};
 /// and `core/multi_catalog.yaml`, which render basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
-  _registerSuite(
-    'core/message_processor_v1_0.yaml',
-    expectedFailures: _v10ExpectedFailures,
-  );
+  _registerSuite('core/message_processor_v1_0.yaml');
   _registerSuite(
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
@@ -145,7 +126,8 @@ Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
 /// Processes each step's payload in turn, as the validator harness does.
 ///
 /// A step's own `expectError` applies to that step, and the case's applies to
-/// the last one. The case's `expect` is checked once every step has run.
+/// the last one. A step's `validationConfig` replaces the processor's for
+/// that step. The case's `expect` is checked once every step has run.
 Future<void> _runSteps(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase,
@@ -158,18 +140,29 @@ Future<void> _runSteps(
     final Object? payload = step['messages'] ?? step['payload'];
     final Object? expectError = step['expectError'] ??
         (index == steps.length - 1 ? testCase['expectError'] : null);
+    final ValidationConfig? validationConfig =
+        switch (step['validationConfig']) {
+      final Map<String, Object?> rules => _validationConfig(rules),
+      _ => null,
+    };
     if (expectError != null) {
       await expectLater(
         () => _processPayload(
           processor,
           payload,
           resolveNodes: resolveNodes,
+          validationConfig: validationConfig,
         ),
         throwsA(_matchesError(expectError as Map<String, Object?>)),
         reason: '$name: step $index',
       );
     } else {
-      await _processPayload(processor, payload, resolveNodes: resolveNodes);
+      await _processPayload(
+        processor,
+        payload,
+        resolveNodes: resolveNodes,
+        validationConfig: validationConfig,
+      );
     }
   }
   _checkSurfaces(
@@ -178,6 +171,15 @@ Future<void> _runSteps(
     name,
   );
 }
+
+/// The validation rules a step names, each one it leaves out strict.
+ValidationConfig _validationConfig(Map<String, Object?> rules) =>
+    ValidationConfig(
+      allowOrphanComponents: rules['allowOrphanComponents'] == true,
+      allowDanglingReferences: rules['allowDanglingReferences'] == true,
+      allowMissingRoot: rules['allowMissingRoot'] == true,
+      allowUnknownElements: rules['allowUnknownElements'] == true,
+    );
 
 /// Runs a data model request, after the case's `messages` or, one batch per
 /// step, its `steps`. `args.version` is the version requested.
@@ -380,8 +382,9 @@ Future<void> _processPayload(
   MessageProcessor<ComponentApi> processor,
   Object? payload, {
   required bool resolveNodes,
+  ValidationConfig? validationConfig,
 }) async {
-  processor.processMessages(payload);
+  processor.processMessages(payload, validationConfig: validationConfig);
   if (!resolveNodes) return;
   for (final SurfaceModel<ComponentApi> surface
       in processor.model.allSurfaces) {
