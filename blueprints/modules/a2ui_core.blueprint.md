@@ -409,6 +409,18 @@ myCustomCatalog = Catalog(
 )
 ```
 
+To keep some entries of an existing catalog under a new id, derive a catalog from it. A name keeps the source's entry of that name, an entry adds it, and leaving a list out keeps all of the source's entries of that kind. An unknown name is an `A2uiCatalogError`. The derived catalog keeps the source's protocol version, theme and document layout, and not its `$id`, title, description or instructions, which describe the source: the basic catalog's instructions name its id in their examples, so they would teach a model to write messages for the wrong catalog.
+
+```python
+# Pseudocode
+chatCatalog = basicCatalog.derive(
+  catalogId="https://mycompany.com/catalogs/chat.json",
+  components=["Text", "Image", "Row", "Column", "Button", MyCarouselComponent()],
+  functions=["openUrl"],
+  instructions=chatInstructions,
+)
+```
+
 ---
 
 ### B. Processing Layer (`a2ui.core.processing`)
@@ -468,9 +480,22 @@ export interface MessageProcessorOptions {
   defaultTimeoutSeconds?: number;
 }
 
+/** Options for one call of 'processMessages' or 'processMessagesAsync'. */
+export interface ExecutionContext {
+  /** Whether the call runs in an active user gesture. */
+  isUserActivated?: boolean;
+  /**
+   * The validation rules for this call, in place of the processor's own. The rules it
+   * leaves out default to the strict ones, as for 'MessageProcessorOptions.validationConfig'.
+   */
+  validationConfig?: ValidationConfig;
+}
+
 class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
+  /** The catalogs the processor was created with, in priority order. */
+  readonly catalogs: Catalog<T>[];
 
   constructor(
     catalogs: Catalog<T>[],
@@ -479,8 +504,11 @@ class MessageProcessor<T extends ComponentApi> {
   );
 
   // Synchronous and asynchronous message processing
-  processMessages(messages: AgentToRendererMessagePayload): void;
-  processMessagesAsync(messages: AgentToRendererMessagePayload): Promise<void>;
+  processMessages(messages: AgentToRendererMessagePayload, context?: ExecutionContext): void;
+  processMessagesAsync(
+    messages: AgentToRendererMessagePayload,
+    context?: ExecutionContext,
+  ): Promise<void>;
 
   // Outbound RPC convenience delegation to 'rpc' (v1.0+)
   callAgentFunction<T = unknown>(
@@ -502,6 +530,8 @@ class MessageProcessor<T extends ComponentApi> {
   dispose(reason?: string): void;
 }
 ```
+
+A validation config passed for one call lets an agent that runs in the same app as the renderer check its outbound messages against the renderer's own processor, by the agent's rules (see [`a2ui_agent.blueprint.md`](a2ui_agent.blueprint.md#agent-and-renderer-in-one-app)), whatever rules the renderer was created with. A renderer may be created with strict rules or with none, and neither suits messages that arrive one at a time while a response streams.
 
 ##### RPC ownership
 
@@ -1350,6 +1380,8 @@ _Parser bounds._ The expression parser enforces one shared maximum nesting depth
 ##### `GenericBinder`
 
 `GenericBinder` walks a component's declared schema to classify each property as dynamic, action, structural, or checkable, and produces the bound property set the renderer consumes, including two-way setters and action closures.
+
+Classification reaches into lists and objects, so an action, binding or child list inside a list item is bound as it is at the top level. In a language that types the bound property set, its type says so too: a nested action is a function, not the raw action object. A list of check rules is the exception: the binder evaluates the rules and passes the list on as it is.
 
 Classification is driven by the catalog schema, never by inspecting values or matching property names. Hardcoding a property name (for example, treating a key literally named `checks` as special) is a catalog-agnostic violation under `AGENTS.md` §8: it silently privileges one catalog's vocabulary and breaks any catalog that names the concept differently.
 

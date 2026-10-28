@@ -93,6 +93,17 @@
 # a healed payload into two emissions, which is the one thing chunking is
 # allowed to change.
 #
+# A step that raises can state `expect_partial_results`: the parts the chunk
+# made ready before the failure, which the error carries. They have been applied
+# to the stream's renderer state like the parts of any earlier chunk. A case
+# with `args.after_rejected_block: continue` reads past a block it rejects: the
+# block becomes an error part, `{error: {category: ...}}`, the messages it
+# emitted before it was rejected stay applied, the rest of it is skipped up to
+# its close tag, and the text and blocks after it are read as usual. A step can
+# state `expect_in_block`, whether the response read so far ends inside a
+# block, and a case can state `expect_close`, the parts closing the stream
+# returns after the last step.
+#
 # This suite has no Express counterpart. Streaming is the one thing the two
 # formats do not share: the Express parser does not implement `parse_chunk`, so
 # an Express agent buffers a response and parses it whole. The rules above about
@@ -1161,6 +1172,194 @@
                   - id: "root"
                     component: "Text"
                     text: "Right"
+
+# --- The parts made ready before an error ---
+
+- name: test_chunk_error_carries_the_text_before_the_failing_block
+  description: A chunk that fails on a block returns the text before the block in the error's partial results.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "Before <a2ui-json>not json</a2ui-json>"
+      expect_error:
+        category: "ParseError"
+      expect_partial_results:
+        - text: "Before"
+      expect_in_block: false
+
+- name: test_chunk_error_carries_a_block_finished_in_the_same_chunk
+  description: A block that closed earlier in the failing chunk is in the error's partial results, with the text after it.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json> Then <a2ui-json>not json</a2ui-json>'
+      expect_error:
+        category: "ParseError"
+      expect_partial_results:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+        - text: "Then"
+
+# --- Reading past a rejected block ---
+
+- name: test_chunk_continue_returns_an_error_part_for_an_unreadable_block
+  description: Reading past rejected blocks, a block that cannot be read becomes an error part, and the text after it is read as usual.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    after_rejected_block: continue
+  steps:
+    - input: "Before <a2ui-json>not json</a2ui-json> after"
+      expect:
+        - text: "Before"
+        - error:
+            category: "ParseError"
+        - text: "after"
+  expect_close: []
+
+- name: test_chunk_continue_takes_back_a_block_rejected_whole
+  description: A block that arrives whole and is rejected emits none of its messages, so a later block can create the same surface.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    after_rejected_block: continue
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json>'
+      expect:
+        - error:
+            category: "ValidationError"
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+
+- name: test_chunk_continue_keeps_the_messages_emitted_before_the_rejection
+  description: Messages a block emitted before it was rejected stay applied, so a later block can update the surface they created.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    after_rejected_block: continue
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, '
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json> after'
+      expect:
+        - error:
+            category: "ValidationError"
+        - text: "after"
+    - input: '<a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hi"
+
+- name: test_chunk_continue_skips_the_rest_of_a_rejected_block
+  description: A block rejected before its close tag is skipped up to the close tag, and the text after it is read as usual.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    after_rejected_block: continue
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Bogus"}, '
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+        - error:
+            category: "ValidationError"
+      expect_in_block: true
+    - input: '{"id": "other", "component": "Text", "text": "Never read"}]}}]</a2ui-json> after'
+      expect:
+        - text: "after"
+      expect_in_block: false
+
+- name: test_chunk_continue_returns_an_error_part_for_a_block_still_open_at_the_end
+  description: Reading past rejected blocks, a block still open when the response ends becomes an error part.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    after_rejected_block: continue
+  steps:
+    - input: "Text <a2ui-json>["
+      expect:
+        - text: "Text"
+      expect_in_block: true
+  expect_close:
+    - error:
+        category: "ParseError"
+
+# --- Whether the response ends inside a block ---
+
+- name: test_chunk_in_block_from_the_open_tag_to_the_close_tag
+  description: The response ends inside a block from its opening tag to its closing tag, and not while an opening tag is still arriving.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "Text <a2ui-js"
+      expect:
+        - text: "Text"
+      expect_in_block: false
+    - input: "on>"
+      expect: []
+      expect_in_block: true
+    - input: '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+      expect_in_block: true
+    - input: "</a2ui-json> after"
+      expect:
+        - text: "after"
+      expect_in_block: false
+
+- name: test_chunk_in_block_for_an_unwrapped_response
+  description: An unwrapped response is one block, so it ends inside a block until the stream ends.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    wrapped: false
+  steps:
+    - input: '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+      expect_in_block: true
 
 # --- Every version: text and tags ---
 
