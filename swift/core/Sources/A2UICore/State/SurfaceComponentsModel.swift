@@ -24,6 +24,7 @@ import OrderedJSON
 public final class SurfaceComponentsModel: ObservableObject {
 
   private let componentsSubject: CurrentValueSubject<[String: ComponentModel], Never>
+  let changedIDsSubject = PassthroughSubject<Set<String>, Never>()
 
   /// Counts the changes to the components map: each call that stores a map raises it by one.
   ///
@@ -63,6 +64,7 @@ public final class SurfaceComponentsModel: ObservableObject {
     objectWillChange.send()
     var current = componentsSubject.value
     current[component.id] = component
+    changedIDsSubject.send([component.id])
     componentsSubject.send(current)
   }
 
@@ -74,6 +76,7 @@ public final class SurfaceComponentsModel: ObservableObject {
     objectWillChange.send()
     var current = componentsSubject.value
     current.removeValue(forKey: id)
+    changedIDsSubject.send([id])
     componentsSubject.send(current)
   }
 
@@ -91,6 +94,10 @@ public final class SurfaceComponentsModel: ObservableObject {
     }
     for component in added {
       current[component.id] = component
+    }
+    let changedIDs = Set(removedIDs).union(added.map(\.id))
+    if !changedIDs.isEmpty {
+      changedIDsSubject.send(changedIDs)
     }
     componentsSubject.send(current)
   }

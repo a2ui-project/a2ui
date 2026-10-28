@@ -198,7 +198,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_update_data_model
-  description: A standalone data model update writes back out as the data path assignment that would produce it, with no component assignment beside it to make the block a create.
+  description: A standalone root data model update writes back out as a root map assignment ($/ = {...}), with no component assignment beside it to make the block a create, and round-trips without losing replace semantics.
   action: decompile
   args:
     format: express
@@ -212,7 +212,7 @@
           title: "Hello"
   expect_contains:
     - 'surface("s1")'
-    - '$/title = "Hello"'
+    - '$/ = {title: "Hello"}'
   expect_round_trip: true
 
 - name: test_decompile_express_delete_surface
@@ -341,17 +341,21 @@
   expect_round_trip: true
 
 - name: test_decompile_express_nested_data_model_is_one_assignment_per_leaf
-  description: A data model of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
+  description: A surface creation dataModel of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
   action: decompile
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
     - version: "v1.0"
-      updateDataModel:
+      createSurface:
         surfaceId: "s1"
-        path: "/"
-        value:
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+        dataModel:
           user:
             name: "Ada"
             city: "London"
@@ -812,7 +816,7 @@
           status: "loaded"
 
 - name: test_decompile_express_update_data_model_scalar_at_path
-  description: An updateDataModel setting a scalar value at a non-root path ("/title") writes out as a single path assignment ($/title = "x").
+  description: An updateDataModel setting a scalar value at a non-root path ("/title") writes out as a single path assignment ($/title = "x") and round-trips back to the same updateDataModel message.
   action: decompile
   args:
     format: express
@@ -826,17 +830,10 @@
   expect_contains:
     - 'surface("s1")'
     - '$/title = "x"'
-  expect_round_trip: false
-  expect_recompiled:
-    - version: "v1.0"
-      updateDataModel:
-        surfaceId: "s1"
-        path: "/"
-        value:
-          title: "x"
+  expect_round_trip: true
 
 - name: test_decompile_express_update_data_model_map_at_path
-  description: An updateDataModel setting a map at a non-root path ("/user") prefixes each leaf assignment with that path ($/user/name = ...).
+  description: An updateDataModel setting a map at a non-root path ("/user") writes out as a map literal assignment at that path ($/user = {...}) so that replacing the map round-trips without merging into sibling keys.
   action: decompile
   args:
     format: express
@@ -851,18 +848,25 @@
           city: "London"
   expect_contains:
     - 'surface("s1")'
-    - '$/user/city = "London"'
-    - '$/user/name = "Ada"'
-  expect_round_trip: false
-  expect_recompiled:
+    - '$/user = {name: "Ada", city: "London"}'
+  expect_round_trip: true
+
+- name: test_decompile_express_update_data_model_empty_root
+  description: A standalone updateDataModel at the root path ("/") with an empty map value ({}) writes out as $/ = {} so that clearing the root data model round-trips.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
     - version: "v1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/"
-        value:
-          user:
-            city: "London"
-            name: "Ada"
+        value: {}
+  expect_contains:
+    - 'surface("s1")'
+    - "$/ = {}"
+  expect_round_trip: true
 
 - name: test_decompile_express_map_with_keys_named_like_express_constructs
   description: In v1.0 only `@path` marks a data binding and `@call` a function call, so an object whose keys are plain `path` or `call`, or whose `event` or `functionCall` is not an object, is data and writes back out as a map literal.

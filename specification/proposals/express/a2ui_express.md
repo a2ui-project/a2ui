@@ -118,22 +118,32 @@ $/title = "Enable notification"
 $/user = {firstName: "Alice", age: 30}
 ```
 
-The compiler resolves these statements and generates the structured `dataModel` JSON object at the root of the `createSurface` payload.
+The compiler resolves these statements according to whether the scope creates a new surface or updates an existing surface:
 
-If an A2UI Express block contains only data path assignments and omits the reserved `root` component variable entirely, the compiler produces a standalone `updateDataModel` protocol message instead of a `createSurface` layout payload:
+- When a scope creates a surface (defines `root` without `update=true`), the compiler folds all `$/...` assignments in the scope into the structured `dataModel` JSON object at the root of the `createSurface` payload (or a single initial root `updateDataModel` message in v0.9). Path folding traverses existing arrays and auto-vivifies an array when an unassigned path segment is followed by a canonical non-negative integer index (`0` through `10000`), so subsequent assignments in the same scope can populate or override individual list items (such as `$/items = [{id: "w1", state: "Draft"}]` followed by `$/items/0/state = "Ready"`). When a path segment already holds a map, a numeric next segment (such as `$/m/0 = "x"` after `$/m = {a: 1}`) sets string key `"0"` on that map. Assigning to a list index past the current end of a list pads intermediate slots with `null` (for example, `$/items/3 = "x"` on a new list produces `[null, null, null, "x"]`).
+- When a scope updates an existing surface (omits `root` or declares `surface(..., update=true)`), each `$/path = value` assignment compiles to its own `updateDataModel` message with `path: "/path"` and `value: value` in statement order, preserving unmodified sibling keys in the surface's data model. Assigning a map to `$/` (or `$`) replaces the entire root data model (`path: "/"`), while assigning a non-map value to `$/` is a validation error in both creating and updating scopes.
+
+For example, if an A2UI Express block contains only data path assignments (`$/icon = "check"` and `$/title = "Enable notification"`) and omits the reserved `root` component variable, the compiler produces one targeted `updateDataModel` protocol message per assigned path:
 
 ```json
-{
-  "version": "v1.0",
-  "updateDataModel": {
-    "surfaceId": "default_surface",
-    "path": "/",
-    "value": {
-      "icon": "check",
-      "title": "Enable notification"
+[
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "default_surface",
+      "path": "/icon",
+      "value": "check"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "default_surface",
+      "path": "/title",
+      "value": "Enable notification"
     }
   }
-}
+]
 ```
 
 ### Nested function calls and actions
