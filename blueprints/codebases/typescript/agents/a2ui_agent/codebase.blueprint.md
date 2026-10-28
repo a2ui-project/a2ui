@@ -3,6 +3,7 @@ codebase_path: typescript/agents/a2ui_agent
 associated_module: a2ui_agent
 module_blueprint_commit: 6c08216e44868319362dc73b5af0abf9696626da
 implemented_features:
+  - agent_renderer_app
   - skill_generator
 local_development:
   test_command: 'yarn test'

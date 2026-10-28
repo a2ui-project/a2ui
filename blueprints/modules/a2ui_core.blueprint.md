@@ -484,11 +484,6 @@ export interface MessageProcessorOptions {
 export interface ExecutionContext {
   /** Whether the call runs in an active user gesture. */
   isUserActivated?: boolean;
-  /**
-   * The validation rules for this call, in place of the processor's own. The rules it
-   * leaves out default to the strict ones, as for 'MessageProcessorOptions.validationConfig'.
-   */
-  validationConfig?: ValidationConfig;
 }
 
 class MessageProcessor<T extends ComponentApi> {
@@ -531,7 +526,7 @@ class MessageProcessor<T extends ComponentApi> {
 }
 ```
 
-A validation config passed for one call lets an agent that runs in the same app as the renderer check its outbound messages against the renderer's own processor, by the agent's rules (see [`a2ui_agent.blueprint.md`](a2ui_agent.blueprint.md#agent-and-renderer-in-one-app)), whatever rules the renderer was created with. A renderer may be created with strict rules or with none, and neither suits messages that arrive one at a time while a response streams.
+The optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature adds a validation config for one call to `ExecutionContext`, for an agent that checks its messages against the renderer's own processor.
 
 ##### RPC ownership
 

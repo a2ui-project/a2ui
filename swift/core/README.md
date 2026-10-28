@@ -127,6 +127,20 @@ let customCatalog = Catalog(
 )
 ```
 
+To keep part of an existing catalog under a new ID, derive a catalog from it. A name keeps the
+source's entry of that name, and `.add` adds a new entry:
+
+```swift
+let chatCatalog = try BasicCatalog.makeCatalog(version: .v10).derive(
+  id: "https://example.com/catalogs/chat.json",
+  components: [
+    "Text", "Image", "Row", "Column", "Button",
+    .add(UserCardAPI().eraseToAnyComponentAPI()),
+  ],
+  functions: ["openUrl"]
+)
+```
+
 ---
 
 ## 4. Development and testing

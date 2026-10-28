@@ -2,7 +2,8 @@
 codebase_path: typescript/core/web_core
 associated_module: a2ui_core
 module_blueprint_commit: null
-implemented_features: []
+implemented_features:
+  - agent_renderer_app
 local_development:
   test_command: 'yarn test'
   lint_command: 'yarn lint'

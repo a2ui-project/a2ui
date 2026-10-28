@@ -235,4 +235,78 @@ struct CatalogTests {
     let catalog = AnyCatalog(id: "test", components: [])
     #expect(catalog.functions["unknown"] == nil)
   }
+
+  // MARK: - Derive
+
+  private func deriveSource() throws -> AnyCatalog {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    return AnyCatalog(
+      id: "source",
+      protocolVersion: .v10,
+      components: ["Text", "Image", "Button"].map { AnyComponentAPI(name: $0, schema: schema) },
+      functions: [ConcatFunction(), IsEmptyFunction()],
+      themeSchema: schema
+    )
+  }
+
+  @Test func deriveKeepsNamedEntries() throws {
+    let source = try deriveSource()
+    let derived = try source.derive(
+      id: "derived",
+      components: ["Text", "Button"],
+      functions: ["concat"]
+    )
+
+    #expect(derived.id == "derived")
+    #expect(Set(derived.components.keys) == ["Text", "Button"])
+    #expect(derived.components["Text"] == source.components["Text"])
+    #expect(Set(derived.functions.keys) == ["concat", "@index"])
+  }
+
+  @Test func deriveAddsAndReplacesEntries() throws {
+    let card = AnyComponentAPI(name: "Card", schema: try Schema(instance: "{\"type\": \"object\"}"))
+    let button = AnyComponentAPI(
+      name: "Button",
+      schema: try Schema(instance: "{\"type\": \"object\", \"required\": [\"label\"]}")
+    )
+    let source = try deriveSource()
+    let derived = try source.derive(
+      id: "derived",
+      components: ["Text", .add(card), .add(button)]
+    )
+
+    #expect(Set(derived.components.keys) == ["Text", "Card", "Button"])
+    #expect(derived.components["Button"] == button)
+    #expect(derived.components["Button"] != source.components["Button"])
+  }
+
+  @Test func deriveKeepsEveryEntryOfAnOmittedList() throws {
+    let derived = try deriveSource().derive(id: "derived", components: ["Text"])
+
+    #expect(Set(derived.components.keys) == ["Text"])
+    #expect(Set(derived.functions.keys) == ["concat", "isEmpty", "@index"])
+  }
+
+  @Test func deriveKeepsProtocolVersionAndTheme() throws {
+    let source = try deriveSource()
+    let derived = try source.derive(id: "derived")
+
+    #expect(derived.protocolVersion == source.protocolVersion)
+    #expect(derived.themeSchema == source.themeSchema)
+    #expect(Set(derived.components.keys) == Set(source.components.keys))
+  }
+
+  @Test func deriveThrowsForAnUnknownComponent() throws {
+    let source = try deriveSource()
+    #expect(throws: A2UICatalogError.self) {
+      try source.derive(id: "derived", components: ["Text", "Slider"])
+    }
+  }
+
+  @Test func deriveThrowsForAnUnknownFunction() throws {
+    let source = try deriveSource()
+    #expect(throws: A2UICatalogError.self) {
+      try source.derive(id: "derived", functions: ["capitalize"])
+    }
+  }
 }
