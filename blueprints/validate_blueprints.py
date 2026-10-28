@@ -470,8 +470,7 @@ def _validate_single_codebase_blueprint(
         )
     elif not isinstance(codebase_path, str):
         errors.append(
-            f"Codebase blueprint '{rel_path}': 'codebase_path'"
-            " must be a string"
+            f"Codebase blueprint '{rel_path}': 'codebase_path' must be a string"
         )
     elif not os.path.exists(os.path.join(workspace_root, codebase_path)):
         errors.append(
