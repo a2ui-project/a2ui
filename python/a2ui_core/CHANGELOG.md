@@ -1,5 +1,22 @@
 ## Unreleased
 
+- A function defined without an argument schema (`FunctionApi` or
+  `FunctionImplementation` without `schema`) takes any args, as one given
+  `schema={}` does: `validation_schema` and `resolved_function_schema` give
+  `{}` for it rather than `None`. `Catalog.to_json` writes the `args` of either
+  as `{"type": "object", "additionalProperties": true}`, so a catalog read back
+  with `Catalog.from_json` accepts any args for it too. `to_json` used to write
+  `{"type": "object"}` for `schema={}`, which `from_json` reads as taking no
+  args. `to_json` no longer raises `TypeError` for a catalog that holds such a
+  function, and neither do the paths that call it: `link_catalogs`, and so a
+  `MessageProcessor` of two or more catalogs, and `get_renderer_capabilities`
+  with v1.0 inline catalogs.
+- Schema validation never fetches a `$ref` over the network. A cross-catalog
+  `$ref` whose JSON Pointer passes through an array, such as
+  `<peer>#/components/Button/allOf/1/properties/action`, now resolves against
+  the held peer catalog; previously it was left in place and jsonschema
+  downloaded the peer. A `$ref` into a catalog that isn't held now fails
+  validation with an unresolvable-reference error instead.
 - (v1_0) `DataContext` reads a `ValidationResult` dict that a function argument
   resolves to by its `valid` boolean wherever the function's argument schema
   types that argument as `DynamicBoolean`, as the specification defines the

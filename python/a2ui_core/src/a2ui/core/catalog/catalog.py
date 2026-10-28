@@ -577,6 +577,10 @@ def _function_document(
             else document
         )
         args = dict(args) if isinstance(args, Mapping) else {}
+        if not args:
+            # An empty schema takes any args. A catalog document closes `args`
+            # unless it says otherwise, so the document says so.
+            args["additionalProperties"] = True
         args.setdefault("type", "object")
         document = {"type": "object"}
         if v1:
@@ -1394,9 +1398,11 @@ class Catalog(Generic[TComponent, TFunction]):
             )
         functions: dict[str, Any] = {}
         for name, fn in self.functions.items():
-            functions[name] = (
-                resolve(fn.schema) if name in authored_functions else fn.schema
-            )
+            if name in authored_functions:
+                functions[name] = resolve(fn.schema)
+            else:
+                # A function without an argument schema takes any args.
+                functions[name] = {} if fn.schema is None else fn.schema
         resolved = _ResolvedSchemas(
             components=components,
             functions=functions,
@@ -1437,7 +1443,8 @@ class Catalog(Generic[TComponent, TFunction]):
             name: The function's name.
 
         Returns:
-            The schema, or None if the catalog has no such function.
+            The schema, `{}` for a function without an argument schema, or
+            None if the catalog has no such function.
         """
         return self._resolved_schemas().functions.get(name)
 
