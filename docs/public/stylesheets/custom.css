@@ -107,6 +107,9 @@
   margin: 0 0.4rem 0 0 !important;
 }
 
+/* A2UI_light.svg / A2UI_dark.svg have ~33% transparent padding inside their 72x72 viewBox;
+   scale(1.25) enlarges the visible mark (~2.12rem) without expanding the 2.6rem layout box
+   or visually overflowing the 2.8rem header. */
 .md-header__button.md-logo img,
 .md-header__button.md-logo svg {
   height: 2.6rem !important;
@@ -130,7 +133,7 @@
 }
 
 /* Remove duplicate logo, site title, and GitHub info from the sidebar/drawer */
-.md-nav--primary > .md-nav__title[for="__drawer"],
+.md-nav--primary > .md-nav__title[for='__drawer'],
 .md-nav__source {
   display: none !important;
 }
@@ -138,20 +141,19 @@
 /* For screens >= 800px: Keep primary sidebar visible as desktop sitemap; hide drawer button */
 @media screen and (min-width: 800px) and (max-width: 76.234375em) {
   /* Hide the drawer toggle */
-  .md-header__button[for="__drawer"] {
+  .md-header__button[for='__drawer'] {
     display: none !important;
   }
 
   /* Restore primary sidebar to desktop column */
-  [dir=ltr] .md-sidebar--primary {
+  [dir='ltr'] .md-sidebar--primary {
     left: auto;
   }
-  [dir=rtl] .md-sidebar--primary {
+  [dir='rtl'] .md-sidebar--primary {
     right: auto;
   }
   .md-sidebar--primary {
     position: sticky;
-    top: 2.4rem;
     z-index: 1;
     display: block;
     width: 12.1rem;
@@ -166,10 +168,10 @@
     overflow-y: auto;
     scroll-snap-type: none;
   }
-  [dir=ltr] .md-sidebar--primary:not([hidden]) ~ .md-content > .md-content__inner {
+  [dir='ltr'] .md-sidebar--primary:not([hidden]) ~ .md-content > .md-content__inner {
     margin-left: 1.2rem;
   }
-  [dir=rtl] .md-sidebar--primary:not([hidden]) ~ .md-content > .md-content__inner {
+  [dir='rtl'] .md-sidebar--primary:not([hidden]) ~ .md-content > .md-content__inner {
     margin-right: 1.2rem;
   }
   .md-overlay {
@@ -205,10 +207,10 @@
     line-height: inherit;
     color: inherit;
     background: var(--md-default-bg-color);
-    box-shadow: 0 0 .4rem .4rem var(--md-default-bg-color);
+    box-shadow: 0 0 0.4rem 0.4rem var(--md-default-bg-color);
     white-space: normal;
   }
-  .md-nav--primary .md-nav__title[for="__drawer"] {
+  .md-nav--primary .md-nav__title[for='__drawer'] {
     display: none;
   }
   .md-nav--primary .md-nav__title .md-nav__icon,
@@ -219,15 +221,15 @@
     overflow-y: visible;
     background-color: transparent;
     box-shadow: none;
-    padding-left: .6rem;
-    padding-bottom: .4rem;
+    padding-left: 0.6rem;
+    padding-bottom: 0.4rem;
     flex: none;
   }
   .md-nav--primary .md-nav__item {
     border-top: none;
   }
   .md-nav--primary .md-nav__link {
-    padding: .2rem 0;
+    padding: 0.2rem 0;
   }
   .md-nav--primary .md-nav__link .md-nav__icon {
     display: none;
@@ -246,22 +248,28 @@
   }
   .md-nav__toggle ~ .md-nav {
     display: grid;
-    grid-template-rows: minmax(.4rem, 0fr);
+    grid-template-rows: minmax(0.4rem, 0fr);
     visibility: collapse;
     opacity: 0;
     transform: none !important;
-    transition: grid-template-rows .25s cubic-bezier(.86,0,.07,1), opacity .25s, visibility 0s .25s;
+    transition:
+      grid-template-rows 0.25s cubic-bezier(0.86, 0, 0.07, 1),
+      opacity 0.25s,
+      visibility 0s 0.25s;
   }
   .md-nav__toggle ~ .md-nav > .md-nav__list {
     overflow: hidden;
   }
   .md-nav__toggle.md-toggle--indeterminate ~ .md-nav,
   .md-nav__toggle:checked ~ .md-nav {
-    grid-template-rows: minmax(.4rem, 1fr);
+    grid-template-rows: minmax(0.4rem, 1fr);
     visibility: visible;
     opacity: 1;
     transform: none !important;
-    transition: grid-template-rows .25s cubic-bezier(.86,0,.07,1), opacity .15s .1s, visibility;
+    transition:
+      grid-template-rows 0.25s cubic-bezier(0.86, 0, 0.07, 1),
+      opacity 0.15s 0.1s,
+      visibility;
   }
   .md-nav__item--nested > .md-nav > .md-nav__title {
     display: none;
@@ -270,8 +278,7 @@
 
 /* For screens < 800px: Show hamburger drawer button in header */
 @media screen and (max-width: 799px) {
-  .md-header__button[for="__drawer"] {
+  .md-header__button[for='__drawer'] {
     display: inline-block !important;
   }
 }
-

@@ -9,7 +9,7 @@ hide:
 
 # A generative UI protocol and framework for cross-platform agentic experiences
 
-<p style="font-size: 1.2rem; max-width: 800px; margin: 0 auto 1rem auto; opacity: 0.9; line-height: 1.6;">
+<p style="font-size: 1.2rem; max-width: 800px; margin: 0 0 1rem 0; opacity: 0.9; line-height: 1.6;">
 A2UI enables AI agents to generate rich, interactive user interfaces that render natively across web, mobile, and desktop—without executing arbitrary code.
 </p>
 
