@@ -69,8 +69,15 @@ describe('ExpressResponseStream unit tests', () => {
       ),
     ).toBeUndefined();
     expect(
+      healProgressiveFragment(
+        '$/text = "Draft',
+        compiler.helpers,
+        DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+      ),
+    ).toBe('$/text = "Draft"');
+    expect(
       healProgressiveFragment('$/bio = "Draft', compiler.helpers, DEFAULT_EXPRESS_PROGRESSIVE_KEYS),
-    ).toBe('$/bio = "Draft"');
+    ).toBeUndefined();
     expect(healProgressiveFragment('a = Text("Hel', compiler.helpers, new Set())).toBeUndefined();
     expect(
       healProgressiveFragment(

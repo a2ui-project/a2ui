@@ -76,9 +76,11 @@ def test_heal_progressive_fragment_heals_positional_keyword_and_path():
         == '  t1 = Text(usageHint="h1", text="Hel")'
     )
     assert (
-        heal_progressive_fragment('  $/title = "Dra', helpers, keys)
-        == '  $/title = "Dra"'
+        heal_progressive_fragment('  $/text = "Dra', helpers, keys)
+        == '  $/text = "Dra"'
     )
+    # A data path whose last segment is not a progressive key is not healed.
+    assert heal_progressive_fragment('  $/status = "act', helpers, keys) is None
     # Non-progressive key is not healed.
     assert (
         heal_progressive_fragment('  b = Button("Save", id="bt', helpers, keys) is None

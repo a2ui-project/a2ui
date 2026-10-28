@@ -44,7 +44,7 @@ final RegExp _ident = RegExp(
   r'[\p{XID_Start}_]\p{XID_Continue}*',
   unicode: true,
 );
-final RegExp _dataAssign = RegExp(r'^\s*\$[a-zA-Z0-9_/]*\s*=(?!=)');
+final RegExp _dataAssign = RegExp(r'^\s*\$([a-zA-Z0-9_/]*)\s*=(?!=)');
 
 final RegExp _token = RegExp(
   r'[rR]"""[\s\S]*?"""'
@@ -461,7 +461,12 @@ bool _isProgressiveSlot(
   Set<String> progressiveKeys,
 ) {
   if (calls.isEmpty) {
-    return _dataAssign.hasMatch(fragment);
+    // A data path heals when its last segment names a progressive key, as a
+    // Direct JSON value heals when its key does.
+    final Match? match = _dataAssign.firstMatch(fragment);
+    if (match == null) return false;
+    final String path = match.group(1)!.replaceFirst(RegExp(r'/+$'), '');
+    return progressiveKeys.contains(path.split('/').last);
   }
   final _OpenCallFrame frame = calls.last;
   if (frame.name.isEmpty) return false;

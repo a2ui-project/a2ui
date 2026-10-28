@@ -53,7 +53,7 @@ _CLOSE_TAG_START_RE = re.compile(r"</a2ui\s*$", re.IGNORECASE)
 _LEADING_FENCE_RE = re.compile(r"^\s*(?:```[a-zA-Z0-9_-]*[ \t]*\r?\n|`+\s*)")
 _TRAILING_FENCE_RE = re.compile(r"(?:\r?\n?[ \t]*```[a-zA-Z0-9_-]*|`+)\s*$")
 _IDENT_RE = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
-_DATA_ASSIGN_RE = re.compile(r"^\s*\$[a-zA-Z0-9_/]*\s*=(?!=)")
+_DATA_ASSIGN_RE = re.compile(r"^\s*\$(?P<path>[a-zA-Z0-9_/]*)\s*=(?!=)")
 
 
 def possible_open_tag_start(text: str) -> int:
@@ -399,7 +399,12 @@ def _is_progressive_slot(
     progressive_keys: Set[str],
 ) -> bool:
     if not calls:
-        return bool(_DATA_ASSIGN_RE.match(fragment))
+        # A data path heals when its last segment names a progressive key, as a
+        # Direct JSON value heals when its key does.
+        match = _DATA_ASSIGN_RE.match(fragment)
+        if match is None:
+            return False
+        return match.group("path").rstrip("/").rsplit("/", 1)[-1] in progressive_keys
     frame = calls[-1]
     if not frame.name:
         return False

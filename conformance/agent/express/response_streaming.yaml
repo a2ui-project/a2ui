@@ -39,8 +39,9 @@
 #    call, `_template`, check, map, or literal) are held until that variable is
 #    defined.
 # 6. When `progressive_keys` is non-empty (defaulting to `["text"]`), a trailing
-#    incomplete string literal inside a matching component argument or data path
-#    assignment is healed on a scratch copy and emitted progressively.
+#    incomplete string literal inside a matching component argument, or a data
+#    path assignment whose last segment is a matching key, is healed on a
+#    scratch copy and emitted progressively.
 # 7. At `</a2ui>`, any remaining undefined variable or broken topology raises
 #    `ValidationError`.
 
@@ -267,14 +268,14 @@
   expect_matches_single_shot: true
 
 - name: test_express_stream_progressive_data_path_healing
-  description: An unclosed string in a post-root data path assignment heals progressively when progressive_keys is active.
+  description: An unclosed string in a post-root data path assignment heals progressively when the path's last segment is in progressive_keys.
   action: parse_chunk
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
   steps:
-    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text($/greeting)\n"
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text($/text)\n"
       expect:
         - a2ui:
             - version: "v1.0"
@@ -285,14 +286,14 @@
                   - id: "root"
                     component: "Text"
                     text:
-                      "@path": "/greeting"
-    - input: '$/greeting = "Good '
+                      "@path": "/text"
+    - input: '$/text = "Good '
       expect:
         - a2ui:
             - version: "v1.0"
               updateDataModel:
                 surfaceId: "s1"
-                path: "/greeting"
+                path: "/text"
                 value: "Good "
     - input: "morning\"\n</a2ui>"
       expect:
@@ -300,8 +301,39 @@
             - version: "v1.0"
               updateDataModel:
                 surfaceId: "s1"
-                path: "/greeting"
+                path: "/text"
                 value: "Good morning"
+
+- name: test_express_stream_data_path_outside_progressive_keys_waits
+  description: An unclosed string in a data path assignment whose last segment is not in progressive_keys waits until the string closes.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: ["text"]
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text($/status)\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text:
+                      "@path": "/status"
+    - input: "$/status = \"act"
+      expect: []
+    - input: "ive\"\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                path: "/status"
+                value: "active"
 
 # --- 5. Forward value variable holdback ---
 

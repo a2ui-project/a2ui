@@ -51,7 +51,7 @@ const CLOSE_TAG_START_RE = /<\/a2ui\s*$/iy;
 const LEADING_FENCE_RE = /^\s*(?:```[a-zA-Z0-9_-]*[ \t]*\r?\n|`+\s*)/;
 const TRAILING_FENCE_RE = /(?:\r?\n?[ \t]*```[a-zA-Z0-9_-]*|`+)\s*$/;
 const IDENT_RE = /[a-zA-Z_][a-zA-Z0-9_]*/y;
-const DATA_ASSIGN_RE = /^\s*\$[a-zA-Z0-9_/]*\s*=(?!=)/;
+const DATA_ASSIGN_RE = /^\s*\$([a-zA-Z0-9_/]*)\s*=(?!=)/;
 
 /** Parser interface required by `ExpressResponseStream`. */
 export interface ExpressStreamSource {
@@ -499,7 +499,12 @@ function isProgressiveSlot(
   progressiveKeys: ReadonlySet<string>,
 ): boolean {
   if (calls.length === 0) {
-    return DATA_ASSIGN_RE.test(fragment);
+    // A data path heals when its last segment names a progressive key, as a Direct JSON
+    // value heals when its key does.
+    const match = DATA_ASSIGN_RE.exec(fragment);
+    if (!match) return false;
+    const segments = match[1].replace(/\/+$/, '').split('/');
+    return progressiveKeys.has(segments[segments.length - 1]);
   }
   const frame = calls[calls.length - 1];
   if (!frame.name) {
