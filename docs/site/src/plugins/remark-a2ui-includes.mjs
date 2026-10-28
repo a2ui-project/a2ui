@@ -59,8 +59,6 @@ function rewriteSpecLinks(markdown, sourcePagePath) {
   else if (sourcePagePath.includes('v0.9')) versionPrefix = 'v0.9';
   else if (sourcePagePath.includes('v1.0')) versionPrefix = 'v1.0';
 
-  const versionFolder = versionPrefix ? versionPrefix.replace(/\./g, '_') : null;
-
   let out = markdown;
 
   // 1. Strip the duplicate centered logo + H1 header block in spec docs since Starlight renders the page H1
@@ -75,53 +73,67 @@ function rewriteSpecLinks(markdown, sourcePagePath) {
     `src="${basePrefix}/assets/$1"`,
   );
 
-  // 3. Helper to rewrite a single markdown link target
-  function replacePath(rawTarget) {
-    if (/^(?:https?:|mailto:|tel:|#)/.test(rawTarget)) {
-      return rawTarget;
-    }
-    const [rawBase, rawAnchor] = rawTarget.split('#');
-    const anchor = rawAnchor ? `#${rawAnchor}` : '';
-    const basePath = rawBase.replace(/^\.\//, '');
+  return out;
+}
 
-    if (versionPrefix) {
-      const baseFilename = path.posix.basename(basePath);
-      const mapped = mapSpecFilename(baseFilename, versionPrefix, basePrefix);
-      if (mapped) {
-        return `${mapped}${anchor}`;
-      }
-      if (basePath.includes('/json/')) {
-        const afterJson = basePath.slice(basePath.indexOf('/json/'));
-        return `${basePrefix}/specification/${versionFolder}${afterJson}${anchor}`;
-      }
-    }
-
-    // Check if link traverses up to repo root (e.g. ../../../docs/public/... or ../../../samples/...)
-    if (basePath.startsWith('../../')) {
-      const cleanPath = basePath.replace(/^(?:\.\.\/)+/, '');
-      if (cleanPath.startsWith('docs/public/')) {
-        let internalRoute = `${basePrefix}/` + cleanPath.slice('docs/public/'.length);
-        internalRoute = internalRoute.replace(/\.md$/, '/');
-        return `${internalRoute}${anchor}`;
-      }
-      return `${githubBaseUrl}/${cleanPath}${anchor}`;
-    }
-
+/**
+ * Rewrites link and image AST node URLs to match published routes.
+ */
+function resolveAstUrl(rawTarget, sourcePagePath) {
+  if (!rawTarget || /^(?:https?:|mailto:|tel:|#)/.test(rawTarget)) {
     return rawTarget;
   }
+  const githubBaseUrl = 'https://github.com/a2ui-project/a2ui/blob/main';
+  const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/$/, '');
+  let versionPrefix = null;
+  if (sourcePagePath.includes('v0.8')) versionPrefix = 'v0.8';
+  else if (sourcePagePath.includes('v0.9.1')) versionPrefix = 'v0.9.1';
+  else if (sourcePagePath.includes('v0.9')) versionPrefix = 'v0.9';
+  else if (sourcePagePath.includes('v1.0')) versionPrefix = 'v1.0';
 
-  // Rewrite standard Markdown links outside inline code / code fences
-  out = out.replace(
-    /(`[^`]+`|```[\s\S]*?```)|\[([^\]]+)\]\(([^\s)]+)(?:\s+(".*?"|'.*?'))?\)/g,
-    (match, codeBlock, text, target, title) => {
-      if (codeBlock) return match;
-      const newTarget = replacePath(target);
-      const titleSuffix = title ? ` ${title}` : '';
-      return `[${text}](${newTarget}${titleSuffix})`;
-    },
-  );
+  const versionFolder = versionPrefix ? versionPrefix.replace(/\./g, '_') : null;
+  const [rawBase, rawAnchor] = rawTarget.split('#');
+  const anchor = rawAnchor ? `#${rawAnchor}` : '';
+  const basePath = rawBase.replace(/^\.\//, '');
 
-  return out;
+  if (versionPrefix) {
+    const baseFilename = path.posix.basename(basePath);
+    const mapped = mapSpecFilename(baseFilename, versionPrefix, basePrefix);
+    if (mapped) {
+      return `${mapped}${anchor}`;
+    }
+    if (basePath.includes('/json/')) {
+      const afterJson = basePath.slice(basePath.indexOf('/json/'));
+      return `${basePrefix}/specification/${versionFolder}${afterJson}${anchor}`;
+    }
+  }
+
+  // Check if link traverses up to repo root (e.g. ../../../docs/public/... or ../../../samples/...)
+  if (basePath.startsWith('../../')) {
+    const cleanPath = basePath.replace(/^(?:\.\.\/)+/, '');
+    if (cleanPath.startsWith('docs/public/')) {
+      let internalRoute = `${basePrefix}/` + cleanPath.slice('docs/public/'.length);
+      internalRoute = internalRoute.replace(/\.md$/, '/');
+      return `${internalRoute}${anchor}`;
+    }
+    return `${githubBaseUrl}/${cleanPath}${anchor}`;
+  }
+
+  return rawTarget;
+}
+
+function walkAstAndRewriteLinks(node, sourcePagePath) {
+  if (!node || typeof node !== 'object') return;
+  if (node.type === 'link' || node.type === 'image' || node.type === 'definition') {
+    if (node.url) {
+      node.url = resolveAstUrl(node.url, sourcePagePath);
+    }
+  }
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      walkAstAndRewriteLinks(child, sourcePagePath);
+    }
+  }
 }
 
 /**
@@ -210,6 +222,7 @@ export function remarkA2uiIncludes() {
       extensions: [gfm()],
       mdastExtensions: [gfmFromMarkdown()],
     });
+    walkAstAndRewriteLinks(newTree, filePath);
     tree.children = newTree.children;
   };
 }

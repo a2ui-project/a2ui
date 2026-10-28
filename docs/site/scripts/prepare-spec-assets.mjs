@@ -79,8 +79,14 @@ copyRecursive(
   path.join(mcpCatalogDest, 'examples'),
 );
 
-// Flatten JSON files to version roots (v0_8, v0_9, v0_9_1, v1_0)
-for (const version of ['v0_8', 'v0_9', 'v0_9_1', 'v1_0']) {
+// Flatten JSON files to version roots (e.g. v0_8, v0_9, v0_9_1, v1_0, v1_1)
+const specVersions = fs.existsSync(specDest)
+  ? fs
+      .readdirSync(specDest)
+      .filter(f => fs.statSync(path.join(specDest, f)).isDirectory() && /^v\d+_\d+(_\d+)?$/.test(f))
+  : [];
+
+for (const version of specVersions) {
   const jsonDir = path.join(specDest, version, 'json');
   if (fs.existsSync(jsonDir)) {
     for (const file of fs.readdirSync(jsonDir)) {

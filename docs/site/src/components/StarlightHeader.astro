@@ -73,6 +73,7 @@ const isDocs = !isSpec && pathname !== `${base}/` && pathname !== '/';
         localStorage.setItem('starlight-theme', next);
         localStorage.setItem('a2ui-theme', next);
       } catch (e) {}
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: next } }));
     });
   })();
 </script>
