@@ -341,6 +341,17 @@ type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) exten
             : false;
 
 /**
+ * Evaluates to true if type T is a child list, which can be a template as well as a list of
+ * component ids. A plain list of strings is not one: the binder resolves only properties
+ * declared as child lists.
+ */
+type IsChildList<T> = [NonNullable<T>] extends [ChildList]
+  ? Extract<ChildList, {componentId: string}> extends NonNullable<T>
+    ? true
+    : false
+  : false;
+
+/**
  * Resolved reference to a child component with its unique identifier and data context path.
  */
 export interface ResolvedChildRef {
@@ -361,7 +372,7 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
   ? HasStringIndex<NonNullable<T>> extends true
     ? Exclude<T, DynamicTypes>
     : (() => Promise<void>) | Extract<T, undefined>
-  : [NonNullable<T>] extends [ChildList]
+  : IsChildList<T> extends true
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never
       ? unknown

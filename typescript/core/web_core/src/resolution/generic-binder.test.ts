@@ -24,6 +24,7 @@ import {
   scrapeSchemaBehavior,
   type GenerateSetters,
   type ResolveA2uiProps,
+  type ResolvedChildRef,
 } from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -31,6 +32,7 @@ import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {
   CommonSchemas,
+  type ChildList,
   type DataBinding,
   type DynamicString,
   type FunctionCall,
@@ -1160,6 +1162,19 @@ describe('GenericBinder Checkable Trait', () => {
       const checks: V1CheckRule[] | undefined = props.checks;
       const data: Record<string, unknown> | undefined = props.data;
       assert.deepStrictEqual([checks, data], [undefined, undefined]);
+    });
+
+    it('types a list of strings as strings and a child list as child references', () => {
+      type Lists = ResolveA2uiProps<{
+        names?: string[];
+        csp?: {domains?: string[]};
+        children: ChildList;
+      }>;
+      const lists = {children: ['a', {id: 'b', basePath: '/'}]} as Lists;
+      const names: readonly string[] | undefined = lists.names;
+      const domains: readonly string[] | undefined = lists.csp?.domains;
+      const children: (string | ResolvedChildRef)[] = lists.children;
+      assert.deepStrictEqual([names, domains, children.length], [undefined, undefined, 2]);
     });
   });
 
