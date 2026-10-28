@@ -332,7 +332,7 @@ struct AgentToRendererMessageTests {
     )
     let data = try JSONEncoder().encode(original)
     let json = try #require(String(data: data, encoding: .utf8))
-    #expect(json.contains("\"version\":\"v1.0\""))
+    #expect(json.contains("\"version\":\"1.0\""))
   }
 
   // MARK: - v1.0 Message Tests

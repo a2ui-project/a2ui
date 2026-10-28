@@ -79,7 +79,7 @@ _BASIC_CATALOG_IDS = {
     "v0_9_1": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
     "v1_0": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
 }
-_PROTOCOL_VERSIONS = {"v0_9_1": "v0.9.1", "v1_0": "v1.0"}
+_PROTOCOL_VERSIONS = {"v0_9_1": "v0.9.1", "v1_0": "1.0"}
 # Catalogs that moved out of `specification/<version>/`; mirrors dataset.py.
 _MOVED_CATALOGS = {"specification/v1_0/catalogs/basic/": "catalogs/basic/v1/"}
 

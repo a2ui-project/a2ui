@@ -53,7 +53,7 @@ class TestFormatTools(unittest.TestCase):
         payload = json.loads(compiled)
         self.assertIsInstance(payload, list)
         self.assertTrue(payload)
-        self.assertEqual(payload[0]["version"], "v1.0")
+        self.assertEqual(payload[0]["version"], "1.0")
 
     def test_compile_snippet_express(self) -> None:
         compiled = format_tools.test_compile_snippet(
@@ -75,7 +75,7 @@ class TestFormatTools(unittest.TestCase):
 
     def test_decompile_payload_atom(self) -> None:
         payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
@@ -89,7 +89,7 @@ class TestFormatTools(unittest.TestCase):
 
     def test_decompile_payload_express(self) -> None:
         payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
@@ -103,7 +103,7 @@ class TestFormatTools(unittest.TestCase):
 
     def test_decompile_payload_elemental(self) -> None:
         payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "components": [

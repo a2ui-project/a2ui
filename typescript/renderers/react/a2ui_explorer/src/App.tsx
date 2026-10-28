@@ -15,6 +15,7 @@
  */
 
 import {useState, useEffect, useCallback, useRef} from 'react';
+import {compareSemVer} from '@a2ui/web_core';
 import {MessageProcessor, type A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '@a2ui/react';
 import {mcpCatalog} from '@a2ui/catalog-mcp';
@@ -43,8 +44,8 @@ function applyPrimaryColorToMessages(
       msg &&
       typeof msg === 'object' &&
       'createSurface' in msg &&
-      msg.version !== '1.0' &&
-      msg.version !== 'v1.0' &&
+      typeof msg.version === 'string' &&
+      compareSemVer(msg.version, '1.0') < 0 &&
       msg.createSurface &&
       typeof msg.createSurface === 'object'
     ) {

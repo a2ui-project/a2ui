@@ -501,7 +501,7 @@ def test_expand_cases_produces_all_mutations(tmp_path: Path) -> None:
     assert stateful["messages"][-1]["content"] == expand_cases.FOLLOW_UP_PROMPT
     assert stateful["messages"][0]["content"] == "Build a form."
     create, update = stateful["initial_state"]
-    assert create["version"] == "v1.0"
+    assert create["version"] == "1.0"
     assert create["createSurface"]["surfaceId"] == "main"
     assert create["createSurface"]["catalogId"].endswith(
         "v1_0/catalogs/basic/catalog.json"

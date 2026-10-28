@@ -265,7 +265,7 @@ struct RendererToAgentMessageTests {
     let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
     let json = try #require(String(data: data, encoding: .utf8))
-    #expect(json.contains("\"version\":\"v1.0\""))
+    #expect(json.contains("\"version\":\"1.0\""))
   }
 
   @Test func encodeProducesFlatActionPayload() throws {
