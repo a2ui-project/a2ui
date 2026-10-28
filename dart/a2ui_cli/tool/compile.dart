@@ -36,9 +36,8 @@ String readPubspecVersion(Directory packageDir) {
     throw StateError('pubspec.yaml not found at ${pubspecFile.path}');
   }
   for (final String line in pubspecFile.readAsLinesSync()) {
-    final trimmed = line.trim();
-    if (trimmed.startsWith('version:')) {
-      return trimmed.substring('version:'.length).trim();
+    if (line.startsWith('version:')) {
+      return line.substring('version:'.length).trim();
     }
   }
   throw StateError('version field not found in ${pubspecFile.path}');
