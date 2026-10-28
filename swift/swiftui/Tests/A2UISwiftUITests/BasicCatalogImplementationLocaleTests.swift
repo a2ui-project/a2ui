@@ -27,6 +27,14 @@ private final class MockFunctionHandler: FunctionHandler {
   }
 }
 
+private final class OpenedURLs: @unchecked Sendable {
+  var urls: [URL] = []
+
+  func record(_ url: URL) {
+    urls.append(url)
+  }
+}
+
 @MainActor
 struct BasicCatalogImplementationLocaleTests {
 
@@ -58,5 +66,16 @@ struct BasicCatalogImplementationLocaleTests {
     #expect(catalog.components.count == defaultCatalog.components.count)
     #expect(catalog.functions.count == defaultCatalog.functions.count)
     #expect(try formatNumber(in: catalog) == .string("1.234,50"))
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogPassesOpenURLToOpenURLFunction(version: A2UIProtocolVersion) throws {
+    let opened = OpenedURLs()
+    let catalog = BasicCatalogImplementation.makeCatalog(version: version, openURL: opened.record)
+    let function = try #require(catalog.functions["openUrl"])
+
+    _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
+
+    #expect(opened.urls.map(\.absoluteString) == ["https://example.com"])
   }
 }

@@ -18,6 +18,7 @@ import BasicCatalog
 import BasicCatalogSwiftUI
 import Combine
 import Foundation
+import UIKit
 
 /// A diagnostic log entry recorded during interactive stream step-through.
 public struct DiagnosticLogEntry: Identifiable, Hashable, Sendable {
@@ -91,6 +92,14 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
   @Published public private(set) var dataModelString: String = "{}"
 
   public let catalogs: [Catalog<ComponentImplementation>]
+  /// Basic catalogs for the processor, whose `openUrl` opens links with the system.
+  private static let processorCatalogs: [AnyCatalog] = A2UIProtocolVersion.allCases.map {
+    BasicCatalog.makeCatalog(
+      version: $0,
+      locale: BasicFunctions.defaultLocale,
+      openURL: { url in Task { @MainActor in UIApplication.shared.open(url) } }
+    )
+  }
   private var processor: MessageProcessor
   private let parser = MessageParser()
   private var surfaceSubscription: AnyCancellable?
@@ -99,7 +108,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
   public init() {
     self.catalogs = BasicCatalogImplementation.allCatalogs
     self.processor = MessageProcessor(
-      catalogs: BasicCatalog.allCatalogs,
+      catalogs: Self.processorCatalogs,
       actionHandler: self.handler
     )
     self.handler.viewModel = self
@@ -121,7 +130,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     surfaceSubscription = nil
 
     self.processor = MessageProcessor(
-      catalogs: BasicCatalog.allCatalogs,
+      catalogs: Self.processorCatalogs,
       actionHandler: self.handler
     )
     self.currentStepIndex = 0
