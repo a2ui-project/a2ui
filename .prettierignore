@@ -42,3 +42,6 @@ eval/logs
 eval/history
 **/history
 **/history_summary.md
+
+# MkDocs Jinja2 template overrides (not compatible with Prettier's Angular HTML parser)
+docs/overrides/**

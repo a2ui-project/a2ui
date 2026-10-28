@@ -35,7 +35,10 @@ import {
 } from '../../../../src/inference-formats/express/errors.js';
 import {Catalog, CatalogApi} from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
+import {
+  catalogFromTestDocument,
+  loadConformanceCatalog,
+} from '../../../helpers/conformance-catalogs.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
@@ -469,6 +472,261 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       ) as Array<{checks: Array<{condition: {args: Record<string, unknown>}}>}>;
 
       expect(root.checks[0].condition.args).toEqual({});
+    });
+  });
+
+  describe('Event actions', () => {
+    it('compiles userMessage= on an Event', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Button(Text("Reply"), action=Event("reply", userMessage="Replying now"))',
+        ),
+      ) as Array<{action: unknown}>;
+
+      expect(root.action).toEqual({event: {name: 'reply', userMessage: 'Replying now'}});
+    });
+
+    it('compiles a $path userMessage with a positional context', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Button(Text("Go"), action=Event("go", {id: 1}, userMessage=$/draft/message))',
+        ),
+      ) as Array<{action: unknown}>;
+
+      expect(root.action).toEqual({
+        event: {name: 'go', userMessage: {'@path': '/draft/message'}, context: {id: 1}},
+      });
+    });
+
+    it('accepts context= as a keyword argument', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile('root = Button(Text("Go"), action=Event("go", context={id: 1}))'),
+      ) as Array<{action: unknown}>;
+
+      expect(root.action).toEqual({event: {name: 'go', context: {id: 1}}});
+    });
+
+    it('keeps a function call inside an event context a plain call', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Button(Text("Go"), action=Event("go", {label: formatString("Hi ${/name}")}))',
+        ),
+      ) as Array<{action: unknown}>;
+
+      expect(root.action).toEqual({
+        event: {
+          name: 'go',
+          context: {label: {'@call': 'formatString', args: {value: 'Hi ${/name}'}}},
+        },
+      });
+    });
+
+    it('rejects a context given both positionally and by keyword', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      expect(() =>
+        compiler.compile('root = Button(Text("Go"), action=Event("go", {a: 1}, context={b: 2}))'),
+      ).toThrow(ExpressValidationError);
+    });
+
+    it('rejects an unknown Event keyword instead of dropping it', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      expect(() =>
+        compiler.compile('root = Button(Text("Go"), action=Event("go", message="hi"))'),
+      ).toThrow("Argument 'message' is not a valid parameter of function 'Event'.");
+    });
+
+    it('compiles a function call userMessage, as DynamicString allows', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Button(Text("Go"), action=Event("go", userMessage=formatString("Hi ${/name}")))',
+        ),
+      ) as Array<{action: unknown}>;
+
+      expect(root.action).toEqual({
+        event: {
+          name: 'go',
+          userMessage: {'@call': 'formatString', args: {value: 'Hi ${/name}'}},
+        },
+      });
+    });
+
+    it('rejects a userMessage that is not a DynamicString, naming what it got', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      expect(() =>
+        compiler.compile('root = Button(Text("Go"), action=Event("go", userMessage=42))'),
+      ).toThrow(
+        'Event userMessage must be a string, a $path data binding or a function call, got the number 42.',
+      );
+      expect(() =>
+        compiler.compile('root = Button(Text("Go"), action=Event("go", userMessage={a: 1}))'),
+      ).toThrow(/got a map literal\./);
+      expect(() =>
+        compiler.compile('root = Button(Text("Go"), action=Event("go", userMessage=[1]))'),
+      ).toThrow(ExpressValidationError);
+    });
+
+    it('rejects userMessage when targeting v0.9, whose Action has no such field', () => {
+      const compiler = new ExpressCompiler([basicCatalogV09], 'v0.9');
+      expect(() =>
+        compiler.compile('root = Button(Text("Go"), action=Event("go", userMessage="hi"))'),
+      ).toThrow(/userMessage requires protocol v1.0/);
+    });
+  });
+
+  describe('Action slots nested in list items', () => {
+    const listItemActionCatalog = catalogFromTestDocument({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: 'https://a2ui.org/tests/list_item_action_catalog_v1_0.json',
+      protocolVersion: '1.0',
+      catalogId: 'tests/list_item_action',
+      components: {
+        Links: {
+          type: 'object',
+          properties: {
+            component: {const: 'Links'},
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  label: {type: 'string'},
+                  action: {$ref: 'common_types.json#/$defs/Action'},
+                },
+                required: ['label', 'action'],
+              },
+            },
+            primary: {$ref: 'common_types.json#/$defs/Action'},
+          },
+          required: ['component', 'items'],
+        },
+      },
+      functions: {
+        openUrl: {
+          type: 'object',
+          returnType: 'void',
+          properties: {
+            '@call': {const: 'openUrl'},
+            args: {
+              type: 'object',
+              properties: {url: {type: 'string'}},
+              required: ['url'],
+            },
+          },
+          required: ['@call', 'args'],
+        },
+      },
+    });
+
+    it('wraps a function call in functionCall inside a list item action', () => {
+      const compiler = new ExpressCompiler([listItemActionCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label: "Go", action: Event("go")}])',
+        ),
+      ) as Array<{items: unknown[]}>;
+
+      expect(root.items).toEqual([
+        {
+          label: 'Docs',
+          action: {functionCall: {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+        },
+        {label: 'Go', action: {event: {name: 'go'}}},
+      ]);
+    });
+
+    it('resolves a property named items as a property, not as the array items', () => {
+      const catalog = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        $id: 'https://a2ui.org/tests/menu_catalog_v1_0.json',
+        protocolVersion: '1.0',
+        catalogId: 'tests/menu',
+        components: {
+          Menu: {
+            type: 'object',
+            properties: {
+              component: {const: 'Menu'},
+              menu: {
+                type: 'object',
+                properties: {
+                  items: {
+                    type: 'array',
+                    items: {$ref: '#/$defs/MenuItem'},
+                  },
+                },
+              },
+            },
+            required: ['component', 'menu'],
+          },
+        },
+        functions: {
+          openUrl: {
+            type: 'object',
+            returnType: 'void',
+            properties: {
+              '@call': {const: 'openUrl'},
+              args: {type: 'object', properties: {url: {type: 'string'}}, required: ['url']},
+            },
+            required: ['@call', 'args'],
+          },
+        },
+        $defs: {
+          MenuItem: {
+            type: 'object',
+            properties: {
+              label: {type: 'string'},
+              action: {$ref: 'common_types.json#/$defs/Action'},
+            },
+            required: ['label', 'action'],
+          },
+        },
+      });
+      const compiler = new ExpressCompiler([catalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Menu({items: [{label: "Docs", action: openUrl("https://a2ui.org")}]})',
+        ),
+      ) as Array<{menu: {items: unknown[]}}>;
+
+      // The `items` entry is the object's property, whose item schema is reached through a
+      // local $ref.
+      expect(root.menu.items).toEqual([
+        {
+          label: 'Docs',
+          action: {functionCall: {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+        },
+      ]);
+    });
+
+    it('wraps a function call reached through a variable', () => {
+      const compiler = new ExpressCompiler([listItemActionCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'docs = {label: "Docs", action: openUrl("https://a2ui.org")}\nroot = Links([docs])',
+        ),
+      ) as Array<{items: unknown[]}>;
+
+      expect(root.items).toEqual([
+        {
+          label: 'Docs',
+          action: {functionCall: {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+        },
+      ]);
+    });
+
+    it('keeps a function call outside an action slot as a plain call', () => {
+      const compiler = new ExpressCompiler([listItemActionCatalog], 'v1.0');
+      const [root] = createSurfaceComponents(
+        compiler.compile(
+          'root = Links([{label: openUrl("https://a2ui.org"), action: Event("go")}])',
+        ),
+      ) as Array<{items: Array<{label: unknown}>}>;
+
+      expect(root.items[0].label).toEqual({'@call': 'openUrl', args: {url: 'https://a2ui.org'}});
     });
   });
 

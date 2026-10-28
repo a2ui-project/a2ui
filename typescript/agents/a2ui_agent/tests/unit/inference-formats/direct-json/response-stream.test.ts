@@ -85,6 +85,18 @@ function chunked(text: string, size: number): string[] {
   return chunks;
 }
 
+/** A v0.9 block that creates a surface with one root component. */
+function v09Block(surfaceId: string, root: Message): string {
+  return (
+    OPEN +
+    JSON.stringify([
+      {version: 'v0.9', createSurface: {surfaceId, catalogId: basicV09.id}},
+      {version: 'v0.9', updateComponents: {surfaceId, components: [{id: 'root', ...root}]}},
+    ]) +
+    CLOSE
+  );
+}
+
 describe('DirectJsonResponseStream', () => {
   it('emits a createSurface streamed in pieces once, whole', () => {
     const parser = new DirectJsonParser([basicV09], {progressiveKeys: ['primaryColor']});
@@ -109,26 +121,62 @@ describe('DirectJsonResponseStream', () => {
     expect(stream(parser, [...response])).toEqual([create]);
   });
 
-  it('leaves the state unchanged when a chunk fails after applying a block', () => {
-    // A chunk that throws returns no parts, so the state keeps none of it.
+  it('keeps a block that a chunk finished before it failed, and returns it with the error', () => {
     const parser = new DirectJsonParser([basicV09]);
     const state = new RendererState([basicV09]);
-    const block = (surfaceId: string, text: Message) =>
-      OPEN +
-      JSON.stringify([
-        {version: 'v0.9', createSurface: {surfaceId, catalogId: basicV09.id}},
-        {
-          version: 'v0.9',
-          updateComponents: {surfaceId, components: [{id: 'root', ...text}]},
-        },
-      ]) +
-      CLOSE;
     const opened = parser.openStream({state});
 
-    expect(() =>
-      opened.feed(block('s1', {component: 'Text', text: 'Hi'}) + block('s2', {component: 'Text'})),
-    ).toThrow(A2uiValidationError);
-    expect(state.surfaceIds).toEqual([]);
+    let error: unknown;
+    try {
+      opened.feed(
+        'Before ' +
+          v09Block('s1', {component: 'Text', text: 'Hi'}) +
+          ' between ' +
+          v09Block('s2', {component: 'Text'}),
+      );
+    } catch (e) {
+      error = e;
+    }
+
+    expect(error).toBeInstanceOf(A2uiValidationError);
+    const partial = (error as A2uiValidationError & {partialResults: ResponsePart[]})
+      .partialResults;
+    expect(partial.map(part => part.type)).toEqual(['text', 'a2ui', 'text']);
+    expect(partial[0]).toEqual({type: 'text', text: 'Before'});
+    expect(partial[2]).toEqual({type: 'text', text: 'between'});
+    expect(state.surfaceIds).toEqual(['s1']);
+  });
+
+  it('returns the messages a failing chunk emitted from the block it fails in', () => {
+    const opened = new DirectJsonParser([basicV10]).openStream();
+    const create = `{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}`;
+
+    let error: unknown;
+    try {
+      opened.feed(
+        `${OPEN}[${create}, {"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Bogus"}]}}`,
+      );
+    } catch (e) {
+      error = e;
+    }
+
+    const partial = (error as {partialResults: ResponsePart[]}).partialResults;
+    expect(messagesOf(partial)).toEqual([JSON.parse(create)]);
+    expect(opened.state.surfaceIds).toEqual(['main']);
+  });
+
+  it('sets partialResults on the error close throws', () => {
+    const opened = new DirectJsonParser([basicV09]).openStream();
+    opened.feed(`${OPEN}[`);
+
+    let error: unknown;
+    try {
+      opened.close();
+    } catch (e) {
+      error = e;
+    }
+
+    expect((error as {partialResults: ResponsePart[]}).partialResults).toEqual([]);
   });
 
   it('checks each v1.0 surface against the catalog it was created with', () => {
@@ -376,5 +424,112 @@ describe('DirectJsonResponseStream', () => {
     expect(messagesOf(opened.feed(`${create}, `))).toEqual([]);
     expect(() => opened.feed(`${create}]${CLOSE}`)).toThrow(A2uiValidationError);
     expect(opened.state.surfaceIds).toEqual([]);
+  });
+
+  describe('isInBlock', () => {
+    it('is true from the end of an opening tag to the start of its closing tag', () => {
+      const opened = new DirectJsonParser([basicV09]).openStream();
+
+      opened.feed('Hello <a2ui');
+      expect(opened.isInBlock).toBe(false);
+      opened.feed('-json>[');
+      expect(opened.isInBlock).toBe(true);
+      opened.feed(
+        `{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "${basicV09.id}"}}] </a2ui`,
+      );
+      expect(opened.isInBlock).toBe(true);
+      opened.feed('-json> after');
+      expect(opened.isInBlock).toBe(false);
+    });
+
+    it('is true for an unwrapped stream until it ends', () => {
+      const opened = new DirectJsonParser([basicV09]).openStream({wrapped: false});
+
+      expect(opened.isInBlock).toBe(true);
+      opened.feed(
+        `[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "${basicV09.id}"}}]`,
+      );
+      expect(opened.isInBlock).toBe(true);
+      opened.close();
+      expect(opened.isInBlock).toBe(false);
+    });
+
+    it('is false once the stream has ended inside a block', () => {
+      const opened = new DirectJsonParser([basicV09]).openStream();
+      opened.feed(`${OPEN}[`);
+
+      expect(() => opened.close()).toThrow();
+      expect(opened.isInBlock).toBe(false);
+    });
+  });
+
+  describe("afterRejectedBlock: 'continue'", () => {
+    const options = {afterRejectedBlock: 'continue'} as const;
+
+    it('returns an error part in place of a rejected block, and reads on', () => {
+      const opened = new DirectJsonParser([basicV09]).openStream(options);
+
+      const parts = opened.feed(
+        'Before ' +
+          v09Block('s1', {component: 'Text'}) +
+          ' between ' +
+          v09Block('s2', {component: 'Text', text: 'Hi'}) +
+          ' after',
+      );
+
+      expect(parts.map(part => part.type)).toEqual(['text', 'error', 'text', 'a2ui', 'text']);
+      const error = parts[1] as {error: unknown};
+      expect(error.error).toBeInstanceOf(A2uiValidationError);
+      expect(opened.state.surfaceIds).toEqual(['s2']);
+      expect(opened.close()).toEqual([]);
+    });
+
+    it('keeps what a rejected block emitted and skips the rest of it', () => {
+      const opened = new DirectJsonParser([basicV10]).openStream(options);
+      const create = `{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}`;
+      const bogus =
+        '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Bogus"}]}}';
+
+      const first = opened.feed(`${OPEN}[${create}, ${bogus}, `);
+      const second = opened.feed(
+        `{"version": "v1.0", "createSurface": {"surfaceId": "skipped", "catalogId": "${basicV10.id}"}}]${CLOSE} Done.`,
+      );
+
+      expect(first.map(part => part.type)).toEqual(['a2ui', 'error']);
+      expect(messagesOf(first.filter(part => part.type !== 'error'))).toEqual([JSON.parse(create)]);
+      expect(second).toEqual([{type: 'text', text: 'Done.'}]);
+      expect(opened.state.surfaceIds).toEqual(['main']);
+    });
+
+    it('reports a block that cannot be read', () => {
+      const opened = new DirectJsonParser([basicV09]).openStream(options);
+
+      const parts = opened.feed(`${OPEN}not json${CLOSE} after`);
+
+      expect(parts.map(part => part.type)).toEqual(['error', 'text']);
+    });
+
+    it('returns an error part for a block still open when the response ends', () => {
+      const opened = new DirectJsonParser([basicV09]).openStream(options);
+      opened.feed(`Text ${OPEN}[`);
+
+      const parts = opened.close();
+
+      expect(parts.map(part => part.type)).toEqual(['error']);
+    });
+
+    it('returns an error part for a rejected unwrapped response, and nothing after it', () => {
+      const opened = new DirectJsonParser([basicV09]).openStream({...options, wrapped: false});
+
+      expect(opened.feed('not json')).toEqual([]);
+      expect(opened.close().map(part => part.type)).toEqual(['error']);
+    });
+
+    it('still ends the stream on an error that does not reject a block', () => {
+      const opened = new DirectJsonParser([basicV09]).openStream(options);
+      opened.close();
+
+      expect(() => opened.feed('text')).toThrow('The response stream is closed.');
+    });
   });
 });

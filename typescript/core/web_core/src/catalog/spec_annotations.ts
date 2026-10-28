@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {z} from 'zod';
+import {z} from 'zod';
 
 /**
  * A JSON Schema object, as written in a catalog document.
@@ -66,9 +66,23 @@ export interface SpecAnnotation {
   readonly mixins?: readonly SpecMixin[];
   /** The name under which a catalog document declares the model in `$defs`. */
   readonly defName?: string;
+  /** The canonical model declared in `$defs` by {@link specDef}. */
+  readonly defModel?: z.ZodTypeAny;
 }
 
 const annotations = new WeakMap<object, SpecAnnotation>();
+
+function cloneWithDefAnnotation<T extends z.ZodTypeAny>(
+  schema: T,
+  nextAnnotation: SpecAnnotation,
+  description: string | undefined = schema.description,
+): T {
+  const copy = z.ZodType.prototype.describe.call(schema, description as string) as T;
+  annotations.set(copy, nextAnnotation);
+  copy.describe = (nextDescription: string) =>
+    cloneWithDefAnnotation(copy, annotations.get(copy) ?? nextAnnotation, nextDescription);
+  return copy;
+}
 
 /**
  * Returns a copy of a Zod schema that carries what a catalog document writes
@@ -83,7 +97,7 @@ const annotations = new WeakMap<object, SpecAnnotation>();
  * @returns An annotated copy of `schema`.
  */
 export function spec<T extends z.ZodTypeAny>(schema: T, annotation: SpecAnnotation): T {
-  const copy = schema.describe(schema.description as string) as T;
+  const copy = z.ZodType.prototype.describe.call(schema, schema.description as string) as T;
   annotations.set(copy, {...annotations.get(schema), ...annotation});
   return copy;
 }
@@ -101,9 +115,19 @@ export function spec<T extends z.ZodTypeAny>(schema: T, annotation: SpecAnnotati
 export function specDef<T extends z.ZodTypeAny>(
   name: string,
   schema: T,
-  annotation: Omit<SpecAnnotation, 'defName' | 'mixins'> = {},
+  annotation: Omit<SpecAnnotation, 'defName' | 'defModel' | 'mixins'> = {},
 ): T {
-  return spec(schema, {...annotation, defName: name});
+  const copy = cloneWithDefAnnotation(schema, {
+    ...annotations.get(schema),
+    ...annotation,
+    defName: name,
+  });
+  annotations.set(copy, {
+    ...annotations.get(copy),
+    defName: name,
+    defModel: copy,
+  });
+  return copy;
 }
 
 /**

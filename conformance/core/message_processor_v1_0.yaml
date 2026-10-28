@@ -548,6 +548,124 @@
           - id: "root"
             component: "Column"
 
+# A step's `validationConfig` holds the validation rules for that call only
+# (`ExecutionContext.validationConfig`), in place of the rules the processor was
+# created with. A rule the step leaves out is strict. The next call without one
+# uses the processor's own rules again.
+
+- name: test_v10_call_validation_config_relaxes_strict_processor
+  description: A strict processor accepts an orphan component in a call whose validationConfig allows orphans, and rejects one in the next call, which has no validationConfig.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: true
+  steps:
+    - validationConfig:
+        allowOrphanComponents: true
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_relaxed_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expect:
+        surfaces:
+          s_relaxed_call:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+              - id: "orphan"
+                component: "Text"
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_strict_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expectError:
+        message: "is not reachable from"
+
+- name: test_v10_call_validation_config_tightens_permissive_processor
+  description: A processor created without validation rules rejects an orphan component in a call whose validationConfig is strict, and accepts one in the next call, which has no validationConfig.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: false
+  steps:
+    - validationConfig: {}
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_strict_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expectError:
+        message: "is not reachable from"
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_permissive_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expect:
+        surfaces:
+          s_permissive_call:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+              - id: "orphan"
+                component: "Text"
+
+- name: test_v10_call_validation_config_leaves_out_rules_as_strict
+  description: A call whose validationConfig allows only orphans still rejects a dangling child reference, since the rules it leaves out are strict, even on a processor created without validation rules.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: false
+  steps:
+    - validationConfig:
+        allowOrphanComponents: true
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_dangling_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["missing_child"]
+      expectError:
+        message: "Dangling reference"
+
 - name: test_composition_constraints_preserved_on_partial_parent_update
   description: Verifies updating container property without redefining children preserves existing child relationships.
   action: process_messages

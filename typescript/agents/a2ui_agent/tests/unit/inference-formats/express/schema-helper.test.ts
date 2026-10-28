@@ -624,19 +624,19 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       const tabsSchema = helper.getPropertySchema('Tabs', 'tabs');
       expect(tabsSchema).toBeDefined();
 
-      const itemsSchema = helper.resolveSubschema(tabsSchema, 'items');
+      const itemsSchema = helper.resolveItemSchema(tabsSchema);
       expect(itemsSchema).toBeDefined();
 
-      const titleSchema = helper.resolveSubschema(itemsSchema, 'title');
+      const titleSchema = helper.resolvePropertySchema(itemsSchema, 'title');
       expect(titleSchema).toBeDefined();
       expect(helper.admitsPath(titleSchema)).toBe(true);
 
-      const childSchema = helper.resolveSubschema(itemsSchema, 'child');
+      const childSchema = helper.resolvePropertySchema(itemsSchema, 'child');
       expect(childSchema).toBeDefined();
       expect(helper.admitsPath(childSchema)).toBe(false);
 
-      expect(helper.resolveSubschema(null, 'items')).toBeUndefined();
-      expect(helper.resolveSubschema({}, 'nonexistent')).toBeUndefined();
+      expect(helper.resolveItemSchema(null)).toBeUndefined();
+      expect(helper.resolvePropertySchema({}, 'nonexistent')).toBeUndefined();
     });
 
     it('reads v0.9.1 schemas with the v0.9 common types', async () => {
