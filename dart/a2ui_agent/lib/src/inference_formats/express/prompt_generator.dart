@@ -63,13 +63,10 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// has no Express notation; see [ExpressDecompiler.decompile].
   @override
   String generate() {
-    if (this.catalogs.isEmpty) {
+    if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    // The decompiler holds linked copies, which resolve cross-catalog
-    // references; [catalogs] stay as they are.
-    final decompiler = ExpressDecompiler(this.catalogs);
-    final List<CatalogApi> catalogs = decompiler.catalogs;
+    final decompiler = ExpressDecompiler(catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final buffer = StringBuffer(
@@ -89,7 +86,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         ..write(section(catalogs.single, '##'));
     } else {
       buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
-      for (final catalog in catalogs) {
+      for (final CatalogApi catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
           ..write(section(catalog, '###'));

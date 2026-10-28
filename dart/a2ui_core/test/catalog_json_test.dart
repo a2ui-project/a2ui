@@ -774,6 +774,109 @@ void main() {
       expect(catalog.invoke('echo', {'value': null}, context), isNull);
     });
 
+    group('invoke checks a validation result argument', () {
+      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+      const result = ValidationResult(valid: true);
+
+      /// A catalog whose `echo` takes a `value` object of [properties].
+      Catalog<ComponentApi, FunctionImplementation> catalogWith(
+        Map<String, Schema> properties, {
+        A2uiProtocolVersion? protocolVersion = A2uiProtocolVersion.v1_0,
+      }) =>
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'c',
+            protocolVersion: protocolVersion,
+            components: const [],
+            functions: [
+              _EchoFunction(
+                argumentSchema: Schema.object(
+                  properties: {'value': Schema.object(properties: properties)},
+                  required: ['value'],
+                ),
+              ),
+            ],
+          );
+
+      test('in a boolean position, nested in an object, as its validity', () {
+        expect(
+          catalogWith({'flag': Schema.boolean()}).invoke(
+            'echo',
+            {
+              'value': {'flag': result},
+            },
+            context,
+          ),
+          {'flag': result},
+        );
+      });
+
+      test('in an object position as it is', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith({
+          'status': Schema.object(
+            properties: {'valid': Schema.boolean(), 'note': Schema.string()},
+          ),
+        });
+        final args = <String, dynamic>{
+          'value': {
+            'status': {'valid': true, 'note': 'checked'},
+          },
+        };
+
+        expect(catalog.invoke('echo', args, context), args['value']);
+        expect(
+          catalog.invoke(
+            'echo',
+            {
+              'value': {'status': result},
+            },
+            context,
+          ),
+          {'status': result},
+        );
+      });
+
+      test('in a boolean position as a map with a boolean valid', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith({'flag': Schema.boolean()});
+        final args = <String, dynamic>{
+          'value': {
+            'flag': {'valid': false, 'message': 'no'},
+          },
+        };
+
+        expect(catalog.invoke('echo', args, context), args['value']);
+        expect(
+          () => catalog.invoke(
+            'echo',
+            {
+              'value': {
+                'flag': {'valid': 'yes'},
+              },
+            },
+            context,
+          ),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
+      test('in a catalog before v1.0 as its JSON object', () {
+        expect(
+          () => catalogWith(
+            {'flag': Schema.boolean()},
+            protocolVersion: null,
+          ).invoke(
+            'echo',
+            {
+              'value': {'flag': result},
+            },
+            context,
+          ),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+    });
+
     group('invoke resolves argument schema references', () {
       final context = DataContext(DataModel(), (_, __, ___) => null, '/');
 

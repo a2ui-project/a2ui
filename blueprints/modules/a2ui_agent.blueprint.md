@@ -915,6 +915,14 @@ class ExpressFormatFactory(InferenceFormatFactory):
 
 Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `parse_chunk`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
 
+#### Data Model Compilation and Decompilation
+
+`ExpressCompiler` distinguishes between surface creation scopes and surface update scopes when compiling data path assignments (`$/... = ...`):
+
+- **Surface creation scopes** (`root` is assigned and `update=true` is not set): all `$/...` assignments in the scope are folded into `createSurface.dataModel` (or a single initial root `updateDataModel` message with `path: "/"` in v0.9). Path folding traverses existing lists and auto-vivifies lists when an unassigned segment is followed by a canonical non-negative integer segment (`0` through `10000`), so overriding a list element or nested item property within the same scope mutates the list in place rather than replacing it with a map. When a path segment already holds a map, a numeric next segment sets a string key on that map, and assigning past the end of a list pads intermediate slots with `null`.
+- **Surface update scopes** (`root` is omitted or `surface(..., update=true)` is set): each `$/path = value` assignment emits its own `updateDataModel` message targeting `path: "/path"` in statement order, while `$/ = {...}` (or `$ = {...}`) targets `path: "/"` to replace the root data model. Assigning a non-map value to `$/` raises a validation error in both creation and update scopes. Re-assigning the same path within a scope replaces the earlier value at the later statement's position.
+- **Decompilation**: `ExpressDecompiler` flattens `createSurface.dataModel` (and the v0.9 initial root `updateDataModel` coalesced into `createSurface`) into sorted per-leaf `$/... = ...` assignments, while standalone `updateDataModel` messages decompile directly as `{path} = {value}` (`$/ = {...}` at root) to preserve replace semantics. Numeric list index segments are accepted in data paths (`$/items/0 = ...`).
+
 #### Grammar and parser generation
 
 [`Express.g4`](../../specification/inference_formats/express/Express.g4) is the canonical grammar, and every SDK accepts exactly the language it defines. Generating the lexer and parser from it with [ANTLR](https://www.antlr.org/) is preferred, so that a change to the grammar reaches each SDK by regenerating rather than by reimplementing. The Python, TypeScript and Dart SDKs do this.
