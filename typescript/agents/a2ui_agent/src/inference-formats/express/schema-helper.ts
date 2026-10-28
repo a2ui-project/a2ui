@@ -964,16 +964,41 @@ export class CatalogSchemaHelper {
   }
 
   /**
-   * Resolves a subschema for an array item ('items') or an object property key.
+   * Resolves the schema of an array's items.
    *
    * Traverses $ref (both in common types and catalog document), allOf, oneOf, and anyOf
    * to find the declared schema at that position.
    *
-   * @param schema The parent JSON schema to inspect.
-   * @param key 'items' for array items, or property name for object properties.
-   * @returns The resolved subschema, or undefined if not declared.
+   * @param schema The array's JSON schema.
+   * @returns The resolved item schema, or undefined if not declared.
    */
-  resolveSubschema(schema: unknown, key: string): Record<string, unknown> | undefined {
+  resolveItemSchema(schema: unknown): Record<string, unknown> | undefined {
+    return this.resolveAt(schema, undefined);
+  }
+
+  /**
+   * Resolves the schema of an object's property, falling back to `additionalProperties`
+   * when the property is not declared.
+   *
+   * Traverses $ref (both in common types and catalog document), allOf, oneOf, and anyOf
+   * to find the declared schema at that position. A property named `items` is looked up
+   * as a property, not as the array items.
+   *
+   * @param schema The object's JSON schema.
+   * @param name The property name.
+   * @returns The resolved property schema, or undefined if not declared.
+   */
+  resolvePropertySchema(schema: unknown, name: string): Record<string, unknown> | undefined {
+    return this.resolveAt(schema, name);
+  }
+
+  /**
+   * @param property The property to resolve, or undefined for the array items.
+   */
+  private resolveAt(
+    schema: unknown,
+    property: string | undefined,
+  ): Record<string, unknown> | undefined {
     const visited = new Set<unknown>();
 
     const resolve = (s: unknown, inCommonTypes: boolean): Record<string, unknown> | undefined => {
@@ -987,15 +1012,16 @@ export class CatalogSchemaHelper {
 
       const obj = s as Record<string, unknown>;
 
-      if (key === 'items') {
+      if (property === undefined) {
         if (obj.items && typeof obj.items === 'object') {
           return obj.items as Record<string, unknown>;
         }
       } else {
         if (obj.properties && typeof obj.properties === 'object') {
           const props = obj.properties as Record<string, unknown>;
-          if (key in props && props[key] && typeof props[key] === 'object') {
-            return props[key] as Record<string, unknown>;
+          const declared = Object.hasOwn(props, property) ? props[property] : undefined;
+          if (declared && typeof declared === 'object') {
+            return declared as Record<string, unknown>;
           }
         }
         if (obj.additionalProperties && typeof obj.additionalProperties === 'object') {

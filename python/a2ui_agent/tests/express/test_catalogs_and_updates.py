@@ -76,7 +76,12 @@ def _primary(version: str = "v1.0") -> Catalog:
             "Input": {
                 "allOf": [
                     _CHECKABLE,
-                    {"properties": {"value": _DYNAMIC_STRING, "action": {}}},
+                    {
+                        "properties": {
+                            "value": _DYNAMIC_STRING,
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
+                        }
+                    },
                 ]
             },
         },
@@ -99,7 +104,7 @@ def _secondary(version: str = "v1.0") -> Catalog:
                         "properties": {
                             "headline": _DYNAMIC_STRING,
                             "content": {"$ref": "common_types.json#/$defs/ComponentId"},
-                            "action": {},
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
                         }
                     },
                 ]

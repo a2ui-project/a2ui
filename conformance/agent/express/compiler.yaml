@@ -463,6 +463,252 @@
             component: "Text"
             text: "Submit"
 
+- name: test_compile_express_event_user_message
+  description: A userMessage keyword argument on an Event compiles to the v1.0 event.userMessage field beside the name.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", userMessage="Replying now"))
+    label = Text("Reply")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "reply"
+                userMessage: "Replying now"
+          - id: "label"
+            component: "Text"
+            text: "Reply"
+
+- name: test_compile_express_event_user_message_binding_with_context
+  description: A userMessage given as a data binding compiles to a path beside a positional context map.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", {threadId: "t1"}, userMessage=$/draft/message))
+    label = Text("Reply")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "reply"
+                userMessage:
+                  "@path": "/draft/message"
+                context:
+                  threadId: "t1"
+          - id: "label"
+            component: "Text"
+            text: "Reply"
+
+- name: test_compile_express_event_user_message_function_call
+  description: A userMessage given as a function call compiles to a function call, since the v1.0 field is a DynamicString, which a string, a data binding or a function call satisfies.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", userMessage=formatString("Replying to ${/thread/title}")))
+    label = Text("Reply")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "reply"
+                userMessage:
+                  "@call": "formatString"
+                  args:
+                    value: "Replying to ${/thread/title}"
+          - id: "label"
+            component: "Text"
+            text: "Reply"
+
+- name: test_compile_express_event_user_message_that_is_not_a_dynamic_string_is_a_validation_error
+  description: A userMessage that is none of a string, a data binding or a function call, such as a number or a map literal, is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", userMessage={text: "Replying now"}))
+    label = Text("Reply")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_event_context_keyword
+  description: The context map of an Event can be given by keyword as well as positionally.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("submit", context={itemId: "42"}))
+    label = Text("Submit")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "submit"
+                context:
+                  itemId: "42"
+          - id: "label"
+            component: "Text"
+            text: "Submit"
+
+- name: test_compile_express_event_context_keeps_a_function_call_a_plain_call
+  description: The entries of an Event's context are DynamicValues, not actions, so a function call among them compiles to a plain function call even though the Event itself sits in an action slot.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("go", {greeting: formatString("Hi ${/name}")}))
+    label = Text("Go")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "go"
+                context:
+                  greeting:
+                    "@call": "formatString"
+                    args:
+                      value: "Hi ${/name}"
+          - id: "label"
+            component: "Text"
+            text: "Go"
+
+- name: test_compile_express_event_unknown_keyword_is_a_validation_error
+  description: A keyword argument that Event does not define is a validation error rather than being dropped from the compiled action.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", message="Replying now"))
+    label = Text("Reply")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_event_duplicate_context_is_a_validation_error
+  description: Giving the Event context both positionally and by keyword is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("submit", {a: 1}, context={b: 2}))
+    label = Text("Submit")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_event_user_message_before_v1_is_a_validation_error
+  description: Before v1.0 the protocol's Action has no userMessage field, so an Event carrying one is a validation error instead of a silently dropped argument.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/list_item_action_catalog_v09.json"
+  input: |-
+    root = Links([{label: "Reply", action: Event("reply", userMessage="Replying now")}])
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_function_call_in_list_item_action_slot
+  description: A function call in an action slot nested inside a list item compiles to a functionCall action, the same as in a top-level action property, rather than to a bare function call the processor rejects.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/list_item_action_catalog_v1_0.json"
+  input: |-
+    root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label: "Go", action: Event("go")}], primary=openUrl("https://a2ui.org/start"))
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/list_item_action"
+        components:
+          - id: "root"
+            component: "Links"
+            items:
+              - label: "Docs"
+                action:
+                  functionCall:
+                    "@call": "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+              - label: "Go"
+                action:
+                  event:
+                    name: "go"
+            primary:
+              functionCall:
+                "@call": "openUrl"
+                args:
+                  url: "https://a2ui.org/start"
+
+- name: test_compile_express_function_call_in_list_item_action_slot_through_variable
+  description: The nested action slot is found when the list item is reached through a variable, since the variable's value is compiled against the slot's schema.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/list_item_action_catalog_v1_0.json"
+  input: |-
+    docs = {label: "Docs", action: openUrl("https://a2ui.org")}
+    root = Links([docs])
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/list_item_action"
+        components:
+          - id: "root"
+            component: "Links"
+            items:
+              - label: "Docs"
+                action:
+                  functionCall:
+                    "@call": "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+
 - name: test_compile_express_data_model_assignment
   description: A data path assignment beside a root fills the surface's initial data model.
   action: compile

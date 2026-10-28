@@ -48,7 +48,7 @@ def primary_catalog() -> Catalog:
                         {
                             "properties": {
                                 "primaryArg": {"type": "string"},
-                                "action": {"type": "object"},
+                                "action": {"$ref": "common_types.json#/$defs/Action"},
                             }
                         },
                     ]
@@ -104,7 +104,7 @@ def secondary_catalog() -> Catalog:
                         {
                             "properties": {
                                 "secondaryArg": {"type": "string"},
-                                "action": {"type": "object"},
+                                "action": {"$ref": "common_types.json#/$defs/Action"},
                             }
                         },
                     ]
