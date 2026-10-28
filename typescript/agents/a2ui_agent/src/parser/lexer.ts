@@ -79,6 +79,10 @@ export class BlockLexer {
     this.payloadStartPattern = payloadStartPattern;
     this.stripEdgeBackticks = stripEdgeBackticks;
     this.blockComments = blockComments;
+    if (blockComments.some(([open, close]) => !open || !close)) {
+      // An empty marker matches everywhere and would stop the scan advancing.
+      throw new Error('Block comment markers must be non-empty strings.');
+    }
   }
 
   private toStickyRegExp(tag: string | RegExp, isClose: boolean): RegExp {

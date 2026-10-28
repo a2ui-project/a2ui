@@ -115,6 +115,9 @@ class BlockLexer:
         )
         self.payload_start_pattern = payload_start_pattern
         self.block_comments = list(block_comments or [])
+        if any(not open_ or not close for open_, close in self.block_comments):
+            # An empty marker matches everywhere and would stop the scan advancing.
+            raise ValueError("Block comment markers must be non-empty strings.")
 
     def _clean_markdown(self, text: str) -> str:
         """Cleans Markdown code block wrappers from conversational text or inner raw content.
