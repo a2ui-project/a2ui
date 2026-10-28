@@ -26,6 +26,8 @@ This is the reference TypeScript implementation of the A2UI Core State Layer (`a
 
 - **Unified State & Version Entrypoints**: Shared state and resolution primitives live under `src/{state,processing,resolution,rpc,validation,universal}` while `src/v0_9/` and `src/v1_0/` expose version-specific schemas and subpath barrels.
 - **Transitional `ComponentNode.context` Property**: `ComponentNode` retains a transitional `context?: ComponentContext` property alongside `props` so legacy or standalone callers can access `ComponentContext` during incremental adapter migration.
+- **TypeScript Reflection**: We utilize Zod runtime reflection to implement the automated generic binder layer. This automatically resolves complex properties (such as `DynamicString` or action callbacks) into simple static native types, freeing renderers (React, Angular, Lit) from having to deal with raw subscription loops. `ResolveA2uiProps` mirrors the binder at the type level, inside lists and objects too, and leaves lists of `CheckRule` as they are, as the binder does.
+- **Per-call validation config**: `MessageProcessor` reads its `validationConfig` from a field in many private checks, so a config passed in `ExecutionContext` replaces the field for the synchronous part of that call and restores it after. `processMessagesAsync` applies it around each synchronous step.
 
 ## **Validation & Execution Recipes**
 

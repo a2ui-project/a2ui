@@ -534,6 +534,95 @@ describe('MessageProcessor', () => {
       assert.strictEqual(surface.theme?.primaryColor, '#ABCDEF');
       assert.strictEqual((surface.theme as any)?.defaultedField, 'default-val');
     });
+
+    describe('per call', () => {
+      const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
+      const create = {version: 'v1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
+      const danglingChild = {
+        version: 'v1.0' as const,
+        updateComponents: {
+          surfaceId: 's',
+          components: [{id: 'root', component: 'Column', children: ['later']}],
+        },
+      };
+      const unknownComponent = {
+        version: 'v1.0' as const,
+        updateComponents: {surfaceId: 's', components: [{id: 'root', component: 'Unknown'}]},
+      };
+
+      it("replaces the processor's own config for the call", () => {
+        const proc = new MessageProcessor([catalog], undefined, {
+          validationConfig: STRICT_VALIDATION,
+        });
+        proc.processMessages(create);
+        assert.throws(() => proc.processMessages(danglingChild), A2uiValidationError);
+
+        proc.processMessages(danglingChild, {
+          validationConfig: {
+            allowDanglingReferences: true,
+            allowMissingRoot: true,
+            allowOrphanComponents: true,
+          },
+        });
+
+        assert.strictEqual(proc.model.getSurface('s')?.componentsModel.get('root')?.type, 'Column');
+      });
+
+      it('validates a processor that has no config of its own', () => {
+        const proc = new MessageProcessor([catalog]);
+        proc.processMessages(create);
+
+        assert.throws(
+          () => proc.processMessages(unknownComponent, {validationConfig: {}}),
+          A2uiValidationError,
+        );
+        assert.strictEqual(proc.model.getSurface('s')?.componentsModel.size, 0);
+      });
+
+      it("restores the processor's own config after the call", () => {
+        const proc = new MessageProcessor([catalog]);
+        proc.processMessages(create);
+        assert.throws(
+          () => proc.processMessages(unknownComponent, {validationConfig: {}}),
+          A2uiValidationError,
+        );
+
+        proc.processMessages(unknownComponent);
+
+        assert.strictEqual(
+          proc.model.getSurface('s')?.componentsModel.get('root')?.type,
+          'Unknown',
+        );
+      });
+
+      it('applies to each operation of an asynchronous call', async () => {
+        const proc = new MessageProcessor([catalog]);
+        proc.processMessages(create);
+
+        await assert.rejects(
+          proc.processMessagesAsync([unknownComponent], {validationConfig: {}}),
+          A2uiValidationError,
+        );
+      });
+    });
+  });
+
+  describe('catalogs', () => {
+    it('returns the catalogs the processor was created with, in order', () => {
+      const first = new Catalog('first', '1.0', []);
+      const second = new Catalog('second', '1.0', []);
+      const proc = new MessageProcessor([first, second]);
+
+      assert.deepStrictEqual(proc.catalogs, [first, second]);
+    });
+
+    it('returns a copy', () => {
+      const proc = new MessageProcessor([testCatalog]);
+
+      proc.catalogs.push(new Catalog('other', '0.9', []));
+
+      assert.deepStrictEqual(proc.catalogs, [testCatalog]);
+    });
   });
 
   describe('Mixed Catalogs Support', () => {

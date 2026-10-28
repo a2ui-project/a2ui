@@ -53,7 +53,22 @@ void main() {
 const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
 /// Cases whose expected outcome Dart does not produce, with the reason.
-const Map<String, String> _knownDivergences = {};
+const Map<String, String> _knownDivergences = {
+  'test_v10_catalog_derive_keeps_named_entries': _deriveNotPorted,
+  'test_v10_catalog_derive_adds_and_replaces_entries': _deriveNotPorted,
+  'test_v10_catalog_derive_keeps_every_entry_of_an_omitted_list':
+      _deriveNotPorted,
+  'test_v10_catalog_derive_drops_fields_that_describe_the_source':
+      _deriveNotPorted,
+  'test_v10_catalog_derive_sets_instructions': _deriveNotPorted,
+  'test_v10_catalog_derive_unknown_component_error': _deriveNotPorted,
+  'test_v10_catalog_derive_unknown_function_error': _deriveNotPorted,
+  'test_v09_catalog_derive_keeps_protocol_version': _deriveNotPorted,
+};
+
+/// Why the `derive` cases are skipped.
+const String _deriveNotPorted = 'Catalog.derive is not ported to Dart yet: '
+    'https://github.com/a2ui-project/a2ui/issues/3699';
 
 /// `from_json` error cases whose expected message is worded for another SDK,
 /// so only the error's category is checked.

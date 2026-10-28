@@ -25,4 +25,9 @@ export type {
   ReactComponentImplementation,
 } from './react_component_implementation';
 
-export {MarkdownContext, useMarkdownRenderer} from './markdown-context';
+export {
+  MarkdownComponentContext,
+  MarkdownContext,
+  type MarkdownComponentProps,
+  useMarkdownRenderer,
+} from './markdown-context';

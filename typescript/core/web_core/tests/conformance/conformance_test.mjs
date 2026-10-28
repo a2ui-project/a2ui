@@ -221,6 +221,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['wrap', 'web_core has no inference-format wrapper'],
   ['parse_response', 'web_core has no inference-format parser'],
   ['parse_chunk', 'web_core has no streaming inference parser'],
+  ['stream_answer', 'streamed answers are agent-side only'],
   ['create_format', 'inference format factories are agent-side only'],
   ['create_processor', 'request processors are agent-side only'],
   ['transform_catalog', 'catalog transformers are agent-side only'],
@@ -407,6 +408,9 @@ async function runConformanceHarness() {
             break;
           case 'from_json':
             validateFromJsonTestCase(testCase);
+            break;
+          case 'derive':
+            validateDeriveTestCase(testCase);
             break;
           case 'select_catalog':
             validateSelectCatalogTestCase(testCase);
@@ -1249,6 +1253,88 @@ function validateFromJsonTestCase(testCase) {
         );
       }
     }
+  }
+}
+
+/**
+ * The `expect` keys a `derive` case may use (`DeriveExpect` in
+ * conformance_schema.json).
+ */
+const DERIVE_EXPECT_KEYS = new Set([
+  'absentKeys',
+  'catalogId',
+  'components',
+  'functions',
+  'instructions',
+  'protocolVersion',
+  'theme',
+]);
+
+/**
+ * Runs a `derive` case: loads the source catalog with `fromJson`, derives a
+ * catalog from it, and checks the derived catalog and its `toJson()` document.
+ */
+function validateDeriveTestCase(testCase) {
+  const source = Catalog.fromJson(readCaseCatalogDocument(testCase));
+  const {catalogId, components, functions, instructions} = testCase.args;
+  // A map with one key is a new entry, built by loading it into a catalog of
+  // the source's version.
+  const entries = (list, kind) =>
+    list?.map(item => {
+      if (typeof item === 'string') return item;
+      const [name, definition] = Object.entries(item)[0];
+      const holder = Catalog.fromJson({
+        catalogId: 'conformance:derive-entries',
+        protocolVersion: source.protocolVersion,
+        [kind]: {[name]: definition},
+      });
+      return holder[kind].get(name);
+    });
+  const derive = () =>
+    source.derive({
+      catalogId,
+      components: entries(components, 'components'),
+      functions: entries(functions, 'functions'),
+      instructions,
+    });
+
+  if (testCase.expectError) {
+    assert.throws(derive, err => {
+      if (!matchesErrorCategory(err, testCase.expectError.category)) return false;
+      return !testCase.expectError.message || err.message.includes(testCase.expectError.message);
+    });
+    return;
+  }
+
+  const expected = testCase.expect;
+  const unknownKeys = Object.keys(expected).filter(key => !DERIVE_EXPECT_KEYS.has(key));
+  assert.deepStrictEqual(unknownKeys, [], `Unknown derive expect keys: ${unknownKeys}`);
+  const derived = derive();
+  const document = derived.toJson();
+  if (expected.catalogId) assert.strictEqual(derived.id, expected.catalogId);
+  if (expected.protocolVersion) {
+    assert.strictEqual(
+      toCanonicalVersion(derived.protocolVersion),
+      toCanonicalVersion(expected.protocolVersion),
+    );
+  }
+  for (const kind of ['components', 'functions']) {
+    const listed = expected[kind];
+    if (!listed) continue;
+    const names = Array.isArray(listed) ? listed : Object.keys(listed);
+    assert.deepStrictEqual([...derived[kind].keys()].sort(), [...names].sort(), `${kind} mismatch`);
+    if (!Array.isArray(listed)) {
+      for (const [name, definition] of Object.entries(listed)) {
+        assertJsonSetEqual(document[kind][name], definition, `${kind} '${name}' differs`);
+      }
+    }
+  }
+  if (expected.theme) assertJsonSetEqual(document.theme, expected.theme, 'theme differs');
+  if (expected.instructions !== undefined) {
+    assert.strictEqual(document.instructions, expected.instructions);
+  }
+  for (const key of expected.absentKeys ?? []) {
+    assert.ok(!(key in document), `Expected toJson() to carry no '${key}'`);
   }
 }
 
@@ -2243,12 +2329,14 @@ function validateProcessMessagesTestCase(testCase) {
       if (!stepMsgs && step.message) stepMsgs = [step.message];
       stepMsgs = normalizeMsgs(stepMsgs);
 
+      // A step's validationConfig applies to that call only.
+      const context = step.validationConfig ? {validationConfig: step.validationConfig} : undefined;
       const stepExpectError =
         step.expectError || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
         let thrown;
         try {
-          processor.processMessages(stepMsgs);
+          processor.processMessages(stepMsgs, context);
         } catch (err) {
           thrown = err;
         }
@@ -2259,7 +2347,7 @@ function validateProcessMessagesTestCase(testCase) {
         }
         assertExpectedProcessError(thrown, stepExpectError);
       } else {
-        processor.processMessages(stepMsgs);
+        processor.processMessages(stepMsgs, context);
         const stepExpect = step.expect || (i === steps.length - 1 ? expect : undefined);
         if (stepExpect) {
           assertSurfacesMatch(processor, stepExpect);
