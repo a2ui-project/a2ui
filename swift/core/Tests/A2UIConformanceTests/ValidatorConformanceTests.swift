@@ -185,23 +185,13 @@ struct ValidatorConformanceTests {
         catalogs.append(customCatalog)
       }
 
-      // Each case names its checks in `validationConfig`.
-      let validationConfig: ValidationConfig
-      switch testCase.validationConfig {
-      case "relaxed":
-        validationConfig = ValidationConfig(
-          allowOrphanComponents: true,
-          allowDanglingReferences: true,
-          allowMissingRoot: true,
-          allowUnknownElements: true,
-          targetVersion: "v1.0"
-        )
-      case "strict":
-        validationConfig = ValidationConfig(targetVersion: "v1.0")
-      default:
-        Issue.record(
-          "[\(testCase.name)] Unknown validationConfig \(testCase.validationConfig ?? "nil")"
-        )
+      // Each case sets its checks in `validationConfig`.
+      guard
+        let flags = testCase.validationConfig,
+        let validationConfig = ConformanceTestHelper.validationConfig(
+          from: flags, targetVersion: "v1.0")
+      else {
+        Issue.record("[\(testCase.name)] Missing or unknown validationConfig flags")
         continue
       }
       let processor = MessageProcessor(

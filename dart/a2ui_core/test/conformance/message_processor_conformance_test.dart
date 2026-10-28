@@ -91,24 +91,45 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   }
 }
 
+/// The flags a case's `validationConfig` may set (`validationConfig` in
+/// `conformance_schema.json`).
+const Set<String> _caseValidationFlags = {
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+};
+
 /// The processor's validation config for [testCase].
 ///
-/// A case's `validationConfig` names its checks, so they don't depend on this
-/// harness. Without one, a `validate` case or a case with `strictMode` is
-/// checked strictly, and any other case with the relaxed config.
+/// A case's `validationConfig` sets its checks, so they don't depend on this
+/// harness: a flag it leaves out is false. Without one, a `validate` case or a
+/// case with `strictMode` is checked strictly, and any other case with the
+/// relaxed config.
 ValidationConfig _validationConfigFor(
   Map<String, Object?> testCase, {
   required bool isValidate,
-}) =>
-    switch (testCase['validationConfig']) {
-      'relaxed' => ValidationConfig.relaxed,
-      'strict' => ValidationConfig.strict,
-      null => isValidate || testCase['strictMode'] == true
-          ? ValidationConfig.strict
-          : ValidationConfig.relaxed,
-      final Object name =>
-        throw UnsupportedError('Unknown validationConfig $name'),
-    };
+}) {
+  final Object? raw = testCase['validationConfig'];
+  if (raw == null) {
+    return isValidate || testCase['strictMode'] == true
+        ? ValidationConfig.strict
+        : ValidationConfig.relaxed;
+  }
+  final flags = (raw as Map).cast<String, Object?>();
+  final Iterable<String> unknown =
+      flags.keys.where((name) => !_caseValidationFlags.contains(name));
+  if (unknown.isNotEmpty) {
+    throw UnsupportedError('Unknown validationConfig flags: $unknown');
+  }
+  bool flag(String name) => flags[name] as bool? ?? false;
+  return ValidationConfig(
+    allowOrphanComponents: flag('allowOrphanComponents'),
+    allowDanglingReferences: flag('allowDanglingReferences'),
+    allowMissingRoot: flag('allowMissingRoot'),
+    allowUnknownElements: flag('allowUnknownElements'),
+  );
+}
 
 Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;

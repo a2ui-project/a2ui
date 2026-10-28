@@ -955,19 +955,33 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
                 _assert_expected_surface_state(processor, expected)
 
 
-_CASE_VALIDATION_CONFIGS = {
-    "relaxed": RELAXED_VALIDATION,
-    "strict": STRICT_VALIDATION,
+# The flags a case's `validationConfig` may set (`validationConfig` in
+# conformance/conformance_schema.json), with the ValidationConfig field each
+# sets. A flag the case leaves out is False.
+_CASE_VALIDATION_FLAGS = {
+    "allowOrphanComponents": "allow_orphan_components",
+    "allowDanglingReferences": "allow_dangling_references",
+    "allowMissingRoot": "allow_missing_root",
+    "allowUnknownElements": "allow_unknown_elements",
 }
+
+
+def _case_validation_config(flags: dict[str, bool]) -> ValidationConfig:
+    """Builds the ValidationConfig a case's `validationConfig` flags describe."""
+    unknown = set(flags) - set(_CASE_VALIDATION_FLAGS)
+    assert not unknown, f"Unknown validationConfig flags: {sorted(unknown)}"
+    return ValidationConfig(
+        **{_CASE_VALIDATION_FLAGS[name]: value for name, value in flags.items()}
+    )
 
 
 def validate_process_messages_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     if "validationConfig" in case:
-        # The case names its checks, so they don't depend on this harness.
-        val_config: ValidationConfig | None = _CASE_VALIDATION_CONFIGS[
+        # The case sets its checks, so they don't depend on this harness.
+        val_config: ValidationConfig | None = _case_validation_config(
             case["validationConfig"]
-        ]
+        )
     else:
         is_strict = bool(
             case.get("strictMode")

@@ -175,8 +175,27 @@
           "description": "Whether strict validation mode is enabled."
         },
         "validationConfig": {
-          "enum": ["relaxed", "strict"],
-          "description": "In a process_messages case, the checks the processor makes, which then do not depend on the harness. `relaxed` checks each batch of components against its catalog, its composition rules, and the graph it leaves behind for cycles and depth, while allowing orphans, references to components that have not arrived and a missing root. `strict` also rejects orphans, dangling references and a missing root. It takes precedence over `strictMode`. Without it, each harness uses its own default."
+          "type": "object",
+          "description": "In a process_messages case, the checks the processor makes, so they don't depend on the harness. Each flag allows what a check would otherwise reject; a flag the case leaves out is false, as in every SDK's ValidationConfig, so {} turns every check on. It takes precedence over `strictMode`. Without it, each harness uses its own default.",
+          "properties": {
+            "allowOrphanComponents": {
+              "type": "boolean",
+              "description": "Allow components that are not reachable from the root."
+            },
+            "allowDanglingReferences": {
+              "type": "boolean",
+              "description": "Allow references to components that have not arrived."
+            },
+            "allowMissingRoot": {
+              "type": "boolean",
+              "description": "Allow a surface without a root component."
+            },
+            "allowUnknownElements": {
+              "type": "boolean",
+              "description": "Allow component types that the catalog does not declare."
+            }
+          },
+          "additionalProperties": false
         },
         "disableValidation": {
           "type": "boolean",

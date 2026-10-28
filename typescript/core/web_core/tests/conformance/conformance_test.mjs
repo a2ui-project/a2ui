@@ -17,11 +17,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert';
 import yaml from 'js-yaml';
-import {
-  MessageProcessor,
-  RELAXED_VALIDATION,
-  STRICT_VALIDATION,
-} from '../../dist/src/processing/message-processor.js';
+import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
@@ -2272,21 +2268,33 @@ function assertSurfacesMatch(processor, expect) {
 }
 
 /**
+ * The flags a case's `validationConfig` may set (`validationConfig` in
+ * conformance_schema.json). An unknown flag fails the case rather than being
+ * silently ignored.
+ */
+const CASE_VALIDATION_FLAGS = new Set([
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+]);
+
+/**
  * The processor's validation config for a process_messages case. A case's
- * `validationConfig` names its checks, so they don't depend on this harness;
- * without one, `strictMode` selects strict validation and anything else none.
+ * `validationConfig` sets its checks, so they don't depend on this harness: a
+ * flag it leaves out is false. Without one, `strictMode` selects strict
+ * validation and anything else none.
  */
 function caseValidationConfig(testCase) {
-  switch (testCase.validationConfig) {
-    case undefined:
-      return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
-    case 'relaxed':
-      return {validationConfig: RELAXED_VALIDATION};
-    case 'strict':
-      return {validationConfig: STRICT_VALIDATION};
-    default:
-      throw new Error(`Unknown validationConfig '${testCase.validationConfig}'`);
+  const flags = testCase.validationConfig;
+  if (flags === undefined) {
+    return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
   }
+  const unknown = Object.keys(flags).filter(name => !CASE_VALIDATION_FLAGS.has(name));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown validationConfig flags: ${unknown.join(', ')}`);
+  }
+  return {validationConfig: {...STRICT_VALIDATION, ...flags}};
 }
 
 function validateProcessMessagesTestCase(testCase) {

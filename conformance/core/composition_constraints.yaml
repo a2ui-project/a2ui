@@ -17,7 +17,7 @@
   catalog:
     protocolVersion: "v1.0"
   action: process_messages
-  validationConfig: strict
+  validationConfig: {}
   steps:
     - payload:
         - version: "1.0"
@@ -57,7 +57,7 @@
           children:
             $ref: "#/$defs/ChildList"
   action: process_messages
-  validationConfig: strict
+  validationConfig: {}
   steps:
     - payload:
         - version: "1.0"
@@ -90,7 +90,7 @@
       Video:
         type: "object"
   action: process_messages
-  validationConfig: strict
+  validationConfig: {}
   steps:
     - payload:
         - version: "1.0"
@@ -108,16 +108,18 @@
     code: "UNALLOWED_CHILD"
     message: "Container 'root' (RestrictedBox) cannot contain child 'v1' (Video). Allowed children: ['Text', 'Button']."
 
-# The cases below share their catalogs and, where only the validation config
-# differs, their payloads through YAML anchors, so that what differs between
-# two cases is written in the cases themselves.
+# Each case sets the validation flags it relies on in `validationConfig`; a
+# flag it leaves out is false. The cases below share their catalogs and, where
+# only the validation config differs, their payloads through YAML anchors, so
+# that what differs between two cases is written in the cases themselves.
 
 - name: test_composition_dropped_child_is_not_checked_against_surface
   description: >-
     A container rewritten to drop a child leaves a component that nothing
     references. Only the surface's root is checked against Surface in
-    allowedParents, so under a config that allows orphans the update is
-    accepted, even though the child's allowedParents does not include Surface.
+    allowedParents, so when orphans are allowed the update is accepted, even
+    though the child's allowedParents does not include Surface. The other
+    checks are on, so the processor checks the whole surface.
   catalog: &box_header_catalog
     catalogId: "custom"
     protocolVersion: "v1.0"
@@ -131,7 +133,8 @@
         type: "object"
         allowedParents: ["Box"]
   action: process_messages
-  validationConfig: relaxed
+  validationConfig:
+    allowOrphanComponents: true
   steps:
     - payload: &create_box_holding_header
         - version: "v1.0"
@@ -162,15 +165,40 @@
           h:
             component: Header
 
-- name: test_composition_dropped_child_is_reported_as_orphan_under_strict_config
+- name: test_composition_dropped_child_is_not_checked_against_surface_when_references_may_dangle
   description: >-
     The same payloads as test_composition_dropped_child_is_not_checked_against_surface,
-    under a config that rejects orphans. The topology check reports the dropped
-    child as unreachable from the root; it is not reported as UNALLOWED_PARENT
+    when references to components that have not arrived are also allowed. An
+    SDK may then check only the components each update changes; the dropped
+    child is still not checked against Surface.
+  catalog: *box_header_catalog
+  action: process_messages
+  validationConfig:
+    allowOrphanComponents: true
+    allowDanglingReferences: true
+  steps:
+    - payload: *create_box_holding_header
+    - payload: *drop_header_from_box
+  expect:
+    surfaces:
+      s1:
+        components:
+          root:
+            component: Box
+            children: []
+          h:
+            component: Header
+
+- name: test_composition_dropped_child_is_reported_as_orphan
+  description: >-
+    The same payloads as test_composition_dropped_child_is_not_checked_against_surface,
+    when orphans are not allowed. The topology check reports the dropped child
+    as unreachable from the root; it is not reported as UNALLOWED_PARENT
     against Surface.
   catalog: *box_header_catalog
   action: process_messages
-  validationConfig: strict
+  validationConfig:
+    allowOrphanComponents: false
   steps:
     - payload: *create_box_holding_header
     - payload: *drop_header_from_box
@@ -196,7 +224,8 @@
         type: "object"
         allowedParents: ["Box"]
   action: process_messages
-  validationConfig: relaxed
+  validationConfig:
+    allowOrphanComponents: true
   steps:
     - payload:
         - version: "v1.0"
@@ -236,7 +265,7 @@
         type: "object"
         allowedParents: ["Box"]
   action: process_messages
-  validationConfig: strict
+  validationConfig: {}
   steps:
     - payload:
         - version: "v1.0"
@@ -266,7 +295,7 @@
     disallowed parent second in surface order.
   catalog: *box_card_header_catalog
   action: process_messages
-  validationConfig: strict
+  validationConfig: {}
   steps:
     - payload:
         - version: "v1.0"
