@@ -26,10 +26,11 @@ import 'schema_helper.dart';
 const Set<String> defaultExpressProgressiveKeys = {'text'};
 
 const String _openTagLiteral = '<a2ui>';
+const String _closeTagLiteral = '</a2ui>';
 final RegExp _openTag = RegExp(r'<a2ui(?:\s[^>]*)?>', caseSensitive: false);
 final RegExp _openTagStart = RegExp(r'^<a2ui\s[^>]*$', caseSensitive: false);
 final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
-final RegExp _closeTagPrefix = RegExp(r'^</a2ui\s*$', caseSensitive: false);
+final RegExp _closeTagPrefix = RegExp(r'</a2ui\s*$', caseSensitive: false);
 final RegExp _leadingFence = RegExp(
   r'^\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n',
   caseSensitive: false,
@@ -85,9 +86,13 @@ int? _commentCloseIndex(String content, int start, int end) {
 
 bool _isPartialCloseTag(String content, int i) {
   if (content.codeUnitAt(i) != 0x3C /* '<' */ ) return false;
-  final String tail = content.substring(i);
-  return '</a2ui>'.startsWith(tail.toLowerCase()) ||
-      _closeTagPrefix.hasMatch(tail);
+  // Only a tail shorter than the tag can be a literal prefix of it, so the
+  // substring copies at most a few characters.
+  if (content.length - i < _closeTagLiteral.length &&
+      _closeTagLiteral.startsWith(content.substring(i).toLowerCase())) {
+    return true;
+  }
+  return _closeTagPrefix.matchAsPrefix(content, i) != null;
 }
 
 bool _isUnclosedDelimiter(String content, int i) =>
@@ -634,6 +639,7 @@ class ExpressResponseStream extends ResponseStream {
           _openTag.matchAsPrefix(input) != null ||
           _openTagStart.hasMatch(input) ||
           (input.startsWith('<') &&
+              input.length <= _openTagLiteral.length &&
               _openTagLiteral.startsWith(input.toLowerCase()));
       if (!isOpen) {
         input = '$_heldBackticks$input';

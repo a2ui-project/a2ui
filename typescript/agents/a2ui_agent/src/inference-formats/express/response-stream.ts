@@ -725,7 +725,9 @@ export class ExpressResponseStream implements ResponseStream {
       const isOpen =
         searchOpenTag(input)?.start === 0 ||
         matchesAt(OPEN_TAG_START_RE, input, 0) ||
-        (input.startsWith('<') && OPEN_TAG.startsWith(input.toLowerCase()));
+        (input.startsWith('<') &&
+          input.length <= OPEN_TAG.length &&
+          OPEN_TAG.startsWith(input.toLowerCase()));
       if (!isOpen) {
         input = `${this.heldBackticks}${input}`;
       }

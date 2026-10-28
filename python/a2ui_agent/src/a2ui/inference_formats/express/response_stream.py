@@ -625,6 +625,7 @@ class ExpressResponseStream(ResponseStream):
                 or OPEN_TAG_START_RE.match(input_str)
                 or (
                     input_str.startswith("<")
+                    and len(input_str) <= len(OPEN_TAG)
                     and OPEN_TAG.startswith(input_str.lower())
                 )
             )
