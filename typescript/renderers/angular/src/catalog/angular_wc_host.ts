@@ -26,6 +26,7 @@ import {ComponentContext, type ComponentNode} from '@a2ui/web_core/v0_9';
 import type {AngularCatalog, AngularComponentImplementation} from './types';
 
 import {ComponentBinder} from '../core/component-binder.service';
+import type {BoundProperty} from '../core/types';
 
 let defaultInjector: Injector | undefined;
 
@@ -71,6 +72,7 @@ export class AngularWcHost extends HTMLElement {
   private ngZone?: NgZone | null;
   private _node?: ComponentNode;
   private _context?: ComponentContext;
+  private boundProps?: Record<string, BoundProperty>;
   private contextSubscription?: {unsubscribe: () => void};
   private _injector?: Injector;
 
@@ -144,12 +146,20 @@ export class AngularWcHost extends HTMLElement {
 
   set node(node: ComponentNode | undefined) {
     this._node = node;
-    if (node?.context) {
-      this._context = node.context;
-    }
-    if (this._context) {
-      this.subscribeToContext(this._context);
-      this.updateContext();
+    if (node) {
+      if (node.context) {
+        this._context = node.context;
+      }
+      if (this._context) {
+        this.subscribeToContext(this._context);
+        this.updateContext();
+      }
+    } else {
+      this._context = undefined;
+      this.contextSubscription?.unsubscribe();
+      this.contextSubscription = undefined;
+      this.binder?.unbind(this.boundProps);
+      this.boundProps = undefined;
     }
   }
 
@@ -173,9 +183,11 @@ export class AngularWcHost extends HTMLElement {
   private updateContext() {
     if (!this.componentRef || !this.binder || !this._context) return;
 
+    this.binder.unbind(this.boundProps);
     const boundProps = this._node
       ? this.binder.bindNode(this._node)
       : this.binder.bind(this._context);
+    this.boundProps = boundProps;
 
     this.componentRef.setInput('props', boundProps);
     this.componentRef.setInput('surfaceId', this._context.dataContext.surface?.id);
@@ -188,6 +200,8 @@ export class AngularWcHost extends HTMLElement {
   disconnectedCallback() {
     this.contextSubscription?.unsubscribe();
     this.contextSubscription = undefined;
+    this.binder?.unbind(this.boundProps);
+    this.boundProps = undefined;
     if (this.componentRef) {
       this.appRef?.detachView(this.componentRef.hostView);
       this.componentRef.destroy();

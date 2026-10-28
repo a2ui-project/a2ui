@@ -85,10 +85,36 @@ export interface Child {
   providedIn: 'root',
 })
 export class ComponentBinder {
-  private destroyRef = inject(DestroyRef);
+  private readonly boundCleanups = new WeakMap<Record<string, BoundProperty>, Array<() => void>>();
 
   constructor() {
     initializeAngularReactivity(inject(EnvironmentInjector));
+  }
+
+  /**
+   * Unsubscribes any reactive signal subscriptions associated with a previously
+   * returned bound property map.
+   *
+   * @param bound The bound property map returned by {@link bind} or {@link bindNode}.
+   */
+  unbind(bound: Record<string, BoundProperty> | undefined): void {
+    if (!bound) return;
+    const cleanups = this.boundCleanups.get(bound);
+    if (!cleanups) return;
+    this.boundCleanups.delete(bound);
+    for (const cleanup of cleanups) {
+      cleanup();
+    }
+  }
+
+  private registerBoundCleanups(
+    bound: Record<string, BoundProperty>,
+    cleanups: Array<() => void>,
+    destroyRef?: DestroyRef,
+  ): void {
+    if (cleanups.length === 0) return;
+    this.boundCleanups.set(bound, cleanups);
+    destroyRef?.onDestroy(() => this.unbind(bound));
   }
 
   /**
@@ -98,25 +124,32 @@ export class ComponentBinder {
    * duplicating `DataContext` subscriptions when the node's schema resolves them.
    *
    * @param node The resolved ComponentNode.
+   * @param destroyRef Optional component-scoped `DestroyRef` to automatically clean up subscriptions.
    * @returns A map of property names to reactive `BoundProperty` wrappers.
    */
-  bindNode(node: ComponentNode): Record<string, BoundProperty> {
+  bindNode(node: ComponentNode, destroyRef?: DestroyRef): Record<string, BoundProperty> {
     const rawProps = node.context?.componentModel.properties ?? {};
     const initialNodeProps = peekValue(node.props);
     const bound: Record<string, BoundProperty<unknown>> = {};
+    const cleanups: Array<() => void> = [];
     const allKeys = new Set([...Object.keys(rawProps), ...Object.keys(initialNodeProps)]);
 
     for (const key of allKeys) {
-      bound[key] = this.bindNodeProperty(node, key, rawProps[key]);
+      bound[key] = this.bindNodeProperty(node, key, rawProps[key], cleanups);
     }
 
-    if ('checks' in rawProps && !('isValid' in initialNodeProps) && node.context) {
-      const checkProps = this.bindChecks(rawProps['checks'], node.context);
+    if (
+      Object.hasOwn(rawProps, 'checks') &&
+      !Object.hasOwn(initialNodeProps, 'isValid') &&
+      node.context
+    ) {
+      const checkProps = this.bindChecks(rawProps['checks'], node.context, cleanups);
       bound['isValid'] = checkProps.isValid;
       bound['validationErrors'] = checkProps.validationErrors;
       bound['validationResults'] = checkProps.validationResults;
     }
 
+    this.registerBoundCleanups(bound, cleanups, destroyRef);
     return bound;
   }
 
@@ -124,6 +157,7 @@ export class ComponentBinder {
     node: ComponentNode,
     key: string,
     rawVal: unknown,
+    cleanups: Array<() => void>,
   ): BoundProperty<unknown> {
     if (key === 'action') {
       return {
@@ -138,12 +172,12 @@ export class ComponentBinder {
       key === 'isValid' || key === 'validationErrors' || key === 'validationResults';
     const directBound =
       !isCheckSynthetic && rawVal !== undefined && node.context
-        ? this.bindProperty(key, rawVal, node.context)
+        ? this.bindProperty(key, rawVal, node.context, cleanups)
         : undefined;
 
     const valueSignal = computed(() => {
       const currentProps = getValue(node.props);
-      const nodeVal = key in currentProps ? currentProps[key] : rawVal;
+      const nodeVal = Object.hasOwn(currentProps, key) ? currentProps[key] : rawVal;
       if (
         isComponentNode(nodeVal) ||
         (Array.isArray(nodeVal) && nodeVal.some(isComponentNode)) ||
@@ -223,28 +257,36 @@ export class ComponentBinder {
    * Binds all properties of a component to an object of Angular Signals.
    *
    * @param context The ComponentContext containing the model and data context.
+   * @param destroyRef Optional component-scoped `DestroyRef` to automatically clean up subscriptions.
    * @returns An object where each key corresponds to a component prop and its value is an Angular Signal.
    */
-  bind(context: ComponentContext): Record<string, BoundProperty> {
+  bind(context: ComponentContext, destroyRef?: DestroyRef): Record<string, BoundProperty> {
     const props = context.componentModel.properties;
     const bound: Record<string, BoundProperty<unknown>> = {};
+    const cleanups: Array<() => void> = [];
 
     for (const key of Object.keys(props)) {
       const value = props[key];
-      bound[key] = this.bindProperty(key, value, context);
+      bound[key] = this.bindProperty(key, value, context, cleanups);
 
       if (key === 'checks') {
-        const checkProps = this.bindChecks(value, context);
+        const checkProps = this.bindChecks(value, context, cleanups);
         bound['isValid'] = checkProps.isValid;
         bound['validationErrors'] = checkProps.validationErrors;
         bound['validationResults'] = checkProps.validationResults;
       }
     }
 
+    this.registerBoundCleanups(bound, cleanups, destroyRef);
     return bound;
   }
 
-  private bindProperty(key: string, value: any, context: ComponentContext): BoundProperty<unknown> {
+  private bindProperty(
+    key: string,
+    value: any,
+    context: ComponentContext,
+    cleanups: Array<() => void>,
+  ): BoundProperty<unknown> {
     const isChildListTemplate = isChildListTemplateObject(value);
     const boundPath = extractBoundPath(value);
 
@@ -252,13 +294,16 @@ export class ComponentBinder {
       key === 'action'
         ? signal(value)
         : isChildListTemplate
-          ? this.createChildListSignal(value, context)
+          ? this.createChildListSignal(value, context, cleanups)
           : context.dataContext.resolveSignal(value);
 
     const {valueSignal, template} = this.transformStructuralSignal(key, value, baseSignal, context);
 
+    if (baseSignal?.unsubscribe && baseSignal !== valueSignal) {
+      cleanups.push(() => baseSignal.unsubscribe!());
+    }
     if (valueSignal?.unsubscribe) {
-      this.destroyRef.onDestroy(() => valueSignal.unsubscribe!());
+      cleanups.push(() => valueSignal.unsubscribe!());
     }
 
     return {
@@ -275,6 +320,7 @@ export class ComponentBinder {
   private createChildListSignal(
     value: {componentId: string; path?: string; '@path'?: string},
     context: ComponentContext,
+    cleanups: Array<() => void>,
   ) {
     const templatePath = value['@path'] ?? value.path ?? '';
     const listBinding = context.dataContext.atLeastV10
@@ -282,7 +328,7 @@ export class ComponentBinder {
       : {path: templatePath};
     const listSig = context.dataContext.resolveSignal(listBinding);
     if (listSig?.unsubscribe) {
-      this.destroyRef.onDestroy(() => listSig.unsubscribe!());
+      cleanups.push(() => listSig.unsubscribe!());
     }
     assertAngularSignal(listSig);
 
@@ -342,6 +388,7 @@ export class ComponentBinder {
   private resolveCheckRuleSignals(
     checksArray: unknown[],
     context: ComponentContext,
+    cleanups: Array<() => void>,
   ): Array<{conditionSig: unknown; messageSig: unknown}> {
     return checksArray.map(rule => {
       const ruleObj = rule as {condition?: unknown; message?: unknown};
@@ -350,10 +397,10 @@ export class ComponentBinder {
       const conditionSig = context.dataContext.resolveSignal(condition);
       const messageSig = context.dataContext.resolveSignal(message);
       if (conditionSig?.unsubscribe) {
-        this.destroyRef.onDestroy(() => conditionSig.unsubscribe!());
+        cleanups.push(() => conditionSig.unsubscribe!());
       }
       if (messageSig?.unsubscribe) {
-        this.destroyRef.onDestroy(() => messageSig.unsubscribe!());
+        cleanups.push(() => messageSig.unsubscribe!());
       }
       return {conditionSig, messageSig};
     });
@@ -362,13 +409,14 @@ export class ComponentBinder {
   private bindChecks(
     value: unknown,
     context: ComponentContext,
+    cleanups: Array<() => void>,
   ): {
     isValid: BoundProperty<unknown>;
     validationErrors: BoundProperty<unknown>;
     validationResults: BoundProperty<unknown>;
   } {
     const checksArray = Array.isArray(value) ? value : [];
-    const ruleResults = this.resolveCheckRuleSignals(checksArray, context);
+    const ruleResults = this.resolveCheckRuleSignals(checksArray, context, cleanups);
 
     const isValidSignal = computed(() =>
       ruleResults.every(r => !this.evaluateCheckRule(r.conditionSig, r.messageSig).isBlockingError),

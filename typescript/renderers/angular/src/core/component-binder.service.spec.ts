@@ -462,7 +462,42 @@ describe('ComponentBinder', () => {
       expect(surface.dataModel.get('/userName')).toBe('Updated Name');
       expect(inputBound['value'].value()).toBe('Updated Name');
 
+      binder.unbind(rootBound);
+      binder.unbind(inputBound);
       resolver.dispose();
+    });
+
+    it('unsubscribes signal subscriptions when unbind is called', () => {
+      const {context} = createComponentContext({
+        properties: {
+          text: [{path: '/dynamic/item'}],
+          checks: [{condition: [{path: '/dynamic/check'}], message: 'Failed'}],
+        },
+        data: {'/dynamic/item': 'A', '/dynamic/check': true},
+      });
+
+      let unsubscribedCount = 0;
+      const origResolve = context.dataContext.resolveSignal.bind(context.dataContext);
+      spyOn(context.dataContext, 'resolveSignal').and.callFake((<V>(
+        val: unknown,
+        depth?: number,
+      ) => {
+        const sig = origResolve<V>(val, depth);
+        const origUnsub = sig.unsubscribe;
+        if (origUnsub) {
+          sig.unsubscribe = () => {
+            unsubscribedCount++;
+            origUnsub();
+          };
+        }
+        return sig;
+      }) as typeof context.dataContext.resolveSignal);
+
+      const bound = binder.bind(context);
+      expect(unsubscribedCount).toBe(0);
+
+      binder.unbind(bound);
+      expect(unsubscribedCount).toBeGreaterThan(0);
     });
   });
 });

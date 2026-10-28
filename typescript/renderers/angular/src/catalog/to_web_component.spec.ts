@@ -482,6 +482,16 @@ describe('toWebComponent', () => {
     expect(el.node).toBe(rootNode);
     expect(el.querySelector('.test-text')!.textContent).toBe('From Node');
 
+    // Clearing el.node should unsubscribe context updates and unbind previous props
+    const unbindSpy = spyOn(TestBed.inject(ComponentBinder), 'unbind').and.callThrough();
+    el.node = undefined;
+    expect(el.node).toBeUndefined();
+    expect(unbindSpy).toHaveBeenCalled();
+
+    const rootModel = surface.componentsModel.get('root')!;
+    rootModel.properties = {text: 'Should Not Update After Clear'};
+    expect(el.querySelector('.test-text')!.textContent).toBe('From Node');
+
     document.body.removeChild(el);
     resolver.dispose();
   });

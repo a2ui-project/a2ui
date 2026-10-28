@@ -527,12 +527,13 @@ describe('ComponentHostComponent', () => {
       mockSurfaceGroup.getSurface.and.returnValue(realSurface);
 
       const bindNodeSpy = spyOn(TestBed.inject(ComponentBinder), 'bindNode').and.callThrough();
+      const unbindSpy = spyOn(TestBed.inject(ComponentBinder), 'unbind').and.callThrough();
       const testFixture = TestBed.createComponent(ComponentHostComponent);
       testFixture.componentRef.setInput('componentKey', 'root');
       testFixture.componentRef.setInput('surfaceId', 'real-surf');
       testFixture.detectChanges();
 
-      expect(bindNodeSpy).toHaveBeenCalled();
+      expect(bindNodeSpy).toHaveBeenCalledTimes(1);
       const childDebug = testFixture.debugElement.query(
         By.directive(TestNodeResolverChildComponent),
       );
@@ -541,6 +542,7 @@ describe('ComponentHostComponent', () => {
         (childDebug.componentInstance as TestNodeResolverChildComponent).props.text.value(),
       ).toBe('From NodeResolver');
       testFixture.destroy();
+      expect(unbindSpy).toHaveBeenCalled();
     });
   });
 });

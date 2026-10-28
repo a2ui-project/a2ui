@@ -37,7 +37,6 @@ import {
   ResolvedBinding,
   SurfaceModel,
   Subscription,
-  getValue,
   isComponentNode,
   peekValue,
 } from '@a2ui/web_core/v0_9';
@@ -71,14 +70,14 @@ function hasCatalogSchemas(
   if (!surface.dataModel) return false;
   const targetCatalog = targetModel.catalog as AngularCatalog | undefined;
   const targetImpl = targetCatalog?.components.get(targetModel.type);
-  if (!targetImpl || !('schema' in targetImpl) || !targetImpl.schema) {
+  if (!targetImpl || !Object.hasOwn(targetImpl, 'schema') || !targetImpl.schema) {
     return false;
   }
   const rootModel = surface.componentsModel.get('root');
   if (!rootModel) return false;
   const rootCatalog = rootModel.catalog as AngularCatalog | undefined;
   const rootImpl = rootCatalog?.components.get(rootModel.type);
-  return Boolean(rootImpl && 'schema' in rootImpl && rootImpl.schema);
+  return Boolean(rootImpl && Object.hasOwn(rootImpl, 'schema') && rootImpl.schema);
 }
 
 function acquireSurfaceResolver(
@@ -190,6 +189,7 @@ export class ComponentHostComponent {
 
   protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
+  private currentBoundProps?: Record<string, BoundProperty>;
   private context?: ComponentContext;
   private resolvedNode?: ComponentNode<AngularComponentImplementation>;
   private activeResolverSurface?: SurfaceModel<AngularComponentImplementation>;
@@ -335,7 +335,7 @@ export class ComponentHostComponent {
     }
     const resolver = acquireSurfaceResolver(surface);
     this.activeResolverSurface = surface;
-    const root = getValue(resolver.rootNode);
+    const root = peekValue(resolver.rootNode);
     return findNodeInTree(root, id, this.resolvedDataContextPath);
   }
 
@@ -357,9 +357,12 @@ export class ComponentHostComponent {
 
   /** Re-binds the props of the mounted Angular component and schedules change detection. */
   private updateProps(): void {
-    this.props.set(
-      this.resolvedNode ? this.binder.bindNode(this.resolvedNode) : this.binder.bind(this.context!),
-    );
+    this.binder.unbind?.(this.currentBoundProps);
+    const nextProps = this.resolvedNode
+      ? this.binder.bindNode(this.resolvedNode)
+      : this.binder.bind(this.context!);
+    this.currentBoundProps = nextProps;
+    this.props.set(nextProps);
     this.cdr.markForCheck();
   }
 
@@ -426,6 +429,8 @@ export class ComponentHostComponent {
     this.resolvedNode = undefined;
 
     this.componentType.set(null);
+    this.binder.unbind?.(this.currentBoundProps);
+    this.currentBoundProps = undefined;
     this.props.set({});
     this.resolvedDataContextPath = '/';
 
