@@ -243,7 +243,6 @@ export class PayloadValidator {
 
     const knownKeys = getKnownSchemaKeys(componentApi.schema);
     this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id, componentCatalogId);
-    this.validateNestedFunctions(properties, componentCatalogId);
 
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
