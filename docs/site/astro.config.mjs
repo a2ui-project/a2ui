@@ -1,7 +1,23 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 // @ts-check
-import { defineConfig } from 'astro/config';
+import {defineConfig} from 'astro/config';
 import starlight from '@astrojs/starlight';
-import { remarkA2uiIncludes } from './src/plugins/remark-a2ui-includes.mjs';
+import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
 
 export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
@@ -12,7 +28,8 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'A2UI',
-      description: 'The open Agent-to-UI protocol and SDK suite for native, stateful generative user interfaces.',
+      description:
+        'The open Agent-to-UI protocol and SDK suite for native, stateful generative user interfaces.',
       logo: {
         light: './src/assets/A2UI_dark.svg',
         dark: './src/assets/A2UI_light.svg',
@@ -62,9 +79,7 @@ export default defineConfig({
         },
         {
           label: 'Getting Started',
-          items: [
-            { label: '5-Minute Quickstart (Pilot)', slug: 'quickstart' },
-          ],
+          items: [{label: '5-Minute Quickstart (Pilot)', slug: 'quickstart'}],
         },
         {
           label: 'Specifications',
@@ -72,7 +87,7 @@ export default defineConfig({
             {
               label: 'v1.0 Protocol Spec (Pilot)',
               slug: 'specification/v1.0-a2ui',
-              badge: { text: 'Candidate', variant: 'tip' },
+              badge: {text: 'Candidate', variant: 'tip'},
             },
           ],
         },

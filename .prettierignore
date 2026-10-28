@@ -33,6 +33,8 @@ typescript/renderers/*/a2ui_explorer/public/a2ui-sandbox/**
 typescript/catalogs/mcp/tests/fixtures/generated/**
 .next
 **/.next
+**/.astro
+docs/site/public/**
 
 # Evaluation logs and history
 eval/logs

@@ -17,7 +17,7 @@ By the end of this quickstart, you'll have:
 ## Prerequisites
 
 - **Node.js** (v18 or later with [Corepack](https://nodejs.org/api/corepack.html) enabled) — [Download here](https://nodejs.org/)
-- **Flutter SDK** *(optional, for the Flutter client)* — [Install here](https://docs.flutter.dev/install)
+- **Flutter SDK** _(optional, for the Flutter client)_ — [Install here](https://docs.flutter.dev/install)
 - **uv** (Python package manager) — [Install here](https://docs.astral.sh/uv/getting-started/installation/) (used to run the Python agent backend)
 - **A Gemini API key** — [Get one free from Google AI Studio](https://aistudio.google.com/apikey)
 
@@ -79,24 +79,24 @@ flutter run -d chrome
 In the app, try these prompts:
 
 1. **"Book a table for 2"**
-   - Watch the agent respond with a list of restaurant cards.
-   - Click **"Book Now"** on a restaurant.
-   - The agent generates a custom reservation form populated with your party size.
+    - Watch the agent respond with a list of restaurant cards.
+    - Click **"Book Now"** on a restaurant.
+    - The agent generates a custom reservation form populated with your party size.
 2. **"Find Italian restaurants in New York"**
-   - See how the UI adapts dynamically to your query.
+    - See how the UI adapts dynamically to your query.
 3. **Complete a booking**
-   - Fill out the form (date, time, special requests) and click **Submit**.
-   - The client sends a structured `action` back to the agent, which responds with a confirmation surface.
+    - Fill out the form (date, time, special requests) and click **Submit**.
+    - The client sends a structured `action` back to the agent, which responds with a confirmation surface.
 
 ## What's Happening Behind the Scenes?
 
 1. **User Input**: You type `"Book a table for 2"`.
 2. **Agent Processing**:
-   - The Python ADK agent receives your message via the **A2A Protocol**.
-   - Gemini analyzes the intent and generates A2UI messages (using **A2UI Express** or structured JSON).
+    - The Python ADK agent receives your message via the **A2A Protocol**.
+    - Gemini analyzes the intent and generates A2UI messages (using **A2UI Express** or structured JSON).
 3. **Streaming & Rendering**:
-   - The agent streams `createSurface`, `updateComponents`, and `updateDataModel` envelopes to the client.
-   - The client renderer maps abstract components (`Card`, `Row`, `Button`, `DateTimeInput`) to native platform widgets and binds inputs to the local `dataModel` via JSON Pointers.
+    - The agent streams `createSurface`, `updateComponents`, and `updateDataModel` envelopes to the client.
+    - The client renderer maps abstract components (`Card`, `Row`, `Button`, `DateTimeInput`) to native platform widgets and binds inputs to the local `dataModel` via JSON Pointers.
 
 ```json
 {

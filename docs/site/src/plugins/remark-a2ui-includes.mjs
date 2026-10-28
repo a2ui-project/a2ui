@@ -1,5 +1,5 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fromMarkdown } from 'mdast-util-from-markdown';
-import { gfmFromMarkdown } from 'mdast-util-gfm';
-import { gfm } from 'micromark-extension-gfm';
+import {fromMarkdown} from 'mdast-util-from-markdown';
+import {gfmFromMarkdown} from 'mdast-util-gfm';
+import {gfm} from 'micromark-extension-gfm';
 
 function findRepoRoot() {
   let curr = process.cwd();
@@ -66,13 +66,13 @@ function rewriteSpecLinks(markdown, sourcePagePath) {
   // 1. Strip the duplicate centered logo + H1 header block in spec docs since Starlight renders the page H1
   out = out.replace(
     /<div style="text-align:\s*center;">\s*<div class="centered-logo-text-group">[\s\S]*?<\/div>\s*<\/div>\s*/g,
-    ''
+    '',
   );
 
   // 2. Rewrite any remaining HTML <img src="../../../docs/public/assets/..."> to "/assets/..."
   out = out.replace(
     /src=["'](?:\.\.\/)+docs\/public\/assets\/([^"']+)["']/g,
-    `src="${basePrefix}/assets/$1"`
+    `src="${basePrefix}/assets/$1"`,
   );
 
   // 3. Helper to rewrite a single markdown link target
@@ -118,7 +118,7 @@ function rewriteSpecLinks(markdown, sourcePagePath) {
       const newTarget = replacePath(target);
       const titleSuffix = title ? ` ${title}` : '';
       return `[${text}](${newTarget}${titleSuffix})`;
-    }
+    },
   );
 
   return out;
@@ -160,11 +160,11 @@ function preprocessMarkdown(rawMarkdown, filePath) {
 
   // 2. Convert GitHub-flavored alerts (> [!NOTE], > [!TIP], > [!IMPORTANT], > [!WARNING], > [!CAUTION])
   const alertTypes = {
-    NOTE: { label: 'Note', cls: 'note' },
-    TIP: { label: 'Tip', cls: 'tip' },
-    IMPORTANT: { label: 'Important', cls: 'important' },
-    WARNING: { label: 'Warning', cls: 'caution' },
-    CAUTION: { label: 'Caution', cls: 'danger' },
+    NOTE: {label: 'Note', cls: 'note'},
+    TIP: {label: 'Tip', cls: 'tip'},
+    IMPORTANT: {label: 'Important', cls: 'important'},
+    WARNING: {label: 'Warning', cls: 'caution'},
+    CAUTION: {label: 'Caution', cls: 'danger'},
   };
 
   expanded = expanded.replace(
@@ -174,11 +174,11 @@ function preprocessMarkdown(rawMarkdown, filePath) {
       const title = customTitle.trim() || meta.label;
       const cleanBody = bodyLines
         .split('\n')
-        .map((line) => line.replace(/^>[ \t]?/, ''))
+        .map(line => line.replace(/^>[ \t]?/, ''))
         .join('\n')
         .trim();
       return `\n<div class="a2-callout a2-callout--${meta.cls}">\n<div class="a2-callout__title">${title}</div>\n\n${cleanBody}\n\n</div>\n`;
-    }
+    },
   );
 
   return expanded;

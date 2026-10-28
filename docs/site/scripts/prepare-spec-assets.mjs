@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const siteRoot = path.resolve(__dirname, '..');
@@ -26,15 +26,15 @@ const publicDir = path.join(siteRoot, 'public');
 
 function copyRecursive(src, dest) {
   if (!fs.existsSync(src)) return;
-  fs.cpSync(src, dest, { recursive: true, force: true });
+  fs.cpSync(src, dest, {recursive: true, force: true});
 }
 
 // 0. Clear Astro content layer cache so external --8<-- specification edits are always picked up
-fs.rmSync(path.join(siteRoot, 'node_modules/.astro'), { recursive: true, force: true });
-fs.rmSync(path.join(siteRoot, '.astro'), { recursive: true, force: true });
+fs.rmSync(path.join(siteRoot, 'node_modules/.astro'), {recursive: true, force: true});
+fs.rmSync(path.join(siteRoot, '.astro'), {recursive: true, force: true});
 
 // 1. Ensure public/ exists
-fs.mkdirSync(publicDir, { recursive: true });
+fs.mkdirSync(publicDir, {recursive: true});
 
 // 2. Copy static assets from docs/public/assets, CNAME, and llms.txt
 copyRecursive(path.join(repoRoot, 'docs/public/assets'), path.join(publicDir, 'assets'));
@@ -48,19 +48,31 @@ fs.writeFileSync(path.join(publicDir, '.nojekyll'), '');
 
 // 3. Copy specification/* and catalogs/* so canonical JSON Schema $id URLs resolve on a2ui.org
 const specDest = path.join(publicDir, 'specification');
-fs.mkdirSync(specDest, { recursive: true });
+fs.mkdirSync(specDest, {recursive: true});
 copyRecursive(path.join(repoRoot, 'specification'), specDest);
 
 // Copy basic & mcp catalogs under specification/v1_0/catalogs/
 const basicCatalogDest = path.join(specDest, 'v1_0/catalogs/basic');
-fs.mkdirSync(basicCatalogDest, { recursive: true });
-copyRecursive(path.join(repoRoot, 'catalogs/basic/v1/catalog.json'), path.join(basicCatalogDest, 'catalog.json'));
-copyRecursive(path.join(repoRoot, 'catalogs/basic/v1/examples'), path.join(basicCatalogDest, 'examples'));
+fs.mkdirSync(basicCatalogDest, {recursive: true});
+copyRecursive(
+  path.join(repoRoot, 'catalogs/basic/v1/catalog.json'),
+  path.join(basicCatalogDest, 'catalog.json'),
+);
+copyRecursive(
+  path.join(repoRoot, 'catalogs/basic/v1/examples'),
+  path.join(basicCatalogDest, 'examples'),
+);
 
 const mcpCatalogDest = path.join(specDest, 'v1_0/catalogs/mcp');
-fs.mkdirSync(mcpCatalogDest, { recursive: true });
-copyRecursive(path.join(repoRoot, 'catalogs/mcp/v1/catalog.json'), path.join(mcpCatalogDest, 'catalog.json'));
-copyRecursive(path.join(repoRoot, 'catalogs/mcp/v1/examples'), path.join(mcpCatalogDest, 'examples'));
+fs.mkdirSync(mcpCatalogDest, {recursive: true});
+copyRecursive(
+  path.join(repoRoot, 'catalogs/mcp/v1/catalog.json'),
+  path.join(mcpCatalogDest, 'catalog.json'),
+);
+copyRecursive(
+  path.join(repoRoot, 'catalogs/mcp/v1/examples'),
+  path.join(mcpCatalogDest, 'examples'),
+);
 
 // Flatten JSON files to version roots (v0_8, v0_9, v0_9_1, v1_0)
 for (const version of ['v0_8', 'v0_9', 'v0_9_1', 'v1_0']) {
@@ -74,4 +86,6 @@ for (const version of ['v0_8', 'v0_9', 'v0_9_1', 'v1_0']) {
   }
 }
 
-console.log('[prepare-spec-assets] Staged assets, CNAME, llms.txt, and specification JSON schemas into public/.');
+console.log(
+  '[prepare-spec-assets] Staged assets, CNAME, llms.txt, and specification JSON schemas into public/.',
+);
