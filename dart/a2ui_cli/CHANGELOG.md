@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add multi-platform binary compilation tool and automated GitHub Actions release workflow.
 - Bump `a2ui_core` dependency to `^0.3.0`.
 - Initial release of the A2UI CLI developer tool and typesafe component generator.
 - Support `codegen` command for generating Python client component builders from catalog schemas across protocol versions 0.9, 0.9.1, and 1.0.
