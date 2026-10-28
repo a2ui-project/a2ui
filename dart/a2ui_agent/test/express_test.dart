@@ -204,6 +204,87 @@ root = Text($/user/name)
       );
     });
 
+    test(
+      'standalone data assignments emit targeted updateDataModel messages',
+      () {
+        final List<AgentToRendererMessage> messages = ExpressCompiler([basic])
+            .compile(r'''
+surface("main")
+$/user/name = "Ada"
+$/items/0 = "updated"
+''');
+        expect(
+          [for (final m in messages) m.toJson()],
+          [
+            {
+              'version': 'v0.9',
+              'updateDataModel': {
+                'surfaceId': 'main',
+                'path': '/user/name',
+                'value': 'Ada',
+              },
+            },
+            {
+              'version': 'v0.9',
+              'updateDataModel': {
+                'surfaceId': 'main',
+                'path': '/items/0',
+                'value': 'updated',
+              },
+            },
+          ],
+        );
+      },
+    );
+
+    test('root data model replacement and array override on createSurface', () {
+      expect(
+        (compile(r'''
+$/stale = "remove_me"
+$/ = {items: ["a", "b"]}
+$/items/1 = "B"
+$/matrix/0/1 = "cell"
+root = Text("hi")
+''').last['updateDataModel']!
+            as Map)['value'],
+        {
+          'items': ['a', 'B'],
+          'matrix': [
+            [null, 'cell'],
+          ],
+        },
+      );
+    });
+
+    test(
+      'rejects invalid list or primitive path traversal on createSurface',
+      () {
+        expect(
+          () => compile(r'''
+$/items = ["a", "b"]
+$/items/foo = "bar"
+root = Text("hi")
+'''),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => compile(r'''
+$/user = "Ada"
+$/user/name = "Lovelace"
+root = Text("hi")
+'''),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => compile(r'''
+$/items/99999 = "too_large"
+root = Text("hi")
+'''),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
+
     test('data assignments into a map assigned earlier', () {
       expect(
         (compile(r'''
@@ -617,6 +698,136 @@ surface("s1")
       expect(
         ExpressParser([basic]).compile(block).map((m) => m.toJson()),
         messages.map((m) => m.toJson()),
+      );
+    });
+  });
+
+  // A local mixin whose own `allOf` brings in the common types and adds
+  // properties, as `MaterialComponentCommon` does in a composite catalog.
+  group('a local mixin with a nested allOf', () {
+    const commonTypes = 'https://a2ui.org/specification/v0_9/common_types.json';
+    final CatalogApi material = Catalog.fromJson({
+      'catalogId': 'https://example.com/material.json',
+      r'$defs': {
+        'MaterialComponentCommon': {
+          'allOf': [
+            {r'$ref': '$commonTypes#/\$defs/ComponentCommon'},
+            {
+              'type': 'object',
+              'properties': {
+                'weight': {'type': 'number'},
+                'style': {'type': 'object'},
+              },
+            },
+          ],
+        },
+      },
+      'components': {
+        'MaterialText': {
+          'type': 'object',
+          'allOf': [
+            {r'$ref': r'#/$defs/MaterialComponentCommon'},
+            {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'MaterialText'},
+                'text': {r'$ref': '$commonTypes#/\$defs/DynamicString'},
+                'usageHint': {
+                  'type': 'string',
+                  'enum': ['h1', 'body'],
+                },
+              },
+              'required': ['component', 'text'],
+            },
+          ],
+          'unevaluatedProperties': false,
+        },
+        // Overrides the mixin's `style` with its own definition.
+        'MaterialCard': {
+          'type': 'object',
+          'allOf': [
+            {r'$ref': r'#/$defs/MaterialComponentCommon'},
+            {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'MaterialCard'},
+                'child': {r'$ref': '$commonTypes#/\$defs/ComponentId'},
+                'style': {
+                  'type': 'string',
+                  'enum': ['outlined', 'filled'],
+                },
+              },
+              'required': ['component', 'child'],
+            },
+          ],
+          'unevaluatedProperties': false,
+        },
+      },
+    });
+
+    List<Object?> compileMaterial(String block) {
+      final List<ResponsePart> parts = processor([material]).parseResponse(
+        '<a2ui>\nsurface("s", "${material.id}")\n$block\n</a2ui>',
+      );
+      final List<Map<String, Object?>> messages = [
+        for (final m in (parts.single as A2uiPart).a2ui) m.toJson(),
+      ];
+      return (messages[1]['updateComponents']! as Map)['components']! as List;
+    }
+
+    test('includes the mixin properties in the signature', () {
+      final String snippet = processor([material]).promptSnippet;
+      expect(
+        snippet,
+        contains(
+          '• MaterialText(style? (static), text, usageHint? (static), '
+          'weight? (static))',
+        ),
+      );
+      expect(
+        snippet,
+        contains(
+          '• MaterialCard(style? (static), child (component ID), '
+          'weight? (static))',
+        ),
+      );
+    });
+
+    test('maps positional arguments onto the mixin properties', () {
+      expect(
+        compileMaterial(
+          'root = MaterialCard("filled", body, 2)\n'
+          'body = MaterialText({"color": "red"}, "Hi", "h1", 3)',
+        ),
+        [
+          {
+            'id': 'root',
+            'component': 'MaterialCard',
+            'style': 'filled',
+            'child': 'body',
+            'weight': 2,
+          },
+          {
+            'id': 'body',
+            'component': 'MaterialText',
+            'style': {'color': 'red'},
+            'text': 'Hi',
+            'usageHint': 'h1',
+            'weight': 3,
+          },
+        ],
+      );
+    });
+
+    test("prefers the component's own definition of a mixin property", () {
+      final String snippet = processor([material]).promptSnippet;
+      expect(snippet, contains("Must be one of: 'outlined', 'filled'"));
+      expect(
+        () => compileMaterial(
+          'root = MaterialCard({"color": "red"}, body)\n'
+          'body = MaterialText(text="Hi")',
+        ),
+        throwsError<A2uiValidationError>(),
       );
     });
   });

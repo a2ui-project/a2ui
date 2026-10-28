@@ -232,6 +232,20 @@ def test_schema_to_prompt_rejects_no_catalogs():
         schema_to_prompt([])
 
 
+def test_schema_to_prompt_reads_catalogs_from_a_generator():
+    basic = BasicCatalog(ProtocolVersion.V0_9)
+    label = _label_catalog()
+
+    block = schema_to_prompt(c for c in (basic, label))
+
+    assert block == schema_to_prompt([basic, label])
+
+
+def test_schema_to_prompt_rejects_an_empty_generator():
+    with pytest.raises(A2uiCatalogError):
+        schema_to_prompt(c for c in [])
+
+
 def test_schema_to_prompt_rejects_catalogs_of_different_versions():
     with pytest.raises(A2uiCatalogError):
         schema_to_prompt(

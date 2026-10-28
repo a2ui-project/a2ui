@@ -25,7 +25,6 @@ import {
   A2uiValidationError,
   CatalogApi,
   ComponentModel,
-  linkCatalogs,
   MessageProcessor,
   STRICT_VALIDATION,
   SurfaceModel,
@@ -144,7 +143,7 @@ export class RendererState {
           .join(', ')}.`,
       );
     }
-    this._catalogs = linkCatalogs(catalogs);
+    this._catalogs = [...catalogs];
     this.processor = new MessageProcessor(this._catalogs as never, undefined, {
       validationConfig: IN_PROGRESS_VALIDATION,
     });

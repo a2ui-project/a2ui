@@ -25,7 +25,7 @@ environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
-  a2ui_core: ^0.3.0
+  a2ui_core: ^0.4.0
   antlr4: ">=4.13.2 <4.14.0"
 
 dev_dependencies:
