@@ -251,9 +251,9 @@ import {A2uiSurface, MarkdownComponentContext} from '@a2ui/react/v0_9';
 
 const ChatMarkdown = ({markdown}: {markdown: string}) => <Markdown text={markdown} />;
 
-<MarkdownComponentContext value={ChatMarkdown}>
+<MarkdownComponentContext.Provider value={ChatMarkdown}>
   <A2uiSurface surface={surface} />
-</MarkdownComponentContext>;
+</MarkdownComponentContext.Provider>;
 ```
 
 The component renders inside each `Text`, as part of the app's React tree, so it reads the app's context. When both are given, the component is used. `Text` reads one Markdown renderer for the whole page, so give the component to every `A2uiSurface` on the page or to none.

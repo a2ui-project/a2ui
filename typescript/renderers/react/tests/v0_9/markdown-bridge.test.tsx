@@ -151,4 +151,57 @@ describe('A2uiSurface markdown component', () => {
     ).toBeInTheDocument();
     expect(screen.getAllByTestId('chat-markdown')).toHaveLength(1);
   });
+
+  it('puts back the renderer the host registered when the surface unmounts', async () => {
+    setMarkdownRenderer(hostRenderer);
+    const {unmount} = render(
+      <MarkdownComponentContext.Provider value={ChatMarkdown}>
+        <A2uiSurface surface={surfaceWith('mdc-6', 'first')} />
+      </MarkdownComponentContext.Provider>,
+    );
+    await screen.findByTestId('chat-markdown');
+    unmount();
+
+    expect(getMarkdownRenderer()).toBe(hostRenderer);
+    render(<A2uiSurface surface={surfaceWith('mdc-7', 'second')} />);
+    expect(await screen.findByText('second', {selector: 'strong'})).toBeInTheDocument();
+  });
+
+  it('renders plain text on a surface without the component once the last one unmounts', async () => {
+    const {unmount} = render(
+      <MarkdownComponentContext.Provider value={ChatMarkdown}>
+        <A2uiSurface surface={surfaceWith('mdc-8', 'first')} />
+      </MarkdownComponentContext.Provider>,
+    );
+    await screen.findByTestId('chat-markdown');
+    unmount();
+
+    expect(getMarkdownRenderer()).toBeUndefined();
+    render(<A2uiSurface surface={surfaceWith('mdc-9', 'second')} />);
+    expect(await screen.findByText('second')).toBeInTheDocument();
+  });
+
+  it('keeps the component while another surface with it is mounted', async () => {
+    function Surfaces({both}: {both: boolean}) {
+      return (
+        <MarkdownComponentContext.Provider value={ChatMarkdown}>
+          <A2uiSurface surface={kept} />
+          {both && <A2uiSurface surface={removed} />}
+        </MarkdownComponentContext.Provider>
+      );
+    }
+    const kept = surfaceWith('mdc-10', 'kept');
+    const removed = surfaceWith('mdc-11', 'removed');
+    const {rerender} = render(<Surfaces both />);
+    await screen.findByText('removed', {selector: '[data-testid="chat-markdown"]'});
+    rerender(<Surfaces both={false} />);
+
+    act(() => {
+      kept.componentsModel.get('root')!.properties = {text: 'still kept'};
+    });
+
+    expect(
+      await screen.findByText('still kept', {selector: '[data-testid="chat-markdown"]'}),
+    ).toBeInTheDocument();
+  });
 });

@@ -383,11 +383,11 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
 /**
  * Resolves the items of a list and the properties of an object, as the binder does.
  *
- * A list of check rules is left as it is, since the binder hands it on unresolved, and so
- * is an object with a string index signature, which carries data. A value bound to the
- * data model is not walked either: the binder hands on the value the model holds.
+ * A check rule or a list of them is left as it is, since the binder hands it on unresolved,
+ * and so is an object with a string index signature, which carries data. A value bound to
+ * the data model is not walked either: the binder hands on the value the model holds.
  */
-type ResolveNested<T> = T extends readonly (CheckRule | V1CheckRule)[]
+type ResolveNested<T> = T extends CheckRule | V1CheckRule | readonly (CheckRule | V1CheckRule)[]
   ? T
   : T extends readonly (infer Item)[]
     ? ResolveA2uiProp<Item>[]

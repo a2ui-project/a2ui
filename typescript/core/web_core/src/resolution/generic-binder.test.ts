@@ -1130,6 +1130,7 @@ describe('GenericBinder Checkable Trait', () => {
       items: {name?: string; title?: DynamicString; action?: V1Action}[];
       header?: {action: V1Action};
       checks?: V1CheckRule[];
+      rule?: V1CheckRule;
       data?: Record<string, unknown>;
     }>;
     const props = {} as Props;
@@ -1160,8 +1161,12 @@ describe('GenericBinder Checkable Trait', () => {
 
     it('leaves check rules and data objects as they are', () => {
       const checks: V1CheckRule[] | undefined = props.checks;
+      const rule: Props['rule'] = {condition: {path: '/valid'}};
       const data: Record<string, unknown> | undefined = props.data;
-      assert.deepStrictEqual([checks, data], [undefined, undefined]);
+      assert.deepStrictEqual(
+        [checks, rule.condition, data],
+        [undefined, {path: '/valid'}, undefined],
+      );
     });
 
     it('types a list of strings as strings and a child list as child references', () => {

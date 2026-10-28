@@ -478,7 +478,12 @@ AnswerPart = Union[AnswerTextPart, AnswerSurfacePart, ErrorPart]
 class StreamedAnswer:
     def __init__(self, processor: A2uiRequestProcessor, *, renderer: MessageProcessor):
         """Opens a stream on processor whose state is RendererState.of(renderer), reading
-        past rejected blocks."""
+        past rejected blocks. Raises A2uiCatalogError if renderer's catalogs are not
+        processor's active catalogs, in the same order."""
+
+    @property
+    def renderer(self) -> MessageProcessor:
+        """The processor the answer's surfaces are applied to."""
 
     @property
     def parts(self) -> Sequence[AnswerPart]:

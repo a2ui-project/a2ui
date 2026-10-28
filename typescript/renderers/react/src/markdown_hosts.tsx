@@ -31,6 +31,7 @@
 import React, {useCallback, useContext, useSyncExternalStore, type ComponentType} from 'react';
 import {createPortal} from 'react-dom';
 import type {MarkdownRenderer} from '@a2ui/web_core';
+import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {type HostOwner, ownerAbove} from './host_registry';
 import {MarkdownComponentContext, type MarkdownComponentProps} from './markdown-context';
 
@@ -153,6 +154,29 @@ export const renderMarkdownHost: MarkdownRenderer = async markdown => {
   defineMarkdownHost();
   return `<${TAG} ${ATTRIBUTE}="${escapeAttribute(markdown)}"></${TAG}>`;
 };
+
+/** How many mounted surfaces have registered `renderMarkdownHost`. */
+let hostRendererUsers = 0;
+/** The renderer web_core had before the first of those surfaces registered it. */
+let rendererBeforeHosts: MarkdownRenderer | undefined;
+
+/**
+ * Registers `renderMarkdownHost` with web_core for a surface that has a
+ * Markdown component, and returns the function that releases it. When the last
+ * such surface releases it, the renderer web_core had before comes back, unless
+ * something replaced `renderMarkdownHost` in the meantime.
+ */
+export function registerMarkdownHostRenderer(): () => void {
+  if (hostRendererUsers++ === 0) {
+    rendererBeforeHosts = getMarkdownRenderer();
+  }
+  setMarkdownRenderer(renderMarkdownHost);
+  return () => {
+    if (--hostRendererUsers === 0 && getMarkdownRenderer() === renderMarkdownHost) {
+      setMarkdownRenderer(rendererBeforeHosts);
+    }
+  };
+}
 
 /**
  * Portals the component in `MarkdownComponentContext` into each Markdown host

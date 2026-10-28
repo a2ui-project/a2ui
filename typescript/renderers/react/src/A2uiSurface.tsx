@@ -37,7 +37,7 @@ import {prepareCatalogs} from './catalog/prepare_catalogs';
 import {ChildElement, HostedChildren, LoadingPlaceholder} from './node-view';
 import type {ReactCatalogComponent} from './react_component_implementation';
 import {MarkdownComponentContext, useMarkdownRenderer} from './markdown-context';
-import {renderMarkdownHost} from './markdown_hosts';
+import {registerMarkdownHostRenderer} from './markdown_hosts';
 
 export const A2uiSurface: React.FC<{
   surface: SurfaceModel<ReactCatalogComponent>;
@@ -48,13 +48,17 @@ export const A2uiSurface: React.FC<{
   // the slot alone, so one the host registered itself stays in effect. A
   // Markdown component takes precedence: its renderer returns hosts that the
   // surface's elements portal the component into (see `markdown_hosts.tsx`).
+  // That renderer leaves the slot when the last surface using it unmounts.
   const markdownRenderer = useMarkdownRenderer();
   const hasMarkdownComponent = useContext(MarkdownComponentContext) !== undefined;
   useLayoutEffect(() => {
-    const renderer = hasMarkdownComponent ? renderMarkdownHost : markdownRenderer;
-    if (renderer) {
-      setMarkdownRenderer(renderer);
+    if (hasMarkdownComponent) {
+      return registerMarkdownHostRenderer();
     }
+    if (markdownRenderer) {
+      setMarkdownRenderer(markdownRenderer);
+    }
+    return undefined;
   }, [markdownRenderer, hasMarkdownComponent]);
 
   // The resolver is created inside subscribe, which React calls only for
