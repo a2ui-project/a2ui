@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
-import {nothing} from 'lit';
+import {nothing, render} from 'lit';
 
 import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
@@ -311,8 +311,12 @@ describe('A2uiLitElement', () => {
 
     // A child that is still a placeholder renders nothing.
     assert.strictEqual((el as any).renderNode('missing'), nothing);
-    // Passing a ComponentNode directly to renderNode renders it directly.
-    assert.notStrictEqual((el as any).renderNode(childNode), nothing);
+    // Passing a ComponentNode directly to renderNode renders that node.
+    const host = document.createElement('div');
+    render((el as any).renderNode(childNode), host);
+    const direct = host.querySelector('a2ui-basic-text') as any;
+    assert.ok(direct, 'renderNode(childNode) should render the child element');
+    assert.strictEqual(direct.node, childNode);
 
     // Replacing the assigned node with a different ComponentNode recreates the controller.
     await asyncUpdate(el, (e: any) => {

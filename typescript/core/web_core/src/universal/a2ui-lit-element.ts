@@ -272,13 +272,12 @@ export abstract class A2uiLitElement<
     let path = customPath;
     if (typeof childRef === 'object') {
       componentId = (childRef as any).id || (childRef as any).componentId;
-      path =
-        path ?? (childRef as any).basePath ?? (childRef as any).path ?? (childRef as any).dataPath;
+      path = path ?? (childRef as any).basePath ?? (childRef as any).path;
     } else {
       componentId = childRef;
     }
 
-    if (!componentId) {
+    if (!componentId || !surface.componentsModel?.get(componentId)) {
       return nothing;
     }
 
@@ -289,10 +288,6 @@ export abstract class A2uiLitElement<
       if (childNode) {
         return renderA2uiNode(childNode);
       }
-    }
-
-    if (!surface.componentsModel?.get(componentId)) {
-      return nothing;
     }
 
     const childContext = new ComponentContext(surface, componentId, path);
@@ -382,37 +377,27 @@ function findChildNode(
   componentId: string,
   dataPath: string,
 ): ComponentNode | undefined {
-  return visitChildValue(peekValue(parent.props), componentId, dataPath);
-}
-
-function visitChildValue(
-  value: unknown,
-  componentId: string,
-  dataPath: string,
-): ComponentNode | undefined {
-  if (isComponentNode(value)) {
-    return value.componentId === componentId && value.dataPath === dataPath ? value : undefined;
-  }
-  if (value instanceof ResolvedBinding) {
-    return visitChildValue(value.value, componentId, dataPath);
-  }
-  if (Array.isArray(value)) {
-    return visitChildList(value, componentId, dataPath);
-  }
-  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
-    return visitChildList(Object.values(value), componentId, dataPath);
-  }
-  return undefined;
-}
-
-function visitChildList(
-  items: unknown[],
-  componentId: string,
-  dataPath: string,
-): ComponentNode | undefined {
-  for (const item of items) {
-    const found = visitChildValue(item, componentId, dataPath);
-    if (found) return found;
-  }
-  return undefined;
+  const visit = (value: unknown): ComponentNode | undefined => {
+    if (isComponentNode(value)) {
+      return value.componentId === componentId && value.dataPath === dataPath ? value : undefined;
+    }
+    if (value instanceof ResolvedBinding) {
+      return visit(value.value);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = visit(item);
+        if (found) return found;
+      }
+      return undefined;
+    }
+    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+      for (const item of Object.values(value)) {
+        const found = visit(item);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+  return visit(peekValue(parent.props));
 }

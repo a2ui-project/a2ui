@@ -1,6 +1,6 @@
 ## Unreleased
 
-- `<a2ui-surface>` manages a per-surface `NodeResolver`, exposes `rootNode`, and renders the resolved root `ComponentNode` via `renderA2uiNode`. [#3705](https://github.com/a2ui-project/a2ui/pull/3705)
+- `<a2ui-surface>` manages a per-surface `NodeResolver` and renders the resolved root `ComponentNode` via `renderA2uiNode`. [#3705](https://github.com/a2ui-project/a2ui/pull/3705)
 
 ## 0.14.0
 

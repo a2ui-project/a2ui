@@ -43,27 +43,15 @@ export class A2uiSurface extends LitElement {
   @property({type: Object}) accessor surface: SurfaceModel<LitComponentApi> | undefined;
 
   /**
-   * Internal state indicating whether the root component exists.
-   * @internal
-   */
-  @state() accessor _hasRoot = false;
-  /**
    * Resolved root component node from `NodeResolver`.
    * @internal
    */
-  private _rootNode?: ComponentNode<LitComponentApi>;
+  @state() private accessor _rootNode: ComponentNode<LitComponentApi> | undefined;
   /**
    * Subscription cleanup function.
    * @internal
    */
   private unsubscribe?: () => void;
-
-  /**
-   * Returns the currently resolved root component node for this surface, if any.
-   */
-  get rootNode(): ComponentNode<LitComponentApi> | undefined {
-    return this._rootNode;
-  }
 
   /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot
@@ -122,16 +110,12 @@ export class A2uiSurface extends LitElement {
     this._rootNode = undefined;
 
     if (!this.surface) {
-      this._hasRoot = false;
       return;
     }
 
     const resolver = new NodeResolver(this.surface);
     const stopEffect = effect(() => {
-      const root = getValue(resolver.rootNode);
-      this._rootNode = root;
-      this._hasRoot = !!root && root.state !== 'pending';
-      this.requestUpdate();
+      this._rootNode = getValue(resolver.rootNode);
     });
 
     this.unsubscribe = () => {
@@ -149,12 +133,13 @@ export class A2uiSurface extends LitElement {
    */
   override render() {
     if (!this.surface) return nothing;
-    if (!this._hasRoot || !this._rootNode) {
+    const root = this._rootNode;
+    if (!root || root.isPlaceholder) {
       return html`<div>Loading surface...</div>`;
     }
 
     try {
-      return renderA2uiNode(this._rootNode);
+      return renderA2uiNode(root);
     } catch (e) {
       console.error('Error rendering root node:', e);
       return html`<div>Error rendering surface</div>`;

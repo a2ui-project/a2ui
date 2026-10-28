@@ -136,14 +136,9 @@ export class A2uiController<
     if (this.host.node) {
       if (!this.nodeEffectCleanup) {
         const node = this.host.node;
-        let initialized = false;
         this.nodeEffectCleanup = effect(() => {
-          const raw = getValue(node.props);
-          this._props = nodePropsToControllerProps(node, raw) as Props;
-          if (initialized) {
-            this.host.requestUpdate();
-          }
-          initialized = true;
+          this._props = nodePropsToControllerProps(node, getValue(node.props)) as Props;
+          this.host.requestUpdate();
         });
       }
       return;

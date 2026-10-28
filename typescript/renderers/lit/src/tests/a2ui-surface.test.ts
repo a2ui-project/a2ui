@@ -18,7 +18,7 @@ import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, beforeEach, after, before} from 'node:test';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {MessageProcessor, isComponentNode} from '@a2ui/web_core/v0_9';
 
 /**
  * These tests verify that the surface element:
@@ -187,8 +187,11 @@ describe('A2uiSurface', () => {
     assert.strictEqual(el.shadowRoot, null);
     const childEl = el.querySelector('a2ui-basic-text') as any;
     assert.ok(childEl);
-    assert.ok(el.rootNode, 'Surface should expose resolved rootNode');
-    assert.strictEqual(childEl.node, el.rootNode, 'Root element should receive resolved rootNode');
+    assert.ok(
+      isComponentNode(childEl.node),
+      'Root element should receive a resolved ComponentNode',
+    );
+    assert.strictEqual(childEl.node.componentId, 'root');
 
     document.body.removeChild(el);
   });
