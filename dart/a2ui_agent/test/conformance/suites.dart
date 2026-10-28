@@ -123,7 +123,7 @@ enum SuiteVersion {
 
   /// [parts] in the vocabulary of the suites; see [liftParts].
   List<Object?> partsJson(
-    List<ResponsePart> parts, {
+    List<StreamPart> parts, {
     bool join = false,
     String? injectedCatalogId,
   }) => _lowers
@@ -540,11 +540,11 @@ final Map<String, String> _liftedKeys = {
 
 /// [parts] in the vocabulary of the suites, with messages lifted to v1.0.
 List<Object?> liftParts(
-  List<ResponsePart> parts, {
+  List<StreamPart> parts, {
   bool join = false,
   String? injectedCatalogId,
 }) => [
-  for (final ResponsePart part in parts)
+  for (final StreamPart part in parts)
     switch (part) {
       TextPart(:final String text) => {'text': text},
       A2uiPart(:final List<AgentToRendererMessage> a2ui) => {
@@ -554,6 +554,7 @@ List<Object?> liftParts(
           injectedCatalogId: injectedCatalogId,
         ),
       },
+      ErrorPart(:final A2uiError error) => _errorPartJson(error),
     },
 ];
 
@@ -608,15 +609,26 @@ Map<String, Object?> messageAsWritten(AgentToRendererMessage message) => {
 
 /// [parts] in the vocabulary of the suites, with messages as this SDK writes
 /// them; see [messageAsWritten].
-List<Object?> partsAsWritten(List<ResponsePart> parts) => [
-  for (final ResponsePart part in parts)
+List<Object?> partsAsWritten(List<StreamPart> parts) => [
+  for (final StreamPart part in parts)
     switch (part) {
       TextPart(:final String text) => {'text': text},
       A2uiPart(:final List<AgentToRendererMessage> a2ui) => {
         'a2ui': a2ui.map(messageAsWritten).toList(),
       },
+      ErrorPart(:final A2uiError error) => _errorPartJson(error),
     },
 ];
+
+/// An [ErrorPart] in the vocabulary of the suites: the category of its
+/// error.
+Map<String, Object?> _errorPartJson(A2uiError error) => {
+  'error': {
+    'category': _errors.entries
+        .firstWhere((entry) => entry.value.matches(error, {}))
+        .key,
+  },
+};
 
 /// [expected] with `is_final: true` dropped, since a part is final unless it
 /// says otherwise.

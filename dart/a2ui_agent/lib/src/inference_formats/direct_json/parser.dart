@@ -243,4 +243,16 @@ class DirectJsonParser extends Parser {
     wrapped: wrapped,
     state: state ?? RendererState(catalogs),
   );
+
+  /// Opens a [DirectJsonResponseStream] for one response that reads past a
+  /// rejected block. See [Parser.openContinuingStream] and [openStream].
+  @override
+  DirectJsonContinuingResponseStream openContinuingStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => DirectJsonContinuingResponseStream._(
+    this,
+    wrapped: wrapped,
+    state: state ?? RendererState(catalogs),
+  );
 }
