@@ -1,7 +1,7 @@
 ---
 codebase_path: dart/a2ui_flutter
 associated_module: a2ui_framework_adapter
-module_blueprint_commit: 48c3fdf13e90f6be26186456075e5d221c455e7b
+module_blueprint_commit: 2e3d9bc434a34ba25498a11e0bfba079b52dcf29
 implemented_features:
   - node_resolution
 local_development:

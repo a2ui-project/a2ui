@@ -23,6 +23,10 @@
   chunk that finished a block and then failed in the next one threw without
   those parts and rolled them back. Show `error.partialResults` before ending
   the stream ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- An `A2uiError` that `Parser.parseResponse` throws carries `partialResults`
+  too: the parts before the failing block, or only the text when a tree
+  check fails, since that check spans every block. None of them is applied
+  to the state ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
 - Breaking: `ResponseStream` is now `ResponseReader<ResponsePart>`, and a
   class that implements it adds `isInBlock`. `ResponsePart` extends the new
   sealed `StreamPart`. Code that names `ResponseStream` or
@@ -50,6 +54,11 @@
   and keeps its `parts` in the order the model wrote them: text
   (`AnswerTextPart`), one part per surface it creates (`AnswerSurfacePart`),
   and an `AnswerErrorPart` per rejected block ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Requires the `a2ui_core` release after 0.4.0, whose
+  `MessageProcessor.processMessages` takes a `validationConfig` for one call,
+  which `RendererState.of` uses. The release that publishes this version
+  raises the `a2ui_core` constraint along with that `a2ui_core` release; until
+  then the workspace resolves `a2ui_core` from this repository.
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
@@ -86,8 +95,7 @@
 - Requires the next release of `a2ui_core`, which adds
   `SurfaceComponentsModel.insertComponent`, `insertComponents`,
   `saveReferenceFields` and `restoreReferenceFields` and
-  `SurfaceGroupModel.detachSurface` and the `validationConfig` parameter of
-  `MessageProcessor.processMessages`, and exports
+  `SurfaceGroupModel.detachSurface`, and exports
   `checkPathsAndRecursion` and `checkDuplicateComponentIds`. The release that
   publishes this version raises the `a2ui_core` constraint to `^0.3.1` along
   with that `a2ui_core` release; until then the workspace resolves

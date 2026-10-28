@@ -1,7 +1,7 @@
 ---
 codebase_path: dart/a2ui_core
 associated_module: a2ui_core
-module_blueprint_commit: 48c3fdf13e90f6be26186456075e5d221c455e7b
+module_blueprint_commit: 2e3d9bc434a34ba25498a11e0bfba079b52dcf29
 implemented_features: []
 local_development:
   test_command: 'dart test'

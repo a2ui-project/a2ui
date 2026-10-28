@@ -554,7 +554,7 @@ List<Object?> liftParts(
           injectedCatalogId: injectedCatalogId,
         ),
       },
-      ErrorPart(:final A2uiError error) => _errorPartJson(error),
+      ErrorPart(:final A2uiError error) => errorPartJson(error),
     },
 ];
 
@@ -616,13 +616,13 @@ List<Object?> partsAsWritten(List<StreamPart> parts) => [
       A2uiPart(:final List<AgentToRendererMessage> a2ui) => {
         'a2ui': a2ui.map(messageAsWritten).toList(),
       },
-      ErrorPart(:final A2uiError error) => _errorPartJson(error),
+      ErrorPart(:final A2uiError error) => errorPartJson(error),
     },
 ];
 
 /// An [ErrorPart] in the vocabulary of the suites: the category of its
 /// error.
-Map<String, Object?> _errorPartJson(A2uiError error) => {
+Map<String, Object?> errorPartJson(A2uiError error) => {
   'error': {
     'category': _errors.entries
         .firstWhere((entry) => entry.value.matches(error, {}))
