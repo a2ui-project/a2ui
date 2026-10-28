@@ -66,28 +66,36 @@ LAST_PASS=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$WORKFLOW_FILE" 
 LAST_PASS_SHA="${LAST_PASS%% *}"
 LAST_PASS_URL="${LAST_PASS#* }"
 
+# One line per commit: its SHA and the first line of its message.
+COMMIT_SUBJECT='"\(.sha) \(.commit.message | split("\n")[0])"'
 COMPARED=false
-COMMITS="$GITHUB_SHA"
+COMMITS=""
 if [[ -n "$LAST_PASS_SHA" ]]; then
   # The commits after the last passing one, up to the failing one. The
   # compare API lists at most 250.
-  if COMPARED_COMMITS=$(gh api "repos/$GITHUB_REPOSITORY/compare/${LAST_PASS_SHA}...${GITHUB_SHA}" --jq '.commits[].sha'); then
+  if COMPARED_COMMITS=$(gh api "repos/$GITHUB_REPOSITORY/compare/${LAST_PASS_SHA}...${GITHUB_SHA}" --jq ".commits[] | $COMMIT_SUBJECT"); then
     COMPARED=true
     COMMITS="$COMPARED_COMMITS"
   fi
 fi
+if [[ "$COMPARED" != true ]]; then
+  COMMITS=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" --jq "$COMMIT_SUBJECT") || COMMITS="$GITHUB_SHA"
+fi
 
+# The repository only squash-merges, and a squash merge ends its subject with
+# the PR number, as in "fix: x (#123)". Reading it from there takes no request
+# per commit.
 PRS=""
-for COMMIT in $COMMITS; do
-  PR_NUMBER=$(gh api "repos/$GITHUB_REPOSITORY/commits/$COMMIT/pulls" --jq '.[0].number // empty') || PR_NUMBER=""
-  if [[ -n "$PR_NUMBER" ]]; then
+while read -r COMMIT SUBJECT; do
+  [[ -z "$COMMIT" ]] && continue
+  if [[ "$SUBJECT" =~ \(#([0-9]+)\)$ ]]; then
     PRS="${PRS}
-- #${PR_NUMBER}"
+- #${BASH_REMATCH[1]}"
   else
     PRS="${PRS}
 - ${COMMIT:0:7} (no PR)"
   fi
-done
+done <<< "$COMMITS"
 
 if [[ "$COMPARED" != true ]]; then
   CHANGES="Could not list the changes since the last passing run. The failing commit:${PRS}"
@@ -120,7 +128,8 @@ fi
 # Until the workflow passes again, every failing run is reported on the same
 # issue, so one break does not file an issue per night.
 echo "Checking for an open issue with label '$LABEL_NAME' and a title starting with '$TITLE_PREFIX'..."
-EXISTING_ISSUE=$(gh issue list --label "$LABEL_NAME" --state open --search "\"$TITLE_PREFIX\" in:title" --json number,title --jq "map(select(.title | startswith(\"$TITLE_PREFIX\"))) | .[0].number // empty")
+EXISTING_ISSUE=$(gh issue list --label "$LABEL_NAME" --state open --search "\"$TITLE_PREFIX\" in:title" --json number,title \
+  | jq -r --arg prefix "$TITLE_PREFIX" 'map(select(.title | startswith($prefix))) | .[0].number // empty')
 
 if [ -n "$EXISTING_ISSUE" ]; then
   echo "Adding this run to the open issue #$EXISTING_ISSUE..."
