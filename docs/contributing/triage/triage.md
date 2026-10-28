@@ -10,7 +10,7 @@ Continuously make sure that on [a2ui](https://github.com/a2ui-project/a2ui):
 
 ## References
 
-- [How the automated triage bot works](automation.md)
+- [How the automated triage bot works](../../../blueprints/devtools/triage_flagging.blueprint.md)
 - [Standard triage replies for issues](templates.md)
 - [Decisions made for this triage process](decisions.md)
 
@@ -34,7 +34,7 @@ This section describes triage principles at a high level. See concrete steps in 
 
 ## GitHub labels used in triage
 
-Added and removed by the [triage bot](automation.md):
+Added and removed by the [triage bot](../../../blueprints/devtools/triage_flagging.blueprint.md):
 
 - [status: needs-triage][needs-triage-label]: the item needs triage.
 
