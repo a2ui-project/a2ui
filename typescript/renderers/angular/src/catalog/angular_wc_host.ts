@@ -22,7 +22,7 @@ import {
   ComponentRef,
   NgZone,
 } from '@angular/core';
-import {ComponentContext} from '@a2ui/web_core/v0_9';
+import {ComponentContext, type ComponentNode} from '@a2ui/web_core/v0_9';
 import type {AngularCatalog, AngularComponentImplementation} from './types';
 
 import {ComponentBinder} from '../core/component-binder.service';
@@ -69,6 +69,7 @@ export class AngularWcHost extends HTMLElement {
   private appRef?: ApplicationRef;
   private binder?: ComponentBinder;
   private ngZone?: NgZone | null;
+  private _node?: ComponentNode;
   private _context?: ComponentContext;
   private contextSubscription?: {unsubscribe: () => void};
   private _injector?: Injector;
@@ -141,7 +142,25 @@ export class AngularWcHost extends HTMLElement {
     });
   }
 
+  set node(node: ComponentNode | undefined) {
+    this._node = node;
+    if (node?.context) {
+      this._context = node.context;
+    }
+    if (this._context) {
+      this.subscribeToContext(this._context);
+      this.updateContext();
+    }
+  }
+
+  get node(): ComponentNode | undefined {
+    return this._node;
+  }
+
   set context(ctx: ComponentContext) {
+    if (this._node && this._node.context !== ctx) {
+      this._node = undefined;
+    }
     this._context = ctx;
     this.subscribeToContext(ctx);
     this.updateContext();
@@ -154,7 +173,9 @@ export class AngularWcHost extends HTMLElement {
   private updateContext() {
     if (!this.componentRef || !this.binder || !this._context) return;
 
-    const boundProps = this.binder.bind(this._context);
+    const boundProps = this._node
+      ? this.binder.bindNode(this._node)
+      : this.binder.bind(this._context);
 
     this.componentRef.setInput('props', boundProps);
     this.componentRef.setInput('surfaceId', this._context.dataContext.surface?.id);
