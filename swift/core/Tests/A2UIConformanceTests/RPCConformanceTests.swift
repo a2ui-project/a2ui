@@ -135,28 +135,28 @@ struct RPCConformanceTests {
       }
     case "playMedia":
       return ConformanceMockRPCFunction(
-        name: fnName,
-        schema: paramSchema,
+        name: functionName,
+        schema: parameterSchema,
         allowedCallers: callers,
-        requiresUserActivation: reqUserActivation
+        requiresUserActivation: requiresUserActivation
       ) { _, _ in
         .object(["playing": .boolean(true), "timestamp": .integer(0)])
       }
     case "openExternalUrl":
       return ConformanceMockRPCFunction(
-        name: fnName,
-        schema: paramSchema,
+        name: functionName,
+        schema: parameterSchema,
         allowedCallers: callers,
-        requiresUserActivation: reqUserActivation
+        requiresUserActivation: requiresUserActivation
       ) { _, _ in
         .object(["opened": .boolean(true)])
       }
     case "echoArgs":
       return ConformanceMockRPCFunction(
-        name: fnName,
-        schema: paramSchema,
+        name: functionName,
+        schema: parameterSchema,
         allowedCallers: callers,
-        requiresUserActivation: reqUserActivation
+        requiresUserActivation: requiresUserActivation
       ) { args, _ in
         var ordered: OrderedDictionary<String, JSONValue> = [:]
         for key in args.keys.sorted() {
@@ -166,10 +166,10 @@ struct RPCConformanceTests {
       }
     default:
       return ConformanceMockRPCFunction(
-        name: fnName,
-        schema: paramSchema,
+        name: functionName,
+        schema: parameterSchema,
         allowedCallers: callers,
-        requiresUserActivation: reqUserActivation
+        requiresUserActivation: requiresUserActivation
       ) { _, _ in
         .null
       }
