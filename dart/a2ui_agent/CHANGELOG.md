@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bumped `a2ui_core` constraint to `^0.4.0`.
+
 - Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
   scopes that update a surface (scopes without a `root` assignment) now emit one
   targeted `updateDataModel` message per assigned path at its JSON Pointer
