@@ -28,6 +28,12 @@ The native SwiftUI rendering adaptation layer for A2UI.
   `@ObservedObject`, or environment keys.
 - **Dynamic Catalog Registration**: Components register builders producing SwiftUI views
   keyed by component type names.
+- **Markdown**: The basic `Text` with the `body` variant, or none, renders its Markdown with the
+  view builder in the `a2uiMarkdown` environment value, which the app sets with
+  `.a2uiMarkdown { markdown in ... }` and which is built inside the app's view hierarchy, as the
+  module blueprint's ambient context injection asks. SwiftUI renders text natively, so there is
+  no renderer that returns markup. Without the environment value, `Text` renders Markdown with
+  its own views.
 
 ## **Validation & Execution Recipes**
 

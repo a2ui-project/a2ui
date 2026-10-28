@@ -29,6 +29,20 @@ The native Swift runtime processing engine and state model implementation for A2
   non-UI use cases (such as CLI tools or server integrations).
 - **Safe Evaluation**: Avoids force-unwrapping (`!`) and forced tries (`try!`), propagating
   errors or providing fallbacks.
+- **Per-call validation config**: `processMessages(_:validationConfig:)` takes the config of one
+  call as a parameter rather than in an execution context object, since Swift has no
+  `processMessagesAsync` and a message carries its own user activation. Validators are cached per
+  catalog and config, so a call with its own config gets validators built for it.
+- **`MessageProcessor.catalogs`**: Returns the catalogs as the processor was created with them,
+  before they are erased to `AnyCatalog`.
+- **`Catalog.derive` entries**: Swift has no union of a name and an entry, so `derive` takes the
+  names of the entries to keep in `components` and `functions`, and the new entries in
+  `addComponents` and `addFunctions`, which replace a kept entry of the same name. A Swift
+  `Catalog` has no `$id`, title, description or instructions, so `derive` has none to drop and
+  takes no instructions.
+- **Nested values in the resolver**: `NodeResolver` resolves actions, bindings and child lists
+  inside lists and objects, as the module blueprint requires. Its properties are
+  `[String: any Resolved]`, so there are no property types to follow it.
 
 ## **Validation & Execution Recipes**
 
