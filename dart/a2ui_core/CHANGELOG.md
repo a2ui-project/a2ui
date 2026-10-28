@@ -27,6 +27,7 @@
   `A2uiCatalogError` ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
 
 ## 0.4.0
+
 - **Breaking:** Removed cross-catalog `$ref` resolution across peer
   catalogs ([#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)). A catalog's
