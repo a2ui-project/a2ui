@@ -83,6 +83,7 @@
             "provide_catalog",
             "prune",
             "render",
+            "report_problems",
             "resolve_catalogs",
             "resolve_path",
             "round_trip",
@@ -234,6 +235,22 @@
             "type": "string"
           },
           "description": "List of expected skill filenames or keys."
+        },
+        "listeners": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["surface", "first", "second"]
+          },
+          "description": "Listeners subscribed to each surface's `onError` and `onWarning` for a problem reporting case, in subscription order. Defaults to [\"surface\"]."
+        },
+        "throwOnFirstReport": {
+          "type": "boolean",
+          "description": "Whether the first listener throws an exception on the first report it receives."
+        },
+        "disposeResolverOnFirstReport": {
+          "type": "string",
+          "description": "Surface identifier whose active resolver is disposed when a listener receives the first report."
         }
       },
       "allOf": [
@@ -460,8 +477,35 @@
         },
         "op": {
           "type": "string",
-          "enum": ["get", "set", "delete", "dispose"],
+          "enum": [
+            "await_delivery",
+            "construct_resolver",
+            "delete",
+            "delete_surface",
+            "dispose",
+            "dispose_resolver",
+            "get",
+            "invoke_action",
+            "process_messages",
+            "set"
+          ],
           "description": "The operation to apply."
+        },
+        "surfaceId": {
+          "type": "string",
+          "description": "Target surface identifier for problem reporting steps."
+        },
+        "node": {
+          "type": "string",
+          "description": "Target node path or component identifier for action invocation steps."
+        },
+        "property": {
+          "type": "string",
+          "description": "Target property name on a resolved node."
+        },
+        "disposeImmediately": {
+          "type": "boolean",
+          "description": "Whether construct_resolver disposes the resolver immediately in the same turn before delivery."
         },
         "path": {
           "type": "string",
@@ -501,6 +545,18 @@
             "type": "string"
           },
           "description": "Watched paths whose observers fired for this step, one entry per observer that fired."
+        },
+        "expect_reports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExpectReport"
+          },
+          "description": "Problem reports delivered since the start of the case or the previous `expect_reports` assertion, in delivery order."
+        },
+        "expectFunctionCalls": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Expected number of catalog function evaluations performed up to this step."
         }
       },
       "additionalProperties": false
@@ -1655,6 +1711,37 @@
           "additionalProperties": false
         }
       ]
+    },
+    "ExpectReport": {
+      "type": "object",
+      "description": "One problem report delivered to an error or warning listener.",
+      "required": ["code"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["error", "warning"],
+          "default": "error",
+          "description": "Whether the report was delivered to an error listener or a warning listener."
+        },
+        "code": {
+          "type": "string",
+          "description": "The error or warning code on the report."
+        },
+        "surfaceId": {
+          "type": ["string", "null"],
+          "description": "Surface identifier on an error report."
+        },
+        "path": {
+          "type": "string",
+          "description": "Data path on a warning or error report."
+        },
+        "listener": {
+          "type": "string",
+          "enum": ["surface", "first", "second"],
+          "description": "Which listener received this report when a case subscribes multiple listeners."
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

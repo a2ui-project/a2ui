@@ -123,7 +123,17 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 /**
  * Transition skip list containing specific test case names to skip.
  */
-const SKIP_TEST_NAMES = new Set();
+const SKIP_TEST_NAMES = new Set([
+  // Skipped until web_core implements problem reporting.
+  'T1_resolve_defers_delivery',
+  'T2_data_write_and_action_defer_delivery',
+  'T3_throwing_listener_does_not_stop_next_item',
+  'T4_resolve_and_dispose_at_once_delivers',
+  'T5_listener_disposing_resolver_gets_remaining_items',
+  'T6_errors_and_warnings_arrive_in_discovery_order',
+  'X1_delete_surface_before_delivery_still_delivers',
+  'L1_unmounted_surface_evaluates_no_function',
+]);
 
 /**
  * Cases that web_core's behaviour does not satisfy, keyed by suite path and

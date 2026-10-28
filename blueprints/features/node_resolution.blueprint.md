@@ -68,7 +68,7 @@ The layers have separate responsibilities:
 ### **8. Placeholders**
 
 - A partly streamed surface still resolves to a tree: a reference to a component the surface does not currently hold resolves to a placeholder node with state `pending`. When the component arrives, a resolved node replaces the placeholder at the same position.
-- A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats an ancestor's component id at the same data scope resolves to one with state `cyclic`. The resolver dispatches `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` to the surface.
+- A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats an ancestor's component id at the same data scope resolves to one with state `cyclic`. The resolver dispatches `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` on the surface.
 
 ---
 
@@ -175,7 +175,7 @@ class NodeResolver<C extends ComponentApi> {
 
 ### **Changes to the framework adapter contract**
 
-The [framework adapter blueprint](../modules/a2ui_framework_adapter.blueprint.md) describes how an adapter renders the node tree: one resolver per surface, a view per node that subscribes to the node's `props`, a view for every node that is not resolved, and bindings unwrapped at the control boundary.
+The [framework adapter blueprint](../modules/a2ui_framework_adapter.blueprint.md) describes how an adapter renders the node tree: one resolver per mounted view, a view per node that subscribes to the node's `props`, a view for every node that is not resolved, and bindings unwrapped at the control boundary.
 
 ---
 

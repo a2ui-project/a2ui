@@ -1134,6 +1134,22 @@ interface A2uiRendererAction {
   catalogId?: string;
 }
 
+interface A2uiRendererError {
+  code: string;
+  surfaceId?: string;
+  path?: string;
+  message: string;
+  functionCallId?: string;
+  details?: unknown;
+}
+
+interface A2uiWarning {
+  code: string;
+  surfaceId?: string;
+  message: string;
+  path?: string;
+}
+
 type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
 
 class SurfaceModel<T extends ComponentApi> {
@@ -1173,12 +1189,18 @@ class SurfaceModel<T extends ComponentApi> {
   readonly sendDataModel: boolean;
 
   readonly onAction: EventSource<A2uiRendererAction>;
+  readonly onError: EventSource<A2uiRendererError>;
+  readonly onWarning: EventSource<A2uiWarning>;
   /**
    * Dispatches an action from this surface.
    * @param payload The raw action event from the component.
    * @param sourceComponentId The ID of the component that triggered the action.
    */
   dispatchAction(payload: Record<string, any>, sourceComponentId: string): Promise<void>;
+  /** Emits an error report to this surface's error listeners in a microtask. */
+  dispatchError(error: A2uiRendererError): Promise<void>;
+  /** Emits a warning report to this surface's warning listeners in a microtask. */
+  dispatchWarning(warning: A2uiWarning): Promise<void>;
 }
 ```
 
@@ -1341,7 +1363,7 @@ This depends on `catalogId` surviving deserialization. If the `FunctionCall` mod
 
 _Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"@path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
 
-_Expression errors are dispatched, not thrown._ A failure while evaluating a bound expression (unknown function, bad arguments) dispatches an `EXPRESSION_ERROR` to the surface and yields an undefined value for that binding. A call whose catalog can't be resolved dispatches a `CATALOG_ERROR` instead: the expression may be fine, and the function may exist in a catalog the surface doesn't have, so the agent needs to tell the two apart. Throwing out of the resolution pass aborts the whole tree, so one malformed binding blanks an otherwise renderable surface. The RPC path is different: it returns a structured error response, since there is a caller waiting on a result.
+_Expression errors are dispatched, not thrown._ A failure while evaluating a bound expression (unknown function, bad arguments) dispatches an `EXPRESSION_ERROR` on the surface and yields an undefined value for that binding. A call whose catalog can't be resolved dispatches a `CATALOG_ERROR` on the surface instead: the expression may be fine, and the function may exist in a catalog the surface doesn't have, so the agent needs to tell the two apart. Throwing out of the resolution pass aborts the whole tree, so one malformed binding blanks an otherwise renderable surface. The RPC path is different: it returns a structured error response, since there is a caller waiting on a result.
 
 _Out-of-scope `@index`._ `@index` outside any repeater scope raises `A2uiValidationError`. Defaulting it to `0` invents a value the payload never supplied and produces a plausible-looking wrong render instead of an error.
 
@@ -1442,6 +1464,17 @@ export class A2uiExpressionError extends A2uiError {
 **Inheritance must match across implementations.** `A2uiIntegrityError` and `A2uiRecursionError` both derive from `A2uiValidationError`, because both report a payload the SDK refused to accept, and a caller that catches `A2uiValidationError` expects to have caught all of them. Parenting them directly on `A2uiError` in one language and on `A2uiValidationError` in another makes the same conformance case pass in one SDK and fail in the other.
 
 **`expect_error.category` in `conformance/conformance_schema.json` names these classes** without the `A2ui` prefix. Add a category alongside the first suite that asserts it.
+
+---
+
+### H. Problem reporting
+
+Problems found while resolving or interacting with a surface reach the surface's listeners in a microtask after the call that found them. The rules below (`P1` to `P4`) govern what counts as a problem, how reports are delivered, and when listeners run.
+
+- **P1. Problem.** A problem is a defect in agent output that the client finds, or a failure while running that output. A problem in a message keeps its existing path out of `processMessages` and is not delivered to listeners. A failed `CheckRule` is component state (`isValid`, `validationErrors` and `validationResults`), not a problem, and is never dispatched to `onError` or `onWarning`. Host API misuse keeps throwing. Missing data at a bound path and a missing child reference in a streaming surface are not errors (`MISSING_DATA_BINDING` is a warning).
+- **P2. Report payload.** Each SDK has one error payload type (`A2uiRendererError`) and one warning payload type (`A2uiWarning`) for problems found while rendering. An error report carries `code`, `surfaceId` (when known), `message`, and optional `path`, `functionCallId` and `details`. A warning report carries `code`, `surfaceId` (when known), `message`, and optional `path`.
+- **P3. Delivery.** `SurfaceModel.dispatchError` and `SurfaceModel.dispatchWarning` schedule a microtask that emits the report to the surface's `onError` or `onWarning` listeners, and resolve once it is scheduled. No listener runs inside the call that found the problem, whether `processMessages`, `NodeResolver` construction, update or disposal, a data write, an action or a catalog function. Reports reach listeners in dispatch order. `NodeResolver` reports straight to its surface and owns no queue, so disposing a resolver drops nothing. Reports a surface dispatched before it was deleted still reach its listeners, and later ones are dropped.
+- **P4. Listener isolation.** Each listener call is isolated, so a listener that throws or rejects does not stop delivery to the remaining listeners or of later reports.
 
 ---
 

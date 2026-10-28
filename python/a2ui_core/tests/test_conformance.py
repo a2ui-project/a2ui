@@ -95,6 +95,9 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
     "core/node_resolution.yaml": "The Python core has no node resolution layer.",
+    "core/problems.yaml": (
+        "The Python core has no node resolution layer or renderer problem reports."
+    ),
 }
 
 # Actions that time an operation rather than check what it returns. Their cases
@@ -635,6 +638,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
     elif action == "parse_expression_template":
         validate_parse_expression_template_case(case)
     elif action == "resolve_nodes" and rel_path == "core/node_resolution.yaml":
+        pytest.skip(UNRUNNABLE_SUITES[rel_path])
+    elif action == "report_problems" and rel_path == "core/problems.yaml":
         pytest.skip(UNRUNNABLE_SUITES[rel_path])
     elif action == "evaluate_function":
         validate_evaluate_function_case(case)
