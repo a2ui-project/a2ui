@@ -18,9 +18,10 @@
  * Reading a streamed Express response chunk by chunk.
  */
 
-import {AgentToRendererMessage} from '../../internal/web-core.js';
+import {withPartialResults} from '../../errors.js';
+import {A2uiError, AgentToRendererMessage} from '../../internal/web-core.js';
 import {BlockLexer} from '../../parser/lexer.js';
-import {ResponsePart} from '../../parser/response-part.js';
+import {ResponsePart, StreamPart} from '../../parser/response-part.js';
 import {ResponseStream} from '../../parser/response-stream.js';
 import {TextRun} from '../../parser/text-run.js';
 import {RendererState} from '../../utils/renderer-state.js';
@@ -33,6 +34,16 @@ export interface ExpressStreamSource {
   compile(formatContent: string, isFinal?: boolean): AgentToRendererMessage[];
 }
 
+/** How a stream is opened. */
+export interface ExpressStreamOptions {
+  /** False if the whole response is one block, without tags. */
+  wrapped: boolean;
+  /** The state the stream's messages are applied to. */
+  state: RendererState;
+  /** Whether the stream ends at a rejected block or reads past it. */
+  afterRejectedBlock: 'end' | 'continue';
+}
+
 /** A Markdown fence line, complete, at the end of the text. */
 const TRAILING_FENCE_RE = /\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n?$/;
 /** Text that could still grow into a trailing fence line. */
@@ -40,7 +51,7 @@ const TRAILING_FENCE_PREFIX_RE = /\s*`{1,3}[a-zA-Z0-9_-]*[ \t]*\r?\n?$/;
 /** A Markdown fence line, complete, at the start of the text. */
 const LEADING_FENCE_RE = /^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)/;
 /** Text that could still grow into a leading fence line. */
-const LEADING_FENCE_PREFIX_RE = /^\s*`{0,3}[a-zA-Z0-9_-]*[ \t]*\r?$/;
+const LEADING_FENCE_PREFIX_RE = /^\s*(?:`{1,2}|```[a-zA-Z0-9_-]*[ \t]*\r?)?$/;
 /** The start of a close tag that the text after the last `<` may still be. */
 const CLOSE_TAG_PREFIX_RE = /^<\/?[a-zA-Z0-9-]*\s*$/;
 
@@ -70,11 +81,20 @@ const CLOSE_TAG_PREFIX_RE = /^<\/?[a-zA-Z0-9-]*\s*$/;
  * `parseResponse` compiles a cut-off block, and the trees of the surfaces it touched are not
  * checked.
  *
- * The stream ends when `close` returns or when `feed` or `close` throws. A block is applied
- * all or nothing, so a stream that throws leaves the state holding the blocks emitted before
- * it, each of which was checked when it was emitted.
+ * The stream ends when `close` returns or when `feed` or `close` throws. By default it throws
+ * at the first rejected block; opened with `afterRejectedBlock: 'continue'`, it returns an
+ * `ErrorPart` in its place and reads on. A block is applied all or nothing, so a rejected
+ * block leaves the state holding the blocks emitted before it, each of which was checked when
+ * it was emitted.
+ *
+ * @template Part The parts the stream returns. See `ResponseStream`.
  */
-export class ExpressResponseStream implements ResponseStream {
+export class ExpressResponseStream<
+  Part extends StreamPart = ResponsePart,
+> implements ResponseStream<Part> {
+  private readonly wrapped: boolean;
+  readonly state: RendererState;
+  private readonly continues: boolean;
   private closed = false;
   // Text outside blocks.
   private held = '';
@@ -90,37 +110,49 @@ export class ExpressResponseStream implements ResponseStream {
   /**
    * @param parser The parser that opened the stream.
    * @param lexer The lexer whose tags frame the parser's blocks.
-   * @param wrapped False if the whole response is one block, without tags.
-   * @param state The state the stream's messages are applied to.
+   * @param options Whether the response is wrapped in tags, the state the stream's messages
+   *     are applied to, and whether the stream reads past a rejected block.
    */
   constructor(
     private readonly parser: ExpressStreamSource,
     private readonly lexer: BlockLexer,
-    private readonly wrapped: boolean,
-    readonly state: RendererState,
+    {wrapped, state, afterRejectedBlock}: ExpressStreamOptions,
   ) {
+    this.wrapped = wrapped;
+    this.state = state;
+    this.continues = afterRejectedBlock === 'continue';
     this.inBlock = !wrapped;
   }
 
-  feed(chunk: string): ResponsePart[] {
+  get isInBlock(): boolean {
+    return !this.closed && this.inBlock;
+  }
+
+  feed(chunk: string): Part[] {
     if (this.closed) {
       throw new Error('The response stream is closed.');
     }
+    const parts: StreamPart[] = [];
     try {
-      return this.read(chunk);
+      this.read(chunk, parts);
     } catch (e) {
       this.closed = true;
-      throw e;
+      throw withPartialResults(e, parts.filter(isResponsePart));
     }
+    return parts as Part[];
   }
 
-  close(): ResponsePart[] {
+  close(): Part[] {
     if (this.closed) return [];
     this.closed = true;
-    const parts: ResponsePart[] = [];
+    const parts: StreamPart[] = [];
     if (this.inBlock) {
-      this.finishBlock(parts, this.block, !this.wrapped);
-      return parts;
+      try {
+        this.finishBlock(parts, this.block, !this.wrapped);
+      } catch (e) {
+        throw withPartialResults(e, parts.filter(isResponsePart));
+      }
+      return parts as Part[];
     }
     if (this.held) {
       let rest = this.held;
@@ -128,14 +160,13 @@ export class ExpressResponseStream implements ResponseStream {
       if (this.afterBlock) rest = rest.replace(LEADING_FENCE_RE, '');
       this.text.emit(parts, rest.replace(TRAILING_FENCE_RE, ''));
     }
-    return parts;
+    return parts as Part[];
   }
 
-  private read(chunk: string): ResponsePart[] {
-    const parts: ResponsePart[] = [];
+  private read(chunk: string, parts: StreamPart[]): void {
     if (!this.wrapped) {
       this.block += chunk;
-      return parts;
+      return;
     }
 
     let input = this.held + chunk;
@@ -151,7 +182,7 @@ export class ExpressResponseStream implements ResponseStream {
         // one, it is held.
         if (LEADING_FENCE_PREFIX_RE.test(input)) {
           this.held = input;
-          return parts;
+          return;
         }
         this.afterBlock = false;
         input = input.replace(LEADING_FENCE_RE, '');
@@ -178,7 +209,6 @@ export class ExpressResponseStream implements ResponseStream {
       this.held = input.slice(hold);
       input = '';
     }
-    return parts;
   }
 
   /**
@@ -186,7 +216,7 @@ export class ExpressResponseStream implements ResponseStream {
    *
    * @returns The text after the close tag, or nothing if the block is still open.
    */
-  private readBlock(parts: ResponsePart[], input: string): string {
+  private readBlock(parts: StreamPart[], input: string): string {
     const before = this.block.length;
     this.block += input;
     const tagStart = input.lastIndexOf('<');
@@ -242,26 +272,35 @@ export class ExpressResponseStream implements ResponseStream {
    *
    * @param isFinal False if the response ended inside the block.
    */
-  private finishBlock(parts: ResponsePart[], raw: string, isFinal: boolean): void {
+  private finishBlock(parts: StreamPart[], raw: string, isFinal: boolean): void {
     this.inBlock = false;
     this.block = '';
     this.lastTagStart = -1;
     this.afterBlock = true;
     const content = this.lexer.cleanBlock(raw);
     if (!content && !isFinal) return;
-    const messages = this.parser.compile(content, isFinal);
-    this.state.transaction(() => {
-      const touched = this.state.apply(messages);
-      if (isFinal) {
-        this.state.checkTopology(touched);
-      } else {
-        // A cut-off block is missing what it would have added, so its components are not
-        // held to be reachable; its dangling references are still reported by a later check.
-        this.state.markChecked(touched);
-      }
-    });
-    parts.push({type: 'a2ui', a2ui: messages});
+    try {
+      const messages = this.parser.compile(content, isFinal);
+      this.state.transaction(() => {
+        const touched = this.state.apply(messages);
+        if (isFinal) {
+          this.state.checkTopology(touched);
+        } else {
+          // A cut-off block is missing what it would have added, so its components are not
+          // held to be reachable; its dangling references are still reported by a later check.
+          this.state.markChecked(touched);
+        }
+      });
+      parts.push({type: 'a2ui', a2ui: messages});
+    } catch (e) {
+      if (!this.continues || !(e instanceof A2uiError)) throw e;
+      parts.push({type: 'error', error: e});
+    }
   }
+}
+
+function isResponsePart(part: StreamPart): part is ResponsePart {
+  return part.type !== 'error';
 }
 
 /**

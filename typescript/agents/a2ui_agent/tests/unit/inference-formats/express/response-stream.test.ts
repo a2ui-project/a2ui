@@ -18,6 +18,7 @@ import {describe, expect, it} from 'vitest';
 
 import {
   A2uiCompilationError,
+  A2uiError,
   A2uiValidationError,
   ExpressParser,
   RendererState,
@@ -193,6 +194,24 @@ describe('ExpressResponseStream', () => {
     expect(() => opened.feed('more')).toThrow('The response stream is closed.');
   });
 
+  it('attaches the parts a chunk emitted before a failing block to error.partialResults', () => {
+    const state = new RendererState([catalog]);
+    const opened = parser.openStream({state});
+
+    let caught: unknown;
+    try {
+      opened.feed(`Before ${block} between ${OPEN}\nsurface("s2")\nroot = Card(missing)\n${CLOSE}`);
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(A2uiValidationError);
+    const partial = (caught as A2uiError).partialResults as ResponsePart[];
+    expect(partial.map(part => part.type)).toEqual(['text', 'a2ui', 'text']);
+    expect(textsOf(partial)).toEqual(['Before', 'between']);
+    expect(state.surfaceIds).toEqual(['s1']);
+  });
+
   it('checks the tree of each block on its own, unlike parseResponse', () => {
     // A stream applies each block as it closes, so a block may not name a component a later
     // block defines. `parseResponse` checks the response as a whole and accepts it.
@@ -247,5 +266,78 @@ describe('ExpressResponseStream', () => {
 
     expect(opened.close()).toEqual([{type: 'text', text: ' <'}]);
     expect(opened.close()).toEqual([]);
+  });
+
+  describe('isInBlock', () => {
+    it('is true from the end of an opening tag to the end of its closing tag', () => {
+      const opened = parser.openStream();
+
+      opened.feed('Hello <a2');
+      expect(opened.isInBlock).toBe(false);
+      opened.feed('ui>\nroot = Text("Hi")\n</a2');
+      expect(opened.isInBlock).toBe(true);
+      opened.feed('ui> after');
+      expect(opened.isInBlock).toBe(false);
+    });
+
+    it('is true for an unwrapped stream until it ends', () => {
+      const opened = parser.openStream({wrapped: false});
+
+      expect(opened.isInBlock).toBe(true);
+      opened.feed('root = Text("Hi")');
+      expect(opened.isInBlock).toBe(true);
+      opened.close();
+      expect(opened.isInBlock).toBe(false);
+    });
+
+    it('is false once the stream has ended inside a block', () => {
+      const opened = parser.openStream();
+      opened.feed(`${OPEN}\nroot = Text("Hi")`);
+
+      opened.close();
+      expect(opened.isInBlock).toBe(false);
+    });
+  });
+
+  describe("afterRejectedBlock: 'continue'", () => {
+    const options = {afterRejectedBlock: 'continue'} as const;
+
+    it('returns an error part in place of a rejected block, and reads on', () => {
+      const opened = parser.openStream(options);
+
+      const parts = opened.feed(
+        `Before ${OPEN}\nroot = Card(missing)\n${CLOSE} between ${OPEN}\nsurface("s2")\nroot = Text("Hi")\n${CLOSE} after`,
+      );
+
+      expect(parts.map(part => part.type)).toEqual(['text', 'error', 'text', 'a2ui', 'text']);
+      const error = parts[1] as {error: unknown};
+      expect(error.error).toBeInstanceOf(A2uiValidationError);
+      expect(opened.state.surfaceIds).toEqual(['s2']);
+      expect(opened.close()).toEqual([]);
+    });
+
+    it('returns an error part for a block that does not compile', () => {
+      const opened = parser.openStream(options);
+
+      const parts = opened.feed(`${OPEN}\nroot = Text("Hi"\n${CLOSE} after`);
+
+      expect(parts.map(part => part.type)).toEqual(['error', 'text']);
+      const error = parts[0] as {error: unknown};
+      expect(error.error).toBeInstanceOf(A2uiCompilationError);
+    });
+
+    it('returns an error part for a rejected unwrapped response, and nothing after it', () => {
+      const opened = parser.openStream({...options, wrapped: false});
+
+      expect(opened.feed('root = Card(missing)')).toEqual([]);
+      expect(opened.close().map(part => part.type)).toEqual(['error']);
+    });
+
+    it('still ends the stream on an error that does not reject a block', () => {
+      const opened = parser.openStream(options);
+      opened.close();
+
+      expect(() => opened.feed('text')).toThrow('The response stream is closed.');
+    });
   });
 });

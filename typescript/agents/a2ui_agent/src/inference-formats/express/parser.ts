@@ -21,8 +21,8 @@
  * delegating compilation to ExpressCompiler and decompilation to ExpressDecompiler.
  */
 
-import {ParseOptions, Parser} from '../../parser/parser.js';
-import {RawResponsePart} from '../../parser/response-part.js';
+import {ContinuingStreamOptions, Parser, StreamOptions} from '../../parser/parser.js';
+import {RawResponsePart, StreamPart} from '../../parser/response-part.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {BlockLexer} from '../../parser/lexer.js';
 import {A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG} from '../../parser/constants.js';
@@ -171,12 +171,22 @@ export class ExpressParser extends Parser {
   /**
    * Opens a stream that emits text as it arrives and each block when its close tag arrives.
    */
-  override openStream({wrapped = true, state}: ParseOptions = {}): ExpressResponseStream {
+  override openStream(options: ContinuingStreamOptions): ExpressResponseStream<StreamPart>;
+  override openStream(options?: StreamOptions): ExpressResponseStream;
+  override openStream({
+    wrapped = true,
+    state,
+    afterRejectedBlock = 'end',
+  }: StreamOptions = {}): ExpressResponseStream<StreamPart> {
     // The stream compiles through `compileBlock`, so a failure that is not an `A2uiError`
     // reaches the caller wrapped, as it does from `parseResponse`.
     const source: ExpressStreamSource = {
       compile: (formatContent, isFinal) => this.compileBlock(formatContent, isFinal ?? true),
     };
-    return new ExpressResponseStream(source, this.lexer, wrapped, state ?? this.emptyState());
+    return new ExpressResponseStream<StreamPart>(source, this.lexer, {
+      wrapped,
+      state: state ?? this.emptyState(),
+      afterRejectedBlock,
+    });
   }
 }
