@@ -28,6 +28,7 @@ import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../validation/component_graph.dart' show maxFunctionCallArgs;
 import '../validation/schema_resolution.dart';
+import 'validation_result_coercion.dart';
 
 /// A function that invokes a catalog function by name.
 typedef FunctionInvoker = Object? Function(
@@ -1139,6 +1140,11 @@ extension CatalogInvokerExtension
   /// A null argument is an unresolved value, such as a binding to data that
   /// is not there yet, so it is left for the function to handle rather than
   /// checked against the schema.
+  ///
+  /// From v1.0 an argument the schema types as `DynamicBoolean` may resolve
+  /// to the `ValidationResult` a validation function returns; it is read by
+  /// its validity, as the specification defines the type (see
+  /// [coerceValidationResults]).
   Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
     final FunctionImplementation? fn = functions[name];
     if (fn == null) {
@@ -1161,16 +1167,21 @@ extension CatalogInvokerExtension
         expression: name,
       );
     }
-    final List<ValidationError> errors = argumentErrors(fn, args);
+    final bool atLeastV10 =
+        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+    final Map<String, dynamic> callArgs = atLeastV10
+        ? coerceValidationResultArgs(fn.argumentSchema.value, args)
+        : args;
+    final List<ValidationError> errors = argumentErrors(fn, callArgs);
     if (errors.isNotEmpty) {
       throw A2uiExpressionError(
         "Arguments to '$name' do not match its schema in catalog '$id': "
         '${errors.map((e) => e.toErrorString()).join('; ')}',
         expression: name,
-        details: args,
+        details: callArgs,
       );
     }
-    return fn.execute(args, context);
+    return fn.execute(callArgs, context);
   }
 
   /// The argument schema of [fn] with its references resolved, so that a
@@ -1255,20 +1266,33 @@ extension CatalogInvokerExtension
       };
 
   /// [schema] with each boolean position in it, at any depth, also accepting
-  /// an object with a boolean `valid`.
+  /// an object with a boolean `valid`, unless it is a branch of a `oneOf`
+  /// that already accepts any `object` (such as `DynamicValue`).
   static Object? _withValidityInBooleans(Object? schema) => switch (schema) {
         {'type': 'boolean'} => {
             'anyOf': [schema, _validityObject],
           },
         final Map<String, Object?> map => <String, Object?>{
             for (final MapEntry<String, Object?> entry in map.entries)
-              entry.key: _withValidityInBooleans(entry.value),
+              entry.key: entry.key == 'oneOf' &&
+                      entry.value is List<Object?> &&
+                      _acceptsAnyObject(entry.value! as List<Object?>)
+                  ? entry.value
+                  : _withValidityInBooleans(entry.value),
           },
         final List<Object?> list => [
             for (final Object? item in list) _withValidityInBooleans(item),
           ],
         _ => schema,
       };
+
+  static bool _acceptsAnyObject(List<Object?> branches) => branches.any(
+        (Object? branch) =>
+            branch is Map &&
+            branch['type'] == 'object' &&
+            !branch.containsKey('properties') &&
+            !branch.containsKey('required'),
+      );
 }
 
 /// The schema of an object with a boolean `valid`, which a DynamicBoolean
