@@ -17,7 +17,11 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert';
 import yaml from 'js-yaml';
-import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
+import {
+  MessageProcessor,
+  RELAXED_VALIDATION,
+  STRICT_VALIDATION,
+} from '../../dist/src/processing/message-processor.js';
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
@@ -2267,13 +2271,31 @@ function assertSurfacesMatch(processor, expect) {
   }
 }
 
+/**
+ * The processor's validation config for a process_messages case. A case's
+ * `validationConfig` names its checks, so they don't depend on this harness;
+ * without one, `strictMode` selects strict validation and anything else none.
+ */
+function caseValidationConfig(testCase) {
+  switch (testCase.validationConfig) {
+    case undefined:
+      return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
+    case 'relaxed':
+      return {validationConfig: RELAXED_VALIDATION};
+    case 'strict':
+      return {validationConfig: STRICT_VALIDATION};
+    default:
+      throw new Error(`Unknown validationConfig '${testCase.validationConfig}'`);
+  }
+}
+
 function validateProcessMessagesTestCase(testCase) {
   const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processorOptions = {
     ...(protocolVersion ? {version: protocolVersion} : {}),
-    ...(testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {}),
+    ...caseValidationConfig(testCase),
   };
   const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
 

@@ -38,6 +38,7 @@ from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     PayloadValidator,
+    ValidationConfig,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError,
@@ -954,14 +955,26 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
                 _assert_expected_surface_state(processor, expected)
 
 
+_CASE_VALIDATION_CONFIGS = {
+    "relaxed": RELAXED_VALIDATION,
+    "strict": STRICT_VALIDATION,
+}
+
+
 def validate_process_messages_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
-    is_strict = bool(
-        case.get("strictMode")
-        or case.get("strict_mode")
-        or case.get("options", {}).get("strict_mode")
-    )
-    val_config = STRICT_VALIDATION if is_strict else None
+    if "validationConfig" in case:
+        # The case names its checks, so they don't depend on this harness.
+        val_config: ValidationConfig | None = _CASE_VALIDATION_CONFIGS[
+            case["validationConfig"]
+        ]
+    else:
+        is_strict = bool(
+            case.get("strictMode")
+            or case.get("strict_mode")
+            or case.get("options", {}).get("strict_mode")
+        )
+        val_config = STRICT_VALIDATION if is_strict else None
     processor = MessageProcessor(
         catalogs, options=MessageProcessorOptions(validation_config=val_config)
     )

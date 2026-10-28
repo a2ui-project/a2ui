@@ -185,16 +185,25 @@ struct ValidatorConformanceTests {
         catalogs.append(customCatalog)
       }
 
-      let validationConfig =
-        testCase.action == "process_messages"
-        ? ValidationConfig(
+      // Each case names its checks in `validationConfig`.
+      let validationConfig: ValidationConfig
+      switch testCase.validationConfig {
+      case "relaxed":
+        validationConfig = ValidationConfig(
           allowOrphanComponents: true,
           allowDanglingReferences: true,
           allowMissingRoot: true,
           allowUnknownElements: true,
           targetVersion: "v1.0"
         )
-        : ValidationConfig(targetVersion: "v1.0")
+      case "strict":
+        validationConfig = ValidationConfig(targetVersion: "v1.0")
+      default:
+        Issue.record(
+          "[\(testCase.name)] Unknown validationConfig \(testCase.validationConfig ?? "nil")"
+        )
+        continue
+      }
       let processor = MessageProcessor(
         catalogs: catalogs,
         validationConfig: validationConfig

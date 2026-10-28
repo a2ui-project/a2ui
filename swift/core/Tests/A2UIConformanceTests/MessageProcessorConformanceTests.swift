@@ -349,7 +349,10 @@ struct MessageProcessorConformanceTests {
     defaultVersion: String
   ) throws {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
-    let strictMode = testCase["strictMode"] as? Bool ?? false
+    // A case's `validationConfig` names its checks; without one, `strictMode` decides.
+    let strictMode =
+      (testCase["validationConfig"] as? String).map { $0 == "strict" }
+      ?? (testCase["strictMode"] as? Bool ?? false)
     let handler = ConformanceActionCaptureHandler()
     let processor = MessageProcessor(
       catalogs: catalogs,

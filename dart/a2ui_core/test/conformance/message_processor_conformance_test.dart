@@ -91,14 +91,31 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   }
 }
 
+/// The processor's validation config for [testCase].
+///
+/// A case's `validationConfig` names its checks, so they don't depend on this
+/// harness. Without one, a `validate` case or a case with `strictMode` is
+/// checked strictly, and any other case with the relaxed config.
+ValidationConfig _validationConfigFor(
+  Map<String, Object?> testCase, {
+  required bool isValidate,
+}) =>
+    switch (testCase['validationConfig']) {
+      'relaxed' => ValidationConfig.relaxed,
+      'strict' => ValidationConfig.strict,
+      null => isValidate || testCase['strictMode'] == true
+          ? ValidationConfig.strict
+          : ValidationConfig.relaxed,
+      final Object name =>
+        throw UnsupportedError('Unknown validationConfig $name'),
+    };
+
 Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final isValidate = _actionOf(testCase) == 'validate';
-  final bool strictMode = isValidate || testCase['strictMode'] == true;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
-    validationConfig:
-        strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
+    validationConfig: _validationConfigFor(testCase, isValidate: isValidate),
   );
 
   if (testCase['steps'] case final List<Object?> steps) {

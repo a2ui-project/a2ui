@@ -562,6 +562,7 @@ public enum ConformanceTestHelper {
       let action = dictionary["action"] as? String
       let protocolVersion = dictionary["protocolVersion"] as? String
       let strictMode = dictionary["strictMode"] as? Bool ?? false
+      let validationConfig = dictionary["validationConfig"] as? String
       var catalogPaths = dictionary["catalogPaths"] as? [String] ?? []
       if let catalogPath = dictionary["catalogPath"] as? String {
         catalogPaths.append(catalogPath)
@@ -618,6 +619,7 @@ public enum ConformanceTestHelper {
         action: action,
         protocolVersion: protocolVersion,
         strictMode: strictMode,
+        validationConfig: validationConfig,
         catalogPaths: catalogPaths,
         inlineCatalog: inlineCatalog,
         payload: payload,
@@ -674,6 +676,9 @@ public struct ConformanceTestCase: Sendable {
   public let protocolVersion: String?
   /// Whether the case requires strict topology validation (`strictMode: true`).
   public let strictMode: Bool
+  /// The checks a `process_messages` case names (`validationConfig`): `"relaxed"` or
+  /// `"strict"`, or nil when the case leaves them to the harness.
+  public let validationConfig: String?
   /// Repository-relative catalog schema paths (`catalogPaths`, or a single `catalogPath`).
   public let catalogPaths: [String]
   /// An inline catalog schema (`catalog`), used instead of `catalogPaths` when present.
@@ -693,6 +698,7 @@ public struct ConformanceTestCase: Sendable {
     action: String? = nil,
     protocolVersion: String? = nil,
     strictMode: Bool = false,
+    validationConfig: String? = nil,
     catalogPaths: [String] = [],
     inlineCatalog: JSONValue? = nil,
     payload: JSONValue? = nil,
@@ -709,6 +715,7 @@ public struct ConformanceTestCase: Sendable {
     self.action = action
     self.protocolVersion = protocolVersion
     self.strictMode = strictMode
+    self.validationConfig = validationConfig
     self.catalogPaths = catalogPaths
     self.inlineCatalog = inlineCatalog
     self.payload = payload

@@ -174,6 +174,10 @@
           "type": "boolean",
           "description": "Whether strict validation mode is enabled."
         },
+        "validationConfig": {
+          "enum": ["relaxed", "strict"],
+          "description": "In a process_messages case, the checks the processor makes, which then do not depend on the harness. `relaxed` checks each batch of components against its catalog, its composition rules, and the graph it leaves behind for cycles and depth, while allowing orphans, references to components that have not arrived and a missing root. `strict` also rejects orphans, dangling references and a missing root. It takes precedence over `strictMode`. Without it, each harness uses its own default."
+        },
         "disableValidation": {
           "type": "boolean",
           "description": "Whether validation is explicitly disabled for the test."
