@@ -39,6 +39,7 @@ export {
   type ComponentTemplate,
   type ComponentApiToProps,
   getNormalizedPath,
+  DefaultMarkdownRenderer,
   MarkdownRenderer,
   provideMarkdownRenderer,
   AngularCatalog,
