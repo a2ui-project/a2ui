@@ -1,10 +1,10 @@
 ---
 codebase_path: python/a2ui_agent
 associated_module: a2ui_agent
-module_blueprint_commit: 2e3d9bc434a34ba25498a11e0bfba079b52dcf29
+module_blueprint_commit: ccf5dc20d0b0ed041b03e3913d807420ff45e178
 implemented_features:
-  - skill_generator
-  - typesafe_builder_api
+  skill_generator: c177173ca12a9d4739e16e56d6eb87b1e0608d85
+  typesafe_builder_api: ae0a5253b4e4d8aad06e1b97c236d426b8a401f0
 local_development:
   test_command: 'uv run pytest'
   lint_command: 'uv run pyink --check .'

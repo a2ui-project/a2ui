@@ -3,7 +3,8 @@ codebase_path: dart/a2ui_core
 associated_module: a2ui_core
 module_blueprint_commit: 2e3d9bc434a34ba25498a11e0bfba079b52dcf29
 implemented_features:
-  - agent_renderer_app
+  agent_renderer_app: null
+  node_resolution: b161f9bdc9395732b305b0adddfd182a36382f09
 local_development:
   test_command: 'dart test'
   lint_command: 'dart analyze --fatal-infos'

@@ -146,4 +146,4 @@ An SDK that does not implement the feature has no runner for `streamed_answer.ya
 1. Core: expose `MessageProcessor.catalogs`, add `validationConfig` to the per-call options of `processMessages` and `processMessagesAsync`, and run the `test_v10_call_validation_config_*` cases.
 2. Agent: add `RendererState.of`, and hold `callRendererFunction` messages until the outermost `apply` or transaction succeeds.
 3. Agent: add `StreamedAnswer` on top of `RendererState.of`, and run `streamed_answer.yaml`.
-4. Add `agent_renderer_app` to `implemented_features` in the codebase blueprints of the core and the agent.
+4. Add `agent_renderer_app` to `implemented_features` in the codebase blueprints of the core and the agent, pinned to the latest commit of this blueprint.
