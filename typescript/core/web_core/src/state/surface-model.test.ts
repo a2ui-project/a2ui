@@ -228,7 +228,7 @@ describe('SurfaceModel', () => {
 
   it('takes a plain object in the 3rd argument as the theme of a pre-1.0 caller', () => {
     const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
-    const legacy = new SurfaceModel('surface-legacy', v09Catalog, {primaryColor: 'red'} as any);
+    const legacy = new SurfaceModel('surface-legacy', v09Catalog, {primaryColor: 'red'});
     assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
     assert.strictEqual(legacy.sendDataModel, false);
     assert.strictEqual(legacy.availableCatalogs.get(v09Catalog.id), v09Catalog);

@@ -152,18 +152,6 @@ export class SurfaceModel<
   readonly sendDataModel: boolean;
 
   /**
-   * Initializes a new `SurfaceModel` with the pre-1.0 argument order.
-   *
-   * @deprecated Pass `availableCatalogs` (or `undefined`) as the third argument instead.
-   */
-  constructor(
-    id: string,
-    defaultCatalog: Catalog<T, F> | undefined,
-    theme: Record<string, any>,
-    sendDataModel?: boolean,
-    dataModel?: DataModel,
-  );
-  /**
    * Initializes a new `SurfaceModel` instance.
    *
    * @param id Unique identifier for this surface.
@@ -189,13 +177,25 @@ export class SurfaceModel<
   constructor(
     id: string,
     defaultCatalog: Catalog<T, F> | undefined,
-    availableCatalogs?: ReadonlyMap<string, Catalog<T, F>> | Record<string, any> | null,
+    availableCatalogs?: ReadonlyMap<string, Catalog<T, F>> | null,
     theme?: any,
     sendDataModel?: boolean,
     dataModel?: DataModel,
     rootId?: string,
     metadata?: Record<string, unknown>,
     protocolVersion?: string,
+  );
+  /**
+   * Initializes a new `SurfaceModel` with the pre-1.0 argument order.
+   *
+   * @deprecated Pass `availableCatalogs` (or `undefined`) as the third argument instead.
+   */
+  constructor(
+    id: string,
+    defaultCatalog: Catalog<T, F> | undefined,
+    theme: Record<string, any>,
+    sendDataModel?: boolean,
+    dataModel?: DataModel,
   );
   constructor(
     readonly id: string,

@@ -5,6 +5,7 @@
   - `new SurfaceModel(id, catalog, theme, sendDataModel?, dataModel?)` with a plain object in the third slot is read in the 0.9.x order: the object is the theme and the arguments after it shift. A `Map` is still `availableCatalogs`, and an array still throws.
   - The deprecated `SurfaceModel.catalog` getter is typed `Catalog<T, F>` again, since every pre-1.0 surface has a default catalog.
   - `new ComponentModel(id, type, properties)` constructs without a `catalog`.
+  - `ResolvedFunctionArgs<Schema>` resolves to `z.infer<Schema>` directly so that function implementers receive intact argument schemas without stripping properties named `path` or `call`.
   - `MessageProcessor.getClientCapabilities()` takes no arguments (defaulting to `{versions: ['v0.9']}`) and accepts the pre-1.0 `{version}` option.
   - A `MessageProcessor` whose catalogs are all pre-1.0 and that has no `validationConfig` processes a `createSurface`, `updateComponents`, `updateDataModel`, or `deleteSurface` envelope that omits `version` as v0.9. A processor with a v1.0 catalog or a `validationConfig` still rejects it.
   - On a pre-1.0 surface without a `validationConfig`, `MessageProcessor` no longer checks the function calls nested in component properties, as pre-1.0 renderers did not; unknown functions fail at evaluation time instead. `PayloadValidator.validateComponent` takes a `{skipNestedFunctions}` option for this.
