@@ -1,7 +1,7 @@
 ---
 codebase_path: dart/a2ui_core
 associated_module: a2ui_core
-module_blueprint_commit: 81f7f9bfeb2f1f8c24250fe1d79fdfe5ce77280c
+module_blueprint_commit: 48c3fdf13e90f6be26186456075e5d221c455e7b
 implemented_features: []
 local_development:
   test_command: 'dart test'
@@ -24,6 +24,9 @@ The official Dart implementation of the A2UI Core State Layer (`a2ui_core`), sha
 
 - **Typed Binding Wrappers in `ComponentNode.props`**: `NodeResolver` wraps dynamic component properties in `ResolvedBinding<T>` (and `WritableBinding<T>` when path-bound) so Flutter widgets can subscribe to individual reactive properties or write back two-way bindings without re-resolving the parent component node.
 - **Idiomatic Dart Concurrency Primitives**: Uses `CancellationSignal` (`lib/src/primitives/cancellation.dart`) in place of Web `AbortSignal`, and Dart `Duration` for RPC call and heartbeat timeouts.
+- **Per-call validation config**: `processMessages` and `processMessagesAsync` take the config of one call as a `validationConfig` named parameter, beside `isUserActivated`, rather than in an execution context object. Validators are cached per catalog, protocol version and config, so a call with its own config gets validators built for it. `processMessagesAsync` applies the config while it checks and applies each message, not across its waits for function calls.
+- **`Catalog.derive` entries**: Dart has no union of a name and an entry short of `Object`, so `derive` takes the names of the entries to keep in `components` and `functions`, and the new entries in `addComponents` and `addFunctions`, which follow the kept ones and replace a kept entry of the same name.
+- **Nested values in the binder**: `GenericBinder` resolves actions, bindings and child lists inside lists and objects, as the module blueprint requires. Its props are a `Map<String, dynamic>`, so there are no prop types to follow it.
 
 ## **Validation & Execution Recipes**
 

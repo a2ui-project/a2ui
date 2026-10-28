@@ -1,7 +1,7 @@
 ---
 codebase_path: python/a2ui_agent
 associated_module: a2ui_agent
-module_blueprint_commit: 47f4988ab66c88be77bd48ca8c92dffb8b39ea11
+module_blueprint_commit: 48c3fdf13e90f6be26186456075e5d221c455e7b
 implemented_features:
   - skill_generator
   - typesafe_builder_api
@@ -30,6 +30,9 @@ The reference Python implementation of the A2UI Agent SDK (`a2ui_agent`).
 - **Zero Validator Overhead**: Directly reuses `a2ui.core.validation.PayloadValidator` from `a2ui_core`, eliminating redundant validator facade wrappers in the agent layer.
 - **Direct JSON Syntax Healing**: `DirectJsonFormat` includes JSON-specific repair utilities and `progressive_keys` to auto-heal fragmented JSON syntax, unquoted keys, and trailing commas.
 - **Catalog Providers**: Provides `FileSystemCatalogProvider` for reading local catalog files and `InMemoryCatalogProvider` for in-memory dictionaries, with an extensible `CatalogProvider` base class for custom catalog loading strategies (e.g., remote REST API or cloud storage).
+- **Streamed parts typing**: `ResponseStream` is generic in the parts it returns, and `open_stream` is overloaded on `after_rejected_block`, so only a stream opened with `"continue"` is typed `ResponseStream[StreamPart]` and returns `ErrorPart`s. Python 3.10 has no type parameter defaults, so every annotation names the part type, usually `ResponseStream[ResponsePart]`.
+- **Streaming without a chunk transaction**: `DirectJsonResponseStream` applies each block's messages as it emits them, so a failing chunk's earlier parts stay applied and are attached to the error as `partial_results`. A rejected block is still scanned for its closing tag, without being read, when the stream reads past rejected blocks.
+- **Agent and renderer in one app**: `RendererState.of(processor)` runs the state on a renderer's `MessageProcessor`, passing the in-progress validation config in each operation's `ExecutionContext`, and holds `callRendererFunction` messages until the outermost frame of its undo log closes. `StreamedAnswer` (`a2ui.processor`) builds on it.
 
 ## **Validation & Execution Recipes**
 

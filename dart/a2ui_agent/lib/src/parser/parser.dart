@@ -158,7 +158,8 @@ abstract class Parser {
   /// [parseResponse].
   bool get supportsStreaming => false;
 
-  /// Opens a stream that reads one response chunk by chunk.
+  /// Opens a stream that reads one response chunk by chunk, and ends at the
+  /// first rejected block.
   ///
   /// Each message the stream emits is checked against [state] and applied to
   /// it as it is emitted. Without a [state], the response is checked against
@@ -168,4 +169,20 @@ abstract class Parser {
   /// Throws [UnsupportedError] unless [supportsStreaming] is true.
   ResponseStream openStream({bool wrapped = true, RendererState? state}) =>
       throw UnsupportedError('$runtimeType does not support streaming.');
+
+  /// Opens a stream that reads one response chunk by chunk, and reads past a
+  /// rejected block.
+  ///
+  /// The stream returns an [ErrorPart] in place of a rejected block: the
+  /// messages the block emitted before it was rejected stay, the rest of the
+  /// block is skipped, and the text and blocks after it are read as usual. A
+  /// block is rejected when it cannot be read or [state] rejects one of its
+  /// messages; any other error ends the stream. [wrapped] and [state] are as
+  /// for [openStream].
+  ///
+  /// Throws [UnsupportedError] unless [supportsStreaming] is true.
+  ContinuingResponseStream openContinuingStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => throw UnsupportedError('$runtimeType does not support streaming.');
 }

@@ -17,12 +17,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Mapping
 import dataclasses
 import json
 import re
 from typing import Any
+from typing import Generic
+from typing import Literal
 from typing import TYPE_CHECKING
+from typing import TypeVar
+from typing import cast
 
 from a2ui.core import A2uiError
 from a2ui.core import A2uiIntegrityError
@@ -33,8 +37,9 @@ from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats._shared import to_message_dicts
 from a2ui.inference_formats._shared import to_message_models
 from a2ui.parser import A2uiPart
-from a2ui.parser import ResponsePart
+from a2ui.parser import ErrorPart
 from a2ui.parser import ResponseStream
+from a2ui.parser import StreamPart
 from a2ui.parser import TextPart
 from a2ui.utils import RendererState
 
@@ -52,6 +57,8 @@ from .json_reader import read_partial_message_items
 
 if TYPE_CHECKING:
     from .parser import DirectJsonParser
+
+PartT = TypeVar("PartT", bound=StreamPart, covariant=True)
 
 # The messages a renderer applies again as they grow, so a stream emits them
 # before their object closes, with the field each one grows by. Any other
@@ -99,7 +106,7 @@ class _Growing:
     value: Any = None
 
 
-class DirectJsonResponseStream(ResponseStream):
+class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
     """Reads one streamed Direct JSON response.
 
     A message is emitted, and applied to the state, as soon as it reads and
@@ -116,9 +123,11 @@ class DirectJsonResponseStream(ResponseStream):
     checked for what it gains: an `updateComponents` for the components it
     adds, and an `updateDataModel` is applied again once it closes.
 
-    The stream ends when `close` returns or when `feed` or `close` raises: the
-    response cannot be read further once part of it is rejected. The messages
-    already emitted stay in the state, since the renderer holds them, and the
+    The stream ends when `close` returns or when `feed` or `close` raises. By
+    default it raises at the first rejected block; opened with
+    `after_rejected_block="continue"`, it returns an `ErrorPart` in its place,
+    skips the rest of the block, and reads on. Either way the messages the
+    block emitted stay in the state, since the renderer holds them, and the
     components they added are marked checked (`RendererState.mark_checked`),
     so a later turn on the surface is not required to make them reachable.
     """
@@ -129,10 +138,12 @@ class DirectJsonResponseStream(ResponseStream):
         *,
         wrapped: bool,
         state: RendererState,
+        after_rejected_block: Literal["end", "continue"] = "end",
     ) -> None:
         self._parser = parser
         self._wrapped = wrapped
         self._state = state
+        self._continues = after_rejected_block == "continue"
         self._v10 = is_at_least_version(
             parser.catalogs[0].protocol_version, ProtocolVersion.V1_0
         )
@@ -163,45 +174,49 @@ class DirectJsonResponseStream(ResponseStream):
         # same way on every later chunk, so nothing after it is emitted
         # before the block closes.
         self._stalled = False
+        # Whether the open block was rejected, so the rest of it is skipped.
+        self._rejected = False
         self._touched: dict[str, None] = {}
 
     @property
     def state(self) -> RendererState:
         return self._state
 
-    def feed(self, chunk: str) -> list[ResponsePart]:
+    @property
+    def is_in_block(self) -> bool:
+        return not self._closed and self._in_block
+
+    def feed(self, chunk: str) -> list[PartT]:
         if self._closed:
             raise ValueError("The response stream is closed.")
-        # The surfaces of what was emitted before this chunk. Finishing a
-        # block in this chunk clears `_touched`, but the rollback below
-        # restores that block's earlier-emitted messages unchecked.
-        emitted = list(self._touched)
+        parts: list[StreamPart] = []
         try:
-            # A chunk may apply messages and then fail, for example in a second
-            # block, before its parts are returned. The transaction undoes
-            # them, so the state holds only what was emitted.
-            with self._state.transaction():
-                return self._feed(chunk)
-        except BaseException:
-            self._fail(emitted)
+            self._feed(chunk, parts)
+        except BaseException as e:
+            self._fail(e, parts)
             raise
+        # Only a stream that reads past rejected blocks, whose parts are
+        # `StreamPart`s, returns an `ErrorPart`.
+        return cast("list[PartT]", parts)
 
-    def close(self) -> list[ResponsePart]:
+    def close(self) -> list[PartT]:
         if self._closed:
             return []
         self._closed = True
-        parts: list[ResponsePart] = []
+        parts: list[StreamPart] = []
         try:
             if not self._wrapped:
-                self._finish_block(parts, len(self._block))
-                return parts
+                if not self._rejected:
+                    self._read_block(
+                        parts, lambda: self._finish_block(parts, len(self._block))
+                    )
+                return cast("list[PartT]", parts)
             if self._in_block:
-                raise A2uiParseError(
-                    f"The response ended inside an {OPEN_TAG} block, before its"
-                    f" {CLOSE_TAG} tag."
-                )
-        except BaseException:
-            self._fail(self._touched)
+                if not self._rejected:
+                    self._read_block(parts, self._raise_unclosed)
+                return cast("list[PartT]", parts)
+        except BaseException as e:
+            self._fail(e, parts)
             raise
         if self._held_backticks:
             self._emit_text(parts, self._held_backticks)
@@ -209,29 +224,62 @@ class DirectJsonResponseStream(ResponseStream):
         if self._held:
             self._emit_text(parts, self._held)
             self._held = ""
-        return parts
+        return cast("list[PartT]", parts)
 
-    def _fail(self, surface_ids: Iterable[str]) -> None:
+    @staticmethod
+    def _raise_unclosed() -> None:
+        raise A2uiParseError(
+            f"The response ended inside an {OPEN_TAG} block, before its"
+            f" {CLOSE_TAG} tag."
+        )
+
+    def _fail(self, error: BaseException, parts: list[StreamPart]) -> None:
         """Ends the stream after a failure, keeping what it emitted.
 
         The renderer holds the messages already emitted, and so does the
         state. No message removes a component, so the components they added
         are marked checked: a later turn is not required to make them
-        reachable.
-
-        Args:
-          surface_ids: The surfaces of the messages the stream emitted that
-            the state still holds.
+        reachable. An `A2uiError` carries the parts the call made ready
+        before it in `partial_results`.
         """
         self._closed = True
-        self._state.mark_checked(surface_ids)
+        self._state.mark_checked(self._touched)
+        if isinstance(error, A2uiError):
+            setattr(
+                error,
+                "partial_results",
+                [p for p in parts if not isinstance(p, ErrorPart)],
+            )
 
-    def _feed(self, chunk: str) -> list[ResponsePart]:
-        parts: list[ResponsePart] = []
+    def _read_block(self, parts: list[StreamPart], step: Callable[[], None]) -> None:
+        """Runs a step that reads the open block.
+
+        If the block is rejected and the stream reads past rejected blocks,
+        returns an `ErrorPart` for it and skips the rest of it; otherwise the
+        error propagates.
+        """
+        try:
+            step()
+        except A2uiError as e:
+            if not self._continues:
+                raise
+            parts.append(ErrorPart(error=e))
+            self._state.mark_checked(self._touched)
+            self._rejected = True
+
+    def _end_block(self) -> None:
+        """Forgets the block that closed, whether it was read or rejected."""
+        self._in_block = not self._wrapped
+        self._reset_block()
+
+    def _feed(self, chunk: str, parts: list[StreamPart]) -> None:
         if not self._wrapped:
             self._block += chunk
-            self._emit_ready(parts, len(self._block))
-            return parts
+            if not self._rejected:
+                self._read_block(
+                    parts, lambda: self._emit_ready(parts, len(self._block))
+                )
+            return
 
         input_str = self._held + chunk
         self._held = ""
@@ -263,7 +311,10 @@ class DirectJsonResponseStream(ResponseStream):
                 input_str = ""
                 close_start, readable_end = self._scanner.scan(self._block)
                 if close_start is None:
-                    self._emit_ready(parts, readable_end)
+                    if not self._rejected:
+                        self._read_block(
+                            parts, lambda: self._emit_ready(parts, readable_end)
+                        )
                     break
                 close_match = CLOSE_TAG_RE.match(self._block, close_start)
                 assert close_match is not None
@@ -272,7 +323,10 @@ class DirectJsonResponseStream(ResponseStream):
                     input_str = input_str.lstrip("`")
                 elif not input_str:
                     self._strip_close_backticks = True
-                self._finish_block(parts, close_start)
+                if not self._rejected:
+                    end = close_start
+                    self._read_block(parts, lambda: self._finish_block(parts, end))
+                self._end_block()
                 continue
 
             open_match = OPEN_TAG_RE.search(input_str)
@@ -302,9 +356,7 @@ class DirectJsonResponseStream(ResponseStream):
                     text_to_emit = text_to_emit[: m.start()]
             self._emit_text(parts, text_to_emit)
 
-        return parts
-
-    def _emit_text(self, parts: list[ResponsePart], text: str) -> None:
+    def _emit_text(self, parts: list[StreamPart], text: str) -> None:
         body = (text if self._run_started else text.lstrip()).rstrip()
         if not body:
             if self._run_started:
@@ -339,12 +391,24 @@ class DirectJsonResponseStream(ResponseStream):
             end=trailing_fence_start(self._block, start, end),
         )
 
-    def _emit_ready(self, parts: list[ResponsePart], end: int) -> None:
+    def _emit_ready(self, parts: list[StreamPart], end: int) -> None:
         """Emits the messages of the open block that read and are new or changed."""
         envelopes = self._read(end)
         if not envelopes:
             return
         ready: list[AgentToRendererMessage] = []
+        # The messages applied before a rejected one are emitted with the
+        # error, since the state holds them.
+        try:
+            self._apply_ready(envelopes, ready)
+        finally:
+            if ready:
+                parts.append(A2uiPart(a2ui=ready))
+
+    def _apply_ready(
+        self, envelopes: list[tuple[Any, bool]], ready: list[AgentToRendererMessage]
+    ) -> None:
+        """Applies the messages of the open block that are ready, collecting them in `ready`."""
         for index in range(self._done, len(envelopes)):
             if self._stalled:
                 break
@@ -373,10 +437,8 @@ class DirectJsonResponseStream(ResponseStream):
                 break
             self._done = index + 1
             self._growing = None
-        if ready:
-            parts.append(A2uiPart(a2ui=ready))
 
-    def _finish_block(self, parts: list[ResponsePart], end: int) -> None:
+    def _finish_block(self, parts: list[StreamPart], end: int) -> None:
         """Applies the rest of a closed block and checks the surfaces it touched.
 
         The messages that closed while the block arrived were checked then,
@@ -397,8 +459,6 @@ class DirectJsonResponseStream(ResponseStream):
             self._state.check_topology(self._touched)
         if ready:
             parts.append(A2uiPart(a2ui=ready))
-        self._in_block = not self._wrapped
-        self._reset_block()
 
     def _final_messages(self, end: int) -> list[Any]:
         """The messages of the closed block that ends at `end`.

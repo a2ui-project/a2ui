@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: When `ResponseStream.feed` or `close` raises an
+  `A2uiError`, its `partial_results` holds the parts the call made ready before
+  the failure, as for `parse_response`, and they stay applied to the stream's
+  `RendererState`. Before, a chunk that finished a block and then failed in the
+  next one raised without those parts and rolled them back. Recommended
+  migration: show `error.partial_results` before ending the stream. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
+- **BREAKING CHANGE**: `ResponseStream` is generic in the parts it returns
+  (`ResponseStream[ResponsePart]` by default, `ResponseStream[StreamPart]` for
+  a stream that reads past rejected blocks) and has an abstract `is_in_block`
+  property, so a subclass must implement it and an annotation must name the
+  part type. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - **BREAKING CHANGE**: `DirectJsonPromptGenerator.generate_base_rules()` now
   returns the workflow rules followed by the protocol schemas (agent-to-renderer
   and pruned common types) and accepts `allowed_messages`, while
@@ -10,6 +21,26 @@
   `generate_base_rules()` with `schema_to_prompt()` (such as
   `SendA2uiToClientToolset` users) should use `DEFAULT_WORKFLOW_RULES` instead.
   [#3559](https://github.com/a2ui-project/a2ui/pull/3559)
+- `open_stream` takes `after_rejected_block="continue"` to read past a
+  rejected block. The stream then returns an `ErrorPart` in its place, skips
+  the rest of the block, and reads the text and blocks after it; the messages
+  the block emitted before it was rejected stay in the state. A block still
+  open when the response ends is returned as an `ErrorPart` too. By default the
+  first rejected block still ends the stream. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
+- Add `ResponseStream.is_in_block`, which tells whether the response read so
+  far ends inside a block, so a client that joins the chunks of a paused and
+  resumed response can tell whether a space between them could break a block.
+  [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
+- Add `RendererState.of(processor)`, a renderer state that checks messages by
+  its own rules and applies them to the `MessageProcessor` an app renders from,
+  for an app that is both agent and renderer. A rollback takes a message back
+  out of the processor's model. Every `RendererState` now hands a
+  `callRendererFunction` to its processor only once the outermost `apply` or
+  transaction it was applied in succeeds. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
+- Add `StreamedAnswer` (`a2ui.processor`), which reads one streamed answer into
+  a renderer's `MessageProcessor` through `RendererState.of`, reading past
+  rejected blocks, and keeps its `parts` in the order the model wrote them:
+  `AnswerTextPart`, `AnswerSurfacePart` and `ErrorPart`. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - Introduce typesafe fluent builder package for A2UI Protocol v1.0 (`a2ui.builder.v1_0`),
   re-exporting v1.0 common types (`DataBinding`, `FunctionCall`,
   `AccessibilityAttributes`, `ActionEvent`, and `CheckRule`) from

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 import pytest
@@ -23,8 +24,10 @@ from a2ui.core.catalog import (
     ModelComponentApi,
 )
 from a2ui.core.exceptions import A2uiValidationError
+from a2ui.core.basic_catalog import v1_0
 from a2ui.core.processing import (
     CapabilitiesOptions,
+    ExecutionContext,
     MessageProcessor,
     MessageProcessorOptions,
 )
@@ -37,7 +40,7 @@ from a2ui.core.resolution import (
 from a2ui.core.rpc import CallOptions
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 from a2ui.core.schema.v1_0.common_types import FunctionCall
-from a2ui.core.validation import STRICT_VALIDATION
+from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
 
 
 @pytest.fixture
@@ -1120,3 +1123,91 @@ def test_v10_merged_errors_keep_distinct_component_errors():
     message = str(excinfo.value)
     assert message.count("'1bad'") == 1
     assert "'text' is a required property" in message
+
+
+def _v10_catalog() -> Catalog:
+    return v1_0.BasicCatalog()
+
+
+def _create(catalog: Catalog) -> dict[str, Any]:
+    return {
+        "version": "v1.0",
+        "createSurface": {"surfaceId": "s", "catalogId": catalog.catalog_id},
+    }
+
+
+def _root(component: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "version": "v1.0",
+        "updateComponents": {
+            "surfaceId": "s",
+            "components": [{"id": "root", **component}],
+        },
+    }
+
+
+_DANGLING_CHILD = _root({"component": "Column", "children": ["later"]})
+_UNKNOWN_COMPONENT = _root({"component": "Unknown"})
+_IN_PROGRESS = ValidationConfig(
+    allow_dangling_references=True,
+    allow_missing_root=True,
+    allow_orphan_components=True,
+)
+
+
+def test_validation_config_of_a_call_replaces_the_processors_own():
+    catalog = _v10_catalog()
+    processor = MessageProcessor(
+        catalogs=[catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    processor.process_messages(_create(catalog))
+    with pytest.raises(A2uiValidationError):
+        processor.process_messages(_DANGLING_CHILD)
+
+    processor.process_messages(
+        _DANGLING_CHILD, ExecutionContext(validation_config=_IN_PROGRESS)
+    )
+
+    surface = processor.model.get_surface("s")
+    assert surface is not None
+    root = surface.components_model.get("root")
+    assert root is not None and root.type == "Column"
+
+
+def test_validation_config_of_a_call_validates_a_processor_without_one():
+    catalog = _v10_catalog()
+    processor = MessageProcessor(catalogs=[catalog])
+    processor.process_messages(_create(catalog))
+
+    with pytest.raises(A2uiValidationError):
+        processor.process_messages(
+            _UNKNOWN_COMPONENT, ExecutionContext(validation_config=STRICT_VALIDATION)
+        )
+
+    assert processor.validation_config is None
+
+
+def test_validation_config_of_a_call_applies_to_an_asynchronous_call():
+    catalog = _v10_catalog()
+    processor = MessageProcessor(catalogs=[catalog])
+    processor.process_messages(_create(catalog))
+
+    with pytest.raises(A2uiValidationError):
+        asyncio.run(
+            processor.process_messages_async(
+                [_UNKNOWN_COMPONENT],
+                ExecutionContext(validation_config=STRICT_VALIDATION),
+            )
+        )
+    assert processor.validation_config is None
+
+
+def test_catalogs_returns_a_copy_of_the_catalogs_in_order():
+    first = _v10_catalog()
+    second = Catalog(catalog_id="https://example.com/second", protocol_version="v1.0")
+    processor = MessageProcessor(catalogs=[first, second])
+
+    processor.catalogs.append(first)
+
+    assert processor.catalogs == [first, second]

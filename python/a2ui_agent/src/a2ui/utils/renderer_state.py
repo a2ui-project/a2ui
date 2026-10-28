@@ -33,8 +33,8 @@ from a2ui.core import (
     A2uiValidationError,
     CatalogApi,
     ComponentModel,
+    ExecutionContext,
     MessageProcessor,
-    MessageProcessorOptions,
     STRICT_VALIDATION,
     SurfaceModel,
     ValidationConfig,
@@ -151,6 +151,10 @@ class RendererState:
     The state is authoritative for surfaces and their components. The data
     model values it holds can drift from the renderer's, since the user edits
     bound inputs there, but no check depends on them.
+
+    An app that is both the agent and the renderer makes the state with
+    `RendererState.of`, on the processor it renders from, so each message is
+    checked and applied once.
     """
 
     # Whether an update to a surface the state never saw created makes an
@@ -174,6 +178,40 @@ class RendererState:
           A2uiCatalogError: If no catalogs are given, or if their messages
             state different versions, for example v0.9 and v1.0 catalogs.
         """
+        self._init(catalogs, None)
+
+    @classmethod
+    def of(cls, processor: MessageProcessor) -> RendererState:
+        """Creates the state of a renderer that renders from `processor`.
+
+        The state applies each message it accepts to `processor` itself, so the
+        renderer shows a message as soon as the state applies it, and a
+        rollback takes the message back out of the renderer's model. A
+        function call reaches the processor only once the outermost `apply` or
+        transaction it was applied in succeeds, since a function that ran
+        cannot be rolled back.
+
+        The state checks messages against the surfaces the processor holds,
+        including those it held before, under its own rules whatever rules the
+        processor was created with. The processor must take its messages from
+        the state only: one applied around the state is checked by nothing,
+        and a transaction that fails after it cannot undo it.
+
+        Args:
+          processor: The renderer's processor. Its catalogs are the state's
+            catalogs.
+
+        Raises:
+          A2uiCatalogError: If the processor's catalogs could not make a state,
+            as for the constructor.
+        """
+        state = RendererState.__new__(RendererState)
+        state._init(processor.catalogs, processor)
+        return state
+
+    def _init(
+        self, catalogs: Sequence[CatalogApi], processor: MessageProcessor | None
+    ) -> None:
         if not catalogs:
             raise A2uiCatalogError("A renderer state requires at least one catalog.")
         protocol_version = to_protocol_version(catalogs[0].protocol_version)
@@ -187,10 +225,15 @@ class RendererState:
                 )
         self._catalogs = list(catalogs)
         self._protocol_version = protocol_version
-        self._processor = MessageProcessor(
-            self._catalogs,
-            options=MessageProcessorOptions(validation_config=_IN_PROGRESS_VALIDATION),
+        self._processor = (
+            processor if processor is not None else MessageProcessor(self._catalogs)
         )
+        # Every operation is checked by the state's rules, whatever rules the
+        # processor was created with.
+        self._context = ExecutionContext(validation_config=_IN_PROGRESS_VALIDATION)
+        # The function calls applied since the outermost open `apply` or
+        # transaction began.
+        self._calls: list[dict[str, Any]] = []
         self._assumed: set[str] = set()
         # The updates a v0.8 placeholder surface buffers until its
         # `beginRendering` arrives.
@@ -362,6 +405,14 @@ class RendererState:
             self._open -= 1
             if not self._open:
                 self._log.clear()
+        if not self._open:
+            self._run_calls()
+
+    def _run_calls(self) -> None:
+        """Hands the function calls held back to the processor, in order."""
+        calls, self._calls = self._calls, []
+        if calls:
+            self._process(calls, log=False)
 
     def _revert(self, mark: int) -> None:
         """Undoes the changes logged after a position, latest first.
@@ -426,6 +477,15 @@ class RendererState:
             changed.update(added)
             self._record(lambda: changed.difference_update(added))
 
+    def _hold_call(self, message: dict[str, Any]) -> None:
+        """Holds a function call back until the outermost `apply` or transaction succeeds.
+
+        The processor reads nothing of it but its envelope, which
+        `_check_message` has checked.
+        """
+        self._calls.append(message)
+        self._record(lambda: _discard(self._calls.pop()))
+
     def _forget_changed(self, surface_id: str) -> None:
         """Stops holding what a surface changed against its next check."""
         changed = self._changed.pop(surface_id, None)
@@ -446,7 +506,7 @@ class RendererState:
                 if log:
                     self._process_operation(op)
                 else:
-                    self._processor.process_operation(op)
+                    self._processor.process_operation(op, self._context)
 
     def _process_operation(self, op: InternalOperation) -> None:
         """Applies one operation and logs how to undo it.
@@ -466,7 +526,7 @@ class RendererState:
                 model.delete_surface(surface_id)
 
             try:
-                self._processor.process_operation(op)
+                self._processor.process_operation(op, self._context)
             except BaseException:
                 if not existed:
                     _undo_now(undo)
@@ -476,19 +536,19 @@ class RendererState:
             self._delete_surface(op.surface_id)
         elif isinstance(op, InternalUpdateComponentsOp):
             undo = self._components_undo(op)
-            self._processor.process_operation(op)
+            self._processor.process_operation(op, self._context)
             self._record(undo)
         elif isinstance(op, InternalUpdateDataModelOp):
             undo = self._data_model_undo(op)
             try:
-                self._processor.process_operation(op)
+                self._processor.process_operation(op, self._context)
             except BaseException:
                 _undo_now(undo)
                 raise
             self._record(undo)
         else:
             # Function calls and responses change no surface.
-            self._processor.process_operation(op)
+            self._processor.process_operation(op, self._context)
 
     def _components_undo(self, op: InternalUpdateComponentsOp) -> _Undo:
         """Records the components an `updateComponents` adds or replaces.
@@ -628,7 +688,10 @@ class RendererState:
         message = payload[index]
         surface_id, creates = _target(message)
         if surface_id is None:
-            self._process([message])
+            if "callRendererFunction" in message:
+                self._hold_call(message)
+            else:
+                self._process([message])
             return None
 
         model = self._processor.model
