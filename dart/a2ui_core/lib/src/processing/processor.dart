@@ -368,7 +368,8 @@ class MessageProcessor<T extends ComponentApi> {
         for (var i = 0; i < items.length; i++) _routeAt(items[i], i),
       ];
       for (final message in routed) {
-        for (final Future<void>? work in _applySafely(message, isUserActivated)) {
+        for (final Future<void>? work
+            in _applySafely(message, isUserActivated)) {
           // Never fails: handleCallRendererFunction answers errors instead.
           if (work != null) unawaited(work);
         }
