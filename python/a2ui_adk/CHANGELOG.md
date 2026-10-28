@@ -2,7 +2,7 @@
 
 - **BREAKING CHANGE**: `GenAIFileResolver` is removed, along with the
   `FileResolver` it extended in `a2ui-agent-sdk`.
-  [#PR_NUMBER](https://github.com/a2ui-project/a2ui/pull/PR_NUMBER)
+  [#3731](https://github.com/a2ui-project/a2ui/pull/3731)
 - **BREAKING CHANGE**: `SendA2uiToClientToolset(a2ui_enabled, a2ui_processor)`
   takes the request's `A2uiRequestProcessor`, or an `A2uiProcessorProvider`
   that returns it per context, instead of catalogs and examples. The processor

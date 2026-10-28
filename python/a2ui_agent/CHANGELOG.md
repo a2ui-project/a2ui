@@ -4,7 +4,7 @@
   (`FileResolver`, `FileResolverSecurityError` and `ResolvedFileConverter`) is
   removed, and the package no longer depends on `httpx`. File pointers are not
   part of the A2UI protocol, so resolving them is left to the agent.
-  [#PR_NUMBER](https://github.com/a2ui-project/a2ui/pull/PR_NUMBER)
+  [#3731](https://github.com/a2ui-project/a2ui/pull/3731)
 - **BREAKING**: In Express (`ExpressCompiler`), data path assignments (`$/... = ...`) in surface-updating scopes (scopes that do not create a surface with `root` or carry `update=true`) now emit one targeted `updateDataModel` message per assigned path at its JSON Pointer `path` instead of folding all assignments into a single root `updateDataModel` with `path: "/"` (which overwrote the entire surface data model on the renderer). Surface-creating scopes continue to fold data path assignments into a single root data model and now support list element traversal, canonical numeric-segment list auto-vivification, and full root replacement via `$/ = {...}` ([#3677](https://github.com/a2ui-project/a2ui/pull/3677)).
 - **BREAKING CHANGE**: `DirectJsonPromptGenerator.generate_base_rules()` now
   returns the workflow rules followed by the protocol schemas (agent-to-renderer
