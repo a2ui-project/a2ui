@@ -36,20 +36,14 @@ from a2ui.inference_formats import to_message_models
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
-from a2ui.core import MessageProcessor
-from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiPart
 from a2ui.parser import ErrorPart
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
-from a2ui.processor import A2uiRequestProcessor
-from a2ui.processor import AnswerSurfacePart
-from a2ui.processor import AnswerTextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.processor import StreamedAnswer
 from a2ui.utils import load_examples, resolve_catalogs, validate_payload
 
 from .conformance_helpers import get_conformance_path
@@ -652,51 +646,10 @@ def test_response_streaming_conformance(name, test_case):
 
 # --- Streamed Answer Conformance ---
 
-cases_streamed_answer = get_marked_conformance_cases("agent/streamed_answer.yaml")
-
-
-def answer_part_to_dict(part, renderer: MessageProcessor) -> dict:
-    """A part in the suite's shape: text, a surface by its id, or an error by its category."""
-    if isinstance(part, AnswerTextPart):
-        return {"text": part.text}
-    if isinstance(part, ErrorPart):
-        return {"error": {"category": category_of(part.error)}}
-    assert isinstance(part, AnswerSurfacePart)
-    assert part.surface is renderer.model.get_surface(part.surface.id)
-    return {"surface": part.surface.id}
-
-
-@pytest.mark.parametrize("name, test_case", cases_streamed_answer)
-def test_streamed_answer_conformance(name, test_case):
-    args = test_case["args"]
-    assert args["format"] == "direct_json", f"Unexpected format {args['format']!r}"
-    processor = A2uiRequestProcessor(
-        [setup_catalog_from_document(args["catalog"])],
-        format_factory=DirectJsonFormatFactory(),
-    )
-    renderer = MessageProcessor([
-        setup_catalog_from_document(path)
-        for path in args.get("renderer_catalogs", [args["catalog"]])
-    ])
-
-    if "expect_error" in test_case:
-        with assert_raises(test_case["expect_error"]):
-            StreamedAnswer(processor, renderer=renderer)
-        return
-
-    answer = StreamedAnswer(processor, renderer=renderer)
-
-    def parts() -> list[dict]:
-        return [answer_part_to_dict(p, renderer) for p in answer.parts]
-
-    for step in test_case["steps"]:
-        answer.feed(step["input"])
-        assert parts() == step["expect_parts"]
-        if "expect_in_block" in step:
-            assert answer.is_in_block == step["expect_in_block"]
-    answer.close()
-    if "expect_close" in test_case:
-        assert parts() == test_case["expect_close"]
+# agent/streamed_answer.yaml covers the optional agent_renderer_app feature
+# (blueprints/features/agent_renderer_app.blueprint.md), for an app that is
+# both the agent and the renderer. This SDK has no renderer, so it does not
+# implement the feature and has no runner for the suite.
 
 
 # --- Multi-Catalog Formats Conformance (Express, Elemental, Atom, Direct JSON) ---

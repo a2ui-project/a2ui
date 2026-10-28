@@ -32,7 +32,6 @@ The reference Python implementation of the A2UI Agent SDK (`a2ui_agent`).
 - **Catalog Providers**: Provides `FileSystemCatalogProvider` for reading local catalog files and `InMemoryCatalogProvider` for in-memory dictionaries, with an extensible `CatalogProvider` base class for custom catalog loading strategies (e.g., remote REST API or cloud storage).
 - **Streamed parts typing**: `ResponseStream` is generic in the parts it returns, and `open_stream` is overloaded on `after_rejected_block`, so only a stream opened with `"continue"` is typed `ResponseStream[StreamPart]` and returns `ErrorPart`s. Python 3.10 has no type parameter defaults, so every annotation names the part type, usually `ResponseStream[ResponsePart]`.
 - **Streaming without a chunk transaction**: `DirectJsonResponseStream` applies each block's messages as it emits them, so a failing chunk's earlier parts stay applied and are attached to the error as `partial_results`. A rejected block is still scanned for its closing tag, without being read, when the stream reads past rejected blocks.
-- **Agent and renderer in one app**: `RendererState.of(processor)` runs the state on a renderer's `MessageProcessor`, passing the in-progress validation config in each operation's `ExecutionContext`, and holds `callRendererFunction` messages until the outermost frame of its undo log closes. `StreamedAnswer` (`a2ui.processor`) builds on it.
 
 ## **Validation & Execution Recipes**
 

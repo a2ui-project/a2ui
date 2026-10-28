@@ -31,7 +31,6 @@ from a2ui.core.state import DataModel, SurfaceModel
 from a2ui.core.resolution import DataContext
 from a2ui.core.processing import (
     CapabilitiesOptions,
-    ExecutionContext,
     MessageProcessor,
     MessageProcessorOptions,
 )
@@ -39,7 +38,6 @@ from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     PayloadValidator,
-    ValidationConfig,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError,
@@ -81,6 +79,13 @@ SKIP_TEST_NAMES: set[str] = {
     # surface holds, which the TypeScript and Kotlin cores do not.
     "test_v08_topology_plain_string_property_not_treated_as_child_ref",
     "test_v08_topology_plain_string_property_does_not_close_cycle",
+    # Cases of the optional agent_renderer_app feature
+    # (blueprints/features/agent_renderer_app.blueprint.md), which takes the
+    # validation rules for one call. This SDK has no renderer, so it does not
+    # implement the feature.
+    "test_v10_call_validation_config_relaxes_strict_processor",
+    "test_v10_call_validation_config_tightens_permissive_processor",
+    "test_v10_call_validation_config_leaves_out_rules_as_strict",
 }
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
@@ -964,43 +969,16 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
         expect_error = step.get("expectError") or (
             case.get("expectError") if step is steps[-1] else None
         )
-        # A step's validationConfig applies to that call only.
-        context = (
-            ExecutionContext(
-                validation_config=_validation_config(step["validationConfig"])
-            )
-            if "validationConfig" in step
-            else None
-        )
 
         if expect_error:
             with assert_raises(expect_error):
-                processor.process_messages(messages, context)
+                processor.process_messages(messages)
         else:
-            processor.process_messages(messages, context)
+            processor.process_messages(messages)
             expected = step.get("expect") or (
                 case.get("expect") if step is steps[-1] else {}
             )
             _assert_expected_surface_state(processor, expected)
-
-
-# The keys of a step's `validationConfig`, and the `ValidationConfig` field
-# each one sets.
-_VALIDATION_CONFIG_FIELDS = {
-    "allowOrphanComponents": "allow_orphan_components",
-    "allowDanglingReferences": "allow_dangling_references",
-    "allowMissingRoot": "allow_missing_root",
-    "allowUnknownElements": "allow_unknown_elements",
-}
-
-
-def _validation_config(spec: dict[str, Any]) -> ValidationConfig:
-    """The `ValidationConfig` a step's `validationConfig` states; a rule left out is strict."""
-    unknown_keys = set(spec) - set(_VALIDATION_CONFIG_FIELDS)
-    assert not unknown_keys, f"Unknown validationConfig keys: {sorted(unknown_keys)}"
-    return ValidationConfig(
-        **{_VALIDATION_CONFIG_FIELDS[key]: value for key, value in spec.items()}
-    )
 
 
 def validate_capabilities_case(case: dict[str, Any]) -> None:

@@ -14,13 +14,7 @@
 
 """Execution context tracking user activation and message processing state."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..validation.payload_validator import ValidationConfig
 
 
 @dataclass
@@ -29,11 +23,6 @@ class ExecutionContext:
 
     Attributes:
         is_user_activated: Whether user activation is present in the context.
-        validation_config: The validation rules for this call, in place of the
-            processor's own. An agent that checks its messages against a
-            renderer's processor passes the rules it checks by, whatever rules
-            the renderer was created with.
     """
 
     is_user_activated: bool = False
-    validation_config: ValidationConfig | None = None

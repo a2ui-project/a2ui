@@ -18,8 +18,7 @@ import copy
 from dataclasses import dataclass
 import inspect
 import logging
-from collections.abc import Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from collections.abc import Mapping, Sequence
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 logger = logging.getLogger(__name__)
@@ -175,7 +174,7 @@ class MessageProcessor:
         """
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
-        self._catalogs = list(catalogs)
+        self.catalogs = catalogs
         self.model = SurfaceGroupModel()
         opts = options or MessageProcessorOptions()
         self.validation_config = opts.validation_config
@@ -186,29 +185,6 @@ class MessageProcessor:
         )
         if action_handler:
             self.model.on_action.subscribe(action_handler)
-
-    @property
-    def catalogs(self) -> list[CatalogApi]:
-        """The catalogs the processor was created with, in priority order."""
-        return list(self._catalogs)
-
-    @contextmanager
-    def _validation_config_of(self, context: ExecutionContext | None) -> Iterator[None]:
-        """Applies the validation config of `context`, if it has one, until the block ends.
-
-        The block must not await: the config of a call is in effect only while
-        it runs, so an asynchronous call applies it around each synchronous step.
-        """
-        config = context.validation_config if context else None
-        if config is None:
-            yield
-            return
-        own = self.validation_config
-        self.validation_config = config
-        try:
-            yield
-        finally:
-            self.validation_config = own
 
     def _extract_operations(
         self, messages: AgentToRendererMessagePayload
@@ -224,29 +200,18 @@ class MessageProcessor:
         messages: AgentToRendererMessagePayload,
         context: ExecutionContext | None = None,
     ) -> None:
-        """Accepts a list of parsed JSON messages and executes state operations in order synchronously.
-
-        A `validation_config` in `context` applies to this call in place of the
-        processor's own.
-        """
-        with self._validation_config_of(context):
-            for op in self._extract_operations(messages):
-                self.process_operation(op, context)
+        """Accepts a list of parsed JSON messages and executes state operations in order synchronously."""
+        for op in self._extract_operations(messages):
+            self.process_operation(op, context)
 
     async def process_messages_async(
         self,
         messages: AgentToRendererMessagePayload,
         context: ExecutionContext | None = None,
     ) -> list[dict[str, Any]]:
-        """Asynchronously processes messages, executing RPC calls and returning all produced responses.
-
-        A `validation_config` in `context` applies to this call in place of the
-        processor's own.
-        """
+        """Asynchronously processes messages, executing RPC calls and returning all produced responses."""
         responses: list[dict[str, Any]] = []
-        with self._validation_config_of(context):
-            operations = self._extract_operations(messages)
-        for op in operations:
+        for op in self._extract_operations(messages):
             resp = await self.process_operation_async(op, context)
             if resp is not None:
                 responses.append(resp)
@@ -286,7 +251,7 @@ class MessageProcessor:
                 context=data_context,
                 is_user_activated=is_user_activated or op.is_user_activated,
             )
-        self.process_operation(op, context)
+        self.process_operation(op)
         return None
 
     def call_agent_function(
@@ -432,13 +397,13 @@ class MessageProcessor:
             version_caps: dict[str, Any] = {
                 "supportedCatalogIds": [
                     cat_id
-                    for c in self._catalogs
+                    for c in self.catalogs
                     if (cat_id := getattr(c, "catalog_id", None)) is not None
                 ]
             }
             if effective_include_inline:
                 inline_catalogs: list[dict[str, Any]] = []
-                for c in self._catalogs:
+                for c in self.catalogs:
                     if is_at_least_version(ver_str, ProtocolVersion.V1_0):
                         to_json = getattr(c, "to_json", None)
                         if callable(to_json):
@@ -511,24 +476,19 @@ class MessageProcessor:
         op: InternalOperation,
         context: ExecutionContext | None = None,
     ) -> None:
-        """Executes a single canonical internal state operation.
-
-        A `validation_config` in `context` applies to this call in place of the
-        processor's own.
-        """
-        with self._validation_config_of(context):
-            if isinstance(op, InternalCreateSurfaceOp):
-                self._process_create_surface_op(op)
-            elif isinstance(op, InternalDeleteSurfaceOp):
-                self.model.delete_surface(op.surface_id)
-            elif isinstance(op, InternalUpdateComponentsOp):
-                self._process_update_components_op(op)
-            elif isinstance(op, InternalUpdateDataModelOp):
-                self._process_update_data_model_op(op)
-            elif isinstance(op, InternalCallRendererFunctionOp):
-                self._process_call_renderer_function_op(op, context)
-            elif isinstance(op, InternalAgentFunctionResponseOp):
-                self._process_agent_function_response_op(op)
+        """Executes a single canonical internal state operation."""
+        if isinstance(op, InternalCreateSurfaceOp):
+            self._process_create_surface_op(op)
+        elif isinstance(op, InternalDeleteSurfaceOp):
+            self.model.delete_surface(op.surface_id)
+        elif isinstance(op, InternalUpdateComponentsOp):
+            self._process_update_components_op(op)
+        elif isinstance(op, InternalUpdateDataModelOp):
+            self._process_update_data_model_op(op)
+        elif isinstance(op, InternalCallRendererFunctionOp):
+            self._process_call_renderer_function_op(op, context)
+        elif isinstance(op, InternalAgentFunctionResponseOp):
+            self._process_agent_function_response_op(op)
         return None
 
     def _resolve_rpc_data_context(
@@ -545,7 +505,7 @@ class MessageProcessor:
 
         available_catalogs = {
             getattr(cat, "catalog_id", f"cat_{i}"): cat
-            for i, cat in enumerate(self._catalogs)
+            for i, cat in enumerate(self.catalogs)
         }
         fallback_surface = SurfaceModel(
             surface_id=f"_rpc_fallback_{op.function_call_id or 'default'}",
@@ -621,9 +581,9 @@ class MessageProcessor:
         surface_catalog: Any
         if no_default_catalog:
             surface_catalog = None
-        elif catalog_id is None and self._catalogs:
+        elif catalog_id is None and self.catalogs:
             # Before v1.0, fall back to the first catalog.
-            surface_catalog = self._catalogs[0]
+            surface_catalog = self.catalogs[0]
         else:
             surface_catalog = cast(Any, self._resolve_catalog(catalog_id))
         if not surface_catalog and not no_default_catalog:
@@ -665,7 +625,7 @@ class MessageProcessor:
 
         matching_available_catalogs = {
             getattr(cat, "catalog_id", f"cat_{i}"): cat
-            for i, cat in enumerate(self._catalogs)
+            for i, cat in enumerate(self.catalogs)
             if is_catalog_version_compatible(
                 getattr(cat, "protocol_version", None),
                 surface_proto_ver,

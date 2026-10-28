@@ -32,16 +32,6 @@
   far ends inside a block, so a client that joins the chunks of a paused and
   resumed response can tell whether a space between them could break a block.
   [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
-- Add `RendererState.of(processor)`, a renderer state that checks messages by
-  its own rules and applies them to the `MessageProcessor` an app renders from,
-  for an app that is both agent and renderer. A rollback takes a message back
-  out of the processor's model. Every `RendererState` now hands a
-  `callRendererFunction` to its processor only once the outermost `apply` or
-  transaction it was applied in succeeds. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
-- Add `StreamedAnswer` (`a2ui.processor`), which reads one streamed answer into
-  a renderer's `MessageProcessor` through `RendererState.of`, reading past
-  rejected blocks, and keeps its `parts` in the order the model wrote them:
-  `AnswerTextPart`, `AnswerSurfacePart` and `ErrorPart`. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - Introduce typesafe fluent builder package for A2UI Protocol v1.0 (`a2ui.builder.v1_0`),
   re-exporting v1.0 common types (`DataBinding`, `FunctionCall`,
   `AccessibilityAttributes`, `ActionEvent`, and `CheckRule`) from

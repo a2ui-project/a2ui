@@ -48,7 +48,6 @@ graph TD
 #### 3. Message Processing (`src/a2ui/core/processing`)
 
 - **`MessageProcessor`**: A stateless protocol processor. Translates raw incoming A2UI messages into structural mutations across the `SurfaceGroupModel` layer.
-- **`ExecutionContext`**: Options for one `process_messages` call. Its `validation_config` replaces the processor's own for that call, so an agent in the same app as the renderer can check its messages against the renderer's processor by the agent's rules.
 
 #### 4. Catalogs (`src/a2ui/core/catalog`)
 
