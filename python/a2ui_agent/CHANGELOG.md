@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING**: In Express (`ExpressCompiler`), data path assignments (`$/... = ...`) in surface-updating scopes (scopes that do not create a surface with `root` or carry `update=true`) now emit one targeted `updateDataModel` message per assigned path at its JSON Pointer `path` instead of folding all assignments into a single root `updateDataModel` with `path: "/"` (which overwrote the entire surface data model on the renderer). Surface-creating scopes continue to fold data path assignments into a single root data model and now support list element traversal, canonical numeric-segment list auto-vivification, and full root replacement via `$/ = {...}` ([#3677](https://github.com/a2ui-project/a2ui/pull/3677)).
 - **BREAKING CHANGE**: `DirectJsonPromptGenerator.generate_base_rules()` now
   returns the workflow rules followed by the protocol schemas (agent-to-renderer
   and pruned common types) and accepts `allowed_messages`, while
@@ -20,6 +21,27 @@
   `Video` with `posterUrl`)
   ([#3070](https://github.com/a2ui-project/a2ui/pull/3070)).
 - **BREAKING**: `Skill` and `SkillSet` raise `A2uiValidationError` (a `ValueError`) for a `filename` that is absolute or has an empty, `.` or `..` segment, which they used to accept; the check runs on construction, on assignment, and in `SkillSet.add`. `SkillSet.export_to_directory` now removes only the directory that holds each skill file (for example `src/skills/nested` for `src/skills/nested/SKILL.md`) instead of the first path segment (`src`), removes a symlink or file at that path instead of following it, and raises before touching anything when a skill directory's parent is a symlink out of the output directory.
+- **BREAKING CHANGE**: `parse_and_fix` and the `a2ui.parser.payload_fixer`
+  module are removed. Nothing in the SDK used them any more: each inference
+  format's parser repairs the model's output, and the Direct JSON parser's
+  reader accepts trailing commas, unescaped control characters, smart quotes
+  used as JSON delimiters and a single message outside an array. Unlike
+  `parse_and_fix`, it keeps typographic quotes inside string values, so valid
+  JSON such as `"Willkommen im „Café Central“"` is no longer rejected
+  ([#2934](https://github.com/a2ui-project/a2ui/issues/2934)). To read a Direct
+  JSON block, use `DirectJsonParser(catalogs).compile(text)` or
+  `A2uiRequestProcessor.parse_response`.
+  [#3632](https://github.com/a2ui-project/a2ui/pull/3632)
+- **BREAKING CHANGE**: Cross-catalog `$ref` resolution across peer catalogs is
+  removed. `resolve_catalogs`, `validate_payload`, `RendererState`, and the
+  Direct JSON and Express formats no longer link the catalogs they are given,
+  so a catalog's `$ref`s resolve only against its own document and the
+  protocol's `common_types.json`. Loading a v1.0 catalog with a `$ref` to any
+  other document raises `A2uiCatalogError`. Recommended migration: bundle
+  referenced components, properties and functions into each catalog so it is
+  standalone.
+  [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
+  [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
   `call`, `check`, `skipped`); before, such a map was read as a variable
@@ -47,6 +69,11 @@
   written as a map literal rather than as a data binding or function call. An
   object with the binding key beside other keys, or an `event` or
   `functionCall` key whose value is not an object, is also data.
+- The Express, Elemental and Atom prompts and compilers read a component
+  property's enum from the component's own definition when it also inherits
+  the property through `allOf`, and list `checks` once, last, for a checkable
+  component that also declares `checks` itself
+  ([#3575](https://github.com/a2ui-project/a2ui/pull/3575)).
 - Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
   `a2ui.constants`, the message metadata key under which the v1.0 A2A
   extension sends the renderer capabilities. v0.8 and v0.9 use

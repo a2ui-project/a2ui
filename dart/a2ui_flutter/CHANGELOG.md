@@ -14,9 +14,9 @@
  limitations under the License.
 -->
 
-# a2ui_flutter Changelog
+# [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
-## Unreleased
+## 0.0.1-wip003
 
 - An `accessibility.live` of `polite` or `assertive` makes a component a live
   region, and an `accessibility.hidden` that is true excludes it and its

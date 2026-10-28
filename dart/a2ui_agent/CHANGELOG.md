@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Bumped `a2ui_core` constraint to `^0.4.0`.
+
+- Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
+  scopes that update a surface (scopes without a `root` assignment) now emit one
+  targeted `updateDataModel` message per assigned path at its JSON Pointer
+  `path` instead of folding all assignments into a single root `updateDataModel`
+  with `path: "/"` (which replaced the entire surface data model on the
+  renderer). Surface-creating scopes continue to fold data path assignments into
+  a single root data model and now support list element traversal, canonical
+  numeric-segment list auto-vivification, and full root replacement via
+  `$/ = {...}`. `ExpressDecompiler` now writes standalone `updateDataModel`
+  messages as `{path} = {value}` (`$/ = {...}` at root) so map replacements
+  round-trip without merging into sibling keys, accepts numeric path segments in
+  `updateDataModel` (such as `/items/0`), and sorts map keys when flattening
+  surface-creation data models into leaf assignments.
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
@@ -136,18 +151,9 @@
   processor's catalogs, so an agent that keeps a state per conversation can
   tell when to make a new one.
   `A2uiRequestProcessor.parseResponse` also takes `wrapped`.
-- Support cross-catalog `$ref` references across peer catalogs in
-  `resolveCatalogs`, payload checks, `DirectJsonPromptGenerator` (preserving
-  unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive
-  `common_types.json` definitions), and the Express format (`ExpressPromptGenerator`,
-  `ExpressCompiler`, and `ExpressDecompiler`). Each links copies of the
-  catalogs with `linkCatalogs` and never changes the catalogs it is given:
-  `resolveCatalogs` returns linked copies, linked with every registered
-  catalog as declared and as transformed, and `ExpressCompiler.catalogs` and
-  `ExpressDecompiler.catalogs` hold linked copies. An inline catalog the agent
-  does not accept is linked with nothing.
 - `CatalogConfig.transformedCatalog` is computed on first access and then
-  reused, so every request sees the same transformed catalog.
+  reused, so every request sees the same transformed catalog
+  ([#3575](https://github.com/a2ui-project/a2ui/pull/3575)).
 - Implemented protocol v1.0. The SDK reads and writes the protocol version
   that the active catalogs target, rather than always v0.9:
   - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` load documents
