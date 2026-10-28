@@ -286,7 +286,7 @@
                     component: "Text"
                     text:
                       "@path": "/greeting"
-    - input: "$/greeting = \"Good "
+    - input: '$/greeting = "Good '
       expect:
         - a2ui:
             - version: "v1.0"

@@ -1119,8 +1119,8 @@ The suites covering this document live under `conformance/agent/`:
 | `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                              |
 | `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
 | `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
-| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                 |
-| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                 |
+| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                |
+| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                |
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 

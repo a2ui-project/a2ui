@@ -195,7 +195,9 @@ def _step_string_or_comment(source: str, i: int, n: int) -> tuple[int, bool]:
     return i, False
 
 
-def _scan_double_quoted(source: str, quote_start: int, n: int, *, raw: bool) -> int | None:
+def _scan_double_quoted(
+    source: str, quote_start: int, n: int, *, raw: bool
+) -> int | None:
     triple = source.startswith('"""', quote_start)
     delim = '"""' if triple else '"'
     i = quote_start + len(delim)
@@ -406,9 +408,7 @@ def _is_progressive_slot(
             if frame.kwarg_name is not None:
                 return frame.kwarg_name in progressive_keys
             props = [
-                p
-                for p in helper.get_component_properties(frame.name)
-                if p != "checks"
+                p for p in helper.get_component_properties(frame.name) if p != "checks"
             ]
             if frame.arg_index < len(props):
                 return props[frame.arg_index] in progressive_keys
@@ -480,9 +480,7 @@ def _merge_same_surface_updates(
     return merged
 
 
-def _try_merge_component_update(
-    prev: dict[str, Any], msg: dict[str, Any]
-) -> bool:
+def _try_merge_component_update(prev: dict[str, Any], msg: dict[str, Any]) -> bool:
     if "updateComponents" not in msg:
         return False
     next_update = msg["updateComponents"]
@@ -500,7 +498,9 @@ def _try_merge_component_update(
         target_list = prev["createSurface"]
     else:
         return False
-    by_id = {c["id"]: c for c in (*target_list["components"], *next_update["components"])}
+    by_id = {
+        c["id"]: c for c in (*target_list["components"], *next_update["components"])
+    }
     target_list["components"] = list(by_id.values())
     return True
 
@@ -724,16 +724,12 @@ class ExpressResponseStream(ResponseStream):
         )
         if healed is None:
             return []
-        combined = (
-            f"{complete_prefix}\n{healed}" if complete_prefix.strip() else healed
-        )
+        combined = f"{complete_prefix}\n{healed}" if complete_prefix.strip() else healed
         snap = self._session.snapshot()
         saved_touched = dict(self._touched)
         try:
             with self._state.transaction():
-                msgs = self._compile_step(
-                    combined, is_final=False, cache_prefix=False
-                )
+                msgs = self._compile_step(combined, is_final=False, cache_prefix=False)
                 if msgs:
                     self._apply(msgs)
                 return msgs
@@ -749,9 +745,7 @@ class ExpressResponseStream(ResponseStream):
                 models = self._parser.compile(payload, is_final=True)
                 self._apply(models)
             else:
-                messages = self._compile_step(
-                    payload, is_final=True, cache_prefix=True
-                )
+                messages = self._compile_step(payload, is_final=True, cache_prefix=True)
                 if messages:
                     self._apply(messages)
                 models = to_message_models(messages)

@@ -801,9 +801,7 @@ class ExpressScopeSession:
         has_pending: bool,
     ) -> list[dict[str, Any]]:
         delta_components = [
-            c
-            for c in compiled_components
-            if state.emitted_components.get(c["id"]) != c
+            c for c in compiled_components if state.emitted_components.get(c["id"]) != c
         ]
         for comp in delta_components:
             state.emitted_components[comp["id"]] = comp

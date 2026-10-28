@@ -81,22 +81,19 @@ def test_heal_progressive_fragment_heals_positional_keyword_and_path():
     )
     # Non-progressive key is not healed.
     assert (
-        heal_progressive_fragment('  b = Button("Save", id="bt', helpers, keys)
-        is None
+        heal_progressive_fragment('  b = Button("Save", id="bt', helpers, keys) is None
     )
     # Disabled progressive keys heal nothing.
-    assert (
-        heal_progressive_fragment('  t1 = Text("Hel', helpers, frozenset())
-        is None
-    )
+    assert heal_progressive_fragment('  t1 = Text("Hel', helpers, frozenset()) is None
     # Triple-quoted string ending with a quote escapes the trailing quote before closing.
-    assert (
-        heal_progressive_fragment('  t1 = Text("""Hello "', helpers, keys)
-        == '  t1 = Text("""Hello \\"""" )'.replace(" )", ")")
-    )
+    assert heal_progressive_fragment(
+        '  t1 = Text("""Hello "', helpers, keys
+    ) == '  t1 = Text("""Hello \\"""" )'.replace(" )", ")")
     # Standalone function call keyword argument is not healed as a component slot.
     assert (
-        heal_progressive_fragment('  openUrl(url="tel:+1555', helpers, frozenset({"url"}))
+        heal_progressive_fragment(
+            '  openUrl(url="tel:+1555', helpers, frozenset({"url"})
+        )
         is None
     )
 
@@ -130,15 +127,13 @@ def test_express_stream_unwrapped_mode():
     parts2 = stream.feed('t1 = Text("Hello")\n')
     assert len(parts2) == 1
     msgs2 = [m.model_dump(by_alias=True, exclude_none=True) for m in parts2[0].a2ui]
-    assert msgs2 == [
-        {
-            "version": "v0.9",
-            "updateComponents": {
-                "surfaceId": "s1",
-                "components": [{"id": "t1", "component": "Text", "text": "Hello"}],
-            },
-        }
-    ]
+    assert msgs2 == [{
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "t1", "component": "Text", "text": "Hello"}],
+        },
+    }]
     assert stream.close() == []
 
 
@@ -183,27 +178,23 @@ def test_express_stream_coalesces_complete_and_healed_component_updates():
     parts = stream.feed('t1 = Text("First")\nt2 = Text("Sec')
     assert len(parts) == 1
     msgs = [m.model_dump(by_alias=True, exclude_none=True) for m in parts[0].a2ui]
-    assert msgs == [
-        {
-            "version": "v0.9",
-            "updateComponents": {
-                "surfaceId": "s1",
-                "components": [
-                    {"id": "t1", "component": "Text", "text": "First"},
-                    {"id": "t2", "component": "Text", "text": "Sec"},
-                ],
-            },
-        }
-    ]
+    assert msgs == [{
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+                {"id": "t1", "component": "Text", "text": "First"},
+                {"id": "t2", "component": "Text", "text": "Sec"},
+            ],
+        },
+    }]
     stream.feed('ond")\n</a2ui>')
     assert stream.close() == []
 
 
 def test_express_stream_discards_speculative_healed_update_rejected_by_renderer_state():
     catalog = BasicCatalog(ProtocolVersion.V0_9)
-    parser = ExpressParser(
-        [catalog], surface_id="s1", progressive_keys={"variant"}
-    )
+    parser = ExpressParser([catalog], surface_id="s1", progressive_keys={"variant"})
     stream = parser.open_stream()
 
     # "h" is not a valid variant enum value, so RendererState rejects the
@@ -224,22 +215,18 @@ def test_express_stream_discards_speculative_healed_update_rejected_by_renderer_
     parts2 = stream.feed('1")\n</a2ui>')
     assert len(parts2) == 1
     msgs2 = [m.model_dump(by_alias=True, exclude_none=True) for m in parts2[0].a2ui]
-    assert msgs2 == [
-        {
-            "version": "v0.9",
-            "updateComponents": {
-                "surfaceId": "s1",
-                "components": [
-                    {
-                        "id": "t2",
-                        "component": "Text",
-                        "text": "Second",
-                        "variant": "h1",
-                    }
-                ],
-            },
-        }
-    ]
+    assert msgs2 == [{
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{
+                "id": "t2",
+                "component": "Text",
+                "text": "Second",
+                "variant": "h1",
+            }],
+        },
+    }]
     assert stream.close() == []
 
 
@@ -256,4 +243,3 @@ def test_express_stream_unclosed_wrapped_block_raises_parse_error_on_close():
     with pytest.raises(A2uiParseError):
         stream.close()
     assert state.get_surface("s1") is not None
-
