@@ -12,17 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import Combine
 import OrderedJSON
 
-/// An immutable, thread-safe resolved component representation.
-public struct Node: Identifiable, Equatable, Sendable {
-  public let id: String
-  public let type: String
-  public let catalogID: String?
-  public let properties: [String: any Resolved]
+/// A persistent, observable backing store for a resolved component node.
+///
+/// `@unchecked Sendable` is safe because instances are initialized once in `Node.init` and
+/// only ever mutated on `@MainActor` via ``updateProperties(_:)``.
+package final class NodeBox: ObservableObject, @unchecked Sendable {
+  let id: String
+  let type: String
+  let catalogID: String?
+  private(set) var properties: [String: any Resolved]
+  package private(set) var revision: UInt64 = 0
 
-  /// Creates a new resolved component node.
-  public init(
+  init(
     id: String,
     type: String,
     catalogID: String? = nil,
@@ -34,20 +38,109 @@ public struct Node: Identifiable, Equatable, Sendable {
     self.properties = properties
   }
 
-  public static func == (lhs: Node, rhs: Node) -> Bool {
-    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID else {
-      return false
+  /// Updates the box's resolved properties in-place, publishing `objectWillChange`
+  /// only when its own non-node properties or child `NodeBox` references (`===`) change.
+  @MainActor
+  func updateProperties(_ newProperties: [String: any Resolved]) {
+    let changed = !Self.arePropertiesShallowEqual(properties, newProperties)
+    if changed {
+      objectWillChange.send()
     }
-    guard lhs.properties.count == rhs.properties.count else {
+    properties = newProperties
+    if changed {
+      revision &+= 1
+    }
+  }
+
+  private static func arePropertiesShallowEqual(
+    _ lhs: [String: any Resolved],
+    _ rhs: [String: any Resolved]
+  ) -> Bool {
+    guard lhs.count == rhs.count else { return false }
+    for (key, lhsVal) in lhs {
+      guard let rhsVal = rhs[key], areValuesShallowEqual(lhsVal, rhsVal) else { return false }
+    }
+    return true
+  }
+
+  private static func areValuesShallowEqual(
+    _ lhs: any Resolved,
+    _ rhs: any Resolved
+  ) -> Bool {
+    if let lhsNode = lhs as? Node, let rhsNode = rhs as? Node {
+      return lhsNode.box === rhsNode.box
+    }
+    if let lhsNodes = lhs as? [Node], let rhsNodes = rhs as? [Node] {
+      return lhsNodes.count == rhsNodes.count
+        && zip(lhsNodes, rhsNodes).allSatisfy { $0.box === $1.box }
+    }
+    if let lhsDict = lhs as? ResolvedDictionary, let rhsDict = rhs as? ResolvedDictionary {
+      return arePropertiesShallowEqual(lhsDict.storage, rhsDict.storage)
+    }
+    if let lhsArr = lhs as? ResolvedArray, let rhsArr = rhs as? ResolvedArray {
+      return lhsArr.elements.count == rhsArr.elements.count
+        && zip(lhsArr.elements, rhsArr.elements).allSatisfy { areValuesShallowEqual($0, $1) }
+    }
+    return lhs.isEqual(to: rhs)
+  }
+}
+
+/// A resolved component representation.
+public struct Node: Identifiable, Equatable, Sendable {
+  package let box: NodeBox
+  private let renderRevision: UInt64
+
+  public var id: String { box.id }
+  public var type: String { box.type }
+  public var catalogID: String? { box.catalogID }
+  public var properties: [String: any Resolved] { box.properties }
+
+  /// Creates a new resolved component node.
+  public init(
+    id: String,
+    type: String,
+    catalogID: String? = nil,
+    properties: [String: any Resolved]
+  ) {
+    self.box = NodeBox(id: id, type: type, catalogID: catalogID, properties: properties)
+    self.renderRevision = 0
+  }
+
+  private init(box: NodeBox, renderRevision: UInt64) {
+    self.box = box
+    self.renderRevision = renderRevision
+  }
+
+  /// Updates the backing box's resolved properties in-place and returns a `Node` stamped with
+  /// the box's resulting revision.
+  @MainActor
+  func updatingProperties(_ newProperties: [String: any Resolved]) -> Node {
+    box.updateProperties(newProperties)
+    return withCurrentRevision()
+  }
+
+  /// Returns a copy stamped with the backing box's current revision so SwiftUI diffs
+  /// catalog component view structs as changed when `ComponentNodeView` re-renders.
+  package func withCurrentRevision() -> Node {
+    renderRevision == box.revision ? self : Node(box: box, renderRevision: box.revision)
+  }
+
+  /// Returns a copy with a neutral render revision for container child identity checks.
+  package func withoutRenderRevision() -> Node {
+    renderRevision == 0 ? self : Node(box: box, renderRevision: 0)
+  }
+
+  public static func == (lhs: Node, rhs: Node) -> Bool {
+    if lhs.box === rhs.box {
+      return lhs.renderRevision == rhs.renderRevision
+    }
+    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID,
+      lhs.properties.count == rhs.properties.count
+    else {
       return false
     }
     for (key, lhsVal) in lhs.properties {
-      guard let rhsVal = rhs.properties[key] else {
-        return false
-      }
-      guard lhsVal.isEqual(to: rhsVal) else {
-        return false
-      }
+      guard let rhsVal = rhs.properties[key], lhsVal.isEqual(to: rhsVal) else { return false }
     }
     return true
   }

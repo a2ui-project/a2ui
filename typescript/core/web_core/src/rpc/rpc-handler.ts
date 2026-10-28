@@ -714,12 +714,16 @@ export class RpcHandler {
     cleanup: () => void,
     reject: (reason?: any) => void,
   ): void {
+    // callAgentFunction only exists in v1.0, whose FunctionCall names the function with
+    // '@call'. Rewrite a v0.9-style `call` key so the outbound message is valid on the wire.
+    const {call: legacyCallName, '@call': callName, ...rest} = call as Record<string, unknown>;
+    const callFunction = {'@call': callName ?? legacyCallName, ...rest} as FunctionCall;
     const outboundMsg: CallAgentFunctionMessage = {
       version: (version || 'v1.0') as CallAgentFunctionMessage['version'],
       callAgentFunction: {
         surfaceId,
         functionCallId,
-        callFunction: call,
+        callFunction,
       },
     };
 
