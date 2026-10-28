@@ -189,7 +189,7 @@ class TestCliTools(unittest.TestCase):
             "content_grid = Row([left_panel, right_panel])",
             lines,
         )
-        self.assertTrue(lines[-1].startswith("$/logs = ["))
+        self.assertTrue(lines[-1].startswith("$/ = {logs: ["))
 
     @patch("sys.stdout")
     def test_decompiler_main_cli(self, mock_stdout):

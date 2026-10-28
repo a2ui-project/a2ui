@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import {A2uiCompilationError} from '../errors.js';
+import {A2uiCompilationError, withPartialResults} from '../errors.js';
 import {A2uiError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
 import {RendererState} from '../utils/renderer-state.js';
-import {RawResponsePart, ResponsePart} from './response-part.js';
+import {RawResponsePart, ResponsePart, StreamPart} from './response-part.js';
 import {ResponseStream} from './response-stream.js';
 
 /** Options for reading a model response. */
@@ -30,6 +30,23 @@ export interface ParseOptions {
    */
   state?: RendererState;
 }
+
+/** Options for reading a streamed model response. */
+export interface StreamOptions extends ParseOptions {
+  /**
+   * What the stream does once it rejects a block. With `'end'`, the default, the stream ends:
+   * `feed` or `close` throws. With `'continue'`, the stream returns an `ErrorPart` in place of
+   * the block and reads on: the messages the block emitted before it was rejected stay, the
+   * rest of the block is skipped, and the text and blocks after it are read as usual.
+   *
+   * A block is rejected when it cannot be read or the state rejects one of its messages. Any
+   * other error ends the stream either way.
+   */
+  afterRejectedBlock?: 'end' | 'continue';
+}
+
+/** Options for a stream that reads past rejected blocks, and so returns `ErrorPart`s. */
+export type ContinuingStreamOptions = StreamOptions & {afterRejectedBlock: 'continue'};
 
 /**
  * Abstract base class for A2UI payload parsers.
@@ -189,19 +206,13 @@ export abstract class Parser {
   /**
    * Opens a stream that reads one response chunk by chunk.
    *
-   * @param options Whether the response is wrapped in tags, and the state to check it
-   *     against and apply it to.
+   * @param options Whether the response is wrapped in tags, the state to check it against and
+   *     apply it to, and whether to read past a rejected block.
    * @throws {Error} If the format cannot be read incrementally.
    */
-  openStream(_options: ParseOptions = {}): ResponseStream {
+  openStream(options: ContinuingStreamOptions): ResponseStream<StreamPart>;
+  openStream(options?: StreamOptions): ResponseStream;
+  openStream(_options: StreamOptions = {}): ResponseStream<StreamPart> {
     throw new Error(`Streaming is not supported by ${this.constructor.name}`);
   }
-}
-
-/** Attaches the parts read before an `A2uiError` to it, and returns the error. */
-function withPartialResults(e: unknown, parts: ResponsePart[]): unknown {
-  if (e instanceof A2uiError) {
-    (e as A2uiError & {partialResults?: ResponsePart[]}).partialResults = parts;
-  }
-  return e;
 }

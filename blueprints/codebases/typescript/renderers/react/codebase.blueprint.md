@@ -22,6 +22,7 @@ The reference React renderer for the A2UI ecosystem.
 ## **Local Technical Decisions & Overrides**
 
 - **Synthetic Events & Throttling**: Throttles intense interactive value changes (e.g. keypress triggers on TextFields) directly within the adapter wrapper before committing updates to the state layer.
+- **Markdown component**: The basic catalog's `Text` is a web_core Lit element that reads one Markdown renderer for the page, a function that returns HTML. For `MarkdownComponentContext`, `A2uiSurface` registers a renderer that returns an `<a2ui-react-markdown>` element holding the Markdown in an attribute (`src/markdown_hosts.tsx`). The element registers under the nearest element React rendered above it, as React hosts do (`src/host_registry.ts`), and that element's `ChildElement` portals the component into it, so the component renders in the app's React tree.
 
 ## **Validation & Execution Recipes**
 

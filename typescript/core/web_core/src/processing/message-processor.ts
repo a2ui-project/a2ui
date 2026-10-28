@@ -16,7 +16,7 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
-import {Catalog, ComponentApi, linkCatalogs} from '../catalog/types.js';
+import {Catalog, ComponentApi} from '../catalog/types.js';
 import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
@@ -109,6 +109,14 @@ export {STRICT_VALIDATION, RELAXED_VALIDATION, A2uiRpcError, RpcErrorCode};
 export interface ExecutionContext {
   /** Whether execution occurs in an active user gesture context. */
   isUserActivated?: boolean;
+  /**
+   * The validation rules for this call, in place of the processor's own. The
+   * rules the config leaves out default to the strict ones, as for
+   * `MessageProcessorOptions.validationConfig`. An agent that checks its
+   * messages against a renderer's processor passes the rules it checks by,
+   * whatever rules the renderer was created with.
+   */
+  validationConfig?: ValidationConfig;
 }
 
 /**
@@ -171,8 +179,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
-  private readonly validationConfig?: ValidationConfig;
-  private readonly catalogs: Catalog<any>[];
+  private readonly registeredCatalogs: Catalog<any>[];
+  /** The processor's own rules, or the rules of the call in progress. */
+  private validationConfig?: ValidationConfig;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -183,10 +192,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /**
    * Initializes a new `MessageProcessor` instance.
    *
-   * The processor works with copies of `catalogs` linked to each other, so
-   * that cross-catalog `$ref`s resolve (see `linkCatalogs`); the catalogs
-   * passed in are not changed.
-   *
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
@@ -196,28 +201,25 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
-    this.catalogs = linkCatalogs(catalogs);
+    this.registeredCatalogs = catalogs;
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.rpc = new RpcHandler({
-      catalogs: this.catalogs,
+      catalogs: this.registeredCatalogs,
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
     });
-    if (options?.validationConfig) {
-      this.validationConfig = {
-        allowOrphanComponents: false,
-        allowDanglingReferences: false,
-        allowMissingRoot: false,
-        allowUnknownElements: false,
-        ...options.validationConfig,
-      };
-    } else {
-      this.validationConfig = undefined;
-    }
+    this.validationConfig = options?.validationConfig
+      ? withStrictDefaults(options.validationConfig)
+      : undefined;
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
+  }
+
+  /** The catalogs the processor was created with, in priority order. */
+  get catalogs(): Catalog<T>[] {
+    return [...this.registeredCatalogs];
   }
 
   /**
@@ -260,11 +262,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     for (const ver of versions) {
       const versionCaps: Record<string, any> = {
-        supportedCatalogIds: this.catalogs.map(c => c.id),
+        supportedCatalogIds: this.registeredCatalogs.map(c => c.id),
       };
 
       const inlineCatalogs = options?.includeInlineCatalogs
-        ? this.catalogs.map(c => {
+        ? this.registeredCatalogs.map(c => {
             if (compareSemVer(ver, '1.0') >= 0) {
               return this.generateInlineCatalog(c);
             }
@@ -536,10 +538,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param context Contextual execution options.
    */
   processMessages(messages: ProcessableMessagePayload, context?: ExecutionContext): void {
-    const operations = this.prepareOperations(messages);
-    for (const op of operations) {
-      this.processOperation(op, context);
-    }
+    this.withValidationConfig(context, () => {
+      const operations = this.prepareOperations(messages);
+      for (const op of operations) {
+        this.processOperation(op, context);
+      }
+    });
   }
 
   /**
@@ -553,7 +557,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     messages: ProcessableMessagePayload,
     context?: ExecutionContext,
   ): Promise<RendererFunctionResponseMessage[]> {
-    const operations = this.prepareOperations(messages);
+    const operations = this.withValidationConfig(context, () => this.prepareOperations(messages));
     const responses: RendererFunctionResponseMessage[] = [];
     for (const op of operations) {
       const resp = await this.processOperationAsync(op, context);
@@ -562,6 +566,25 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     }
     return responses;
+  }
+
+  /**
+   * Runs `fn` under the validation config of `context`, if it has one.
+   *
+   * `fn` must be synchronous: the config of a call is in effect only until
+   * `fn` returns, so an asynchronous call applies it around each synchronous
+   * step.
+   */
+  private withValidationConfig<R>(context: ExecutionContext | undefined, fn: () => R): R {
+    const config = context?.validationConfig;
+    if (!config) return fn();
+    const own = this.validationConfig;
+    this.validationConfig = withStrictDefaults(config);
+    try {
+      return fn();
+    } finally {
+      this.validationConfig = own;
+    }
   }
 
   private prepareOperations(messages: ProcessableMessagePayload): InternalOperation[] {
@@ -709,13 +732,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const surface = this.model.surfacesMap.get(op.surfaceId);
       return surface ? new DataContext(surface, '/') : undefined;
     }
-    const targetCatalog = op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined;
+    const targetCatalog = op.catalogId
+      ? this.registeredCatalogs.find(c => c.id === op.catalogId)
+      : undefined;
     if (!targetCatalog) {
       return undefined;
     }
     const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
     const availableCatalogs = new Map<string, Catalog<T>>();
-    for (const cat of this.catalogs) {
+    for (const cat of this.registeredCatalogs) {
       if (
         targetCatalog?.protocolVersion &&
         cat.protocolVersion &&
@@ -749,7 +774,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
-            call: op.call,
+            '@call': op.call,
             catalogId: op.catalogId,
             args: op.args,
           },
@@ -761,7 +786,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return;
     }
 
-    this.applyStateOperation(op);
+    this.withValidationConfig(context, () => this.applyStateOperation(op));
   }
 
   private async processOperationAsync(
@@ -777,7 +802,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
-            call: op.call,
+            '@call': op.call,
             catalogId: op.catalogId,
             args: op.args,
           },
@@ -786,7 +811,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return await this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
     }
 
-    this.applyStateOperation(op);
+    this.withValidationConfig(context, () => this.applyStateOperation(op));
     return null;
   }
 
@@ -800,7 +825,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       catalogId === undefined && msgVersion !== undefined && isAtLeastVersion(msgVersion, '1.0');
     const catalog = noDefaultCatalog
       ? undefined
-      : resolveSurfaceDefaultCatalog(this.catalogs, catalogId, msgVersion);
+      : resolveSurfaceDefaultCatalog(this.registeredCatalogs, catalogId, msgVersion);
     if (!catalog && !noDefaultCatalog) {
       if (catalogId !== undefined) {
         throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
@@ -846,7 +871,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     // those speaking a compatible protocol version can be resolved against this
     // surface, so filter once here rather than at every lookup.
     const availableCatalogs = new Map<string, Catalog<T>>(
-      this.catalogs
+      this.registeredCatalogs
         .filter(c => isCatalogVersionCompatible(c.protocolVersion, surfaceVersion))
         .map(c => [c.id, c] as const),
     );
@@ -1092,7 +1117,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     subject: string,
   ): Catalog<T> {
     if (catalogId !== undefined && !surface.availableCatalogs.has(catalogId)) {
-      const known = this.catalogs.find(c => c.id === catalogId);
+      const known = this.registeredCatalogs.find(c => c.id === catalogId);
       if (known) {
         throw new A2uiCatalogError(
           `${subject} names catalog '${catalogId}', whose specification version (${known.protocolVersion}) does not match surface '${surface.id}' version (${surface.protocolVersion}).`,
@@ -1207,4 +1232,15 @@ function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
       msgVersion ? isCatalogVersionCompatible(c.protocolVersion, msgVersion) : true,
     ) ?? catalogs[0]
   );
+}
+
+/** A config with the checks it leaves out set to the strict ones. */
+function withStrictDefaults(config: ValidationConfig): ValidationConfig {
+  return {
+    allowOrphanComponents: false,
+    allowDanglingReferences: false,
+    allowMissingRoot: false,
+    allowUnknownElements: false,
+    ...config,
+  };
 }

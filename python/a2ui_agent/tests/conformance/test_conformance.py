@@ -62,7 +62,20 @@ CATEGORY_TO_EXCEPTION = {
 SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
-SKIP_TEST_NAMES: set[str] = set()
+SKIP_TEST_NAMES: set[str] = {
+    # partial_results, after_rejected_block and is_in_block on a response
+    # stream, which this SDK does not implement yet:
+    # https://github.com/a2ui-project/a2ui/issues/3699
+    "test_chunk_error_carries_the_text_before_the_failing_block",
+    "test_chunk_error_carries_a_block_finished_in_the_same_chunk",
+    "test_chunk_continue_returns_an_error_part_for_an_unreadable_block",
+    "test_chunk_continue_takes_back_a_block_rejected_whole",
+    "test_chunk_continue_keeps_the_messages_emitted_before_the_rejection",
+    "test_chunk_continue_skips_the_rest_of_a_rejected_block",
+    "test_chunk_continue_returns_an_error_part_for_a_block_still_open_at_the_end",
+    "test_chunk_in_block_from_the_open_tag_to_the_close_tag",
+    "test_chunk_in_block_for_an_unwrapped_response",
+}
 
 # Transition skip list containing specific test suite files to skip during active feature transitions.
 SKIP_TEST_SUITES = {
@@ -180,11 +193,6 @@ KNOWN_GAPS: dict[str, str] = {
     "test_compile_express_components_without_root_is_update_components": (
         "ExpressCompiler does not emit updateComponents for component blocks"
         " that omit root (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_decompile_express_update_data_model_map_at_path": (
-        "ExpressDecompiler does not flatten map values in updateDataModel at a"
-        " non-root path into per-leaf assignments"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
     ),
 }
 
@@ -696,6 +704,11 @@ def run_format_case(test_case, tmp_path):
         if test_case.get("expect_round_trip"):
             recompiled = to_message_dicts(compile_checked(parser, notation))
             assert sort_components_by_id(recompiled) == sort_components_by_id(messages)
+        if "expect_recompiled" in test_case:
+            recompiled = to_message_dicts(parser.compile(notation))
+            assert sort_components_by_id(recompiled) == sort_components_by_id(
+                test_case["expect_recompiled"]
+            )
 
     elif action == "parse_response":
         parser = make_parser(args)
