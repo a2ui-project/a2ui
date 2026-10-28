@@ -38,7 +38,6 @@ from .messages import (
     to_message_models,
 )
 from .parser import Parser
-from .payload_fixer import parse_and_fix
 from .response_part import (
     A2uiPart,
     RawA2uiPart,
@@ -72,7 +71,6 @@ __all__ = [
     "ResponseStream",
     "TextPart",
     "normalize_prompt_example_messages",
-    "parse_and_fix",
     "to_message_dicts",
     "to_message_models",
 ]
