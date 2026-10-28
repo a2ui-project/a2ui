@@ -33,8 +33,8 @@ Ping from triage process: is this issue still on your radar?
 
 **Case**: The user suggests a feature or change that is outside the current scope of the A2UI protocol roadmap.
 
-**Triage**: priority `P4`, action `backlog` (keeps the issue open).
+**Triage**: close as not planned.
 
 Thanks for the suggestion. This falls outside the current scope of the A2UI protocol roadmap.
 
-Marked as `P4`: we do not plan to invest in it, and PRs against it will not be reviewed. Leaving it open as a record of the request — comment here if you have new arguments to share.
+We do not plan to invest in it, so we are closing this issue. Comment here if you have new arguments to share.

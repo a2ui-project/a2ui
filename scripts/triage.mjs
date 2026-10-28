@@ -30,7 +30,7 @@
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
 export const ASSIGNED_FOR_TRIAGE_LABEL = 'status: assigned-for-triage';
-export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
+export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3'];
 
 // Days an item may carry ASSIGNED_FOR_TRIAGE_LABEL before it is flagged
 // (step 2).

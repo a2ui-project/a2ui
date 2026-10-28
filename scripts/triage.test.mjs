@@ -221,9 +221,9 @@ describe('flagReason — issues', () => {
   });
 
   // Only P0 and P1 have a staleness threshold, and a priority settles the
-  // missing-priority check, so nothing else can flag an assigned P2–P4.
+  // missing-priority check, so nothing else can flag an assigned P2 or P3.
   it('does not flag an assigned issue below P1, whatever else is wrong with it', () => {
-    for (const priority of ['P2', 'P3', 'P4']) {
+    for (const priority of ['P2', 'P3']) {
       const item = externalIssue({
         labels: [priority],
         assignees: [{login: 'dev'}],
@@ -572,8 +572,8 @@ describe('flagReason — external comment awaiting response', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  it('flags an unassigned P2, P3 or P4 issue', () => {
-    for (const priority of ['P2', 'P3', 'P4']) {
+  it('flags an unassigned P2 or P3 issue', () => {
+    for (const priority of ['P2', 'P3']) {
       const item = issue({labels: [priority], comments: 1, created_at: daysAgo(5)});
       assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/, priority);
     }

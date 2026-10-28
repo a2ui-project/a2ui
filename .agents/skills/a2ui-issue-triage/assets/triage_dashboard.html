@@ -804,7 +804,6 @@ limitations under the License.
               <option value="P1">P1 - High Priority (Assignee Required)</option>
               <option value="P2">P2 - Medium Priority (Upcoming)</option>
               <option value="P3">P3 - Low Priority (Community Help)</option>
-              <option value="P4">P4 - Unplanned (Out of Scope)</option>
             </select>
           </div>
 
@@ -857,7 +856,9 @@ limitations under the License.
               </option>
               <option value="backlog">Keep open in backlog</option>
               <option value="close_duplicate">Close as duplicate</option>
-              <option value="close_invalid">Close as invalid/spam</option>
+              <option value="close_invalid">
+                Close as not planned (out of scope, invalid, spam)
+              </option>
               <option value="close_resolved">Close as resolved/answered</option>
             </select>
           </div>
@@ -1129,9 +1130,9 @@ limitations under the License.
           repoData = await res.json();
 
           // Dynamically override standard labels list with real repo labels if available,
-          // filtering out priority labels (P0-P4) since they are managed via the priority dropdown.
+          // filtering out priority labels (P0-P3) since they are managed via the priority dropdown.
           if (Array.isArray(repoData.labels) && repoData.labels.length > 0) {
-            const filteredLabels = repoData.labels.filter(label => !/^[Pp][0-4]$/.test(label));
+            const filteredLabels = repoData.labels.filter(label => !/^[Pp][0-3]$/.test(label));
             standardLabels.splice(0, standardLabels.length, ...filteredLabels);
           }
 
@@ -1451,7 +1452,7 @@ limitations under the License.
                 needs_info: 'Ask for info, status: waiting-for-author-response',
                 backlog: 'Keep open in backlog',
                 close_duplicate: 'Close as duplicate',
-                close_invalid: 'Close as invalid/spam',
+                close_invalid: 'Close as not planned',
                 close_resolved: 'Close as resolved/answered',
               };
               const actionText = actionLabels[d.action] || d.action;

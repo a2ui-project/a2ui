@@ -22,7 +22,7 @@ Added manually, removed by the bot:
 
 Added and removed manually:
 
-- Priority labels [P0][p0], [P1][p1], [P2][p2], [P3][p3], [P4][p4]: see [Triage an issue](triage.md#triage-an-issue). For why `P4` issues stay open, see [decisions](decisions.md).
+- Priority labels [P0][p0], [P1][p1], [P2][p2], [P3][p3]: see [Triage an issue](triage.md#triage-an-issue).
 - [status: first-line-handled][first-line-handled]: the issue went through first line triage.
 - [status: needs-team-input][needs-team-input]: the triager needs input from the team to triage the item.
 - [status: assigned-for-triage][assigned-for-triage]: an expert in the area finishes the triage. The bot flags the item again if nobody is assigned or the label stays for more than 14 days.
@@ -35,7 +35,6 @@ See [all GitHub labels](https://github.com/a2ui-project/a2ui/labels).
 [p1]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP1
 [p2]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP2
 [p3]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP3
-[p4]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP4
 [needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-team-input%22
 [needs-triage-label]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22
 [needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
