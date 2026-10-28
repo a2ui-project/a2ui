@@ -1,6 +1,6 @@
-# A2UI Standard Triage Replies for Issues
+# Common triage replies for issues
 
-Canonical replies for recurring issue triage cases. For PRs, see [Triage a PR](triage.md#triage-a-pr).
+Canonical replies for common types of issues. For PRs, see [Triage a PR](triage.md#triage-a-pr).
 
 ## Weekly A2UI Compliance Report
 

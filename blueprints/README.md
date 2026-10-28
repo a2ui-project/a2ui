@@ -21,7 +21,6 @@ blueprints/
 ├── features/                 # Standalone / Optional Feature Blueprints (unmerged)
 │   └── archived/             # Merged Feature Blueprints (required capabilities merged into module blueprints)
 ├── codebases/                # Codebase Blueprints tracking module compliance by commit hash
-├── devtools/                 # Blueprints for repository tooling (e.g. triage_flagging.blueprint.md)
 └── skills/                   # SDD Agent Skills (isolated by default)
 ```
 
