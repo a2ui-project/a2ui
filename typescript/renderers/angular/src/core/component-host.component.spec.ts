@@ -346,6 +346,55 @@ describe('ComponentHostComponent', () => {
   });
 
   describe('Node resolution', () => {
+    it('should render a child that arrives after the parent was mounted', async () => {
+      @Component({
+        selector: 'test-parent-with-child',
+        imports: [ComponentHostComponent],
+        template:
+          '<a2ui-v09-component-host [componentKey]="props.child.value()" [surfaceId]="surfaceId!" />',
+      })
+      class TestParentComponent {
+        @Input() props: any;
+        @Input() surfaceId?: string;
+        @Input() componentId?: string;
+        @Input() dataContextPath?: string;
+      }
+      const lateCatalog = new AngularCatalog('late-catalog', '0.9', [
+        createComponentImplementation(
+          {name: 'Parent', schema: z.object({child: ComponentIdSchema})},
+          TestParentComponent as unknown as Type<CatalogComponentInstance>,
+        ),
+        createComponentImplementation(
+          TestTypeApi,
+          TestChildComponent as unknown as Type<CatalogComponentInstance>,
+        ),
+      ]);
+      const lateSurface = new SurfaceModel('late-surf', lateCatalog);
+      lateSurface.componentsModel.addComponent(
+        new ComponentModel('root', 'Parent', {child: 'leaf'}, lateCatalog),
+      );
+      mockSurfaceGroup.getSurface.and.returnValue(lateSurface);
+
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', 'root');
+      testFixture.componentRef.setInput('surfaceId', 'late-surf');
+      flush(testFixture);
+      expect(testFixture.debugElement.query(By.directive(TestParentComponent))).toBeTruthy();
+      expect(testFixture.debugElement.query(By.directive(TestChildComponent))).toBeFalsy();
+
+      lateSurface.componentsModel.addComponent(
+        new ComponentModel('leaf', 'TestType', {text: 'Late leaf'}, lateCatalog),
+      );
+      await settle();
+      flush(testFixture);
+      flush(testFixture);
+
+      const leaf = testFixture.debugElement.query(By.directive(TestChildComponent));
+      expect(leaf).toBeTruthy();
+      expect((leaf.componentInstance as TestChildComponent).props.text.value()).toBe('Late leaf');
+      testFixture.destroy();
+    });
+
     it('should render a child reference that carries its node without searching the tree', () => {
       const childCatalog = new AngularCatalog('child-catalog', '0.9', [
         createComponentImplementation(
