@@ -96,11 +96,12 @@ class ExpressParser(Parser):
         lexer = BlockLexer(
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
-            # Express strings are double-quoted only. The lexer does not
-            # recognize `/* */` comments, so an apostrophe in one, such as
-            # `/* Chef's pick */`, must not open a string.
+            # Strings and comments as Express.g4 reads them: strings are
+            # double-quoted only, so an apostrophe never opens one, and a quote
+            # or close tag inside a `/* */` comment does not affect the block.
             string_delimiters={'"'},
             single_line_comments={"#", "//", "--"},
+            block_comments=[("/*", "*/")],
         )
         return lexer.tokenize(content)
 

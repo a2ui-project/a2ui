@@ -52,6 +52,7 @@ class LexerState(Enum):
     IN_A2UI = 1  # Inside tag (scanning code)
     IN_STRING = 2  # Inside string literal
     IN_COMMENT = 3  # Inside single-line comment
+    IN_BLOCK_COMMENT = 4  # Inside a block comment such as /* ... */
 
 
 class BlockLexer:
@@ -68,6 +69,7 @@ class BlockLexer:
         string_delimiters: Iterable[str] | None = None,
         single_line_comments: set[str] | None = None,
         payload_start_pattern: re.Pattern[str] = EXPRESS_PAYLOAD_START_RE,
+        block_comments: Iterable[tuple[str, str]] | None = None,
     ):
         """Initializes the block lexer with tag patterns, string delimiters, and comments.
 
@@ -82,6 +84,8 @@ class BlockLexer:
               markers.
             payload_start_pattern: Line-anchored pattern matching the start of an
               unfenced payload when recovering from a missing open tag.
+            block_comments: Pairs of open and close markers for block comments,
+              such as `("/*", "*/")`.
         """
         if isinstance(open_tag, str):
             open_tag_name = open_tag.strip("<>")
@@ -110,6 +114,7 @@ class BlockLexer:
             single_line_comments if single_line_comments is not None else {"#"}
         )
         self.payload_start_pattern = payload_start_pattern
+        self.block_comments = list(block_comments or [])
 
     def _clean_markdown(self, text: str) -> str:
         """Cleans Markdown code block wrappers from conversational text or inner raw content.
@@ -144,6 +149,7 @@ class BlockLexer:
         state = LexerState.IN_A2UI
         string_delim: str | None = None
         triple_quote = False
+        block_close = ""
 
         while i < end:
             if state == LexerState.IN_A2UI:
@@ -162,6 +168,16 @@ class BlockLexer:
                         triple_quote = False
                         i += 1
                     state = LexerState.IN_STRING
+                    continue
+
+                block = next(
+                    (bc for bc in self.block_comments if content.startswith(bc[0], i)),
+                    None,
+                )
+                if block is not None:
+                    i += len(block[0])
+                    block_close = block[1]
+                    state = LexerState.IN_BLOCK_COMMENT
                     continue
 
                 comment_start = False
@@ -201,6 +217,15 @@ class BlockLexer:
                     return i, match.end()
                 if content[i] in ("\n", "\r"):
                     state = LexerState.IN_A2UI
+                i += 1
+                continue
+
+            if state == LexerState.IN_BLOCK_COMMENT:
+                # A close tag inside a block comment does not end the block.
+                if content.startswith(block_close, i):
+                    i += len(block_close)
+                    state = LexerState.IN_A2UI
+                    continue
                 i += 1
                 continue
 
