@@ -4,7 +4,8 @@ import starlight from '@astrojs/starlight';
 import { remarkA2uiIncludes } from './src/plugins/remark-a2ui-includes.mjs';
 
 export default defineConfig({
-  site: 'https://a2ui.org',
+  site: process.env.ASTRO_SITE || 'https://a2ui.org',
+  base: process.env.ASTRO_BASE || undefined,
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
   },

@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <!doctype html>
 <html lang="en" data-theme="dark">
@@ -25,7 +26,7 @@
       name="description"
       content="A2UI is the open Agent-to-UI protocol and SDK suite that lets AI agents respond with stateful, native user interfaces across the entire Generative UI Spectrum."
     />
-    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
     <script is:inline>
       // Sync theme with Starlight's localStorage key ('starlight-theme')
       (function () {
@@ -1009,7 +1010,7 @@
     <!-- Top Header Navigation -->
     <header class="a2-nav">
       <div class="a2-nav__inner">
-        <a href="/" class="a2-brand">
+        <a href={`${base}/`} class="a2-brand">
           <span>A2UI</span>
           <span class="a2-brand__badge">v0.9.1 · v1.0 RC</span>
         </a>
@@ -1019,8 +1020,8 @@
           <a class="a2-nav__link" href="#express">Express (~3x)</a>
           <a class="a2-nav__link" href="#macros">Macros</a>
           <a class="a2-nav__link" href="#native-rendering">Native Renderers</a>
-          <a class="a2-nav__link" href="/quickstart/">Quickstart →</a>
-          <a class="a2-nav__link" href="/specification/v1.0-a2ui/">v1.0 Spec →</a>
+          <a class="a2-nav__link" href={`${base}/quickstart/`}>Quickstart →</a>
+          <a class="a2-nav__link" href={`${base}/specification/v1.0-a2ui/`}>v1.0 Spec →</a>
         </nav>
         <div class="a2-nav__actions">
           <button type="button" class="a2-theme-btn" id="a2-theme-toggle" aria-label="Toggle color theme">
@@ -1044,8 +1045,8 @@
               Chat is a great input, but walls of prose are a terrible output. <strong>A2UI</strong> is the open protocol and SDK suite that lets AI agents respond with stateful, interactive user interfaces—spanning the entire Generative UI Spectrum and rendering natively on Web, Flutter, SwiftUI, and Jetpack Compose.
             </p>
             <div class="a2-cta-row">
-              <a class="a2-btn a2-btn--primary" href="/quickstart/">Run 5-Minute Quickstart →</a>
-              <a class="a2-btn a2-btn--secondary" href="/specification/v1.0-a2ui/">Read v1.0 Protocol Spec</a>
+              <a class="a2-btn a2-btn--primary" href={`${base}/quickstart/`}>Run 5-Minute Quickstart →</a>
+              <a class="a2-btn a2-btn--secondary" href={`${base}/specification/v1.0-a2ui/`}>Read v1.0 Protocol Spec</a>
               <a class="a2-btn a2-btn--secondary" href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener">Open A2UI Composer ↗</a>
               <button type="button" class="a2-btn a2-btn--code" id="a2-copy-prompt">📋 Copy Agent Prompt</button>
             </div>
@@ -1612,7 +1613,7 @@ root = <span class="a2-tok-comp">FlightCard</span>(
               </div>
               <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-muted);">
                 <span>All renderers pass the shared A2UI Conformance Suite</span>
-                <a href="/quickstart/" style="color: var(--accent-strong); font-weight: 600; text-decoration: none;">Explore Quickstart →</a>
+                <a href={`${base}/quickstart/`} style="color: var(--accent-strong); font-weight: 600; text-decoration: none;">Explore Quickstart →</a>
               </div>
             </div>
 
@@ -1997,8 +1998,8 @@ fun AgentSurfaceScreen(processor: A2uiMessageProcessor) {
             pkg: '@a2ui/react · @a2ui/web_core',
             title: 'React Native-DOM Renderer (@a2ui/react)',
             badge: 'React 18/19 & AG-UI',
-            code: `import { A2UISurface } from '@a2ui/react';
-import { basicCatalog } from '@a2ui/react/catalogs/basic';
+            code: `${'import'} { A2UISurface } from '@a2ui/react';
+${'import'} { basicCatalog } from '@a2ui/react/catalogs/basic';
 
 export function AgentPanel({ stream }) {
   return <A2UISurface surfaceId="travel-booking" stream={stream} catalog={basicCatalog} />;
@@ -2022,8 +2023,8 @@ export class AgentSurfaceHostComponent {}`,
             pkg: '@a2ui/lit · <a2ui-surface>',
             title: 'Lit Web Components Renderer (@a2ui/lit)',
             badge: 'Zero-Framework Custom Elements',
-            code: `import '@a2ui/lit/surface.js';
-import { html } from 'lit';
+            code: `${'import'} '@a2ui/lit/surface.js';
+${'import'} { html } from 'lit';
 
 export const renderSurface = (processor) => html\`
   <a2ui-surface surfaceId="travel-booking" .processor=\${processor}></a2ui-surface>

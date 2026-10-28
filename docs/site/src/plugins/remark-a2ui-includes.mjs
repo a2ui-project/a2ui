@@ -33,15 +33,15 @@ function findRepoRoot() {
 
 const repoRoot = findRepoRoot();
 
-function mapSpecFilename(filename, versionPrefix) {
+function mapSpecFilename(filename, versionPrefix, basePrefix) {
   if (versionPrefix === 'v0.8' && filename === 'a2ui_extension_specification.md') {
-    return '/specification/v0.8-a2a-extension/';
+    return `${basePrefix}/specification/v0.8-a2a-extension/`;
   }
   const mapping = {
-    'a2ui_protocol.md': `/specification/${versionPrefix}-a2ui/`,
-    'evolution_guide.md': `/specification/${versionPrefix}-evolution-guide/`,
-    'a2ui_extension_specification.md': `/specification/${versionPrefix}-a2ui-extension-specification/`,
-    'basic_catalog_implementation_guide.md': `/specification/${versionPrefix}-basic-catalog-implementation-guide/`,
+    'a2ui_protocol.md': `${basePrefix}/specification/${versionPrefix}-a2ui/`,
+    'evolution_guide.md': `${basePrefix}/specification/${versionPrefix}-evolution-guide/`,
+    'a2ui_extension_specification.md': `${basePrefix}/specification/${versionPrefix}-a2ui-extension-specification/`,
+    'basic_catalog_implementation_guide.md': `${basePrefix}/specification/${versionPrefix}-basic-catalog-implementation-guide/`,
   };
   return mapping[filename] || null;
 }
@@ -52,6 +52,7 @@ function mapSpecFilename(filename, versionPrefix) {
  */
 function rewriteSpecLinks(markdown, sourcePagePath) {
   const githubBaseUrl = 'https://github.com/a2ui-project/a2ui/blob/main';
+  const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/$/, '');
   let versionPrefix = null;
   if (sourcePagePath.includes('v0.8')) versionPrefix = 'v0.8';
   else if (sourcePagePath.includes('v0.9.1')) versionPrefix = 'v0.9.1';
@@ -71,7 +72,7 @@ function rewriteSpecLinks(markdown, sourcePagePath) {
   // 2. Rewrite any remaining HTML <img src="../../../docs/public/assets/..."> to "/assets/..."
   out = out.replace(
     /src=["'](?:\.\.\/)+docs\/public\/assets\/([^"']+)["']/g,
-    'src="/assets/$1"'
+    `src="${basePrefix}/assets/$1"`
   );
 
   // 3. Helper to rewrite a single markdown link target
@@ -85,13 +86,13 @@ function rewriteSpecLinks(markdown, sourcePagePath) {
 
     if (versionPrefix) {
       const baseFilename = path.posix.basename(basePath);
-      const mapped = mapSpecFilename(baseFilename, versionPrefix);
+      const mapped = mapSpecFilename(baseFilename, versionPrefix, basePrefix);
       if (mapped) {
         return `${mapped}${anchor}`;
       }
       if (basePath.includes('/json/')) {
         const afterJson = basePath.slice(basePath.indexOf('/json/'));
-        return `/specification/${versionFolder}${afterJson}${anchor}`;
+        return `${basePrefix}/specification/${versionFolder}${afterJson}${anchor}`;
       }
     }
 
@@ -99,7 +100,7 @@ function rewriteSpecLinks(markdown, sourcePagePath) {
     if (basePath.startsWith('../../')) {
       const cleanPath = basePath.replace(/^(?:\.\.\/)+/, '');
       if (cleanPath.startsWith('docs/public/')) {
-        let internalRoute = '/' + cleanPath.slice('docs/public/'.length);
+        let internalRoute = `${basePrefix}/` + cleanPath.slice('docs/public/'.length);
         internalRoute = internalRoute.replace(/\.md$/, '/');
         return `${internalRoute}${anchor}`;
       }
