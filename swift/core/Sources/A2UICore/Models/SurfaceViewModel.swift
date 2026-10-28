@@ -177,8 +177,14 @@ public final class SurfaceViewModel: ObservableObject {
   }
 
   private func setUpSubscriptions() {
-    Publishers.CombineLatest(componentsModel.componentsPublisher, dataModel.dataPublisher)
-      .sink { [weak self] _, _ in
+    componentsModel.componentsPublisher
+      .sink { [weak self] _ in
+        self?.rebuildTree()
+      }
+      .store(in: &cancellables)
+
+    dataModel.dataPublisher
+      .sink { [weak self] _ in
         self?.rebuildTree()
       }
       .store(in: &cancellables)
@@ -186,10 +192,12 @@ public final class SurfaceViewModel: ObservableObject {
 
   // MARK: - Tree Rebuilding
 
-  /// Rebuilds the node tree and publishes the new root.
+  /// Rebuilds the node tree and publishes the new root only if the root node identity changed.
   private func rebuildTree() {
     let newRoot = nodeResolver.resolveTree()
-    self.rootNode = newRoot
+    if self.rootNode?.box !== newRoot?.box {
+      self.rootNode = newRoot
+    }
   }
 }
 

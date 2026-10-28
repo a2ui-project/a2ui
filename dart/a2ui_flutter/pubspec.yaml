@@ -14,9 +14,8 @@
 
 name: a2ui_flutter
 description: Flutter framework adapter for A2UI.
-version: 0.1.0
+version: 0.0.1-wip003
 repository: https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter
-publish_to: none
 
 resolution: workspace
 
@@ -25,7 +24,7 @@ environment:
   flutter: ">=3.38.0"
 
 dependencies:
-  a2ui_core: ^0.3.0
+  a2ui_core: ^0.4.0
   flutter:
     sdk: flutter
   path_parsing: ^1.1.0
