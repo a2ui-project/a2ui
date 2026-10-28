@@ -12,6 +12,8 @@ Queues used in triage:
 - [Needs triage][needs-triage-all]: everything the bot flagged.
 - [Needs triage, without team input][needs-triage-minus-waiting]: everything the bot flagged, exept items that need team input.
 
+See [list of labels used in triage](labels.md).
+
 ## First line triage (daily, by gardener)
 
 For each issue that is [not first-line-handled][not-first-line-handled]:
