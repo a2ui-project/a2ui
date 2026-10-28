@@ -70,8 +70,8 @@ public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable 
   /// Evaluates the openUrl function by resolving the URL and passing it to `openURL`, or to
   /// `handler` when `openURL` is not set.
   ///
-  /// The resolved URL is checked against a strict allowlist of schemes (`http` and `https`)
-  /// to prevent security issues such as XSS via `javascript:` or `data:`.
+  /// The resolved URL is checked against a strict allowlist of schemes (`http`, `https`,
+  /// `mailto` and `tel`) to prevent security issues such as XSS via `javascript:` or `data:`.
   ///
   /// - Parameters:
   ///   - arguments: The dictionary of arguments provided to the function.
