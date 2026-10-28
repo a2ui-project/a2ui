@@ -51,7 +51,15 @@ def _find_enum(s: Any) -> list[Any] | None:
 
 
 def _ordered_component_sub_schemas(schema: Any) -> list[dict[str, Any]]:
-    """Returns component sub-schemas with specific definitions before common mixins."""
+    """Returns component sub-schemas with specific definitions before common mixins.
+
+    Walks the component schema and its nested `allOf` entries, including the
+    `allOf` of an inlined local mixin such as a `$defs` entry that composes
+    `ComponentCommon` with extra properties. A sub-schema whose `properties`
+    contain `component` is specific; the others are common mixins. Within each
+    group, sub-schemas keep their pre-order position, so positional argument
+    order is consistent across protocol versions.
+    """
     if not isinstance(schema, dict):
         return []
     specific: list[dict[str, Any]] = []
@@ -111,9 +119,7 @@ class CatalogSchemaHelper:
         # crawler read both kinds of catalog the same way while references to
         # common types, such as `Checkable`, stay intact.
         catalog_schema = dict(catalog.to_json() or {})
-        self.catalog = inline_local_refs(
-            catalog_schema, catalog_schema, peers=catalog.peer_catalogs
-        )
+        self.catalog = inline_local_refs(catalog_schema, catalog_schema)
         try:
             self.common_types: dict[str, Any] = get_common_types_schema_map(
                 to_protocol_version(catalog.protocol_version)
@@ -140,42 +146,47 @@ class CatalogSchemaHelper:
         self.component_property_enums = {}
 
         for name, schema in self.components.items():
-            props = {}
-            reqs = []
+            props: dict[str, Any] = {}
+            reqs: list[str] = []
             is_checkable = False
 
-            # Crawl allOf and root schema for properties.
+            # Crawl the root schema and its nested allOf for properties.
             # Prioritize specific component definition schemas over common mixins
             # (such as CatalogComponentCommon which contains 'weight') so positional
-            # argument order is consistent across protocol versions.
-            sub_schemas = _ordered_component_sub_schemas(schema)
-
-            for sub in sub_schemas:
-                if not isinstance(sub, dict):
-                    continue
-                if "$ref" in sub:
-                    ref = sub["$ref"]
-                    if "Checkable" in ref:
-                        is_checkable = True
-                if "properties" in sub and isinstance(sub["properties"], dict):
-                    for pk, pv in sub["properties"].items():
-                        if pk not in props:
-                            props[pk] = pv
-                            enum_val = _find_enum(pv)
-                            if enum_val:
-                                self.component_property_enums[(name, pk)] = enum_val
-                if "required" in sub and isinstance(sub["required"], list):
-                    for r in sub["required"]:
+            # argument order is consistent across protocol versions. A property
+            # keeps the position of its first occurrence; its schema comes from
+            # `get_property_schema`, where the component's own definition wins.
+            for sub in _ordered_component_sub_schemas(schema):
+                ref = sub.get("$ref")
+                if isinstance(ref, str) and "Checkable" in ref:
+                    is_checkable = True
+                sub_props = sub.get("properties")
+                if isinstance(sub_props, dict):
+                    for pk, pv in sub_props.items():
+                        props.setdefault(pk, pv)
+                sub_reqs = sub.get("required")
+                if isinstance(sub_reqs, list):
+                    for r in sub_reqs:
                         if r not in reqs:
                             reqs.append(r)
 
-            # Filter out structural properties component, id, and catalogId
-            ordered_keys = []
-            for k in props:
-                if k not in ["component", "id", "catalogId"]:
-                    ordered_keys.append(k)
+            # Filter out structural properties component, id, and catalogId,
+            # and checks, which a checkable component lists last.
+            excluded = {"component", "id", "catalogId"}
+            if is_checkable:
+                excluded.add("checks")
+            ordered_keys = [k for k in props if k not in excluded]
 
-            # If it's checkable, add checks at the end
+            # The enum comes from the definition that wins for the property:
+            # the component's own one over an `allOf` sub-schema, so an
+            # inherited enum does not outlive an own definition without one.
+            for k in ordered_keys:
+                enum_val = _find_enum(self.get_property_schema(name, k))
+                if enum_val:
+                    self.component_property_enums[(name, k)] = enum_val
+
+            # If it's checkable, add checks at the end, once, even when the
+            # component also defines it itself.
             if is_checkable:
                 ordered_keys.append("checks")
 
@@ -294,14 +305,22 @@ class CatalogSchemaHelper:
     def get_property_schema(
         self, component_name: str, property_name: str
     ) -> dict[str, Any] | None:
-        """Crawls all sub-schemas of a component to retrieve a property's schema definition."""
+        """Crawls all sub-schemas of a component to retrieve a property's schema definition.
+
+        The component's own definition wins over its `allOf` sub-schemas, which
+        are searched, including nested ones, in the same order that
+        `get_component_properties` lists their properties.
+        """
         schema = self.components.get(component_name)
         if not schema or not isinstance(schema, dict):
             return None
 
-        sub_schemas = _ordered_component_sub_schemas(schema)
+        own_props = schema.get("properties")
+        if isinstance(own_props, dict) and property_name in own_props:
+            res = own_props[property_name]
+            return res if isinstance(res, dict) else None
 
-        for sub in sub_schemas:
+        for sub in _ordered_component_sub_schemas(schema):
             if (
                 isinstance(sub, dict)
                 and "properties" in sub

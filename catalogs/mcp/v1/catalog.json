@@ -131,14 +131,14 @@
             },
             "arguments": {
               "type": "object",
-              "description": "The arguments to pass to the MCP tool.",
+              "description": "The arguments to pass to the MCP tool: an object of dynamic values, or a function call that returns one.",
               "additionalProperties": {
                 "$ref": "common_types.json#/$defs/DynamicValue"
               }
             },
             "targetDataPath": {
               "$ref": "common_types.json#/$defs/DynamicString",
-              "description": "Optional JSON Pointer path on the surface data model where a resolved MCP App resource payload (`uri`, `htmlContent`, `csp`, `permissions`, `toolInput`, `toolResult`) is written."
+              "description": "Optional JSON Pointer path on the surface data model where a resolved MCP App resource payload (`resourceUri`, `html`, `csp`, `permissions`, `toolInput`, `toolResult`) is written."
             }
           },
           "required": ["name"],

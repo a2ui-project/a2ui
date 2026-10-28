@@ -181,6 +181,92 @@
     category: "CatalogError"
     message: "Invalid UAX #31 component identifier"
 
+- name: test_v10_catalog_from_json_rejects_ref_to_another_catalog
+  description: Tests that a v1.0 catalog whose component inherits a component of another catalog through an external $ref raises CatalogError when loaded.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/other_catalog_ref"
+    components:
+      FancyText:
+        type: object
+        allOf:
+          - $ref: "basic_catalog.json#/components/Text"
+        properties:
+          component: {const: "FancyText"}
+          badge: {type: string}
+        required: ["component"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_rejects_absolute_uri_ref
+  description: Tests that a v1.0 catalog property that references another catalog by absolute URI raises CatalogError when loaded, without fetching the URI.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/absolute_uri_ref"
+    components:
+      FancyButton:
+        type: object
+        properties:
+          component: {const: "FancyButton"}
+          action:
+            $ref: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json#/components/Button/properties/action"
+        required: ["component", "action"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_rejects_external_ref_in_function_args
+  description: Tests that a v1.0 function whose argument schema references another catalog raises CatalogError when loaded.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/function_arg_ref"
+    functions:
+      formatBadge:
+        type: object
+        returnType: string
+        properties:
+          "@call": {const: "formatBadge"}
+          args:
+            type: object
+            properties:
+              value:
+                $ref: "other_catalog.json#/functions/formatString/properties/args/properties/value"
+            required: ["value"]
+        required: ["@call", "args"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_accepts_local_and_common_types_refs
+  description: Tests that local references and common_types.json references, in relative or absolute form, remain valid $ref targets in a v1.0 catalog.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/allowed_refs"
+    components:
+      Label:
+        type: object
+        allOf:
+          - $ref: "common_types.json#/$defs/Checkable"
+        properties:
+          component: {const: "Label"}
+          text: {$ref: "common_types.json#/$defs/DynamicString"}
+          caption:
+            $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+        required: ["component", "text"]
+      Wrapper:
+        type: object
+        properties:
+          component: {const: "Wrapper"}
+          child: {$ref: "common_types.json#/$defs/ComponentId"}
+        required: ["component", "child"]
+  expect:
+    components: ["Label", "Wrapper"]
+
 - name: test_v09_catalog_from_json_allows_hyphen_identifiers
   description: Tests that v0.9 catalogs permit hyphenated component identifiers.
   action: from_json
@@ -626,89 +712,6 @@
     components: [Listed]
     functions: [listed]
 
-# ------------------------------------------------------------------------------
-# 1d. Cross-catalog references to peer catalogs
-#
-# A catalog can reference components, property subschemas and definitions in
-# peer catalogs that the agent or renderer already holds locally. A case lists
-# those peers in `peerCatalogPaths`: the harness loads each with `fromJson` and
-# links them to the case's catalog with `withPeerCatalogs`, then checks the
-# catalog that call returns. The fixtures under test_data/catalogs/peer_matching/
-# cover the peer matching rules: an exact or path-suffix match on a peer's
-# `catalogId` or `$id` wins over a match on the file name, and only a document
-# named exactly `catalog.json` is treated as generic.
-# ------------------------------------------------------------------------------
-
-- name: test_v10_cross_catalog_refs_inherit_peer_components
-  description: Tests that a catalog whose components inherit components and property subschemas from a peer catalog validates instances against the inherited properties and required names.
-  action: from_json
-  protocolVersion: "v1.0"
-  catalogPath: "conformance/test_data/catalogs/cross_ref_catalog_v1_0.json"
-  peerCatalogPaths:
-    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
-  expect:
-    catalogId: "conformance/cross_ref"
-    components: ["CustomText", "StyledCard"]
-    functions: ["formatBadge"]
-    validComponents:
-      - id: t1
-        component: CustomText
-        badge: "NEW"
-        text: "Quarterly Revenue"
-        variant: caption
-      - id: c1
-        component: StyledCard
-        subtitle: "Q1"
-        child: t1
-        action:
-          event: {name: expand}
-    invalidComponents:
-      - id: t1
-        component: CustomText
-        badge: "NEW"
-      - id: t1
-        component: CustomText
-        badge: "NEW"
-        text: "Quarterly Revenue"
-        variant: headline
-      - id: c1
-        component: StyledCard
-        subtitle: "Q1"
-        action:
-          event: {name: expand}
-
-- name: test_v10_cross_catalog_refs_prefer_exact_id_over_file_name
-  description: Tests the peer matching rules. Two peers have $ids ending in /catalog.json and a third is named mcp_catalog.json. A reference to a peer's full $id or to a path suffix of it resolves to that peer rather than to the first peer whose file name matches, and a reference to mcp_catalog.json resolves to that peer instead of being treated as the referencing catalog itself.
-  action: from_json
-  protocolVersion: "v1.0"
-  catalogPath: "conformance/test_data/catalogs/peer_matching/referencing_catalog_v1_0.json"
-  peerCatalogPaths:
-    - "conformance/test_data/catalogs/peer_matching/alpha/catalog.json"
-    - "conformance/test_data/catalogs/peer_matching/beta/catalog.json"
-    - "conformance/test_data/catalogs/peer_matching/mcp_catalog.json"
-  expect:
-    catalogId: "conformance/peer_matching/referencing"
-    components: ["AlphaBadge", "BetaBadge", "McpBadge"]
-    validComponents:
-      - id: b1
-        component: BetaBadge
-        count: 3
-      - id: a1
-        component: AlphaBadge
-        label: "New"
-      - id: m1
-        component: McpBadge
-        icon: "star"
-    invalidComponents:
-      - id: b1
-        component: BetaBadge
-        label: "New"
-      - id: a1
-        component: AlphaBadge
-        count: 3
-      - id: m1
-        component: McpBadge
-
 # ==============================================================================
 # 2. to_json
 # ==============================================================================
@@ -833,12 +836,3 @@
         properties:
           weight: {type: number}
   expectFile: "conformance/test_data/validation_schema/test_v09_custom_validation_schema_flattening.json"
-
-- name: test_v10_cross_catalog_validation_schema
-  description: Tests that the validationSchema of a catalog whose components inherit components and property subschemas from a linked peer catalog flattens the peer's properties and required names into each component, as if they were authored locally.
-  action: validation_schema
-  protocolVersion: "v1.0"
-  catalogPath: "conformance/test_data/catalogs/cross_ref_catalog_v1_0.json"
-  peerCatalogPaths:
-    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
-  expectFile: "conformance/test_data/validation_schema/test_v10_cross_catalog_validation_schema.json"
