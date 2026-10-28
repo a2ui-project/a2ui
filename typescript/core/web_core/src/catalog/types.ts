@@ -39,6 +39,7 @@ import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {coerceValidationResults} from './validation_result_coercion.js';
 
 export type {ComponentChildRefs};
 
@@ -312,6 +313,25 @@ export interface CatalogOptions extends CatalogDocumentOptions {
   themeSchema?: z.ZodTypeAny;
 }
 
+/** What `Catalog.derive` builds a catalog from. */
+export interface DeriveCatalogOptions<T extends ComponentApi, F extends FunctionApi> {
+  /** The ID of the new catalog. */
+  catalogId: string;
+  /**
+   * The components of the new catalog: the name of one of this catalog's
+   * components, or a component. All of this catalog's components when
+   * omitted.
+   */
+  components?: readonly (string | T)[];
+  /**
+   * The functions of the new catalog: the name of one of this catalog's
+   * functions, or a function. All of this catalog's functions when omitted.
+   */
+  functions?: readonly (string | F)[];
+  /** System instructions or usage guidelines for the new catalog. */
+  instructions?: string;
+}
+
 /**
  * Public structural interface for `Catalog`.
  *
@@ -560,6 +580,74 @@ export class Catalog<
    * @returns A new catalog.
    */
   withEntries(components: T[], functions: F[]): Catalog<T, F> {
+    return this.rebuild(components, functions, {
+      id: this.id,
+      schemaId: this.schemaId,
+      title: this.title,
+      description: this.description,
+      instructions: this.instructions,
+    });
+  }
+
+  /**
+   * Returns a new catalog, under its own ID, built from entries of this one
+   * and new entries.
+   *
+   * In `components` and `functions`, a name keeps this catalog's entry of
+   * that name, and an entry adds it, or replaces this catalog's entry of the
+   * same name. Leaving either list out keeps all of this catalog's entries of
+   * that kind. The new catalog keeps this catalog's version, theme and the
+   * document-level fields that describe its layout, and drops `defs` that only
+   * entries left out referenced, as `withEntries` does.
+   *
+   * It does not keep this catalog's `$id`, title, description or
+   * instructions, which describe this catalog: instructions often name its
+   * ID and its components in their examples, so they would teach a model to
+   * write messages for the wrong catalog.
+   *
+   * @returns A new catalog.
+   * @throws {A2uiCatalogError} If a name is not an entry of this catalog.
+   */
+  derive(options: DeriveCatalogOptions<T, F>): Catalog<T, F> {
+    const pick = <E extends {name: string}>(
+      kind: string,
+      own: ReadonlyMap<string, E>,
+      wanted: readonly (string | E)[] | undefined,
+    ): E[] => {
+      if (wanted === undefined) return [...own.values()];
+      return wanted.map(item => {
+        if (typeof item !== 'string') return item;
+        const entry = own.get(item);
+        if (!entry) {
+          throw new A2uiCatalogError(
+            `Catalog '${this.id}' has no ${kind} '${item}' to derive catalog '${options.catalogId}' from.`,
+          );
+        }
+        return entry;
+      });
+    };
+    return this.rebuild(
+      pick('component', this.components, options.components),
+      pick('function', this.functions, options.functions),
+      {id: options.catalogId, instructions: options.instructions},
+    );
+  }
+
+  /**
+   * Builds a catalog with this catalog's version, theme and layout, the given
+   * entries and the given fields that describe the catalog.
+   */
+  private rebuild(
+    components: T[],
+    functions: F[],
+    described: {
+      id: string;
+      schemaId?: string;
+      title?: string;
+      description?: string;
+      instructions?: string;
+    },
+  ): Catalog<T, F> {
     const componentsChanged =
       components.length !== this.components.size ||
       components.some(c => this.components.get(c.name) !== c);
@@ -579,13 +667,13 @@ export class Catalog<
           anyFunction: this.unions.anyFunction || functionsChanged,
         }
       : undefined;
-    return new Catalog<T, F>(this.id, this.protocolVersion, components, functions, {
+    return new Catalog<T, F>(described.id, this.protocolVersion, components, functions, {
       themeSchema: this.themeSchema,
-      instructions: this.instructions,
+      instructions: described.instructions,
       schemaUri: this.schemaUri,
-      schemaId: this.schemaId,
-      title: this.title,
-      description: this.description,
+      schemaId: described.schemaId,
+      title: described.title,
+      description: described.description,
       declaredProtocolVersion: this.declaredProtocolVersion,
       declaresCatalogId: this.declaresCatalogId,
       declaresComponents: this.declaresComponents,
@@ -788,7 +876,13 @@ function createCatalogInvoker<F extends FunctionApi>(
     }
 
     try {
-      const safeArgs = fn.schema.parse(rawArgs);
+      // From v1.0 a `DynamicBoolean` argument may resolve to the
+      // `ValidationResult` a validation function returns; it is read by its
+      // validity, as the specification defines the type.
+      const args = isAtLeastVersion(protocolVersion, SpecVersion.V1_0)
+        ? coerceValidationResults(fn.schema, rawArgs)
+        : rawArgs;
+      const safeArgs = fn.schema.parse(args);
       return execute.call(fn, safeArgs, ctx, abortSignal);
     } catch (e: any) {
       if (e?.name === 'ZodError' || e instanceof z.ZodError) {

@@ -33,6 +33,10 @@
 #    emits the self-contained, bundled JSON Schema. Each case loads a published
 #    basic catalog with `fromJson` and compares the whole schema with a golden
 #    artifact under conformance/test_data/validation_schema/.
+# 5. derive: `catalog.derive(...)` builds a catalog with a new ID from named
+#    entries of a catalog and new entries. Each case loads a catalog with
+#    `fromJson`, derives a catalog from it, and checks the derived
+#    catalog's entries and its `toJson()` document.
 #
 # Comparisons ignore object key order and the order of `enum` values and
 # `required` names.
@@ -1056,3 +1060,169 @@
         discriminator:
           propertyName: component
   expectFile: "conformance/test_data/validation_schema/test_v10_custom_validation_schema_leaf_defs.json"
+
+# ==============================================================================
+# 5. derive
+# ==============================================================================
+#
+# A name in `args.components` or `args.functions` keeps the source catalog's
+# entry of that name, and a map with one key is a new entry. The derived catalog
+# keeps the source's protocol version and theme. It does not keep the source's
+# `$id`, title, description or instructions, which describe the source: the
+# basic catalog's instructions name its ID in their examples, so they would
+# teach a model to write messages for the wrong catalog.
+
+- name: test_v10_catalog_derive_keeps_named_entries
+  description: A name keeps the source catalog's entry of that name, and the entries the lists leave out are not in the derived catalog.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components: [Text, Button]
+    functions: [upper]
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    protocolVersion: "v1.0"
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+        required: [text]
+      Button:
+        type: object
+        properties:
+          label: {type: string}
+    functions: [upper]
+
+- name: test_v10_catalog_derive_adds_and_replaces_entries
+  description: A new entry is added to the derived catalog, and a new entry with the name of one of the source's entries replaces it.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components:
+      - Text
+      - Card:
+          type: object
+          properties:
+            title: {type: string}
+      - Button:
+          type: object
+          properties:
+            label: {type: string}
+            primary: {type: boolean}
+    functions:
+      - upper
+      - reverse:
+          type: object
+          properties:
+            call: {const: reverse}
+            args: {type: object}
+            returnType: {const: string}
+  expect:
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+        required: [text]
+      Card:
+        type: object
+        properties:
+          title: {type: string}
+      Button:
+        type: object
+        properties:
+          label: {type: string}
+          primary: {type: boolean}
+    functions: [upper, reverse]
+
+- name: test_v10_catalog_derive_keeps_every_entry_of_an_omitted_list
+  description: Leaving a list out keeps all of the source catalog's entries of that kind.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components: [Text]
+  expect:
+    components: [Text]
+    functions: [upper, lower]
+
+- name: test_v10_catalog_derive_drops_fields_that_describe_the_source
+  description: The derived catalog keeps the source's protocol version and theme, and drops its $id, title, description and instructions.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    protocolVersion: "v1.0"
+    components: [Text, Image, Button]
+    functions: [upper, lower]
+    theme:
+      type: object
+      properties:
+        primaryColor: {type: string}
+    absentKeys: ["$id", "title", "description", "instructions"]
+
+- name: test_v10_catalog_derive_sets_instructions
+  description: The derived catalog carries the instructions passed to derive, in place of the source's.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components: [Text]
+    instructions: "Write components of https://a2ui.org/catalogs/v10/derived."
+  expect:
+    instructions: "Write components of https://a2ui.org/catalogs/v10/derived."
+
+- name: test_v10_catalog_derive_unknown_component_error
+  description: A component name that is not an entry of the source catalog raises CatalogError.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components: [Text, Slider]
+  expectError:
+    category: "CatalogError"
+    message: "Slider"
+
+- name: test_v10_catalog_derive_unknown_function_error
+  description: A function name that is not an entry of the source catalog raises CatalogError.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    functions: [capitalize]
+  expectError:
+    category: "CatalogError"
+    message: "capitalize"
+
+- name: test_v09_catalog_derive_keeps_protocol_version
+  description: A catalog derived from a v0.9 catalog is a v0.9 catalog.
+  action: derive
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/derive_source"
+    protocolVersion: "v0.9"
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+      Image:
+        type: object
+        properties:
+          url: {type: string}
+  args:
+    catalogId: "https://a2ui.org/catalogs/v09/derived"
+    components: [Image]
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v09/derived"
+    protocolVersion: "v0.9"
+    components:
+      Image:
+        type: object
+        properties:
+          url: {type: string}
+>>>>>>> upstream/main

@@ -59,6 +59,8 @@ exclude = [
   "flutter/genui/blob/main/examples/e2e/",
   # Flaky. See: https://github.com/a2ui-project/a2ui/issues/1747
   "https://ojs\\.aaai\\.org",
+  # Flaky / connection refused from CI runner IPs
+  "https://www\\.jsonrpc\\.org",
   # Flaky: the host intermittently stops responding entirely (connection hangs
   # well past our 20s timeout) while the cited paper is still published there.
   "https://www\\.diva-portal\\.org",

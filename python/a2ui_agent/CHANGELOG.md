@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING**: In Express (`ExpressCompiler`), data path assignments (`$/... = ...`) in surface-updating scopes (scopes that do not create a surface with `root` or carry `update=true`) now emit one targeted `updateDataModel` message per assigned path at its JSON Pointer `path` instead of folding all assignments into a single root `updateDataModel` with `path: "/"` (which overwrote the entire surface data model on the renderer). Surface-creating scopes continue to fold data path assignments into a single root data model and now support list element traversal, canonical numeric-segment list auto-vivification, and full root replacement via `$/ = {...}` ([#3677](https://github.com/a2ui-project/a2ui/pull/3677)).
 - **BREAKING CHANGE**: `DirectJsonPromptGenerator.generate_base_rules()` now
   returns the workflow rules followed by the protocol schemas (agent-to-renderer
   and pruned common types) and accepts `allowed_messages`, while

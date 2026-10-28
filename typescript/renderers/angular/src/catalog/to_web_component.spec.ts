@@ -18,7 +18,15 @@ import {Component, Injector} from '@angular/core';
 
 import {TestBed} from '@angular/core/testing';
 import {z} from 'zod';
-import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {
+  Catalog,
+  ComponentContext,
+  ComponentModel,
+  DynamicStringSchema,
+  NodeResolver,
+  SurfaceModel,
+  getValue,
+} from '@a2ui/web_core/v0_9';
 import {toWebComponent} from './to_web_component';
 import {AngularWcHost, setDefaultUniversalInjector} from './angular_wc_host';
 import {ComponentBinder} from '../core/component-binder.service';
@@ -449,5 +457,50 @@ describe('toWebComponent', () => {
     el.injector = injector;
     el.context = new ComponentContext(surface, 'comp-6', '/');
     expect(() => el.connectedCallback()).toThrowError(/has no Angular component/);
+  });
+
+  it('binds via binder.bindNode when el.node is assigned from NodeResolver', () => {
+    // Inject the binder first so Angular reactivity is in place before the resolver
+    // creates any signals.
+    const binder = TestBed.inject(ComponentBinder);
+    const impl = createUniversalImplementation(
+      {name: 'NodeHostTest', schema: z.object({text: DynamicStringSchema})},
+      TestBindContextComponent,
+    );
+    const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
+    const surface = new SurfaceModel('surface-node-wc', catalog);
+    surface.dataModel.set('/text', 'From Node');
+    surface.componentsModel.addComponent(
+      new ComponentModel('root', 'NodeHostTest', {text: {path: '/text'}}, catalog),
+    );
+    const resolver = new NodeResolver(surface, catalog);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    const bindNodeSpy = spyOn(binder, 'bindNode').and.callThrough();
+    registerUniversalElement(impl);
+    const el = document.createElement(impl.tagName) as AngularWcHost;
+    el.injector = injector;
+    el.node = rootNode;
+
+    document.body.appendChild(el);
+    expect(bindNodeSpy).toHaveBeenCalledWith(rootNode);
+    expect(el.node).toBe(rootNode);
+    expect(el.querySelector('.test-text')!.textContent).toBe('From Node');
+
+    // A data change after mount reaches the DOM through the node's props.
+    surface.dataModel.set('/text', 'Updated Node');
+    TestBed.tick();
+    (el as any).componentRef?.changeDetectorRef.detectChanges();
+    expect(el.querySelector('.test-text')!.textContent).toBe('Updated Node');
+
+    // Clearing `node` keeps the current context and bindings in place; parents assign
+    // `node` and then `context`, and `set context` performs the rebind.
+    el.node = undefined;
+    expect(el.node).toBeUndefined();
+    expect(el.context).toBe(rootNode.context!);
+    expect(el.querySelector('.test-text')!.textContent).toBe('Updated Node');
+
+    document.body.removeChild(el);
+    resolver.dispose();
   });
 });

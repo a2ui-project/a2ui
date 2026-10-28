@@ -2,6 +2,63 @@
 
 ## Unreleased
 
+- Bumped `a2ui_core` constraint to `^0.4.0`.
+
+- Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
+  scopes that update a surface (scopes without a `root` assignment) now emit one
+  targeted `updateDataModel` message per assigned path at its JSON Pointer
+  `path` instead of folding all assignments into a single root `updateDataModel`
+  with `path: "/"` (which replaced the entire surface data model on the
+  renderer). Surface-creating scopes continue to fold data path assignments into
+  a single root data model and now support list element traversal, canonical
+  numeric-segment list auto-vivification, and full root replacement via
+  `$/ = {...}`. `ExpressDecompiler` now writes standalone `updateDataModel`
+  messages as `{path} = {value}` (`$/ = {...}` at root) so map replacements
+  round-trip without merging into sibling keys, accepts numeric path segments in
+  `updateDataModel` (such as `/items/0`), and sorts map keys when flattening
+  surface-creation data models into leaf assignments.
+- Breaking: when `ResponseStream.feed` or `close` throws an `A2uiError`, the
+  error's `partialResults` holds the parts the call made ready before the
+  failure, and they stay applied to the stream's `RendererState`. Before, a
+  chunk that finished a block and then failed in the next one threw without
+  those parts and rolled them back. Show `error.partialResults` before ending
+  the stream ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- An `A2uiError` that `Parser.parseResponse` throws carries `partialResults`
+  too: the parts before the failing block, or only the text when a tree
+  check fails, since that check spans every block. None of them is applied
+  to the state ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Breaking: `ResponseStream` is now `ResponseReader<ResponsePart>`, and a
+  class that implements it adds `isInBlock`. `ResponsePart` extends the new
+  sealed `StreamPart`. Code that names `ResponseStream` or
+  `DirectJsonResponseStream` compiles unchanged ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `Parser.openContinuingStream` and
+  `A2uiRequestProcessor.openContinuingStream`, which open a
+  `ContinuingResponseStream` (`ResponseReader<StreamPart>`;
+  `DirectJsonContinuingResponseStream` for direct JSON) that reads past a
+  rejected block. It returns an `ErrorPart` in place of the block, skips the
+  rest of it, and reads the text and blocks after it; the messages the block
+  emitted before it was rejected stay in the state. A block still open when
+  the response ends is returned as an `ErrorPart` too ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `ResponseReader.isInBlock`, which tells whether the response read so
+  far ends inside a block, so a client that joins the chunks of a paused and
+  resumed response can tell whether a space between them could break a block
+  ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `RendererState.of`, a state that checks messages by its own rules and
+  applies them to the `MessageProcessor` an app renders from, for an app that
+  is both agent and renderer. A rollback takes a message back out of the
+  processor's model, a `callRendererFunction` reaches the processor only once
+  the outermost `apply` or transaction it was applied in succeeds, and
+  `dispose` leaves the processor's surfaces to its owner ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `StreamedAnswer`, which reads one streamed answer into a renderer's
+  `MessageProcessor` through `RendererState.of`, reading past rejected blocks,
+  and keeps its `parts` in the order the model wrote them: text
+  (`AnswerTextPart`), one part per surface it creates (`AnswerSurfacePart`),
+  and an `AnswerErrorPart` per rejected block ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Requires the `a2ui_core` release after 0.4.0, whose
+  `MessageProcessor.processMessages` takes a `validationConfig` for one call,
+  which `RendererState.of` uses. The release that publishes this version
+  raises the `a2ui_core` constraint along with that `a2ui_core` release; until
+  then the workspace resolves `a2ui_core` from this repository.
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or

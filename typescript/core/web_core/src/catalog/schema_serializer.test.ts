@@ -23,6 +23,7 @@ import {z} from 'zod';
 
 import {basicCatalog as v10BasicCatalog} from '../catalogs/basic/v1/catalog.js';
 import {A2uiText as V10Text} from '../catalogs/basic/v1/components/index.js';
+import {A2uiCatalogError} from '../errors.js';
 import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js';
 import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
@@ -1339,5 +1340,91 @@ describe('built-in basic catalogs', () => {
       ComponentDefinitionSchema.safeParse(suite.tests[4].data.components.Card).success,
       false,
     );
+  });
+});
+
+describe('Catalog.derive', () => {
+  const basic = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+  const label: ComponentApi = {name: 'Label', schema: z.object({text: z.string()})};
+
+  it('keeps the named entries and adds new ones under the new ID', () => {
+    const derived = basic.derive({
+      catalogId: 'https://example.com/chat',
+      components: ['Text', 'Button', label],
+      functions: ['openUrl'],
+    });
+
+    assert.strictEqual(derived.id, 'https://example.com/chat');
+    assert.strictEqual(derived.protocolVersion, basic.protocolVersion);
+    assert.deepStrictEqual([...derived.components.keys()], ['Text', 'Button', 'Label']);
+    assert.strictEqual(derived.components.get('Text'), basic.components.get('Text'));
+    assert.strictEqual(derived.components.get('Label'), label);
+    assert.deepStrictEqual([...derived.functions.keys()], ['openUrl']);
+    assert.strictEqual(derived.themeSchema, basic.themeSchema);
+    const out = derived.toJson();
+    assert.strictEqual(out.catalogId, 'https://example.com/chat');
+    assert.deepStrictEqual(Object.keys(out.components as object), ['Text', 'Button', 'Label']);
+  });
+
+  it("drops the source's $id, title, description and instructions", () => {
+    const out = basic.derive({catalogId: 'https://example.com/chat'}).toJson();
+
+    assert.strictEqual(out.$schema, basic.schemaUri);
+    assert.ok(!('$id' in out));
+    assert.ok(!('title' in out));
+    assert.ok(!('description' in out));
+    assert.ok(!('instructions' in out));
+  });
+
+  it('takes the instructions it is given', () => {
+    const derived = basic.derive({
+      catalogId: 'https://example.com/chat',
+      instructions: 'Be brief.',
+    });
+
+    assert.strictEqual(derived.instructions, 'Be brief.');
+    assert.strictEqual(derived.toJson().instructions, 'Be brief.');
+  });
+
+  it('keeps every entry of a kind it is given no list for', () => {
+    const derived = basic.derive({catalogId: 'https://example.com/chat'});
+
+    assert.deepStrictEqual([...derived.components.keys()], [...basic.components.keys()]);
+    assert.deepStrictEqual([...derived.functions.keys()], [...basic.functions.keys()]);
+  });
+
+  it("replaces the source's entry with a new entry of the same name", () => {
+    const text: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
+
+    const derived = basic.derive({
+      catalogId: 'https://example.com/chat',
+      components: [text],
+    });
+
+    assert.strictEqual(derived.components.get('Text'), text);
+  });
+
+  it('throws for a name the source has no entry of', () => {
+    assert.throws(
+      () => basic.derive({catalogId: 'https://example.com/chat', components: ['Nope']}),
+      (e: unknown) =>
+        e instanceof A2uiCatalogError &&
+        e.message.includes("has no component 'Nope'") &&
+        e.message.includes('https://example.com/chat'),
+    );
+    assert.throws(
+      () => basic.derive({catalogId: 'https://example.com/chat', functions: ['nope']}),
+      (e: unknown) => e instanceof A2uiCatalogError && e.message.includes("has no function 'nope'"),
+    );
+  });
+
+  it('drops authored $defs that only left-out entries referenced', () => {
+    const loaded = Catalog.fromJson(readRepoJson('specification/v0_9/catalogs/basic/catalog.json'));
+
+    const derived = loaded.derive({catalogId: 'https://example.com/chat', components: []});
+
+    const defs = derived.toJson().$defs as Record<string, unknown>;
+    assert.ok(!('CatalogComponentCommon' in defs));
+    assert.ok('theme' in defs);
   });
 });
