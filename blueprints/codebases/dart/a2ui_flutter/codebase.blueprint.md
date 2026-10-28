@@ -3,7 +3,7 @@ codebase_path: dart/a2ui_flutter
 associated_module: a2ui_framework_adapter
 module_blueprint_commit: b1dd650750c6072b4a42f95b03420273d099965e
 implemented_features:
-  - node_resolution
+  node_resolution: b161f9bdc9395732b305b0adddfd182a36382f09
 local_development:
   test_command: 'flutter test'
   lint_command: 'flutter analyze'
