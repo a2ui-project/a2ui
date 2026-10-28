@@ -116,7 +116,7 @@ ValidationConfig _validationConfigFor(
         ? ValidationConfig.strict
         : ValidationConfig.relaxed;
   }
-  final flags = (raw as Map).cast<String, Object?>();
+  final Map<String, Object?> flags = (raw as Map).cast<String, Object?>();
   final Iterable<String> unknown =
       flags.keys.where((name) => !_caseValidationFlags.contains(name));
   if (unknown.isNotEmpty) {
