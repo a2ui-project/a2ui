@@ -1408,4 +1408,115 @@ void main() {
       expect(processor.model.allSurfaces, isEmpty);
     });
   });
+
+  group('MessageProcessor per-call validation config', () {
+    final String catalogId = TestCatalog().id;
+    final create = CreateSurfaceMessage(
+      version: 'v0.9',
+      surfaceId: 's',
+      catalogId: catalogId,
+    );
+    final danglingChild = UpdateComponentsMessage(
+      version: 'v0.9',
+      surfaceId: 's',
+      components: [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['later'],
+        },
+      ],
+    );
+    final unknownComponent = UpdateComponentsMessage(
+      version: 'v0.9',
+      surfaceId: 's',
+      components: [
+        {'id': 'root', 'component': 'Unknown'},
+      ],
+    );
+
+    test("replaces the processor's own config for the call", () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog()],
+        validationConfig: ValidationConfig.strict,
+      )..processMessages([create]);
+      expect(
+        () => processor.processMessages([danglingChild]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      processor.processMessages(
+        [danglingChild],
+        validationConfig: const ValidationConfig(
+          allowDanglingReferences: true,
+          allowMissingRoot: true,
+          allowOrphanComponents: true,
+        ),
+      );
+
+      expect(
+        processor.model.getSurface('s')!.componentsModel.get('root')!.type,
+        'Column',
+      );
+    });
+
+    test('validates for a processor that has no config of its own', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog()],
+      )..processMessages([create]);
+
+      expect(
+        () => processor.processMessages(
+          [unknownComponent],
+          validationConfig: const ValidationConfig(),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(processor.model.getSurface('s')!.componentsModel.size, 0);
+    });
+
+    test("restores the processor's own config after the call", () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog()],
+      )..processMessages([create]);
+      expect(
+        () => processor.processMessages(
+          [unknownComponent],
+          validationConfig: const ValidationConfig(),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      processor.processMessages([unknownComponent]);
+
+      expect(
+        processor.model.getSurface('s')!.componentsModel.get('root')!.type,
+        'Unknown',
+      );
+    });
+
+    test('applies to each message of an asynchronous call', () async {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [TestCatalog()],
+      )..processMessages([create]);
+
+      await expectLater(
+        processor.processMessagesAsync(
+          [unknownComponent],
+          validationConfig: const ValidationConfig(),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+  });
+
+  group('MessageProcessor.catalogs', () {
+    test('holds the catalogs the processor was created with, unmodifiable', () {
+      final catalog = TestCatalog();
+      final processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+
+      expect(processor.catalogs, [catalog]);
+      expect(() => processor.catalogs.add(catalog), throwsUnsupportedError);
+    });
+  });
 }

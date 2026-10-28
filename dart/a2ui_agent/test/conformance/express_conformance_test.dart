@@ -15,6 +15,7 @@
 import 'dart:convert';
 
 import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'suites.dart';
@@ -100,25 +101,8 @@ const Map<String, String> _v1OnlyCases = {
       'free-form object property.',
 };
 
-/// Cases for `partialResults`, reading past a rejected block and
-/// `isInBlock` on a response stream, which this SDK does not implement yet:
-/// https://github.com/a2ui-project/a2ui/issues/3699
-const Set<String> _unportedCases = {
-  'test_express_stream_error_carries_the_text_before_the_failing_block',
-  'test_express_stream_continue_returns_an_error_part_for_an_unreadable_block',
-  'test_express_stream_continue_keeps_the_messages_emitted_before_the_'
-      'rejection',
-  'test_express_stream_continue_returns_an_error_part_for_a_block_still_open_'
-      'at_the_end',
-  'test_express_stream_in_block_from_the_open_tag_to_the_close_tag',
-};
-
 /// Why this SDK cannot run [testCase] in [version], or null if it can.
 String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
-  if (_unportedCases.contains(testCase['name'])) {
-    return 'Not implemented yet: '
-        'https://github.com/a2ui-project/a2ui/issues/3699';
-  }
   if (version == SuiteVersion.v1_0) return null;
   if (_v1OnlyCases[testCase['name']] case final String reason) return reason;
   if (jsonEncode(testCase).contains('"callRendererFunction"')) {
@@ -161,12 +145,19 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   final bool wrapped = args['wrapped'] as bool? ?? true;
   final String? catalogId = version.injectedCatalog(testCase);
-  List<Object?> lift(List<ResponsePart> parts) =>
+  List<Object?> lift(List<StreamPart> parts) =>
       version.partsJson(parts, injectedCatalogId: catalogId, join: true);
-  final ResponseStream stream = _format(
-    testCase,
-    version,
-  ).createParser().openStream(wrapped: wrapped);
+  final Parser parser = _format(testCase, version).createParser();
+  final ResponseReader<StreamPart> stream =
+      args['after_rejected_block'] == 'continue'
+      ? parser.openContinuingStream(wrapped: wrapped)
+      : parser.openStream(wrapped: wrapped);
+  void expectInBlock(Map<String, Object?> step, int i) {
+    if (step['expect_in_block'] case final bool inBlock) {
+      expect(stream.isInBlock, inBlock, reason: 'step $i: in block');
+    }
+  }
+
   final chunks = <String>[];
   final yielded = <Object?>[];
   for (final (int i, Object? step)
@@ -175,28 +166,48 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
     final chunk = stepCase['input']! as String;
     chunks.add(chunk);
     if (stepCase['expect_error'] case final Object error) {
-      expectThrowsCategory(() => stream.feed(chunk), error, reason: 'step $i');
+      A2uiError? thrown;
+      expectThrowsCategory(
+        () {
+          try {
+            stream.feed(chunk);
+          } on A2uiError catch (e) {
+            thrown = e;
+            rethrow;
+          }
+        },
+        error,
+        reason: 'step $i',
+      );
+      if (stepCase['expect_partial_results'] case final Object partial) {
+        expect(
+          lift(thrown!.partialResults),
+          partial,
+          reason: 'step $i: partial results',
+        );
+      }
+      expectInBlock(stepCase, i);
       return;
     }
     final List<Object?> parts = lift(stream.feed(chunk));
     expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
+    expectInBlock(stepCase, i);
     yielded.addAll(parts);
   }
   if (testCase['expect_error'] case final Object error) {
     expectThrowsCategory(stream.close, error, reason: 'close');
     return;
   }
-  yielded.addAll(lift(stream.close()));
+  final List<Object?> closed = lift(stream.close());
+  if (testCase['expect_close'] case final Object expected) {
+    expect(closed, expected, reason: 'close');
+  }
+  yielded.addAll(closed);
   if (testCase['expect_matches_single_shot'] == true) {
     expect(
       _mergeAdjacentText(yielded),
       _mergeAdjacentText(
-        lift(
-          _format(
-            testCase,
-            version,
-          ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
-        ),
+        lift(parser.parseResponse(chunks.join(), wrapped: wrapped)),
       ),
     );
   }

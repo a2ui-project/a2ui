@@ -29,7 +29,7 @@ class TextRun {
   ///
   /// Nothing is emitted for a piece that is blank; its whitespace is held for
   /// the next piece.
-  void emit(List<ResponsePart> parts, String text) {
+  void emit(List<StreamPart> parts, String text) {
     final String body = (_started ? text : text.trimLeft()).trimRight();
     if (body.isEmpty) {
       if (_started) _heldSpace += text;

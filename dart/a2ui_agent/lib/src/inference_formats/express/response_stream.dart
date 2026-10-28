@@ -528,15 +528,42 @@ String _closingDelimiter(String openCh) => switch (openCh) {
 /// Reads one streamed Express response chunk by chunk.
 ///
 /// Obtained from [ExpressParser.openStream].
-class ExpressResponseStream extends ResponseStream {
-  /// Creates a stream for [_parser].
+class ExpressResponseStream extends _ExpressStream<ResponsePart> {
+  /// Creates a stream for [parser].
   ExpressResponseStream(
+    super.parser, {
+    required super.wrapped,
+    required super.state,
+    super.progressiveKeys,
+  }) : super(continues: false);
+}
+
+/// Reads one streamed Express response, reading past a rejected block.
+///
+/// Obtained from [ExpressParser.openContinuingStream]. Reads as
+/// [ExpressResponseStream] does, except that a rejected block is returned as an
+/// [ErrorPart], its messages not emitted yet are dropped, and the text and
+/// blocks after it are read as usual.
+class ExpressContinuingResponseStream extends _ExpressStream<StreamPart> {
+  /// Creates a continuing stream for [parser].
+  ExpressContinuingResponseStream(
+    super.parser, {
+    required super.wrapped,
+    required super.state,
+    super.progressiveKeys,
+  }) : super(continues: true);
+}
+
+abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
+  _ExpressStream(
     this._parser, {
     required bool wrapped,
     required this.state,
+    required bool continues,
     Set<String>? progressiveKeys,
   }) : _compiler = ExpressCompiler(_parser.catalogs),
        _wrapped = wrapped,
+       _continues = continues,
        _inBlock = !wrapped,
        _progressiveKeys = Set.unmodifiable(
          progressiveKeys ?? _parser.progressiveKeys,
@@ -547,6 +574,7 @@ class ExpressResponseStream extends ResponseStream {
   final ExpressParser _parser;
   final ExpressCompiler _compiler;
   final bool _wrapped;
+  final bool _continues;
   final Set<String> _progressiveKeys;
 
   @override
@@ -561,14 +589,19 @@ class ExpressResponseStream extends ResponseStream {
 
   // The open block.
   bool _inBlock;
+  bool _rejected = false;
   String _block = '';
   String _lastCompiledPrefix = '';
   final Set<String> _touched = {};
   late Set<String> _initialSurfaces;
   late ExpressScopeSession _session;
 
+  @override
+  bool get isInBlock => !_closed && _inBlock;
+
   void _resetBlock() {
     _block = '';
+    _rejected = false;
     _lastCompiledPrefix = '';
     _touched.clear();
     _initialSurfaces = Set.unmodifiable(state.surfaceIds);
@@ -576,37 +609,47 @@ class ExpressResponseStream extends ResponseStream {
   }
 
   @override
-  List<ResponsePart> feed(String chunk) {
+  List<P> feed(String chunk) {
     if (_closed) throw StateError('The response stream is closed.');
-    final Set<String> emitted = {..._touched};
+    final parts = <StreamPart>[];
     try {
-      return state.transaction(() => _feed(chunk));
-    } catch (_) {
-      _fail(emitted);
+      _feed(chunk, parts);
+    } catch (e) {
+      _fail();
+      attachPartialResults(e, parts.whereType<ResponsePart>().toList());
       rethrow;
     }
+    return List<P>.from(parts);
   }
 
   @override
-  List<ResponsePart> close() {
+  List<P> close() {
     if (_closed) return [];
     _closed = true;
-    final parts = <ResponsePart>[];
+    final parts = <StreamPart>[];
     try {
       if (!_wrapped) {
-        _finishBlock(parts, _block.length);
-        return parts;
+        if (!_rejected) {
+          _readBlock(parts, () => _finishBlock(parts, _block.length));
+        }
+        return List<P>.from(parts);
       }
       if (_inBlock) {
+        if (!_rejected) {
+          _readBlock(
+            parts,
+            () => throw A2uiParseError(
+              'The response ended inside an $_openTagLiteral block, before its '
+              '$_closeTagLiteral tag.',
+            ),
+          );
+        }
         state.markChecked(_touched);
-        _resetBlock();
-        throw A2uiParseError(
-          'The response ended inside an $_openTagLiteral block, before its '
-          '</a2ui> tag.',
-        );
+        return List<P>.from(parts);
       }
-    } catch (_) {
-      _fail(_touched);
+    } catch (e) {
+      _fail();
+      attachPartialResults(e, parts.whereType<ResponsePart>().toList());
       rethrow;
     }
     if (_held.isNotEmpty) {
@@ -617,20 +660,32 @@ class ExpressResponseStream extends ResponseStream {
       }
       _text.emit(parts, rest.replaceFirst(_trailingFenceClose, ''));
     }
-    return parts;
+    return List<P>.from(parts);
   }
 
-  void _fail(Iterable<String> surfaceIds) {
+  void _fail() {
     _closed = true;
-    state.markChecked(surfaceIds);
+    state.markChecked(_touched);
   }
 
-  List<ResponsePart> _feed(String chunk) {
-    final parts = <ResponsePart>[];
+  void _readBlock(List<StreamPart> parts, void Function() step) {
+    try {
+      step();
+    } on A2uiError catch (e) {
+      if (!_continues) rethrow;
+      parts.add(ErrorPart(e));
+      state.markChecked(_touched);
+      _rejected = true;
+    }
+  }
+
+  void _feed(String chunk, List<StreamPart> parts) {
     if (!_wrapped) {
       _block += chunk;
-      _emitReady(parts, _block.length);
-      return parts;
+      if (!_rejected) {
+        _readBlock(parts, () => _emitReady(parts, _block.length));
+      }
+      return;
     }
     String input = _held + chunk;
     _held = '';
@@ -642,7 +697,7 @@ class ExpressResponseStream extends ResponseStream {
       if (_afterBlock) {
         if (_outerLeadingFencePrefix.hasMatch(input)) {
           _held = input;
-          return parts;
+          return;
         }
         _afterBlock = false;
         input = input.replaceFirst(_outerLeadingFence, '');
@@ -650,26 +705,29 @@ class ExpressResponseStream extends ResponseStream {
       }
       input = _consumeOutsideText(parts, input);
     }
-    return parts;
   }
 
-  String _consumeBlockText(List<ResponsePart> parts, String input) {
+  String _consumeBlockText(List<StreamPart> parts, String input) {
     _block += input;
     final (int? closeStart, int readableEnd) = scanExpressBlock(_block);
     if (closeStart == null) {
-      _emitReady(parts, readableEnd);
+      if (!_rejected) {
+        _readBlock(parts, () => _emitReady(parts, readableEnd));
+      }
       return '';
     }
     final Match closeMatch = _closeTag.matchAsPrefix(_block, closeStart)!;
     final String remaining = _block.substring(closeMatch.end);
-    _finishBlock(parts, closeStart);
+    if (!_rejected) {
+      _readBlock(parts, () => _finishBlock(parts, closeStart));
+    }
     _inBlock = false;
     _afterBlock = true;
     _resetBlock();
     return remaining;
   }
 
-  String _consumeOutsideText(List<ResponsePart> parts, String input) {
+  String _consumeOutsideText(List<StreamPart> parts, String input) {
     final Match? openMatch = _openTag.firstMatch(input);
     if (openMatch != null) {
       final String textBefore = input
@@ -689,7 +747,7 @@ class ExpressResponseStream extends ResponseStream {
     return '';
   }
 
-  void _emitReady(List<ResponsePart> parts, int end) {
+  void _emitReady(List<StreamPart> parts, int end) {
     final String? payload = cleanExpressPayload(_block, end);
     if (payload == null || payload.trim().isEmpty) return;
     final (String completePrefix, String trailingFragment) =
@@ -697,14 +755,26 @@ class ExpressResponseStream extends ResponseStream {
     final readyMessages = <AgentToRendererMessage>[];
     if (completePrefix.trim().isNotEmpty &&
         completePrefix != _lastCompiledPrefix) {
-      final List<AgentToRendererMessage> prefixMsgs = _compileStep(
-        completePrefix,
-        isFinal: false,
-      );
-      _lastCompiledPrefix = completePrefix;
-      if (prefixMsgs.isNotEmpty) {
-        _apply(prefixMsgs);
-        readyMessages.addAll(prefixMsgs);
+      final Object savedSession = _session.snapshot();
+      final savedTouched = Set<String>.from(_touched);
+      try {
+        state.transaction(() {
+          final List<AgentToRendererMessage> prefixMsgs = _compileStep(
+            completePrefix,
+            isFinal: false,
+          );
+          if (prefixMsgs.isNotEmpty) {
+            _apply(prefixMsgs);
+            readyMessages.addAll(prefixMsgs);
+          }
+        });
+        _lastCompiledPrefix = completePrefix;
+      } catch (_) {
+        _session.restore(savedSession);
+        _touched
+          ..clear()
+          ..addAll(savedTouched);
+        rethrow;
       }
     }
 
@@ -749,7 +819,7 @@ class ExpressResponseStream extends ResponseStream {
     }
   }
 
-  void _finishBlock(List<ResponsePart> parts, int end) {
+  void _finishBlock(List<StreamPart> parts, int end) {
     final String payload = cleanExpressPayload(_block, end) ?? '';
     final List<AgentToRendererMessage> models = state.transaction(() {
       final List<AgentToRendererMessage> emitted;

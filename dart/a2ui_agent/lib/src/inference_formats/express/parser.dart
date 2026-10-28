@@ -103,6 +103,18 @@ class ExpressParser extends Parser {
     state: state ?? RendererState(catalogs),
   );
 
+  /// Opens an [ExpressContinuingResponseStream] for one response that reads
+  /// past a rejected block. See [Parser.openContinuingStream] and [openStream].
+  @override
+  ExpressContinuingResponseStream openContinuingStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => ExpressContinuingResponseStream(
+    this,
+    wrapped: wrapped,
+    state: state ?? RendererState(catalogs),
+  );
+
   /// Whether [content] carries an `<a2ui>` block, closed when [complete] is
   /// true.
   @override
