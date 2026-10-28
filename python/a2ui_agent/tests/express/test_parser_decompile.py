@@ -143,7 +143,7 @@ class TestExpressParser(unittest.TestCase):
         self.assertEqual(
             res_partial,
             [{
-                "version": "v1.0",
+                "version": "1.0",
                 "updateDataModel": {
                     "surfaceId": "default_surface",
                     "path": "/foo",

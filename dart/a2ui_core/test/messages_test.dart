@@ -1061,7 +1061,7 @@ void main() {
     test('round-trips every v1.0 message', () {
       final envelopes = <Map<String, Object?>>[
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's1',
             'catalogId': 'cat1',
@@ -1076,11 +1076,11 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's1', 'sendDataModel': false},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {
             'surfaceId': 's1',
             'components': [
@@ -1089,19 +1089,19 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': 3},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': null},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's1'},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'functionCallId': 'call-1',
             'callFunction': {
@@ -1112,15 +1112,15 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {'functionCallId': 'call-2', 'value': 42},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {'functionCallId': 'call-3', 'value': null},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {
             'functionCallId': 'call-4',
             'error': {'code': 'FAILED', 'message': 'nope'},
@@ -1310,7 +1310,7 @@ void main() {
           isA<A2uiValidationError>().having(
             (e) => e.message,
             'message',
-            contains('v1.0'),
+            contains("'1.0'"),
           ),
         ),
       );
@@ -1356,7 +1356,7 @@ void main() {
     test('round-trips every v1.0 message', () {
       final envelopes = <Map<String, Object?>>[
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'action': action({
             'catalogId': 'cat1',
             'metadata': {
@@ -1365,7 +1365,7 @@ void main() {
           }),
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'callAgentFunction': {
             'surfaceId': 's1',
             'functionCallId': 'call-1',
@@ -1376,11 +1376,11 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'rendererFunctionResponse': {'functionCallId': 'call-1', 'value': 1},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'UNALLOWED_CHILD',
             'surfaceId': 's1',
@@ -1389,7 +1389,7 @@ void main() {
           },
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'EXECUTION_ERROR',
             'functionCallId': 'call-1',

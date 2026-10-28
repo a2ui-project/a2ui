@@ -250,7 +250,7 @@ def test_decompile_reads_unannotated_check_against_its_surface_catalog(
 ) -> None:
     # Input messages may still name a surface catalog, for example in history.
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": PRIMARY,
@@ -330,7 +330,7 @@ def test_decompile_reads_bare_call_check_as_its_condition(
     # The basic catalog's prompt example writes a check without the
     # `condition` wrapper; it is read as the condition itself.
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": PRIMARY,
@@ -481,7 +481,7 @@ def test_update_components_on_non_default_surface_round_trips(
 ) -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s2",
                 "components": [{
@@ -493,7 +493,7 @@ def test_update_components_on_non_default_surface_round_trips(
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
@@ -515,7 +515,7 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
 ) -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s2",
                 "catalogId": PRIMARY,
@@ -523,7 +523,7 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
@@ -551,7 +551,7 @@ def test_decompile_component_with_no_catalog_on_unknown_surface_fails(
     parser: ExpressParser,
 ) -> None:
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{"id": "greeting", "component": "Text", "text": "New"}],
@@ -565,7 +565,7 @@ def test_update_components_round_trips_with_surface_directive(
     parser: ExpressParser,
 ) -> None:
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{
@@ -591,7 +591,7 @@ root = Panel("B")
 """,
     )
     assert messages[1] == {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "s2",
             "components": [{
@@ -616,7 +616,7 @@ def test_update_data_model_decompiled_at_assigned_path(
     parser: ExpressParser, path: str, value: Any, expected_line: str
 ) -> None:
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {"surfaceId": "s1", "path": path, "value": value},
     }]
     dsl = parser.decompile(to_message_models(messages))
@@ -651,7 +651,7 @@ def test_update_surface_root_assignment_emits_root_path() -> None:
     msgs = to_message_dicts(compiler.compile('surface("s1")\n$/ = {a: 3}'))
     assert msgs == [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateDataModel": {
                 "surfaceId": "s1",
                 "path": "/",
@@ -689,7 +689,7 @@ def test_create_surface_invalid_path_traversal_raises() -> None:
 
 def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> None:
     create = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "components": [{
@@ -702,7 +702,7 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
         },
     }
     update = {
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {"surfaceId": "s1", "path": "/", "value": {"a": 3}},
     }
     dsl = parser.decompile(to_message_models([create, update]))
@@ -714,7 +714,7 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
     # Once the create is closed by another message, the data update is emitted
     # as a separate scope rather than folded into createSurface.
     call = {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "call_1",
             "callFunction": {
@@ -728,7 +728,7 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
     assert 'surface("s1")\n$/ = {a: 3}' in dsl
     assert 'sharedFn("p", catalogId="test/primary")' in dsl
     assert _compile(parser, dsl)[2] == {
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {"surfaceId": "s1", "path": "/", "value": {"a": 3}},
     }
 
@@ -736,7 +736,7 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
 def test_create_then_delete_round_trips(parser: ExpressParser) -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s1",
                 "components": [{
@@ -747,7 +747,7 @@ def test_create_then_delete_round_trips(parser: ExpressParser) -> None:
                 }],
             },
         },
-        {"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}},
+        {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}},
     ]
     _round_trip(parser, messages)
 
@@ -755,7 +755,7 @@ def test_create_then_delete_round_trips(parser: ExpressParser) -> None:
 def test_decompile_escapes_surface_ids(parser: ExpressParser) -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": 'a"b',
                 "components": [{
@@ -766,7 +766,7 @@ def test_decompile_escapes_surface_ids(parser: ExpressParser) -> None:
                 }],
             },
         },
-        {"version": "v1.0", "deleteSurface": {"surfaceId": 'a"b'}},
+        {"version": "1.0", "deleteSurface": {"surfaceId": 'a"b'}},
     ]
     dsl = _round_trip(parser, messages)
     assert 'deleteSurface("a\\"b")' in dsl

@@ -15,7 +15,7 @@
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
 from typing import Any, Literal
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from .common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
@@ -52,3 +52,17 @@ V1_0Capabilities = V10Capabilities
 
 class A2uiRendererCapabilities(StrictBaseModel):
     v1_0: V10Capabilities | None = Field(default=None, alias=PROTOCOL_VERSION)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_version_key(cls, data: Any) -> Any:
+        if (
+            isinstance(data, dict)
+            and f"v{PROTOCOL_VERSION}" in data
+            and PROTOCOL_VERSION not in data
+        ):
+            return {
+                PROTOCOL_VERSION if k == f"v{PROTOCOL_VERSION}" else k: v
+                for k, v in data.items()
+            }
+        return data

@@ -319,7 +319,7 @@ export class KanbanHost {
       action => {
         void this.handleAction(action);
       },
-      {version: 'v1.0'},
+      {version: '1.0'},
     );
     configureMcpCatalog({
       getMcpClientForTool: recordingMcpClientResolver(options.getMcpClientForTool, (direction, p) =>
@@ -452,7 +452,7 @@ export class KanbanHost {
     }
     parts.push(
       a2uiDataPart({
-        version: 'v1.0',
+        version: '1.0',
         action: {
           name: action.name,
           surfaceId: action.surfaceId,
@@ -485,7 +485,7 @@ export class KanbanHost {
         trimmed[key] = value;
       }
     }
-    return {version: 'v1.0', surfaces: {[KANBAN_SURFACE_ID]: {kanban: trimmed}}};
+    return {version: '1.0', surfaces: {[KANBAN_SURFACE_ID]: {kanban: trimmed}}};
   }
 
   /** The board as the host currently has it, for the UI status line. */

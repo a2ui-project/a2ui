@@ -105,7 +105,7 @@ Resolving once per invocation is what keeps resource URIs meaningful: the UI res
 
 The resolver returns `McpToolClient`, which is `Pick<Client, 'request' | 'readResource' | 'listTools'>`. Signatures come from the MCP SDK, so they cannot drift, but the type is structural: pass the SDK's `Client`, a wrapper that adds retries or logging, or a test double.
 
-`configureMcpCatalog` takes two more options: `defaultVersion`, the A2UI protocol version given to decoded messages that carry none (`'v1.0'` unless set), and `onMcpAppResource`, called when a tool call resolves an MCP App resource (see [Trigger tools from A2UI payloads](#trigger-tools-from-a2ui-payloads)).
+`configureMcpCatalog` takes two more options: `defaultVersion`, the A2UI protocol version given to decoded messages that carry none (`'1.0'` unless set), and `onMcpAppResource`, called when a tool call resolves an MCP App resource (see [Trigger tools from A2UI payloads](#trigger-tools-from-a2ui-payloads)).
 
 Without `configureMcpCatalog`, `callMcpTool` fails with an error that says so, and `McpApp` dispatches the tool calls it allows as A2UI actions instead of executing them.
 
@@ -220,7 +220,7 @@ An `updateComponents` message that renders a feedback form `McpApp`:
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateComponents": {
     "surfaceId": "gallery-mcp-app-tool-call",
     "components": [

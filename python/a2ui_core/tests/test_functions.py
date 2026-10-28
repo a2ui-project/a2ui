@@ -667,7 +667,7 @@ def test_call_agent_function_helper_and_response_event():
     )
     assert len(outbound_msgs) == 1
     assert outbound_msgs[0] == {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
             "surfaceId": "s1",
             "functionCallId": "call-98",

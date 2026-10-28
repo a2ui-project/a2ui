@@ -252,16 +252,16 @@ describe('DirectJsonResponseStream', () => {
     ]);
 
     expect(messages).toEqual([
-      {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}},
+      {version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}},
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'c1',
           callFunction: {'@call': 'openUrl', catalogId: id, args: {url: 'https://a2ui.org'}},
         },
       },
-      {version: 'v1.0', agentFunctionResponse: {functionCallId: 'c2', value: {success: true}}},
-      {version: 'v1.0', deleteSurface: {surfaceId: 's1'}},
+      {version: '1.0', agentFunctionResponse: {functionCallId: 'c2', value: {success: true}}},
+      {version: '1.0', deleteSurface: {surfaceId: 's1'}},
     ]);
   });
 

@@ -285,6 +285,10 @@ function generateIncomingMessageSchemas({pureCommonNames, helperNames}) {
   for (const msgName of a2rMsgNames) {
     const rawDef = a2rJson.$defs[msgName];
     let code = compileDefToZod(rawDef, msgName);
+    code = code.replace(
+      /["']?version["']?:\s*z\.literal\(["']1\.0["']\)/,
+      "'version': z.preprocess((v) => (v === 'v1.0' ? '1.0' : v), z.literal('1.0'))",
+    );
     if (msgName === 'CallRendererFunctionMessage') {
       code = code.replace(
         'z.intersection(FunctionCallSchema, z.any())',
@@ -334,13 +338,17 @@ function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
     const objSchema = {
       type: 'object',
       properties: {
-        version: {const: 'v1.0'},
+        version: {const: '1.0'},
         [msgProp]: propDef,
       },
       required: ['version', msgProp],
       additionalProperties: false,
     };
-    const code = compileDefToZod(objSchema, msgName);
+    let code = compileDefToZod(objSchema, msgName);
+    code = code.replace(
+      /["']?version["']?:\s*z\.literal\(["']1\.0["']\)/,
+      "'version': z.preprocess((v) => (v === 'v1.0' ? '1.0' : v), z.literal('1.0'))",
+    );
     bodyCode += code + '\n\n';
   }
 
@@ -374,7 +382,7 @@ function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
  */
 function generateCapabilitiesSchemas() {
   const rcJson = JSON.parse(readFileSync(join(specDir, 'renderer_capabilities.json'), 'utf8'));
-  const v10Props = rcJson.properties['v1.0'];
+  const v10Props = rcJson.properties['1.0'];
   let v10Code = compileDefToZod(v10Props, 'V10RendererCapabilities');
   v10Code = v10Code.replace(/\.passthrough\(\)/g, '.strict()');
 

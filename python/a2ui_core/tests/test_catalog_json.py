@@ -709,12 +709,12 @@ def test_v10_renderer_capabilities_inline_catalogs_use_to_json() -> None:
 
 def test_v10_renderer_capabilities_inline_a_function_without_a_schema() -> None:
     catalog = Catalog(
-        catalog_id="c", protocol_version="v1.0", functions=[FunctionApi(name="ping")]
+        catalog_id="c", protocol_version="1.0", functions=[FunctionApi(name="ping")]
     )
     caps = MessageProcessor([catalog]).get_renderer_capabilities(
-        CapabilitiesOptions(versions=["v1.0"], include_inline_catalogs=True)
+        CapabilitiesOptions(versions=["1.0"], include_inline_catalogs=True)
     )
-    inline = caps["v1.0"]["inlineCatalogs"]
+    inline = caps["1.0"]["inlineCatalogs"]
 
     assert inline == [catalog.to_json()]
     _catalog_definition_validator().validate(inline[0])

@@ -113,7 +113,7 @@ describe('ExpressParser', () => {
       const messages = parser.compile('root = Text("Hello")');
       expect(messages).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'main',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',

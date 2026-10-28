@@ -1809,7 +1809,7 @@ def generate_renderer_capabilities(
         (
             f"{FILE_HEADER}\n"
             "from typing import Any, Literal\n"
-            "from pydantic import BaseModel, Field, ConfigDict\n"
+            "from pydantic import BaseModel, Field, ConfigDict, model_validator\n"
             f"from {common_mod} import StrictBaseModel\n"
             "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
         ),
@@ -1858,6 +1858,7 @@ def generate_renderer_capabilities(
             k
             for k in root_props
             if k == spec_dot
+            or k == version.lstrip("v")
             or k == f"v{version.lstrip('v')}"
             or (k.startswith("v") and isinstance(root_props[k], dict))
         ),
@@ -1911,7 +1912,14 @@ def generate_renderer_capabilities(
     if is_modern:
         caps_blocks.append(
             f"class A2uiRendererCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" {cap_cls_name} | None = Field(default=None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(default=None, alias=PROTOCOL_VERSION)\n\n "
+            '   @model_validator(mode="before")\n    @classmethod\n    def'
+            " _normalize_version_key(cls, data: Any) -> Any:\n        if (\n          "
+            '  isinstance(data, dict)\n            and f"v{PROTOCOL_VERSION}" in'
+            " data\n            and PROTOCOL_VERSION not in data\n        ):\n        "
+            "    return {\n                PROTOCOL_VERSION if k =="
+            ' f"v{PROTOCOL_VERSION}" else k: v\n                for k, v in'
+            " data.items()\n            }\n        return data"
         )
     else:
         caps_blocks.append(
@@ -1940,7 +1948,7 @@ def generate_agent_capabilities(
         (
             f"{FILE_HEADER}\n"
             "from typing import Any\n"
-            "from pydantic import BaseModel, Field, ConfigDict\n"
+            "from pydantic import BaseModel, Field, ConfigDict, model_validator\n"
             f"from {common_mod} import StrictBaseModel\n"
             "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
         ),
@@ -1978,6 +1986,7 @@ def generate_agent_capabilities(
             k
             for k in root_props
             if k == spec_dot
+            or k == version.lstrip("v")
             or k == f"v{version.lstrip('v')}"
             or (k.startswith("v") and isinstance(root_props[k], dict))
         ),
@@ -2012,7 +2021,14 @@ def generate_agent_capabilities(
     if is_modern:
         caps_blocks.append(
             f"class A2uiAgentCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" {cap_cls_name} | None = Field(default=None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(default=None, alias=PROTOCOL_VERSION)\n\n "
+            '   @model_validator(mode="before")\n    @classmethod\n    def'
+            " _normalize_version_key(cls, data: Any) -> Any:\n        if (\n          "
+            '  isinstance(data, dict)\n            and f"v{PROTOCOL_VERSION}" in'
+            " data\n            and PROTOCOL_VERSION not in data\n        ):\n        "
+            "    return {\n                PROTOCOL_VERSION if k =="
+            ' f"v{PROTOCOL_VERSION}" else k: v\n                for k, v in'
+            " data.items()\n            }\n        return data"
         )
     else:
         alt_prefix = "Agent"

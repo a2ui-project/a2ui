@@ -33,11 +33,11 @@ describe('Catalog Providers', () => {
     };
 
     it('loads successfully when metadata matches exactly', () => {
-      const provider = new InMemoryCatalogProvider(validSchema, 'v1.0', 'test_catalog');
+      const provider = new InMemoryCatalogProvider(validSchema, '1.0', 'test_catalog');
       const catalog = provider.load();
       expect(catalog.id).toBe('test_catalog');
       // The catalog reports the version in the wire form, whatever the document spells.
-      expect(catalog.protocolVersion).toBe('v1.0');
+      expect(catalog.protocolVersion).toBe('1.0');
     });
 
     it('fills in the id and version a document leaves out', () => {

@@ -85,8 +85,11 @@ from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
 def _basic_catalog_id(protocol_version: str) -> str:
     if protocol_version == "v0.8":
         return f"{PROTOCOL_BASE_URL}/v0_8/standard_catalog_definition.json"
+    ver_dir = (
+        protocol_version if protocol_version.startswith("v") else f"v{protocol_version}"
+    )
     return (
-        f"{PROTOCOL_BASE_URL}/{protocol_version.replace('.', '_')}/catalogs/basic/catalog.json"
+        f"{PROTOCOL_BASE_URL}/{ver_dir.replace('.', '_')}/catalogs/basic/catalog.json"
     )
 
 
@@ -120,7 +123,7 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
                 " error messages directly as the 'message' inside the check. Do NOT"
                 " create separate text-display components to display validation"
                 " errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n "
-                ' {\n    "version": "v1.0",\n    "createSurface": {\n      "surfaceId":'
+                ' {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId":'
                 ' "main",\n      "catalogId":'
                 ' "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n '
                 '     "components": [\n        {\n          "id": "root",\n         '
@@ -139,7 +142,7 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
                 '     ]\n        }\n      ],\n      "dataModel": {\n        "form": {\n'
                 '          "rep": "John Doe",\n          "value": 1500.00\n        }\n '
                 "     }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with"
-                ' templates\n```json\n[\n  {\n    "version": "v1.0",\n   '
+                ' templates\n```json\n[\n  {\n    "version": "1.0",\n   '
                 ' "createSurface": {\n      "surfaceId": "main",\n      "catalogId":'
                 ' "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n '
                 '     "components": [\n        {\n          "id": "root",\n         '

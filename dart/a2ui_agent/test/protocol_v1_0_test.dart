@@ -370,7 +370,7 @@ void main() {
   group('direct JSON', () {
     test('teaches the v1.0 messages and the catalog', () {
       final String snippet = processor().promptSnippet;
-      expect(snippet, contains('"version":{"const":"v1.0"}'));
+      expect(snippet, contains('"version":{"const":"1.0"}'));
       expect(snippet, contains(basic.id));
     });
 
@@ -385,7 +385,7 @@ void main() {
       );
       final create =
           (parts.single as A2uiPart).a2ui.single as CreateSurfaceMessage;
-      expect(create.version, 'v1.0');
+      expect(create.version, '1.0');
       expect(create.components!.single['component'], 'Text');
     });
 
@@ -806,7 +806,7 @@ void main() {
       final List<AgentToRendererMessage> messages =
           (parts.single as A2uiPart).a2ui;
       expect(messages.single.toJson(), {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's',
           'catalogId': basic.id,
@@ -826,7 +826,7 @@ void main() {
         ),
         [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'createSurface': {
               'surfaceId': 'default_surface',
               'catalogId': basic.id,
@@ -853,7 +853,7 @@ void main() {
         ),
         [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 'default_surface',
               'components': [
@@ -862,7 +862,7 @@ void main() {
             },
           },
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateDataModel': {
               'surfaceId': 'default_surface',
               'path': '/count',

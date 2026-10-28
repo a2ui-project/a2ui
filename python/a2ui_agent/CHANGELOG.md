@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Emit `'1.0'` (without a `'v'` prefix) as the `version`
+  field on v1.0 protocol messages produced by inference format compilers,
+  builders (`a2ui.builder.v1_0`), and prompt examples, while continuing to
+  accept `'v1.0'` on input in `DirectJsonParser`, `ExpressDecompiler`, and
+  capability negotiation.
+  [#3097](https://github.com/a2ui-project/a2ui/issues/3097)
 - **BREAKING**: In Express (`ExpressCompiler`), data path assignments (`$/... = ...`) in surface-updating scopes (scopes that do not create a surface with `root` or carry `update=true`) now emit one targeted `updateDataModel` message per assigned path at its JSON Pointer `path` instead of folding all assignments into a single root `updateDataModel` with `path: "/"` (which overwrote the entire surface data model on the renderer). Surface-creating scopes continue to fold data path assignments into a single root data model and now support list element traversal, canonical numeric-segment list auto-vivification, and full root replacement via `$/ = {...}` ([#3677](https://github.com/a2ui-project/a2ui/pull/3677)).
 - **BREAKING CHANGE**: `DirectJsonPromptGenerator.generate_base_rules()` now
   returns the workflow rules followed by the protocol schemas (agent-to-renderer

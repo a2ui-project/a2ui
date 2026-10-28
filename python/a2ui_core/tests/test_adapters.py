@@ -165,7 +165,7 @@ def test_adapter_catalog_compatibility_methods():
 def test_version_adapter_factory_get_adapter():
     """Verifies that VersionAdapterFactory resolves adapters and checks compatibility."""
     adapter = VersionAdapterFactory.get_adapter("v1.0")
-    assert adapter.version.value == "v1.0"
+    assert adapter.version.value == "1.0"
     assert adapter.is_catalog_compatible("1.0") is True
 
     adapter_09 = VersionAdapterFactory.get_adapter("v0.9.1")
@@ -326,7 +326,7 @@ def test_extract_operations_invalid_version_raises_validation_error():
     v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
     with pytest.raises(
         A2uiValidationError,
-        match=r"version: Input should be 'v1\.0'",
+        match=r"version: Input should be '1\.0'",
     ):
         v10_adapter.extract_operations({
             "version": "v0.9",
@@ -541,7 +541,7 @@ def test_extract_operations_cross_version_action_rejection():
     v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
     with pytest.raises(
         A2uiValidationError,
-        match=r"action 'beginRendering' is not supported in protocol version v1.0",
+        match=r"action 'beginRendering' is not supported in protocol version 1.0",
     ):
         v10_adapter.extract_operations({
             "version": "v1.0",

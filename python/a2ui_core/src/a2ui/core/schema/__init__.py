@@ -29,7 +29,17 @@ class A2uiProtocolVersion(str, Enum):
     V0_8 = "v0.8"
     V0_9 = "v0.9"
     V0_9_1 = "v0.9.1"
-    V1_0 = "v1.0"
+    V1_0 = "1.0"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "A2uiProtocolVersion | None":
+        if isinstance(value, str):
+            stripped = value.strip()
+            alt = stripped[1:] if stripped.lower().startswith("v") else f"v{stripped}"
+            for member in cls:
+                if member.value == alt:
+                    return member
+        return None
 
 
 ProtocolVersion = A2uiProtocolVersion

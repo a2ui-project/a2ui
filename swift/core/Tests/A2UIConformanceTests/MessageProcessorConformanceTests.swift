@@ -78,7 +78,7 @@ struct MessageProcessorConformanceTests {
   @Test func messageProcessorV10Conformance() throws {
     try runMessageProcessorSuite(
       filename: "core/message_processor_v1_0.yaml",
-      defaultVersion: "v1.0"
+      defaultVersion: "1.0"
     )
   }
 

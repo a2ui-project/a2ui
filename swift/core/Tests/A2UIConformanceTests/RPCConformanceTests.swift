@@ -95,21 +95,21 @@ struct RPCConformanceTests {
 
       let catalog = Catalog(
         id: "basic",
-        protocolVersion: "v1.0",
+        protocolVersion: "1.0",
         components: [AnyComponentAPI](),
         functions: functions
       ).eraseToAnyCatalog()
 
       let mediaCatalog = Catalog(
         id: "media_catalog",
-        protocolVersion: "v1.0",
+        protocolVersion: "1.0",
         components: [AnyComponentAPI](),
         functions: functions
       ).eraseToAnyCatalog()
 
       let systemCatalog = Catalog(
         id: "system_catalog",
-        protocolVersion: "v1.0",
+        protocolVersion: "1.0",
         components: [AnyComponentAPI](),
         functions: functions
       ).eraseToAnyCatalog()
@@ -120,7 +120,7 @@ struct RPCConformanceTests {
         "system_catalog": systemCatalog,
       ]
       if let extraCatID = testCase.args?["catalogId"]?.stringValue {
-        let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "v1.0"
+        let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "1.0"
         catalogs[extraCatID] = Catalog(
           id: extraCatID,
           protocolVersion: extraCatVersion,

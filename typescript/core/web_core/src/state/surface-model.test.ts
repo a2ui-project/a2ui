@@ -80,7 +80,7 @@ describe('SurfaceModel', () => {
   });
 
   it('takes its protocol version from the default catalog unless one is given', () => {
-    assert.strictEqual(surface.protocolVersion, 'v1.0');
+    assert.strictEqual(surface.protocolVersion, '1.0');
     const noDefault = new SurfaceModel<ComponentApi>(
       'surface-no-default',
       undefined,
@@ -93,7 +93,7 @@ describe('SurfaceModel', () => {
       'v1.0',
     );
     assert.strictEqual(noDefault.defaultCatalog, undefined);
-    assert.strictEqual(noDefault.protocolVersion, 'v1.0');
+    assert.strictEqual(noDefault.protocolVersion, '1.0');
     assert.strictEqual(noDefault.availableCatalogs.get(catalog.id), catalog);
   });
 
@@ -111,8 +111,8 @@ describe('SurfaceModel', () => {
       '1.0.0',
     );
     assert.strictEqual(catalog.protocolVersion, '1.0');
-    assert.strictEqual(fromCatalog.protocolVersion, 'v1.0');
-    assert.strictEqual(fromArgument.protocolVersion, 'v1.0');
+    assert.strictEqual(fromCatalog.protocolVersion, '1.0');
+    assert.strictEqual(fromArgument.protocolVersion, '1.0');
   });
 
   it('exposes the catalogs it was constructed with', () => {

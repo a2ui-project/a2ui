@@ -384,7 +384,7 @@ struct RendererToAgentMessageTests {
     #expect(
       json == """
         {"callAgentFunction":{"callFunction":{"@call":"fetchData","args":{"query":"weather"},\
-        "catalogId":"custom"},"functionCallId":"call_1","surfaceId":"main"},"version":"v1.0"}
+        "catalogId":"custom"},"functionCallId":"call_1","surfaceId":"main"},"version":"1.0"}
         """
     )
     let decoded = try JSONDecoder().decode(RendererToAgentMessage.self, from: Data(json.utf8))

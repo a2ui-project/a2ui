@@ -392,7 +392,7 @@ def test_explicit_surface_without_components_still_creates_it(
 def test_delete_surface(compiler: AtomCompiler, decompiler: AtomDecompiler) -> None:
     message = _compile_one(compiler, '(deleteSurface "dashboard-1")')
     assert message == {
-        "version": "v1.0",
+        "version": "1.0",
         "deleteSurface": {"surfaceId": "dashboard-1"},
     }
     assert (
@@ -509,7 +509,7 @@ def test_escaping_round_trip(
     compiler: AtomCompiler, decompiler: AtomDecompiler
 ) -> None:
     message = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": compiler.catalogs[0].catalog_id,
@@ -619,7 +619,7 @@ def test_checks_round_trip(compiler: AtomCompiler, decompiler: AtomDecompiler) -
 def test_raw_json_input_is_accepted(compiler: AtomCompiler) -> None:
     message = _compile_one(
         compiler,
-        '<a2ui-json>{"version": "v1.0", "deleteSurface": {"surfaceId": "j"}}'
+        '<a2ui-json>{"version": "1.0", "deleteSurface": {"surfaceId": "j"}}'
         "</a2ui-json>",
     )
     assert message["deleteSurface"]["surfaceId"] == "j"
@@ -789,7 +789,7 @@ def test_decompile_several_catalogs_names_only_ambiguous_catalogs() -> None:
     compiler, decompiler = AtomCompiler(catalogs), AtomDecompiler(catalogs)
     # Input with a createSurface catalog, as examples or history may have.
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": PRI,
@@ -928,7 +928,7 @@ def test_catalogs_property_returns_a_copy() -> None:
 
 def test_prompt_examples_are_decompiled(basic: CatalogApi) -> None:
     payload = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": basic.catalog_id,

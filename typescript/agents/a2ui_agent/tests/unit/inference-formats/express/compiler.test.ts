@@ -57,7 +57,7 @@ describe('ExpressCompiler', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('root = Text("Hello world", "body")')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
@@ -71,7 +71,7 @@ describe('ExpressCompiler', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('-- SQL comment\nroot = Column([t], 2)\nt = Text("Hello")')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
@@ -88,7 +88,7 @@ describe('ExpressCompiler', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('root = Card(t)\nt = Text("Card body")')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
@@ -109,7 +109,7 @@ describe('ExpressCompiler', () => {
         ),
       ).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
@@ -133,7 +133,7 @@ describe('ExpressCompiler', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('root = Column([Text("Line 1"), Text("Line 2")])')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
@@ -151,7 +151,7 @@ describe('ExpressCompiler', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('$/user/name = "Alice"\n$/user/age = 30')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'default_surface',
             path: '/user/name',
@@ -159,7 +159,7 @@ describe('ExpressCompiler', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'default_surface',
             path: '/user/age',
@@ -173,7 +173,7 @@ describe('ExpressCompiler', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
       expect(compiler.compile('$/ = {user: {name: "Alice"}}')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'default_surface',
             path: '/',
@@ -192,7 +192,7 @@ describe('ExpressCompiler', () => {
           'root = Text($/items/0/state)',
       );
       expect(messages[0]).toMatchObject({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'default_surface',
           dataModel: {
@@ -491,7 +491,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = compiler.compile('child = Text("Hi"); root = Column([child])');
       expect(messages).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: simplifiedCatalog.id,
@@ -513,7 +513,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       );
       expect(messages).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 'default_surface', path: '/foo', value: 123},
         },
       ]);
@@ -528,7 +528,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       );
       expect(messages).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: simplifiedCatalog.id,
@@ -632,7 +632,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       );
       expect(messages).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'dashboard',
             components: [
@@ -685,7 +685,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       );
       expect(messages).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             components: [
@@ -777,7 +777,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       );
       expect(messages).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: simplifiedCatalog.id,
@@ -789,14 +789,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Text', text: 'Updated root'}],
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'custom-call-1',
             callFunction: {
@@ -807,7 +807,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           deleteSurface: {
             surfaceId: 's2',
           },
@@ -823,7 +823,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
       expect(compiler.compile('x = Text("x", id="root")')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: simplifiedCatalog.id,
@@ -834,7 +834,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
       expect(compiler.compile('root = Text("x", id="main")')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'default_surface',
             components: [{id: 'main', component: 'Text', text: 'x'}],
@@ -844,7 +844,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
       expect(compiler.compile('surface("s1")\nroot = Text("x", id="main")')).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'main', component: 'Text', text: 'x'}],
@@ -864,7 +864,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
         ),
       ).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             components: [

@@ -54,7 +54,7 @@ export class AgentStubV09Service extends AgentStubService {
   private actionSub?: {unsubscribe: () => void};
   private dataModelSub?: {unsubscribe: () => void};
   private errorSub?: {unsubscribe: () => void};
-  private activeProtocolVersion: 'v0.9' | 'v1.0' = 'v0.9';
+  private activeProtocolVersion: 'v0.9' | '1.0' = 'v0.9';
   private activeSurfaceId = 'demo-surface';
 
   constructor(
@@ -147,7 +147,8 @@ export class AgentStubV09Service extends AgentStubService {
   override initializeDemo(initialMessages: A2uiMessage[]) {
     const clonedMessages = JSON.parse(JSON.stringify(initialMessages)) as A2uiMessage[];
     const firstMsgVersion = (clonedMessages[0] as {version?: string} | undefined)?.version;
-    this.activeProtocolVersion = firstMsgVersion === 'v1.0' ? 'v1.0' : 'v0.9';
+    this.activeProtocolVersion =
+      firstMsgVersion === '1.0' || firstMsgVersion === 'v1.0' ? '1.0' : 'v0.9';
 
     this.deleteExistingSurfaces(clonedMessages);
     const createMsg = clonedMessages.find((m): m is CreateSurfaceMessage => 'createSurface' in m);
@@ -171,7 +172,8 @@ export class AgentStubV09Service extends AgentStubService {
   override resetSurface(messages: A2uiMessage[]) {
     const clonedMessages = JSON.parse(JSON.stringify(messages)) as A2uiMessage[];
     const firstMsgVersion = (clonedMessages[0] as {version?: string} | undefined)?.version;
-    this.activeProtocolVersion = firstMsgVersion === 'v1.0' ? 'v1.0' : 'v0.9';
+    this.activeProtocolVersion =
+      firstMsgVersion === '1.0' || firstMsgVersion === 'v1.0' ? '1.0' : 'v0.9';
     this.deleteExistingSurfaces(clonedMessages);
     this.dataModelSub?.unsubscribe();
     this.dataModelSub = undefined;
@@ -186,8 +188,10 @@ export class AgentStubV09Service extends AgentStubService {
     if (messagesToProcess.length === 0) return;
     const clonedMessages = JSON.parse(JSON.stringify(messagesToProcess)) as A2uiMessage[];
     const firstMsgVersion = (clonedMessages[0] as {version?: string} | undefined)?.version;
-    if (firstMsgVersion === 'v1.0' || firstMsgVersion === 'v0.9') {
-      this.activeProtocolVersion = firstMsgVersion;
+    if (firstMsgVersion === '1.0' || firstMsgVersion === 'v1.0') {
+      this.activeProtocolVersion = '1.0';
+    } else if (firstMsgVersion === 'v0.9') {
+      this.activeProtocolVersion = 'v0.9';
     }
 
     const createMsg = clonedMessages.find((m): m is CreateSurfaceMessage => 'createSurface' in m);

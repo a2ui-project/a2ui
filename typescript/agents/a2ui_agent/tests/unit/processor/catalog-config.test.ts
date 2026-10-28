@@ -68,7 +68,7 @@ describe('CatalogConfig', () => {
       conformancePath('test_data/catalogs/simplified_catalog_v1_0.json'),
     );
     expect(config.catalog.id).toBe('conformance/simplified');
-    expect(config.catalog.protocolVersion).toBe('v1.0');
+    expect(config.catalog.protocolVersion).toBe('1.0');
     expect(config.transformedCatalog).toBe(config.catalog);
   });
 });

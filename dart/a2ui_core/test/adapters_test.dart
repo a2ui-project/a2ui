@@ -256,7 +256,7 @@ void main() {
           'version': 'v0.9',
           'deleteSurface': {'surfaceId': 's1'},
         }),
-        _validationError('Invalid v1.0 message'),
+        _validationError('Invalid 1.0 message'),
       );
       expect(
         () => adapter.toOperations({

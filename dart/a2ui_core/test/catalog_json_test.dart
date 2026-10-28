@@ -2023,7 +2023,7 @@ void main() {
       ).toJson();
 
       expect(
-        ((json['v1.0']! as Map)['inlineCatalogs'] as List).single,
+        ((json['1.0']! as Map)['inlineCatalogs'] as List).single,
         equals(_v10Document()),
       );
     });
@@ -2074,7 +2074,7 @@ void main() {
           .toJson();
 
       expect(
-        ((json['v1.0']! as Map)['inlineCatalogs'] as List).single,
+        ((json['1.0']! as Map)['inlineCatalogs'] as List).single,
         equals(TestCatalog().toJson()),
       );
       expect(

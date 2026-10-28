@@ -31,7 +31,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function capabilitiesKeyFor(catalog: CatalogApi): string {
-  const wireVersion = toWireProtocolVersion(catalog.protocolVersion || 'v1.0');
+  const wireVersion = toWireProtocolVersion(catalog.protocolVersion || '1.0');
   return wireVersion === 'v0.9.1' ? 'v0.9' : wireVersion;
 }
 
@@ -45,6 +45,9 @@ function extractCapabilitiesEntry(
   let entry: unknown = Object.hasOwn(rendererCapabilities, key)
     ? rendererCapabilities[key]
     : undefined;
+  if (entry === undefined && key === '1.0' && Object.hasOwn(rendererCapabilities, 'v1.0')) {
+    entry = rendererCapabilities['v1.0'];
+  }
   if (
     entry === undefined &&
     ENTRY_FIELDS.some(field => Object.hasOwn(rendererCapabilities, field))

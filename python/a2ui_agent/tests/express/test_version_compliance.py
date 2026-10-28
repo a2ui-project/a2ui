@@ -50,7 +50,7 @@ class TestVersionCompliance(unittest.TestCase):
         self.assertIsInstance(raw_res, list)
         self.assertEqual(len(raw_res), 1)
         envelope = to_message_dicts(raw_res)[0]
-        self.assertEqual(envelope["version"], "v1.0")
+        self.assertEqual(envelope["version"], "1.0")
         self.assertIn("createSurface", envelope)
         self.assertIn("components", envelope["createSurface"])
         self.assertIn("dataModel", envelope["createSurface"])

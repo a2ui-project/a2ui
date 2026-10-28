@@ -26,11 +26,20 @@ import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.
  * Protocol version adapter for specification v1.0.
  */
 export class V1Point0Adapter extends BaseVersionAdapter {
-  readonly version: ProtocolVersion = 'v1.0';
+  readonly version: ProtocolVersion = '1.0';
   protected readonly schema = AgentToRendererMessageSchema;
 
   protected getNativeActionKeys(): string[] {
     return [...INTERNAL_OPERATION_TYPES];
+  }
+
+  protected override preparePayloadForValidation(
+    msgObj: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (msgObj.version === 'v1.0') {
+      return {...msgObj, version: '1.0'};
+    }
+    return msgObj;
   }
 
   protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
@@ -50,7 +59,10 @@ export class V1Point0Adapter extends BaseVersionAdapter {
           cs?.dataModel && typeof cs.dataModel === 'object' && !Array.isArray(cs.dataModel)
             ? (cs.dataModel as Record<string, unknown>)
             : undefined,
-        version: typeof msgObj.version === 'string' ? msgObj.version : this.version,
+        version:
+          typeof msgObj.version === 'string' && msgObj.version !== 'v1.0'
+            ? msgObj.version
+            : this.version,
         metadata:
           cs?.metadata && typeof cs.metadata === 'object' && !Array.isArray(cs.metadata)
             ? (cs.metadata as Record<string, unknown>)

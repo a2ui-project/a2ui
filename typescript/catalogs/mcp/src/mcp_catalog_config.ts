@@ -37,7 +37,7 @@ export interface McpCatalogConfig extends CallMcpToolOptions {
 }
 
 /** Default protocol version given to decoded messages that carry none. */
-export const DEFAULT_MESSAGE_VERSION = 'v1.0';
+export const DEFAULT_MESSAGE_VERSION = '1.0';
 
 let currentConfig: McpCatalogConfig = {};
 

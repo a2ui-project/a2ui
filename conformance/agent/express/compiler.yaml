@@ -126,7 +126,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("Hello")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -145,7 +145,7 @@
     root = Column([größe])
     größe = Text("x")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -167,7 +167,7 @@
     root = Card(body)
     body = Text("Hello")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -187,7 +187,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Card(Text("Hello"))'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -207,7 +207,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("Hello", variant="caption")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -225,7 +225,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email", _, "you@example.com")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -243,7 +243,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text(r"C:\temp\notes")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -260,7 +260,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("Line 1\nLine 2")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -280,7 +280,7 @@
     greeting = Text("Hello")
     farewell = Text("Goodbye")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -305,7 +305,7 @@
     root = Column(_template($/items, itemRow))
     itemRow = Text($label)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -328,7 +328,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: "root = Text($/user/name)"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -346,7 +346,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text(formatString("Hello, ${/user/name}"))'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -366,7 +366,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email", $/email, _, [?required("Email is required")])'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -392,7 +392,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Zip", $/zip, _, [?regex(r"^[0-9]{5}$", "Must be five digits")])'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -421,7 +421,7 @@
     root = Button(label, Event("submit"))
     label = Text("Submit")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -446,7 +446,7 @@
     root = Button(label, Event("submit", {itemId: "42"}))
     label = Text("Submit")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -473,7 +473,7 @@
     $/title = "Hello"
     root = Text($/title)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -495,12 +495,12 @@
     $/icon = "check"
     $/title = "Enable notifications"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "default_surface"
         path: "/icon"
         value: "check"
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "default_surface"
         path: "/title"
@@ -515,7 +515,7 @@
   input: |-
     $/ = {icon: "check", title: "Enable notifications"}
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "default_surface"
         path: "/"
@@ -534,12 +534,12 @@
     $/subtitle = "Wave 2"
     $/items/0/state = "Ready"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "board"
         path: "/subtitle"
         value: "Wave 2"
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "board"
         path: "/items/0/state"
@@ -556,7 +556,7 @@
     $/items/0/state = "Ready"
     root = Text($/items/0/state)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -582,7 +582,7 @@
     $/items/0/name = "Ada"
     root = Text($/items/0/name)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -605,7 +605,7 @@
     surface("dashboard")
     root = Text("Hello")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "dashboard"
         catalogId: "conformance/simplified"
@@ -626,7 +626,7 @@
     surface("dashboard")
     root = Gauge(0.5)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "dashboard"
         components:
@@ -643,7 +643,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'deleteSurface("dashboard")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "dashboard"
 
@@ -655,7 +655,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'deleteSurface(surfaceId="dashboard")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "dashboard"
 
@@ -671,7 +671,7 @@
     surface("second")
     root = Text("Two")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "first"
         catalogId: "conformance/simplified"
@@ -679,7 +679,7 @@
           - id: "root"
             component: "Text"
             text: "One"
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "second"
         catalogId: "conformance/simplified"
@@ -696,7 +696,7 @@
     catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
   input: 'notify("Saved")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
@@ -715,7 +715,7 @@
     root = Button(label, openUrl("https://example.com"))
     label = Text("Open the docs")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -743,7 +743,7 @@
     root = Button(label, Event("submit", ctx))
     label = Text("Submit")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -774,7 +774,7 @@
     saveLabel = Text("Save")
     sendLabel = Text("Send")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -809,7 +809,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -826,7 +826,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("width=100")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -848,7 +848,7 @@
     /* Nothing follows, but a block
        comment spanning lines still ends the block cleanly. */
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -865,7 +865,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Column([first, second,]); first = Text("One"); second = Text("Two")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -892,7 +892,7 @@
     )
     body = Text("Hello")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -914,7 +914,7 @@
     root = Column(_template($/names, nameRow))
     nameRow = Text($)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -937,7 +937,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Zip", $/zip, _, [?required("Zip is required"), ?regex(r"^[0-9]{5}$", "Must be five digits")])'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -970,7 +970,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email", $/email, _, [?required])'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -1109,7 +1109,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: 'root = Chart([10, 20, 30], "Sales")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -1127,7 +1127,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: "root = Gauge(2.5e-7)"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -1144,7 +1144,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: 'root = Chart([.5, -.25, 1e2, 1E-2, +3, 1.], "Mixed")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -1162,7 +1162,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: 'root = Chart([9007199254740991, -9007199254740991], "Limits")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -1244,7 +1244,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'some_var = Text("Hi")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "default_surface"
         components:
@@ -1330,7 +1330,7 @@
     Hello -- world
     ")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1354,7 +1354,7 @@
       label
     )
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1383,7 +1383,7 @@
     month""")
     root = Column([c1, c2, c3])
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1426,7 +1426,7 @@
     t = Text("Hello", 2)
     root = Column([t], 1)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/weighted"
@@ -1472,7 +1472,7 @@
     data = $/user/
     root = Text("hi")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1492,7 +1492,7 @@
       child = Text("Hello")
     )
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1513,7 +1513,7 @@
   input: |-
     root = Slider(50)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/weighted"
@@ -1565,7 +1565,7 @@
     // comment with -- dash
     root = Text("""Value -- with dashes""")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1596,7 +1596,7 @@
   input: |-
     root = Meter("CPU", 75)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/weighted"
@@ -1627,7 +1627,7 @@
     root = Text("Hello
     World")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1645,7 +1645,7 @@
   input: |-
     root = Probe({variable: "m", path: "p", call: "c", check: "k", skipped: true, kind: "map", count: 6})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1670,7 +1670,7 @@
   input: |-
     root = Probe({variable: "m"})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1689,7 +1689,7 @@
   input: |-
     root = Probe({"variable": "m", "path": "p", "count": 6})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1711,7 +1711,7 @@
     m = "replacement"
     root = Probe({variable: "m", count: 6})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1732,7 +1732,7 @@
     label = "hi"
     root = Probe({variable: label, title: label})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1752,7 +1752,7 @@
   input: |-
     root = Probe(series(count=6, variable="m", item={variable: "inner", nested: {path: "deep", call: "c"}}))
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"

@@ -844,7 +844,7 @@ def test_basic_catalog_initialization():
     # Test shared factory with different versions
     assert BasicCatalog("0.8").protocol_version == "v0.8"
     assert BasicCatalog("0.9").protocol_version == "v0.9"
-    assert BasicCatalog("1.0").protocol_version == "v1.0"
+    assert BasicCatalog("1.0").protocol_version == "1.0"
 
     with pytest.raises(TypeError):
         BasicCatalog()  # type: ignore[call-arg]
@@ -862,7 +862,7 @@ def test_basic_catalog_version_submodules():
     from a2ui.core.basic_catalog import v1_0, v0_9, v0_8
 
     cat_v10 = v1_0.BasicCatalog()
-    assert cat_v10.protocol_version == "v1.0"
+    assert cat_v10.protocol_version == "1.0"
 
     cat_v09 = v0_9.BasicCatalog()
     assert cat_v09.protocol_version == "v0.9"

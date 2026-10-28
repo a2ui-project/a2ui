@@ -42,7 +42,7 @@ import {toReleaseLine} from './protocol-version.js';
  */
 const MESSAGE_VERSIONS: Readonly<Record<string, readonly string[]>> = {
   'v0.9': ['v0.9', 'v0.9.1'],
-  'v1.0': ['v1.0'],
+  '1.0': ['1.0', 'v1.0'],
 };
 
 const CREATE_ACTIONS = ['createSurface'] as const;

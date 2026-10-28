@@ -292,7 +292,7 @@ class DataContext:
         # 4. Recurse into normal objects/dictionaries (with v1.0 escaping and validation)
         if isinstance(value, dict):
             if at_least_v10:
-                validate_reserved_directives(value.keys(), proto_ver or "v1.0")
+                validate_reserved_directives(value.keys(), proto_ver or "1.0")
                 return {
                     unescape_object_key(k): self.resolve_dynamic_value(
                         v, peek=peek, abort_signal=abort_signal

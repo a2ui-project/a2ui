@@ -85,7 +85,7 @@ class TestElementalCompiler(unittest.TestCase):
         )
         result = to_message_dicts(compiler_v1.compile(html_input))
         expected = [{
-            "version": "v1.0",
+            "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": "call_1",
                 "callFunction": {

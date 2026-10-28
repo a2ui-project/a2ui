@@ -402,7 +402,7 @@ void main() {
       ]);
 
       // At v1.0: the catalog document.
-      final Map<String, Object?> current = firstInline('v1.0');
+      final Map<String, Object?> current = firstInline('1.0');
       expect(current[r'$schema'], Catalog.jsonSchemaDialect);
       expect(current['catalogId'], catalog.id);
       expect(
@@ -432,7 +432,8 @@ void main() {
       );
 
       void addSurface(String id, String? version, {bool send = true}) {
-        final catalog = version == 'v1.0' ? v10Catalog : v09Catalog;
+        final catalog =
+            (version == '1.0' || version == 'v1.0') ? v10Catalog : v09Catalog;
         final surface = SurfaceModel<ComponentApi>(
           id,
           defaultCatalog: catalog,
@@ -469,7 +470,7 @@ void main() {
       test('defaults to v1.0 when no surface declares a version', () {
         addSurface('s1', null);
         expect(dataProcessor.getRendererDataModel(), {
-          'version': 'v1.0',
+          'version': '1.0',
           'surfaces': {
             's1': {'id': 's1'},
           },
@@ -478,14 +479,14 @@ void main() {
 
       test('raises when surfaces carry different versions', () {
         addSurface('s1', 'v0.9');
-        addSurface('s2', 'v1.0');
+        addSurface('s2', '1.0');
         expect(
           () => dataProcessor.getRendererDataModel(),
           throwsA(
             isA<A2uiValidationError>().having(
               (e) => e.message,
               'message',
-              allOf(contains('v0.9, v1.0'), contains('getRendererDataModel')),
+              allOf(contains('1.0, v0.9'), contains('getRendererDataModel')),
             ),
           ),
         );
@@ -493,7 +494,7 @@ void main() {
 
       test('filters surfaces by the requested version', () {
         addSurface('s1', 'v0.9');
-        addSurface('s2', 'v1.0');
+        addSurface('s2', '1.0');
         addSurface('s3', 'v0.9.1');
         addSurface('s4', null);
 
@@ -502,7 +503,7 @@ void main() {
             version: A2uiProtocolVersion.v1_0,
           ),
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'surfaces': {
               's2': {'id': 's2'},
               's4': {'id': 's4'},
@@ -1104,7 +1105,7 @@ void main() {
       final SurfaceModel<ComponentApi> fresh =
           processor.model.getSurface('new')!;
       expect(old.protocolVersion, 'v0.9');
-      expect(fresh.protocolVersion, 'v1.0');
+      expect(fresh.protocolVersion, '1.0');
       bool atLeastV10(SurfaceModel<ComponentApi> s) => DataContext(
             s.dataModel,
             (_, __, ___) => null,

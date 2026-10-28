@@ -225,7 +225,7 @@ def test_unannotated_unique_check_resolves_across_catalogs(
     parser: ElementalParser,
 ) -> None:
     payload = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "components": [{
@@ -252,7 +252,7 @@ def test_explicit_function_catalog_for_shared_function_round_trips(
     parser: ElementalParser,
 ) -> None:
     payload = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "components": [{
@@ -277,14 +277,14 @@ def test_update_components_round_trip_on_non_default_surface(
 ) -> None:
     payload = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s2",
                 "components": [{"id": "root", "component": "Widget", "catalogId": SEC}],
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
@@ -310,7 +310,7 @@ def test_update_components_without_create_round_trips(
     parser: ElementalParser,
 ) -> None:
     payload = {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "main",
             "components": [
@@ -335,7 +335,7 @@ def test_update_components_without_create_round_trips(
 def test_update_data_model_round_trip_keeps_path(
     parser: ElementalParser, op: dict[str, Any]
 ) -> None:
-    payload = {"version": "v1.0", "updateDataModel": op}
+    payload = {"version": "1.0", "updateDataModel": op}
     decompiled = parser.decompile(to_message_models(payload))
     assert decompiled.startswith('<body id="main" update>')
     assert _compile(parser, decompiled) == [payload]
@@ -346,7 +346,7 @@ def test_root_data_update_after_create_replaces_data_model(
 ) -> None:
     payload = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
@@ -356,7 +356,7 @@ def test_root_data_update_after_create_replaces_data_model(
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateDataModel": {"surfaceId": "main", "path": "/", "value": {"a": 3}},
         },
     ]
@@ -375,7 +375,7 @@ def test_update_body_with_components_and_data(parser: ElementalParser) -> None:
     )
     assert messages == [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "main",
                 "components": [{
@@ -387,7 +387,7 @@ def test_update_body_with_components_and_data(parser: ElementalParser) -> None:
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateDataModel": {"surfaceId": "main", "path": "/count", "value": 5},
         },
     ]
@@ -433,7 +433,7 @@ def test_compile_rejects_unknown_link_with_single_catalog() -> None:
 
 def test_decompile_rejects_unknown_catalog_ids(parser: ElementalParser) -> None:
     payload = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "components": [
@@ -473,7 +473,7 @@ def test_call_function_catalog_and_script_args(parser: ElementalParser) -> None:
 </ui-call-function>""",
     )
     assert messages == [{
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "c1",
             "callFunction": {
@@ -495,7 +495,7 @@ def test_call_function_catalog_and_script_args(parser: ElementalParser) -> None:
 
 def test_want_response_is_not_special(parser: ElementalParser) -> None:
     payload = {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "c1",
             "callFunction": {
@@ -514,7 +514,7 @@ _ODD = 'a"b&<c'
 def test_attribute_values_with_quotes_round_trip(parser: ElementalParser) -> None:
     payload = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": _ODD,
                 "components": [
@@ -545,7 +545,7 @@ def test_attribute_values_with_quotes_round_trip(parser: ElementalParser) -> Non
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": _ODD,
                 "components": [
@@ -554,11 +554,11 @@ def test_attribute_values_with_quotes_round_trip(parser: ElementalParser) -> Non
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateDataModel": {"surfaceId": _ODD, "path": f"/{_ODD}", "value": 1},
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": _ODD,
                 "callFunction": {
@@ -568,7 +568,7 @@ def test_attribute_values_with_quotes_round_trip(parser: ElementalParser) -> Non
                 },
             },
         },
-        {"version": "v1.0", "deleteSurface": {"surfaceId": _ODD}},
+        {"version": "1.0", "deleteSurface": {"surfaceId": _ODD}},
     ]
     blocks = parser.decompile_blocks(to_message_models(payload))
     assert '<body id="a&quot;b&amp;&lt;c"' in blocks[0]
@@ -590,7 +590,7 @@ def test_catalog_ids_with_quotes_round_trip() -> None:
     parser = ElementalParser([primary, secondary])
     payload = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s",
                 "components": [{
@@ -602,7 +602,7 @@ def test_catalog_ids_with_quotes_round_trip() -> None:
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": "c",
                 "callFunction": {
@@ -741,7 +741,7 @@ def test_v1_0_single_catalog_emits_catalog_id_on_create_surface() -> None:
         )
     )
     assert messages == [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "m",
             "catalogId": PRI,
@@ -762,7 +762,7 @@ def test_v1_0_multi_catalog_omits_catalog_id_on_create_surface() -> None:
         )
     )
     assert messages == [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "m",
             "components": [{
@@ -877,7 +877,7 @@ def test_catalog_instructions_replaces_indented_json_with_re_sub() -> None:
     helper = gen.helpers[PRI]
 
     helper.catalog["instructions"] = (
-        'Here is an example:\n   ```json\n   [{"version": "v1.0", "createSurface":'
+        'Here is an example:\n   ```json\n   [{"version": "1.0", "createSurface":'
         ' {"surfaceId": "main", "components": [{"id": "t1", "component": "Text",'
         ' "text": "hello"}]}}]\n   ```\nEnd of example.'
     )

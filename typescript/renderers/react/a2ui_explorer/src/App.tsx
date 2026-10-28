@@ -43,6 +43,7 @@ function applyPrimaryColorToMessages(
       msg &&
       typeof msg === 'object' &&
       'createSurface' in msg &&
+      msg.version !== '1.0' &&
       msg.version !== 'v1.0' &&
       msg.createSurface &&
       typeof msg.createSurface === 'object'

@@ -1146,6 +1146,7 @@ export class DemoComponent implements OnInit, OnDestroy {
     return messages.map(msg => {
       if (
         'createSurface' in msg &&
+        (msg as {version?: string}).version !== '1.0' &&
         (msg as {version?: string}).version !== 'v1.0' &&
         msg.createSurface
       ) {

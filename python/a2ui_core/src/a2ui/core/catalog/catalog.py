@@ -959,7 +959,7 @@ class Catalog(Generic[TComponent, TFunction]):
     def __init__(
         self,
         catalog_id: str,
-        protocol_version: str,
+        protocol_version: ProtocolVersion | str,
         components: list[TComponent] | None = None,
         functions: list[TFunction] | None = None,
         theme_schema: dict[str, Any] | None = None,
@@ -2278,7 +2278,7 @@ class Catalog(Generic[TComponent, TFunction]):
     def from_json(
         cls,
         catalog_schema: Mapping[str, Any],
-        protocol_version: str | None = None,
+        protocol_version: ProtocolVersion | str | None = None,
         catalog_id: str | None = None,
     ) -> "CatalogApi":
         """Constructs a schema-only Catalog from a catalog document.

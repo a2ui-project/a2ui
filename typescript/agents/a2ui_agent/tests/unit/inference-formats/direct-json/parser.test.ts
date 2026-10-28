@@ -100,18 +100,18 @@ describe('DirectJsonParser', () => {
 
   it('compiles raw format content', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
-    const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
+    const payload = `[{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
     const compiled = parser.compile(payload);
     expect(compiled).toEqual([
-      {version: 'v1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
+      {version: '1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
     ]);
   });
 
   it('compiles a block that holds one message on its own', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
-    const payload = `{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}`;
+    const payload = `{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}`;
     expect(parser.compile(payload)).toEqual([
-      {version: 'v1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
+      {version: '1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
     ]);
   });
 

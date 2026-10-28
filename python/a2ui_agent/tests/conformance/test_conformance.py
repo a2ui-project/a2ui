@@ -59,7 +59,7 @@ CATEGORY_TO_EXCEPTION = {
 }
 
 # Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
-SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0"}
+SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "1.0", "v1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
 SKIP_TEST_NAMES: set[str] = {
@@ -220,7 +220,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     if isinstance(ref, dict):
         catalog = InMemoryCatalogProvider(
             ref,
-            protocol_version=None if "protocolVersion" in ref else "v1.0",
+            protocol_version=None if "protocolVersion" in ref else "1.0",
             catalog_id=None if "catalogId" in ref else "inline",
         ).load()
         return CatalogConfig(
@@ -233,7 +233,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     return CatalogConfig.from_path(
         catalog_path=get_conformance_path(relative_path),
         transformers=transformers,
-        protocol_version=None if "protocolVersion" in doc else "v1.0",
+        protocol_version=None if "protocolVersion" in doc else "1.0",
         catalog_id=(
             None
             if "catalogId" in doc

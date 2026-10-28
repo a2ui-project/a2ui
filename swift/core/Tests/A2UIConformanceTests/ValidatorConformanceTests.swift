@@ -27,7 +27,7 @@ struct ValidatorConformanceTests {
   }
 
   @Test func validatorV10Conformance() throws {
-    try runValidatorSuite(filename: "core/validator_v1_0.yaml", versionPrefix: "v1.0")
+    try runValidatorSuite(filename: "core/validator_v1_0.yaml", versionPrefix: "1.0")
   }
 
   private func runValidatorSuite(filename: String, versionPrefix: String) throws {
@@ -45,7 +45,7 @@ struct ValidatorConformanceTests {
         continue
       }
 
-      let targetVersion = versionPrefix == "v1.0" ? "v1.0" : "v0.9.1"
+      let targetVersion = versionPrefix == "1.0" ? "1.0" : "v0.9.1"
       let config =
         testCase.strictMode
         ? ValidationConfig(
@@ -187,7 +187,7 @@ struct ValidatorConformanceTests {
 
       let processor = MessageProcessor(
         catalogs: catalogs,
-        validationConfig: ValidationConfig(targetVersion: "v1.0")
+        validationConfig: ValidationConfig(targetVersion: "1.0")
       )
 
       for (stepIndex, step) in testCase.steps.enumerated() {
@@ -241,7 +241,7 @@ struct ValidatorConformanceTests {
       let catalogs = try buildCatalogsWithAliases(for: testCase)
       let processor = MessageProcessor(
         catalogs: catalogs,
-        validationConfig: ValidationConfig(targetVersion: "v1.0")
+        validationConfig: ValidationConfig(targetVersion: "1.0")
       )
 
       for (stepIndex, step) in testCase.steps.enumerated() {

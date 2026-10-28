@@ -14,11 +14,14 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Final, Literal
+from typing import Annotated, Final, Literal
+from pydantic import BeforeValidator
 
-PROTOCOL_VERSION: Final[Literal["v1.0"]] = "v1.0"
-PROTOCOL_VERSION_TYPE = Literal["v1.0"]
-SUPPORTED_PROTOCOL_VERSIONS: Final[set[str]] = {"v1.0"}
+PROTOCOL_VERSION: Final[Literal["1.0"]] = "1.0"
+PROTOCOL_VERSION_TYPE = Annotated[
+    Literal["1.0"], BeforeValidator(lambda v: "1.0" if v == "v1.0" else v)
+]
+SUPPORTED_PROTOCOL_VERSIONS: Final[set[str]] = {"1.0", "v1.0"}
 
 ROOT_ID = "root"
 CATALOG_COMPONENTS_KEY = "components"

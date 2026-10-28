@@ -76,17 +76,31 @@ def _generate_constants_code(
 ) -> str:
     """Dynamically generates constants.py based on the version's schema definitions."""
     dir_name = version_to_underscore(version)
-    spec_dot = "v" + dir_name[1:].replace("_", ".")
+    bare_dot = dir_name[1:].replace("_", ".")
+    is_modern = is_modern_terminology(version)
+    spec_dot = bare_dot if is_modern else f"v{bare_dot}"
     if dir_name == "v0_9":
         ver_type_str = 'Literal["v0.9", "v0.9.1"]'
         sup_vers_str = 'Final[set[str]] = {"v0.9", "v0.9.1"}'
+        typing_imports = "from typing import Final, Literal"
+    elif is_modern:
+        ver_type_str = (
+            f'Annotated[Literal["{spec_dot}"],'
+            f' BeforeValidator(lambda v: "{spec_dot}" if v == "v{spec_dot}" else v)]'
+        )
+        sup_vers_str = f'Final[set[str]] = {{"{spec_dot}", "v{spec_dot}"}}'
+        typing_imports = (
+            "from typing import Annotated, Final, Literal\n"
+            "from pydantic import BeforeValidator"
+        )
     else:
         ver_type_str = f'Literal["{spec_dot}"]'
         sup_vers_str = f'Final[set[str]] = {{"{spec_dot}"}}'
+        typing_imports = "from typing import Final, Literal"
 
     lines = [
         FILE_HEADER,
-        "from typing import Final, Literal",
+        typing_imports,
         "",
         f'PROTOCOL_VERSION: Final[Literal["{spec_dot}"]] = "{spec_dot}"',
         f"PROTOCOL_VERSION_TYPE = {ver_type_str}",
@@ -449,7 +463,8 @@ def update_root_schema_init(
     version_triples = []
     for v in known_versions:
         d_name = version_to_underscore(v)
-        s_dot = ensure_v_prefix(v)
+        bare_dot = d_name[1:].replace("_", ".")
+        s_dot = bare_dot if is_modern_terminology(v) else f"v{bare_dot}"
         e_name = d_name.upper()
         version_triples.append((d_name, s_dot, e_name))
 
@@ -561,6 +576,21 @@ from typing import Any
 {base_common_section}# Multi-version Protocol Version Enum
 class A2uiProtocolVersion(str, Enum):
 {chr(10).join(enum_members)}
+
+    @classmethod
+    def _missing_(cls, value: object) -> "A2uiProtocolVersion | None":
+        if isinstance(value, str):
+            stripped = value.strip()
+            alt = (
+                stripped[1:]
+                if stripped.lower().startswith("v")
+                else f"v{{stripped}}"
+            )
+            for member in cls:
+                if member.value == alt:
+                    return member
+        return None
+
 
 ProtocolVersion = A2uiProtocolVersion
 

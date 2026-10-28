@@ -75,9 +75,9 @@ struct CatalogV10Tests {
       protocolVersion: "v1.0",
       components: [comp]
     )
-    #expect(catalog.protocolVersion == "v1.0")
+    #expect(catalog.protocolVersion == "1.0")
     let erased = catalog.eraseToAnyCatalog()
-    #expect(erased.protocolVersion == "v1.0")
+    #expect(erased.protocolVersion == "1.0")
     #expect(erased.components["Modal"]?.allowedParents == ["Surface"])
   }
 

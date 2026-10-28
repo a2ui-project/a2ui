@@ -18,14 +18,14 @@ import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
-import {toCanonicalVersion} from '../common/semver.js';
+import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
 /**
- * Normalizes a protocol version to the `vMAJOR.MINOR` form used by messages.
+ * Normalizes a protocol version to the canonical wire form (`'1.0'` for 1.0+,
+ * `'v0.9'` / `'v0.8'` for pre-1.0 versions).
  *
- * Catalogs declare `'1.0'` while messages carry `'v1.0'`; storing one form
- * keeps comparisons by consumers simple. Unparseable versions are kept as is.
+ * Unparseable versions are kept as is.
  *
  * @param version Protocol version to normalize.
  * @returns The canonical version, or `undefined` when none was given.
@@ -33,7 +33,8 @@ import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 function canonicalProtocolVersion(version: string | undefined): string | undefined {
   if (!version) return undefined;
   const canonical = toCanonicalVersion(version);
-  return canonical ? `v${canonical}` : version;
+  if (!canonical) return version;
+  return isAtLeastVersion(canonical, '1.0') ? canonical : `v${canonical}`;
 }
 
 /** Action payload emitted by a renderer component. */

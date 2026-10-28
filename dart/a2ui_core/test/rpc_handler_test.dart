@@ -166,7 +166,7 @@ void main() {
       expect(sent, hasLength(1));
       final message = sent.single as CallAgentFunctionMessage;
       expect(message.toJson(), {
-        'version': 'v1.0',
+        'version': '1.0',
         'callAgentFunction': {
           'surfaceId': 's1',
           'functionCallId': 'id-1',
@@ -178,7 +178,7 @@ void main() {
         },
       });
       h.handleAgentFunctionResponse(AgentFunctionResponseMessage(
-        version: 'v1.0',
+        version: '1.0',
         response: const A2uiFunctionResponse.value('id-1', {'inStock': 2}),
       ));
       expect(await future, {'inStock': 2});
@@ -209,7 +209,7 @@ void main() {
             options: const CallOptions(version: A2uiProtocolVersion.v1_0),
           )
           .ignore();
-      expect(sent.single.version, 'v1.0');
+      expect(sent.single.version, '1.0');
     });
 
     test('fails with NO_LISTENER without a listener', () async {

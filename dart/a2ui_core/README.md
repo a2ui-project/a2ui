@@ -78,14 +78,14 @@ void main() {
 
   processor.processMessages([
     {
-      'version': 'v1.0',
+      'version': '1.0',
       'createSurface': {
         'surfaceId': 'main',
         'catalogId': BasicCatalog.v1_0Id,
       },
     },
     {
-      'version': 'v1.0',
+      'version': '1.0',
       'updateDataModel': {
         'surfaceId': 'main',
         'path': '/user/name',

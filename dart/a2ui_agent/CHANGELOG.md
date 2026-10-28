@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Breaking: Emit `'1.0'` (without a `'v'` prefix) as the `version` field on
+  v1.0 protocol messages produced by `ExpressCompiler`, `DirectJsonParser`, and
+  prompt examples, while accepting `'v1.0'` on input in `DirectJsonParser`,
+  `ExpressDecompiler`, and capability negotiation
+  ([#3097](https://github.com/a2ui-project/a2ui/issues/3097)).
+
 - Bumped `a2ui_core` constraint to `^0.4.0`.
 
 - Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in

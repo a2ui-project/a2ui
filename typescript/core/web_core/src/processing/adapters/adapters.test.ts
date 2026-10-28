@@ -51,7 +51,7 @@ describe('VersionAdapterFactory', () => {
     };
 
     const adapter = VersionAdapterFactory.resolveFromPayload(payload);
-    assert.strictEqual(adapter.version, 'v1.0');
+    assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
     assert.strictEqual(ops.length, 1);
@@ -178,7 +178,7 @@ describe('VersionAdapterFactory', () => {
           version: 'v0.9',
           createSurface: {surfaceId: 's1', catalogId: 'c1'},
         }),
-      err => err instanceof A2uiValidationError && /Invalid v1.0 message/.test(err.message),
+      err => err instanceof A2uiValidationError && /Invalid 1.0 message/.test(err.message),
     );
   });
 
@@ -245,7 +245,7 @@ describe('VersionAdapterFactory', () => {
     ];
 
     const adapter = VersionAdapterFactory.resolveFromPayload(payload);
-    assert.strictEqual(adapter.version, 'v1.0');
+    assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
     assert.strictEqual(ops.length, 2);
@@ -268,7 +268,7 @@ describe('VersionAdapterFactory', () => {
     };
 
     const adapter = VersionAdapterFactory.resolveFromPayload(payload);
-    assert.strictEqual(adapter.version, 'v1.0');
+    assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
     assert.strictEqual(ops.length, 2);
@@ -393,7 +393,7 @@ describe('MessageProcessor Dependency Injection', () => {
     const processor = new MessageProcessor([catalog]);
 
     processor.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {
         surfaceId: 's1',
         catalogId: 'basic',
@@ -402,7 +402,7 @@ describe('MessageProcessor Dependency Injection', () => {
     });
 
     processor.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId: 's1',
         components: [{id: 't1', component: 'Text', text: 'Hello', color: 'blue'}],
@@ -530,11 +530,11 @@ describe('MessageProcessor Dependency Injection', () => {
 
   it('resolves adapters by canonical and formatted version strings', () => {
     const factory = new VersionAdapterFactory();
-    assert.strictEqual(factory.getAdapter('v1.0').version, 'v1.0');
-    assert.strictEqual(factory.getAdapter('1.0').version, 'v1.0');
-    assert.strictEqual(factory.getAdapter('1.0.0').version, 'v1.0');
-    assert.strictEqual(factory.getAdapter('v1_0').version, 'v1.0');
-    assert.strictEqual(factory.getAdapter('V1.0').version, 'v1.0');
+    assert.strictEqual(factory.getAdapter('v1.0').version, '1.0');
+    assert.strictEqual(factory.getAdapter('1.0').version, '1.0');
+    assert.strictEqual(factory.getAdapter('1.0.0').version, '1.0');
+    assert.strictEqual(factory.getAdapter('v1_0').version, '1.0');
+    assert.strictEqual(factory.getAdapter('V1.0').version, '1.0');
     assert.strictEqual(factory.getAdapter('v0.9.1').version, 'v0.9');
     assert.strictEqual(factory.getAdapter('0.9.1').version, 'v0.9');
     assert.strictEqual(factory.getAdapter('v0.9').version, 'v0.9');
@@ -588,7 +588,7 @@ describe('MessageProcessor Dependency Injection', () => {
         }),
       (err: any) =>
         err instanceof A2uiValidationError &&
-        /action 'beginRendering' is not supported in protocol version v1.0/.test(err.message),
+        /action 'beginRendering' is not supported in protocol version 1.0/.test(err.message),
     );
 
     const v08 = VersionAdapterFactory.getAdapter('v0.8');

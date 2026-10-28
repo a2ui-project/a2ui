@@ -48,7 +48,7 @@ describe('ExpressFormat', () => {
   it('throws A2uiCatalogError when catalogs have different protocol versions', () => {
     expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(A2uiCatalogError);
     expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(
-      `Express catalogs must share one protocol version, but '${catalog1.id}' is 'v1.0' and '${catalog2.id}' is 'v0.9'.`,
+      `Express catalogs must share one protocol version, but '${catalog1.id}' is '1.0' and '${catalog2.id}' is 'v0.9'.`,
     );
   });
 
@@ -101,12 +101,12 @@ describe('ExpressFormat', () => {
   it('createParser returns configured ExpressParser', () => {
     const format = new ExpressFormat([catalog1], {
       surfaceId: 'custom_surface',
-      version: 'v1.0',
+      version: '1.0',
     });
     const parser = format.createParser();
     expect(parser).toBeInstanceOf(ExpressParser);
     expect((parser as ExpressParser).surfaceId).toBe('custom_surface');
-    expect((parser as ExpressParser).version).toBe('v1.0');
+    expect((parser as ExpressParser).version).toBe('1.0');
     expect((parser as ExpressParser).catalogs[0]).toBe(catalog1);
   });
 
@@ -138,12 +138,12 @@ describe('ExpressFormat', () => {
 
   describe('ExpressFormatFactory', () => {
     it('creates an ExpressFormat instance with factory options', () => {
-      const factory = new ExpressFormatFactory({surfaceId: 'factory_surface', version: 'v1.0'});
+      const factory = new ExpressFormatFactory({surfaceId: 'factory_surface', version: '1.0'});
       const format = factory.createFormat([catalog1]);
       expect(format).toBeInstanceOf(ExpressFormat);
       const parser = format.createParser() as ExpressParser;
       expect(parser.surfaceId).toBe('factory_surface');
-      expect(parser.version).toBe('v1.0');
+      expect(parser.version).toBe('1.0');
     });
 
     it('forwards allowedMessages and multi-turn examples to ExpressPromptGenerator', () => {
