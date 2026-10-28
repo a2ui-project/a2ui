@@ -1391,18 +1391,20 @@ class Catalog(Generic[TComponent, TFunction]):
         ) -> list[Any]:
             if wanted is None:
                 return list(own.values())
-            picked: list[Any] = []
+            # Keyed by name, so a later item replaces an earlier one of the
+            # same name and the replaced entry's schema leaves the catalog.
+            picked: dict[str, Any] = {}
             for item in wanted:
                 if not isinstance(item, str):
-                    picked.append(item)
+                    picked[item.name] = item
                     continue
                 if item not in own:
                     raise A2uiCatalogError(
                         f"Catalog '{self.catalog_id}' has no {kind} '{item}' to"
                         f" derive catalog '{catalog_id}' from."
                     )
-                picked.append(own[item])
-            return picked
+                picked[item] = own[item]
+            return list(picked.values())
 
         return self._rebuild(
             pick("component", self.components, components),

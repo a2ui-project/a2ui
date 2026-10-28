@@ -597,6 +597,31 @@ def test_derive_replaces_the_entry_of_the_same_name() -> None:
     assert derived.components["Spacer"] is spacer
 
 
+def test_derive_replaces_a_named_entry_with_a_new_entry_of_the_same_name() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+    label = ComponentApi(
+        "Label",
+        {
+            "type": "object",
+            "properties": {"component": {"const": "Label"}},
+            "required": ["component"],
+        },
+    )
+
+    derived = catalog.derive(
+        catalog_id="https://example.com/chat",
+        components=["Label", "Spacer", label],
+    )
+
+    assert list(derived.components) == ["Label", "Spacer"]
+    assert derived.components["Label"] is label
+    out = derived.to_json()
+    # `Weighted` was referenced only by the replaced Label.
+    assert "Weighted" not in out["$defs"]
+    # The union names the same components, so it is emitted as written.
+    assert out["$defs"]["anyComponent"] == _label_catalog()["$defs"]["anyComponent"]
+
+
 def test_derive_rejects_a_name_the_source_has_no_entry_of() -> None:
     catalog = Catalog.from_json(_label_catalog())
 
