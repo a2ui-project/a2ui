@@ -1,0 +1,117 @@
+/**
+ * Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* ==========================================================================
+   Starlight Global Theme Tokens & Markdown Polish
+   ========================================================================== */
+
+:root {
+  --sl-font: "Inter", "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --sl-font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Dark mode palette (Starlight default root is dark) */
+  --sl-color-accent-low: #0d3b38;
+  --sl-color-accent: #14b8a6;
+  --sl-color-accent-high: #99f6e4;
+  --sl-color-bg: #0b1120;
+  --sl-color-bg-nav: #0f172a;
+  --sl-color-bg-sidebar: #0d1526;
+  --sl-color-hairline-shade: #1e293b;
+  --sl-color-hairline-light: #1e293b;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ccfbf1;
+  --sl-color-accent: #0d9488;
+  --sl-color-accent-high: #115e59;
+  --sl-color-bg: #f8fafc;
+  --sl-color-bg-nav: #ffffff;
+  --sl-color-bg-sidebar: #f1f5f9;
+  --sl-color-hairline-shade: #e2e8f0;
+  --sl-color-hairline-light: #e2e8f0;
+}
+
+/* Polished Markdown typography & tables */
+.sl-markdown-content {
+  font-size: 1rem;
+  line-height: 1.72;
+}
+
+.sl-markdown-content h2 {
+  margin-top: 2.25rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  letter-spacing: -0.02em;
+}
+
+.sl-markdown-content h3 {
+  letter-spacing: -0.015em;
+}
+
+.sl-markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.92rem;
+}
+
+.sl-markdown-content th {
+  background: var(--sl-color-bg-sidebar);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* GitHub-flavored alert callouts rendered by remark-a2ui-includes */
+.a2-callout {
+  margin: 1.25rem 0;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border-left: 4px solid var(--sl-color-accent);
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.a2-callout__title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+  color: var(--sl-color-accent-high);
+}
+
+:root[data-theme='light'] .a2-callout__title {
+  color: var(--sl-color-accent);
+}
+
+.a2-callout--caution {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.a2-callout--caution .a2-callout__title {
+  color: #d97706;
+}
+
+.a2-callout--danger {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.a2-callout--danger .a2-callout__title {
+  color: #dc2626;
+}
