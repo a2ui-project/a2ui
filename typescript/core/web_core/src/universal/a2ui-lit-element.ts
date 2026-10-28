@@ -74,6 +74,7 @@ export abstract class A2uiLitElement<
 
   private _controller?: A2uiController<Api, Props>;
   private _controllerContext?: ComponentContext;
+  private _controllerNode?: ComponentNode;
 
   /**
    * The reactive controller instance managing property bindings and state subscriptions.
@@ -251,7 +252,7 @@ export abstract class A2uiLitElement<
    *
    * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
-  protected renderNode(childRef?: A2uiChildRef, customPath?: string) {
+  protected renderNode(childRef?: ComponentNode | A2uiChildRef, customPath?: string) {
     if (!childRef || !this.context?.dataContext) return nothing;
     const {surface, path: parentPath} = this.context.dataContext;
     if (!surface) {
@@ -263,16 +264,21 @@ export abstract class A2uiLitElement<
       return nothing;
     }
 
+    if (isComponentNode(childRef) && !customPath) {
+      return renderA2uiNode(childRef);
+    }
+
     let componentId: ComponentId | undefined;
     let path = customPath;
     if (typeof childRef === 'object') {
       componentId = (childRef as any).id || (childRef as any).componentId;
-      path = path ?? (childRef as any).basePath ?? (childRef as any).path;
+      path =
+        path ?? (childRef as any).basePath ?? (childRef as any).path ?? (childRef as any).dataPath;
     } else {
       componentId = childRef;
     }
 
-    if (!componentId || !surface.componentsModel?.get(componentId)) {
+    if (!componentId) {
       return nothing;
     }
 
@@ -285,6 +291,10 @@ export abstract class A2uiLitElement<
       }
     }
 
+    if (!surface.componentsModel?.get(componentId)) {
+      return nothing;
+    }
+
     const childContext = new ComponentContext(surface, componentId, path);
     const childCatalog: Catalog<WebComponentImplementation> = childContext.componentModel.catalog;
     return renderA2uiNode(childContext, childCatalog);
@@ -293,21 +303,26 @@ export abstract class A2uiLitElement<
   /**
    * Reacts to changes in the component's properties.
    *
-   * Specifically, when the `context` property changes or is initialized, this method
-   * cleans up any existing controller and invokes `createController()` to bind to
-   * the new context.
+   * Specifically, when the `node` or `context` property changes or is initialized,
+   * this method cleans up any existing controller and invokes `createController()`
+   * to bind to the new node or context.
    *
    * @param changedProperties Map of changed properties with their previous values.
    */
   override willUpdate(changedProperties: PropertyValues) {
     super.willUpdate(changedProperties);
+    const nodeChanged = changedProperties.has('node') && this.node !== this._controllerNode;
     let contextChanged = changedProperties.has('context');
     if (changedProperties.has('node') && this.node?.context && this.node.context !== this.context) {
       this.context = this.node.context;
       contextChanged = true;
     }
-    if (contextChanged && this.context) {
-      if (this._controller && bindsSameComponent(this._controllerContext, this.context)) {
+    if ((contextChanged || nodeChanged) && this.context) {
+      if (
+        this._controller &&
+        !nodeChanged &&
+        bindsSameComponent(this._controllerContext, this.context)
+      ) {
         this._controllerContext = this.context;
         return;
       }
@@ -317,6 +332,7 @@ export abstract class A2uiLitElement<
       }
       this._controller = this.createController();
       this._controllerContext = this.context;
+      this._controllerNode = this.node;
     }
   }
 
@@ -366,27 +382,37 @@ function findChildNode(
   componentId: string,
   dataPath: string,
 ): ComponentNode | undefined {
-  const visit = (value: unknown): ComponentNode | undefined => {
-    if (isComponentNode(value)) {
-      return value.componentId === componentId && value.dataPath === dataPath ? value : undefined;
-    }
-    if (value instanceof ResolvedBinding) {
-      return visit(value.value);
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const found = visit(item);
-        if (found) return found;
-      }
-      return undefined;
-    }
-    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
-      for (const item of Object.values(value)) {
-        const found = visit(item);
-        if (found) return found;
-      }
-    }
-    return undefined;
-  };
-  return visit(peekValue(parent.props));
+  return visitChildValue(peekValue(parent.props), componentId, dataPath);
+}
+
+function visitChildValue(
+  value: unknown,
+  componentId: string,
+  dataPath: string,
+): ComponentNode | undefined {
+  if (isComponentNode(value)) {
+    return value.componentId === componentId && value.dataPath === dataPath ? value : undefined;
+  }
+  if (value instanceof ResolvedBinding) {
+    return visitChildValue(value.value, componentId, dataPath);
+  }
+  if (Array.isArray(value)) {
+    return visitChildList(value, componentId, dataPath);
+  }
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return visitChildList(Object.values(value), componentId, dataPath);
+  }
+  return undefined;
+}
+
+function visitChildList(
+  items: unknown[],
+  componentId: string,
+  dataPath: string,
+): ComponentNode | undefined {
+  for (const item of items) {
+    const found = visitChildValue(item, componentId, dataPath);
+    if (found) return found;
+  }
+  return undefined;
 }

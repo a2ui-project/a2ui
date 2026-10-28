@@ -185,7 +185,10 @@ describe('A2uiSurface', () => {
 
     await el.updateComplete;
     assert.strictEqual(el.shadowRoot, null);
-    assert.ok(el.querySelector('a2ui-basic-text'));
+    const childEl = el.querySelector('a2ui-basic-text') as any;
+    assert.ok(childEl);
+    assert.ok(el.rootNode, 'Surface should expose resolved rootNode');
+    assert.strictEqual(childEl.node, el.rootNode, 'Root element should receive resolved rootNode');
 
     document.body.removeChild(el);
   });

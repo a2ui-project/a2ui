@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `<a2ui-surface>` manages a per-surface `NodeResolver`, exposes `rootNode`, and renders the resolved root `ComponentNode` via `renderA2uiNode`. [#3691](https://github.com/a2ui-project/a2ui/pull/3691)
+
 ## 0.14.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.

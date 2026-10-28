@@ -311,6 +311,15 @@ describe('A2uiLitElement', () => {
 
     // A child that is still a placeholder renders nothing.
     assert.strictEqual((el as any).renderNode('missing'), nothing);
+    // Passing a ComponentNode directly to renderNode renders it directly.
+    assert.notStrictEqual((el as any).renderNode(childNode), nothing);
+
+    // Replacing the assigned node with a different ComponentNode recreates the controller.
+    await asyncUpdate(el, (e: any) => {
+      e.node = childNode;
+    });
+    assert.strictEqual(disposedCount, 1);
+    assert.strictEqual(controllerCreatedCount, 2);
 
     document.body.removeChild(el);
     resolver.dispose();
