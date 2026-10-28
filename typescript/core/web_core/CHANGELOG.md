@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Restore pre-1.0 call sites that the 1.0 API changes broke, without changing the 1.0 signatures:
+- Restore pre-1.0 call sites that the 1.0 API changes broke, without changing the 1.0 signatures ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)):
   - `new Catalog(id, components?, functions?, themeSchemaOrOptions?, instructions?)` without a `protocolVersion` constructs a `'0.9'` catalog (deprecated overload). `new Catalog(id, protocolVersion, ...)` is unchanged.
   - `new SurfaceModel(id, catalog, theme, sendDataModel?, dataModel?)` with a plain object in the third slot is read in the 0.9.x order: the object is the theme and the arguments after it shift. A `Map` is still `availableCatalogs`, and an array still throws.
   - The deprecated `SurfaceModel.catalog` getter is typed `Catalog<T, F>` again, since every pre-1.0 surface has a default catalog.

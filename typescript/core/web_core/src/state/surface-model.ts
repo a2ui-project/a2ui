@@ -145,6 +145,24 @@ export class SurfaceModel<
    */
   readonly protocolVersion: string | undefined;
 
+  /** Theme visual configuration for this surface. */
+  readonly theme: any;
+
+  /** Whether the surface sends its full data model back with actions. */
+  readonly sendDataModel: boolean;
+
+  /**
+   * Initializes a new `SurfaceModel` with the pre-1.0 argument order.
+   *
+   * @deprecated Pass `availableCatalogs` (or `undefined`) as the third argument instead.
+   */
+  constructor(
+    id: string,
+    defaultCatalog: Catalog<T, F> | undefined,
+    theme: Record<string, any>,
+    sendDataModel?: boolean,
+    dataModel?: DataModel,
+  );
   /**
    * Initializes a new `SurfaceModel` instance.
    *
@@ -169,19 +187,30 @@ export class SurfaceModel<
    *   explicitly.
    */
   constructor(
+    id: string,
+    defaultCatalog: Catalog<T, F> | undefined,
+    availableCatalogs?: ReadonlyMap<string, Catalog<T, F>> | Record<string, any> | null,
+    theme?: any,
+    sendDataModel?: boolean,
+    dataModel?: DataModel,
+    rootId?: string,
+    metadata?: Record<string, unknown>,
+    protocolVersion?: string,
+  );
+  constructor(
     readonly id: string,
     /**
      * Catalog that resolves components and functions that do not name a
      * catalog explicitly, or `undefined` when the surface names none.
      */
     readonly defaultCatalog: Catalog<T, F> | undefined,
-    availableCatalogs:
+    availableCatalogsOrTheme:
       | ReadonlyMap<string, Catalog<T, F>>
-      | Record<string, unknown>
+      | Record<string, any>
       | null
       | undefined = new Map(),
-    readonly theme: any = {},
-    readonly sendDataModel: boolean = false,
+    themeOrSendDataModel: any = {},
+    sendDataModelOrDataModel: boolean | DataModel = false,
     dataModel?: DataModel,
     /** Identifier of the root component on this surface (defaults to `'root'`). */
     readonly rootId: string = 'root',
@@ -192,22 +221,29 @@ export class SurfaceModel<
     this.protocolVersion = canonicalProtocolVersion(
       protocolVersion ?? defaultCatalog?.protocolVersion,
     );
+    let availableCatalogs: ReadonlyMap<string, Catalog<T, F>> | null | undefined;
+    let theme: any = {};
+    let sendDataModel = false;
+
     if (
-      availableCatalogs !== undefined &&
-      availableCatalogs !== null &&
-      !(availableCatalogs instanceof Map)
+      availableCatalogsOrTheme !== undefined &&
+      availableCatalogsOrTheme !== null &&
+      !(availableCatalogsOrTheme instanceof Map)
     ) {
-      if (typeof availableCatalogs === 'object' && !Array.isArray(availableCatalogs)) {
+      if (
+        typeof availableCatalogsOrTheme === 'object' &&
+        !Array.isArray(availableCatalogsOrTheme)
+      ) {
         // Legacy v0.9 signature:
         // `new SurfaceModel(id, catalog, theme, sendDataModel?, dataModel?)`.
         // A plain object in the third slot is the theme of a pre-1.0 caller,
         // which had no catalogs to pass here, so the arguments after it
         // shift by one as well.
-        this.theme = availableCatalogs;
-        this.sendDataModel = theme === true;
+        theme = availableCatalogsOrTheme;
+        sendDataModel = themeOrSendDataModel === true;
         dataModel =
-          (sendDataModel as unknown) instanceof DataModel
-            ? (sendDataModel as unknown as DataModel)
+          (sendDataModelOrDataModel as unknown) instanceof DataModel
+            ? (sendDataModelOrDataModel as unknown as DataModel)
             : undefined;
         availableCatalogs = undefined;
       } else {
@@ -215,7 +251,13 @@ export class SurfaceModel<
           'availableCatalogs must be a Map, or undefined/null. Note that availableCatalogs is now the 3rd argument to SurfaceModel and theme is the 4th argument.',
         );
       }
+    } else {
+      availableCatalogs = availableCatalogsOrTheme;
+      theme = themeOrSendDataModel ?? {};
+      sendDataModel = Boolean(sendDataModelOrDataModel);
     }
+    this.theme = theme;
+    this.sendDataModel = sendDataModel;
     const catalogs = new Map(availableCatalogs ?? []);
     if (defaultCatalog?.id && !catalogs.has(defaultCatalog.id)) {
       catalogs.set(defaultCatalog.id, defaultCatalog);

@@ -1045,6 +1045,22 @@ describe('MessageProcessor', () => {
       assert.strictEqual(proc.getSurface('s1'), undefined);
     });
 
+    it('unwraps messages wrapper in unversioned payload', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({
+        messages: [{createSurface: {surfaceId: 's1', catalogId: 'test-cat'}}],
+      } as any);
+      assert.ok(proc.getSurface('s1'));
+    });
+
+    it('treats an unversioned envelope as v0.9.1 when registered catalog is 0.9.1', () => {
+      const cat = new Catalog('test-cat', '0.9.1', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({createSurface: {surfaceId: 's1', catalogId: 'test-cat'}} as any);
+      assert.ok(proc.getSurface('s1'));
+    });
+
     it('keeps rejecting unversioned envelopes with a v1.0 catalog or a validationConfig', () => {
       const unversioned = {createSurface: {surfaceId: 's1', catalogId: 'test-cat'}} as any;
       const withV10 = new MessageProcessor([

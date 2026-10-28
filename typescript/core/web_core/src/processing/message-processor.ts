@@ -584,7 +584,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       adapter = this.adapterRegistry.resolveFromPayload(messages);
     } catch (err) {
       if (this.isImplicitV09Payload(messages)) {
-        adapter = this.adapterRegistry.getAdapter('v0.9');
+        const hasV091 = this.catalogs.some(
+          c => c.protocolVersion === '0.9.1' || c.protocolVersion === 'v0.9.1',
+        );
+        adapter = this.adapterRegistry.getAdapter(hasV091 ? 'v0.9.1' : 'v0.9');
       } else {
         throw err;
       }
@@ -608,7 +611,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     ) {
       return false;
     }
-    const item = Array.isArray(messages) ? messages[0] : messages;
+    let item = Array.isArray(messages) ? messages[0] : messages;
+    if (
+      typeof item === 'object' &&
+      item !== null &&
+      'messages' in item &&
+      Array.isArray((item as {messages?: unknown}).messages)
+    ) {
+      item = (item as {messages: unknown[]}).messages[0];
+    }
     if (typeof item !== 'object' || item === null || 'version' in item) {
       return false;
     }

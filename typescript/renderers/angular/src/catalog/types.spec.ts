@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import {Component} from '@angular/core';
-import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
-import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
-import {AngularCatalog, createComponentImplementation} from './types';
-import {UniversalOnlyComponent} from './universal_only.component';
-import {BASIC_COMPONENTS} from '../v0_9/catalog/basic/basic-catalog';
-import {CatalogComponent} from '../core/catalog_component';
-import {z} from 'zod';
+import { Component } from '@angular/core';
+import { ComponentApi } from '@a2ui/web_core/v0_9';
+import { A2uiText } from '@a2ui/web_core/v0_9/basic_catalog';
+import { isWebComponentImplementation } from '@a2ui/web_core/v0_9/universal';
+import { AngularCatalog, createComponentImplementation } from './types';
+import { UniversalOnlyComponent } from './universal_only.component';
+import { BASIC_COMPONENTS } from '../v0_9/catalog/basic/basic-catalog';
+import { CatalogComponent } from '../core/catalog_component';
+import { z } from 'zod';
 
 @Component({
   selector: 'test-comp',
@@ -54,7 +54,7 @@ describe('createComponentImplementation', () => {
 
   it('wraps a plain ComponentApi into a Web Component so universal containers can render it', () => {
     const impl = createComponentImplementation(
-      {name: 'WrappedComp', schema: z.object({})},
+      { name: 'WrappedComp', schema: z.object({}) },
       WrappedComponent,
     );
 
@@ -106,10 +106,10 @@ describe('AngularCatalog & Catalog Types', () => {
   });
 
   it('defaults to v0.9 when constructed with the pre-1.0 argument order', () => {
-    const themeSchema = z.object({primaryColor: z.string()});
+    const themeSchema = z.object({ primaryColor: z.string() });
     const catalog = new AngularCatalog(
       'legacy-catalog',
-      [{name: 'CustomTest', schema: z.object({}), component: TestCustomComponent}],
+      [{ name: 'CustomTest', schema: z.object({}), component: TestCustomComponent }],
       [],
       themeSchema,
       'Use it',
@@ -122,6 +122,10 @@ describe('AngularCatalog & Catalog Types', () => {
     const bare = new AngularCatalog('bare-catalog');
     expect(bare.protocolVersion).toBe('0.9');
     expect(bare.components.size).toBe(0);
+
+    const undefComp = new AngularCatalog('undef-catalog', undefined, [], themeSchema, 'Use it');
+    expect(undefComp.protocolVersion).toBe('0.9');
+    expect(undefComp.components.size).toBe(0);
 
     const v10 = new AngularCatalog('v10-catalog', '1.0');
     expect(v10.protocolVersion).toBe('1.0');
@@ -158,14 +162,14 @@ describe('AngularCatalog & Catalog Types', () => {
 
   it('exports BASIC_COMPONENTS with 18 native components by default', () => {
     expect(BASIC_COMPONENTS.length).toBe(18);
-    const textComp = BASIC_COMPONENTS.find(c => c.name === 'Text');
+    const textComp = BASIC_COMPONENTS.find((c) => c.name === 'Text');
     expect(textComp).toBeDefined();
     expect(textComp?.component).toBeDefined();
   });
 
   it('creates an AngularComponentImplementation via createComponentImplementation', () => {
-    const schema = z.object({value: z.string()});
-    const impl = createComponentImplementation({name: 'CustomItem', schema}, TestCustomComponent);
+    const schema = z.object({ value: z.string() });
+    const impl = createComponentImplementation({ name: 'CustomItem', schema }, TestCustomComponent);
     expect(impl.name).toBe('CustomItem');
     expect(impl.schema).toBe(schema);
     expect(impl.component).toBe(TestCustomComponent);

@@ -72,6 +72,17 @@ describe('Catalog Types', () => {
     assert.strictEqual(bare.protocolVersion, '0.9');
     assert.strictEqual(bare.components.size, 0);
     assert.strictEqual(bare.functions.size, 0);
+
+    const withUndefinedComponents = new Catalog(
+      'undef-comp-cat',
+      undefined,
+      [mockFunc],
+      themeSchema,
+      'Use it',
+    );
+    assert.strictEqual(withUndefinedComponents.protocolVersion, '0.9');
+    assert.strictEqual(withUndefinedComponents.components.size, 0);
+    assert.strictEqual(withUndefinedComponents.functions.get('mockFunc'), mockFunc);
   });
 
   it('keeps the 1.0 argument order when a protocol version is given', () => {

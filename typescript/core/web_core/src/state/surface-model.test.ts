@@ -240,9 +240,9 @@ describe('SurfaceModel', () => {
     const legacy = new SurfaceModel(
       'surface-legacy',
       v09Catalog,
-      {primaryColor: 'red'} as any,
-      true as any,
-      customData as any,
+      {primaryColor: 'red'},
+      true,
+      customData,
     );
     assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
     assert.strictEqual(legacy.sendDataModel, true);

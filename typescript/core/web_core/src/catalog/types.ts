@@ -757,8 +757,8 @@ export class Catalog<
   );
   constructor(
     id: string,
-    protocolVersionOrComponents: ProtocolVersion | string | ReadonlyArray<T> = '0.9',
-    componentsOrFunctions: ReadonlyArray<T> | ReadonlyArray<F> = [],
+    protocolVersionOrComponents?: ProtocolVersion | string | ReadonlyArray<T>,
+    componentsOrFunctions?: ReadonlyArray<T> | ReadonlyArray<F>,
     functionsOrThemeSchemaOrOptions?: ReadonlyArray<F> | z.ZodTypeAny | CatalogOptions,
     themeSchemaOrOptionsOrInstructions?: z.ZodTypeAny | CatalogOptions | string,
     instructions?: string,

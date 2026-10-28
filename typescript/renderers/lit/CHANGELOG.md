@@ -1,6 +1,6 @@
 ## Unreleased
 
-- `<a2ui-surface>` tolerates a surface whose `componentsModel` has no `onCreated` or `onDeleted` event source, such as a partial test double, instead of throwing while subscribing to the root.
+- `<a2ui-surface>` tolerates a surface whose `componentsModel` has no `onCreated` or `onDeleted` event source, such as a partial test double, instead of throwing while subscribing to the root ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
 
 ## 0.14.0
 
