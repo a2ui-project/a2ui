@@ -180,48 +180,48 @@ public enum GraphTopologyValidator {
     let childID = ref.referenceID
     guard let childInfo = componentMeta[childID] else { return }
 
-    let parentCompAPI = lookupComponentAPI(
+    let parentComponentAPI = lookupComponentAPI(
       type: parentInfo.type,
       catalogID: parentInfo.catalogID,
       catalogs: catalogs,
       defaultCatalogID: defaultCatalogID
     )
-    let childCompAPI = lookupComponentAPI(
+    let childComponentAPI = lookupComponentAPI(
       type: childInfo.type,
       catalogID: childInfo.catalogID,
       catalogs: catalogs,
       defaultCatalogID: defaultCatalogID
     )
 
-    if let allowedChildren = parentCompAPI?.allowedChildren,
-      !allowedChildren.contains(childInfo.type)
-    {
-      let allowedFormatted = allowedChildren.map { "'\($0)'" }.joined(separator: ", ")
-      let msg =
-        "Container '\(parentID)' (\(parentInfo.type)) cannot contain child "
-        + "'\(childID)' (\(childInfo.type)). Allowed children: [\(allowedFormatted)]."
-      let pointerField = toJSONPointerSegment(ref.field)
-      let detail = A2UIErrorDetail(
-        path: "/components/\(parentInfo.index)/\(pointerField)",
-        code: "UNALLOWED_CHILD",
-        message: msg
-      )
-      throw A2UIValidationError(msg, details: [detail])
+    if let allowedChildren = parentComponentAPI?.allowedChildren {
+      guard allowedChildren.contains(childInfo.type) else {
+        let allowedFormatted = allowedChildren.map { "'\($0)'" }.joined(separator: ", ")
+        let message =
+          "Container '\(parentID)' (\(parentInfo.type)) cannot contain child "
+          + "'\(childID)' (\(childInfo.type)). Allowed children: [\(allowedFormatted)]."
+        let pointerField = toJSONPointerSegment(ref.field)
+        let detail = A2UIErrorDetail(
+          path: "/components/\(parentInfo.index)/\(pointerField)",
+          code: "UNALLOWED_CHILD",
+          message: message
+        )
+        throw A2UIValidationError(message, details: [detail])
+      }
     }
 
-    if let allowedParents = childCompAPI?.allowedParents,
-      !allowedParents.contains(parentInfo.type)
-    {
-      let allowedFormatted = allowedParents.map { "'\($0)'" }.joined(separator: ", ")
-      let msg =
-        "Component '\(childID)' (\(childInfo.type)) cannot be placed under parent "
-        + "'\(parentID)' (\(parentInfo.type)). Allowed parents: [\(allowedFormatted)]."
-      let detail = A2UIErrorDetail(
-        path: "/components/\(childInfo.index)",
-        code: "UNALLOWED_PARENT",
-        message: msg
-      )
-      throw A2UIValidationError(msg, details: [detail])
+    if let allowedParents = childComponentAPI?.allowedParents {
+      guard allowedParents.contains(parentInfo.type) else {
+        let allowedFormatted = allowedParents.map { "'\($0)'" }.joined(separator: ", ")
+        let message =
+          "Component '\(childID)' (\(childInfo.type)) cannot be placed under parent "
+          + "'\(parentID)' (\(parentInfo.type)). Allowed parents: [\(allowedFormatted)]."
+        let detail = A2UIErrorDetail(
+          path: "/components/\(childInfo.index)",
+          code: "UNALLOWED_PARENT",
+          message: message
+        )
+        throw A2UIValidationError(message, details: [detail])
+      }
     }
   }
 

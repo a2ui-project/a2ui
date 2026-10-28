@@ -700,15 +700,17 @@ public final class PayloadValidator: Sendable {
     propertyPath: String,
     componentNamesCatalog: Bool
   ) throws {
-    if enforceIdentifiers, dict["catalogId"] != nil, dict["catalogId"]?.stringValue == nil {
-      throw CatalogResolutionErrors.nonStringCatalogID(
-        path: CatalogResolutionErrors.callCatalogIDPath(functionName: rawName)
-      )
-    }
-    if enforceIdentifiers, let rawArgs = dict["args"], rawArgs != .null,
-      rawArgs.objectValue == nil
-    {
-      throw CatalogResolutionErrors.nonObjectArguments(functionName: rawName)
+    if enforceIdentifiers {
+      guard dict["catalogId"] == nil || dict["catalogId"]?.stringValue != nil else {
+        throw CatalogResolutionErrors.nonStringCatalogID(
+          path: CatalogResolutionErrors.callCatalogIDPath(functionName: rawName)
+        )
+      }
+      if let rawArgs = dict["args"], rawArgs != .null {
+        guard rawArgs.objectValue != nil else {
+          throw CatalogResolutionErrors.nonObjectArguments(functionName: rawName)
+        }
+      }
     }
     let rawArgs = dict["args"]?.dictionaryValue
 
@@ -728,7 +730,11 @@ public final class PayloadValidator: Sendable {
         try assertFunctionIdentifiers(name: rawName, args: rawArgs)
       }
     } catch let error as A2UIValidationError {
-      throw Self.remapNestedFunctionError(error, functionName: rawName, propertyPath: propertyPath)
+      throw Self.remapNestedFunctionError(
+        error,
+        functionName: rawName,
+        propertyPath: propertyPath
+      )
     }
   }
 

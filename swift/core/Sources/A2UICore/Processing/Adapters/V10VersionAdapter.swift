@@ -114,7 +114,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
   private func parseSendDataModel(_ rawSend: JSONValue?) throws -> Bool {
     guard let rawSend, rawSend != .null else { return false }
-    guard let boolVal = rawSend.boolValue else {
+    guard let booleanValue = rawSend.boolValue else {
       throw A2UIValidationError(
         "Invalid v1.0 message: createSurface.sendDataModel must be a boolean",
         details: [
@@ -126,14 +126,14 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         ]
       )
     }
-    return boolVal
+    return booleanValue
   }
 
   private func parseCreateSurfaceDataModel(
     _ rawDataModel: JSONValue?
   ) throws -> [String: JSONValue]? {
     guard let rawDataModel, rawDataModel != .null else { return nil }
-    guard let dmObj = rawDataModel.objectValue else {
+    guard let dataModel = rawDataModel.dictionaryValue else {
       throw A2UIValidationError(
         "Invalid v1.0 message: createSurface.dataModel must be an object",
         details: [
@@ -145,7 +145,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         ]
       )
     }
-    return Dictionary(uniqueKeysWithValues: dmObj.map { ($0.key, $0.value) })
+    return dataModel
   }
 
   private func extractUpdateComponentsOp(
@@ -217,7 +217,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
   private func parseUpdateDataModelPath(_ rawPath: JSONValue?) throws -> String {
     guard let rawPath, rawPath != .null else { return "/" }
-    guard let pathStr = rawPath.stringValue else {
+    guard let path = rawPath.stringValue else {
       throw A2UIValidationError(
         "Invalid v1.0 message: updateDataModel.path must be a string",
         details: [
@@ -229,7 +229,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         ]
       )
     }
-    if !pathStr.isEmpty && !pathStr.hasPrefix("/") {
+    guard path.isEmpty || path.hasPrefix("/") else {
       throw A2UIValidationError(
         "Invalid v1.0 message: updateDataModel.path must start with '/'",
         details: [
@@ -241,7 +241,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         ]
       )
     }
-    return pathStr.isEmpty ? "/" : pathStr
+    return path.isEmpty ? "/" : path
   }
 
   private func extractDeleteSurfaceOp(
@@ -365,8 +365,9 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     }
     var args: [String: JSONValue]?
     if let rawArgs = callFunctionObj["args"], rawArgs != .null {
-      guard let argsObj = rawArgs.objectValue else {
-        let msg = "Invalid v1.0 message: callRendererFunction.callFunction.args must be an object"
+      guard let argsDictionary = rawArgs.dictionaryValue else {
+        let msg =
+          "Invalid v1.0 message: callRendererFunction.callFunction.args must be an object"
         throw A2UIValidationError(
           msg,
           details: [
@@ -378,7 +379,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
           ]
         )
       }
-      args = Dictionary(uniqueKeysWithValues: argsObj.map { ($0.key, $0.value) })
+      args = argsDictionary
     }
     return (call, catalogID, args)
   }
@@ -398,7 +399,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     )
     let hasValue = actionObject["value"] != nil
     let hasError = actionObject["error"] != nil
-    if !hasValue && !hasError {
+    guard hasValue || hasError else {
       throw A2UIValidationError(
         "Invalid v1.0 message: agentFunctionResponse must contain either 'value' or 'error'",
         details: [
@@ -410,7 +411,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         ]
       )
     }
-    if hasValue && hasError {
+    guard !(hasValue && hasError) else {
       throw A2UIValidationError(
         "Invalid v1.0 message: agentFunctionResponse cannot contain both 'value' and 'error'",
         details: [
@@ -440,13 +441,16 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     _ rawError: JSONValue?
   ) throws -> FunctionErrorPayload? {
     guard let rawError else { return nil }
-    guard let errObj = rawError.objectValue,
-      errObj.keys.allSatisfy({ $0 == "code" || $0 == "message" }),
-      let code = errObj["code"]?.stringValue,
-      let errMessage = errObj["message"]?.stringValue
+    guard let errorObject = rawError.objectValue,
+      errorObject.keys.allSatisfy({ $0 == "code" || $0 == "message" }),
+      let code = errorObject["code"]?.stringValue,
+      let errorMessage = errorObject["message"]?.stringValue
     else {
+      let message =
+        "Invalid v1.0 message: agentFunctionResponse.error must be an object "
+        + "with 'code' and 'message'"
       throw A2UIValidationError(
-        "Invalid v1.0 message: agentFunctionResponse.error must be an object with 'code' and 'message'",
+        message,
         details: [
           A2UIErrorDetail(
             path: "messages.0.agentFunctionResponse.error",
@@ -456,7 +460,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         ]
       )
     }
-    return FunctionErrorPayload(code: code, message: errMessage)
+    return FunctionErrorPayload(code: code, message: errorMessage)
   }
 
   private func parseV10ComponentsArray(

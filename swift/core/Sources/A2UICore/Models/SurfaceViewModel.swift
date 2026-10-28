@@ -77,49 +77,21 @@ public final class SurfaceViewModel: ObservableObject {
     protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
-    let compatibleCatalogs: [String: AnyCatalog]
-    if let protocolVersion {
-      compatibleCatalogs = catalogs.filter { _, cat in
-        guard let catVer = cat.a2uiProtocolVersion else { return true }
-        return catVer.isAtLeastV10 == protocolVersion.isAtLeastV10
-      }
-    } else {
-      compatibleCatalogs = catalogs
-    }
+    let compatibleCatalogs = catalogs.filterCompatible(with: protocolVersion)
     self.catalogs = compatibleCatalogs
-    let allCatalogsAtLeastV10 =
-      !compatibleCatalogs.isEmpty && compatibleCatalogs.values.allSatisfy(\.isAtLeastV10)
-    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
-    let resolvedDefaultCatalogID: String?
-    if let defaultCatalogID {
-      resolvedDefaultCatalogID = defaultCatalogID
-    } else if !isAtLeastV10, compatibleCatalogs.count == 1 {
-      resolvedDefaultCatalogID = compatibleCatalogs.keys.first
-    } else {
-      resolvedDefaultCatalogID = nil
-    }
+    let resolvedDefaultCatalogID = compatibleCatalogs.resolveDefaultCatalogID(
+      explicitDefaultID: defaultCatalogID,
+      protocolVersion: protocolVersion
+    )
     self.defaultCatalogID = resolvedDefaultCatalogID
     self.theme = theme
     self.metadata = metadata
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
-    let explicitVersion: A2UIProtocolVersion?
-    if let protocolVersion {
-      explicitVersion = protocolVersion
-    } else if let resolvedDefaultCatalogID,
-      let defaultCat = compatibleCatalogs[resolvedDefaultCatalogID],
-      let catVer = defaultCat.a2uiProtocolVersion
-    {
-      explicitVersion = catVer
-    } else if allCatalogsAtLeastV10 {
-      explicitVersion = .v10
-    } else if compatibleCatalogs.count == 1,
-      let onlyCatVer = compatibleCatalogs.values.first?.a2uiProtocolVersion
-    {
-      explicitVersion = onlyCatVer
-    } else {
-      explicitVersion = nil
-    }
+    let explicitVersion = compatibleCatalogs.resolveExplicitProtocolVersion(
+      requestedVersion: protocolVersion,
+      defaultCatalogID: resolvedDefaultCatalogID
+    )
     self.protocolVersion = explicitVersion ?? .v091
     self.dataModel = DataModel()
     self.componentsModel = SurfaceComponentsModel()

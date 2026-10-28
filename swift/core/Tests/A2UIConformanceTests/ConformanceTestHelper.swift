@@ -843,30 +843,30 @@ public enum ConformanceTestHelper {
     {
       return true
     }
-    if expected.contains("is not of type")
-      && (actual.contains("type") || actual.contains("Expected type"))
+    if expected.contains("is not of type"),
+      actual.contains("type") || actual.contains("Expected type")
     {
       return true
     }
-    if expected == "missing an 'id'" && actual.contains("Missing required key 'id'") {
+    if expected == "missing an 'id'", actual.contains("Missing required key 'id'") {
       return true
     }
-    if expected.contains("without a type") && actual.contains("Missing required key 'component'") {
+    if expected.contains("without a type"), actual.contains("Missing required key 'component'") {
       return true
     }
-    if expected == "Circular reference detected" && actual.contains("Self-reference detected:") {
+    if expected == "Circular reference detected", actual.contains("Self-reference detected:") {
       return true
     }
-    if expected == "Orphaned component" && actual.contains("is not reachable from 'root'") {
+    if expected == "Orphaned component", actual.contains("is not reachable from 'root'") {
       return true
     }
-    if expected.contains("is not supported in protocol version")
-      && actual.contains("must contain exactly one update action")
+    if expected.contains("is not supported in protocol version"),
+      actual.contains("must contain exactly one update action")
     {
       return true
     }
-    if expected == "Missing required version field"
-      && actual.contains("missing a valid 'version' string")
+    if expected == "Missing required version field",
+      actual.contains("missing a valid 'version' string")
     {
       return true
     }
@@ -954,33 +954,33 @@ public struct ConformanceStep: Sendable {
 }
 
 /// Expected renderer-to-agent error structure in conformance YAML suites.
-public struct ConformanceExpectRendererError: Sendable {
-  public let code: String?
-  public let surfaceID: String?
-  public let surfaceIDIsNil: Bool
-  public let functionCallID: String?
-  public let path: String?
-  public let message: String?
-
-  public init(
-    code: String? = nil,
-    surfaceID: String? = nil,
-    surfaceIDIsNil: Bool = false,
-    functionCallID: String? = nil,
-    path: String? = nil,
-    message: String? = nil
-  ) {
-    self.code = code
-    self.surfaceID = surfaceID
-    self.surfaceIDIsNil = surfaceIDIsNil
-    self.functionCallID = functionCallID
-    self.path = path
-    self.message = message
-  }
-}
-
 /// Expected error specifications for conformance assertions.
 public struct ConformanceExpectError: Sendable {
+  public struct RendererError: Sendable {
+    public let code: String?
+    public let surfaceID: String?
+    public let surfaceIDIsNil: Bool
+    public let functionCallID: String?
+    public let path: String?
+    public let message: String?
+
+    public init(
+      code: String? = nil,
+      surfaceID: String? = nil,
+      surfaceIDIsNil: Bool = false,
+      functionCallID: String? = nil,
+      path: String? = nil,
+      message: String? = nil
+    ) {
+      self.code = code
+      self.surfaceID = surfaceID
+      self.surfaceIDIsNil = surfaceIDIsNil
+      self.functionCallID = functionCallID
+      self.path = path
+      self.message = message
+    }
+  }
+
   public let category: String?
   public let code: String?
   public let surfaceID: String?
@@ -988,7 +988,7 @@ public struct ConformanceExpectError: Sendable {
   public let path: String?
   public let message: String?
   public let details: [A2UIErrorDetail]?
-  public let rendererError: ConformanceExpectRendererError?
+  public let rendererError: RendererError?
 
   public init(
     category: String? = nil,
@@ -998,7 +998,7 @@ public struct ConformanceExpectError: Sendable {
     path: String? = nil,
     message: String? = nil,
     details: [A2UIErrorDetail]? = nil,
-    rendererError: ConformanceExpectRendererError? = nil
+    rendererError: RendererError? = nil
   ) {
     self.category = category
     self.code = code
@@ -1010,6 +1010,8 @@ public struct ConformanceExpectError: Sendable {
     self.rendererError = rendererError
   }
 }
+
+public typealias ConformanceExpectRendererError = ConformanceExpectError.RendererError
 
 extension ConformanceTestHelper {
   public static func parsePayload(_ payload: JSONValue) throws -> [AgentToRendererMessage] {

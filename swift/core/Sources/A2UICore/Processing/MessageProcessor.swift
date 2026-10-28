@@ -457,7 +457,22 @@ public final class MessageProcessor: ObservableObject {
       }
     } catch {
       let surfaceID = extractSurfaceID(from: error, fallback: message.surfaceID ?? "")
-      let clientError = errorMapper.map(error, surfaceID: surfaceID, version: message.version)
+      let isCallRendererFunction: Bool
+      let functionCallID: String?
+      if case .callRendererFunction(let payload) = message {
+        functionCallID = payload.functionCallID
+        isCallRendererFunction = true
+      } else {
+        functionCallID = nil
+        isCallRendererFunction = false
+      }
+      let clientError = errorMapper.map(
+        error,
+        surfaceID: surfaceID,
+        functionCallID: functionCallID,
+        isCallRendererFunction: isCallRendererFunction,
+        version: message.version
+      )
       forwardError(clientError, from: surfaceID)
     }
   }
@@ -479,7 +494,22 @@ public final class MessageProcessor: ObservableObject {
     } catch {
       let surfaceID = extractSurfaceID(from: error, fallback: operation.surfaceID ?? "")
       let version = resolveVersion(for: operation, surfaceID: surfaceID)
-      let clientError = errorMapper.map(error, surfaceID: surfaceID, version: version)
+      let isCallRendererFunction: Bool
+      let functionCallID: String?
+      if case .callRendererFunction(let op) = operation {
+        functionCallID = op.functionCallID
+        isCallRendererFunction = true
+      } else {
+        functionCallID = nil
+        isCallRendererFunction = false
+      }
+      let clientError = errorMapper.map(
+        error,
+        surfaceID: surfaceID,
+        functionCallID: functionCallID,
+        isCallRendererFunction: isCallRendererFunction,
+        version: version
+      )
       forwardError(clientError, from: surfaceID)
     }
   }
@@ -565,13 +595,13 @@ public final class MessageProcessor: ObservableObject {
       return extractContextFromMessageObject(messageObjects[failingIndex])
     }
     var merged = RawEnvelopeContext()
-    for obj in messageObjects {
-      let ctx = extractContextFromMessageObject(obj)
-      if ctx.isCallRendererFunction {
-        return ctx
+    for messageObject in messageObjects {
+      let context = extractContextFromMessageObject(messageObject)
+      if context.isCallRendererFunction {
+        return context
       }
-      if let sid = ctx.surfaceID {
-        merged.surfaceID = sid
+      if let surfaceID = context.surfaceID {
+        merged.surfaceID = surfaceID
       }
     }
     return merged
@@ -600,10 +630,10 @@ public final class MessageProcessor: ObservableObject {
       return nil
     }
     let segments = path.split(separator: ".")
-    guard segments.count >= 2, segments[0] == "messages", let idx = Int(segments[1]) else {
+    guard segments.count >= 2, segments[0] == "messages", let index = Int(segments[1]) else {
       return nil
     }
-    return idx
+    return index
   }
 
   private static let surfaceEnvelopeKeys: [String] = [
@@ -617,21 +647,21 @@ public final class MessageProcessor: ObservableObject {
   ]
 
   private func extractContextFromMessageObject(
-    _ dict: OrderedDictionary<String, JSONValue>
+    _ dictionary: OrderedDictionary<String, JSONValue>
   ) -> RawEnvelopeContext {
-    if dict["callRendererFunction"] != nil {
-      let crf = dict["callRendererFunction"]?.objectValue
+    if dictionary["callRendererFunction"] != nil {
+      let callObject = dictionary["callRendererFunction"]?.objectValue
       return RawEnvelopeContext(
-        surfaceID: crf?["surfaceId"]?.stringValue,
-        functionCallID: crf?["functionCallId"]?.stringValue,
+        surfaceID: callObject?["surfaceId"]?.stringValue,
+        functionCallID: callObject?["functionCallId"]?.stringValue,
         isCallRendererFunction: true
       )
     }
     for key in Self.surfaceEnvelopeKeys {
-      if let actionObj = dict[key]?.objectValue,
-        let sid = actionObj["surfaceId"]?.stringValue
+      if let actionObject = dictionary[key]?.objectValue,
+        let surfaceID = actionObject["surfaceId"]?.stringValue
       {
-        return RawEnvelopeContext(surfaceID: sid)
+        return RawEnvelopeContext(surfaceID: surfaceID)
       }
     }
     return RawEnvelopeContext()
@@ -1117,21 +1147,21 @@ public final class MessageProcessor: ObservableObject {
   ) throws -> [[String: JSONValue]] {
     var allComponentsMap: OrderedDictionary<String, [String: JSONValue]> = [:]
     var batchIDs: Set<String> = []
-    for comp in components {
-      guard let id = comp["id"]?.stringValue else { continue }
-      if batchIDs.contains(id) {
+    for component in components {
+      guard let id = component["id"]?.stringValue else { continue }
+      guard batchIDs.insert(id).inserted else {
         throw A2UIIntegrityError("Duplicate component ID: \(id)")
       }
-      batchIDs.insert(id)
-      allComponentsMap[id] = comp
+      allComponentsMap[id] = component
     }
-    for existing in surface.componentsModel.components.values where !batchIDs.contains(existing.id) {
+    for existing in surface.componentsModel.components.values
+    where !batchIDs.contains(existing.id) {
       var dict: [String: JSONValue] = [
         "id": .string(existing.id),
         "component": .string(existing.type),
       ]
-      if let catID = existing.catalogID {
-        dict["catalogId"] = .string(catID)
+      if let catalogID = existing.catalogID {
+        dict["catalogId"] = .string(catalogID)
       }
       for (k, v) in existing.properties {
         dict[k] = v

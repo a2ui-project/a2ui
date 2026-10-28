@@ -68,7 +68,7 @@ public struct MessageErrorMapper: Sendable {
       )
     }
 
-    if isCallRendererFunction || (functionCallID != nil && (surfaceID == nil || surfaceID == "")) {
+    if isCallRendererFunction || (functionCallID != nil && surfaceID?.isEmpty != false) {
       return .generic(
         GenericError(
           code: "INVALID_FUNCTION_CALL",

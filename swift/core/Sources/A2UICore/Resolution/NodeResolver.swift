@@ -134,26 +134,12 @@ public final class NodeResolver: Sendable {
     protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
-    let compatibleCatalogs: [String: AnyCatalog]
-    if let protocolVersion {
-      compatibleCatalogs = catalogs.filter { _, cat in
-        guard let catVer = cat.a2uiProtocolVersion else { return true }
-        return catVer.isAtLeastV10 == protocolVersion.isAtLeastV10
-      }
-    } else {
-      compatibleCatalogs = catalogs
-    }
+    let compatibleCatalogs = catalogs.filterCompatible(with: protocolVersion)
     self.catalogs = compatibleCatalogs
-    let allCatalogsAtLeastV10 =
-      !compatibleCatalogs.isEmpty && compatibleCatalogs.values.allSatisfy(\.isAtLeastV10)
-    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
-    if let defaultCatalogID {
-      self.defaultCatalogID = defaultCatalogID
-    } else if !isAtLeastV10, compatibleCatalogs.count == 1 {
-      self.defaultCatalogID = compatibleCatalogs.keys.first
-    } else {
-      self.defaultCatalogID = nil
-    }
+    self.defaultCatalogID = compatibleCatalogs.resolveDefaultCatalogID(
+      explicitDefaultID: defaultCatalogID,
+      protocolVersion: protocolVersion
+    )
     let resolvedComponentsModel = componentsModel ?? SurfaceComponentsModel()
     let resolvedDataModel = dataModel ?? DataModel()
     self.componentsModel = resolvedComponentsModel
@@ -1043,12 +1029,12 @@ public final class NodeResolver: Sendable {
         recurseIntoChildren: recurseIntoChildren
       )
     }
-    if let obj = value.objectValue {
-      let objProps = extractPropertiesSchema(from: schema)
-      if !objProps.isEmpty {
+    if let object = value.objectValue {
+      let objectProperties = extractPropertiesSchema(from: schema)
+      if !objectProperties.isEmpty {
         return resolveStandardObjectProperty(
-          obj: obj,
-          objProps: objProps,
+          object: object,
+          objectProperties: objectProperties,
           basePath: basePath,
           index: index,
           instanceSuffix: instanceSuffix,
@@ -1109,8 +1095,8 @@ public final class NodeResolver: Sendable {
   }
 
   private func resolveStandardObjectProperty(
-    obj: OrderedDictionary<String, JSONValue>,
-    objProps: [String: JSONValue],
+    object: OrderedDictionary<String, JSONValue>,
+    objectProperties: [String: JSONValue],
     basePath: String?,
     index: Int?,
     instanceSuffix: String?,
@@ -1122,33 +1108,33 @@ public final class NodeResolver: Sendable {
     checks: [ResolvedCheck],
     recurseIntoChildren: Bool = true
   ) -> ResolvedDictionary {
-    var resolvedObj: [String: any Resolved] = [:]
+    var resolvedObject: [String: any Resolved] = [:]
     let bindingKey = atLeastV10 ? "@path" : "path"
-    for (k, v) in obj {
-      let nestedPropSchema = objProps[k] ?? .boolean(true)
+    for (key, propertyValue) in object {
+      let nestedPropSchema = objectProperties[key] ?? .boolean(true)
       let classified = classifySchema(nestedPropSchema)
       let nestedPropType: PropertyType =
-        (classified == .standard && v.objectValue?[bindingKey] != nil)
+        (classified == .standard && propertyValue.objectValue?[bindingKey] != nil)
         ? .dynamicValue : classified
-      if let resVal = resolveProperty(
-        value: v,
+      if let resolvedValue = resolveProperty(
+        value: propertyValue,
         schema: nestedPropSchema,
         type: nestedPropType,
         basePath: basePath,
         index: index,
         instanceSuffix: instanceSuffix,
         componentID: componentID,
-        propertyKey: "\(propertyKey)/\(k)",
+        propertyKey: "\(propertyKey)/\(key)",
         visited: visited,
         components: components,
         data: data,
         checks: checks,
         recurseIntoChildren: recurseIntoChildren
       ) {
-        resolvedObj[k] = resVal
+        resolvedObject[key] = resolvedValue
       }
     }
-    return ResolvedDictionary(resolvedObj)
+    return ResolvedDictionary(resolvedObject)
   }
 
   private func resolvePrimitiveValue(_ value: JSONValue) -> (any Resolved)? {
@@ -1550,35 +1536,35 @@ public final class NodeResolver: Sendable {
 
   private func makeEventResolvedAction(
     name: String,
-    eventObj: [String: JSONValue],
+    eventObject: [String: JSONValue],
     checks: [ResolvedCheck],
     basePath: String?,
     index: Int?,
     componentID: String
   ) -> ResolvedAction {
-    let contextDict = eventObj["context"]?.dictionaryValue
-    let userMessageVal = eventObj["userMessage"]
+    let contextDictionary = eventObject["context"]?.dictionaryValue
+    let userMessageValue = eventObject["userMessage"]
     let unresolvedIdentity = ResolvedAction.Identity.event(
       name: name,
-      context: contextDict,
-      userMessage: userMessageVal?.stringValue
+      context: contextDictionary,
+      userMessage: userMessageValue?.stringValue
     )
     return ResolvedAction(
       identity: unresolvedIdentity,
       sourceComponentID: componentID,
       dataContextPath: basePath,
-      rawUserMessage: userMessageVal,
+      rawUserMessage: userMessageValue,
       trigger: { [weak self] in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
         }
         let resolvedContext = self.evaluateActionContext(
-          contextDict,
+          contextDictionary,
           basePath: basePath,
           index: index
         )
-        let resolvedUserMessage = userMessageVal.flatMap {
+        let resolvedUserMessage = userMessageValue.flatMap {
           self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
         }
         let triggerAction = ResolvedAction(
@@ -1597,15 +1583,15 @@ public final class NodeResolver: Sendable {
 
   private func makeFunctionResolvedAction(
     call: String,
-    funcCallVal: JSONValue,
-    funcCallDict: [String: JSONValue],
+    functionCallValue: JSONValue,
+    functionCallDictionary: [String: JSONValue],
     checks: [ResolvedCheck],
     basePath: String?,
     index: Int?,
     componentID: String
   ) -> ResolvedAction {
-    let argsDict = funcCallDict["args"]?.dictionaryValue
-    let unresolvedIdentity = ResolvedAction.Identity.function(call: call, args: argsDict)
+    let argsDictionary = functionCallDictionary["args"]?.dictionaryValue
+    let unresolvedIdentity = ResolvedAction.Identity.function(call: call, args: argsDictionary)
     return ResolvedAction(
       identity: unresolvedIdentity,
       sourceComponentID: componentID,
@@ -1615,7 +1601,7 @@ public final class NodeResolver: Sendable {
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
         }
-        _ = self.evaluateDynamicValue(funcCallVal, basePath: basePath, index: index)
+        _ = self.evaluateDynamicValue(functionCallValue, basePath: basePath, index: index)
       }
     )
   }
@@ -1626,14 +1612,14 @@ public final class NodeResolver: Sendable {
   ) -> Bool {
     let failedChecks = checks.filter { !$0.isValid }
     guard !failedChecks.isEmpty else { return true }
-    let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
+    let errorMessage = failedChecks.map(\.message).joined(separator: ", ")
     let version = effectiveProtocolVersion ?? .v10
     actionHandler?.handle(
       error: .validationFailed(
         ValidationFailedError(
           surfaceID: surfaceID,
           path: componentID,
-          message: errorMsg,
+          message: errorMessage,
           version: version
         )
       ),
@@ -1643,16 +1629,14 @@ public final class NodeResolver: Sendable {
   }
 
   private func evaluateActionContext(
-    _ contextDict: [String: JSONValue]?,
+    _ contextDictionary: [String: JSONValue]?,
     basePath: String?,
     index: Int?
   ) -> [String: JSONValue] {
-    guard let contextDict else { return [:] }
-    var resolvedContext: [String: JSONValue] = [:]
-    for (key, val) in contextDict {
-      resolvedContext[key] = evaluateDynamicValue(val, basePath: basePath, index: index)
+    guard let contextDictionary else { return [:] }
+    return contextDictionary.mapValues {
+      evaluateDynamicValue($0, basePath: basePath, index: index)
     }
-    return resolvedContext
   }
 
   // MARK: - Child List Resolution
