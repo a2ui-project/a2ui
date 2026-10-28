@@ -63,8 +63,10 @@ def get_latest_commit(file_path: str, cwd: str | None = None) -> str | None:
     )
 
 
-def is_valid_ancestor(commit_hash: str, cwd: str | None = None) -> bool:
+def is_valid_ancestor(commit_hash: Any, cwd: str | None = None) -> bool:
     """Returns True if commit_hash is a valid ancestor of HEAD."""
+    if not isinstance(commit_hash, str):
+        return False
     return (
         run_cmd(["git", "merge-base", "--is-ancestor", commit_hash, "HEAD"], cwd=cwd)
         is not None

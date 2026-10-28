@@ -30,8 +30,8 @@ from unittest.mock import MagicMock, patch
 # Ensure the directory containing check_compliance.py is in the Python search path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from check_compliance import audit_feature_commits, main, run_cmd
-from validate_blueprints import parse_yaml
+from check_compliance import audit_feature_commits, is_valid_ancestor, main, run_cmd
+from validate_blueprints import _validate_single_codebase_blueprint, parse_yaml
 
 
 class TestCheckCompliance(unittest.TestCase):
@@ -212,6 +212,48 @@ class TestCheckCompliance(unittest.TestCase):
             "| `renderers/flutter` | `flutter_core` | 🔴 Error | 0 | `12345678` |"
             " `unknown` |",
             output,
+        )
+
+    @patch("subprocess.run")
+    def test_is_valid_ancestor_rejects_non_string_commit(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Verifies that non-string commit values return False without invoking git."""
+        self.assertFalse(is_valid_ancestor(None))
+        self.assertFalse(is_valid_ancestor(True))
+        self.assertFalse(is_valid_ancestor(1234))
+        mock_run.assert_not_called()
+
+    @patch("validate_blueprints.parse_frontmatter")
+    def test_validate_codebase_blueprint_rejects_non_string_codebase_path(
+        self, mock_parse: MagicMock
+    ) -> None:
+        """Verifies that a non-string codebase_path reports an error instead of raising."""
+        mock_parse.return_value = (
+            {
+                "codebase_path": True,
+                "associated_module": "flutter_core",
+                "module_blueprint_commit": None,
+                "implemented_features": {},
+            },
+            None,
+        )
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        _validate_single_codebase_blueprint(
+            "/path/to/blueprints/codebases/flutter/codebase.blueprint.md",
+            "flutter/codebase.blueprint.md",
+            "codebase.blueprint.md",
+            "/path/to",
+            {"flutter_core": {"file": "flutter_core.blueprint.md"}},
+            {},
+            errors,
+            warnings,
+        )
+
+        self.assertTrue(
+            any("'codebase_path' must be a string" in e for e in errors), errors
         )
 
     @patch("sys.stderr", new_callable=io.StringIO)
