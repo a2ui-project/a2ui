@@ -151,7 +151,6 @@ theme:
 
   features:
     - announce.dismiss
-    - content.action.view
     - content.code.annotate
     - content.code.copy
     - content.code.select
