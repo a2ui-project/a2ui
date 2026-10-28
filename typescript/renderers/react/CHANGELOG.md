@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Fix `@a2ui/react` throwing `ReferenceError: HTMLElement is not defined` when imported without a DOM (server-side rendering, plain Node). The host element base class is now chosen when the module loads, so the import no longer needs `HTMLElement`. Regression in 0.13.0. [#3158](https://github.com/a2ui-project/a2ui/issues/3158)
+
 ## 0.14.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.
