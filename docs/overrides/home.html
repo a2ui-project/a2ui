@@ -1,0 +1,758 @@
+{#-
+  Copyright 2026 Google LLC
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      https://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-#}
+{% extends "main.html" %}
+
+{% block hero %}
+<div class="a2ui-landing">
+
+  <!-- Top Documentation Quick-Navigation Bar -->
+  <nav class="a2-subnav" aria-label="Documentation sections">
+    <div class="a2-subnav__inner">
+      <div class="a2-subnav__links">
+        <a class="a2-subnav__link" href="introduction/what-is-a2ui/">Introduction</a>
+        <a class="a2-subnav__link a2-subnav__link--highlight" href="quickstart/">5-Min Quickstart</a>
+        <a class="a2-subnav__link" href="concepts/overview/">Core Concepts</a>
+        <a class="a2-subnav__link" href="guides/client-setup/">Developer Guides</a>
+        <a class="a2-subnav__link" href="reference/components/">Component Gallery</a>
+        <a class="a2-subnav__link" href="reference/renderers/">Renderers &amp; SDKs</a>
+        <a class="a2-subnav__link" href="composer/">A2UI Composer ⭐</a>
+        <a class="a2-subnav__link" href="roadmap/">Roadmap</a>
+      </div>
+      <div class="a2-subnav__meta">
+        <span>Specifications:</span>
+        <a class="a2-subnav__spec-pill" href="specification/v0.9.1-a2ui/">v0.9.1 Current</a>
+        <a class="a2-subnav__spec-pill" href="specification/v1.0-a2ui/">v1.0 Candidate</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- =====================================================================
+       HERO & PILLAR 1: UI IS A BETTER OUTPUT FORMAT THAN TEXT FOR AGENTS
+       ===================================================================== -->
+  <section class="a2-hero" id="hero">
+    <div class="a2-container">
+      <div class="a2-hero__header">
+        <span class="a2-eyebrow">OPEN AGENT-TO-UI PROTOCOL · APACHE 2.0 · CREATED BY GOOGLE</span>
+        <h1 class="a2-h1">UI is a better output format than text for agents.</h1>
+        <p class="a2-lead">
+          Chat is a great input, but walls of prose are a terrible output. <strong>A2UI</strong> is the open standard and SDK suite that lets AI agents respond with stateful, interactive user interfaces—rendered natively across Flutter, SwiftUI, Jetpack Compose, React, Angular, and Lit without executing arbitrary code.
+        </p>
+
+        <div class="a2-cta-row">
+          <a class="a2-btn a2-btn--primary" href="quickstart/">Get Started in 5 Minutes →</a>
+          <a class="a2-btn a2-btn--secondary" href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener">Open A2UI Composer ↗</a>
+          <button type="button" class="a2-btn a2-btn--code" id="a2-copy-prompt-btn" data-a2-action="copy-prompt">📋 Copy Agent Prompt</button>
+          <a class="a2-btn a2-btn--secondary" href="specification/v1.0-a2ui/">Read v1.0 Spec</a>
+        </div>
+
+        <div class="a2-trust-strip">
+          <span class="a2-trust-strip__item"><span class="a2-trust-strip__dot"></span> Shipping in production apps across Google</span>
+          <span class="a2-trust-strip__item"><span class="a2-trust-strip__dot"></span> Safe like data, expressive like code</span>
+          <span class="a2-trust-strip__item"><span class="a2-trust-strip__dot"></span> Built with CopilotKit &amp; the open-source community</span>
+        </div>
+      </div>
+
+      <!-- Key Messages for Pillar 1 -->
+      <div class="a2-points-grid">
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Instant comprehension over walls of text</h3>
+          <p class="a2-point-card__body">
+            Prose forces users to parse paragraphs and hold system state in their heads. Graphical surfaces show structured comparisons, statuses, and controls at a glance.
+          </p>
+        </div>
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> 60fps stateful manipulation &amp; v1.0 RPC</h3>
+          <p class="a2-point-card__body">
+            Decoupled structure (<code>updateComponents</code>) and reactive data bindings (<code>updateDataModel</code>) let users adjust steppers, inputs, and filters at 60fps and settle actions via <code>actionResponse</code>.
+          </p>
+        </div>
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Battle-tested in production at Google</h3>
+          <p class="a2-point-card__body">
+            Generative UI isn't a prototype—A2UI powers real-world production experiences at Google (including <a href="ecosystem/a2ui-in-the-world/">Google Opal</a>) across web and mobile surfaces.
+          </p>
+        </div>
+      </div>
+
+      <!-- VISUAL AID 1: Interactive Wall of Text vs. A2UI Travel Surface -->
+      <div class="a2-workbench" id="visual-aid-prose-vs-ui">
+        <div class="a2-workbench__promptbar">
+          <div class="a2-workbench__prompt-left">
+            <span class="a2-prompt-tag">User Prompt</span>
+            <span class="a2-prompt-quote">“Book a flight from Berlin to San Francisco on Oct 12, and two tickets back on Oct 19.”</span>
+          </div>
+          <span class="a2-code-window__badge">Try clicking the steppers &amp; options on the right →</span>
+        </div>
+
+        <div class="a2-workbench__split">
+          <!-- Left: Wall of Text -->
+          <div class="a2-pane a2-pane--prose">
+            <div>
+              <div class="a2-pane__header">
+                <span class="a2-pane__title">Standard Agent · Prose Output</span>
+                <span class="a2-status-tag a2-status-tag--bad">WALL OF TEXT · HARD TO PARSE</span>
+              </div>
+              <div class="a2-prose-bubble">
+                <p>I found the following flight options for your trip from Berlin (BER) to San Francisco (SFO):</p>
+                <p>
+                  <strong>1. Outbound (Mon, Oct 12):</strong> Lufthansa LH 454 departing BER at 09:15 and arriving SFO at 12:05 (11h 50m nonstop). The fare is €455 per adult in Economy.
+                  <span class="a2-prose-highlight">Please clarify if you want 1 or 2 outbound tickets.</span>
+                </p>
+                <p>
+                  <strong>2. Return (Mon, Oct 19):</strong> United UA 901 departing SFO at 13:05 and arriving BER at 09:10+1 (11h 05m nonstop) for 2 adults at €498 each (€996 subtotal).
+                </p>
+                <p>
+                  Would you like to upgrade to Premium Economy (+€280/ticket) or add checked bags (+€65)?
+                  <span class="a2-prose-highlight">Type your selection and passenger counts to continue.</span>
+                </p>
+              </div>
+            </div>
+            <div class="a2-pane__Verdict">
+              <span>⚠️ Requires reading 4 paragraphs and typing another prompt just to adjust passenger count or cabin.</span>
+            </div>
+          </div>
+
+          <!-- Right: Interactive A2UI Surface -->
+          <div class="a2-pane">
+            <div class="a2-pane__header">
+              <span class="a2-pane__title">A2UI Agent · Native Interactive Surface</span>
+              <span class="a2-status-tag a2-status-tag--good">STATEFUL SURFACE · CLICK TO INTERACT</span>
+            </div>
+
+            <div class="a2-travel-card">
+              <!-- Outbound Leg -->
+              <div class="a2-flight-leg">
+                <div class="a2-flight-leg__top">
+                  <div class="a2-flight-leg__route">
+                    <span class="a2-flight-badge">OUTBOUND · OCT 12</span>
+                    <span>Berlin (BER) → San Francisco (SFO)</span>
+                  </div>
+                  <span class="a2-flight-leg__meta">Lufthansa LH 454 · 09:15 – 12:05</span>
+                </div>
+                <div class="a2-flight-leg__controls">
+                  <div class="a2-stepper">
+                    <button type="button" class="a2-stepper__btn" id="a2-out-dec" data-a2-action="out-dec" aria-label="Decrease outbound passengers">−</button>
+                    <span class="a2-stepper__label" id="a2-out-pax-label">1 Passenger</span>
+                    <button type="button" class="a2-stepper__btn" id="a2-out-inc" data-a2-action="out-inc" aria-label="Increase outbound passengers">+</button>
+                  </div>
+                  <span class="a2-flight-price" id="a2-out-price">€455</span>
+                </div>
+              </div>
+
+              <!-- Return Leg -->
+              <div class="a2-flight-leg">
+                <div class="a2-flight-leg__top">
+                  <div class="a2-flight-leg__route">
+                    <span class="a2-flight-badge">RETURN · OCT 19</span>
+                    <span>San Francisco (SFO) → Berlin (BER)</span>
+                  </div>
+                  <span class="a2-flight-leg__meta">United UA 901 · 13:05 – 09:10+1</span>
+                </div>
+                <div class="a2-flight-leg__controls">
+                  <div class="a2-stepper">
+                    <button type="button" class="a2-stepper__btn" id="a2-ret-dec" data-a2-action="ret-dec" aria-label="Decrease return passengers">−</button>
+                    <span class="a2-stepper__label" id="a2-ret-pax-label">2 Passengers</span>
+                    <button type="button" class="a2-stepper__btn" id="a2-ret-inc" data-a2-action="ret-inc" aria-label="Increase return passengers">+</button>
+                  </div>
+                  <span class="a2-flight-price" id="a2-ret-price">€996 (€498 × 2)</span>
+                </div>
+              </div>
+
+              <!-- Options -->
+              <div class="a2-travel-options">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button type="button" class="a2-chip-toggle" id="a2-toggle-premium" data-a2-action="toggle-premium">Upgrade Premium (+€280/pax)</button>
+                  <button type="button" class="a2-chip-toggle is-active" id="a2-toggle-bags" data-a2-action="toggle-bags">✓ Checked Bag (+€65)</button>
+                </div>
+                <span style="font-size: 12px; color: var(--a2-text-muted);">Two-way bound to <code>dataModel</code></span>
+              </div>
+
+              <!-- Footer -->
+              <div class="a2-travel-footer">
+                <div>
+                  <span class="a2-travel-total__label">Total Trip Price (1 Out, 2 Back)</span>
+                  <span class="a2-travel-total__value" id="a2-travel-total">€1,516</span>
+                </div>
+                <button type="button" class="a2-btn a2-btn--primary" id="a2-book-btn" data-a2-action="book-trip">Confirm &amp; Book Trip →</button>
+              </div>
+
+              <!-- Live Data Model Inspector -->
+              <div class="a2-datamodel-bar">
+                <span>LIVE DATA MODEL:</span>
+                <code id="a2-datamodel-code">$/outbound/pax = 1  ·  $/return/pax = 2  ·  $/cabin = "economy"  ·  $/totalEur = 1516</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       PILLAR 2: EXPRESS FORMAT (~3X FASTER INFERENCE, SWAPPABLE FORMATS)
+       ===================================================================== -->
+  <section class="a2-section a2-section--alt" id="express-format">
+    <div class="a2-container">
+      <div class="a2-section-intro">
+        <span class="a2-eyebrow">01 · STATE-OF-THE-ART LLM GENERATION PERFORMANCE</span>
+        <h2 class="a2-h2">Express: ~3x faster inference with an LLM-optimized format.</h2>
+        <p class="a2-lead">
+          When you choose A2UI, you aren't signing up to make your LLM output verbose JSON. In A2UI, <strong>JSON is the universal wire interchange format</strong> that guarantees your agent and client renderers always stay compatible—while our Agent SDK lets you swap the <strong>inference format</strong> to match any model or latency budget.
+        </p>
+      </div>
+
+      <div class="a2-points-grid">
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> 77% smaller output with A2UI Express</h3>
+          <p class="a2-point-card__body">
+            A2UI Express strips away repeated keys, braces, and wrapper objects in favor of positional signatures—cutting output tokens by 55–70% across the spec and making GenUI fast even on small Gemma-class models.
+          </p>
+        </div>
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Decoupled inference &amp; wire formats</h3>
+          <p class="a2-point-card__body">
+            The Agent SDK compiles Express into standard A2UI v1.0 JSON before sending it over the wire. Your client renderers never see Express and never need updating when you tune prompts.
+          </p>
+        </div>
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Swappable per model or use case</h3>
+          <p class="a2-point-card__body">
+            Use <code>ExpressFormatFactory</code> for maximum token speed, <code>DirectJsonFormatFactory</code> for chunk-by-chunk progressive JSON healing, or experimental <code>Atom</code> / <code>Elemental</code> formats.
+          </p>
+        </div>
+      </div>
+
+      <!-- VISUAL AID 2: Express Pipeline, Code Comparison & Token Graph -->
+      <div id="visual-aid-express">
+        <!-- Architecture Pipeline -->
+        <div class="a2-pipeline-bar">
+          <div class="a2-pipeline-step a2-pipeline-step--highlight">
+            <span class="a2-pipeline-step__label">1. Swappable LLM Inference Format</span>
+            <div class="a2-pipeline-step__title">A2UI Express · Direct JSON · Atom</div>
+            <div class="a2-pipeline-step__sub">LLM writes compact positional syntax (397 chars)</div>
+          </div>
+          <div class="a2-pipeline-arrow">→</div>
+          <div class="a2-pipeline-step">
+            <span class="a2-pipeline-step__label">2. A2UI Agent SDK Compiler</span>
+            <div class="a2-pipeline-step__title">Python · TypeScript · Dart</div>
+            <div class="a2-pipeline-step__sub">Maps positional args, resolves IDs &amp; validates schema</div>
+          </div>
+          <div class="a2-pipeline-arrow">→</div>
+          <div class="a2-pipeline-step">
+            <span class="a2-pipeline-step__label">3. Universal Wire Interchange</span>
+            <div class="a2-pipeline-step__title">Standard A2UI v1.0 JSON</div>
+            <div class="a2-pipeline-step__sub">Every native renderer works with zero changes</div>
+          </div>
+        </div>
+
+        <!-- Side-by-Side Code Comparison (Real 10_notification-permission example) -->
+        <div class="a2-express-grid">
+          <div class="a2-code-window">
+            <div class="a2-code-window__header">
+              <span class="a2-code-window__title">What the LLM generates · 10_notification-permission.a2ui</span>
+              <span class="a2-code-window__badge">13 lines · 397 chars (−77%)</span>
+            </div>
+            <pre class="a2-code-pre"><code><span class="a2-tok-path">$/description</span> = <span class="a2-tok-str">"Get alerts for order status changes"</span>
+<span class="a2-tok-path">$/icon</span> = <span class="a2-tok-str">"check"</span>
+<span class="a2-tok-path">$/title</span> = <span class="a2-tok-str">"Enable notification"</span>
+root = <span class="a2-tok-comp">Card</span>(main_column)
+main_column = <span class="a2-tok-comp">Column</span>([icon, title, description, actions], _, <span class="a2-tok-str">"center"</span>)
+icon = <span class="a2-tok-comp">Icon</span>(<span class="a2-tok-path">$/icon</span>)
+title = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-path">$/title</span>)
+description = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-path">$/description</span>, <span class="a2-tok-str">"body"</span>)
+actions = <span class="a2-tok-comp">Row</span>([yes_btn, no_btn], <span class="a2-tok-str">"center"</span>)
+yes_btn_text = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"Yes"</span>)
+yes_btn = <span class="a2-tok-comp">Button</span>(yes_btn_text, _, <span class="a2-tok-kw">Event</span>(<span class="a2-tok-str">"accept"</span>))
+no_btn_text = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"No"</span>)
+no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2-tok-kw">Event</span>(<span class="a2-tok-str">"decline"</span>))</code></pre>
+          </div>
+
+          <div class="a2-code-window">
+            <div class="a2-code-window__header">
+              <span class="a2-code-window__title">What the SDK sends on the wire · Standard A2UI v1.0 JSON</span>
+              <span class="a2-code-window__badge a2-code-window__badge--muted">104 lines · 1,780 chars</span>
+            </div>
+            <pre class="a2-code-pre"><code>{
+  <span class="a2-tok-path">"version"</span>: <span class="a2-tok-str">"v1.0"</span>,
+  <span class="a2-tok-path">"updateComponents"</span>: {
+    <span class="a2-tok-path">"surfaceId"</span>: <span class="a2-tok-str">"gallery-notification-permission"</span>,
+    <span class="a2-tok-path">"components"</span>: [
+      { <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"root"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Card"</span>, <span class="a2-tok-path">"child"</span>: <span class="a2-tok-str">"main_column"</span> },
+      { <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"main_column"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Column"</span>, <span class="a2-tok-path">"align"</span>: <span class="a2-tok-str">"center"</span>,
+        <span class="a2-tok-path">"children"</span>: [<span class="a2-tok-str">"icon"</span>, <span class="a2-tok-str">"title"</span>, <span class="a2-tok-str">"description"</span>, <span class="a2-tok-str">"actions"</span>] },
+      { <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"yes_btn"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Button"</span>, <span class="a2-tok-path">"child"</span>: <span class="a2-tok-str">"yes_btn_text"</span>,
+        <span class="a2-tok-path">"action"</span>: { <span class="a2-tok-path">"event"</span>: { <span class="a2-tok-path">"name"</span>: <span class="a2-tok-str">"accept"</span>, <span class="a2-tok-path">"context"</span>: {} } } }
+      <span class="a2-tok-comment">// ... + 78 additional lines of component &amp; dataModel JSON</span>
+    ]
+  }
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Output Graph / Benchmark Comparison -->
+        <div class="a2-bench-card">
+          <div class="a2-bench-row">
+            <div class="a2-bench-row__meta">
+              <span>A2UI Express Format (LLM Output)</span>
+              <span style="color: var(--a2-accent); font-family: var(--a2-font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span>
+            </div>
+            <div class="a2-bench-track">
+              <div class="a2-bench-fill a2-bench-fill--express">397 chars (−77%)</div>
+            </div>
+          </div>
+          <div class="a2-bench-row">
+            <div class="a2-bench-row__meta">
+              <span>Standard Raw JSON Generation</span>
+              <span style="color: var(--a2-text-muted); font-family: var(--a2-font-mono);">1,780 chars · 1.0x baseline</span>
+            </div>
+            <div class="a2-bench-track">
+              <div class="a2-bench-fill a2-bench-fill--json">1,780 chars (100% wire JSON)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       PILLAR 3: MACROS (GIVE THE MODEL BIGGER WORDS)
+       ===================================================================== -->
+  <section class="a2-section" id="macros">
+    <div class="a2-container">
+      <div class="a2-section-intro">
+        <span class="a2-eyebrow">02 · HYBRID SDUI + GEN UI WORKFLOWS</span>
+        <h2 class="a2-h2">Macros: Give the model bigger words.</h2>
+        <p class="a2-lead">
+          Asking an LLM to rebuild domain concepts out of raw <code>Card</code>, <code>Row</code>, and <code>Text</code> primitives every turn wastes tokens and causes visual drift across results. A2UI <strong>Macros</strong> let you write server code to define rich UI treatments with embedded data bindings, then give the LLM a simple, high-level call to instantiate them.
+        </p>
+      </div>
+
+      <div class="a2-points-grid">
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Domain nouns for the model</h3>
+          <p class="a2-point-card__body">
+            The model sees an <strong>Inference Catalog</strong> tailored to your domain (<code>FlightCard</code>, <code>FareCompare</code>, <code>InvoiceSummary</code>) with typed parameters instead of low-level layout boxes.
+          </p>
+        </div>
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Expand to primitives on the server</h3>
+          <p class="a2-point-card__body">
+            <code>MacroExpander</code> compiles each macro call into standard primitive components (<code>Card</code>, <code>Column</code>, <code>Row</code>, <code>Icon</code>, <code>Divider</code>, <code>Text</code>) before sending over the wire.
+          </p>
+        </div>
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Ship new UIs without App Store updates</h3>
+          <p class="a2-point-card__body">
+            Because macros expand into primitives your client already knows how to render, you can roll out brand-new domain UI treatments on the server with zero mobile binary releases.
+          </p>
+        </div>
+      </div>
+
+      <!-- VISUAL AID 3: FlightCard Macro Expansion Diagram -->
+      <div class="a2-macro-grid" id="visual-aid-macros">
+        <!-- Stage 1: Model Output -->
+        <div class="a2-macro-stage">
+          <div class="a2-macro-stage__head">
+            <span class="a2-macro-stage__step">1. Model Instantiates Macro</span>
+            <span class="a2-macro-stage__catalog">Inference Catalog</span>
+          </div>
+          <div class="a2-macro-stage__body">
+            <div class="a2-code-window" style="margin-bottom: 14px;">
+              <pre class="a2-code-pre"><code><span class="a2-tok-comment"># The LLM writes one high-level call:</span>
+root = <span class="a2-tok-comp">FlightCard</span>(
+  flight=<span class="a2-tok-str">"OS 87"</span>,
+  date=<span class="a2-tok-str">"Mon, Dec 15"</span>,
+  origin=<span class="a2-tok-str">"Vienna"</span>,
+  destination=<span class="a2-tok-str">"New York"</span>,
+  departs=<span class="a2-tok-str">"10:15 AM"</span>,
+  arrives=<span class="a2-tok-str">"2:30 PM"</span>,
+  status=<span class="a2-tok-str">"On Time"</span>
+)</code></pre>
+            </div>
+            <p style="font-size: 13px; color: var(--a2-text-secondary); margin: 0;">
+              <strong>Simple inputs, zero layout drift:</strong> The LLM passes domain data without worrying about spacing, alignments, or divider placement.
+            </p>
+          </div>
+        </div>
+
+        <!-- Stage 2: Server @macro Definition -->
+        <div class="a2-macro-stage">
+          <div class="a2-macro-stage__head">
+            <span class="a2-macro-stage__step">2. Server Code Expands Treatment</span>
+            <span class="a2-macro-stage__catalog">a2ui.transformers.macros</span>
+          </div>
+          <div class="a2-macro-stage__body">
+            <div class="a2-code-window" style="margin-bottom: 14px;">
+              <pre class="a2-code-pre"><code><span class="a2-tok-kw">@macro</span>(description=<span class="a2-tok-str">"Flight status card"</span>)
+<span class="a2-tok-kw">def</span> <span class="a2-tok-comp">flight_card</span>(
+  flight: str, date: str, origin: str,
+  dest: str, departs: str,
+  arrives: str, status: str
+) -&gt; Card:
+  <span class="a2-tok-kw">return</span> <span class="a2-tok-comp">Card</span>(<span class="a2-tok-comp">Column</span>([
+    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Icon</span>(<span class="a2-tok-str">"send"</span>), <span class="a2-tok-comp">Text</span>(flight), <span class="a2-tok-comp">Text</span>(date)]),
+    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(origin), <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"→"</span>), <span class="a2-tok-comp">Text</span>(dest)]),
+    <span class="a2-tok-comp">Divider</span>(),
+    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(departs), <span class="a2-tok-comp">Text</span>(status), <span class="a2-tok-comp">Text</span>(arrives)]),
+  ]))</code></pre>
+            </div>
+            <p style="font-size: 13px; color: var(--a2-text-secondary); margin: 0;">
+              <strong>Server-defined UI treatment:</strong> Automatically generates the JSON Schema for the LLM prompt and expands calls into flat primitives.
+            </p>
+          </div>
+        </div>
+
+        <!-- Stage 3: Expanded Primitive Components + Rendered Card -->
+        <div class="a2-macro-stage">
+          <div class="a2-macro-stage__head">
+            <span class="a2-macro-stage__step">3. Expanded Primitives &amp; Output</span>
+            <span class="a2-macro-stage__catalog">Rendering Catalog</span>
+          </div>
+          <div class="a2-macro-stage__body">
+            <!-- Rendered Flight Status Card -->
+            <div class="a2-flight-status-card">
+              <div class="a2-fsc-header">
+                <span style="color: var(--a2-accent);">✈️ OS 87</span>
+                <span style="color: var(--a2-text-muted);">Mon, Dec 15</span>
+              </div>
+              <div class="a2-fsc-route">
+                <span>Vienna</span>
+                <span style="color: var(--a2-accent);">→</span>
+                <span>New York</span>
+              </div>
+              <div class="a2-fsc-times">
+                <div><span>Departs</span><strong>10:15 AM</strong></div>
+                <div style="text-align: center;"><span>Status</span><strong style="color: var(--a2-success);">On Time</strong></div>
+                <div style="text-align: right;"><span>Arrives</span><strong>2:30 PM</strong></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: var(--a2-text-muted); margin-bottom: 8px;">
+                Expanded into 14 Primitive Nodes on the Wire:
+              </div>
+              <div class="a2-primitive-tree">
+                <span class="a2-prim-node">Card(root)</span>
+                <span class="a2-prim-node">Column(main)</span>
+                <span class="a2-prim-node">Row(header)</span>
+                <span class="a2-prim-node">Icon("send")</span>
+                <span class="a2-prim-node">Text($/flightNumber)</span>
+                <span class="a2-prim-node">Row(route)</span>
+                <span class="a2-prim-node">Text($/origin)</span>
+                <span class="a2-prim-node">Text($/destination)</span>
+                <span class="a2-prim-node">Divider()</span>
+                <span class="a2-prim-node">Row(times)</span>
+                <span class="a2-prim-node">Text($/status)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       PILLAR 4: ONE ENVIRONMENT FOR THE ENTIRE AGENTIC UI SPECTRUM
+       ===================================================================== -->
+  <section class="a2-section a2-section--alt" id="spectrum">
+    <div class="a2-container">
+      <div class="a2-section-intro">
+        <span class="a2-eyebrow">03 · FUTURE-PROOF ARCHITECTURE &amp; GUARDRAILS</span>
+        <h2 class="a2-h2">One environment handles prebuilt UIs, controlled generation, open-ended generation, and MCP apps.</h2>
+        <p class="a2-lead">
+          A2UI is not just for open-ended generative UI. It is <strong>one protocol and one set of SDKs</strong> that lets you mix and match different approaches to agentic UI—providing the exact guardrails, determinism, or creative freedom each specific workflow requires.
+        </p>
+      </div>
+
+      <div class="a2-points-grid">
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Dial guardrails per screen</h3>
+          <p class="a2-point-card__body">
+            Use deterministic server-built cards for checkout, macro-constrained generation for search results, and open-ended primitive composition for long-tail queries.
+          </p>
+        </div>
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Two-way MCP Apps integration</h3>
+          <p class="a2-point-card__body">
+            Host sandboxed <code>ui://</code> MCP Apps inside an A2UI surface via <a href="guides/mcp-apps-in-a2ui/">catalogs/mcp</a>, or ship interactive A2UI surfaces inside <a href="guides/a2ui-in-mcp-apps/">Claude, ChatGPT, and VS Code</a>.
+          </p>
+        </div>
+        <div class="a2-point-card">
+          <h3 class="a2-point-card__title"><span class="a2-point-card__marker"></span> Future-proof renderer investment</h3>
+          <p class="a2-point-card__body">
+            Integrate A2UI renderers into your client app once. As your backend evolves from prebuilt templates to macros and full generative UI, your client code stays unchanged.
+          </p>
+        </div>
+      </div>
+
+      <!-- VISUAL AID 4: Interactive Agentic UI Spectrum Diagram -->
+      <div class="a2-spectrum-wrap" id="visual-aid-spectrum">
+        <div class="a2-spectrum-axis">
+          <span>◀ Deterministic · Strict Server Control</span>
+          <div class="a2-spectrum-axis__line"></div>
+          <span>Dynamic Composition · High Agent Autonomy ▶</span>
+        </div>
+
+        <div class="a2-spectrum-cards">
+          <button type="button" class="a2-spec-card" data-a2-action="select-spectrum" data-mode="prebuilt">
+            <span class="a2-spec-card__num">01 · DETERMINISTIC SDUI</span>
+            <h4 class="a2-spec-card__title">Prebuilt UIs</h4>
+            <p class="a2-spec-card__desc">
+              Write server code with typed <code>a2ui.builder</code> classes to emit exact UI structures and stream live <code>updateDataModel</code> changes with zero LLM latency.
+            </p>
+          </button>
+
+          <button type="button" class="a2-spec-card" data-a2-action="select-spectrum" data-mode="mcp">
+            <span class="a2-spec-card__num">02 · PORTABLE WEB SURFACES</span>
+            <h4 class="a2-spec-card__title">MCP Apps</h4>
+            <p class="a2-spec-card__desc">
+              Embed sandboxed <code>ui://</code> MCP App iframes inside A2UI surfaces, or deliver dynamic A2UI surfaces inside any MCP-enabled chat assistant.
+            </p>
+          </button>
+
+          <button type="button" class="a2-spec-card is-active" data-a2-action="select-spectrum" data-mode="macros">
+            <span class="a2-spec-card__num">03 · GUARDRAILED GEN UI</span>
+            <h4 class="a2-spec-card__title">Controlled Generation</h4>
+            <p class="a2-spec-card__desc">
+              Constrain the LLM to server-defined <code>@macro</code> domain components and pruned catalogs (<code>ComponentPruningTransformer</code>) for guaranteed brand consistency.
+            </p>
+          </button>
+
+          <button type="button" class="a2-spec-card" data-a2-action="select-spectrum" data-mode="open">
+            <span class="a2-spec-card__num">04 · BESPOKE COMPOSITION</span>
+            <h4 class="a2-spec-card__title">Open-Ended GenUI</h4>
+            <p class="a2-spec-card__desc">
+              Let the agent freely compose forms, tabs, sliders, and cards from your allowlisted catalog to solve unanticipated, long-tail user requests.
+            </p>
+          </button>
+        </div>
+
+        <div class="a2-spectrum-foundation">
+          <strong>UNIFIED A2UI FOUNDATION ACROSS ALL FOUR MODES:</strong>
+          <span>✓ Same Wire Protocol (v0.9.1 / v1.0)</span>
+          <span>✓ Same Schema Validator</span>
+          <span>✓ Same Data Binding &amp; RPC</span>
+          <span>✓ Same Native Client Renderers</span>
+        </div>
+
+        <div class="a2-code-window">
+          <div class="a2-code-window__header">
+            <span class="a2-code-window__title" id="a2-spec-code-title">Mode 3: Controlled Generation with Server @macros</span>
+            <span class="a2-code-window__badge" id="a2-spec-code-badge">Domain Guardrails · Zero Layout Drift</span>
+          </div>
+          <pre class="a2-code-pre"><code id="a2-spec-code-pre"># Expose high-level domain macros; prune raw layout primitives
+from a2ui.transformers.macros import MacroExpander, macro
+from a2ui.catalog_transformers import ComponentPruningTransformer
+
+@macro(description='Standardized flight comparison card')
+def flight_card(flight: str, origin: str, dest: str, price_eur: int) -> Card:
+    return Card(child=Row(children=[Text(text=f'{flight}: {origin} → {dest}'), Text(text=f'€{price_eur}')]))</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       PILLAR 5: NATIVE RENDERING WITH FLUTTER, SWIFTUI, JETPACK COMPOSE & WEB
+       ===================================================================== -->
+  <section class="a2-section" id="native-renderers">
+    <div class="a2-container">
+      <div class="a2-section-intro">
+        <span class="a2-eyebrow">04 · CROSS-PLATFORM NATIVE WIDGETS</span>
+        <h2 class="a2-h2">Native rendering with Flutter, SwiftUI, Jetpack Compose, and Web.</h2>
+        <p class="a2-lead">
+          A2UI has official SDKs for native mobile, desktop, and web rendering—including <strong>SwiftUI</strong>, <strong>Jetpack Compose</strong>, <strong>Flutter</strong>, <strong>React</strong>, <strong>Angular</strong>, and <strong>Lit</strong>. Agents describe the UI once; each client renders it using its own genuine platform widgets and theme tokens.
+        </p>
+      </div>
+
+      <!-- VISUAL AID 5: Interactive Multi-Platform Renderer Matrix -->
+      <div id="visual-aid-renderers">
+        <div class="a2-platform-tabs" role="tablist" aria-label="Native Renderers">
+          <button type="button" class="a2-plat-tab is-active" data-a2-action="select-platform" data-plat="swiftui">🍎 SwiftUI (iOS / macOS)</button>
+          <button type="button" class="a2-plat-tab" data-a2-action="select-platform" data-plat="compose">🤖 Jetpack Compose</button>
+          <button type="button" class="a2-plat-tab" data-a2-action="select-platform" data-plat="flutter">💙 Flutter (Multi-Platform)</button>
+          <button type="button" class="a2-plat-tab" data-a2-action="select-platform" data-plat="react">⚛️ React (@a2ui/react)</button>
+          <button type="button" class="a2-plat-tab" data-a2-action="select-platform" data-plat="angular">🅰️ Angular (@a2ui/angular)</button>
+          <button type="button" class="a2-plat-tab" data-a2-action="select-platform" data-plat="lit">🔥 Lit (@a2ui/lit)</button>
+        </div>
+
+        <div class="a2-platform-showcase">
+          <!-- Left: Native Platform Widget Frame -->
+          <div class="a2-device-frame">
+            <div>
+              <div class="a2-device-chrome">
+                <div class="a2-device-dots"><span></span><span></span><span></span></div>
+                <span style="font-size: 12px; font-weight: 700; color: var(--a2-text-secondary);" id="a2-plat-chrome-label">iOS 18 / macOS Sequoia · Native SwiftUI Views</span>
+                <span class="a2-flight-badge" id="a2-plat-pkg-label">A2UISwiftUI · BasicCatalogSwiftUI</span>
+              </div>
+
+              <div class="a2-native-widget-mock">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <div>
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--a2-accent);">Rendered Native Widget Tree</div>
+                    <div style="font-size: 16px; font-weight: 700; color: var(--a2-text);">Cloud Production Cluster Upgrade</div>
+                  </div>
+                  <span class="a2-status-tag a2-status-tag--good">Native 60fps</span>
+                </div>
+                <p style="font-size: 13px; color: var(--a2-text-secondary); margin: 0 0 14px 0;">
+                  Mapped directly to host toolkit views—inheriting system dark mode, Dynamic Type / font scaling, and platform accessibility (VoiceOver / TalkBack).
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; font-size: 12px;">
+                  <div style="padding: 8px 10px; background: var(--a2-surface); border: 1px solid var(--a2-border); border-radius: 6px;">
+                    <span style="color: var(--a2-text-muted); display: block;">Region</span>
+                    <strong>us-central1</strong>
+                  </div>
+                  <div style="padding: 8px 10px; background: var(--a2-surface); border: 1px solid var(--a2-border); border-radius: 6px;">
+                    <span style="color: var(--a2-text-muted); display: block;">Nodes</span>
+                    <strong>12 → 18 replicas</strong>
+                  </div>
+                  <div style="padding: 8px 10px; background: var(--a2-surface); border: 1px solid var(--a2-border); border-radius: 6px;">
+                    <span style="color: var(--a2-text-muted); display: block;">Est. Delta</span>
+                    <strong>+$140/mo</strong>
+                  </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                  <span style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--a2-border-strong); font-size: 12.5px; font-weight: 600;">Modify Spec</span>
+                  <span style="padding: 6px 14px; border-radius: 6px; background: var(--a2-accent); color: #fff; font-size: 12.5px; font-weight: 600;">Approve Rollout</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--a2-text-muted);">
+              <span>All renderers pass the shared A2UI Conformance Suite</span>
+              <a href="reference/renderers/" style="color: var(--a2-accent-strong); font-weight: 600; text-decoration: none;">Explore all renderers →</a>
+            </div>
+          </div>
+
+          <!-- Right: Platform SDK Code -->
+          <div class="a2-code-window">
+            <div class="a2-code-window__header">
+              <span class="a2-code-window__title" id="a2-plat-code-title">SwiftUI Native Renderer (iOS &amp; macOS)</span>
+              <span class="a2-code-window__badge" id="a2-plat-code-badge">Cupertino &amp; SwiftUI</span>
+            </div>
+            <pre class="a2-code-pre"><code id="a2-plat-code-pre">import SwiftUI
+import A2UISwiftCore
+import A2UISwiftUI
+
+struct AgentSurfaceScreen: View {
+  @ObservedObject var processor: A2UIMessageProcessor
+  var body: some View {
+    A2UISurfaceView(surfaceId: "travel-booking", processor: processor)
+  }
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Ecosystem & Transport Compatibility Bar -->
+        <div class="a2-ecosystem-bar">
+          <div class="a2-eco-group">
+            <span class="a2-eco-label">Agent SDKs:</span>
+            <a class="a2-eco-pill" href="https://pypi.org/project/a2ui-agent-sdk/">Python (a2ui-agent-sdk)</a>
+            <a class="a2-eco-pill" href="guides/agent-development/">TypeScript (@a2ui/agent)</a>
+            <a class="a2-eco-pill" href="https://pub.dev/packages/a2ui_agent">Dart (a2ui_agent)</a>
+            <a class="a2-eco-pill" href="guides/agent-development/">Google ADK (a2ui-adk)</a>
+          </div>
+          <div class="a2-eco-group">
+            <span class="a2-eco-label">Transports &amp; Ecosystem:</span>
+            <a class="a2-eco-pill" href="guides/a2ui-with-any-agent-framework/">AG-UI</a>
+            <a class="a2-eco-pill" href="concepts/transports/">A2A Protocol</a>
+            <a class="a2-eco-pill" href="guides/a2ui_over_mcp/">MCP Apps</a>
+            <a class="a2-eco-pill" href="https://docs.copilotkit.ai/generative-ui/a2ui">CopilotKit</a>
+            <a class="a2-eco-pill" href="ecosystem/renderers/">json-render · OpenUI · Lynx</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       EXPLORE DOCUMENTATION & SPECIFICATION VERSIONS
+       ===================================================================== -->
+  <section class="a2-section a2-section--alt" id="documentation">
+    <div class="a2-container">
+      <div class="a2-section-intro">
+        <span class="a2-eyebrow">DOCUMENTATION &amp; SPECIFICATIONS</span>
+        <h2 class="a2-h2">Dive into the guides, tools, and protocol specs.</h2>
+      </div>
+
+      <div class="a2-docs-grid">
+        <a class="a2-doc-link-card" href="quickstart/">
+          <h3 class="a2-doc-link-card__title">Quickstart Demo <span>→</span></h3>
+          <p class="a2-doc-link-card__desc">Run a full-stack Gemini ADK agent and A2UI renderer locally in 5 minutes.</p>
+        </a>
+        <a class="a2-doc-link-card" href="guides/a2ui-with-any-agent-framework/">
+          <h3 class="a2-doc-link-card__title">Use with Any Agent Framework <span>→</span></h3>
+          <p class="a2-doc-link-card__desc">Connect LangGraph, CrewAI, ADK, Mastra, or custom agents via AG-UI and CopilotKit.</p>
+        </a>
+        <a class="a2-doc-link-card" href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener">
+          <h3 class="a2-doc-link-card__title">A2UI Visual Composer <span>↗</span></h3>
+          <p class="a2-doc-link-card__desc">Design A2UI surfaces visually in your browser and copy the payload into any prompt.</p>
+        </a>
+        <a class="a2-doc-link-card" href="concepts/overview/">
+          <h3 class="a2-doc-link-card__title">Core Concepts <span>→</span></h3>
+          <p class="a2-doc-link-card__desc">Learn how surfaces, adjacency lists, JSON Pointer data bindings, and catalogs work.</p>
+        </a>
+        <a class="a2-doc-link-card" href="guides/authoring-universal-components/">
+          <h3 class="a2-doc-link-card__title">Custom Catalogs &amp; Macros <span>→</span></h3>
+          <p class="a2-doc-link-card__desc">Define your own domain components, server macros, and client widget bindings.</p>
+        </a>
+        <a class="a2-doc-link-card" href="reference/components/">
+          <h3 class="a2-doc-link-card__title">Basic Catalog Reference <span>→</span></h3>
+          <p class="a2-doc-link-card__desc">Browse the standard component gallery, message envelopes, and client functions.</p>
+        </a>
+      </div>
+
+      <!-- Specification Versions Table -->
+      <div class="a2-spec-table-wrap">
+        <table class="a2-spec-table">
+          <thead>
+            <tr>
+              <th>Specification Version</th>
+              <th>Status</th>
+              <th>Highlights &amp; Documentation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="specification/v1.0-a2ui/">v1.0 Protocol Spec</a></td>
+              <td><span class="version-badge info" style="margin-left: 0;">Candidate</span></td>
+              <td>Adds client-to-server RPC (<code>actionResponse</code>), action IDs, and <code>surfaceProperties</code>. <a href="specification/v1.0-evolution-guide/">Evolution guide →</a></td>
+            </tr>
+            <tr>
+              <td><a href="specification/v0.9.1-a2ui/">v0.9.1 Protocol Spec</a></td>
+              <td><span class="version-badge stable" style="margin-left: 0;">Current</span></td>
+              <td>Current production release. Standardizes on <code>application/a2ui+json</code> MIME type and relaxed <code>surfaceId</code> constraints. <a href="specification/v0.9.1-evolution-guide/">Evolution guide →</a></td>
+            </tr>
+            <tr>
+              <td><a href="specification/v0.9-a2ui/">v0.9 Protocol Spec</a></td>
+              <td><span class="version-badge stable" style="margin-left: 0;">Stable</span></td>
+              <td>Prompt-first architecture: introduces <code>createSurface</code>, client-side functions, custom catalogs, and modular schemas. <a href="specification/v0.9-evolution-guide/">Evolution guide →</a></td>
+            </tr>
+            <tr>
+              <td><a href="specification/v0.8-a2ui/">v0.8 Protocol Spec</a></td>
+              <td><span class="version-badge draft" style="margin-left: 0;">Legacy</span></td>
+              <td>Legacy structured-output baseline specification and <a href="specification/v0.8-a2a-extension/">v0.8 A2A Extension</a>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block container %}{% endblock %}
