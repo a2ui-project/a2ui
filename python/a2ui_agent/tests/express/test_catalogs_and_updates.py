@@ -609,10 +609,10 @@ root = Panel("B")
     [
         ("/user", {"name": "Ada"}, '$/user = {name: "Ada"}'),
         ("/count", 5, "$/count = 5"),
-        ("/", {"a": 3}, "$/a = 3"),
+        ("/", {"a": 3}, "$/ = {a: 3}"),
     ],
 )
-def test_update_data_model_decompiled_as_leaf_assignments(
+def test_update_data_model_decompiled_at_assigned_path(
     parser: ExpressParser, path: str, value: Any, expected_line: str
 ) -> None:
     messages = [{
@@ -623,7 +623,7 @@ def test_update_data_model_decompiled_as_leaf_assignments(
     assert dsl.splitlines() == ['surface("s1")', expected_line]
 
 
-def test_update_surface_compiles_data_paths_into_nested_data_model() -> None:
+def test_update_surface_compiles_data_paths_into_targeted_updates() -> None:
     compiler = ExpressCompiler([_primary("v0.9")], version="v0.9")
     msgs = to_message_dicts(compiler.compile('surface("s1")\n$/a/b = 1\n$/c = "x"'))
     assert msgs == [
@@ -631,11 +631,60 @@ def test_update_surface_compiles_data_paths_into_nested_data_model() -> None:
             "version": "v0.9",
             "updateDataModel": {
                 "surfaceId": "s1",
-                "path": "/",
-                "value": {"a": {"b": 1}, "c": "x"},
+                "path": "/a/b",
+                "value": 1,
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": "s1",
+                "path": "/c",
+                "value": "x",
             },
         },
     ]
+
+
+def test_update_surface_root_assignment_emits_root_path() -> None:
+    compiler = ExpressCompiler([_primary("v1.0")], version="v1.0")
+    msgs = to_message_dicts(compiler.compile('surface("s1")\n$/ = {a: 3}'))
+    assert msgs == [
+        {
+            "version": "v1.0",
+            "updateDataModel": {
+                "surfaceId": "s1",
+                "path": "/",
+                "value": {"a": 3},
+            },
+        },
+    ]
+
+
+def test_create_surface_array_override_and_autovivification() -> None:
+    compiler = ExpressCompiler([_primary("v1.0")], version="v1.0")
+    msgs = to_message_dicts(
+        compiler.compile(
+            '$/items = [{id: "w1", state: "Draft"}, {id: "w2", state: "Open"}]\n'
+            '$/items/0/state = "Ready"\n'
+            '$/auto/1 = "second"\n'
+            'root = Text("ok")'
+        )
+    )
+    assert msgs[0]["createSurface"]["dataModel"] == {
+        "items": [{"id": "w1", "state": "Ready"}, {"id": "w2", "state": "Open"}],
+        "auto": [None, "second"],
+    }
+
+
+def test_create_surface_invalid_path_traversal_raises() -> None:
+    compiler = ExpressCompiler([_primary("v1.0")], version="v1.0")
+    with pytest.raises(ExpressValidationError, match="non-numeric segment"):
+        compiler.compile('$/items = ["a"]\n$/items/foo = "b"\nroot = Text("ok")')
+    with pytest.raises(ExpressValidationError, match="primitive value"):
+        compiler.compile('$/user = "Ada"\n$/user/name = "Bob"\nroot = Text("ok")')
+    with pytest.raises(ExpressValidationError, match="exceeds maximum"):
+        compiler.compile('$/items/10001 = "x"\nroot = Text("ok")')
 
 
 def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> None:
@@ -662,8 +711,8 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
     recompiled = _compile(parser, dsl)
     assert recompiled[0]["createSurface"]["dataModel"] == {"a": 3}
 
-    # Once the create is closed by another message, the root update is kept
-    # as an explicit update rather than folded in.
+    # Once the create is closed by another message, the data update is emitted
+    # as a separate scope rather than folded into createSurface.
     call = {
         "version": "v1.0",
         "callRendererFunction": {
@@ -675,9 +724,13 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
             },
         },
     }
-    dsl = _round_trip(parser, [create, call, update])
-    assert 'surface("s1")\n$/a = 3' in dsl
+    dsl = parser.decompile(to_message_models([create, call, update]))
+    assert 'surface("s1")\n$/ = {a: 3}' in dsl
     assert 'sharedFn("p", catalogId="test/primary")' in dsl
+    assert _compile(parser, dsl)[2] == {
+        "version": "v1.0",
+        "updateDataModel": {"surfaceId": "s1", "path": "/", "value": {"a": 3}},
+    }
 
 
 def test_create_then_delete_round_trips(parser: ExpressParser) -> None:

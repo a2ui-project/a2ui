@@ -601,8 +601,8 @@ class GenericBinder {
   }
 
   /// Adds the `accessibility` envelope property to a component's root
-  /// behavior when its schema does not declare one, so its `label` and
-  /// `description` resolve as dynamic strings on every component.
+  /// behavior when its schema does not declare one, so its `label`,
+  /// `description` and `hidden` resolve as dynamic values on every component.
   static BehaviorNode _withAccessibility(BehaviorNode root) {
     final Map<String, BehaviorNode>? shape = root.shape;
     if (root.type != Behavior.object ||
@@ -619,6 +619,7 @@ class GenericBinder {
           shape: {
             'label': BehaviorNode(Behavior.dynamic),
             'description': BehaviorNode(Behavior.dynamic),
+            'hidden': BehaviorNode(Behavior.dynamic),
           },
         ),
       },

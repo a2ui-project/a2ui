@@ -15,7 +15,7 @@
  */
 
 import {ParseError} from '../../errors.js';
-import {AgentToRendererMessage, CatalogApi, linkCatalogs} from '../../internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {BlockLexer, JSON_PAYLOAD_START_RE} from '../../parser/lexer.js';
 import {ParseOptions, Parser} from '../../parser/parser.js';
 import {RawResponsePart} from '../../parser/response-part.js';
@@ -37,7 +37,7 @@ export interface DirectJsonParserOptions {
 
 /** Parser for the Direct JSON format, for complete and streamed responses. */
 export class DirectJsonParser extends Parser {
-  /** The active catalogs, linked to each other so cross-catalog `$ref`s resolve. */
+  /** The active catalogs. */
   readonly catalogs: CatalogApi[];
   /** The keys whose string values a stream heals while they arrive. */
   readonly progressiveKeys: ReadonlySet<string>;
@@ -59,7 +59,7 @@ export class DirectJsonParser extends Parser {
   constructor(catalogs: CatalogApi[], options: DirectJsonParserOptions = {}) {
     super();
     checkParserCatalogs(catalogs);
-    this.catalogs = linkCatalogs(catalogs);
+    this.catalogs = catalogs;
     this.progressiveKeys = new Set(options.progressiveKeys ?? []);
   }
 

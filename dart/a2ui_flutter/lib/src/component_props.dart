@@ -41,10 +41,11 @@ extension type const ComponentProps(NodeProps _props) implements NodeProps {
     _ => null,
   };
 
-  /// [value], unwrapped, as a bool, or null if it is not a bool.
+  /// [value], unwrapped, as a bool. A validation result, such as a v1.0
+  /// validation rule returns, gives its validity. Other values give null.
   static bool? asBoolean(Object? value) => switch (unwrap(value)) {
     final bool b => b,
-    _ => null,
+    final Object? other => ValidationResult.validityOf(other),
   };
 
   static String _numberToString(num n) {
@@ -104,12 +105,23 @@ extension type const ComponentProps(NodeProps _props) implements NodeProps {
         _ => const [],
       };
 
-  /// False when one of the component's `checks` fails.
+  /// False when one of the component's `checks` fails with `error`
+  /// severity, which a check without a severity has.
   bool get isValid => this['isValid'] != false;
 
-  /// The messages of the failing `checks`.
+  /// The messages of the `checks` failing with `error` severity.
   List<String> get validationErrors => switch (this['validationErrors']) {
     final List<Object?> l => l.whereType<String>().toList(growable: false),
     _ => const [],
   };
+
+  /// The results of the failing `checks`, including those of `warning` or
+  /// `info` severity, which leave the component valid.
+  List<ValidationResult> get validationResults =>
+      switch (this['validationResults']) {
+        final List<Object?> l => l.whereType<ValidationResult>().toList(
+          growable: false,
+        ),
+        _ => const [],
+      };
 }
