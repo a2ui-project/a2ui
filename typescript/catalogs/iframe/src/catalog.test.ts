@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import tipCalculatorExample from '../../../../catalogs/iframe/examples/srcdoc-tip-calculator.json' with {type: 'json'};
 import {
   basicCatalog,
   isWebComponentImplementation,
@@ -48,39 +49,19 @@ describe('iframeCatalog', () => {
     }
   });
 
-  it('renders a frame that names the iframe catalog on a basic catalog surface', () => {
+  it('renders the frame of the catalog examples next to the basic catalog', () => {
     const processor = new MessageProcessor<WebComponentImplementation>([
       basicCatalog,
       iframeCatalog,
     ]);
 
-    processor.processMessages(
-      parseExampleMessages({
-        messages: [
-          {version: 'v1.0', createSurface: {surfaceId: 'frames', catalogId: basicCatalog.id}},
-          {
-            version: 'v1.0',
-            updateComponents: {
-              surfaceId: 'frames',
-              components: [
-                {
-                  id: 'app',
-                  component: 'WebAppFrameSrcdoc',
-                  catalogId: IFRAME_CATALOG_ID,
-                  htmlContent: '<p>App</p>',
-                },
-              ],
-            },
-          },
-        ],
-      }),
-    );
+    processor.processMessages(parseExampleMessages(tipCalculatorExample));
 
-    const surface = processor.model.getSurface('frames')!;
-    expect(surface.defaultCatalog).toBe(basicCatalog);
-    const frame = surface.componentsModel.get('app')!;
-    expect(frame.type).toBe('WebAppFrameSrcdoc');
-    expect(frame.catalog).toBe(iframeCatalog);
-    surface.dispose();
+    const tipCalculator = processor.model.getSurface('gallery-iframe-tip-calculator')!;
+    expect(tipCalculator.defaultCatalog).toBe(basicCatalog);
+    const calculator = tipCalculator.componentsModel.get('tip_calculator')!;
+    expect(calculator.type).toBe('WebAppFrameSrcdoc');
+    expect(calculator.catalog).toBe(iframeCatalog);
+    tipCalculator.dispose();
   });
 });
