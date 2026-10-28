@@ -23,10 +23,11 @@ import {
   A2uiCompilationParseError,
   A2uiCompilationValidationError,
   ParseError,
+  withPartialResults,
 } from '../../errors.js';
 import {A2uiError, AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
-import {ResponsePart} from '../../parser/response-part.js';
+import {ResponsePart, StreamPart} from '../../parser/response-part.js';
 import {ResponseStream} from '../../parser/response-stream.js';
 import {RendererState} from '../../utils/renderer-state.js';
 import {ExpressCompiler, ExpressScopeSession, formatErrorMessage} from './compiler.js';
@@ -592,10 +593,35 @@ export function wrapExpressCompilationError(error: unknown, rawContent: string):
   return error;
 }
 
+/** How an Express stream is opened. */
+export interface ExpressStreamOptions {
+  /** False if the whole response is one block, without tags. */
+  wrapped?: boolean;
+  /** The state the stream's messages are applied to. */
+  state?: RendererState;
+  /** Whether the stream ends at a rejected block or reads past it. */
+  afterRejectedBlock?: 'end' | 'continue';
+  /** Property keys whose unclosed string literals are healed progressively. */
+  progressiveKeys?: Iterable<string>;
+}
+
 /**
  * Reads a streamed A2UI Express response chunk by chunk.
+ *
+ * By default the stream ends at the first rejected block: `feed` or `close` throws, and the
+ * error's `partialResults` holds the parts the chunk made ready before the failure. Opened
+ * with `afterRejectedBlock: 'continue'`, it returns an `ErrorPart` in the block's place,
+ * skips the rest of the block, and reads on. Either way the messages the block emitted stay
+ * in the state and the components they added are marked checked.
+ *
+ * @template Part The parts the stream returns. See `ResponseStream`.
  */
-export class ExpressResponseStream implements ResponseStream {
+export class ExpressResponseStream<
+  Part extends StreamPart = ResponsePart,
+> implements ResponseStream<Part> {
+  readonly state: RendererState;
+  private readonly wrapped: boolean;
+  private readonly continues: boolean;
   private readonly compiler: ExpressCompiler;
   private readonly progressiveKeys: ReadonlySet<string>;
   private closed = false;
@@ -605,24 +631,37 @@ export class ExpressResponseStream implements ResponseStream {
   private runStarted = false;
   private heldSpace = '';
   private inBlock: boolean;
+  /** Whether the open block was rejected, so the rest of it is skipped. */
+  private rejected = false;
   private block = '';
   private lastCompiledPrefix = '';
   private touched = new Set<string>();
   private initialSurfaces: ReadonlySet<string>;
   private session: ExpressScopeSession;
 
+  /**
+   * @param parser The parser that opened the stream.
+   * @param options Whether the response is wrapped in tags, the state the stream's messages
+   *     are applied to, whether the stream reads past a rejected block, and the keys whose
+   *     strings heal progressively.
+   */
   constructor(
     private readonly parser: ExpressStreamSource,
-    private readonly wrapped = true,
-    readonly state: RendererState = new RendererState(parser.catalogs),
-    progressiveKeys?: Iterable<string>,
+    {wrapped = true, state, afterRejectedBlock = 'end', progressiveKeys}: ExpressStreamOptions = {},
   ) {
+    this.wrapped = wrapped;
+    this.state = state ?? new RendererState(parser.catalogs);
+    this.continues = afterRejectedBlock === 'continue';
     this.compiler = new ExpressCompiler(parser.catalogs, parser.version);
     this.progressiveKeys =
       progressiveKeys !== undefined ? new Set(progressiveKeys) : parser.progressiveKeys;
     this.inBlock = !wrapped;
     this.initialSurfaces = new Set(this.state.surfaceIds);
     this.session = this.newSession();
+  }
+
+  get isInBlock(): boolean {
+    return !this.closed && this.inBlock;
   }
 
   private newSession(): ExpressScopeSession {
@@ -632,48 +671,63 @@ export class ExpressResponseStream implements ResponseStream {
     });
   }
 
+  /** Forgets the block that closed, whether it was read or rejected. */
   private resetBlock(): void {
     this.block = '';
+    this.rejected = false;
     this.lastCompiledPrefix = '';
     this.touched = new Set<string>();
     this.initialSurfaces = new Set(this.state.surfaceIds);
     this.session = this.newSession();
   }
 
-  feed(chunk: string): ResponsePart[] {
+  feed(chunk: string): Part[] {
     if (this.closed) {
       throw new Error('The response stream is closed.');
     }
-    const emittedOn = new Set(this.touched);
+    const parts: StreamPart[] = [];
     try {
-      return this.state.transaction(() => this.read(chunk));
+      this.read(chunk, parts);
     } catch (e) {
-      this.fail(emittedOn);
-      throw e;
+      this.fail();
+      throw withPartialResults(e, parts.filter(isResponsePart));
     }
+    // Only a stream that reads past rejected blocks, whose parts are `StreamPart`s, returns an
+    // `ErrorPart`.
+    return parts as Part[];
   }
 
-  close(): ResponsePart[] {
+  close(): Part[] {
+    return this.end() as Part[];
+  }
+
+  private end(): StreamPart[] {
     if (this.closed) {
       return [];
     }
     this.closed = true;
-    const parts: ResponsePart[] = [];
+    const parts: StreamPart[] = [];
     try {
       if (!this.wrapped) {
-        this.finishBlock(parts, this.block.length);
+        if (!this.rejected) {
+          this.readBlock(parts, () => this.finishBlock(parts, this.block.length));
+        }
         return parts;
       }
       if (this.inBlock) {
+        if (!this.rejected) {
+          this.readBlock(parts, () => {
+            throw new ParseError(
+              `The response ended inside an ${OPEN_TAG} block, before its ${CLOSE_TAG} tag.`,
+            );
+          });
+        }
         this.state.markChecked(this.touched);
-        this.resetBlock();
-        throw new ParseError(
-          `The response ended inside an ${OPEN_TAG} block, before its ${CLOSE_TAG} tag.`,
-        );
+        return parts;
       }
     } catch (e) {
-      this.fail(this.touched);
-      throw e;
+      this.fail();
+      throw withPartialResults(e, parts.filter(isResponsePart));
     }
     if (this.heldBackticks) {
       this.emitText(parts, this.heldBackticks);
@@ -686,17 +740,38 @@ export class ExpressResponseStream implements ResponseStream {
     return parts;
   }
 
-  private fail(surfaceIds: Iterable<string>): void {
+  /**
+   * Ends the stream after a failure. The renderer holds the messages already emitted, and so
+   * does the state, so the components they added are marked checked.
+   */
+  private fail(): void {
     this.closed = true;
-    this.state.markChecked(surfaceIds);
+    this.state.markChecked(this.touched);
   }
 
-  private read(chunk: string): ResponsePart[] {
-    const parts: ResponsePart[] = [];
+  /**
+   * Runs a step that reads the open block. If the block is rejected and the stream reads past
+   * rejected blocks, returns an `ErrorPart` for it and skips the rest of it; otherwise the
+   * error propagates.
+   */
+  private readBlock(parts: StreamPart[], step: () => void): void {
+    try {
+      step();
+    } catch (e) {
+      if (!this.continues || !(e instanceof A2uiError)) throw e;
+      parts.push({type: 'error', error: e});
+      this.state.markChecked(this.touched);
+      this.rejected = true;
+    }
+  }
+
+  private read(chunk: string, parts: StreamPart[]): void {
     if (!this.wrapped) {
       this.block += chunk;
-      this.emitReady(parts, this.block.length);
-      return parts;
+      if (!this.rejected) {
+        this.readBlock(parts, () => this.emitReady(parts, this.block.length));
+      }
+      return;
     }
 
     let input = this.prepareChunk(chunk);
@@ -707,7 +782,6 @@ export class ExpressResponseStream implements ResponseStream {
         input = this.consumeOutsideText(parts, input);
       }
     }
-    return parts;
   }
 
   private prepareChunk(chunk: string): string {
@@ -736,11 +810,13 @@ export class ExpressResponseStream implements ResponseStream {
     return input;
   }
 
-  private consumeBlockText(parts: ResponsePart[], input: string): string {
+  private consumeBlockText(parts: StreamPart[], input: string): string {
     this.block += input;
     const [closeStart, readableEnd] = scanExpressBlock(this.block);
     if (closeStart === undefined) {
-      this.emitReady(parts, readableEnd);
+      if (!this.rejected) {
+        this.readBlock(parts, () => this.emitReady(parts, readableEnd));
+      }
       return '';
     }
     const closeEnd = matchCloseTag(this.block, closeStart)!;
@@ -750,11 +826,15 @@ export class ExpressResponseStream implements ResponseStream {
     } else if (!remaining) {
       this.stripCloseBackticks = true;
     }
-    this.finishBlock(parts, closeStart);
+    if (!this.rejected) {
+      this.readBlock(parts, () => this.finishBlock(parts, closeStart));
+    }
+    this.inBlock = false;
+    this.resetBlock();
     return remaining;
   }
 
-  private consumeOutsideText(parts: ResponsePart[], input: string): string {
+  private consumeOutsideText(parts: StreamPart[], input: string): string {
     const open = searchOpenTag(input);
     if (open) {
       let textBefore = input.slice(0, open.start);
@@ -789,7 +869,7 @@ export class ExpressResponseStream implements ResponseStream {
     return '';
   }
 
-  private emitText(parts: ResponsePart[], text: string): void {
+  private emitText(parts: StreamPart[], text: string): void {
     const body = (this.runStarted ? text : text.trimStart()).trimEnd();
     if (!body) {
       if (this.runStarted) {
@@ -803,7 +883,7 @@ export class ExpressResponseStream implements ResponseStream {
     this.runStarted = true;
   }
 
-  private emitReady(parts: ResponsePart[], end: number): void {
+  private emitReady(parts: StreamPart[], end: number): void {
     const payload = cleanExpressPayload(this.block, end);
     if (!payload || !payload.trim()) {
       return;
@@ -855,7 +935,7 @@ export class ExpressResponseStream implements ResponseStream {
     }
   }
 
-  private finishBlock(parts: ResponsePart[], end: number): void {
+  private finishBlock(parts: StreamPart[], end: number): void {
     const payload = cleanExpressPayload(this.block, end) ?? '';
     let models: AgentToRendererMessage[] = [];
     this.state.transaction(() => {
@@ -873,8 +953,6 @@ export class ExpressResponseStream implements ResponseStream {
     if (models.length > 0) {
       parts.push({type: 'a2ui', a2ui: models});
     }
-    this.inBlock = !this.wrapped;
-    this.resetBlock();
   }
 
   private compileStep(
@@ -899,6 +977,10 @@ export class ExpressResponseStream implements ResponseStream {
       this.touched.add(id);
     }
   }
+}
+
+function isResponsePart(part: StreamPart): part is ResponsePart {
+  return part.type !== 'error';
 }
 
 function mergeSameSurfaceUpdates(messages: AgentToRendererMessage[]): AgentToRendererMessage[] {

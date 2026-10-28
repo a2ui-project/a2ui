@@ -15,6 +15,8 @@
   `surface(...)` also accepts `update=` and `sendDataModel=` keyword arguments
   to update an existing surface without emitting `createSurface` or to request
   client data model echoing on surface creation.
+- Bumped `a2ui_core` constraint to `^0.4.0`.
+
 - Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
   scopes that update a surface (scopes without a `root` assignment) now emit one
   targeted `updateDataModel` message per assigned path at its JSON Pointer

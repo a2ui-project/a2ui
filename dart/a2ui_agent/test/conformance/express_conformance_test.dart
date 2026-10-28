@@ -100,8 +100,25 @@ const Map<String, String> _v1OnlyCases = {
       'free-form object property.',
 };
 
+/// Cases for `partialResults`, reading past a rejected block and
+/// `isInBlock` on a response stream, which this SDK does not implement yet:
+/// https://github.com/a2ui-project/a2ui/issues/3699
+const Set<String> _unportedCases = {
+  'test_express_stream_error_carries_the_text_before_the_failing_block',
+  'test_express_stream_continue_returns_an_error_part_for_an_unreadable_block',
+  'test_express_stream_continue_keeps_the_messages_emitted_before_the_'
+      'rejection',
+  'test_express_stream_continue_returns_an_error_part_for_a_block_still_open_'
+      'at_the_end',
+  'test_express_stream_in_block_from_the_open_tag_to_the_close_tag',
+};
+
 /// Why this SDK cannot run [testCase] in [version], or null if it can.
 String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
+  if (_unportedCases.contains(testCase['name'])) {
+    return 'Not implemented yet: '
+        'https://github.com/a2ui-project/a2ui/issues/3699';
+  }
   if (version == SuiteVersion.v1_0) return null;
   if (_v1OnlyCases[testCase['name']] case final String reason) return reason;
   if (jsonEncode(testCase).contains('"callRendererFunction"')) {

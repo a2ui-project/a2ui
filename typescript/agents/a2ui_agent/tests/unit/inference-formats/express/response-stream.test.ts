@@ -189,4 +189,46 @@ describe('ExpressResponseStream unit tests', () => {
     expect(stream.feed('<a2ui>\nsurface("main")\nroot = Text("Ready")\n')).toHaveLength(1);
     expect(() => stream.close()).toThrow(ParseError);
   });
+
+  it('carries the parts read before a failure in partialResults', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const stream = parser.openStream();
+    let thrown: unknown;
+    try {
+      stream.feed('Before <a2ui>\nroot = (\n</a2ui>');
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(A2uiCompilationParseError);
+    expect((thrown as {partialResults?: unknown}).partialResults).toEqual([
+      {type: 'text', text: 'Before'},
+    ]);
+    expect(stream.isInBlock).toBe(false);
+  });
+
+  it('reads past a rejected block as an ErrorPart when asked to continue', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const stream = parser.openStream({afterRejectedBlock: 'continue'});
+    const p1 = stream.feed('<a2ui>\nsurface("main")\nroot = Text("Kept")\n');
+    expect(p1).toHaveLength(1);
+    expect(stream.isInBlock).toBe(true);
+    const p2 = stream.feed('bad = UnknownWidget("x")\n');
+    expect(p2).toHaveLength(1);
+    expect(p2[0].type).toBe('error');
+    expect(stream.state.surfaceIds).toContain('main');
+    const p3 = stream.feed('ignored = Text("skipped")\n</a2ui> After');
+    expect(p3).toEqual([{type: 'text', text: 'After'}]);
+    expect(stream.isInBlock).toBe(false);
+    expect(stream.close()).toEqual([]);
+  });
+
+  it('returns an ErrorPart on close for an open block when asked to continue', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const stream = parser.openStream({afterRejectedBlock: 'continue'});
+    stream.feed('<a2ui>\nsurface("main")\nroot = Text("Open")\n');
+    const closed = stream.close();
+    expect(closed).toHaveLength(1);
+    expect(closed[0].type).toBe('error');
+    expect(stream.isInBlock).toBe(false);
+  });
 });

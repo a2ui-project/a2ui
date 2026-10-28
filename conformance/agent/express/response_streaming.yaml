@@ -550,3 +550,134 @@
                     text: "Complete"
   expect_error:
     category: "ParseError"
+
+# --- 9. Partial results, reading past rejected blocks, and isInBlock ---
+#
+# These cases follow the Direct JSON suite's `expect_partial_results`,
+# `after_rejected_block` and `expect_in_block` keys. An SDK that does not
+# implement them yet skips these cases, as it skips the Direct JSON ones.
+
+- name: test_express_stream_error_carries_the_text_before_the_failing_block
+  description: A chunk that fails on a block returns the text before the block in the error's partial results.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "Before <a2ui>\nroot = (\n</a2ui>"
+      expect_error:
+        category: "ParseError"
+      expect_partial_results:
+        - text: "Before"
+      expect_in_block: false
+
+- name: test_express_stream_continue_returns_an_error_part_for_an_unreadable_block
+  description: Reading past rejected blocks, a block that cannot be compiled becomes an error part, and the text after it is read as usual.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+    after_rejected_block: continue
+  steps:
+    - input: "Before <a2ui>\nroot = (\n</a2ui> after"
+      expect:
+        - text: "Before"
+        - error:
+            category: "ParseError"
+        - text: "after"
+  expect_close: []
+
+- name: test_express_stream_continue_keeps_the_messages_emitted_before_the_rejection
+  description: Reading past rejected blocks, the messages a block emitted before it was rejected stay applied, the rest of the block is skipped, and the next block is read.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+    after_rejected_block: continue
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Kept\")\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Kept"
+      expect_in_block: true
+    - input: "extra = UnknownWidget(\"x\")\n"
+      expect:
+        - error:
+            category: "ValidationError"
+      expect_in_block: true
+    - input: "more = Text(\"skipped\")\n</a2ui>\n<a2ui>\nsurface(\"s1\", update=true)\n$/title = \"Next\"\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                path: "/title"
+                value: "Next"
+      expect_in_block: false
+  expect_close: []
+
+- name: test_express_stream_continue_returns_an_error_part_for_a_block_still_open_at_the_end
+  description: Reading past rejected blocks, a block still open when the stream closes becomes an error part instead of raising.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+    after_rejected_block: continue
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Open\")\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Open"
+  expect_close:
+    - error:
+        category: "ParseError"
+
+- name: test_express_stream_in_block_from_the_open_tag_to_the_close_tag
+  description: The response ends inside a block from its opening tag to its closing tag, and not while an opening tag is still arriving.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "Text <a2"
+      expect:
+        - text: "Text"
+      expect_in_block: false
+    - input: "ui>\n"
+      expect: []
+      expect_in_block: true
+    - input: "surface(\"s1\")\nroot = Text(\"Hi\")\n"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hi"
+      expect_in_block: true
+    - input: "</a2ui> after"
+      expect:
+        - text: "after"
+      expect_in_block: false

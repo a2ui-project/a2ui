@@ -37,7 +37,7 @@ The following CI workflows support publishing, making sure the packages are alwa
 
 In this repo:
 
-- [pub_health.yaml](../../.github/workflows/pub_health.yml)
+- [pub_health.yaml](../../../.github/workflows/pub_health.yml)
 
 In genui repo:
 

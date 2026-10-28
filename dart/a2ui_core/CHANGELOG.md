@@ -1,6 +1,6 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
-## Unreleased
+## 0.4.0
 
 - **Breaking:** Removed cross-catalog `$ref` resolution across peer
   catalogs ([#3232](https://github.com/a2ui-project/a2ui/issues/3232),

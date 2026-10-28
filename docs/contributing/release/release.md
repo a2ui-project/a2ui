@@ -16,15 +16,15 @@ release pull request changes it.
 A package has something to release when its `CHANGELOG.md` has notes under
 `## Unreleased`:
 
-- [a2ui_core CHANGELOG.md](../../dart/a2ui_core/CHANGELOG.md)
-- [a2ui_agent CHANGELOG.md](../../dart/a2ui_agent/CHANGELOG.md)
+- [a2ui_core CHANGELOG.md](../../../dart/a2ui_core/CHANGELOG.md)
+- [a2ui_agent CHANGELOG.md](../../../dart/a2ui_agent/CHANGELOG.md)
 
 **2. Open a release pull request**
 
 In one pull request, for each package to release:
 
 - Choose the next version, as described in
-  [Versioning](release-pub-dev.md#versioning).
+  [Versioning](pub-dev.md#versioning).
 - Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`.
 - Set `version:` in `pubspec.yaml` to the same version.
 
@@ -42,7 +42,7 @@ For each package in the release pull request:
 
 If any step fails, file a GitHub issue and inform the team.
 
-For troubleshooting and maintenance, see [release-pub-dev.md](release-pub-dev.md).
+For troubleshooting and maintenance, see [pub-dev.md](pub-dev.md).
 
 ### Packages in the genui repository
 
@@ -57,7 +57,7 @@ then publish them from the latest `main` of that repository:
 
 ### NPM
 
-See [web_publishing.md](web_publishing.md).
+See [npm.md](npm.md).
 
 ### PyPI
 
@@ -69,11 +69,11 @@ Release <package names, or all> with a <major|minor|patch> bump
 
 Name the packages to release, for example `a2ui-agent-sdk` or `a2ui-a2a and a2ui-adk`, or ask for `all` to release all four.
 
-The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog. Released packages appear on PyPI ([a2ui-core](https://pypi.org/project/a2ui-core/), [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/), [a2ui-a2a](https://pypi.org/project/a2ui-a2a/) and [a2ui-adk](https://pypi.org/project/a2ui-adk/)) as well as under corresponding [Git tags](https://github.com/a2ui-project/a2ui/tags) and [GitHub releases](https://github.com/a2ui-project/a2ui/releases) that link to them.
+The assistant uses the [`a2ui-release-python`](../../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog. Released packages appear on PyPI ([a2ui-core](https://pypi.org/project/a2ui-core/), [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/), [a2ui-a2a](https://pypi.org/project/a2ui-a2a/) and [a2ui-adk](https://pypi.org/project/a2ui-adk/)) as well as under corresponding [Git tags](https://github.com/a2ui-project/a2ui/tags) and [GitHub releases](https://github.com/a2ui-project/a2ui/releases) that link to them.
 
 #### How it works behind the scenes
 
-Publishing is handled by the [Release Python SDKs](../../.github/workflows/release-pypi.yml) workflow on `main`. There is no version file to edit and no package build or upload to run locally.
+Publishing is handled by the [Release Python SDKs](../../../.github/workflows/release-pypi.yml) workflow on `main`. There is no version file to edit and no package build or upload to run locally.
 
 The workflow works out the new version from the latest release tag, tags the
 release, builds, stages the artifacts in the OSS Exit Gate Artifact Registry,
@@ -81,7 +81,7 @@ and uploads the manifest that triggers publishing. The Exit Gate emails
 `a2ui-core-working-group@google.com` when publishing starts and again when it
 finishes. The GitHub release is updated with a link to the published version
 once it appears on PyPI, either by the release run itself or by the hourly
-[Confirm PyPI publication](../../.github/workflows/release-verify-pypi.yml)
+[Confirm PyPI publication](../../../.github/workflows/release-verify-pypi.yml)
 workflow.
 
 If an assistant is unavailable, maintainers can dispatch the workflow manually from the Actions tab on `main`. Always run with `dry_run: true` first to verify the plan and artifact staging before running with `dry_run: false`.
@@ -98,7 +98,7 @@ Tags therefore point at the commit that was the tip of `main` when the run
 started, not at the changelog commit. That is deliberate. The repository
 requires linear history, so a tag created on a branch commit would be left
 unreachable once the pull request is squashed, and the `git describe` check in
-[python_ci.yml](../../.github/workflows/python_ci.yml) would start failing.
+[python_ci.yml](../../../.github/workflows/python_ci.yml) would start failing.
 
 #### Why the workflow does not open the changelog pull request directly
 
@@ -125,7 +125,7 @@ match the version it planned, so a release cannot go out on a fallback version.
 #### Things that will stop a release
 
 The preflight checks in
-[release_version.py](../../.github/scripts/release_version.py) fail the run when
+[release_version.py](../../../.github/scripts/release_version.py) fail the run when
 the Unreleased section is empty, when the target version already has a tag,
 when a proposed version falls outside the range that another package pins it
 to, and when a package depends on another package of this repository that no
@@ -134,7 +134,7 @@ released version satisfies.
 The pins form a chain: `a2ui-agent-sdk` pins `a2ui-core`, `a2ui-a2a` and
 `a2ui-adk` pin `a2ui-agent-sdk`, and `a2ui-adk` pins `a2ui-a2a` in its `a2a`
 extra. A minor `a2ui-core` bump, for example, needs the pin in
-[a2ui_agent/pyproject.toml](../../python/a2ui_agent/pyproject.toml)
+[a2ui_agent/pyproject.toml](../../../python/a2ui_agent/pyproject.toml)
 widened in a pull request that is merged to `main` before the release is
 dispatched. The workflow releases `main` as it is and cannot change the pin
 during the run.
@@ -200,12 +200,12 @@ why the release is dispatched from `main` and creates its own tag rather than
 being started by one.
 
 To test access and artifact staging without publishing anything, run the
-[Release Python SDKs](../../.github/workflows/release-pypi.yml) workflow with
+[Release Python SDKs](../../../.github/workflows/release-pypi.yml) workflow with
 `dry_run: true`. See go/oss-exit-gate-builders and go/oss-exit-gate-onduty.
 
 ### Documentation website
 
-[MkDocs](https://www.mkdocs.org/), configured in [.github/workflows/docs.yml](../../.github/workflows/docs.yml), updates https://a2ui.org/ whenever the content of [docs/public](../public) changes.
+[MkDocs](https://www.mkdocs.org/), configured in [.github/workflows/docs.yml](../../../.github/workflows/docs.yml), updates https://a2ui.org/ whenever the content of [docs/public](../../public) changes.
 
 ## Internal troubleshooting and notes
 

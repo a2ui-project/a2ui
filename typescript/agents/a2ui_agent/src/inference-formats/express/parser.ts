@@ -24,8 +24,8 @@
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
 import {BlockLexer} from '../../parser/lexer.js';
-import {ParseOptions, Parser} from '../../parser/parser.js';
-import {RawResponsePart} from '../../parser/response-part.js';
+import {ContinuingStreamOptions, Parser, StreamOptions} from '../../parser/parser.js';
+import {RawResponsePart, StreamPart} from '../../parser/response-part.js';
 import {RendererState} from '../../utils/renderer-state.js';
 import {resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {ExpressCompiler} from './compiler.js';
@@ -87,13 +87,19 @@ export class ExpressParser extends Parser {
     return true;
   }
 
-  override openStream({wrapped = true, state}: ParseOptions = {}): ExpressResponseStream {
-    return new ExpressResponseStream(
-      this,
+  override openStream(options: ContinuingStreamOptions): ExpressResponseStream<StreamPart>;
+  override openStream(options?: StreamOptions): ExpressResponseStream;
+  override openStream({
+    wrapped = true,
+    state,
+    afterRejectedBlock = 'end',
+  }: StreamOptions = {}): ExpressResponseStream<StreamPart> {
+    return new ExpressResponseStream<StreamPart>(this, {
       wrapped,
-      state ?? new RendererState(this.catalogs),
-      this.progressiveKeys,
-    );
+      state: state ?? new RendererState(this.catalogs),
+      afterRejectedBlock,
+      progressiveKeys: this.progressiveKeys,
+    });
   }
 
   hasFormatContent(content: string, {complete = false}: {complete?: boolean} = {}): boolean {
