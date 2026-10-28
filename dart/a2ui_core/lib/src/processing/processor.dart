@@ -138,9 +138,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// Pass an empty map to leave the shared types unchecked.
   final Map<String, Object?>? commonTypesSchema;
 
-  /// One validator per catalog, protocol version and validation config,
-  /// built on first use.
-  final Map<(String, A2uiProtocolVersion, ValidationConfig?),
+  /// One validator per catalog, protocol version and whether unknown
+  /// elements are allowed, built on first use.
+  final Map<(String, A2uiProtocolVersion, bool),
       PayloadValidator<T, FunctionImplementation>> _validators = {};
 
   /// Each catalog's child-reference fields, by catalog id, built on first use.
@@ -241,9 +241,12 @@ class MessageProcessor<T extends ComponentApi> {
   /// catalog from passing on a surface whose default is another, and what lets
   /// a v1.0 surface mix catalogs.
   ///
-  /// Built once per catalog and version and reused. The validator caches
-  /// resolved component schemas, which a fresh instance per batch would
-  /// rebuild on every message.
+  /// Built once per catalog, version and
+  /// [ValidationConfig.allowUnknownElements], and reused. The validator
+  /// caches resolved component schemas, which a fresh instance per batch
+  /// would rebuild on every message. It reads no other part of the config, so
+  /// a config passed to one call, which may be a new object each time, does
+  /// not build another.
   ///
   /// A v1.0 function call nested in a component runs in the catalog it
   /// resolves to, not necessarily the component's. The component's validator
@@ -256,18 +259,20 @@ class MessageProcessor<T extends ComponentApi> {
   PayloadValidator<T, FunctionImplementation> validatorFor(
     Catalog<T, FunctionImplementation> catalog, {
     A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
-  }) =>
-      _validators.putIfAbsent(
-        (catalog.id, version, _config),
-        () => PayloadValidator<T, FunctionImplementation>(
-          catalog: catalog,
-          commonTypesSchema: commonTypesSchema,
-          protocolVersion: version,
-          // Without a config nothing is being validated against the graph,
-          // and an undeclared type is tolerated too.
-          config: _config ?? const ValidationConfig(allowUnknownElements: true),
-        ),
-      );
+  }) {
+    // Without a config nothing is being validated against the graph, and an
+    // undeclared type is tolerated too.
+    final bool allowUnknown = _config?.allowUnknownElements ?? true;
+    return _validators.putIfAbsent(
+      (catalog.id, version, allowUnknown),
+      () => PayloadValidator<T, FunctionImplementation>(
+        catalog: catalog,
+        commonTypesSchema: commonTypesSchema,
+        protocolVersion: version,
+        config: ValidationConfig(allowUnknownElements: allowUnknown),
+      ),
+    );
+  }
 
   /// The supported catalog with [catalogId].
   ///

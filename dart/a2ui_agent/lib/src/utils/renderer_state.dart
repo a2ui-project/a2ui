@@ -336,6 +336,10 @@ class RendererState {
 
   /// Checks [message] and holds it back until the outermost [apply] or
   /// transaction succeeds.
+  ///
+  /// The checks are those [_runCalls] would make, paths and nesting depth
+  /// included, so that a call it hands over is not rejected once nothing
+  /// can be rolled back.
   void _holdCall(CallRendererFunctionMessage message) {
     if (message.surfaceId case final String surfaceId
         when getSurface(surfaceId) == null) {
@@ -344,7 +348,10 @@ class RendererState {
         "'$surfaceId', which does not exist.",
       );
     }
-    _asValidationError(() => _processor.checkRendererFunctionCall(message));
+    _asValidationError(() {
+      _processor.checkRendererFunctionCall(message);
+      checkPathsAndRecursion(message.toJson());
+    });
     _calls.add(message);
     _record(_calls.removeLast);
   }

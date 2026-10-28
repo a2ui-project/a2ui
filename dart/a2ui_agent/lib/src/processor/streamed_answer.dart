@@ -109,6 +109,7 @@ class StreamedAnswer<T extends ComponentApi> {
   void _show(List<StreamPart> streamParts) {
     if (streamParts.isEmpty) return;
     final List<AnswerPart<T>> parts = [..._parts];
+    var changed = false;
     for (final part in streamParts) {
       switch (part) {
         case TextPart(:final String text):
@@ -120,9 +121,11 @@ class StreamedAnswer<T extends ComponentApi> {
             parts.add(AnswerTextPart<T>(text));
           }
           _inText = true;
+          changed = true;
         case ErrorPart(:final A2uiError error):
           _inText = false;
           parts.add(AnswerErrorPart<T>(error));
+          changed = true;
         case A2uiPart(:final List<AgentToRendererMessage> a2ui):
           _inText = false;
           for (final message in a2ui) {
@@ -130,17 +133,20 @@ class StreamedAnswer<T extends ComponentApi> {
               case CreateSurfaceMessage(:final String surfaceId):
                 if (renderer.model.getSurface(surfaceId) case final surface?) {
                   parts.add(AnswerSurfacePart<T>(surface));
+                  changed = true;
                 }
               case DeleteSurfaceMessage(:final String surfaceId):
+                final int count = parts.length;
                 parts.removeWhere(
                   (AnswerPart<T> p) =>
                       p is AnswerSurfacePart<T> && p.surface.id == surfaceId,
                 );
+                if (parts.length != count) changed = true;
               default:
             }
           }
       }
     }
-    _parts = List.unmodifiable(parts);
+    if (changed) _parts = List.unmodifiable(parts);
   }
 }

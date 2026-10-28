@@ -251,6 +251,30 @@ void main() {
         );
       });
 
+      test('rejects a call with a malformed path when it is applied', () async {
+        final badPath = CallRendererFunctionMessage(
+          version: 'v1.0',
+          functionCallId: 'c4',
+          callFunction: {
+            '@call': 'ping',
+            'catalogId': fnCatalogId,
+            'args': {
+              'value': {'@path': '/invalid~path'},
+            },
+          },
+        );
+
+        state.transaction(() {
+          expect(
+            () => state.apply([badPath]),
+            throwsA(isA<A2uiValidationError>()),
+          );
+        });
+        await pumpEventQueue();
+
+        expect(ping.runs, 0);
+      });
+
       test('rejects a call that names a surface the state lacks', () {
         expect(
           () => state.apply([

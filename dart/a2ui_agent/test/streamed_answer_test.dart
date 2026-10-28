@@ -176,6 +176,15 @@ void main() {
         () => answer.parts.add(const AnswerTextPart('x')),
         throwsUnsupportedError,
       );
+
+      answer.feed('</a2ui-json>');
+      final List<AnswerPart<ComponentApi>> created = answer.parts;
+      answer.feed(
+        '<a2ui-json>[${root('a', {'component': 'Text', 'text': 'Hi'})}]'
+        '</a2ui-json>',
+      );
+      expect(answer.renderer.model.getSurface('a')!.componentsModel.size, 1);
+      expect(answer.parts, same(created));
     });
 
     test('says whether it ends inside a block', () {
