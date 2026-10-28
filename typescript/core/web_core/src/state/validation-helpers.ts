@@ -340,14 +340,6 @@ function hasCompositionRules<T extends ComponentApi>(
   return false;
 }
 
-/**
- * Checks a component's `allowedParents` against every parent it is under.
- *
- * Every component that references it is a parent, and the surface is the
- * parent of the root component (`rootId`), which is checked first. A component
- * no other component references is not checked unless it is the root; whether
- * it is reachable is the topology check's concern.
- */
 /** The id of the component the surface holds directly, which `allowedParents` checks against `Surface`. */
 function compositionRootId<T extends ComponentApi>(
   surface: SurfaceModel<T>,
@@ -356,6 +348,14 @@ function compositionRootId<T extends ComponentApi>(
   return validationConfig?.rootId ?? surface.rootId ?? 'root';
 }
 
+/**
+ * Checks a component's `allowedParents` against every parent it is under.
+ *
+ * Every component that references it is a parent, and the surface is the
+ * parent of the root component (`rootId`), which is checked first. A component
+ * no other component references is not checked unless it is the root; whether
+ * it is reachable is the topology check's concern.
+ */
 function validateParentConstraints(
   id: string,
   componentType: string,

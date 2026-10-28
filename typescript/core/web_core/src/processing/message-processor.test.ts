@@ -29,6 +29,8 @@ import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components
 import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {validateCompositionConstraints} from '../state/validation-helpers.js';
 import {peekValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 
@@ -939,6 +941,59 @@ describe('MessageProcessor', () => {
             ),
         );
       }
+    });
+
+    it("checks the surface's own root id against Surface, as a v0.8 beginRendering root sets it", () => {
+      const catalog = Catalog.fromJson({
+        catalogId: 'custom',
+        protocolVersion: 'v1.0',
+        components: {
+          Box: {type: 'object', properties: {children: {$ref: '#/$defs/ChildList'}}},
+          Card: {type: 'object', allowedParents: ['Box']},
+        },
+      }) as unknown as Catalog<ComponentApi>;
+      const surfaceWithRoot = (rootId: string) =>
+        new SurfaceModel<ComponentApi>(
+          's1',
+          catalog,
+          new Map([[catalog.id, catalog]]),
+          {},
+          false,
+          undefined,
+          rootId,
+        );
+      const resolveCatalog = () => catalog;
+
+      // The surface's root, 'main', is a Card, which may only be under a Box.
+      assert.throws(
+        () =>
+          validateCompositionConstraints(
+            surfaceWithRoot('main'),
+            [
+              {id: 'main', component: 'Card'},
+              {id: 'box', component: 'Box', children: ['main']},
+            ],
+            resolveCatalog,
+            undefined,
+          ),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes("Component 'main' (Card) cannot be placed under parent 'Surface'"),
+      );
+
+      // A component named 'root' is not the root of this surface, so it is not
+      // checked against Surface.
+      assert.doesNotThrow(() =>
+        validateCompositionConstraints(
+          surfaceWithRoot('main'),
+          [
+            {id: 'main', component: 'Box', children: []},
+            {id: 'root', component: 'Card'},
+          ],
+          resolveCatalog,
+          undefined,
+        ),
+      );
     });
   });
 

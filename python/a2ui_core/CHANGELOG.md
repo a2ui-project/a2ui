@@ -59,12 +59,24 @@
   document that is not available locally fails validation with an
   unresolvable-reference error instead of being downloaded
   ([#3554](https://github.com/a2ui-project/a2ui/pull/3554)).
-- `validate_composition_constraints` and `SurfaceComponentsModel.validate_components_update`
-  now apply the `"Surface"` `allowedParents` rule only to the surface's root
-  component (`root_id`, `"root"` by default), even when another component also
-  references it, and check every parent edge when a component has multiple
-  parents (#3354). Non-root components that nothing references are no longer
-  checked against `"Surface"`.
+- **BREAKING CHANGE**: `validate_composition_constraints` and
+  `SurfaceComponentsModel.validate_components_update` apply the `"Surface"`
+  `allowedParents` rule only to the surface's root component (`root_id`,
+  `"root"` by default), even when another component also references it, and
+  check every parent of a component that has several, not only the last one
+  in surface order. A non-root component that nothing references is no longer
+  checked against `"Surface"`; the topology checks report it as an orphan, or
+  allow it. This matches the specification and the TypeScript, Dart and Swift
+  SDKs, and changes which payloads are accepted.
+  ([#3354](https://github.com/a2ui-project/a2ui/issues/3354),
+  [#3360](https://github.com/a2ui-project/a2ui/pull/3360))
+- **BREAKING CHANGE**: A `MessageProcessor` without a `validation_config`, as a
+  renderer has by default, checks each `updateComponents` against the
+  `allowedParents` and `allowedChildren` rules of its catalogs, as the
+  TypeScript and Dart SDKs do. Before, it checked nothing, so a payload
+  that breaks those rules is now rejected. The check is skipped when no catalog
+  of the surface's components declares such rules.
+  [#3360](https://github.com/a2ui-project/a2ui/pull/3360)
 - `SchemaValidator.evolve` no longer raises `TypeError` (`_registry`) for a
   subschema that declares its own `$schema`, and keeps the validator's
   registry.
