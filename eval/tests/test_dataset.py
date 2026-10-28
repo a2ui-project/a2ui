@@ -423,3 +423,24 @@ def test_stage2_assertions_from_mapping() -> None:
     assert parsed.catalog_ids == ("basic",)
     assert parsed.required_bindings == ()
     assert not parsed.is_empty
+
+
+def test_decision_v1_0_dataset_is_default_for_decision_and_opt_in_for_others() -> None:
+    decision_default = load_a2ui_dataset(version="1.0", format_name="decision")
+    express_default = load_a2ui_dataset(version="1.0", format_name="express")
+    express_explicit = load_a2ui_dataset(
+        dataset="decision_v1_0", version="1.0", format_name="express"
+    )
+
+    assert len(decision_default) == 16
+    assert all(
+        sample.metadata["dataset"] == "decision_v1_0"
+        for sample in decision_default
+        if sample.metadata
+    )
+    assert all(
+        sample.metadata["dataset"] != "decision_v1_0"
+        for sample in express_default
+        if sample.metadata
+    )
+    assert len(express_explicit) == 16

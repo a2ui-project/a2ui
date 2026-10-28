@@ -21,6 +21,7 @@ from typing import Any, Callable
 from inspect_ai.solver import Solver
 
 from ..runner import validate_strategy
+from .decision import decision_solver
 from .format import (
     compile_format_payload,
     format_solver,
@@ -39,6 +40,8 @@ from .subagent_tool import (
 STRATEGY_OPTION_KEYS: tuple[str, ...] = (
     "max_validation_retries",
     "subagent_format",
+    "decision_backend",
+    "cache_generations",
 )
 
 
@@ -50,6 +53,7 @@ def _format_strategy(format_name: str) -> Callable[..., list[Solver]]:
             format_name,
             version,
             max_validation_retries=options.get("max_validation_retries", 0),
+            cache=options.get("cache_generations", False),
         )
 
     return build
@@ -71,6 +75,15 @@ def _skill_mode(version: str, **options: Any) -> list[Solver]:
     )
 
 
+def _decision_strategy(version: str, **options: Any) -> list[Solver]:
+    return decision_solver(
+        version,
+        decision_backend=options.get("decision_backend"),
+        max_validation_retries=options.get("max_validation_retries", 0),
+        cache=options.get("cache_generations", False),
+    )
+
+
 STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
     "direct": _format_strategy("direct_json"),
     "subagent_tool": _subagent_strategy,
@@ -78,6 +91,7 @@ STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
     "skill_mode": _skill_mode,
     "elemental": _format_strategy("elemental"),
     "atom": _format_strategy("atom"),
+    "decision": _decision_strategy,
 }
 
 

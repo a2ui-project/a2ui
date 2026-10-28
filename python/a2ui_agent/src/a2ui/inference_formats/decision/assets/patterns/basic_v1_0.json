@@ -1,0 +1,1717 @@
+{
+  "$schema": "https://a2ui.org/specification/v1_0/decision/pattern_definition.json",
+  "catalogIds": [
+    "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  ],
+  "version": "1",
+  "patterns": {
+    "page": {
+      "slots": [
+        "title",
+        "subtitle",
+        "mark",
+        "blocks"
+      ],
+      "knobs": {
+        "dialog": [
+          "yes",
+          "no"
+        ],
+        "stickyActions": [
+          "yes",
+          "no"
+        ]
+      },
+      "note": "mark is a small image beside the title: a logo or avatar that the picture block's prominence score placed at level 0.",
+      "variants": [
+        {
+          "when": {
+            "dialog": "yes"
+          },
+          "root": "page_card",
+          "components": [
+            {
+              "id": "page_card",
+              "component": "Card",
+              "child": "page_col"
+            },
+            {
+              "id": "page_col",
+              "component": "Column",
+              "children": [
+                "page_head",
+                {
+                  "$if": "subtitle",
+                  "id": "page_subtitle"
+                },
+                {
+                  "$blocks": true
+                }
+              ]
+            },
+            {
+              "id": "page_head",
+              "component": "Row",
+              "align": "center",
+              "children": [
+                {
+                  "$if": "mark",
+                  "id": "page_mark"
+                },
+                "page_title"
+              ]
+            },
+            {
+              "id": "page_mark",
+              "component": "Image",
+              "url": {
+                "$slot": "mark"
+              },
+              "variant": "icon",
+              "fit": "contain"
+            },
+            {
+              "id": "page_title",
+              "component": "Text",
+              "text": {
+                "$text": "## {title}"
+              }
+            },
+            {
+              "id": "page_subtitle",
+              "component": "Text",
+              "text": {
+                "$slot": "subtitle"
+              },
+              "variant": "caption"
+            }
+          ]
+        },
+        {
+          "root": "page_col",
+          "components": [
+            {
+              "id": "page_col",
+              "component": "Column",
+              "children": [
+                "page_head",
+                {
+                  "$if": "subtitle",
+                  "id": "page_subtitle"
+                },
+                {
+                  "$blocks": true
+                }
+              ]
+            },
+            {
+              "id": "page_head",
+              "component": "Row",
+              "align": "center",
+              "children": [
+                {
+                  "$if": "mark",
+                  "id": "page_mark"
+                },
+                "page_title"
+              ]
+            },
+            {
+              "id": "page_mark",
+              "component": "Image",
+              "url": {
+                "$slot": "mark"
+              },
+              "variant": "icon",
+              "fit": "contain"
+            },
+            {
+              "id": "page_title",
+              "component": "Text",
+              "text": {
+                "$text": "## {title}"
+              }
+            },
+            {
+              "id": "page_subtitle",
+              "component": "Text",
+              "text": {
+                "$slot": "subtitle"
+              },
+              "variant": "caption"
+            }
+          ]
+        }
+      ]
+    },
+    "banner": {
+      "slots": [
+        "title",
+        "text",
+        "tone"
+      ],
+      "root": "banner_card",
+      "components": [
+        {
+          "id": "banner_card",
+          "component": "Card",
+          "child": "banner_row"
+        },
+        {
+          "id": "banner_row",
+          "component": "Row",
+          "align": "center",
+          "children": [
+            "banner_icon",
+            "banner_col"
+          ]
+        },
+        {
+          "id": "banner_icon",
+          "component": "Icon",
+          "name": {
+            "$map": "tone",
+            "success": "check",
+            "warning": "info",
+            "danger": "error",
+            "neutral": "info"
+          }
+        },
+        {
+          "id": "banner_col",
+          "component": "Column",
+          "weight": 1,
+          "children": [
+            "banner_title",
+            {
+              "$if": "text",
+              "id": "banner_text"
+            }
+          ]
+        },
+        {
+          "id": "banner_title",
+          "component": "Text",
+          "text": {
+            "$text": "**{title}**"
+          }
+        },
+        {
+          "id": "banner_text",
+          "component": "Text",
+          "text": {
+            "$slot": "text"
+          },
+          "variant": "caption"
+        }
+      ]
+    },
+    "picture": {
+      "slots": [
+        "picture",
+        "caption"
+      ],
+      "knobs": {
+        "framing": [
+          "banner",
+          "portrait",
+          "object",
+          "poster"
+        ],
+        "prominence": [
+          "mark",
+          "supporting",
+          "leading",
+          "full"
+        ]
+      },
+      "variants": [
+        {
+          "when": {
+            "prominence": [
+              "mark"
+            ]
+          },
+          "root": "picture_img",
+          "components": [
+            {
+              "id": "picture_img",
+              "component": "Image",
+              "url": {
+                "$slot": "picture"
+              },
+              "variant": {
+                "$map": "framing",
+                "portrait": "avatar",
+                "object": "icon",
+                "banner": "icon",
+                "poster": "icon"
+              },
+              "fit": "contain",
+              "description": {
+                "$slot": "caption",
+                "$default": ""
+              }
+            }
+          ]
+        },
+        {
+          "when": {
+            "prominence": [
+              "supporting"
+            ]
+          },
+          "root": "picture_img",
+          "components": [
+            {
+              "id": "picture_img",
+              "component": "Image",
+              "url": {
+                "$slot": "picture"
+              },
+              "variant": {
+                "$map": "framing",
+                "portrait": "avatar",
+                "object": "smallFeature",
+                "banner": "mediumFeature",
+                "poster": "mediumFeature"
+              },
+              "fit": {
+                "$map": "framing",
+                "banner": "cover",
+                "portrait": "cover",
+                "object": "contain",
+                "poster": "contain"
+              },
+              "description": {
+                "$slot": "caption",
+                "$default": ""
+              }
+            }
+          ]
+        },
+        {
+          "root": "picture_col",
+          "components": [
+            {
+              "id": "picture_col",
+              "component": "Column",
+              "children": [
+                "picture_img",
+                {
+                  "$if": "caption",
+                  "id": "picture_caption"
+                }
+              ]
+            },
+            {
+              "id": "picture_img",
+              "component": "Image",
+              "url": {
+                "$slot": "picture"
+              },
+              "variant": {
+                "$map": "framing",
+                "banner": "header",
+                "portrait": "largeFeature",
+                "object": "largeFeature",
+                "poster": "largeFeature"
+              },
+              "fit": {
+                "$map": "framing",
+                "banner": "cover",
+                "portrait": "cover",
+                "object": "contain",
+                "poster": "contain"
+              },
+              "description": {
+                "$slot": "caption",
+                "$default": ""
+              }
+            },
+            {
+              "id": "picture_caption",
+              "component": "Text",
+              "text": {
+                "$slot": "caption"
+              },
+              "variant": "caption"
+            }
+          ]
+        }
+      ],
+      "note": "Basic v1 Image has no aspect-ratio control; width, height, and orientation from the payload only inform framing and the choice between header and largeFeature. A catalog with an explicit aspect ratio property would map the aspectRatio slot directly."
+    },
+    "media": {
+      "slots": [
+        "source",
+        "poster",
+        "title",
+        "duration"
+      ],
+      "root": "media_col",
+      "components": [
+        {
+          "id": "media_col",
+          "component": "Column",
+          "children": [
+            {
+              "$if": "title",
+              "id": "media_title"
+            },
+            {
+              "$byType": "source",
+              "video_url": "media_video",
+              "audio_url": "media_audio"
+            },
+            {
+              "$if": "duration",
+              "id": "media_duration"
+            }
+          ]
+        },
+        {
+          "id": "media_title",
+          "component": "Text",
+          "text": {
+            "$text": "### {title}"
+          }
+        },
+        {
+          "id": "media_video",
+          "component": "Video",
+          "url": {
+            "$slot": "source"
+          },
+          "posterUrl": {
+            "$slot": "poster",
+            "$default": ""
+          }
+        },
+        {
+          "id": "media_audio",
+          "component": "AudioPlayer",
+          "url": {
+            "$slot": "source"
+          },
+          "description": {
+            "$slot": "title",
+            "$default": ""
+          }
+        },
+        {
+          "id": "media_duration",
+          "component": "Text",
+          "text": {
+            "$slot": "duration"
+          },
+          "variant": "caption"
+        }
+      ]
+    },
+    "filters": {
+      "slots": [
+        "query",
+        "categories"
+      ],
+      "root": "filters_col",
+      "components": [
+        {
+          "id": "filters_col",
+          "component": "Column",
+          "children": [
+            {
+              "$if": "query",
+              "id": "filters_search"
+            },
+            {
+              "$if": "categories",
+              "id": "filters_categories"
+            }
+          ]
+        },
+        {
+          "id": "filters_search",
+          "component": "TextField",
+          "label": "Search",
+          "value": {
+            "$slot": "query"
+          },
+          "variant": "shortText"
+        },
+        {
+          "id": "filters_categories",
+          "component": "ChoicePicker",
+          "label": "Filter",
+          "variant": "mutuallyExclusive",
+          "displayStyle": "chips",
+          "options": {
+            "$slot": "categories"
+          },
+          "value": {
+            "$slot": "categories.selected",
+            "$default": []
+          }
+        }
+      ],
+      "note": "displayStyle chips is this catalog's own enum value; the grammar slot is categories and says nothing about how they are drawn."
+    },
+    "headline": {
+      "slots": [
+        "items"
+      ],
+      "knobs": {
+        "deltas": [
+          "yes",
+          "no"
+        ],
+        "gauge": [
+          "yes",
+          "no"
+        ]
+      },
+      "root": "headline_row",
+      "components": [
+        {
+          "id": "headline_row",
+          "component": "Row",
+          "justify": "spaceBetween",
+          "children": {
+            "$repeat": "items",
+            "component": "headline_item"
+          }
+        },
+        {
+          "id": "headline_item",
+          "component": "Card",
+          "weight": 1,
+          "child": "headline_item_col"
+        },
+        {
+          "id": "headline_item_col",
+          "component": "Column",
+          "align": "center",
+          "children": [
+            "headline_value",
+            "headline_label",
+            {
+              "$if": "delta",
+              "id": "headline_delta"
+            },
+            {
+              "$ifKnob": {
+                "gauge": [
+                  "yes"
+                ]
+              },
+              "$if": "max",
+              "id": "headline_gauge"
+            }
+          ]
+        },
+        {
+          "id": "headline_value",
+          "component": "Text",
+          "text": {
+            "$text": "### {value}"
+          }
+        },
+        {
+          "id": "headline_label",
+          "component": "Text",
+          "text": {
+            "$slot": "label"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "headline_delta",
+          "component": "Text",
+          "text": {
+            "$text": "{delta}"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "headline_gauge",
+          "component": "Text",
+          "text": {
+            "$text": "{value} of {max}"
+          },
+          "variant": "caption"
+        }
+      ],
+      "note": "No gauge or progress component in basic v1, so a bounded value is written as 'value of max'. Status and boolean values are rendered as their text; a catalog with a badge or chip would map state_tone to it."
+    },
+    "facts": {
+      "slots": [
+        "rows"
+      ],
+      "root": "facts_card",
+      "components": [
+        {
+          "id": "facts_card",
+          "component": "Card",
+          "child": "facts_list"
+        },
+        {
+          "id": "facts_list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "$repeat": "rows",
+            "component": "facts_row"
+          }
+        },
+        {
+          "id": "facts_row",
+          "component": "Row",
+          "justify": "spaceBetween",
+          "children": [
+            "facts_label",
+            "facts_value"
+          ]
+        },
+        {
+          "id": "facts_label",
+          "component": "Text",
+          "text": {
+            "$slot": "label"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "facts_value",
+          "component": "Text",
+          "text": {
+            "$slot": "value"
+          }
+        }
+      ]
+    },
+    "prose": {
+      "slots": [
+        "heading",
+        "body"
+      ],
+      "knobs": {
+        "length": [
+          "line",
+          "blurb",
+          "summary",
+          "article"
+        ]
+      },
+      "variants": [
+        {
+          "when": {
+            "length": [
+              "article"
+            ]
+          },
+          "root": "prose_col",
+          "components": [
+            {
+              "id": "prose_col",
+              "component": "Column",
+              "children": [
+                {
+                  "$if": "heading",
+                  "id": "prose_heading"
+                },
+                "prose_body"
+              ]
+            },
+            {
+              "id": "prose_heading",
+              "component": "Text",
+              "text": {
+                "$text": "### {heading}"
+              }
+            },
+            {
+              "id": "prose_body",
+              "component": "Text",
+              "text": {
+                "$slot": "body"
+              }
+            }
+          ],
+          "note": "Basic v1 cannot truncate text or collapse it behind a Read more without losing the inline copy, so an article is set in full. A catalog with a disclosure component would show the first paragraph and expand."
+        },
+        {
+          "root": "prose_col",
+          "components": [
+            {
+              "id": "prose_col",
+              "component": "Column",
+              "children": [
+                {
+                  "$if": "heading",
+                  "id": "prose_heading"
+                },
+                "prose_body"
+              ]
+            },
+            {
+              "id": "prose_heading",
+              "component": "Text",
+              "text": {
+                "$text": "### {heading}"
+              }
+            },
+            {
+              "id": "prose_body",
+              "component": "Text",
+              "text": {
+                "$slot": "body"
+              },
+              "variant": {
+                "$map": "length",
+                "line": "caption",
+                "blurb": "body",
+                "summary": "body"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "collection": {
+      "slots": [
+        "items"
+      ],
+      "knobs": {
+        "layout": [
+          "rows",
+          "cards",
+          "reel"
+        ],
+        "leading": [
+          "thumbnail",
+          "avatar",
+          "icon",
+          "number",
+          "none"
+        ],
+        "trailing": [
+          "chevron",
+          "button",
+          "value",
+          "none"
+        ]
+      },
+      "variants": [
+        {
+          "when": {
+            "layout": "rows"
+          },
+          "root": "list",
+          "components": [
+            {
+              "id": "list",
+              "component": "List",
+              "direction": "vertical",
+              "children": {
+                "$repeat": "items",
+                "component": "item"
+              }
+            },
+            {
+              "id": "item",
+              "component": "Row",
+              "align": "center",
+              "children": [
+                {
+                  "$ifKnob": {
+                    "leading": [
+                      "thumbnail"
+                    ]
+                  },
+                  "id": "item_thumb"
+                },
+                {
+                  "$ifKnob": {
+                    "leading": [
+                      "avatar"
+                    ]
+                  },
+                  "id": "item_avatar"
+                },
+                {
+                  "$ifKnob": {
+                    "leading": [
+                      "icon"
+                    ]
+                  },
+                  "id": "item_icon"
+                },
+                "item_col",
+                {
+                  "$if": "meta",
+                  "id": "item_meta"
+                },
+                {
+                  "$ifKnob": {
+                    "trailing": [
+                      "button"
+                    ]
+                  },
+                  "id": "item_button"
+                },
+                {
+                  "$ifKnob": {
+                    "trailing": [
+                      "chevron"
+                    ]
+                  },
+                  "id": "item_chevron"
+                }
+              ]
+            },
+            {
+              "id": "item_thumb",
+              "component": "Image",
+              "url": {
+                "$slot": "picture"
+              },
+              "variant": "smallFeature",
+              "fit": "cover"
+            },
+            {
+              "id": "item_avatar",
+              "component": "Image",
+              "url": {
+                "$slot": "picture"
+              },
+              "variant": "avatar",
+              "fit": "cover"
+            },
+            {
+              "id": "item_icon",
+              "component": "Icon",
+              "name": {
+                "$slot": "icon",
+                "$default": "info"
+              }
+            },
+            {
+              "id": "item_col",
+              "component": "Column",
+              "weight": 1,
+              "children": [
+                "item_headline",
+                {
+                  "$if": "supporting",
+                  "id": "item_supporting"
+                },
+                {
+                  "$if": "badge",
+                  "id": "item_badge"
+                }
+              ]
+            },
+            {
+              "id": "item_headline",
+              "component": "Text",
+              "text": {
+                "$text": "**{headline}**"
+              }
+            },
+            {
+              "id": "item_supporting",
+              "component": "Text",
+              "text": {
+                "$slot": "supporting"
+              },
+              "variant": "caption"
+            },
+            {
+              "id": "item_badge",
+              "component": "Text",
+              "text": {
+                "$text": "`{badge}`"
+              },
+              "variant": "caption"
+            },
+            {
+              "id": "item_meta",
+              "component": "Text",
+              "text": {
+                "$slot": "meta"
+              }
+            },
+            {
+              "id": "item_button",
+              "component": "Button",
+              "child": "item_button_label",
+              "action": {
+                "$event": "item_action",
+                "context": {
+                  "$item": true
+                }
+              }
+            },
+            {
+              "id": "item_button_label",
+              "component": "Text",
+              "text": {
+                "$knobValue": "trailing.label",
+                "$default": "Open"
+              }
+            },
+            {
+              "id": "item_chevron",
+              "component": "Icon",
+              "name": "arrowForward"
+            }
+          ]
+        },
+        {
+          "when": {
+            "layout": "cards"
+          },
+          "root": "list",
+          "components": [
+            {
+              "id": "list",
+              "component": "List",
+              "direction": "vertical",
+              "children": {
+                "$repeat": "items",
+                "component": "item"
+              }
+            },
+            {
+              "id": "item",
+              "component": "Card",
+              "child": "item_col"
+            },
+            {
+              "id": "item_col",
+              "component": "Column",
+              "children": [
+                "item_img",
+                "item_headline",
+                {
+                  "$if": "supporting",
+                  "id": "item_supporting"
+                },
+                "item_footer"
+              ]
+            },
+            {
+              "id": "item_img",
+              "component": "Image",
+              "url": {
+                "$slot": "picture"
+              },
+              "variant": "largeFeature",
+              "fit": "cover"
+            },
+            {
+              "id": "item_headline",
+              "component": "Text",
+              "text": {
+                "$text": "**{headline}**"
+              }
+            },
+            {
+              "id": "item_supporting",
+              "component": "Text",
+              "text": {
+                "$slot": "supporting"
+              },
+              "variant": "caption"
+            },
+            {
+              "id": "item_footer",
+              "component": "Row",
+              "justify": "spaceBetween",
+              "children": [
+                {
+                  "$if": "meta",
+                  "id": "item_meta"
+                },
+                {
+                  "$if": "rating",
+                  "id": "item_rating"
+                },
+                {
+                  "$ifKnob": {
+                    "trailing": [
+                      "button"
+                    ]
+                  },
+                  "id": "item_button"
+                }
+              ]
+            },
+            {
+              "id": "item_meta",
+              "component": "Text",
+              "text": {
+                "$slot": "meta"
+              }
+            },
+            {
+              "id": "item_rating",
+              "component": "Text",
+              "text": {
+                "$text": "{rating} / 5"
+              },
+              "variant": "caption"
+            },
+            {
+              "id": "item_button",
+              "component": "Button",
+              "child": "item_button_label",
+              "action": {
+                "$event": "item_action",
+                "context": {
+                  "$item": true
+                }
+              }
+            },
+            {
+              "id": "item_button_label",
+              "component": "Text",
+              "text": {
+                "$knobValue": "trailing.label",
+                "$default": "Open"
+              }
+            }
+          ]
+        },
+        {
+          "when": {
+            "layout": "reel"
+          },
+          "root": "reel",
+          "components": [
+            {
+              "id": "reel",
+              "component": "List",
+              "direction": "horizontal",
+              "children": {
+                "$repeat": "items",
+                "component": "item"
+              }
+            },
+            {
+              "id": "item",
+              "component": "Column",
+              "children": [
+                "item_img",
+                "item_headline",
+                {
+                  "$if": "meta",
+                  "id": "item_meta"
+                }
+              ]
+            },
+            {
+              "id": "item_img",
+              "component": "Image",
+              "url": {
+                "$slot": "picture"
+              },
+              "variant": "mediumFeature",
+              "fit": "cover"
+            },
+            {
+              "id": "item_headline",
+              "component": "Text",
+              "text": {
+                "$slot": "headline"
+              },
+              "variant": "caption"
+            },
+            {
+              "id": "item_meta",
+              "component": "Text",
+              "text": {
+                "$slot": "meta"
+              },
+              "variant": "caption"
+            }
+          ]
+        }
+      ],
+      "note": "No grid variant: basic v1 has no intrinsic grid, so grid is never offered for this catalog (requires pattern:collection:grid)."
+    },
+    "comparison": {
+      "slots": [
+        "options"
+      ],
+      "root": "cmp_row",
+      "components": [
+        {
+          "id": "cmp_row",
+          "component": "Row",
+          "align": "stretch",
+          "children": {
+            "$repeat": "options",
+            "component": "cmp_card"
+          }
+        },
+        {
+          "id": "cmp_card",
+          "component": "Card",
+          "weight": 1,
+          "child": "cmp_col"
+        },
+        {
+          "id": "cmp_col",
+          "component": "Column",
+          "children": [
+            {
+              "$if": "picture",
+              "id": "cmp_img"
+            },
+            "cmp_headline",
+            {
+              "$if": "highlight",
+              "id": "cmp_highlight"
+            },
+            "cmp_attrs"
+          ]
+        },
+        {
+          "id": "cmp_img",
+          "component": "Image",
+          "url": {
+            "$slot": "picture"
+          },
+          "variant": "mediumFeature",
+          "fit": "cover"
+        },
+        {
+          "id": "cmp_headline",
+          "component": "Text",
+          "text": {
+            "$text": "**{headline}**"
+          }
+        },
+        {
+          "id": "cmp_highlight",
+          "component": "Text",
+          "text": {
+            "$text": "**{highlight}**"
+          }
+        },
+        {
+          "id": "cmp_attrs",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "$repeat": "attributes",
+            "component": "cmp_attr"
+          }
+        },
+        {
+          "id": "cmp_attr",
+          "component": "Row",
+          "justify": "spaceBetween",
+          "children": [
+            "cmp_attr_label",
+            "cmp_attr_value"
+          ]
+        },
+        {
+          "id": "cmp_attr_label",
+          "component": "Text",
+          "text": {
+            "$slot": "label"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "cmp_attr_value",
+          "component": "Text",
+          "text": {
+            "$slot": "value"
+          },
+          "variant": "caption"
+        }
+      ]
+    },
+    "steps": {
+      "slots": [
+        "items"
+      ],
+      "root": "steps_list",
+      "components": [
+        {
+          "id": "steps_list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "$repeat": "items",
+            "component": "step"
+          }
+        },
+        {
+          "id": "step",
+          "component": "Row",
+          "align": "start",
+          "children": [
+            "step_marker",
+            "step_col"
+          ]
+        },
+        {
+          "id": "step_marker",
+          "component": "Text",
+          "text": {
+            "$text": "**{$index1}.**"
+          }
+        },
+        {
+          "id": "step_col",
+          "component": "Column",
+          "weight": 1,
+          "children": [
+            "step_title",
+            {
+              "$if": "detail",
+              "id": "step_detail"
+            }
+          ]
+        },
+        {
+          "id": "step_title",
+          "component": "Text",
+          "text": {
+            "$slot": "title"
+          }
+        },
+        {
+          "id": "step_detail",
+          "component": "Text",
+          "text": {
+            "$slot": "detail"
+          },
+          "variant": "caption"
+        }
+      ]
+    },
+    "form": {
+      "slots": [
+        "fields"
+      ],
+      "root": "form_col",
+      "components": [
+        {
+          "id": "form_col",
+          "component": "Column",
+          "children": {
+            "$repeat": "fields",
+            "component": {
+              "$byInstance": "control"
+            }
+          }
+        }
+      ],
+      "fieldVariants": {
+        "shortText": {
+          "component": "TextField",
+          "label": {
+            "$slot": "label"
+          },
+          "value": {
+            "$slot": "value"
+          },
+          "variant": "shortText",
+          "checks": {
+            "$ifInstance": {
+              "required": true
+            },
+            "value": [
+              {
+                "condition": {
+                  "call": "required",
+                  "args": {
+                    "value": {
+                      "$slot": "value"
+                    }
+                  }
+                },
+                "message": "Required"
+              }
+            ]
+          }
+        },
+        "longText": {
+          "component": "TextField",
+          "label": {
+            "$slot": "label"
+          },
+          "value": {
+            "$slot": "value"
+          },
+          "variant": "longText"
+        },
+        "number": {
+          "component": "TextField",
+          "label": {
+            "$slot": "label"
+          },
+          "value": {
+            "$slot": "value"
+          },
+          "variant": "number"
+        },
+        "obscured": {
+          "component": "TextField",
+          "label": {
+            "$slot": "label"
+          },
+          "value": {
+            "$slot": "value"
+          },
+          "variant": "obscured"
+        },
+        "toggle": {
+          "component": "CheckBox",
+          "label": {
+            "$slot": "label"
+          },
+          "value": {
+            "$slot": "value"
+          }
+        },
+        "choice": {
+          "component": "ChoicePicker",
+          "label": {
+            "$slot": "label"
+          },
+          "variant": "mutuallyExclusive",
+          "displayStyle": "chips",
+          "options": {
+            "$slot": "options"
+          },
+          "value": {
+            "$slot": "value"
+          }
+        },
+        "multiChoice": {
+          "component": "ChoicePicker",
+          "label": {
+            "$slot": "label"
+          },
+          "variant": "multipleSelection",
+          "displayStyle": "checkbox",
+          "options": {
+            "$slot": "options"
+          },
+          "value": {
+            "$slot": "value"
+          }
+        },
+        "range": {
+          "component": "Slider",
+          "label": {
+            "$slot": "label"
+          },
+          "value": {
+            "$slot": "value"
+          },
+          "min": {
+            "$slot": "min"
+          },
+          "max": {
+            "$slot": "max"
+          }
+        },
+        "date": {
+          "component": "DateTimeInput",
+          "label": {
+            "$slot": "label"
+          },
+          "value": {
+            "$slot": "value"
+          },
+          "enableDate": true
+        }
+      }
+    },
+    "groups": {
+      "slots": [
+        "groups"
+      ],
+      "root": "groups_col",
+      "components": [
+        {
+          "id": "groups_col",
+          "component": "Column",
+          "children": {
+            "$repeat": "groups",
+            "component": "group"
+          }
+        },
+        {
+          "id": "group",
+          "component": "Column",
+          "children": [
+            "group_heading",
+            "group_card"
+          ]
+        },
+        {
+          "id": "group_heading",
+          "component": "Text",
+          "text": {
+            "$text": "### {heading}"
+          }
+        },
+        {
+          "id": "group_card",
+          "component": "Card",
+          "child": "group_list"
+        },
+        {
+          "id": "group_list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "$repeat": "rows",
+            "component": {
+              "$byInstance": "row_kind"
+            }
+          }
+        }
+      ],
+      "fieldVariants": {
+        "switch": {
+          "component": "CheckBox",
+          "label": {
+            "$slot": "label"
+          },
+          "value": {
+            "$slot": "value"
+          }
+        },
+        "value": {
+          "component": "Row",
+          "justify": "spaceBetween",
+          "children": [
+            {
+              "component": "Text",
+              "text": {
+                "$slot": "label"
+              }
+            },
+            {
+              "component": "Text",
+              "text": {
+                "$slot": "value"
+              },
+              "variant": "caption"
+            }
+          ]
+        },
+        "navigation": {
+          "component": "Button",
+          "variant": "borderless",
+          "child": {
+            "component": "Row",
+            "justify": "spaceBetween",
+            "children": [
+              {
+                "component": "Text",
+                "text": {
+                  "$slot": "label"
+                }
+              },
+              {
+                "component": "Icon",
+                "name": "arrowForward"
+              }
+            ]
+          },
+          "action": {
+            "$event": "open",
+            "context": {
+              "$item": true
+            }
+          }
+        },
+        "danger": {
+          "component": "Button",
+          "variant": "borderless",
+          "child": {
+            "component": "Text",
+            "text": {
+              "$slot": "label"
+            }
+          },
+          "action": {
+            "$event": "label",
+            "context": {
+              "$item": true
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "slots": [
+        "buttons"
+      ],
+      "knobs": {
+        "sticky": [
+          "yes",
+          "no"
+        ]
+      },
+      "root": "actions_row",
+      "components": [
+        {
+          "id": "actions_row",
+          "component": "Row",
+          "justify": "end",
+          "children": {
+            "$repeat": "buttons",
+            "component": "action_button",
+            "order": "primaryLast"
+          }
+        },
+        {
+          "id": "action_button",
+          "component": "Button",
+          "variant": {
+            "$byInstance": "primary",
+            "true": "primary",
+            "false": "default"
+          },
+          "child": "action_label",
+          "action": {
+            "$event": "label"
+          }
+        },
+        {
+          "id": "action_label",
+          "component": "Text",
+          "text": {
+            "$slot": "label"
+          }
+        }
+      ],
+      "note": "Basic v1 has no destructive variant. A destructive non-primary button is rendered default; a destructive primary is downgraded to default by the one-primary-action rule when stakes >= 2."
+    },
+    "conversation": {
+      "slots": [
+        "messages"
+      ],
+      "knobs": {
+        "self": [
+          "<author>",
+          "none"
+        ]
+      },
+      "root": "conv_list",
+      "components": [
+        {
+          "id": "conv_list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "$repeat": "messages",
+            "component": "msg"
+          }
+        },
+        {
+          "id": "msg",
+          "component": "Row",
+          "align": "start",
+          "justify": {
+            "$ifSelf": {
+              "true": "end",
+              "false": "start"
+            }
+          },
+          "children": [
+            {
+              "$if": "avatar",
+              "$ifSelf": {
+                "false": "msg_avatar"
+              }
+            },
+            "msg_card"
+          ]
+        },
+        {
+          "id": "msg_avatar",
+          "component": "Image",
+          "url": {
+            "$slot": "avatar"
+          },
+          "variant": "avatar",
+          "fit": "cover"
+        },
+        {
+          "id": "msg_card",
+          "component": "Card",
+          "child": "msg_col"
+        },
+        {
+          "id": "msg_col",
+          "component": "Column",
+          "children": [
+            "msg_head",
+            "msg_text",
+            {
+              "$if": "attachment",
+              "id": "msg_attachment"
+            }
+          ]
+        },
+        {
+          "id": "msg_head",
+          "component": "Row",
+          "justify": "spaceBetween",
+          "children": [
+            "msg_author",
+            {
+              "$if": "time",
+              "id": "msg_time"
+            }
+          ]
+        },
+        {
+          "id": "msg_author",
+          "component": "Text",
+          "text": {
+            "$text": "**{author}**"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "msg_time",
+          "component": "Text",
+          "text": {
+            "$slot": "time"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "msg_text",
+          "component": "Text",
+          "text": {
+            "$slot": "text"
+          }
+        },
+        {
+          "id": "msg_attachment",
+          "component": "Image",
+          "url": {
+            "$slot": "attachment"
+          },
+          "variant": "mediumFeature",
+          "fit": "cover"
+        }
+      ],
+      "note": "Basic v1 has no bubble, so each message is a Card; self messages are pushed right with Row justify end. $ifSelf compares the message author to the self knob at expansion time."
+    },
+    "compose": {
+      "slots": [
+        "draft",
+        "sendLabel"
+      ],
+      "root": "compose_row",
+      "components": [
+        {
+          "id": "compose_row",
+          "component": "Row",
+          "align": "end",
+          "children": [
+            "compose_field",
+            "compose_send"
+          ]
+        },
+        {
+          "id": "compose_field",
+          "component": "TextField",
+          "label": "Message",
+          "value": {
+            "$slot": "draft"
+          },
+          "variant": "longText",
+          "weight": 1
+        },
+        {
+          "id": "compose_send",
+          "component": "Button",
+          "variant": "primary",
+          "child": "compose_send_label",
+          "action": {
+            "$event": "send",
+            "context": {
+              "draft": {
+                "$slot": "draft"
+              }
+            }
+          }
+        },
+        {
+          "id": "compose_send_label",
+          "component": "Text",
+          "text": {
+            "$slot": "sendLabel",
+            "$default": "Send"
+          }
+        }
+      ]
+    },
+    "outcome": {
+      "slots": [
+        "headline",
+        "detail",
+        "tone"
+      ],
+      "root": "outcome_col",
+      "components": [
+        {
+          "id": "outcome_col",
+          "component": "Column",
+          "align": "center",
+          "children": [
+            "outcome_icon",
+            "outcome_headline",
+            {
+              "$if": "detail",
+              "id": "outcome_detail"
+            }
+          ]
+        },
+        {
+          "id": "outcome_icon",
+          "component": "Icon",
+          "name": {
+            "$map": "tone",
+            "success": "check",
+            "danger": "error",
+            "neutral": "info"
+          }
+        },
+        {
+          "id": "outcome_headline",
+          "component": "Text",
+          "text": {
+            "$text": "## {headline}"
+          }
+        },
+        {
+          "id": "outcome_detail",
+          "component": "Text",
+          "text": {
+            "$slot": "detail"
+          },
+          "variant": "caption"
+        }
+      ]
+    }
+  }
+}

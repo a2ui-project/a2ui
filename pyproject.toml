@@ -32,6 +32,7 @@ members = [
   "eval",
   "samples/agent/adk/custom-components-example",
   "samples/agent/adk/restaurant_finder",
+  "samples/agent/adk/format_playground",
   "samples/community/agent/adk/gemini_enterprise/agent_engine",
   "samples/community/agent/adk/gemini_enterprise/cloud_run",
   "samples/community/agent/adk/mcp-apps-in-a2ui-sample",
@@ -74,6 +75,7 @@ testpaths = [
     "python/a2ui_core/tests",
     "eval/tests",
     "samples/agent/adk/tests",
+    "samples/agent/adk/format_playground/tests",
     "samples/community/agent/adk/personalized_learning/tests",
     "samples/community/mcp/a2ui-over-mcp-recipe/tests",
 ]

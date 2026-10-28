@@ -99,6 +99,78 @@
 - **BREAKING**: `A2uiGenerator` and `A2uiRequestProcessor` now default to
   `ExpressFormatFactory` (`ExpressFormat`) instead of `DirectJsonFormatFactory`
   (`DirectJsonFormat`).
+- Add the decision inference format, `a2ui.inference_formats.decision`, in
+  which the model emits an intent and data and a local decision model picks
+  and binds the components.
+  - `DecisionFormat` and `DecisionFormatFactory` implement `InferenceFormat`
+    and `InferenceFormatFactory`, so
+    `A2uiRequestProcessor(catalogs, format_factory=DecisionFormatFactory())`
+    works like the Express and Direct JSON factories. `DecisionPromptGenerator`
+    asks for `<a2ui>` decision blocks and `DecisionParser` renders them through
+    `DecisionSynthesizer`.
+  - `DecisionRenderTool` supplies a JSON Schema tool declaration and
+    `run_async` / `run_sync` runners for MCP, ADK, and function-calling agents;
+    build one with `DecisionRenderTool.create(catalogs, ...)`.
+  - `DecisionSynthesizer` takes an optional `backend` (defaulting to
+    `create_decision_backend()`) or a prebuilt `CatalogDecisionGraph`, accepts
+    JSON-string and array payloads, renders a named `template_id` directly,
+    adds `synthesize_sync()`, and fills abstentions from `fallback_dsl`,
+    `fallback_fn`, or a deterministic `fallback_card`;
+    `SynthesisOutput.fallback_source` (a `FallbackSource` enum) names which
+    one applied. `DecisionFormatFactory` shares one backend across every
+    format it creates.
+  - `DecisionTask`, `DecisionWireFormat` (including `AUTO`), and
+    `DecisionBackendType` (where `ONNX` is an alias of `LOCAL`) string enums
+    replace raw string literals; `coerce_decision_payload` decodes
+    stringified payloads.
+  - Concrete backends, the `DecisionBackend` protocol, and
+    `DecisionFormatFactory` support `async with` and `aclose()`; the HTTP
+    backends own one client per active event loop and `JevHttpBackend` caches
+    ADC tokens per instance.
+  - `TemplateRegistry.promote_synthesized` reads v0.9 and v1.0 `createSurface`
+    and `updateComponents` envelopes (including v1.0 embedded components) and
+    normalizes v0.8 `surfaceUpdate` promotions to v0.9 wire envelopes.
+  - `LayoutPlanner`, `ArchetypeGrammar`, `PatternLibrary`, `MergedPatternLibrary`,
+    and `PatternExpander` plan and expand multi-block layout archetypes (`feed`,
+    `compare`, `dashboard`, `detail`, `result`, `confirm`, `checkout`, `form`,
+    `settings`, `guide`, `article`, `timeline`, `location`, `chat`) across 19
+    semantic blocks in a single batched `DecisionBackend.answer(batch)` call
+    before falling back to the flat leaf/container path (`SynthesisStage.ARCHETYPE`,
+    `SynthesisConfig`: `use_archetypes`, `max_pairs`, `threshold_overrides`).
+    The grammar's `thresholds` are the single source of truth for planner
+    thresholds; `SynthesisConfig.threshold_overrides` tunes them by key.
+  - `SemanticType` and `classify_scalar` classify payload pointers across 36
+    semantic types (`PointerSummary.semantic_type` and
+    `SlotBinding.semantic_type` are typed with the enum); `DecisionQuestion`,
+    `DecisionAnswer`, `DecisionBatch`, and `QuestionKind` (`choice`, `boolean`,
+    `score`) support batched multi-question scoring, `PredictOnlyBackend` and
+    `ensure_batch_backend` adapt single-query backends to `answer()`, and
+    `BatchingDecisionBackend` coalesces concurrent `predict()` and `answer()`
+    calls within a configurable time window.
+  - `DecisionBlock`, `DecisionPromptGenerator`, `DecisionFormatFactory`, and
+    `DecisionRenderTool` accept an optional `layout` brief
+    (`["role:key,key", ...]`), validated against the synthesizer's
+    `ArchetypeGrammar` (`decision_rules(grammar)` renders the prompt contract
+    for a grammar), and expose `SynthesisOutput.layout_plan` and
+    `SynthesisOutput.trace` (`include_trace=True`). `PlanReason`,
+    `Requirement`, `LintCode`, and `LintSeverity` are string enums;
+    `PatternRef` and `ResolvedPattern` replace `name:variant` string splitting.
+  - `LocalCrossEncoderBackend` optimizes CPU performance by defaulting
+    `intra_op_num_threads` to the core count (`A2UI_DECISION_LOCAL_THREADS`),
+    truncating candidate passages to 128 tokens (`A2UI_DECISION_MAX_SEQ_LENGTH`),
+    and sorting candidate pairs by length before padding and batching
+    (`A2UI_DECISION_SORT_BY_LENGTH`).
+  - `DecisionBackend` supports temperature scaling on raw logits before computing
+    softmax probabilities (`A2UI_DECISION_TEMPERATURE` or `temperature` parameter).
+  - `DecisionBlock`, `DecisionSynthesizer`, and `ArchetypeGrammar` support authored
+    copy fields (`title`, `summary`), layout variety sampling (`VarietyMode.NEAR_TOP`,
+    `SynthesisConfig.variety`, `variety_margin`), and zero-backend-call re-sampling
+    (`DecisionSynthesizer.remix` / `remix_sync`).
+  - Add the `decision` evaluation strategy (`eval/a2ui_eval/strategies/decision.py`),
+    strategy comparison CLI (`eval/bin/compare_strategies.py`), and decision model
+    benchmark harness (`eval/bin/decision_bench.py` and `eval/datasets/decision_plans/v1.yaml`).
+  - Format playground adds `tool` mode (`--mode tool`, `/mode tool`), `/rate` and
+    `/ratings` commands with JSONL persistence, and `/remix` zero-model-call re-planning.
 - Express variable and check identifiers now follow Unicode UAX 31 in the
   grammar and decompiler ([#3390](https://github.com/a2ui-project/a2ui/issues/3390)).
   From protocol v1.0 onward, `ExpressDecompiler` rejects component IDs that are
@@ -206,6 +278,7 @@
   that declare none, and a function call given to a property with a static
   type. Elemental output whose top-level element has no `id="root"` is
   rejected, as its prompt requires.
+>>>>>>> upstream/main
 
 ## 0.9.0 (2026-10-17)
 
