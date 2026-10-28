@@ -22,6 +22,16 @@
   it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- Add `Catalog.derive`, which builds a catalog with a new `catalog_id` from
+  the named `components` and `functions` of an existing one and new entries,
+  with the `instructions` it is given, and does not keep the source's `$id`,
+  title, description or instructions.
+  [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
+- `MessageProcessor.catalogs` is a read-only property that returns a copy of
+  the catalogs the processor was created with, and
+  `ExecutionContext.validation_config` applies to one `process_messages`,
+  `process_messages_async` or `process_operation` call in place of the
+  processor's own `validation_config`. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - Schema validation never fetches a `$ref` over the network. A `$ref` to a
   document that is not available locally fails validation with an
   unresolvable-reference error instead of being downloaded

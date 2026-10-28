@@ -79,20 +79,6 @@ SKIP_TEST_NAMES: set[str] = {
     # surface holds, which the TypeScript and Kotlin cores do not.
     "test_v08_topology_plain_string_property_not_treated_as_child_ref",
     "test_v08_topology_plain_string_property_does_not_close_cycle",
-    # Catalog.derive and the per-call validation config of
-    # ExecutionContext are not ported to Python yet:
-    # https://github.com/a2ui-project/a2ui/issues/3699
-    "test_v10_catalog_derive_keeps_named_entries",
-    "test_v10_catalog_derive_adds_and_replaces_entries",
-    "test_v10_catalog_derive_keeps_every_entry_of_an_omitted_list",
-    "test_v10_catalog_derive_drops_fields_that_describe_the_source",
-    "test_v10_catalog_derive_sets_instructions",
-    "test_v10_catalog_derive_unknown_component_error",
-    "test_v10_catalog_derive_unknown_function_error",
-    "test_v09_catalog_derive_keeps_protocol_version",
-    "test_v10_call_validation_config_relaxes_strict_processor",
-    "test_v10_call_validation_config_tightens_permissive_processor",
-    "test_v10_call_validation_config_leaves_out_rules_as_strict",
 }
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.

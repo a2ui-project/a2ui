@@ -520,6 +520,92 @@ def test_source_without_unions_does_not_gain_them() -> None:
     assert out["functions"]["noop"]["returnType"] == "void"
 
 
+def test_derive_keeps_named_entries_and_adds_new_ones_under_the_new_id() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+    banner = ComponentApi(
+        "Banner",
+        {
+            "type": "object",
+            "properties": {"component": {"const": "Banner"}},
+            "required": ["component"],
+        },
+    )
+
+    derived = catalog.derive(
+        catalog_id="https://example.com/chat",
+        components=["Spacer", banner],
+        functions=["shout"],
+    )
+
+    assert derived.catalog_id == "https://example.com/chat"
+    assert derived.protocol_version == catalog.protocol_version
+    assert list(derived.components) == ["Spacer", "Banner"]
+    assert derived.components["Spacer"] is catalog.components["Spacer"]
+    assert derived.components["Banner"] is banner
+    assert list(derived.functions) == ["shout"]
+    out = derived.to_json()
+    assert out["catalogId"] == "https://example.com/chat"
+    assert list(out["components"]) == ["Spacer", "Banner"]
+    # `Weighted` was referenced only by the dropped Label; `Unused` never was.
+    assert set(out["$defs"]) == {"Unused", "anyComponent", "anyFunction"}
+
+
+def test_derive_drops_the_fields_that_describe_the_source() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+
+    out = catalog.derive(catalog_id="https://example.com/chat").to_json()
+
+    assert out["$schema"] == _label_catalog()["$schema"]
+    for key in ("$id", "title", "description", "instructions"):
+        assert key not in out
+
+
+def test_derive_takes_the_instructions_it_is_given() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+
+    derived = catalog.derive(
+        catalog_id="https://example.com/chat", instructions="Be brief."
+    )
+
+    assert derived.instructions == "Be brief."
+    assert derived.to_json()["instructions"] == "Be brief."
+
+
+def test_derive_keeps_every_entry_of_a_kind_it_is_given_no_list_for() -> None:
+    catalog = v1_0.BasicCatalog()
+
+    derived = catalog.derive(catalog_id="https://example.com/chat")
+
+    assert list(derived.components) == list(catalog.components)
+    assert list(derived.functions) == list(catalog.functions)
+    assert derived.theme_schema == catalog.theme_schema
+
+
+def test_derive_replaces_the_entry_of_the_same_name() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+    spacer = ComponentApi(
+        "Spacer",
+        {
+            "type": "object",
+            "properties": {"component": {"const": "Spacer"}},
+            "required": ["component"],
+        },
+    )
+
+    derived = catalog.derive(catalog_id="https://example.com/chat", components=[spacer])
+
+    assert derived.components["Spacer"] is spacer
+
+
+def test_derive_rejects_a_name_the_source_has_no_entry_of() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+
+    with pytest.raises(A2uiCatalogError, match="has no component 'Nope'.*chat"):
+        catalog.derive(catalog_id="https://example.com/chat", components=["Nope"])
+    with pytest.raises(A2uiCatalogError, match="has no function 'nope'"):
+        catalog.derive(catalog_id="https://example.com/chat", functions=["nope"])
+
+
 # ==============================================================================
 # 3. Catalogs defined in code
 # ==============================================================================

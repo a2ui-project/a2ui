@@ -26,8 +26,10 @@ from a2ui.core import (
     A2uiIntegrityError,
     A2uiValidationError,
     Catalog,
+    MessageProcessor,
 )
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.catalog import FunctionImplementation
 from a2ui.utils import RendererState, validate_payload
 
 _BASIC = BasicCatalog("0.9")
@@ -815,3 +817,118 @@ def test_a_rollback_finishes_undoing_when_one_undo_fails(caplog):
 
     assert _snapshot(state) == before
     assert "an undo failed" in caplog.text
+
+
+# RendererState.of
+
+
+_FN_CATALOG = Catalog(
+    "https://example.com/fn",
+    protocol_version="v1.0",
+    functions=[
+        FunctionImplementation(name="ping", execute=lambda args, context=None: "pong")
+    ],
+)
+_CALL = {
+    "version": "v1.0",
+    "callRendererFunction": {
+        "functionCallId": "c1",
+        "callFunction": {
+            "@call": "ping",
+            "catalogId": _FN_CATALOG.catalog_id,
+            "args": {},
+        },
+    },
+}
+
+
+def _renderer(
+    catalogs: list[Any], monkeypatch: pytest.MonkeyPatch
+) -> tuple[MessageProcessor, list[Any]]:
+    """A renderer's processor, and the calls its RPC handler receives."""
+    processor = MessageProcessor(catalogs)
+    calls: list[Any] = []
+    monkeypatch.setattr(
+        processor.rpc,
+        "handle_call_renderer_function",
+        lambda message, **_: calls.append(message),
+    )
+    return processor, calls
+
+
+def test_of_applies_the_messages_it_accepts_to_the_processors_model(monkeypatch):
+    processor, _ = _renderer([_BASIC], monkeypatch)
+    state = RendererState.of(processor)
+
+    _turn(state, _CREATE, _update(_column("t"), _text("t")))
+
+    assert state.catalogs == [_BASIC]
+    assert state.get_surface("s") is processor.model.get_surface("s")
+    assert _component_ids(state) == {"root", "t"}
+
+
+def test_of_checks_messages_by_its_own_rules(monkeypatch):
+    processor, _ = _renderer([_BASIC], monkeypatch)
+    state = RendererState.of(processor)
+    state.apply(_CREATE)
+
+    with pytest.raises(A2uiValidationError):
+        state.apply(_update({"id": "root", "component": "Bogus"}))
+    # A component may name a child that a later message adds, though the
+    # processor checks nothing of its own.
+    state.apply(_update(_column("later")))
+    assert _component_ids(state) == {"root"}
+
+
+def test_of_takes_a_rolled_back_message_out_of_the_processors_model(monkeypatch):
+    processor, _ = _renderer([_BASIC], monkeypatch)
+    state = RendererState.of(processor)
+
+    with pytest.raises(A2uiValidationError):
+        with state.transaction():
+            state.apply(_CREATE)
+            state.apply(_update({"id": "root", "component": "Bogus"}))
+
+    assert processor.model.get_surface("s") is None
+
+
+def test_of_runs_a_function_call_once_the_outermost_transaction_succeeds(
+    monkeypatch,
+):
+    processor, calls = _renderer([_FN_CATALOG], monkeypatch)
+    state = RendererState.of(processor)
+
+    with state.transaction():
+        state.apply(_CALL)
+        assert calls == []
+
+    assert len(calls) == 1
+
+
+def test_of_never_runs_a_function_call_a_failed_transaction_applied(monkeypatch):
+    processor, calls = _renderer([_FN_CATALOG], monkeypatch)
+    state = RendererState.of(processor)
+
+    with pytest.raises(RuntimeError, match="rolled back"):
+        with state.transaction():
+            state.apply(_CALL)
+            raise RuntimeError("rolled back")
+    state.apply([])
+
+    assert calls == []
+
+
+def test_of_runs_a_function_call_a_failed_inner_transaction_did_not_apply(
+    monkeypatch,
+):
+    processor, calls = _renderer([_FN_CATALOG], monkeypatch)
+    state = RendererState.of(processor)
+
+    with state.transaction():
+        state.apply(_CALL)
+        with pytest.raises(RuntimeError, match="inner"):
+            with state.transaction():
+                state.apply(_CALL)
+                raise RuntimeError("inner")
+
+    assert len(calls) == 1
