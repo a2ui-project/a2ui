@@ -840,3 +840,96 @@
   args:
     value: "Hello"
   expect: "Hello"
+
+# ==============================================================================
+# DynamicBoolean coercion of ValidationResult (v1.0)
+# ==============================================================================
+# From v1.0 the validation functions return a ValidationResult object, and the
+# specification defines DynamicBoolean as a boolean, a path, or a call
+# returning a boolean or a validation result object, coerced to its 'valid'
+# boolean. The coercion is a property of the DynamicBoolean type, so it applies
+# to every DynamicBoolean argument of every function, not only to the operands
+# of and, or and not. These cases run on a surface so that the nested call is
+# resolved by the engine and its result reaches the outer function through the
+# engine's argument handling, rather than being handed to the implementation
+# directly.
+
+- name: test_evaluate_function_v10_validation_result_coerced_in_format_number_grouping
+  description: >-
+    Verifies a failing ValidationResult bound to formatNumber's DynamicBoolean grouping argument reads as false, turning grouping off. An object is truthy in most languages, so an engine that does not coerce it groups the digits.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: formatNumber
+  args:
+    value: 1234
+    decimals: 0
+    grouping:
+      "@call": required
+      args:
+        value: ""
+  expect: "1234"
+
+- name: test_evaluate_function_v10_validation_result_coerced_in_format_number_grouping_valid
+  description: >-
+    Verifies a passing ValidationResult bound to formatNumber's DynamicBoolean grouping argument reads as true, keeping grouping on.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: formatNumber
+  args:
+    value: 1234
+    decimals: 0
+    grouping:
+      "@call": required
+      args:
+        value: "x"
+  expect: "1,234"
+
+- name: test_evaluate_function_v10_validation_result_coerced_in_not_operand_on_surface
+  description: >-
+    Verifies a ValidationResult resolved from a nested validation call into not's DynamicBoolean operand is read by its validity when the call runs on a surface.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: not
+  args:
+    value:
+      "@call": required
+      args:
+        value: ""
+  expect: true
+
+- name: test_evaluate_function_v10_validation_result_coerced_in_and_operands_on_surface
+  description: >-
+    Verifies the ValidationResults resolved from nested validation calls into and's DynamicBoolean operands are read by their validity when the call runs on a surface, as in the specification's enable-when-valid example.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  dataModel:
+    email: "a@b.c"
+    phone: ""
+  function: and
+  args:
+    values:
+      - "@call": required
+        args:
+          value:
+            "@path": "/email"
+      - "@call": required
+        args:
+          value:
+            "@path": "/phone"
+  expect: false

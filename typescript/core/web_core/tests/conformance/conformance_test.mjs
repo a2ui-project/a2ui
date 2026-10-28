@@ -1163,23 +1163,6 @@ function assertMatchesBuiltinCatalog(loaded) {
   );
 }
 
-/**
- * Loads the case's `peerCatalogPaths` with `Catalog.fromJson` and returns the
- * catalog `withPeerCatalogs` links to them, in the listed order, or `catalog`
- * itself when the case lists no peers.
- */
-function linkPeerCatalogs(testCase, catalog, pVer) {
-  const peerPaths = testCase.peerCatalogPaths ?? [];
-  if (peerPaths.length === 0) return catalog;
-  const peers = peerPaths.map(peerPath =>
-    Catalog.fromJson(
-      JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', peerPath), 'utf8')),
-      pVer,
-    ),
-  );
-  return catalog.withPeerCatalogs(peers);
-}
-
 function validateFromJsonTestCase(testCase) {
   const rawSchema = testCase.catalogPath
     ? JSON.parse(
@@ -1212,7 +1195,7 @@ function validateFromJsonTestCase(testCase) {
     return;
   }
 
-  const catalog = linkPeerCatalogs(testCase, load(), pVer);
+  const catalog = load();
   assert.ok(catalog, 'Catalog should be initialized from schema');
 
   if (testCase.expect) {
@@ -1463,11 +1446,10 @@ function sortKeysDeep(node) {
 /**
  * Returns the catalog a `validation_schema` case checks: the authored catalog
  * loaded with `fromJson`, even when it is one web_core implements. Built-in
- * equivalence is covered by `matchesBuiltinCatalog`. When the case lists
- * `peerCatalogPaths`, the catalog linked to them.
+ * equivalence is covered by `matchesBuiltinCatalog`.
  */
 function loadValidationSchemaCatalog(testCase, rawSchema, pVer) {
-  return linkPeerCatalogs(testCase, Catalog.fromJson(rawSchema, pVer, testCase.catalogId), pVer);
+  return Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
 }
 
 /** Runs a `validation_schema` case against its golden `expectFile`. */

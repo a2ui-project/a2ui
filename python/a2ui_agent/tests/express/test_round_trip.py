@@ -77,17 +77,13 @@ def _decompiler_v09(catalog_v09):
 
 
 def _normalize(messages: Any) -> list[dict[str, Any]]:
-    """Coalesces a payload so that split and merged surface creation compare equal.
-
-    A root `updateDataModel` may omit `path`; the DSL writes it as `$/`, so an
-    absent path is compared as `/`.
-    """
+    """Coalesces a payload so that split and merged surface creation compare equal."""
     normalized = []
     for item in coalesce_surface_messages(to_message_dicts(messages)):
         message = item.message
         update = message.get("updateDataModel")
-        if isinstance(update, dict) and not update.get("path"):
-            update["path"] = "/"
+        if isinstance(update, dict):
+            update["path"] = update.get("path") or "/"
         normalized.append(message)
     return normalized
 

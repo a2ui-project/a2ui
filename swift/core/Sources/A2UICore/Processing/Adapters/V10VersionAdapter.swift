@@ -299,7 +299,6 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       let args: [String: JSONValue]? = callFunctionObj["args"]?.objectValue.map {
         Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
       }
-      let returnType = callFunctionObj["returnType"]?.stringValue
       return [
         .callRendererFunction(
           InternalCallRendererFunctionOp(
@@ -308,8 +307,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
             call: call,
             version: .v10,
             catalogID: catalogID,
-            args: args,
-            returnType: returnType
+            args: args
           )
         )
       ]

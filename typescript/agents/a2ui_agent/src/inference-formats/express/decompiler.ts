@@ -600,22 +600,14 @@ export class ExpressDecompiler {
     const rawPath = typeof valOp.path === 'string' && valOp.path ? valOp.path : '/';
     const basePath = rawPath.replace(/\/+$/, '');
     const dataVal = basePath ? (valOp.value ?? null) : (valOp.value ?? {});
-    const dataLines = this.formatDataModelLines(
-      dataVal,
-      basePath,
-      new Map(),
-      helper,
-      surfaceCatalogId,
-    );
-    if (dataLines.length === 0) {
-      return undefined;
-    }
+    const valStr = this.decompileValue(dataVal, new Map(), false, helper, surfaceCatalogId);
+    const pathStr = basePath ? `$${basePath}` : '$/';
 
     const dslLines: string[] = [];
     if (!(isFirst && surfaceId === 'default_surface')) {
       dslLines.push(this.formatSurfaceHeader(surfaceId));
     }
-    dslLines.push(...dataLines);
+    dslLines.push(`${pathStr} = ${valStr}`);
     return dslLines.join('\n');
   }
 
