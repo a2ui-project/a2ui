@@ -21,7 +21,19 @@ import 'conformance_harness.dart';
 
 /// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
 /// reason each is currently failing.
-const Map<String, String> _v10ExpectedFailures = {};
+const Map<String, String> _v10ExpectedFailures = {
+  'test_v10_call_validation_config_relaxes_strict_processor':
+      _callValidationConfigNotPorted,
+  'test_v10_call_validation_config_tightens_permissive_processor':
+      _callValidationConfigNotPorted,
+  'test_v10_call_validation_config_leaves_out_rules_as_strict':
+      _callValidationConfigNotPorted,
+};
+
+/// Why the cases that pass a validation config to one call fail.
+const String _callValidationConfigNotPorted =
+    'A per-call validation config is not ported to Dart yet: '
+    'https://github.com/a2ui-project/a2ui/issues/3699';
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.

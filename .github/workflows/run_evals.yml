@@ -48,6 +48,8 @@ jobs:
     # below GitHub's six-hour default.
     timeout-minutes: 180
     permissions:
+      # Lets create_issue.sh find the last passing run.
+      actions: read
       contents: read
       issues: write
     steps:

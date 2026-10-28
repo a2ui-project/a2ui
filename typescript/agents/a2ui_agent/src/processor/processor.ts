@@ -17,8 +17,8 @@
 import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
 import {ExpressFormatFactory} from '../inference-formats/express/format.js';
 import {A2uiCatalogError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
-import {ParseOptions, Parser} from '../parser/parser.js';
-import {ResponsePart} from '../parser/response-part.js';
+import {ContinuingStreamOptions, ParseOptions, Parser, StreamOptions} from '../parser/parser.js';
+import {ResponsePart, StreamPart} from '../parser/response-part.js';
 import {ResponseStream} from '../parser/response-stream.js';
 import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
 import {RendererState} from '../utils/renderer-state.js';
@@ -120,12 +120,15 @@ export class A2uiRequestProcessor {
   /**
    * Opens a stream that reads one model response chunk by chunk.
    *
-   * @param options Whether the response is wrapped in tags, and the renderer state to check
-   *     the response against and apply it to, as for `parseResponse`.
+   * @param options Whether the response is wrapped in tags, the renderer state to check the
+   *     response against and apply it to, as for `parseResponse`, and whether to read past a
+   *     rejected block.
    * @throws {A2uiCatalogError} If the state holds other catalogs than the processor.
    * @throws {Error} If the format cannot be read incrementally.
    */
-  openStream(options: ParseOptions = {}): ResponseStream {
+  openStream(options: ContinuingStreamOptions): ResponseStream<StreamPart>;
+  openStream(options?: StreamOptions): ResponseStream;
+  openStream(options: StreamOptions = {}): ResponseStream<StreamPart> {
     return this.parser.openStream({...options, state: this.resolveState(options)});
   }
 
