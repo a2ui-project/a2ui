@@ -18,7 +18,8 @@ Defined in root [Package.swift](../../Package.swift):
 
 - **`A2UISwiftUI`** (`Sources/A2UISwiftUI/`):
   Core rendering engine. Provides the root `Surface` view, recursive `ComponentNodeView`,
-  reactive data-binding adapters, and SwiftUI environment keys (`a2uiCatalogs`, `a2uiTheme`).
+  reactive data-binding adapters, and SwiftUI environment keys (`a2uiCatalogs`, `a2uiTheme`,
+  `a2uiMarkdown`).
 - **`BasicCatalogSwiftUI`** (`Sources/BasicCatalog/`):
   Concrete native SwiftUI views for all Basic Catalog components (`A2UIText`, `A2UIButton`,
   `A2UIRow`, `A2UIColumn`, `A2UICard`, `A2UIList`, `A2UITabs`, `A2UIModal`, etc.) conforming to
@@ -71,6 +72,22 @@ let customProfileImplementation = ComponentImplementation(api: UserCardAPI()) { 
 ```
 
 2. Register the `ComponentImplementation` in a `Catalog<ComponentImplementation>` and pass it to `Surface(viewModel:catalogs:)`.
+
+### Markdown
+
+The basic catalog's `Text` renders its Markdown with its own SwiftUI views. To render it with the
+view your app uses for Markdown elsewhere, set it with `a2uiMarkdown` on a view above the
+`Surface`. The view is built inside your view hierarchy, so it reads your environment:
+
+```swift
+Surface(viewModel: surfaceViewModel, catalogs: BasicCatalogSwiftUI.allCatalogs)
+  .a2uiMarkdown { markdown in
+    ChatMarkdown(text: markdown)
+  }
+```
+
+A `Text` with the `body` variant, or none, uses this view. The heading and `caption` variants
+render inline Markdown in their own fonts.
 
 ### Accessibility
 

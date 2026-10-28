@@ -127,6 +127,30 @@ let customCatalog = Catalog(
 )
 ```
 
+### Deriving a catalog
+
+`catalog.derive` returns a new catalog under its own ID, built from entries of `catalog` and new
+ones. `components` and `functions` name the entries to keep, and leaving one out keeps every
+entry of that kind. `addComponents` and `addFunctions` add new entries, replacing a kept entry of
+the same name. The new catalog keeps the protocol version and theme schema of `catalog`, and a
+name that `catalog` has no entry of throws `A2UICatalogError`:
+
+```swift
+let chatCatalog = try BasicCatalog.makeCatalog(version: .v10).derive(
+  catalogID: "https://example.com/catalogs/chat.json",
+  components: ["Text", "Image", "Row", "Column", "Button"],
+  addComponents: [AnyComponentAPI(name: "UserCard", schema: UserCardAPI().schema)],
+  functions: ["openUrl"]
+)
+```
+
+### Validation rules for one call
+
+`processMessages(_:validationConfig:)` takes a `ValidationConfig` that replaces the processor's
+own for that call. An agent that runs in the same app as the renderer can check its messages
+against the renderer's processor by its own rules, whatever rules the renderer was created with.
+`processor.catalogs` returns the catalogs the processor was created with.
+
 ---
 
 ## 4. Development and testing

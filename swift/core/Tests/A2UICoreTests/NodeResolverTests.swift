@@ -220,6 +220,73 @@ struct NodeResolverTests {
     #expect(childNode.properties["someProp"] as? String == "unclassifiedValue")
   }
 
+  @Test func actionInsideListItemResolvesToTriggerableAction() throws {
+    let carouselSchema = try Schema(
+      instance: """
+        {
+          "allOf": [
+            { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentCommon" },
+            {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "component": { "type": "string" },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "action": {
+                        "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "test",
+      components: [AnyComponentAPI(name: "Carousel", schema: carouselSchema)]
+    )
+    let handler = ExpressionErrorCaptureHandler()
+    let components: [String: ComponentModel] = [
+      "root": ComponentModel(
+        id: "root",
+        type: "Carousel",
+        properties: [
+          "items": .array([
+            .object([
+              "name": .string("first"),
+              "action": .object(["event": .object(["name": .string("openFirst")])]),
+            ])
+          ])
+        ]
+      )
+    ]
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel(),
+      actionHandler: handler
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
+    let items = try #require(rootNode.properties["items"] as? ResolvedArray)
+    let item = try #require(items.elements.first as? ResolvedDictionary)
+    #expect(item.string(for: "name") == "first")
+    let action = try #require(item["action"] as? ResolvedAction)
+    action()
+    #expect(handler.capturedActions.map(\.identity) == [.event(name: "openFirst", context: [:])])
+  }
+
   @Test func standardArrayPreservesNullElements() throws {
     let arrayComponentSchema = try Schema(
       instance: """

@@ -52,4 +52,27 @@ struct A2UITextTests {
     )
     _ = A2UIText(node: node).body
   }
+
+  @Test func bodyTextRendersMarkdownWithTheAppView() throws {
+    let rendered = MarkdownRecorder()
+    for variant in ["body", "h1", "caption"] {
+      let node = Node(
+        id: "text_\(variant)",
+        type: "Text",
+        properties: ["text": "**\(variant)**", "variant": variant]
+      )
+      let view = A2UIText(node: node).a2uiMarkdown { markdown in
+        let _ = rendered.markdown.append(markdown)
+        Text(markdown)
+      }
+      _ = try #require(ImageRenderer(content: view).cgImage)
+    }
+    #expect(rendered.markdown == ["**body**"])
+  }
+}
+
+/// The Markdown strings that an app's Markdown view was built for.
+@MainActor
+private final class MarkdownRecorder: Sendable {
+  var markdown: [String] = []
 }
