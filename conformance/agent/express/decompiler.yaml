@@ -59,6 +59,9 @@
 # A round trip checks the recompiled block on its own, as `validate_payload`
 # does: a surface that the block updates without creating is assumed to exist.
 
+# A round trip checks the recompiled block on its own, as `validate_payload`
+# does: a surface that the block updates without creating is assumed to exist.
+
 - name: test_decompile_express_components
   description: A createSurface writes back out as the surface line and the component assignments it came from.
   action: decompile
