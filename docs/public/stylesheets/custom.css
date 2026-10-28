@@ -94,9 +94,45 @@
 
 /* --- Header & Navigation Responsive Breakpoint Overrides --- */
 
-/* Always keep logo stationary and visible on the left */
+/* Always keep logo stationary and visible on the left, with enhanced sizing */
+.md-header__inner {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .md-header__button.md-logo {
-  display: inline-block !important;
+  display: inline-flex !important;
+  align-items: center;
+  padding: 0 !important;
+  margin: 0 0.4rem 0 0 !important;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2.6rem !important;
+  width: auto;
+  transform: scale(1.25);
+}
+
+.md-header__title {
+  height: 2.8rem;
+  line-height: 2.8rem;
+}
+
+.md-header__topic {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.md-sidebar {
+  top: 2.8rem !important;
+}
+
+/* Remove duplicate logo, site title, and GitHub info from the sidebar/drawer */
+.md-nav--primary > .md-nav__title[for="__drawer"],
+.md-nav__source {
+  display: none !important;
 }
 
 /* For screens >= 800px: Keep primary sidebar visible as desktop sitemap; hide drawer button */
