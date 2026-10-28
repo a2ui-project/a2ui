@@ -16,6 +16,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../parser/response_part.dart';
 import '../../parser/response_stream.dart';
+import '../../parser/text_run.dart';
 import '../../utils/renderer_state.dart';
 import 'compiler.dart';
 import 'parser.dart';
@@ -39,6 +40,19 @@ final RegExp _trailingFence = RegExp(
   r'(?:\r?\n)?[ \t]*```[ \t]*$',
   caseSensitive: false,
 );
+final RegExp _outerTrailingFence = RegExp(
+  r'(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$',
+);
+final RegExp _outerTrailingFencePrefix = RegExp(
+  r'(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$',
+);
+final RegExp _outerLeadingFence = RegExp(
+  r'^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)|`+)',
+);
+final RegExp _outerLeadingFencePrefix = RegExp(
+  r'^(?:`+|\s*`{0,2}|\s*```[a-zA-Z0-9_-]*[ \t]*\r?)$',
+);
+final RegExp _trailingFenceClose = RegExp(r'\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n?$');
 final RegExp _edgeBackticks = RegExp(r'^`+|`+$');
 final RegExp _ident = RegExp(
   r'[\p{XID_Start}_]\p{XID_Continue}*',
@@ -62,17 +76,20 @@ final RegExp _token = RegExp(
 /// Index where a trailing partial `<a2ui` open tag may begin in [text], or
 /// `text.length` if none is present.
 int possibleOpenTagStart(String text) {
-  final int start = (text.length - 64).clamp(0, text.length);
-  for (var i = start; i < text.length; i++) {
-    if (text.codeUnitAt(i) != 0x3C /* '<' */ ) continue;
+  int i = text.indexOf('<');
+  while (i >= 0) {
     final String tail = text.substring(i);
     if (_openTagLiteral.startsWith(tail.toLowerCase()) ||
         _openTagStart.hasMatch(tail)) {
       return i;
     }
+    i = text.indexOf('<', i + 1);
   }
   return text.length;
 }
+
+int _possibleFenceStart(String text) =>
+    _outerTrailingFencePrefix.firstMatch(text)?.start ?? text.length;
 
 int? _commentCloseIndex(String content, int start, int end) {
   if (!content.startsWith('#', start) &&
@@ -539,10 +556,8 @@ class ExpressResponseStream extends ResponseStream {
 
   // Text outside blocks.
   String _held = '';
-  bool _runStarted = false;
-  String _heldSpace = '';
-  String _heldBackticks = '';
-  bool _stripCloseBackticks = false;
+  final TextRun _text = TextRun();
+  bool _afterBlock = false;
 
   // The open block.
   bool _inBlock;
@@ -594,13 +609,13 @@ class ExpressResponseStream extends ResponseStream {
       _fail(_touched);
       rethrow;
     }
-    if (_heldBackticks.isNotEmpty) {
-      _emitText(parts, _heldBackticks);
-      _heldBackticks = '';
-    }
     if (_held.isNotEmpty) {
-      _emitText(parts, _held);
+      String rest = _held;
       _held = '';
+      if (_afterBlock) {
+        rest = rest.replaceFirst(_outerLeadingFence, '');
+      }
+      _text.emit(parts, rest.replaceFirst(_trailingFenceClose, ''));
     }
     return parts;
   }
@@ -617,41 +632,25 @@ class ExpressResponseStream extends ResponseStream {
       _emitReady(parts, _block.length);
       return parts;
     }
-    String input = _prepareChunk(chunk);
+    String input = _held + chunk;
+    _held = '';
     while (input.isNotEmpty) {
       if (_inBlock) {
         input = _consumeBlockText(parts, input);
-      } else {
-        input = _consumeOutsideText(parts, input);
+        continue;
       }
+      if (_afterBlock) {
+        if (_outerLeadingFencePrefix.hasMatch(input)) {
+          _held = input;
+          return parts;
+        }
+        _afterBlock = false;
+        input = input.replaceFirst(_outerLeadingFence, '');
+        continue;
+      }
+      input = _consumeOutsideText(parts, input);
     }
     return parts;
-  }
-
-  String _prepareChunk(String chunk) {
-    String input = _held + chunk;
-    _held = '';
-    if (_stripCloseBackticks) {
-      if (input.startsWith('`')) {
-        input = input.replaceAll(RegExp(r'^`+'), '');
-      }
-      if (input.isNotEmpty) {
-        _stripCloseBackticks = false;
-      }
-    }
-    if (!_inBlock && _heldBackticks.isNotEmpty && input.isNotEmpty) {
-      final bool isOpen =
-          _openTag.matchAsPrefix(input) != null ||
-          _openTagStart.hasMatch(input) ||
-          (input.startsWith('<') &&
-              input.length <= _openTagLiteral.length &&
-              _openTagLiteral.startsWith(input.toLowerCase()));
-      if (!isOpen) {
-        input = '$_heldBackticks$input';
-      }
-      _heldBackticks = '';
-    }
-    return input;
   }
 
   String _consumeBlockText(List<ResponsePart> parts, String input) {
@@ -662,61 +661,32 @@ class ExpressResponseStream extends ResponseStream {
       return '';
     }
     final Match closeMatch = _closeTag.matchAsPrefix(_block, closeStart)!;
-    String remaining = _block.substring(closeMatch.end);
-    if (remaining.startsWith('`')) {
-      remaining = remaining.replaceAll(RegExp(r'^`+'), '');
-    } else if (remaining.isEmpty) {
-      _stripCloseBackticks = true;
-    }
+    final String remaining = _block.substring(closeMatch.end);
     _finishBlock(parts, closeStart);
+    _inBlock = false;
+    _afterBlock = true;
+    _resetBlock();
     return remaining;
   }
 
   String _consumeOutsideText(List<ResponsePart> parts, String input) {
     final Match? openMatch = _openTag.firstMatch(input);
     if (openMatch != null) {
-      String textBefore = input.substring(0, openMatch.start);
-      if (textBefore.endsWith('`')) {
-        textBefore = textBefore.replaceAll(RegExp(r'`+$'), '');
-      }
-      _emitText(parts, textBefore);
-      _runStarted = false;
-      _heldSpace = '';
-      _heldBackticks = '';
+      final String textBefore = input
+          .substring(0, openMatch.start)
+          .replaceFirst(_outerTrailingFence, '');
+      _text.emit(parts, textBefore);
+      _text.reset();
       _inBlock = true;
       _resetBlock();
       return input.substring(openMatch.end);
     }
 
-    int hold = possibleOpenTagStart(input);
-    if (hold < input.length) {
-      while (hold > 0 && input.codeUnitAt(hold - 1) == 0x60 /* '`' */ ) {
-        hold--;
-      }
-    }
-    String textToEmit = input.substring(0, hold);
+    final int tagStart = possibleOpenTagStart(input);
+    final int hold = _possibleFenceStart(input.substring(0, tagStart));
+    _text.emit(parts, input.substring(0, hold));
     _held = input.substring(hold);
-    if (_held.isEmpty) {
-      final Match? ticksMatch = RegExp(r'`+$').firstMatch(textToEmit);
-      if (ticksMatch != null) {
-        _heldBackticks = ticksMatch.group(0)!;
-        textToEmit = textToEmit.substring(0, ticksMatch.start);
-      }
-    }
-    _emitText(parts, textToEmit);
     return '';
-  }
-
-  void _emitText(List<ResponsePart> parts, String text) {
-    final String body = (_runStarted ? text : text.trimLeft()).trimRight();
-    if (body.isEmpty) {
-      if (_runStarted) _heldSpace += text;
-      return;
-    }
-    final int start = _runStarted ? 0 : text.indexOf(body);
-    parts.add(TextPart('$_heldSpace$body'));
-    _heldSpace = text.substring(start + body.length);
-    _runStarted = true;
   }
 
   void _emitReady(List<ResponsePart> parts, int end) {
@@ -798,8 +768,6 @@ class ExpressResponseStream extends ResponseStream {
     if (models.isNotEmpty) {
       parts.add(A2uiPart(models));
     }
-    _inBlock = !_wrapped;
-    _resetBlock();
   }
 
   List<AgentToRendererMessage> _compileStep(

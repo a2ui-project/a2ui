@@ -29,6 +29,7 @@ import {A2uiError, AgentToRendererMessage, CatalogApi} from '../../internal/web-
 import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
 import {ResponsePart, StreamPart} from '../../parser/response-part.js';
 import {ResponseStream} from '../../parser/response-stream.js';
+import {TextRun} from '../../parser/text-run.js';
 import {RendererState} from '../../utils/renderer-state.js';
 import {ExpressCompiler, ExpressScopeSession, formatErrorMessage} from './compiler.js';
 import {
@@ -50,6 +51,11 @@ const OPEN_TAG_START_RE = /<a2ui\s[^>]*$/iy;
 const CLOSE_TAG_START_RE = /<\/a2ui\s*$/iy;
 const LEADING_FENCE_RE = /^\s*(?:```[a-zA-Z0-9_-]*[ \t]*\r?\n|`+\s*)/;
 const TRAILING_FENCE_RE = /(?:\r?\n?[ \t]*```[a-zA-Z0-9_-]*|`+)\s*$/;
+const OUTER_TRAILING_FENCE_RE = /(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$/;
+const OUTER_TRAILING_FENCE_PREFIX_RE = /(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$/;
+const OUTER_LEADING_FENCE_RE = /^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)|`+)/;
+const OUTER_LEADING_FENCE_PREFIX_RE = /^(?:`+|\s*`{0,2}|\s*```[a-zA-Z0-9_-]*[ \t]*\r?)$/;
+const TRAILING_FENCE_CLOSE_RE = /\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n?$/;
 const IDENT_RE = /[a-zA-Z_][a-zA-Z0-9_]*/y;
 const DATA_ASSIGN_RE = /^\s*\$([a-zA-Z0-9_/]*)\s*=(?!=)/;
 
@@ -100,6 +106,11 @@ export function possibleOpenTagStart(text: string): number {
     idx = text.indexOf('<', idx + 1);
   }
   return text.length;
+}
+
+function possibleFenceStart(text: string): number {
+  const match = OUTER_TRAILING_FENCE_PREFIX_RE.exec(text);
+  return match ? match.index : text.length;
 }
 
 /** Finds `</a2ui>` outside string literals, or holds a partial close-tag tail. */
@@ -595,7 +606,15 @@ export function wrapExpressCompilationError(error: unknown, rawContent: string):
     (wrapped as {cause?: unknown}).cause = error;
     return wrapped;
   }
-  return error;
+  if (error instanceof A2uiError) {
+    return error;
+  }
+  const reason = error instanceof Error ? error.message : String(error);
+  const wrapped = new A2uiCompilationError(`Failed to compile A2UI block: ${reason}`, {
+    rawContent,
+  });
+  (wrapped as {cause?: unknown}).cause = error;
+  return wrapped;
 }
 
 /** How an Express stream is opened. */
@@ -631,10 +650,8 @@ export class ExpressResponseStream<
   private readonly progressiveKeys: ReadonlySet<string>;
   private closed = false;
   private held = '';
-  private heldBackticks = '';
-  private stripCloseBackticks = false;
-  private runStarted = false;
-  private heldSpace = '';
+  private readonly text = new TextRun();
+  private afterBlock = false;
   private inBlock: boolean;
   /** Whether the open block was rejected, so the rest of it is skipped. */
   private rejected = false;
@@ -734,13 +751,13 @@ export class ExpressResponseStream<
       this.fail();
       throw withPartialResults(e, parts.filter(isResponsePart));
     }
-    if (this.heldBackticks) {
-      this.emitText(parts, this.heldBackticks);
-      this.heldBackticks = '';
-    }
     if (this.held) {
-      this.emitText(parts, this.held);
+      let rest = this.held;
       this.held = '';
+      if (this.afterBlock) {
+        rest = rest.replace(OUTER_LEADING_FENCE_RE, '');
+      }
+      this.text.emit(parts, rest.replace(TRAILING_FENCE_CLOSE_RE, ''));
     }
     return parts;
   }
@@ -779,40 +796,24 @@ export class ExpressResponseStream<
       return;
     }
 
-    let input = this.prepareChunk(chunk);
+    let input = this.held + chunk;
+    this.held = '';
     while (input.length > 0) {
       if (this.inBlock) {
         input = this.consumeBlockText(parts, input);
-      } else {
-        input = this.consumeOutsideText(parts, input);
+        continue;
       }
+      if (this.afterBlock) {
+        if (OUTER_LEADING_FENCE_PREFIX_RE.test(input)) {
+          this.held = input;
+          return;
+        }
+        this.afterBlock = false;
+        input = input.replace(OUTER_LEADING_FENCE_RE, '');
+        continue;
+      }
+      input = this.consumeOutsideText(parts, input);
     }
-  }
-
-  private prepareChunk(chunk: string): string {
-    let input = this.held + chunk;
-    this.held = '';
-    if (this.stripCloseBackticks) {
-      if (input.startsWith('`')) {
-        input = input.replace(/^`+/, '');
-      }
-      if (input.length > 0) {
-        this.stripCloseBackticks = false;
-      }
-    }
-    if (!this.inBlock && this.heldBackticks.length > 0 && input.length > 0) {
-      const isOpen =
-        searchOpenTag(input)?.start === 0 ||
-        matchesAt(OPEN_TAG_START_RE, input, 0) ||
-        (input.startsWith('<') &&
-          input.length <= OPEN_TAG.length &&
-          OPEN_TAG.startsWith(input.toLowerCase()));
-      if (!isOpen) {
-        input = `${this.heldBackticks}${input}`;
-      }
-      this.heldBackticks = '';
-    }
-    return input;
   }
 
   private consumeBlockText(parts: StreamPart[], input: string): string {
@@ -825,16 +826,12 @@ export class ExpressResponseStream<
       return '';
     }
     const closeEnd = matchCloseTag(this.block, closeStart)!;
-    let remaining = this.block.slice(closeEnd);
-    if (remaining.startsWith('`')) {
-      remaining = remaining.replace(/^`+/, '');
-    } else if (!remaining) {
-      this.stripCloseBackticks = true;
-    }
+    const remaining = this.block.slice(closeEnd);
     if (!this.rejected) {
       this.readBlock(parts, () => this.finishBlock(parts, closeStart));
     }
     this.inBlock = false;
+    this.afterBlock = true;
     this.resetBlock();
     return remaining;
   }
@@ -842,50 +839,18 @@ export class ExpressResponseStream<
   private consumeOutsideText(parts: StreamPart[], input: string): string {
     const open = searchOpenTag(input);
     if (open) {
-      let textBefore = input.slice(0, open.start);
-      if (textBefore.endsWith('`')) {
-        textBefore = textBefore.replace(/`+$/, '');
-      }
-      this.emitText(parts, textBefore);
-      this.runStarted = false;
-      this.heldSpace = '';
-      this.heldBackticks = '';
+      this.text.emit(parts, input.slice(0, open.start).replace(OUTER_TRAILING_FENCE_RE, ''));
+      this.text.reset();
       this.inBlock = true;
       this.resetBlock();
       return input.slice(open.end);
     }
 
-    let hold = possibleOpenTagStart(input);
-    if (hold < input.length) {
-      while (hold > 0 && input.charCodeAt(hold - 1) === 0x60) {
-        hold -= 1;
-      }
-    }
-    let textToEmit = input.slice(0, hold);
+    const tagStart = possibleOpenTagStart(input);
+    const hold = possibleFenceStart(input.slice(0, tagStart));
+    this.text.emit(parts, input.slice(0, hold));
     this.held = input.slice(hold);
-    if (!this.held) {
-      const ticksMatch = textToEmit.match(/`+$/);
-      if (ticksMatch) {
-        this.heldBackticks = ticksMatch[0];
-        textToEmit = textToEmit.slice(0, textToEmit.length - this.heldBackticks.length);
-      }
-    }
-    this.emitText(parts, textToEmit);
     return '';
-  }
-
-  private emitText(parts: StreamPart[], text: string): void {
-    const body = (this.runStarted ? text : text.trimStart()).trimEnd();
-    if (!body) {
-      if (this.runStarted) {
-        this.heldSpace += text;
-      }
-      return;
-    }
-    const start = this.runStarted ? 0 : text.indexOf(body);
-    parts.push({type: 'text', text: `${this.heldSpace}${body}`});
-    this.heldSpace = text.slice(start + body.length);
-    this.runStarted = true;
   }
 
   private emitReady(parts: StreamPart[], end: number): void {
@@ -945,7 +910,11 @@ export class ExpressResponseStream<
     let models: AgentToRendererMessage[] = [];
     this.state.transaction(() => {
       if (!this.session.hasEmitted) {
-        models = this.parser.compile(payload, true);
+        try {
+          models = this.parser.compile(payload, true);
+        } catch (e) {
+          throw wrapExpressCompilationError(e, payload);
+        }
         this.apply(models);
       } else {
         models = this.compileStep(payload, true, true);

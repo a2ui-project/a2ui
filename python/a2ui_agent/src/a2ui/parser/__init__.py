@@ -46,6 +46,7 @@ from .response_part import (
     TextPart,
 )
 from .response_stream import ResponseStream
+from .text_run import TextRun
 
 __all__ = [
     "A2uiCompilationError",
@@ -70,6 +71,7 @@ __all__ = [
     "ResponsePart",
     "ResponseStream",
     "TextPart",
+    "TextRun",
     "normalize_prompt_example_messages",
     "to_message_dicts",
     "to_message_models",

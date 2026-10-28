@@ -19,6 +19,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 import '../../parser/parser.dart';
 import '../../parser/response_part.dart';
 import '../../parser/response_stream.dart';
+import '../../parser/text_run.dart';
 import '../../utils/renderer_state.dart';
 import 'blocks.dart';
 import 'json_reader.dart';

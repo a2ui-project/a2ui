@@ -27,6 +27,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Small textual differences in prompts on old Node versions. The repository uses Node 22.
 - **Done looks like:** Nothing, unless the package has to support Node 20, in which case example numbers need a custom JSON reader.
 
+### An Express stream does not recover a block without its open tag
+
+- **What it is:** `ExpressParser.parseResponse` recovers a block that was written with `</a2ui>` and no `<a2ui>`. `ExpressParser.openStream` in `wrapped: true` mode does not: by the time `</a2ui>` arrives, the lines before it have already been emitted as text.
+- **Why it exists:** Holding every paragraph until `</a2ui>` is ruled out would hold the whole response.
+- **What it risks:** A response whose `<a2ui>` tag the model dropped is parsed as UI by `parseResponse` and emitted as text by `openStream`.
+- **Done looks like:** Nothing; the two modes cannot agree here without giving up streaming of text.
+
 ### Express decompiler skips components its catalog doesn't declare
 
 - **What it is:** When `ExpressDecompiler` meets a component whose name is not in the catalog, it leaves it out of the output without an error (`decompiler.ts`, the `helper.components.has(compName)` check in `decompileSurfaceGroup`). Python does the same.

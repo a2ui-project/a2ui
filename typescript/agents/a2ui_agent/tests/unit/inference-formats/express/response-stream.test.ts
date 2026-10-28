@@ -16,6 +16,7 @@
 
 import {describe, expect, it} from 'vitest';
 import {
+  A2uiCompilationError,
   A2uiCompilationParseError,
   A2uiCompilationValidationError,
   ParseError,
@@ -27,12 +28,37 @@ import {
   healProgressiveFragment,
   splitCompleteStatements,
 } from '../../../../src/inference-formats/express/response-stream.js';
+import {AgentToRendererMessage} from '../../../../src/internal/web-core.js';
+import {ResponsePart} from '../../../../src/parser/response-part.js';
 import {RendererState} from '../../../../src/utils/renderer-state.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
 const v10Catalog = loadConformanceCatalog('simplified_catalog_v1_0.json');
 const v09Catalog = loadBasicCatalog('v0.9');
+
+function streamBySize(parser: ExpressParser, response: string, size: number): ResponsePart[] {
+  const stream = parser.openStream();
+  const out: ResponsePart[] = [];
+  for (let i = 0; i < response.length; i += size) {
+    out.push(...stream.feed(response.slice(i, i + size)));
+  }
+  out.push(...stream.close());
+  return out;
+}
+
+function coalesceText(parts: ResponsePart[]): ResponsePart[] {
+  const out: ResponsePart[] = [];
+  for (const part of parts) {
+    const prev = out[out.length - 1];
+    if (part.type === 'text' && prev?.type === 'text') {
+      prev.text += part.text;
+    } else {
+      out.push(part.type === 'text' ? {type: 'text', text: part.text} : part);
+    }
+  }
+  return out;
+}
 
 describe('ExpressResponseStream unit tests', () => {
   it('splitCompleteStatements handles multiline and semicolons', () => {
@@ -237,5 +263,84 @@ describe('ExpressResponseStream unit tests', () => {
     expect(closed).toHaveLength(1);
     expect(closed[0].type).toBe('error');
     expect(stream.isInBlock).toBe(false);
+  });
+
+  it('matches parseResponse for outer fences and inline backticks regardless of chunk size', () => {
+    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const response =
+      'Intro with `inline` code:\n' +
+      '```a2ui\n<a2ui>\nsurface("s1")\nroot = Text("One")\n</a2ui>\n```\n' +
+      '`<a2ui>`\nsurface("s1", update=true)\n$/title = "Two"\n`</a2ui>`\n' +
+      '```a2ui\n<a2ui>\nsurface("s1", update=true)\n$/title = "Three"\n</a2ui>\n```\n' +
+      'Done.';
+    const expected = parser.parseResponse(response);
+    for (const size of [1, 2, 3, 5, 11, response.length]) {
+      expect(coalesceText(streamBySize(parser, response, size))).toEqual(expected);
+    }
+  });
+
+  it('drops a markdown fence line before <a2ui> and after </a2ui>', () => {
+    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const stream = parser.openStream();
+    expect(stream.feed('Intro\n```')).toEqual([{type: 'text', text: 'Intro'}]);
+    expect(stream.feed('a2ui\n<a2')).toEqual([]);
+    const block = stream.feed('ui>\nsurface("s1")\nroot = Text("Hi")\n</a2ui>\n`');
+    expect(block).toHaveLength(1);
+    expect(block[0].type).toBe('a2ui');
+    expect(stream.feed('``\nAfter')).toEqual([{type: 'text', text: 'After'}]);
+    expect(stream.close()).toEqual([]);
+  });
+
+  it('keeps a prose code block before an <a2ui> block', () => {
+    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const response =
+      'Run:\n```sh\nls\n```\nAnd UI:\n<a2ui>\nsurface("s1")\nroot = Text("Hi")\n</a2ui>';
+    expect(coalesceText(streamBySize(parser, response, 2))).toEqual(parser.parseResponse(response));
+  });
+
+  it('holds a partial <a2ui ...> open tag whose attribute contains <', () => {
+    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const stream = parser.openStream();
+    expect(stream.feed('Before <a2ui x="1 < 2"')).toEqual([{type: 'text', text: 'Before'}]);
+    expect(stream.feed('>\nsurface("s1")\nroot = Text("Hi")\n</a2ui>')).toHaveLength(1);
+    expect(stream.close()).toEqual([]);
+  });
+
+  it('checks topology as each block closes rather than across blocks', () => {
+    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const twoBlocks =
+      '<a2ui>\nsurface("s1")\nroot = Card(c1)\n</a2ui>\n' +
+      '<a2ui>\nsurface("s1", update=true)\nc1 = Text("Later")\n</a2ui>';
+    // One-shot parsing checks topology across all blocks at the end.
+    expect(() => parser.parseResponse(twoBlocks)).not.toThrow();
+
+    const stream = parser.openStream();
+    expect(() => stream.feed(twoBlocks)).toThrow();
+  });
+
+  it('wraps a non-A2uiError thrown by compile into A2uiCompilationError', () => {
+    class BrokenParser extends ExpressParser {
+      override compile(_formatContent: string, _isFinal?: boolean): AgentToRendererMessage[] {
+        throw new TypeError('unexpected');
+      }
+    }
+    const broken = new BrokenParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const stream = broken.openStream({afterRejectedBlock: 'continue'});
+    const parts = stream.feed('<a2ui>surface("s1")</a2ui> tail');
+    expect(parts).toHaveLength(2);
+    expect(parts[0].type).toBe('error');
+    if (parts[0].type === 'error') {
+      expect(parts[0].error).toBeInstanceOf(A2uiCompilationError);
+    }
+    expect(parts[1]).toEqual({type: 'text', text: 'tail'});
+  });
+
+  it('returns an error part on close for a rejected unwrapped response when afterRejectedBlock is continue', () => {
+    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const stream = parser.openStream({wrapped: false, afterRejectedBlock: 'continue'});
+    const feedParts = stream.feed('surface("s1")\nroot = Card(missing)\n');
+    expect(feedParts).toHaveLength(1);
+    expect(feedParts[0].type).toBe('a2ui');
+    expect(stream.close().map(part => part.type)).toEqual(['error']);
   });
 });

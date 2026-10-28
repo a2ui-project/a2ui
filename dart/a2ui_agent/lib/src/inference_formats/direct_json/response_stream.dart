@@ -64,8 +64,7 @@ class DirectJsonResponseStream extends ResponseStream {
 
   // Text outside blocks.
   String _held = '';
-  bool _runStarted = false;
-  String _heldSpace = '';
+  final TextRun _text = TextRun();
   String _heldBackticks = '';
   bool _stripCloseBackticks = false;
 
@@ -139,10 +138,10 @@ class DirectJsonResponseStream extends ResponseStream {
       rethrow;
     }
     if (_heldBackticks.isNotEmpty) {
-      _emitText(parts, _heldBackticks);
+      _text.emit(parts, _heldBackticks);
       _heldBackticks = '';
     } else if (_held.isNotEmpty) {
-      _emitText(parts, _held);
+      _text.emit(parts, _held);
       _held = '';
     }
     return parts;
@@ -217,9 +216,8 @@ class DirectJsonResponseStream extends ResponseStream {
         if (textBefore.endsWith('`')) {
           textBefore = textBefore.replaceAll(RegExp(r'`+$'), '');
         }
-        _emitText(parts, textBefore);
-        _runStarted = false;
-        _heldSpace = '';
+        _text.emit(parts, textBefore);
+        _text.reset();
         _heldBackticks = '';
         _inBlock = true;
         input = input.substring(open.end);
@@ -244,23 +242,9 @@ class DirectJsonResponseStream extends ResponseStream {
           );
         }
       }
-      _emitText(parts, textToEmit);
+      _text.emit(parts, textToEmit);
     }
     return parts;
-  }
-
-  /// Emits the text of a run, less leading whitespace at the start of the
-  /// run and trailing whitespace, which is held until more text arrives.
-  void _emitText(List<ResponsePart> parts, String text) {
-    final String body = (_runStarted ? text : text.trimLeft()).trimRight();
-    if (body.isEmpty) {
-      if (_runStarted && body.isEmpty) _heldSpace += text;
-      return;
-    }
-    final int start = _runStarted ? 0 : text.indexOf(body);
-    parts.add(TextPart('$_heldSpace$body'));
-    _heldSpace = text.substring(start + body.length);
-    _runStarted = true;
   }
 
   /// Reads the open block up to [end], going on from the previous read.

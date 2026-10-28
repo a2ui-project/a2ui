@@ -772,6 +772,57 @@ surface("s1")
       );
       expect(stream.close(), isEmpty);
     });
+
+    test('strips outer fences and inline backticks across chunk sizes '
+        'and holds attribute <', () {
+      final noProgParser = ExpressParser([basic], progressiveKeys: const {});
+      const response =
+          'Intro with `inline` code:\n'
+          '```a2ui\n<a2ui>\nsurface("s1")\nroot = Text("One")\n</a2ui>\n```\n'
+          '`<a2ui>`\nsurface("s1", update=true)\n\$/title = "Two"\n`</a2ui>`\n'
+          '```a2ui\n<a2ui>\nsurface("s1", update=true)\n\$/title = "Three"\n</a2ui>\n```\n'
+          'Done.';
+      final List<ResponsePart> expected = noProgParser.parseResponse(response);
+      for (final int size in [1, 2, 3, 5, 11, response.length]) {
+        final ResponseStream s = noProgParser.openStream();
+        final raw = <ResponsePart>[];
+        for (var i = 0; i < response.length; i += size) {
+          final int end = (i + size).clamp(0, response.length);
+          raw.addAll(s.feed(response.substring(i, end)));
+        }
+        raw.addAll(s.close());
+        final coalesced = <ResponsePart>[];
+        for (final part in raw) {
+          if (part is TextPart &&
+              coalesced.isNotEmpty &&
+              coalesced.last is TextPart) {
+            final prev = coalesced.removeLast() as TextPart;
+            coalesced.add(TextPart('${prev.text}${part.text}'));
+          } else {
+            coalesced.add(part);
+          }
+        }
+        expect(coalesced, hasLength(expected.length));
+        expect(
+          (coalesced.first as TextPart).text,
+          (expected.first as TextPart).text,
+        );
+        expect(
+          (coalesced.last as TextPart).text,
+          (expected.last as TextPart).text,
+        );
+      }
+
+      final ResponseStream attrStream = noProgParser.openStream();
+      expect(attrStream.feed('Before <a2ui x="1 < 2"'), [
+        isA<TextPart>().having((p) => p.text, 'text', 'Before'),
+      ]);
+      expect(
+        attrStream.feed('>\nsurface("s1")\nroot = Text("Hi")\n</a2ui>'),
+        hasLength(1),
+      );
+      expect(attrStream.close(), isEmpty);
+    });
   });
 
   group('public API', () {

@@ -103,6 +103,33 @@
         - text: "Finished."
   expect_matches_single_shot: true
 
+- name: test_express_stream_outer_markdown_fences_around_block
+  description: Markdown code fences and inline backticks placed outside `<a2ui>` and `</a2ui>` tags are held and stripped across chunk boundaries, while prose code blocks are kept.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "Run:\n```sh\nls\n```\nAnd UI:\n```"
+      expect:
+        - text: "Run:\n```sh\nls\n```\nAnd UI:"
+    - input: "a2ui\n<a2ui>\nsurface(\"s1\")\nroot = Text(\"Hello\")\n</a2ui>\n`"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello"
+    - input: "``\nDone."
+      expect:
+        - text: "Done."
+  expect_matches_single_shot: true
+
 # --- 2. Top-down component and data model streaming across chunks ---
 
 - name: test_express_stream_top_down_components_across_chunks

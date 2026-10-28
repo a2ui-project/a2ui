@@ -83,6 +83,8 @@ for (const part of stream.feed(chunk)) {
 
 `stream.isInBlock` tells whether the response read so far ends inside a block. A client that joins the chunks of a paused and resumed response reads it before adding a space between them, since a space inside a block could break it.
 
+In `wrapped: true` mode, `openStream` strips Markdown code fences and inline backticks placed either inside or immediately outside `<a2ui>` and `</a2ui>` tags, checks surface topology as each `<a2ui>` block closes (unlike `parseResponse`, which checks topology across all blocks at the end of the response), and requires the opening `<a2ui>` tag rather than recovering a block whose opening tag was omitted.
+
 ### An app that is both agent and renderer
 
 An app that calls the model and renders its answer itself, such as a chat in the browser, checks and renders each message once by giving the stream a state on the processor it renders from:
