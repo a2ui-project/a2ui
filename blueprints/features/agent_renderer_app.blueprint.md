@@ -11,14 +11,15 @@ date_added: 2026-10-28
 
 An app can call the model and render its answer itself, such as a chat that runs in a browser. It then plays both A2UI roles: the agent that reads the model's streamed answer, and the renderer that shows it. This feature lets such an app check and apply each message once, on the renderer's own `MessageProcessor`, and read one streamed answer into its text, surfaces and rejected blocks in the order the model wrote them.
 
-The feature is optional. An SDK implements it only if it has both an agent SDK and a renderer that can run in the same app. An agent-only SDK, such as the Python one, and a renderer-only SDK, such as the Swift one, do not implement it.
+The feature is optional. An SDK implements it only if it has both an agent and a renderer that can run in the same app. An SDK with only one of them does not implement it.
 
 ---
 
 ## **Requirements**
 
-### **1. A validation config for one call (core)**
+### **1. The processor's catalogs and a validation config for one call (core)**
 
+- `MessageProcessor.catalogs` holds the catalogs the processor was created with, in priority order. Changing what it returns does not change the processor.
 - `ExecutionContext`, the options of one `processMessages` or `processMessagesAsync` call, takes a `validationConfig`. It replaces the processor's own config for that call. The rules it leaves out default to the strict ones, as for `MessageProcessorOptions.validationConfig`.
 - The processor's own config is in effect again for the next call that passes none.
 
@@ -40,9 +41,14 @@ The feature is optional. An SDK implements it only if it has both an agent SDK a
 
 ## **Detailed Description of Changes**
 
-### **Core: `ExecutionContext`**
+### **Core: `MessageProcessor.catalogs` and `ExecutionContext`**
 
 ```typescript
+class MessageProcessor<T extends ComponentApi> {
+  /** The catalogs the processor was created with, in priority order. */
+  readonly catalogs: Catalog<T>[];
+}
+
 /** Options for one call of 'processMessages' or 'processMessagesAsync'. */
 export interface ExecutionContext {
   /** Whether the call runs in an active user gesture. */
@@ -122,7 +128,7 @@ class StreamedAnswer:
 
 - [#3597](https://github.com/a2ui-project/a2ui/issues/3597): API gaps for an app that is both agent and renderer, item 4.
 - [`a2ui_agent.blueprint.md`](../modules/a2ui_agent.blueprint.md): `RendererState`, `ResponseStream`, `ErrorPart` and reading past rejected blocks.
-- [`a2ui_core.blueprint.md`](../modules/a2ui_core.blueprint.md#messageprocessor): `MessageProcessor` and its `catalogs`.
+- [`a2ui_core.blueprint.md`](../modules/a2ui_core.blueprint.md#messageprocessor): `MessageProcessor` and `ExecutionContext`.
 
 ---
 
@@ -137,7 +143,7 @@ An SDK that does not implement the feature has no runner for `streamed_answer.ya
 
 ## **Implementation Steps**
 
-1. Core: add `validationConfig` to the per-call options of `processMessages` and `processMessagesAsync`, and run the `test_v10_call_validation_config_*` cases.
+1. Core: expose `MessageProcessor.catalogs`, add `validationConfig` to the per-call options of `processMessages` and `processMessagesAsync`, and run the `test_v10_call_validation_config_*` cases.
 2. Agent: add `RendererState.of`, and hold `callRendererFunction` messages until the outermost `apply` or transaction succeeds.
 3. Agent: add `StreamedAnswer` on top of `RendererState.of`, and run `streamed_answer.yaml`.
 4. Add `agent_renderer_app` to `implemented_features` in the codebase blueprints of the core and the agent.

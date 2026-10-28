@@ -489,8 +489,6 @@ export interface ExecutionContext {
 class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
-  /** The catalogs the processor was created with, in priority order. */
-  readonly catalogs: Catalog<T>[];
 
   constructor(
     catalogs: Catalog<T>[],
@@ -526,7 +524,7 @@ class MessageProcessor<T extends ComponentApi> {
 }
 ```
 
-The optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature adds a validation config for one call to `ExecutionContext`, for an agent that checks its messages against the renderer's own processor.
+The optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature adds `MessageProcessor.catalogs`, and a validation config for one call in `ExecutionContext`, for an agent that checks its messages against the renderer's own processor.
 
 ##### RPC ownership
 

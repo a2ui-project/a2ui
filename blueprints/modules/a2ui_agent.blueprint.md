@@ -438,7 +438,7 @@ class ResponseStream(ABC):
 
 An SDK whose type system can say so returns `ErrorPart` only from a stream opened with `after_rejected_block="continue"`, so that the code of a caller that never asks for one does not have to handle it.
 
-An app that is both the agent and the renderer can check and apply each message once, on the renderer's own `MessageProcessor`, with the optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature.
+The optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature adds `RendererState.of` and `StreamedAnswer`, for an app that is both the agent and the renderer. Such an app checks and applies each message once, on the renderer's own `MessageProcessor`, and reads a streamed answer into its text, surfaces and rejected blocks in the order the model wrote them.
 
 ---
 
