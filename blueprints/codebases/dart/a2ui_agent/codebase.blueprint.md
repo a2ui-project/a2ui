@@ -24,7 +24,6 @@ The official Dart implementation of the A2UI Agent SDK (`a2ui_agent`), targeting
 
 - **Protocol Version Selection from Active Catalogs**: Emitted message envelopes take their protocol version from the active `Catalog` instances negotiated for the request rather than a hardcoded default.
 - **ANTLR-Generated Express Grammar**: The Express lexer and parser under `lib/src/inference_formats/express/generated/` are generated from the canonical `specification/inference_formats/express/Express.g4` grammar.
-- **Optional Features**: `skill_generator` and `typesafe_builder_api` are not currently implemented in `dart/a2ui_agent`.
 
 ## **Validation & Execution Recipes**
 
