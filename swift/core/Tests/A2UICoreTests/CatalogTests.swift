@@ -235,4 +235,79 @@ struct CatalogTests {
     let catalog = AnyCatalog(id: "test", components: [])
     #expect(catalog.functions["unknown"] == nil)
   }
+
+  // MARK: - Derive
+
+  private func makeDeriveSource() throws -> AnyCatalog {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    return AnyCatalog(
+      id: "source",
+      protocolVersion: .v091,
+      components: ["Text", "Image", "Row"].map { AnyComponentAPI(name: $0, schema: schema) },
+      functions: [ConcatFunction(), IsEmptyFunction()],
+      themeSchema: try Schema(instance: "{\"type\": \"object\", \"title\": \"Theme\"}")
+    )
+  }
+
+  @Test func deriveKeepsNamedEntriesUnderNewID() throws {
+    let source = try makeDeriveSource()
+    let derived = try source.derive(
+      catalogID: "derived",
+      components: ["Text", "Row"],
+      functions: ["concat"]
+    )
+    #expect(derived.id == "derived")
+    #expect(derived.protocolVersion == source.protocolVersion)
+    #expect(derived.themeSchema == source.themeSchema)
+    #expect(Set(derived.components.keys) == ["Text", "Row"])
+    #expect(derived.components["Text"] == source.components["Text"])
+    #expect(Set(derived.functions.keys) == ["concat"])
+    #expect(source.id == "source")
+    #expect(source.components.count == 3)
+  }
+
+  @Test func deriveAddsAndReplacesEntries() throws {
+    let source = try makeDeriveSource()
+    let newText = AnyComponentAPI(
+      name: "Text",
+      schema: try Schema(instance: "{\"type\": \"object\", \"title\": \"New Text\"}")
+    )
+    let carousel = AnyComponentAPI(name: "Carousel", schema: newText.schema)
+    let derived = try source.derive(
+      catalogID: "derived",
+      components: ["Text", "Image"],
+      addComponents: [newText, carousel],
+      functions: [],
+      addFunctions: [IsEmptyFunction()]
+    )
+    #expect(Set(derived.components.keys) == ["Text", "Image", "Carousel"])
+    #expect(derived.components["Text"] == newText)
+    #expect(derived.components["Text"] != source.components["Text"])
+    #expect(Set(derived.functions.keys) == ["isEmpty"])
+  }
+
+  @Test func deriveKeepsEveryEntryOfAnOmittedList() throws {
+    let source = try makeDeriveSource()
+    let derived = try source.derive(catalogID: "derived", components: ["Image"])
+    #expect(Set(derived.components.keys) == ["Image"])
+    #expect(Set(derived.functions.keys) == ["concat", "isEmpty"])
+  }
+
+  @Test func deriveThrowsForAnUnknownName() throws {
+    let source = try makeDeriveSource()
+    let componentError = try #require(throws: A2UICatalogError.self) {
+      try source.derive(catalogID: "derived", components: ["Text", "Slider"])
+    }
+    #expect(
+      componentError.message
+        == "Catalog 'source' has no component 'Slider' to derive catalog 'derived' from."
+    )
+    let functionError = try #require(throws: A2UICatalogError.self) {
+      try source.derive(catalogID: "derived", functions: ["openUrl"])
+    }
+    #expect(
+      functionError.message
+        == "Catalog 'source' has no function 'openUrl' to derive catalog 'derived' from."
+    )
+  }
 }

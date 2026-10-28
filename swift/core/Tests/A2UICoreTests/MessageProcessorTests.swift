@@ -780,6 +780,51 @@ struct MessageProcessorTests {
     #expect(surface.metadata?["extensions"]?["custom_ext"]?["enabled"]?.boolValue == true)
     #expect(surface.dataModel.get("/a~1b~0c")?.stringValue == "escapedValue")
   }
+
+  // MARK: - Catalogs and per-call validation config
+
+  @Test func catalogsAreTheCatalogsGivenInOrder() throws {
+    let second = Catalog<AnyComponentAPI>(id: "second", components: [])
+    let processor = MessageProcessor(catalogs: [second, try makeMessageProcessorTestCatalog()])
+    #expect(processor.catalogs.map(\.id) == ["second", "default"])
+  }
+
+  @Test func callValidationConfigAppliesToThatCallOnly() throws {
+    let processor = MessageProcessor(
+      catalogs: [try makeMessageProcessorTestCatalog()],
+      validationConfig: .relaxed
+    )
+    try processor.processMessages(
+      try JSONValue.parse(
+        """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """
+      )
+    )
+    let withOrphan = try JSONValue.parse(
+      """
+      {
+        "version": "v0.9.1",
+        "updateComponents": {
+          "surfaceId": "s1",
+          "components": [
+            {"id": "root", "component": "text", "text": "Root"},
+            {"id": "orphan", "component": "text", "text": "Orphan"}
+          ]
+        }
+      }
+      """
+    )
+
+    let error = try #require(throws: A2UIValidationError.self) {
+      try processor.processMessages(withOrphan, validationConfig: .strict)
+    }
+    #expect(error.message.contains("'orphan' is not reachable from 'root'"))
+    #expect(processor.surfaceGroupModel["s1"]?.componentsModel.components.isEmpty == true)
+
+    try processor.processMessages(withOrphan)
+    #expect(processor.surfaceGroupModel["s1"]?.componentsModel.components.count == 2)
+  }
 }
 
 private struct TestAddFunction: FunctionImplementation {

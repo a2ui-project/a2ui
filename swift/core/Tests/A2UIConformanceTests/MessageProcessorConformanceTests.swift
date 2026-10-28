@@ -53,14 +53,6 @@ struct MessageProcessorConformanceTests {
     )
   ]
 
-  /// Cases that pass a validation config to one call, which the Swift processor does not take
-  /// yet: https://github.com/a2ui-project/a2ui/issues/3699
-  private static let skippedCases: Set<String> = [
-    "test_v10_call_validation_config_relaxes_strict_processor",
-    "test_v10_call_validation_config_tightens_permissive_processor",
-    "test_v10_call_validation_config_leaves_out_rules_as_strict",
-  ]
-
   /// A runtime error a case expects rendering to report through the action handler.
   private struct ExpectedRuntimeError {
     let code: String
@@ -94,7 +86,6 @@ struct MessageProcessorConformanceTests {
 
     for testCase in cases {
       let name = testCase["name"] as? String ?? "<unnamed>"
-      if Self.skippedCases.contains(name) { continue }
       let action = testCase["action"] as? String ?? "process_messages"
 
       switch action {
@@ -366,10 +357,11 @@ struct MessageProcessorConformanceTests {
     }
 
     for step in steps {
+      let callConfig = (step["validationConfig"] as? [String: Any]).map(Self.validationConfig)
       if let expectError = step["expectError"] as? [String: Any] {
         let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
         do {
-          try processor.processMessages(payload)
+          try processor.processMessages(payload, validationConfig: callConfig)
           Issue.record("[\(name)] Expected error to be thrown for invalid message")
         } catch {
           if let category = expectError["category"] as? String {
@@ -397,7 +389,7 @@ struct MessageProcessorConformanceTests {
 
       let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
       handler.capturedErrors.removeAll()
-      try processor.processMessages(payload)
+      try processor.processMessages(payload, validationConfig: callConfig)
       if let expected = expectedRuntimeError {
         #expect(
           !handler.capturedErrors.isEmpty,
@@ -434,6 +426,16 @@ struct MessageProcessorConformanceTests {
         ?? (step["expectedSurfaces"] as? [String: Any])
       try verifyExpectedSurfaces(expectedSurfaces, on: processor, name: name)
     }
+  }
+
+  /// The validation config of a step's `validationConfig`, in which a rule left out is strict.
+  private static func validationConfig(_ rules: [String: Any]) -> ValidationConfig {
+    ValidationConfig(
+      allowOrphanComponents: rules["allowOrphanComponents"] as? Bool ?? false,
+      allowDanglingReferences: rules["allowDanglingReferences"] as? Bool ?? false,
+      allowMissingRoot: rules["allowMissingRoot"] as? Bool ?? false,
+      allowUnknownElements: rules["allowUnknownElements"] as? Bool ?? false
+    )
   }
 
   private func verifyExpectedSurfaces(

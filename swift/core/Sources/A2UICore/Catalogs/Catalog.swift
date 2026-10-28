@@ -96,6 +96,47 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     }
   }
 
+  /// A new catalog with the ID `catalogID`, built from entries of this one and new entries.
+  ///
+  /// `components` and `functions` name the entries of this catalog to keep; leaving one out
+  /// keeps every entry of that kind. `addComponents` and `addFunctions` are added after them,
+  /// each replacing a kept entry of the same name. The new catalog keeps this catalog's
+  /// protocol version and theme schema.
+  ///
+  /// - Throws: ``A2UICatalogError`` if a name is not an entry of this catalog.
+  public func derive(
+    catalogID: String,
+    components componentNames: [String]? = nil,
+    addComponents: [Component] = [],
+    functions functionNames: [String]? = nil,
+    addFunctions: [any FunctionImplementation] = []
+  ) throws -> Catalog<Component> {
+    func pick<Entry>(
+      _ kind: String,
+      from own: [String: Entry],
+      names: [String]?
+    ) throws -> [Entry] {
+      guard let names else { return Array(own.values) }
+      return try names.map { name in
+        guard let entry = own[name] else {
+          throw A2UICatalogError(
+            "Catalog '\(id)' has no \(kind) '\(name)' to derive catalog '\(catalogID)' from."
+          )
+        }
+        return entry
+      }
+    }
+
+    return Catalog(
+      id: catalogID,
+      protocolVersion: protocolVersion,
+      components: try pick("component", from: components, names: componentNames)
+        + addComponents,
+      functions: try pick("function", from: functions, names: functionNames) + addFunctions,
+      themeSchema: themeSchema
+    )
+  }
+
   /// Erases this catalog's components to their name and schema.
   public func eraseToAnyCatalog() -> Catalog<AnyComponentAPI> {
     Catalog<AnyComponentAPI>(

@@ -30,8 +30,14 @@ extension BasicCatalogImplementation {
 // MARK: - View
 
 /// SwiftUI component view for the A2UI Basic Catalog `Text` component.
+///
+/// A Text with the `body` variant, or none, renders its Markdown with the view set by
+/// `a2uiMarkdown(_:)` when there is one, and with its own headings, lists, quotes and paragraphs
+/// otherwise. The other variants render inline Markdown in the font of the variant.
 public struct A2UIText: View {
   public let node: Node
+
+  @Environment(\.a2uiMarkdown) private var markdown
 
   public init(node: Node) {
     self.node = node
@@ -91,7 +97,11 @@ public struct A2UIText: View {
         .italic()
         .foregroundStyle(.secondary)
     default:
-      MarkdownBlockView(text: text)
+      if let markdown {
+        markdown(text)
+      } else {
+        MarkdownBlockView(text: text)
+      }
     }
   }
 }

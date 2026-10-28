@@ -31,6 +31,18 @@ public final class MessageProcessor: ObservableObject {
   /// The validation configuration controlling strictness.
   public let validationConfig: ValidationConfig
 
+  /// The catalogs the processor was created with, in the order given.
+  public let catalogs: [any CatalogProtocol]
+
+  /// The validation configuration of the `processMessages` call in progress, which replaces
+  /// ``validationConfig`` while the call runs.
+  private var callValidationConfig: ValidationConfig?
+
+  /// The validation configuration the checks of the current call follow.
+  private var activeValidationConfig: ValidationConfig {
+    callValidationConfig ?? validationConfig
+  }
+
   private struct ValidatorCacheKey: Hashable {
     let catalogID: String
     let config: ValidationConfig
@@ -38,7 +50,7 @@ public final class MessageProcessor: ObservableObject {
 
   let rpcHandler: RPCHandler
   private let registeredCatalogs: [AnyCatalog]
-  private let catalogs: [String: AnyCatalog]
+  private let catalogsByID: [String: AnyCatalog]
   private weak var actionHandler: (any ActionHandling)?
   private let actionForwarder = ProcessorActionForwarder()
   private let errorMapper = MessageErrorMapper()
@@ -69,8 +81,9 @@ public final class MessageProcessor: ObservableObject {
       }
       catalogMap[cat.id] = cat
     }
+    self.catalogs = catalogs
     self.registeredCatalogs = uniqueCatalogs
-    self.catalogs = catalogMap
+    self.catalogsByID = catalogMap
     self.validationConfig = validationConfig
     self.actionHandler = actionHandler
     self.surfaceGroupModel = SurfaceGroupModel()
@@ -482,7 +495,20 @@ public final class MessageProcessor: ObservableObject {
   /// Resolves a version adapter from a raw JSON payload, normalizes it into
   /// ``InternalOperation`` values, and executes them, throwing any validation,
   /// integrity, recursion, or catalog errors directly.
-  public func processMessages(_ payload: JSONValue) throws {
+  ///
+  /// A `validationConfig` replaces the processor's own ``validationConfig`` for this call. An
+  /// agent that checks its messages against a renderer's processor passes the checks it makes,
+  /// whatever configuration the renderer was created with.
+  public func processMessages(
+    _ payload: JSONValue,
+    validationConfig: ValidationConfig? = nil
+  ) throws {
+    // A call made while another runs, such as from an action handler, restores the outer
+    // call's configuration when it returns.
+    let outerConfig = callValidationConfig
+    callValidationConfig = validationConfig ?? outerConfig
+    defer { callValidationConfig = outerConfig }
+
     let adapter = try adapterFactory.resolveFromPayload(payload)
     let operations = try adapter.extractOperations(from: payload)
     for operation in operations {
@@ -622,7 +648,7 @@ public final class MessageProcessor: ObservableObject {
 
     let vm = SurfaceViewModel(
       surfaceID: op.surfaceID,
-      catalogs: catalogs,
+      catalogs: catalogsByID,
       defaultCatalogID: op.catalogID,
       theme: op.theme,
       metadata: op.metadata,
@@ -669,7 +695,7 @@ public final class MessageProcessor: ObservableObject {
       defer { self.activeRPCTasks.removeValue(forKey: callID) }
       let response = await self.rpcHandler.handleIncomingCall(
         msg,
-        catalogs: self.catalogs,
+        catalogs: self.catalogsByID,
         defaultCatalogID: defaultCatalogID,
         dataContext: dataContext,
         userActivationPresent: userActivated
@@ -751,7 +777,7 @@ public final class MessageProcessor: ObservableObject {
     _ theme: [String: JSONValue]?,
     against catalog: AnyCatalog
   ) throws {
-    let validator = payloadValidator(for: catalog, config: validationConfig)
+    let validator = payloadValidator(for: catalog, config: activeValidationConfig)
     try validator.validateTheme(theme)
   }
 
@@ -800,7 +826,7 @@ public final class MessageProcessor: ObservableObject {
     _ components: [[String: JSONValue]],
     on surface: SurfaceViewModel
   ) throws {
-    var effectiveConfig = validationConfig
+    var effectiveConfig = activeValidationConfig
     if surface.protocolVersion.isAtLeastV10
       && !(effectiveConfig.protocolVersion?.isAtLeastV10 ?? false)
     {
@@ -1128,7 +1154,7 @@ public final class MessageProcessor: ObservableObject {
     guard let catalogID else {
       return registeredCatalogs.count == 1 ? registeredCatalogs.first : nil
     }
-    return catalogs[catalogID]
+    return catalogsByID[catalogID]
   }
 
   /// Cancels all in-flight incoming and outgoing RPC function calls.
