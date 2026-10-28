@@ -410,11 +410,15 @@
             components:
               - id: "root"
                 component: "Button"
-                label: "Click Me"
+                child: "t1"
                 action:
-                  "@call": "unknownFunc"
-                  args:
-                    arg: "val"
+                  functionCall:
+                    "@call": "unknownFunc"
+                    args:
+                      arg: "val"
+              - id: "t1"
+                component: "Text"
+                text: "Click Me"
       expectError:
         category: "ValidationError"
         surfaceId: "s1"
@@ -423,7 +427,7 @@
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
-            path: "/components/0/action"
+            path: "/components/0/action/functionCall"
             message: "unknownFunc"
 
 - name: test_v10_multiple_action_envelope_error
