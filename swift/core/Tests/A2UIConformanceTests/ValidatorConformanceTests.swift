@@ -17,6 +17,7 @@ import A2UIJSON
 import BasicCatalog
 import Foundation
 import JSONSchema
+import OrderedCollections
 import OrderedJSON
 import Testing
 
