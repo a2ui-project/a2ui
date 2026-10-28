@@ -941,8 +941,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         border-bottom: 1px solid var(--border);
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        gap: 10px;
         font-family: var(--font-mono);
-        font-size: 11.5px;
+        font-size: 11px;
         font-weight: 700;
         color: var(--accent);
       }
@@ -1004,30 +1006,286 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
           grid-template-columns: 1fr;
         }
       }
+
+      /* --- Unified Top Navigation (Vercel json-render style) --- */
+      .a2-nav__left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .a2-nav__slash {
+        color: var(--border-strong);
+        font-size: 18px;
+        font-weight: 300;
+        margin: 0 4px;
+        user-select: none;
+      }
+
+      .a2-nav__link.is-active {
+        color: var(--accent-strong);
+        background: var(--accent-soft);
+        font-weight: 600;
+      }
+
+      .a2-search-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        color: var(--text-muted);
+        font-size: 12.5px;
+        text-decoration: none;
+        transition: border-color 0.15s ease, color 0.15s ease;
+        white-space: nowrap;
+      }
+
+      .a2-search-pill:hover {
+        border-color: var(--accent);
+        color: var(--text);
+      }
+
+      .a2-search-pill kbd {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--bg-alt);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+      }
+
+      .a2-icon-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        transition: color 0.15s ease, background 0.15s ease;
+      }
+
+      .a2-icon-link:hover {
+        color: var(--text);
+        background: var(--surface);
+      }
+
+      /* --- Placeholder Logo & UI Screenshot Wireframes --- */
+      .a2-logo-placeholder-box {
+        width: 88px;
+        height: 30px;
+        border: 1.5px dashed var(--border-strong);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        background: var(--surface-subtle);
+        margin-bottom: 4px;
+      }
+
+      .a2-logo-tab.is-active .a2-logo-placeholder-box {
+        border-color: var(--accent);
+        color: var(--accent-strong);
+        background: var(--accent-soft);
+      }
+
+      .a2-ui-placeholder-frame {
+        border: 1.5px dashed var(--border-strong);
+        border-radius: 10px;
+        background: repeating-linear-gradient(
+          -45deg,
+          var(--surface-subtle),
+          var(--surface-subtle) 10px,
+          var(--bg-alt) 10px,
+          var(--bg-alt) 20px
+        );
+        padding: 24px;
+        min-height: 250px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .a2-ui-placeholder-wireframe {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 12px;
+      }
+
+      .a2-wire-box {
+        background: var(--surface);
+        border: 1px dashed var(--border-strong);
+        border-radius: 8px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .a2-wire-bar {
+        height: 8px;
+        border-radius: 4px;
+        background: var(--border-strong);
+        opacity: 0.55;
+      }
+
+      /* --- Consolidated 3-Pillar "Why A2UI?" Section --- */
+      .a2-why-pillars {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+
+      @media (max-width: 960px) {
+        .a2-why-pillars {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .a2-why-card {
+        text-align: left;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 12px;
+        padding: 22px;
+        cursor: pointer;
+        font-family: var(--font-sans);
+        color: var(--text);
+        transition: all 0.16s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .a2-why-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+      }
+
+      .a2-why-card.is-active {
+        border-color: var(--accent);
+        background: linear-gradient(180deg, var(--accent-soft), var(--surface));
+        box-shadow: 0 0 0 1px var(--accent);
+      }
+
+      .a2-why-card__num {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .a2-why-card__title {
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 6px 0 8px 0;
+      }
+
+      .a2-why-card__desc {
+        font-size: 13.5px;
+        color: var(--text-secondary);
+        line-height: 1.58;
+        margin: 0;
+      }
+
+      .a2-why-card__cta {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--accent-strong);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .a2-why-deck {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 14px;
+        padding: 24px;
+        box-shadow: var(--shadow-lg);
+      }
+
+      .a2-why-panel {
+        display: none;
+      }
+
+      .a2-why-panel.is-active {
+        display: block;
+      }
+
+      /* --- Bottom Docs Transition Banner --- */
+      .a2-docs-bridge {
+        margin-top: 56px;
+        background: linear-gradient(135deg, var(--surface), var(--bg-alt));
+        border: 1px solid var(--border-strong);
+        border-radius: 14px;
+        padding: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
     </style>
   </head>
   <body>
-    <!-- Top Header Navigation -->
+    <!-- Unified Header Navigation (Matches StarlightHeader.astro) -->
     <header class="a2-nav">
       <div class="a2-nav__inner">
-        <a href={`${base}/`} class="a2-brand">
-          <span>A2UI</span>
-          <span class="a2-brand__badge">v0.9.1 · v1.0 RC</span>
-        </a>
-        <nav class="a2-nav__links" aria-label="Primary Navigation">
-          <a class="a2-nav__link" href="#spectrum">GenUI Spectrum</a>
-          <a class="a2-nav__link" href="#use-cases">Real Use Cases</a>
-          <a class="a2-nav__link" href="#express">Express (~3x)</a>
-          <a class="a2-nav__link" href="#macros">Macros</a>
-          <a class="a2-nav__link" href="#native-rendering">Native Renderers</a>
-          <a class="a2-nav__link" href={`${base}/quickstart/`}>Quickstart →</a>
-          <a class="a2-nav__link" href={`${base}/specification/v1.0-a2ui/`}>v1.0 Spec →</a>
-        </nav>
+        <div class="a2-nav__left">
+          <a href={`${base}/`} class="a2-brand">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="2.5" y="3.5" width="19" height="17" rx="4" stroke="currentColor" stroke-width="2" />
+              <circle cx="8.5" cy="11" r="1.6" fill="#14b8a6" />
+              <circle cx="15.5" cy="11" r="1.6" fill="#14b8a6" />
+              <path d="M8.5 15.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            <span>A2UI</span>
+          </a>
+          <span class="a2-nav__slash" aria-hidden="true">/</span>
+          <nav class="a2-nav__links" aria-label="Primary section navigation">
+            <a class="a2-nav__link is-active" href={`${base}/`}>Overview</a>
+            <a class="a2-nav__link" href={`${base}/quickstart/`}>Docs</a>
+            <a class="a2-nav__link" href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
+            <a class="a2-nav__link" href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener">Composer ↗</a>
+          </nav>
+        </div>
+
         <div class="a2-nav__actions">
+          <a class="a2-search-pill" href={`${base}/quickstart/`} title="Jump to Documentation & Search">
+            <span>🔍 Search docs...</span>
+            <kbd>⌘K</kbd>
+          </a>
+          <a class="a2-icon-link" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" aria-label="GitHub Repository" title="GitHub">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg>
+          </a>
+          <a class="a2-icon-link" href="https://discord.gg/6fS2326966" target="_blank" rel="noopener" aria-label="Discord Community" title="Discord">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.61 1.25a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.89 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.09 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1-.01-.12c.13-.09.25-.19.37-.29a.08.08 0 0 1 .08-.01c3.93 1.8 8.18 1.8 12.07 0a.08.08 0 0 1 .08.01c.12.1.24.2.37.29a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.36.7.77 1.37 1.22 2a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.03.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z"/></svg>
+          </a>
           <button type="button" class="a2-theme-btn" id="a2-theme-toggle" aria-label="Toggle color theme">
-            <span id="a2-theme-label">☀️ Light / 🌙 Dark</span>
+            <span id="a2-theme-label">☀️ / 🌙</span>
           </button>
-          <a class="a2-btn a2-btn--primary" style="padding: 7px 14px; font-size: 13px; white-space: nowrap;" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener">GitHub ↗</a>
         </div>
       </div>
     </header>
@@ -1250,7 +1508,7 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
       </section>
 
       <!-- =====================================================================
-           3. REAL USE CASES (LOGOS + INTERACTIVE SCREENSHOT TABS)
+           3. REAL USE CASES (PLACEHOLDER LOGOS + PLACEHOLDER UI SCREENSHOTS)
            ===================================================================== -->
       <section class="a2-section" id="use-cases">
         <div class="a2-container">
@@ -1258,70 +1516,60 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
             <span class="a2-eyebrow">02 · BATTLE-TESTED IN PRODUCTION</span>
             <h2 class="a2-h2">Real use cases across consumer and enterprise products.</h2>
             <p class="a2-lead">
-              From smart home device controls and AI research notebooks to enterprise data catalogs and IDE copilots, teams at Google and across the industry use A2UI to ship generative interfaces in production.
+              From smart home device controls and AI research workspaces to enterprise data catalogs and IDE copilots, teams use A2UI to ship generative interfaces in production.
             </p>
           </div>
 
-          <!-- Interactive Logo Bar (Click to switch use-case screenshot tab) -->
+          <!-- Interactive Placeholder Logo Bar -->
           <div class="a2-logos-strip" role="tablist" aria-label="Production Use Cases">
-            <button type="button" class="a2-logo-tab is-active" data-usecase="google-home">
-              <div class="a2-logo-tab__svg">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5z" stroke="#14b8a6"/></svg>
-              </div>
-              <span class="a2-logo-tab__name">Google Home</span>
+            <button type="button" class="a2-logo-tab is-active" data-usecase="app-01">
+              <div class="a2-logo-placeholder-box">[ LOGO 01 ]</div>
+              <span class="a2-logo-tab__name">App Example 01</span>
               <span class="a2-logo-tab__role">Smart Home Controls</span>
             </button>
 
-            <button type="button" class="a2-logo-tab" data-usecase="gemini-notebook">
-              <div class="a2-logo-tab__svg">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L14.8 9.2L22 12L14.8 14.8L12 22L9.2 14.8L2 12L9.2 9.2L12 2Z" stroke="#38bdf8"/></svg>
-              </div>
-              <span class="a2-logo-tab__name">Gemini Notebook</span>
-              <span class="a2-logo-tab__role">Interactive Synthesis</span>
+            <button type="button" class="a2-logo-tab" data-usecase="app-02">
+              <div class="a2-logo-placeholder-box">[ LOGO 02 ]</div>
+              <span class="a2-logo-tab__name">App Example 02</span>
+              <span class="a2-logo-tab__role">Research Synthesis</span>
             </button>
 
-            <button type="button" class="a2-logo-tab" data-usecase="jetbrains">
-              <div class="a2-logo-tab__svg">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="#f472b6" stroke-width="2"/><path d="M7 17h6" stroke="#f472b6" stroke-width="2" stroke-linecap="round"/><text x="6.5" y="12.5" fill="currentColor" font-size="7.5" font-weight="800" font-family="monospace">JB</text></svg>
-              </div>
-              <span class="a2-logo-tab__name">JetBrains</span>
+            <button type="button" class="a2-logo-tab" data-usecase="app-03">
+              <div class="a2-logo-placeholder-box">[ LOGO 03 ]</div>
+              <span class="a2-logo-tab__name">App Example 03</span>
               <span class="a2-logo-tab__role">IDE Agentic Surfaces</span>
             </button>
 
-            <button type="button" class="a2-logo-tab" data-usecase="alation">
-              <div class="a2-logo-tab__svg">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#fbbf24" stroke-width="2"/><path d="M8 15l4-8 4 8M9.5 12.5h5" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/></svg>
-              </div>
-              <span class="a2-logo-tab__name">Alation</span>
+            <button type="button" class="a2-logo-tab" data-usecase="app-04">
+              <div class="a2-logo-placeholder-box">[ LOGO 04 ]</div>
+              <span class="a2-logo-tab__name">App Example 04</span>
               <span class="a2-logo-tab__role">Data Intelligence UI</span>
             </button>
 
-            <button type="button" class="a2-logo-tab" data-usecase="bytedance">
-              <div class="a2-logo-tab__svg">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="3.5" height="12" rx="1" fill="#38bdf8"/><rect x="10.2" y="3" width="3.5" height="18" rx="1" fill="#14b8a6"/><rect x="16.5" y="8" width="3.5" height="10" rx="1" fill="#2dd4bf"/></svg>
-              </div>
-              <span class="a2-logo-tab__name">ByteDance</span>
-              <span class="a2-logo-tab__role">Lynx Native GenUI</span>
+            <button type="button" class="a2-logo-tab" data-usecase="app-05">
+              <div class="a2-logo-placeholder-box">[ LOGO 05 ]</div>
+              <span class="a2-logo-tab__name">App Example 05</span>
+              <span class="a2-logo-tab__role">Native Mobile GenUI</span>
             </button>
           </div>
 
-          <!-- Active Use Case Stage -->
+          <!-- Active Use Case Stage (Placeholder Text & UI Screenshot Frame) -->
           <div class="a2-usecase-stage" id="usecase-stage">
             <div class="a2-usecase-info">
               <div>
-                <span class="a2-eyebrow" id="uc-eyebrow">GOOGLE HOME · MOBILE &amp; HUB SURFACES</span>
+                <span class="a2-eyebrow" id="uc-eyebrow">APP EXAMPLE 01 · CONSUMER HARDWARE &amp; IOT</span>
                 <h3 style="font-size: 24px; font-weight: 700; margin: 0 0 12px 0;" id="uc-title">Dynamic Smart Home Automation &amp; Device Control Cards</h3>
                 <p style="font-size: 14.5px; color: var(--text-secondary); margin: 0 0 18px 0; line-height: 1.65;" id="uc-desc">
-                  When a homeowner asks to set up an evening routine or diagnose energy usage, a paragraph of text is useless. Google Home agents emit A2UI surfaces with interactive climate sliders, camera status tiles, and 1-tap automation triggers rendered natively on mobile.
+                  Placeholder description for App Example 01: Instead of returning a paragraph of text when a user asks to configure an automation routine, the agent streams an interactive A2UI surface with device sliders, status tiles, and 1-tap triggers.
                 </p>
                 <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-secondary);" id="uc-bullets">
                   <div>✓ <strong>Spectrum Band:</strong> Controlled Macros + Declarative Device Catalog</div>
                   <div>✓ <strong>Renderer:</strong> Native Mobile (Flutter / Android Jetpack Compose / SwiftUI)</div>
-                  <div>✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live thermostat &amp; dimmer sliders</div>
+                  <div>✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live controls</div>
                 </div>
               </div>
               <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);" id="uc-footer">
-                Click any logo above to inspect how each team uses A2UI in production.
+                Placeholder slot — replace with approved partner logo and product surface screenshot.
               </div>
             </div>
 
@@ -1329,42 +1577,35 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
               <div class="a2-screenshot-window">
                 <div class="a2-screenshot-chrome">
                   <div class="a2-screenshot-dots"><span></span><span></span><span></span></div>
-                  <span id="uc-window-title">google-home-agent · surfaceId: "evening-routine-control"</span>
-                  <span class="a2-code-window__badge" id="uc-window-badge">Native Mobile Surface</span>
+                  <span id="uc-window-title">example-app-01 · screenshot_placeholder.png</span>
+                  <span class="a2-code-window__badge" id="uc-window-badge">UI Placeholder</span>
                 </div>
                 <div class="a2-screenshot-body" id="uc-screenshot-body">
-                  <!-- Default: Google Home UI Preview -->
-                  <div style="display: grid; grid-template-columns: 1.1fr 1fr; gap: 14px;">
-                    <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase;">Living Room Climate</span>
-                        <span class="a2-status-tag a2-status-tag--good">Eco Active</span>
+                  <div class="a2-ui-placeholder-frame">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--accent);">[ UI SCREENSHOT PLACEHOLDER · APP EXAMPLE 01 ]</span>
+                      <span class="a2-flight-badge">16:10 Surface Capture</span>
+                    </div>
+                    <div class="a2-ui-placeholder-wireframe">
+                      <div class="a2-wire-box">
+                        <div class="a2-wire-bar" style="width: 48%;"></div>
+                        <div class="a2-wire-bar" style="width: 82%; height: 18px;"></div>
+                        <div class="a2-wire-bar" style="width: 100%;"></div>
+                        <div class="a2-wire-bar" style="width: 65%;"></div>
                       </div>
-                      <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); margin-bottom: 6px;">21.5°C <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">Target: 20.0°C at 22:30</span></div>
-                      <div style="height: 8px; background: var(--bg-alt); border-radius: 4px; overflow: hidden; margin-bottom: 12px;">
-                        <div style="width: 68%; height: 100%; background: linear-gradient(90deg, var(--accent), var(--blue));"></div>
-                      </div>
-                      <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary);">
-                        <span>Humidity: 46%</span>
-                        <span>HVAC Fan: Auto</span>
+                      <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div class="a2-wire-box">
+                          <div class="a2-wire-bar" style="width: 60%;"></div>
+                          <div class="a2-wire-bar" style="width: 40%;"></div>
+                        </div>
+                        <div class="a2-wire-box">
+                          <div class="a2-wire-bar" style="width: 70%;"></div>
+                          <div class="a2-wire-bar" style="width: 50%;"></div>
+                        </div>
                       </div>
                     </div>
-
-                    <div style="display: flex; flex-direction: column; gap: 10px;">
-                      <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                          <div style="font-size: 13px; font-weight: 700;">Front Door Lock</div>
-                          <div style="font-size: 11.5px; color: var(--text-muted);">Auto-lock scheduled · 22:00</div>
-                        </div>
-                        <span class="a2-flight-badge">Locked 🔒</span>
-                      </div>
-                      <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                          <div style="font-size: 13px; font-weight: 700;">Downstairs Lights (6)</div>
-                          <div style="font-size: 11.5px; color: var(--text-muted);">Dim to 20% Warm White</div>
-                        </div>
-                        <span style="padding: 4px 10px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 700;">Activate Scene</span>
-                      </div>
+                    <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
+                      Drop screenshot asset into <code>docs/site/public/assets/use-cases/app-01.png</code>
                     </div>
                   </div>
                 </div>
@@ -1375,25 +1616,82 @@ def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Car
       </section>
 
       <!-- =====================================================================
-           4. WHY A2UI? — PART 1: EXPRESS (~3X FASTER INFERENCE COMPARED TO JSON)
+           4. WHY A2UI? (UNIFIED 3-PILLAR PERSUASIVE SECTION)
            ===================================================================== -->
       <section class="a2-section a2-section--alt" id="why-a2ui">
-        <div class="a2-container" id="express">
+        <div class="a2-container">
           <div class="a2-section-intro">
-            <span class="a2-eyebrow">03 · WHY A2UI? · LLM GENERATION PERFORMANCE</span>
-            <h2 class="a2-h2">Express: ~3x faster inference compared to JSON.</h2>
+            <span class="a2-eyebrow">03 · WHY A2UI?</span>
+            <h2 class="a2-h2">Built for model speed, developer control, and native feel.</h2>
             <p class="a2-lead">
-              When you choose A2UI, you aren't signing up to make your LLM output verbose JSON. In A2UI, <strong>JSON is the universal wire interchange format</strong> that keeps your agent and client renderers compatible—while our Agent SDK lets you swap the <strong>inference format</strong> to A2UI Express for ~3x faster token generation.
+              Other agent UI approaches force a painful trade-off: raw HTML/code generation is slow and unpredictable, while rigid tool-call cards lock you into a handful of hardcoded views. <strong>A2UI gives you all three advantages in one protocol.</strong>
             </p>
           </div>
 
-          <div class="a2-express-grid">
-            <div class="a2-code-window">
-              <div class="a2-code-window__header">
-                <span class="a2-code-window__title">What the LLM generates · 10_notification-permission.a2ui</span>
-                <span class="a2-code-window__badge">13 lines · 397 chars (−77%)</span>
+          <!-- Three Major Points Side-by-Side -->
+          <div class="a2-why-pillars" role="tablist" aria-label="Why A2UI Pillars">
+            <button type="button" class="a2-why-card is-active" data-why-tab="inference">
+              <div>
+                <div class="a2-why-card__num">
+                  <span>01 · SPEED &amp; FLEXIBILITY</span>
+                  <span class="a2-code-window__badge">~3x Faster</span>
+                </div>
+                <h3 class="a2-why-card__title">Swappable inference formats</h3>
+                <p class="a2-why-card__desc">
+                  JSON is the universal wire protocol, while the Agent SDK lets you swap what the LLM generates—like <strong>A2UI Express</strong> for ~3x faster token streaming and 77% fewer characters.
+                </p>
               </div>
-              <pre class="a2-code-pre"><code><span class="a2-tok-path">$/description</span> = <span class="a2-tok-str">"Get alerts for order status changes"</span>
+              <div class="a2-why-card__cta">Inspect Express vs. Wire JSON ↓</div>
+            </button>
+
+            <button type="button" class="a2-why-card" data-why-tab="macros">
+              <div>
+                <div class="a2-why-card__num">
+                  <span>02 · HYBRID SDUI + GEN UI</span>
+                  <span class="a2-code-window__badge">Zero Drift</span>
+                </div>
+                <h3 class="a2-why-card__title">Macros: Give the model bigger words</h3>
+                <p class="a2-why-card__desc">
+                  Define rich domain UI treatments (<code>@macro</code>) in server code and expose a single high-level call to the LLM—shipping brand-new UIs without client binary or App Store updates.
+                </p>
+              </div>
+              <div class="a2-why-card__cta">Inspect 3-Stage Macro Expansion ↓</div>
+            </button>
+
+            <button type="button" class="a2-why-card" data-why-tab="native">
+              <div>
+                <div class="a2-why-card__num">
+                  <span>03 · EVERY CLIENT SURFACE</span>
+                  <span class="a2-code-window__badge">6 SDKs</span>
+                </div>
+                <h3 class="a2-why-card__title">Native rendering everywhere</h3>
+                <p class="a2-why-card__desc">
+                  Agents describe the UI once; official SDKs render genuine 60fps host widgets on <strong>SwiftUI</strong>, <strong>Jetpack Compose</strong>, <strong>Flutter</strong>, <strong>React</strong>, <strong>Angular</strong>, and <strong>Lit</strong>.
+                </p>
+              </div>
+              <div class="a2-why-card__cta">Inspect 6 Native Platform SDKs ↓</div>
+            </button>
+          </div>
+
+          <!-- Interactive Proof Deck Inside the Same Unified Section -->
+          <div class="a2-why-deck">
+            <!-- PILLAR 1 PANEL: SWAPPABLE INFERENCE FORMATS -->
+            <div class="a2-why-panel is-active" data-why-panel="inference" id="express">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <div>
+                  <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 01 · SWAPPABLE INFERENCE FORMATS</span>
+                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Decouple LLM token generation from the JSON wire contract.</h3>
+                </div>
+                <span style="font-size: 13px; color: var(--text-secondary);">Swap between JSON, A2UI Express, or custom formats in 1 line of SDK config.</span>
+              </div>
+
+              <div class="a2-express-grid">
+                <div class="a2-code-window">
+                  <div class="a2-code-window__header">
+                    <span class="a2-code-window__title">What the LLM generates · A2UI Express Format</span>
+                    <span class="a2-code-window__badge">13 lines · 397 chars (−77%)</span>
+                  </div>
+                  <pre class="a2-code-pre"><code><span class="a2-tok-path">$/description</span> = <span class="a2-tok-str">"Get alerts for order status changes"</span>
 <span class="a2-tok-path">$/icon</span> = <span class="a2-tok-str">"check"</span>
 <span class="a2-tok-path">$/title</span> = <span class="a2-tok-str">"Enable notification"</span>
 root = <span class="a2-tok-comp">Card</span>(main_column)
@@ -1406,14 +1704,14 @@ yes_btn_text = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"Y
 yes_btn = <span class="a2-tok-comp">Button</span>(yes_btn_text, _, <span class="a2-tok-kw">Event</span>(<span class="a2-tok-str">"accept"</span>))
 no_btn_text = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"No"</span>)
 no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2-tok-kw">Event</span>(<span class="a2-tok-str">"decline"</span>))</code></pre>
-            </div>
+                </div>
 
-            <div class="a2-code-window">
-              <div class="a2-code-window__header">
-                <span class="a2-code-window__title">What the SDK sends on the wire · Standard A2UI v1.0 JSON</span>
-                <span class="a2-code-window__badge" style="background: rgba(148,163,184,0.18); color: #cbd5e1;">104 lines · 1,780 chars</span>
-              </div>
-              <pre class="a2-code-pre"><code>&#123;
+                <div class="a2-code-window">
+                  <div class="a2-code-window__header">
+                    <span class="a2-code-window__title">What the SDK sends on the wire · Standard A2UI v1.0 JSON</span>
+                    <span class="a2-code-window__badge" style="background: rgba(148,163,184,0.18); color: #cbd5e1;">104 lines · 1,780 chars</span>
+                  </div>
+                  <pre class="a2-code-pre"><code>&#123;
   <span class="a2-tok-path">"version"</span>: <span class="a2-tok-str">"v1.0"</span>,
   <span class="a2-tok-path">"updateComponents"</span>: &#123;
     <span class="a2-tok-path">"surfaceId"</span>: <span class="a2-tok-str">"gallery-notification-permission"</span>,
@@ -1427,54 +1725,50 @@ no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2
     ]
   &#125;
 &#125;</code></pre>
-            </div>
-          </div>
+                </div>
+              </div>
 
-          <div class="a2-bench-card">
-            <div style="margin-bottom: 14px;">
-              <div style="display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 600;">
-                <span>A2UI Express Format (LLM Output)</span>
-                <span style="color: var(--accent); font-family: var(--font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span>
-              </div>
-              <div class="a2-bench-track">
-                <div class="a2-bench-fill" style="width: 22.3%; min-width: 155px; background: var(--accent);">397 chars (−77%)</div>
+              <div class="a2-bench-card" style="background: var(--surface-subtle);">
+                <div style="margin-bottom: 12px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;">
+                    <span>A2UI Express Inference Format (LLM Output)</span>
+                    <span style="color: var(--accent); font-family: var(--font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span>
+                  </div>
+                  <div class="a2-bench-track">
+                    <div class="a2-bench-fill" style="width: 22.3%; min-width: 155px; background: var(--accent);">397 chars (−77%)</div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;">
+                    <span>Raw JSON Inference Baseline</span>
+                    <span style="color: var(--text-muted); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span>
+                  </div>
+                  <div class="a2-bench-track">
+                    <div class="a2-bench-fill" style="width: 100%; background: #475569;">1,780 chars (100% wire JSON)</div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div>
-              <div style="display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 600;">
-                <span>Standard Raw JSON Generation</span>
-                <span style="color: var(--text-muted); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span>
-              </div>
-              <div class="a2-bench-track">
-                <div class="a2-bench-fill" style="width: 100%; background: #475569;">1,780 chars (100% wire JSON)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <!-- =====================================================================
-           5. WHY A2UI? — PART 2: MACROS (GIVE THE MODEL BIGGER WORDS)
-           ===================================================================== -->
-      <section class="a2-section" id="macros">
-        <div class="a2-container">
-          <div class="a2-section-intro">
-            <span class="a2-eyebrow">04 · WHY A2UI? · HYBRID SDUI + GEN UI</span>
-            <h2 class="a2-h2">Macros: Give the model bigger words.</h2>
-            <p class="a2-lead">
-              A2UI offers first-class tooling for complex SDUI + GenUI workflows where you write server code to define rich UI treatments with embedded data bindings, then give the LLM a single, high-level call to instantiate them—shipping brand-new UIs without client binary or App Store updates.
-            </p>
-          </div>
-
-          <div class="a2-macro-grid">
-            <div class="a2-macro-stage">
-              <div class="a2-macro-stage__head">
-                <span>1. MODEL WRITES MACRO</span>
-                <span style="color: var(--text-muted);">Inference Catalog</span>
+            <!-- PILLAR 2 PANEL: MACROS -->
+            <div class="a2-why-panel" data-why-panel="macros" id="macros">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <div>
+                  <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 02 · SERVER-DEFINED @MACROS</span>
+                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Write rich UI treatments on the server; give the LLM a single domain call.</h3>
+                </div>
+                <span style="font-size: 13px; color: var(--text-secondary);">Ship new domain cards instantaneously without client binary updates.</span>
               </div>
-              <div class="a2-macro-stage__body">
-                <div class="a2-code-window" style="margin-bottom: 12px;">
-                  <pre class="a2-code-pre"><code><span class="a2-tok-comment"># High-level domain call:</span>
+
+              <div class="a2-macro-grid">
+                <div class="a2-macro-stage">
+                  <div class="a2-macro-stage__head">
+                    <span>1. MODEL WRITES MACRO</span>
+                    <span style="color: var(--text-muted);">Inference Catalog</span>
+                  </div>
+                  <div class="a2-macro-stage__body">
+                    <div class="a2-code-window" style="margin-bottom: 12px;">
+                      <pre class="a2-code-pre"><code><span class="a2-tok-comment"># High-level domain call:</span>
 root = <span class="a2-tok-comp">FlightCard</span>(
   flight=<span class="a2-tok-str">"OS 87"</span>,
   date=<span class="a2-tok-str">"Mon, Dec 15"</span>,
@@ -1484,145 +1778,141 @@ root = <span class="a2-tok-comp">FlightCard</span>(
   arrives=<span class="a2-tok-str">"2:30 PM"</span>,
   status=<span class="a2-tok-str">"On Time"</span>
 )</code></pre>
+                    </div>
+                    <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;">
+                      <strong>Simple inputs, zero layout drift:</strong> The model passes domain arguments without inventing layout boxes.
+                    </p>
+                  </div>
                 </div>
-                <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;">
-                  <strong>Simple inputs, zero layout drift:</strong> The model passes domain arguments without inventing layout boxes.
-                </p>
-              </div>
-            </div>
 
-            <div class="a2-macro-stage">
-              <div class="a2-macro-stage__head">
-                <span>2. SERVER EXPANDS TREATMENT</span>
-                <span style="color: var(--text-muted);">a2ui.transformers.macros</span>
-              </div>
-              <div class="a2-macro-stage__body">
-                <div class="a2-code-window" style="margin-bottom: 12px;">
-                  <pre class="a2-code-pre"><code><span class="a2-tok-kw">@macro</span>(description=<span class="a2-tok-str">"Flight status card"</span>)
+                <div class="a2-macro-stage">
+                  <div class="a2-macro-stage__head">
+                    <span>2. SERVER EXPANDS</span>
+                    <span style="color: var(--text-muted);">@macro Decorator</span>
+                  </div>
+                  <div class="a2-macro-stage__body">
+                    <div class="a2-code-window" style="margin-bottom: 12px;">
+                      <pre class="a2-code-pre"><code><span class="a2-tok-kw">@macro</span>(description=<span class="a2-tok-str">"Flight status card"</span>)
 <span class="a2-tok-kw">def</span> <span class="a2-tok-comp">flight_card</span>(
   flight: str, date: str, origin: str,
   dest: str, departs: str,
   arrives: str, status: str
 ) -&gt; Card:
   <span class="a2-tok-kw">return</span> <span class="a2-tok-comp">Card</span>(<span class="a2-tok-comp">Column</span>([
-    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Icon</span>(<span class="a2-tok-str">"send"</span>), <span class="a2-tok-comp">Text</span>(flight), <span class="a2-tok-comp">Text</span>(date)]),
+    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Icon</span>(<span class="a2-tok-str">"send"</span>), <span class="a2-tok-comp">Text</span>(flight)]),
     <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(origin), <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"→"</span>), <span class="a2-tok-comp">Text</span>(dest)]),
     <span class="a2-tok-comp">Divider</span>(),
-    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(departs), <span class="a2-tok-comp">Text</span>(status), <span class="a2-tok-comp">Text</span>(arrives)]),
+    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(departs), <span class="a2-tok-comp">Text</span>(status)]),
   ]))</code></pre>
+                    </div>
+                    <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;">
+                      <strong>Server-defined UI treatment:</strong> Generates the LLM schema and expands calls into standard primitives.
+                    </p>
+                  </div>
                 </div>
-                <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;">
-                  <strong>Server-defined UI treatment:</strong> Generates the LLM schema and expands calls into standard primitives.
-                </p>
+
+                <div class="a2-macro-stage">
+                  <div class="a2-macro-stage__head">
+                    <span>3. EXPANDED PRIMITIVES</span>
+                    <span style="color: var(--text-muted);">Rendering Catalog</span>
+                  </div>
+                  <div class="a2-macro-stage__body">
+                    <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+                      <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; margin-bottom: 8px;">
+                        <span style="color: var(--accent);">✈️ OS 87</span>
+                        <span style="color: var(--text-muted);">Mon, Dec 15</span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;">
+                        <span>Vienna</span>
+                        <span style="color: var(--accent);">→</span>
+                        <span>New York</span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-family: var(--font-mono);">
+                        <span>10:15 AM</span>
+                        <span style="color: var(--success); font-weight: 700;">On Time</span>
+                        <span>2:30 PM</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                      <span class="a2-flight-badge">Card(root)</span>
+                      <span class="a2-flight-badge">Column(main)</span>
+                      <span class="a2-flight-badge">Row(header)</span>
+                      <span class="a2-flight-badge">Icon("send")</span>
+                      <span class="a2-flight-badge">Text($/flight)</span>
+                      <span class="a2-flight-badge">Row(route)</span>
+                      <span class="a2-flight-badge">Divider()</span>
+                      <span class="a2-flight-badge">Row(times)</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="a2-macro-stage">
-              <div class="a2-macro-stage__head">
-                <span>3. EXPANDED PRIMITIVES</span>
-                <span style="color: var(--text-muted);">Rendering Catalog</span>
+            <!-- PILLAR 3 PANEL: NATIVE RENDERING -->
+            <div class="a2-why-panel" data-why-panel="native" id="native-rendering">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <div>
+                  <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 03 · MULTI-PLATFORM NATIVE SDKS</span>
+                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Render genuine host widgets on Mobile, Desktop, and Web.</h3>
+                </div>
+                <span style="font-size: 13px; color: var(--text-secondary);">Inherits system dark mode, Dynamic Type, and VoiceOver / TalkBack accessibility.</span>
               </div>
-              <div class="a2-macro-stage__body">
-                <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                  <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; margin-bottom: 8px;">
-                    <span style="color: var(--accent);">✈️ OS 87</span>
-                    <span style="color: var(--text-muted);">Mon, Dec 15</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;">
-                    <span>Vienna</span>
-                    <span style="color: var(--accent);">→</span>
-                    <span>New York</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-family: var(--font-mono);">
-                    <span>10:15 AM</span>
-                    <span style="color: var(--success); font-weight: 700;">On Time</span>
-                    <span>2:30 PM</span>
-                  </div>
-                </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
-                  <span class="a2-flight-badge">Card(root)</span>
-                  <span class="a2-flight-badge">Column(main)</span>
-                  <span class="a2-flight-badge">Row(header)</span>
-                  <span class="a2-flight-badge">Icon("send")</span>
-                  <span class="a2-flight-badge">Text($/flight)</span>
-                  <span class="a2-flight-badge">Row(route)</span>
-                  <span class="a2-flight-badge">Divider()</span>
-                  <span class="a2-flight-badge">Row(times)</span>
-                </div>
+
+              <div class="a2-platform-tabs" role="tablist">
+                <button type="button" class="a2-plat-tab is-active" data-plat="swiftui">🍎 SwiftUI (iOS / macOS)</button>
+                <button type="button" class="a2-plat-tab" data-plat="compose">🤖 Jetpack Compose</button>
+                <button type="button" class="a2-plat-tab" data-plat="flutter">💙 Flutter (Multi-Platform)</button>
+                <button type="button" class="a2-plat-tab" data-plat="react">⚛️ React (@a2ui/react)</button>
+                <button type="button" class="a2-plat-tab" data-plat="angular">🅰️ Angular (@a2ui/angular)</button>
+                <button type="button" class="a2-plat-tab" data-plat="lit">🔥 Lit (@a2ui/lit)</button>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <!-- =====================================================================
-           6. WHY A2UI? — PART 3: NATIVE RENDERING
-           ===================================================================== -->
-      <section class="a2-section a2-section--alt" id="native-rendering">
-        <div class="a2-container">
-          <div class="a2-section-intro">
-            <span class="a2-eyebrow">05 · WHY A2UI? · MULTI-PLATFORM NATIVE SDKS</span>
-            <h2 class="a2-h2">Native rendering with Flutter, SwiftUI, Jetpack Compose, and Web.</h2>
-            <p class="a2-lead">
-              A2UI has official SDKs for native mobile, desktop, and web rendering—including <strong>SwiftUI</strong>, <strong>Jetpack Compose</strong>, <strong>Flutter</strong>, <strong>React</strong>, <strong>Angular</strong>, and <strong>Lit</strong>. Agents describe the UI once; each client renders it using genuine host widgets and system theme tokens.
-            </p>
-          </div>
-
-          <div class="a2-platform-tabs" role="tablist">
-            <button type="button" class="a2-plat-tab is-active" data-plat="swiftui">🍎 SwiftUI (iOS / macOS)</button>
-            <button type="button" class="a2-plat-tab" data-plat="compose">🤖 Jetpack Compose</button>
-            <button type="button" class="a2-plat-tab" data-plat="flutter">💙 Flutter (Multi-Platform)</button>
-            <button type="button" class="a2-plat-tab" data-plat="react">⚛️ React (@a2ui/react)</button>
-            <button type="button" class="a2-plat-tab" data-plat="angular">🅰️ Angular (@a2ui/angular)</button>
-            <button type="button" class="a2-plat-tab" data-plat="lit">🔥 Lit (@a2ui/lit)</button>
-          </div>
-
-          <div class="a2-platform-showcase">
-            <div style="background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
-              <div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid var(--border);">
-                  <strong style="font-size: 12.5px;" id="plat-chrome-label">iOS 18 / macOS Sequoia · Native SwiftUI Views</strong>
-                  <span class="a2-flight-badge" id="plat-pkg-label">A2UISwiftUI · BasicCatalogSwiftUI</span>
-                </div>
-                <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <div>
-                      <div style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase;">Rendered Native Widget Tree</div>
-                      <div style="font-size: 15.5px; font-weight: 700;">Cloud Production Cluster Upgrade</div>
+              <div class="a2-platform-showcase">
+                <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+                  <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border);">
+                      <strong style="font-size: 12.5px;" id="plat-chrome-label">iOS 18 / macOS Sequoia · Native SwiftUI Views</strong>
+                      <span class="a2-flight-badge" id="plat-pkg-label">A2UISwiftUI · BasicCatalogSwiftUI</span>
                     </div>
-                    <span class="a2-status-tag a2-status-tag--good">Native 60fps</span>
-                  </div>
-                  <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">
-                    Mapped directly to host toolkit views—inheriting system dark mode, Dynamic Type / font scaling, and platform accessibility (VoiceOver / TalkBack).
-                  </p>
-                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;">
-                    <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;">
-                      <span style="color: var(--text-muted); display: block;">Region</span>
-                      <strong>us-central1</strong>
-                    </div>
-                    <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;">
-                      <span style="color: var(--text-muted); display: block;">Nodes</span>
-                      <strong>12 → 18 replicas</strong>
-                    </div>
-                    <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;">
-                      <span style="color: var(--text-muted); display: block;">Est. Delta</span>
-                      <strong>+$140/mo</strong>
+                    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div>
+                          <div style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase;">Rendered Native Widget Tree</div>
+                          <div style="font-size: 15.5px; font-weight: 700;">Cloud Production Cluster Upgrade</div>
+                        </div>
+                        <span class="a2-status-tag a2-status-tag--good">Native 60fps</span>
+                      </div>
+                      <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">
+                        Mapped directly to host toolkit views—inheriting system dark mode, Dynamic Type / font scaling, and platform accessibility.
+                      </p>
+                      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;">
+                        <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
+                          <span style="color: var(--text-muted); display: block;">Region</span>
+                          <strong>us-central1</strong>
+                        </div>
+                        <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
+                          <span style="color: var(--text-muted); display: block;">Nodes</span>
+                          <strong>12 → 18 replicas</strong>
+                        </div>
+                        <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
+                          <span style="color: var(--text-muted); display: block;">Est. Delta</span>
+                          <strong>+$140/mo</strong>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                  <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-muted);">
+                    <span>All renderers pass the shared A2UI Conformance Suite</span>
+                    <a href={`${base}/quickstart/`} style="color: var(--accent-strong); font-weight: 600; text-decoration: none;">Explore Quickstart →</a>
+                  </div>
                 </div>
-              </div>
-              <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-muted);">
-                <span>All renderers pass the shared A2UI Conformance Suite</span>
-                <a href={`${base}/quickstart/`} style="color: var(--accent-strong); font-weight: 600; text-decoration: none;">Explore Quickstart →</a>
-              </div>
-            </div>
 
-            <div class="a2-code-window">
-              <div class="a2-code-window__header">
-                <span class="a2-code-window__title" id="plat-code-title">SwiftUI Native Renderer (iOS &amp; macOS)</span>
-                <span class="a2-code-window__badge" id="plat-code-badge">Cupertino &amp; SwiftUI</span>
-              </div>
-              <pre class="a2-code-pre"><code id="plat-code-pre">import SwiftUI
+                <div class="a2-code-window">
+                  <div class="a2-code-window__header">
+                    <span class="a2-code-window__title" id="plat-code-title">SwiftUI Native Renderer (iOS &amp; macOS)</span>
+                    <span class="a2-code-window__badge" id="plat-code-badge">Cupertino &amp; SwiftUI</span>
+                  </div>
+                  <pre class="a2-code-pre"><code id="plat-code-pre">import SwiftUI
 import A2UISwiftCore
 import A2UISwiftUI
 
@@ -1632,6 +1922,23 @@ struct AgentSurfaceScreen: View &#123;
     A2UISurfaceView(surfaceId: "travel-booking", processor: processor)
   &#125;
 &#125;</code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Seamless Bridge to Documentation & Specification -->
+          <div class="a2-docs-bridge">
+            <div>
+              <span class="a2-eyebrow" style="margin-bottom: 6px;">READY TO BUILD?</span>
+              <h3 style="font-size: 24px; font-weight: 800; margin: 0 0 6px 0; letter-spacing: -0.02em;">Explore the A2UI Documentation &amp; Protocol Specification.</h3>
+              <p style="font-size: 14.5px; color: var(--text-secondary); margin: 0;">
+                Run a working Gemini + A2UI agent in 5 minutes or inspect the full v1.0 protocol schema.
+              </p>
+            </div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <a class="a2-btn a2-btn--primary" href={`${base}/quickstart/`}>Open 5-Minute Quickstart →</a>
+              <a class="a2-btn a2-btn--secondary" href={`${base}/specification/v1.0-a2ui/`}>Read v1.0 Specification →</a>
             </div>
           </div>
         </div>
@@ -1779,156 +2086,102 @@ root = Card(Column([
           });
         });
 
-        // 4. Real Use Cases Tabs (Google Home, Gemini Notebook, JetBrains, Alation, ByteDance)
+        // 4. Placeholder App Examples Tabs (Scrubbed Names + Placeholder UIs)
+        function buildPlaceholderHtml(label, assetFile) {
+          return `<div class="a2-ui-placeholder-frame">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--accent);">[ UI SCREENSHOT PLACEHOLDER · ${label} ]</span>
+              <span class="a2-flight-badge">16:10 Surface Capture</span>
+            </div>
+            <div class="a2-ui-placeholder-wireframe">
+              <div class="a2-wire-box">
+                <div class="a2-wire-bar" style="width: 48%;"></div>
+                <div class="a2-wire-bar" style="width: 82%; height: 18px;"></div>
+                <div class="a2-wire-bar" style="width: 100%;"></div>
+                <div class="a2-wire-bar" style="width: 65%;"></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div class="a2-wire-box">
+                  <div class="a2-wire-bar" style="width: 60%;"></div>
+                  <div class="a2-wire-bar" style="width: 40%;"></div>
+                </div>
+                <div class="a2-wire-box">
+                  <div class="a2-wire-bar" style="width: 70%;"></div>
+                  <div class="a2-wire-bar" style="width: 50%;"></div>
+                </div>
+              </div>
+            </div>
+            <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
+              Drop screenshot asset into <code>docs/site/public/assets/use-cases/${assetFile}</code>
+            </div>
+          </div>`;
+        }
+
         const useCases = {
-          'google-home': {
-            eyebrow: 'GOOGLE HOME · MOBILE & HUB SURFACES',
+          'app-01': {
+            eyebrow: 'APP EXAMPLE 01 · CONSUMER HARDWARE & IOT',
             title: 'Dynamic Smart Home Automation & Device Control Cards',
-            desc: 'When a homeowner asks to set up an evening routine or diagnose energy usage, a paragraph of text is useless. Google Home agents emit A2UI surfaces with interactive climate sliders, camera status tiles, and 1-tap automation triggers rendered natively on mobile.',
+            desc: 'Placeholder description for App Example 01: Instead of returning a paragraph of text when a user asks to configure an automation routine, the agent streams an interactive A2UI surface with device sliders, status tiles, and 1-tap triggers.',
             bullets: [
               '✓ <strong>Spectrum Band:</strong> Controlled Macros + Declarative Device Catalog',
               '✓ <strong>Renderer:</strong> Native Mobile (Flutter / Android Jetpack Compose / SwiftUI)',
-              '✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live thermostat & dimmer sliders',
+              '✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live controls',
             ],
-            winTitle: 'google-home-agent · surfaceId: "evening-routine-control"',
-            winBadge: 'Native Mobile Surface',
-            html: `<div style="display: grid; grid-template-columns: 1.1fr 1fr; gap: 14px;">
-              <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                  <span style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase;">Living Room Climate</span>
-                  <span class="a2-status-tag a2-status-tag--good">Eco Active</span>
-                </div>
-                <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); margin-bottom: 6px;">21.5°C <span style="font-size: 12px; font-weight: 500; color: var(--text-muted);">Target: 20.0°C at 22:30</span></div>
-                <div style="height: 8px; background: var(--bg-alt); border-radius: 4px; overflow: hidden; margin-bottom: 12px;">
-                  <div style="width: 68%; height: 100%; background: linear-gradient(90deg, var(--accent), var(--blue));"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary);">
-                  <span>Humidity: 46%</span>
-                  <span>HVAC Fan: Auto</span>
-                </div>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-                  <div><div style="font-size: 13px; font-weight: 700;">Front Door Lock</div><div style="font-size: 11.5px; color: var(--text-muted);">Auto-lock scheduled · 22:00</div></div>
-                  <span class="a2-flight-badge">Locked 🔒</span>
-                </div>
-                <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-                  <div><div style="font-size: 13px; font-weight: 700;">Downstairs Lights (6)</div><div style="font-size: 11.5px; color: var(--text-muted);">Dim to 20% Warm White</div></div>
-                  <span style="padding: 4px 10px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 700;">Activate Scene</span>
-                </div>
-              </div>
-            </div>`,
+            winTitle: 'example-app-01 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 01', 'app-01.png'),
           },
-          'gemini-notebook': {
-            eyebrow: 'GEMINI NOTEBOOK · INTERACTIVE RESEARCH SYNTHESIS',
+          'app-02': {
+            eyebrow: 'APP EXAMPLE 02 · INTERACTIVE RESEARCH SYNTHESIS',
             title: 'Bespoke Study Guides, Source Matrices & Interactive Quizzes',
-            desc: 'Instead of dumping static summaries, Gemini Notebook agents assemble custom study surfaces, source-grounded comparison tables, and interactive verification cards tailored to the uploaded corpus.',
+            desc: 'Placeholder description for App Example 02: Instead of dumping static text summaries, research agents assemble custom study surfaces, source-grounded comparison tables, and verification cards tailored to the uploaded corpus.',
             bullets: [
               '✓ <strong>Spectrum Band:</strong> Declarative Generative UI + Bespoke Mini-Apps',
               '✓ <strong>Renderer:</strong> Web (Lit / Angular / React) with streaming Express format',
-              '✓ <strong>Key Capability:</strong> Dynamic table & flashcard composition grounded in source citations',
+              '✓ <strong>Key Capability:</strong> Dynamic table & flashcard composition grounded in citations',
             ],
-            winTitle: 'gemini-notebook · surfaceId: "clinical-trial-synthesis"',
-            winBadge: 'Declarative Research Surface',
-            html: `<div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <strong style="font-size: 13.5px;">Synthesized Phase-III Trial Comparison (4 Uploaded PDFs)</strong>
-                <span class="a2-flight-badge">Grounded · 12 Citations</span>
-              </div>
-              <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: 8px; font-size: 12px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px;">
-                <strong>Cohort / Study</strong><strong>Primary Endpoint</strong><strong>Sample Size</strong><strong>Citation</strong>
-                <span>NEJM-2025-A</span><span style="color: var(--success);">+34.2% (p&lt;0.001)</span><span>n = 2,410</span><span class="a2-flight-badge">[Source 1, p.8]</span>
-                <span>Lancet-EU-B</span><span style="color: var(--accent);">+29.8% (p=0.003)</span><span>n = 1,890</span><span class="a2-flight-badge">[Source 3, p.14]</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted);">
-                <span>Filter by subgroup: Age 65+ · Renal Baseline</span>
-                <span style="padding: 4px 10px; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 700;">Generate Interactive Flashcards →</span>
-              </div>
-            </div>`,
+            winTitle: 'example-app-02 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 02', 'app-02.png'),
           },
-          jetbrains: {
-            eyebrow: 'JETBRAINS · IDE-NATIVE AGENTIC WORKFLOWS',
+          'app-03': {
+            eyebrow: 'APP EXAMPLE 03 · IDE-NATIVE AGENTIC WORKFLOWS',
             title: 'Interactive Refactoring Previews & Dependency Upgrade Surfaces',
-            desc: 'Inside JetBrains IDEs, coding agents need more than markdown chat. A2UI renders native tool-window surfaces for multi-module refactoring plans, test failure matrices, and 1-click selective patch application.',
+            desc: 'Placeholder description for App Example 03: Inside developer IDEs, coding agents render native tool-window surfaces for multi-module refactoring plans, test failure matrices, and 1-click selective patch application.',
             bullets: [
               '✓ <strong>Spectrum Band:</strong> Controlled Domain Macros + Declarative Inspection Trees',
-              '✓ <strong>Renderer:</strong> Desktop / JVM & Kotlin Multiplatform Compose Renderer',
-              '✓ <strong>Key Capability:</strong> Client-to-server <code>actionResponse</code> RPC for step-by-step diff approval',
+              '✓ <strong>Renderer:</strong> Desktop / JVM & Multiplatform Compose Renderer',
+              '✓ <strong>Key Capability:</strong> Client-to-server <code>actionResponse</code> RPC for diff approval',
             ],
-            winTitle: 'jetbrains-ai-assistant · surfaceId: "migration-plan-v2"',
-            winBadge: 'Compose Desktop Surface',
-            html: `<div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <strong style="font-size: 13.5px;">Kotlin 2.1 Coroutines Migration · 3 Modules Affected</strong>
-                <span class="a2-status-tag a2-status-tag--good">All 48 Tests Passing</span>
-              </div>
-              <div style="font-family: var(--font-mono); font-size: 11.5px; background: var(--code-bg); color: #e2e8f0; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                <div style="color: #34d399;">+ [core-network] Replace GlobalScope.launch with structured viewModelScope (4 files)</div>
-                <div style="color: #38bdf8;">~ [billing-service] Upgrade kotlinx-coroutines-core 1.7.3 → 1.9.0</div>
-              </div>
-              <div style="display: flex; justify-content: flex-end; gap: 8px; font-size: 12px;">
-                <span style="padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-strong);">Run Dry-Run Gradle Check</span>
-                <span style="padding: 5px 12px; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 700;">Apply Selected Refactorings</span>
-              </div>
-            </div>`,
+            winTitle: 'example-app-03 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 03', 'app-03.png'),
           },
-          alation: {
-            eyebrow: 'ALATION · ENTERPRISE DATA INTELLIGENCE',
+          'app-04': {
+            eyebrow: 'APP EXAMPLE 04 · ENTERPRISE DATA INTELLIGENCE',
             title: 'Self-Service Data Discovery, Lineage & Stewardship Approvals',
-            desc: 'Alation agents guide data analysts and stewards through governed enterprise datasets—rendering interactive schema cards, SQL parameter builders, and compliance sign-off forms directly in the workspace.',
+            desc: 'Placeholder description for App Example 04: Enterprise data agents guide analysts through governed datasets—rendering interactive schema cards, SQL parameter builders, and compliance sign-off forms directly in the workspace.',
             bullets: [
               '✓ <strong>Spectrum Band:</strong> Declarative Enterprise Catalog + Controlled Approval Forms',
               '✓ <strong>Renderer:</strong> React (<code>@a2ui/react</code>) + AG-UI / CopilotKit transport',
               '✓ <strong>Key Capability:</strong> Schema-validated form inputs bound to governance workflows',
             ],
-            winTitle: 'alation-copilot · surfaceId: "pii-dataset-access-request"',
-            winBadge: 'Enterprise React Surface',
-            html: `<div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <strong style="font-size: 13.5px;">Governed Dataset: snowflake.prod.customer_ltv_2026</strong>
-                <span class="a2-flight-badge">Trust Score: 98% · Certified</span>
-              </div>
-              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px; margin-bottom: 10px;">
-                <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;"><span style="color: var(--text-muted); display: block;">PII Masking</span><strong>Policy: Auto-Hash</strong></div>
-                <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;"><span style="color: var(--text-muted); display: block;">Downstream BI</span><strong>14 Looker Dashboards</strong></div>
-                <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;"><span style="color: var(--text-muted); display: block;">SLA Freshness</span><strong>Every 15 mins</strong></div>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-                <span style="color: var(--text-muted);">Steward: @data-governance-team</span>
-                <span style="padding: 5px 12px; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 700;">Request Read-Only Role →</span>
-              </div>
-            </div>`,
+            winTitle: 'example-app-04 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 04', 'app-04.png'),
           },
-          bytedance: {
-            eyebrow: 'BYTEDANCE · HIGH-PERFORMANCE CROSS-PLATFORM GEN UI',
-            title: '60fps Dual-Threaded Agentic Surfaces with ByteDance Lynx',
-            desc: 'ByteDance integrates A2UI with the Lynx cross-platform rendering engine to deliver instant, native-feel agentic cards across mobile and super-app surfaces without WebView jank.',
+          'app-05': {
+            eyebrow: 'APP EXAMPLE 05 · HIGH-PERFORMANCE CROSS-PLATFORM GEN UI',
+            title: '60fps Dual-Threaded Agentic Surfaces on Mobile',
+            desc: 'Placeholder description for App Example 05: Cross-platform mobile rendering engines integrate A2UI to deliver instant, native-feel agentic cards across consumer super-app surfaces without WebView jank.',
             bullets: [
               '✓ <strong>Spectrum Band:</strong> Controlled & Declarative Mobile Commerce Catalogs',
-              '✓ <strong>Renderer:</strong> ByteDance Lynx + Native Mobile Widget Trees',
+              '✓ <strong>Renderer:</strong> Cross-Platform Native Mobile Widget Trees',
               '✓ <strong>Key Capability:</strong> Progressive streaming updates rendered on a dedicated UI thread',
             ],
-            winTitle: 'lynx-a2ui-renderer · surfaceId: "creator-campaign-builder"',
-            winBadge: 'Lynx 60fps Native Thread',
-            html: `<div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <strong style="font-size: 13.5px;">Live Campaign Bundle · Multi-SKU Creator Card</strong>
-                <span class="a2-status-tag a2-status-tag--good">First-Frame &lt; 16ms</span>
-              </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px; margin-bottom: 10px;">
-                <div style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;">
-                  <strong>Audience Reach Estimate</strong>
-                  <div style="font-size: 18px; font-weight: 800; color: var(--accent); font-family: var(--font-mono);">1.42M – 1.85M</div>
-                </div>
-                <div style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;">
-                  <strong>Dynamic Coupon Allocation</strong>
-                  <div style="font-size: 18px; font-weight: 800; font-family: var(--font-mono);">¥50 Off · 2,500 Units</div>
-                </div>
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                <span style="padding: 5px 12px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;">Publish Interactive Card to Feed</span>
-              </div>
-            </div>`,
+            winTitle: 'example-app-05 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 05', 'app-05.png'),
           },
         };
 
@@ -1948,7 +2201,18 @@ root = Card(Column([
           });
         });
 
-        // 5. Native Platform Renderer Switcher
+        // 5. Consolidated "Why A2UI?" 3-Pillar Switcher
+        document.querySelectorAll('[data-why-tab]').forEach((card) => {
+          card.addEventListener('click', () => {
+            const target = card.getAttribute('data-why-tab');
+            document.querySelectorAll('[data-why-tab]').forEach((c) => c.classList.toggle('is-active', c === card));
+            document.querySelectorAll('[data-why-panel]').forEach((panel) => {
+              panel.classList.toggle('is-active', panel.getAttribute('data-why-panel') === target);
+            });
+          });
+        });
+
+        // 6. Native Platform Renderer Switcher
         const platforms = {
           swiftui: {
             chrome: 'iOS 18 / macOS Sequoia · Native SwiftUI Views',

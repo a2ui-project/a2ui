@@ -22,8 +22,44 @@ export default defineConfig({
         github: 'https://github.com/a2ui-project/a2ui',
         discord: 'https://discord.gg/6fS2326966',
       },
+      head: [
+        {
+          tag: 'link',
+          attrs: {
+            rel: 'preconnect',
+            href: 'https://fonts.googleapis.com',
+          },
+        },
+        {
+          tag: 'link',
+          attrs: {
+            rel: 'preconnect',
+            href: 'https://fonts.gstatic.com',
+            crossorigin: true,
+          },
+        },
+        {
+          tag: 'link',
+          attrs: {
+            rel: 'stylesheet',
+            href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+          },
+        },
+      ],
+      components: {
+        Header: './src/components/StarlightHeader.astro',
+      },
       customCss: ['./src/styles/custom.css'],
       sidebar: [
+        {
+          label: 'Navigation',
+          items: [
+            {
+              label: '← Back to Overview',
+              link: `${(process.env.ASTRO_BASE || '').replace(/\/$/, '')}/`,
+            },
+          ],
+        },
         {
           label: 'Getting Started',
           items: [
