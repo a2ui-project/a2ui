@@ -78,8 +78,18 @@ void main() {
         final ({int exitCode, String stdout, String stderr}) result =
             await _captureCli([flag]);
         expect(result.exitCode, equals(0));
-        expect(result.stdout.trim(), equals(packageVersion));
+        expect(result.stdout.trim(), equals('0.0.1-wip001'));
       }
+    });
+
+    test('honors -DCLI_VERSION compile-time override', () {
+      final ProcessResult result = Process.runSync(
+        Platform.resolvedExecutable,
+        ['run', '-DCLI_VERSION=9.9.9-test', 'bin/a2ui.dart', '--version'],
+        workingDirectory: p.join(repoRoot, 'dart', 'a2ui_cli'),
+      );
+      expect(result.exitCode, equals(0), reason: result.stderr.toString());
+      expect(result.stdout.toString().trim(), equals('9.9.9-test'));
     });
 
     test(
@@ -406,6 +416,22 @@ void main() {
         result.stderr,
         contains('Could not find an option named "--invalid-option"'),
       );
+    });
+
+    test('exits with code 64 on target mismatch', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      final ProcessResult result = Process.runSync(
+        Platform.resolvedExecutable,
+        [compileScript, '--target', 'nonexistent-arch'],
+      );
+      expect(result.exitCode, equals(64));
+      expect(result.stderr, contains('does not match host'));
     });
   });
 }

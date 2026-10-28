@@ -63,8 +63,16 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
           IS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
           IS_DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
+          DISPATCH_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
+
+          # Enforce that non-dry-run manual dispatches must be triggered from main
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$IS_DRY_RUN" != "true" && "$DISPATCH_REF" != "refs/heads/main" ]]; then
+            echo "Error: Non-dry-run releases must be dispatched from main (got $DISPATCH_REF)."
+            exit 1
+          fi
+
           PUBSPEC_VERSION=$(grep "^version:" dart/a2ui_cli/pubspec.yaml | awk '{print $2}' | tr -d '\r')
 
           if [[ "$EVENT_NAME" == "push" ]]; then
@@ -315,14 +323,14 @@ jobs:
           import re, sys
           with open('dart/a2ui_cli/CHANGELOG.md') as f:
               content = f.read()
-          pattern = r'^##\s+\[?' + re.escape(sys.argv[1]) + r'(?:\\]|\s|$).*?\n(.*?)(?=\n^##\s+|\Z)'
+          pattern = r'^##\s+\[?' + re.escape(sys.argv[1]) + r'(?:\]|\s|$).*?\n(.*?)(?=\n^##\s+|\Z)'
           match = re.search(pattern, content, re.DOTALL | re.MULTILINE)
           if match and match.group(1).strip():
               print(match.group(1).strip())
           else:
               print(f'Release of A2UI CLI v{sys.argv[1]}')
-          \" \"$VERSION\" > release_notes.md
-          echo \"Extracted release notes:\"
+          " "$VERSION" > release_notes.md
+          echo "Extracted release notes:"
           cat release_notes.md
 
       - name: Publish GitHub Release
@@ -331,37 +339,37 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.preflight.outputs.tag }}
           VERSION: ${{ needs.preflight.outputs.version }}
-          TITLE: \"A2UI CLI v${{ needs.preflight.outputs.version }}\"
+          TITLE: "A2UI CLI v${{ needs.preflight.outputs.version }}"
           DRAFT_FLAG: ${{ needs.preflight.outputs.is_draft == 'true' && '--draft' || '' }}
         run: |
-          PRERELEASE_FLAG=\"\"
-          if [[ \"$VERSION\" == *\"-\"* ]]; then
-            PRERELEASE_FLAG=\"--prerelease\"
+          PRERELEASE_FLAG=""
+          if [[ "$VERSION" == *"-"* ]]; then
+            PRERELEASE_FLAG="--prerelease"
           fi
-          echo \"Creating GitHub Release $TAG (draft: $DRAFT_FLAG, prerelease: $PRERELEASE_FLAG)...\"
-          gh release create \"$TAG\" release-assets/* \\
-            --title \"$TITLE\" \\
-            --notes-file release_notes.md \\
-            --target \"${{ github.sha }}\" \\
-            $DRAFT_FLAG \\
+          echo "Creating GitHub Release $TAG (draft: $DRAFT_FLAG, prerelease: $PRERELEASE_FLAG)..."
+          gh release create "$TAG" release-assets/* \
+            --title "$TITLE" \
+            --notes-file release_notes.md \
+            --target "${{ github.sha }}" \
+            $DRAFT_FLAG \
             $PRERELEASE_FLAG
 
       - name: Dry Run Summary
         if: needs.preflight.outputs.is_dry_run == 'true'
         run: |
-          echo \"==========================================\"
-          echo \"   A2UI CLI RELEASE DRY RUN SUCCESSFUL    \"
-          echo \"==========================================\"
-          echo \"Tag:     ${{ needs.preflight.outputs.tag }}\"
-          echo \"Version: ${{ needs.preflight.outputs.version }}\"
-          echo \"\"
-          echo \"Artifacts prepared:\"
+          echo "=========================================="
+          echo "   A2UI CLI RELEASE DRY RUN SUCCESSFUL    "
+          echo "=========================================="
+          echo "Tag:     ${{ needs.preflight.outputs.tag }}"
+          echo "Version: ${{ needs.preflight.outputs.version }}"
+          echo ""
+          echo "Artifacts prepared:"
           ls -la release-assets/
-          echo \"\"
-          echo \"Checksums:\"
+          echo ""
+          echo "Checksums:"
           cat release-assets/checksums.txt
-          echo \"\"
-          echo \"Release notes:\"
+          echo ""
+          echo "Release notes:"
           cat release_notes.md
-          echo \"\"
-          echo \"GitHub Release creation skipped (dry_run: true).\"
+          echo ""
+          echo "GitHub Release creation skipped (dry_run: true)."

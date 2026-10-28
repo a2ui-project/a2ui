@@ -12,42 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 
 /// Detects the target platform identifier (e.g., 'linux-x64', 'darwin-arm64').
-String detectTarget() {
-  final String os = switch (Platform.operatingSystem) {
-    'macos' => 'darwin',
-    'linux' => 'linux',
-    'windows' => 'windows',
-    final other => other,
-  };
-
-  String arch = 'x64';
-  if (Platform.isLinux || Platform.isMacOS) {
-    try {
-      final ProcessResult uname = Process.runSync('uname', ['-m']);
-      final String machine = uname.stdout.toString().trim();
-      if (machine == 'arm64' || machine == 'aarch64') {
-        arch = 'arm64';
-      } else if (machine == 'x86_64' || machine == 'amd64') {
-        arch = 'x64';
-      }
-    } on Object {
-      // Fall back to x64.
-    }
-  } else if (Platform.isWindows) {
-    final String? procArch = Platform.environment['PROCESSOR_ARCHITECTURE'];
-    if (procArch != null && procArch.toLowerCase().contains('arm')) {
-      arch = 'arm64';
-    }
-  }
-
-  return '$os-$arch';
-}
+String detectTarget() => switch (Abi.current()) {
+  Abi.linuxX64 => 'linux-x64',
+  Abi.linuxArm64 => 'linux-arm64',
+  Abi.macosX64 => 'darwin-x64',
+  Abi.macosArm64 => 'darwin-arm64',
+  Abi.windowsX64 => 'windows-x64',
+  Abi.windowsArm64 => 'windows-arm64',
+  final abi => throw UnsupportedError('Unsupported host ABI: $abi'),
+};
 
 /// Reads package version from pubspec.yaml.
 String readPubspecVersion(Directory packageDir) {
@@ -64,29 +44,13 @@ String readPubspecVersion(Directory packageDir) {
   throw StateError('version field not found in ${pubspecFile.path}');
 }
 
-/// Gets the current git commit SHA, or empty string if not in git.
-String getGitCommitSha(Directory packageDir) {
-  try {
-    final ProcessResult result = Process.runSync('git', [
-      'rev-parse',
-      'HEAD',
-    ], workingDirectory: packageDir.path);
-    if (result.exitCode == 0) {
-      return result.stdout.toString().trim();
-    }
-  } on Object {
-    // Git might not be available.
-  }
-  return '';
-}
-
 /// Builds the argument parser for the compile tool.
 ArgParser buildCompileArgParser() {
   return ArgParser()
     ..addOption(
       'target',
       abbr: 't',
-      help: 'Target platform identifier (e.g. linux-x64, darwin-arm64).',
+      help: 'Target platform identifier (must match host target; defaults to host target).',
     )
     ..addOption(
       'version',
@@ -128,10 +92,18 @@ void main(List<String> args) {
   final Directory packageDir = scriptFile.parent.parent;
   final String entrypoint = p.join(packageDir.path, 'bin', 'a2ui.dart');
 
-  final String target = (parsed['target'] as String?) ?? detectTarget();
+  final String hostTarget = detectTarget();
+  final String target = (parsed['target'] as String?) ?? hostTarget;
+  if (target != hostTarget) {
+    stderr.writeln(
+      'Error: --target $target does not match host $hostTarget; '
+      'dart compile exe cannot cross-compile to this target.',
+    );
+    exit(64);
+  }
+
   final String version =
       (parsed['version'] as String?) ?? readPubspecVersion(packageDir);
-  final String commitSha = getGitCommitSha(packageDir);
 
   final bool isWindows = target.startsWith('windows');
   final String ext = isWindows ? '.exe' : '';
@@ -150,7 +122,6 @@ void main(List<String> args) {
   stdout.writeln('  Entrypoint: $entrypoint');
   stdout.writeln('  Target:     $target');
   stdout.writeln('  Version:    $version');
-  stdout.writeln('  Commit:     $commitSha');
   stdout.writeln('  Output:     $outputPath');
 
   final List<String> compileArgs = [
@@ -158,7 +129,6 @@ void main(List<String> args) {
     'exe',
     entrypoint,
     '-DCLI_VERSION=$version',
-    if (commitSha.isNotEmpty) '-DCLI_GIT_COMMIT=$commitSha',
     '-o',
     outputPath,
   ];
