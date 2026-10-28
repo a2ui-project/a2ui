@@ -51,6 +51,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -105,6 +106,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -209,6 +211,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -238,6 +241,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -267,6 +271,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -321,6 +326,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -375,6 +381,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -422,6 +429,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -447,6 +455,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -491,6 +500,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -521,6 +531,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -551,6 +562,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -595,6 +607,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -647,6 +660,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -684,6 +698,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -773,6 +788,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -825,6 +841,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -927,6 +944,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -1340,4 +1358,11 @@ Catalog<ComponentApi, F> basicCatalogV1_0<F extends FunctionApi>(
       protocolVersion: A2uiProtocolVersion.v1_0,
       components: basicComponentsV1_0(),
       functions: functions,
+      definitions: const <String, Object?>{
+        'Weight': <String, Object?>{
+          'type': 'number',
+          'description':
+              "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        },
+      },
     );

@@ -504,6 +504,10 @@
           "type": "string",
           "description": "Markdown design guidelines for the catalog."
         },
+        "metadata": {
+          "type": "object",
+          "description": "Catalog metadata object."
+        },
         "catalogId": {
           "type": "string",
           "description": "Identifier of the catalog."

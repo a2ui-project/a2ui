@@ -535,6 +535,84 @@ describe('ExpressDecompiler', () => {
       ).createSurface.components;
       expect(components.find(c => c.id === 'root')?.action).toEqual(action);
     });
+
+    it('writes userMessage= and compiles it back unchanged', () => {
+      expect(decompileButton({event: {name: 'reply', userMessage: 'Replying now'}})).toContain(
+        'Event("reply", userMessage="Replying now")',
+      );
+      expect(
+        decompileButton({
+          event: {name: 'reply', userMessage: {'@path': '/draft'}, context: {id: 1}},
+        }),
+      ).toContain('Event("reply", {id: 1}, userMessage=$/draft)');
+
+      const {catalog, version} = getCatalogInfo('simplified');
+      const action = {event: {name: 'reply', userMessage: 'Replying now', context: {id: 1}}};
+      const msg = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [
+            {id: 'root', component: 'Button', child: 'label', action},
+            {id: 'label', component: 'Text', text: 'Go'},
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const notation = new ExpressDecompiler([catalog], version).decompile(msg);
+      const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
+      const components = (
+        recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
+      ).createSurface.components;
+      expect(components.find(c => c.id === 'root')?.action).toEqual(action);
+    });
+
+    it('writes an event with a userMessage as a map literal before v1.0', () => {
+      // v0.9 has no userMessage and its compiler rejects `userMessage=`, so the object is
+      // written as data that compiles back as written.
+      const {catalog, version} = getCatalogInfo('basic_v0_9');
+      const msg = {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 's1',
+          components: [
+            {
+              id: 'root',
+              component: 'Card',
+              child: {event: {name: 'go', userMessage: 'hi'}},
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const notation = new ExpressDecompiler([catalog], version).decompile(msg);
+      expect(notation).toMatch(/\{event: \{name: .*userMessage: .*\}\}/);
+      expect(notation).not.toContain('Event(');
+    });
+
+    it('writes a function call userMessage and compiles it back unchanged', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const action = {
+        event: {name: 'reply', userMessage: {'@call': 'formatString', args: {value: 'Hi ${/n}'}}},
+      };
+      const msg = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [
+            {id: 'root', component: 'Button', child: 'label', action},
+            {id: 'label', component: 'Text', text: 'Go'},
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const notation = new ExpressDecompiler([catalog], version).decompile(msg);
+      expect(notation).toContain('Event("reply", userMessage=formatString("Hi ${/n}"))');
+      const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
+      const components = (
+        recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
+      ).createSurface.components;
+      expect(components.find(c => c.id === 'root')?.action).toEqual(action);
+    });
   });
 
   describe('Surface message coalescing', () => {

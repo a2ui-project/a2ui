@@ -57,6 +57,7 @@ function assertConformsToV10CatalogDefinition(doc: Record<string, any>): void {
     'title',
     'description',
     'catalogId',
+    'metadata',
     'instructions',
     'components',
     'functions',
@@ -68,7 +69,8 @@ function assertConformsToV10CatalogDefinition(doc: Record<string, any>): void {
   if (doc.protocolVersion !== undefined) {
     assert.match(doc.protocolVersion, /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$/);
   }
-  assert.deepStrictEqual(Object.keys(doc.$defs ?? {}).sort(), ['anyComponent', 'anyFunction']);
+  assert.ok('anyComponent' in (doc.$defs ?? {}), 'Expected $defs.anyComponent');
+  assert.ok('anyFunction' in (doc.$defs ?? {}), 'Expected $defs.anyFunction');
   assert.ok(!('Surface' in (doc.components ?? {})), "'Surface' is not a valid component name");
   const returnTypes = [
     'string',
@@ -178,7 +180,11 @@ describe('MessageProcessor', () => {
       const inlineCat = (caps['v1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
 
       assertConformsToV10CatalogDefinition(inlineCat);
-      assert.deepStrictEqual(Object.keys(inlineCat.$defs).sort(), ['anyComponent', 'anyFunction']);
+      assert.deepStrictEqual(Object.keys(inlineCat.$defs).sort(), [
+        'Weight',
+        'anyComponent',
+        'anyFunction',
+      ]);
       assert.strictEqual(inlineCat.protocolVersion, '1.0');
       assert.strictEqual(inlineCat.theme, undefined);
       assert.strictEqual(
@@ -1128,6 +1134,105 @@ describe('MessageProcessor', () => {
       const caps = proc.getClientCapabilities({versions: ['v0.9']});
       assert.deepStrictEqual(caps, proc.getRendererCapabilities({versions: ['v0.9']}));
       assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-cat']);
+    });
+
+    it('defaults getClientCapabilities to v0.9 and accepts the legacy version option', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      const expected = proc.getRendererCapabilities({versions: ['v0.9']});
+      assert.deepStrictEqual(proc.getClientCapabilities(), expected);
+      assert.deepStrictEqual(proc.getClientCapabilities({}), expected);
+      assert.deepStrictEqual(proc.getClientCapabilities({version: 'v0.9'}), expected);
+      assert.deepStrictEqual(
+        proc.getRendererCapabilities({version: 'v0.9'}),
+        expected,
+        'getRendererCapabilities also accepts the legacy version option',
+      );
+      assert.throws(
+        () => proc.getRendererCapabilities({}),
+        /At least one protocol version must be provided/,
+      );
+    });
+
+    it('treats an unversioned v0.9 envelope as v0.9 when every catalog is pre-1.0', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages([
+        {createSurface: {surfaceId: 's1', catalogId: 'test-cat'}},
+        {updateDataModel: {surfaceId: 's1', path: '/user/name', value: 'Alice'}},
+      ] as any);
+      assert.strictEqual(proc.getSurface('s1')?.dataModel.get('/user/name'), 'Alice');
+      proc.processMessages({deleteSurface: {surfaceId: 's1'}} as any);
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+    });
+
+    it('unwraps messages wrapper in unversioned payload', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({
+        messages: [{createSurface: {surfaceId: 's1', catalogId: 'test-cat'}}],
+      } as any);
+      assert.ok(proc.getSurface('s1'));
+    });
+
+    it('treats an unversioned envelope as v0.9.1 when registered catalog is 0.9.1', () => {
+      const cat = new Catalog('test-cat', '0.9.1', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({createSurface: {surfaceId: 's1', catalogId: 'test-cat'}} as any);
+      assert.ok(proc.getSurface('s1'));
+    });
+
+    it('keeps rejecting unversioned envelopes with a v1.0 catalog or a validationConfig', () => {
+      const unversioned = {createSurface: {surfaceId: 's1', catalogId: 'test-cat'}} as any;
+      const withV10 = new MessageProcessor([
+        new Catalog('test-cat', '0.9', []),
+        new Catalog('v10-cat', '1.0', []),
+      ]);
+      assert.throws(() => withV10.processMessages(unversioned), /missing a valid 'version'/);
+
+      const validating = new MessageProcessor([new Catalog('test-cat', '0.9', [])], undefined, {
+        validationConfig: THEME_ONLY_VALIDATION,
+      });
+      assert.throws(() => validating.processMessages(unversioned), /missing a valid 'version'/);
+    });
+
+    it('leaves nested calls unchecked on a pre-1.0 surface without a validationConfig', () => {
+      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.any()})};
+      const v09 = new Catalog<ComponentApi>('v09', '0.9', [textApi]);
+      const lenient = new MessageProcessor([v09]);
+      lenient.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', text: {call: 'nope', args: {}}}],
+          },
+        },
+      ]);
+      assert.ok(lenient.getSurface('s')?.componentsModel.get('root'));
+
+      const strict = new MessageProcessor(
+        [new Catalog<ComponentApi>('v09', '0.9', [textApi])],
+        undefined,
+        {
+          validationConfig: {...THEME_ONLY_VALIDATION, allowUnknownElements: false},
+        },
+      );
+      assert.throws(
+        () =>
+          strict.processMessages([
+            {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's',
+                components: [{id: 'root', component: 'Text', text: {call: 'nope', args: {}}}],
+              },
+            },
+          ]),
+        /Unrecognized function 'nope'/,
+      );
     });
 
     it('provides getClientDataModel alias', () => {

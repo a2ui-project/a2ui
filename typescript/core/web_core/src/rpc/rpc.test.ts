@@ -487,6 +487,81 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     );
   });
 
+  it('awaits an asynchronous nested call in the arguments before validating a callRendererFunction', async () => {
+    const asyncEchoImpl = createFunctionImplementation(
+      {
+        name: 'asyncEcho',
+        returnType: 'any' as const,
+        schema: z.object({value: z.string()}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      async args => {
+        await Promise.resolve();
+        return args.value;
+      },
+    );
+    const catalog = new Catalog('basic', '1.0', [], [customRpcImpl, asyncEchoImpl]);
+    const handler = new RpcHandler({catalogs: [catalog]});
+    const surface = new SurfaceModel('s1', catalog);
+    const context = new DataContext(surface, '/');
+
+    const response = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.0' as const,
+        callRendererFunction: {
+          functionCallId: 'rpc-async-arg',
+          callFunction: {
+            '@call': 'customRpc',
+            catalogId: 'basic',
+            args: {text: {'@call': 'asyncEcho', args: {value: 'settled'}}},
+          },
+        },
+      } as any,
+      context,
+      false,
+    );
+    assert.strictEqual(response.rendererFunctionResponse.error, undefined);
+    assert.strictEqual(response.rendererFunctionResponse.value, 'Processed: settled');
+  });
+
+  it('answers with an error when an asynchronous nested argument rejects', async () => {
+    const asyncFailImpl = createFunctionImplementation(
+      {
+        name: 'asyncFail',
+        returnType: 'any' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      async () => {
+        await Promise.resolve();
+        throw new Error('upstream failed');
+      },
+    );
+    const catalog = new Catalog('basic', '1.0', [], [customRpcImpl, asyncFailImpl]);
+    const handler = new RpcHandler({catalogs: [catalog]});
+    const surface = new SurfaceModel('s1', catalog);
+    const context = new DataContext(surface, '/');
+
+    const response = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.0' as const,
+        callRendererFunction: {
+          functionCallId: 'rpc-async-fail',
+          callFunction: {
+            '@call': 'customRpc',
+            catalogId: 'basic',
+            args: {text: {'@call': 'asyncFail', args: {}}},
+          },
+        },
+      } as any,
+      context,
+      false,
+    );
+    assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.EXECUTION_ERROR);
+    assert.match(response.rendererFunctionResponse.error?.message ?? '', /upstream failed/);
+    assert.strictEqual(response.rendererFunctionResponse.value, undefined);
+  });
+
   it('formats A2uiRpcError with the blueprint-standard (message, code, functionCallId, details) signature', () => {
     const standardErr = new A2uiRpcError('Something failed', RpcErrorCode.TIMEOUT, 'call-1');
     assert.strictEqual(standardErr.code, 'TIMEOUT');
