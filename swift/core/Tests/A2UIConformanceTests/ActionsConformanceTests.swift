@@ -85,10 +85,12 @@ private final class ActionTestFunction: FunctionImplementation, Sendable {
     name: String,
     block: @escaping @MainActor @Sendable ([String: JSONValue], DataContext) throws -> JSONValue
   ) {
+    let emptySchema = (try? Schema(instance: "{}"))
+      ?? (try! Schema(rawSchema: .object([:]), context: Context(dialect: .draft2020_12)))
     self.api = FunctionAPI(
       name: name,
       returnType: .any,
-      schema: nil
+      schema: emptySchema
     )
     self.block = block
   }
