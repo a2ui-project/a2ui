@@ -75,7 +75,7 @@ class StreamedAnswer:
           NotImplementedError: If the processor's format cannot be read
             incrementally.
         """
-        self.renderer = renderer
+        self._renderer = renderer
         self._stream = processor.open_stream(
             state=RendererState.of(renderer), after_rejected_block="continue"
         )
@@ -83,6 +83,11 @@ class StreamedAnswer:
         # Whether the last part the stream returned was text, so more text
         # joins it.
         self._in_text = False
+
+    @property
+    def renderer(self) -> MessageProcessor:
+        """The processor the answer's surfaces are applied to."""
+        return self._renderer
 
     @property
     def parts(self) -> Sequence[AnswerPart]:
@@ -131,7 +136,7 @@ class StreamedAnswer:
             for message in to_message_dicts(part.a2ui):
                 created = _surface_id_of(message, "createSurface")
                 surface = (
-                    self.renderer.model.get_surface(created)
+                    self._renderer.model.get_surface(created)
                     if created is not None
                     else None
                 )

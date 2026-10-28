@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `MessageProcessor.catalogs` is a read-only property that
+  returns a copy of the catalogs the processor was created with, so assigning
+  to it raises `AttributeError` and changing the list it returns does not
+  change the processor. Recommended migration: pass the catalogs to the
+  `MessageProcessor` constructor. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - (v1_0) `DataContext` reads a `ValidationResult` dict that a function argument
   resolves to by its `valid` boolean wherever the function's argument schema
   types that argument as `DynamicBoolean`, as the specification defines the
@@ -27,11 +32,10 @@
   with the `instructions` it is given, and does not keep the source's `$id`,
   title, description or instructions.
   [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
-- `MessageProcessor.catalogs` is a read-only property that returns a copy of
-  the catalogs the processor was created with, and
-  `ExecutionContext.validation_config` applies to one `process_messages`,
-  `process_messages_async` or `process_operation` call in place of the
-  processor's own `validation_config`. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
+- Add `ExecutionContext.validation_config`, which `process_messages`,
+  `process_messages_async` and `process_operation` apply to that call in place
+  of the processor's own `validation_config`.
+  [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - Schema validation never fetches a `$ref` over the network. A `$ref` to a
   document that is not available locally fails validation with an
   unresolvable-reference error instead of being downloaded

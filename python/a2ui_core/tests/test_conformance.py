@@ -31,6 +31,7 @@ from a2ui.core.state import DataModel, SurfaceModel
 from a2ui.core.resolution import DataContext
 from a2ui.core.processing import (
     CapabilitiesOptions,
+    ExecutionContext,
     MessageProcessor,
     MessageProcessorOptions,
 )
@@ -38,6 +39,7 @@ from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     PayloadValidator,
+    ValidationConfig,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError,
@@ -599,6 +601,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
 
     if action == "from_json":
         validate_from_json_case(case)
+    elif action == "derive":
+        validate_derive_case(case)
     elif action == "validation_schema":
         validate_validation_schema_case(case)
     elif action == "round_trip":
@@ -960,16 +964,43 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
         expect_error = step.get("expectError") or (
             case.get("expectError") if step is steps[-1] else None
         )
+        # A step's validationConfig applies to that call only.
+        context = (
+            ExecutionContext(
+                validation_config=_validation_config(step["validationConfig"])
+            )
+            if "validationConfig" in step
+            else None
+        )
 
         if expect_error:
             with assert_raises(expect_error):
-                processor.process_messages(messages)
+                processor.process_messages(messages, context)
         else:
-            processor.process_messages(messages)
+            processor.process_messages(messages, context)
             expected = step.get("expect") or (
                 case.get("expect") if step is steps[-1] else {}
             )
             _assert_expected_surface_state(processor, expected)
+
+
+# The keys of a step's `validationConfig`, and the `ValidationConfig` field
+# each one sets.
+_VALIDATION_CONFIG_FIELDS = {
+    "allowOrphanComponents": "allow_orphan_components",
+    "allowDanglingReferences": "allow_dangling_references",
+    "allowMissingRoot": "allow_missing_root",
+    "allowUnknownElements": "allow_unknown_elements",
+}
+
+
+def _validation_config(spec: dict[str, Any]) -> ValidationConfig:
+    """The `ValidationConfig` a step's `validationConfig` states; a rule left out is strict."""
+    unknown_keys = set(spec) - set(_VALIDATION_CONFIG_FIELDS)
+    assert not unknown_keys, f"Unknown validationConfig keys: {sorted(unknown_keys)}"
+    return ValidationConfig(
+        **{_VALIDATION_CONFIG_FIELDS[key]: value for key, value in spec.items()}
+    )
 
 
 def validate_capabilities_case(case: dict[str, Any]) -> None:
@@ -1184,6 +1215,93 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
             for component in expected.get("invalidComponents", []):
                 with pytest.raises(A2uiValidationError):
                     validator.validate_component(component)
+
+
+# The `expect` keys a `derive` case may use (`DeriveExpect` in
+# conformance_schema.json).
+_DERIVE_EXPECT_KEYS = frozenset({
+    "absentKeys",
+    "catalogId",
+    "components",
+    "functions",
+    "instructions",
+    "protocolVersion",
+    "theme",
+})
+
+
+def validate_derive_case(case: dict[str, Any]) -> None:
+    """Runs a `derive` case.
+
+    Loads the source catalog with `from_json`, derives a catalog from it, and
+    checks the derived catalog and its `to_json()` document.
+    """
+    document, _ = _load_case_catalog(case)
+    source = Catalog.from_json(document)
+    args = case["args"]
+
+    def entries(kind: str) -> list[Any] | None:
+        # A map with one key is a new entry, built by loading it into a
+        # catalog of the source's version.
+        listed = args.get(kind)
+        if listed is None:
+            return None
+        picked: list[Any] = []
+        for item in listed:
+            if isinstance(item, str):
+                picked.append(item)
+                continue
+            [(name, definition)] = item.items()
+            holder = Catalog.from_json({
+                "catalogId": "conformance:derive-entries",
+                "protocolVersion": document.get("protocolVersion"),
+                kind: {name: definition},
+            })
+            picked.append(getattr(holder, kind)[name])
+        return picked
+
+    def derive() -> CatalogApi:
+        return source.derive(
+            catalog_id=args["catalogId"],
+            components=entries("components"),
+            functions=entries("functions"),
+            instructions=args.get("instructions"),
+        )
+
+    if "expectError" in case:
+        with assert_raises(case["expectError"]):
+            derive()
+        return
+
+    expected = case["expect"]
+    unknown_keys = set(expected) - _DERIVE_EXPECT_KEYS
+    assert not unknown_keys, f"Unknown derive expect keys: {sorted(unknown_keys)}"
+    derived = derive()
+    out = derived.to_json()
+    if "catalogId" in expected:
+        assert derived.catalog_id == expected["catalogId"]
+    if "protocolVersion" in expected:
+        assert to_canonical_version(derived.protocol_version) == to_canonical_version(
+            expected["protocolVersion"]
+        )
+    for kind in ("components", "functions"):
+        if kind not in expected:
+            continue
+        listed = expected[kind]
+        assert sorted(getattr(derived, kind)) == sorted(listed), f"{kind} mismatch"
+        if isinstance(listed, dict):
+            for name, definition in listed.items():
+                assert normalize_set_keywords(
+                    out[kind][name]
+                ) == normalize_set_keywords(definition), f"{kind} '{name}' differs"
+    if "theme" in expected:
+        assert normalize_set_keywords(out.get("theme")) == normalize_set_keywords(
+            expected["theme"]
+        )
+    if "instructions" in expected:
+        assert out.get("instructions") == expected["instructions"]
+    for key in expected.get("absentKeys", []):
+        assert key not in out, f"Expected to_json() to carry no '{key}'"
 
 
 def normalize_set_keywords(node: Any) -> Any:

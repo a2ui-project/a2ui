@@ -1171,6 +1171,61 @@ def test_generic_binder_nested_list_dynamic_update():
     binder.dispose()
 
 
+def test_generic_binder_binds_action_inside_list_item():
+    cat = BasicCatalog("0.9")
+    data_model = DataModel({"card": {"id": "c1"}})
+    comp = ComponentModel(
+        "carousel",
+        "Carousel",
+        cat,
+        {
+            "items": [{
+                "name": "first",
+                "action": {
+                    "event": {
+                        "name": "open_card",
+                        "context": {"cardId": {"path": "/card/id"}},
+                    }
+                },
+            }]
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    dispatched_actions: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched_actions.append(act))
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "action": {"$ref": "common_types.json#/$defs/Action"},
+                    },
+                },
+            },
+        },
+    }
+    binder = GenericBinder(context, schema=schema)
+
+    item = binder.current_props["items"][0]
+    assert item["name"] == "first"
+    assert callable(item["action"])
+
+    item["action"]()
+    assert len(dispatched_actions) == 1
+    assert dispatched_actions[0]["name"] == "open_card"
+    assert dispatched_actions[0]["context"] == {"cardId": "c1"}
+    assert dispatched_actions[0]["sourceComponentId"] == "carousel"
+    binder.dispose()
+
+
 def test_data_context_resolve_action_resolves_user_message():
     cat = BasicCatalog("0.9")
     data_model = DataModel({"inputMsg": "Hello Agent"})

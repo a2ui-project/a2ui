@@ -36,13 +36,20 @@ from a2ui.inference_formats import to_message_models
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
+from a2ui.core import MessageProcessor
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiPart
+from a2ui.parser import ErrorPart
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
+from a2ui.processor import A2uiRequestProcessor
+from a2ui.processor import AnswerSurfacePart
+from a2ui.processor import AnswerTextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
+from a2ui.processor import StreamedAnswer
 from a2ui.utils import load_examples, resolve_catalogs, validate_payload
 
 from .conformance_helpers import get_conformance_path
@@ -83,7 +90,7 @@ def assert_raises(expect_error):
         expected_details = None
 
     with pytest.raises(expected_class) as excinfo:
-        yield
+        yield excinfo
 
     if message:
         assert re.search(_align_error_match(message), str(excinfo.value))
@@ -121,11 +128,21 @@ def _align_error_match(expect_error: str) -> str:
     return expect_error
 
 
+def category_of(error: BaseException) -> str:
+    """The suite's category for an error, or its class name if it has none."""
+    for category, cls in CATEGORY_TO_EXCEPTION.items():
+        if isinstance(error, cls):
+            return category
+    return type(error).__name__
+
+
 def part_to_dict(part) -> dict:
     if isinstance(part, TextPart):
         return {"text": part.text}
     if isinstance(part, A2uiPart):
         return {"a2ui": to_message_dicts(part.a2ui)}
+    if isinstance(part, ErrorPart):
+        return {"error": {"category": category_of(part.error)}}
     raise TypeError(f"Unexpected part type: {type(part)}")
 
 
@@ -593,7 +610,10 @@ def _merge_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def test_response_streaming_conformance(name, test_case):
     args = test_case["args"]
     wrapped = args.get("wrapped", True)
-    stream = make_parser(args).open_stream(wrapped=wrapped)
+    stream = make_parser(args).open_stream(
+        wrapped=wrapped,
+        after_rejected_block=args.get("after_rejected_block", "end"),
+    )
     chunks: list[str] = []
     yielded: list[dict] = []
 
@@ -601,14 +621,24 @@ def test_response_streaming_conformance(name, test_case):
         chunk = step["input"]
         chunks.append(chunk)
         if "expect_error" in step:
-            with assert_raises(step["expect_error"]):
+            with assert_raises(step["expect_error"]) as excinfo:
                 stream.feed(chunk)
+            if "expect_partial_results" in step:
+                partial = getattr(excinfo.value, "partial_results", [])
+                assert_parts_match(partial, step["expect_partial_results"])
+            if "expect_in_block" in step:
+                assert stream.is_in_block == step["expect_in_block"]
             return
         parts = stream.feed(chunk)
         assert_parts_match(parts, step["expect"])
+        if "expect_in_block" in step:
+            assert stream.is_in_block == step["expect_in_block"]
         yielded.extend(part_to_dict(p) for p in parts)
 
-    yielded.extend(part_to_dict(p) for p in stream.close())
+    closed = stream.close()
+    if "expect_close" in test_case:
+        assert_parts_match(closed, test_case["expect_close"])
+    yielded.extend(part_to_dict(p) for p in closed)
 
     if test_case.get("expect_matches_single_shot"):
         fresh_parser = make_parser(args)
@@ -618,6 +648,55 @@ def test_response_streaming_conformance(name, test_case):
         assert _merge_text_parts(yielded) == _merge_text_parts(
             [part_to_dict(p) for p in single_shot_parts]
         )
+
+
+# --- Streamed Answer Conformance ---
+
+cases_streamed_answer = get_marked_conformance_cases("agent/streamed_answer.yaml")
+
+
+def answer_part_to_dict(part, renderer: MessageProcessor) -> dict:
+    """A part in the suite's shape: text, a surface by its id, or an error by its category."""
+    if isinstance(part, AnswerTextPart):
+        return {"text": part.text}
+    if isinstance(part, ErrorPart):
+        return {"error": {"category": category_of(part.error)}}
+    assert isinstance(part, AnswerSurfacePart)
+    assert part.surface is renderer.model.get_surface(part.surface.id)
+    return {"surface": part.surface.id}
+
+
+@pytest.mark.parametrize("name, test_case", cases_streamed_answer)
+def test_streamed_answer_conformance(name, test_case):
+    args = test_case["args"]
+    assert args["format"] == "direct_json", f"Unexpected format {args['format']!r}"
+    processor = A2uiRequestProcessor(
+        [setup_catalog_from_document(args["catalog"])],
+        format_factory=DirectJsonFormatFactory(),
+    )
+    renderer = MessageProcessor([
+        setup_catalog_from_document(path)
+        for path in args.get("renderer_catalogs", [args["catalog"]])
+    ])
+
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            StreamedAnswer(processor, renderer=renderer)
+        return
+
+    answer = StreamedAnswer(processor, renderer=renderer)
+
+    def parts() -> list[dict]:
+        return [answer_part_to_dict(p, renderer) for p in answer.parts]
+
+    for step in test_case["steps"]:
+        answer.feed(step["input"])
+        assert parts() == step["expect_parts"]
+        if "expect_in_block" in step:
+            assert answer.is_in_block == step["expect_in_block"]
+    answer.close()
+    if "expect_close" in test_case:
+        assert parts() == test_case["expect_close"]
 
 
 # --- Multi-Catalog Formats Conformance (Express, Elemental, Atom, Direct JSON) ---

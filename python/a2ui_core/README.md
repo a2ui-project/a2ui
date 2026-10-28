@@ -48,11 +48,13 @@ graph TD
 #### 3. Message Processing (`src/a2ui/core/processing`)
 
 - **`MessageProcessor`**: A stateless protocol processor. Translates raw incoming A2UI messages into structural mutations across the `SurfaceGroupModel` layer.
+- **`ExecutionContext`**: Options for one `process_messages` call. Its `validation_config` replaces the processor's own for that call, so an agent in the same app as the renderer can check its messages against the renderer's processor by the agent's rules.
 
 #### 4. Catalogs (`src/a2ui/core/catalog`)
 
 - **`JsonCatalog`**: Loads raw JSON schemas directly, compiling schema-validated references dynamically for prompt injection.
 - **`ModelCatalog`**: Compiles catalog rules based on structured Pydantic or standard object class configurations.
+- **`Catalog.derive`**: Builds a catalog under a new ID from named entries of an existing catalog and new entries. It does not keep the source's `$id`, title, description or instructions, since the basic catalog's instructions, for example, name its ID in their examples.
 
 #### 5. Basic Catalog (`src/a2ui/core/basic_catalog`)
 
