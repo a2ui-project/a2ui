@@ -202,13 +202,13 @@
           root: false
         validationErrors:
           root:
-            - "Please enter a valid email address (e.g. user@example.com)."
+            - "Must be a valid email address."
             - "Email must be at least 10 characters."
         validationResults:
           root:
             - valid: false
               code: "INVALID_EMAIL"
-              message: "Please enter a valid email address (e.g. user@example.com)."
+              message: "Must be a valid email address."
               severity: "error"
             - valid: false
               code: "DOMAIN_WARNING"

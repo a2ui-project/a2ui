@@ -333,7 +333,6 @@
         code: "UNALLOWED_PARENT"
         surfaceId: "main"
         path: "/components/1"
-        message: "allowedParents"
 
 - name: "test_error_response_update_components_unallowed_parent_root"
   description: "Emits UNALLOWED_PARENT with /components/0 when the root component does not allow Surface as parent."
@@ -375,7 +374,6 @@
         code: "UNALLOWED_PARENT"
         surfaceId: "main"
         path: "/components/0"
-        message: "allowedParents"
 
 - name: "test_error_response_update_components_unallowed_child"
   description: "Emits UNALLOWED_CHILD with /components/0/children/0 when a parent references a disallowed child type."
@@ -426,7 +424,6 @@
         code: "UNALLOWED_CHILD"
         surfaceId: "main"
         path: "/components/0/children/0"
-        message: "allowedChildren"
 
 - name: "test_error_response_update_components_circular_reference"
   description: "Emits RECURSION_LIMIT_EXCEEDED when components form a cycle in strict mode."

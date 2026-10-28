@@ -195,9 +195,17 @@ const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
  * 'accessibility.yaml' tests ARIA and DOM accessibility tree rendering, which is handled
  * by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI) rather than headless web_core.
  *
+ * 'adapter_conformance.yaml' tests UI framework renderers (Lit, React, Angular, Flutter, SwiftUI)
+ * rather than headless web_core.
+ *
  * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'macros.yaml']);
+const SKIP_TEST_SUITES = new Set([
+  'accessibility.yaml',
+  'adapter_conformance.yaml',
+  'builder.yaml',
+  'macros.yaml',
+]);
 
 /**
  * Action types the web_core runner deliberately does not implement, and why.
