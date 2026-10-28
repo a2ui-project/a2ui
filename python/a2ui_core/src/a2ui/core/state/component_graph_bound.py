@@ -97,15 +97,14 @@ class ComponentGraphBound:
 
     The bound describes a graph that passed the composition and topology
     checks. It holds the children and parents of each component, for the
-    composition check and for the topology check, the position of each
-    component on the surface, and for each component an upper bound on the
-    number of references in the longest chain below it.
+    composition check and for the topology check, and for each component an
+    upper bound on the number of references in the longest chain below it.
 
     The bound lets a batch be checked without walking the whole graph. A
     cycle the batch makes passes through one of its components, and only the
     chains through its components grow, so only those components and the ones
     above them are revisited. The composition constraints of a component
-    depend on its type, its children, their types and its parent, so only the
+    depend on its type, its children, their types and its parents, so only the
     batch, the children it adds or drops, and the components referencing it
     are checked again.
     """
@@ -191,9 +190,10 @@ class ComponentGraphBound:
         `held` is the surface before the batch, which passed the check when
         this bound was made, and `root_id` is the surface's root component. A
         component whose type, children, children's types and parents are
-        unchanged still passes, so only the others are checked. False means one of them fails; the caller then checks the
-        whole surface with `validate_composition_constraints`, which raises
-        the error it reports for the first component that fails.
+        unchanged still passes, so only the others are checked. False means
+        one of them fails; the caller then checks the whole surface with
+        `validate_composition_constraints`, which raises the error it reports
+        for the first component that fails.
         """
 
         def model_of(comp_id: str) -> ComponentModel | None:
