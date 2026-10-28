@@ -78,7 +78,7 @@ void main() {
         final ({int exitCode, String stdout, String stderr}) result =
             await _captureCli([flag]);
         expect(result.exitCode, equals(0));
-        expect(result.stdout.trim(), equals('0.0.1-wip001'));
+        expect(result.stdout.trim(), equals(packageVersion));
       }
     });
 
@@ -364,6 +364,48 @@ void main() {
       } finally {
         tmpDir.deleteSync(recursive: true);
       }
+    });
+  });
+
+  group('Compile Tool (tool/compile.dart)', () {
+    test('displays usage information with --help and -h', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      for (final flag in ['--help', '-h']) {
+        final ProcessResult result = Process.runSync(
+          Platform.resolvedExecutable,
+          [compileScript, flag],
+        );
+        expect(result.exitCode, equals(0));
+        expect(result.stdout, contains('Usage: dart tool/compile.dart'));
+        expect(result.stdout, contains('--target'));
+        expect(result.stdout, contains('--version'));
+        expect(result.stdout, contains('--output'));
+      }
+    });
+
+    test('exits with code 64 on unknown flag', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      final ProcessResult result = Process.runSync(
+        Platform.resolvedExecutable,
+        [compileScript, '--invalid-option'],
+      );
+      expect(result.exitCode, equals(64));
+      expect(
+        result.stderr,
+        contains('Could not find an option named "--invalid-option"'),
+      );
     });
   });
 }

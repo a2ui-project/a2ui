@@ -14,6 +14,9 @@
 
 import 'dart:io';
 
+import 'package:args/args.dart';
+import 'package:path/path.dart' as p;
+
 /// Detects the target platform identifier (e.g., 'linux-x64', 'darwin-arm64').
 String detectTarget() {
   final String os = switch (Platform.operatingSystem) {
@@ -33,7 +36,9 @@ String detectTarget() {
       } else if (machine == 'x86_64' || machine == 'amd64') {
         arch = 'x64';
       }
-    } catch (_) {}
+    } on Object {
+      // Fall back to x64.
+    }
   } else if (Platform.isWindows) {
     final String? procArch = Platform.environment['PROCESSOR_ARCHITECTURE'];
     if (procArch != null && procArch.toLowerCase().contains('arm')) {
@@ -46,9 +51,7 @@ String detectTarget() {
 
 /// Reads package version from pubspec.yaml.
 String readPubspecVersion(Directory packageDir) {
-  final File pubspecFile = File(
-    '${packageDir.path}${Platform.pathSeparator}pubspec.yaml',
-  );
+  final File pubspecFile = File(p.join(packageDir.path, 'pubspec.yaml'));
   if (!pubspecFile.existsSync()) {
     throw StateError('pubspec.yaml not found at ${pubspecFile.path}');
   }
@@ -62,71 +65,83 @@ String readPubspecVersion(Directory packageDir) {
 }
 
 /// Gets the current git commit SHA, or empty string if not in git.
-String getGitCommitSha() {
+String getGitCommitSha(Directory packageDir) {
   try {
-    final ProcessResult result = Process.runSync('git', ['rev-parse', 'HEAD']);
+    final ProcessResult result = Process.runSync('git', [
+      'rev-parse',
+      'HEAD',
+    ], workingDirectory: packageDir.path);
     if (result.exitCode == 0) {
       return result.stdout.toString().trim();
     }
-  } catch (_) {}
+  } on Object {
+    // Git might not be available.
+  }
   return '';
 }
 
-void printHelp() {
-  stdout.writeln(
-    'Compiles the A2UI CLI into a standalone native executable.\n\n'
-    'Usage: dart tool/compile.dart [options]\n\n'
-    'Options:\n'
-    '  -t, --target   Target platform identifier (e.g. linux-x64, darwin-arm64).\n'
-    '  -v, --version  Version to inject (defaults to version in pubspec.yaml).\n'
-    '  -o, --output   Output binary file path.\n'
-    '  -h, --help     Show this help message.',
-  );
+/// Builds the argument parser for the compile tool.
+ArgParser buildCompileArgParser() {
+  return ArgParser()
+    ..addOption(
+      'target',
+      abbr: 't',
+      help: 'Target platform identifier (e.g. linux-x64, darwin-arm64).',
+    )
+    ..addOption(
+      'version',
+      abbr: 'v',
+      help: 'Version to inject (defaults to version in pubspec.yaml).',
+    )
+    ..addOption('output', abbr: 'o', help: 'Output binary file path.')
+    ..addFlag(
+      'help',
+      abbr: 'h',
+      negatable: false,
+      help: 'Show this help message.',
+    );
 }
 
 void main(List<String> args) {
-  String? target;
-  String? version;
-  String? output;
+  final ArgParser parser = buildCompileArgParser();
 
-  for (int i = 0; i < args.length; i++) {
-    final arg = args[i];
-    if (arg == '-h' || arg == '--help') {
-      printHelp();
-      exit(0);
-    } else if (arg == '-t' || arg == '--target') {
-      if (i + 1 < args.length) target = args[++i];
-    } else if (arg.startsWith('--target=')) {
-      target = arg.substring('--target='.length);
-    } else if (arg == '-v' || arg == '--version') {
-      if (i + 1 < args.length) version = args[++i];
-    } else if (arg.startsWith('--version=')) {
-      version = arg.substring('--version='.length);
-    } else if (arg == '-o' || arg == '--output') {
-      if (i + 1 < args.length) output = args[++i];
-    } else if (arg.startsWith('--output=')) {
-      output = arg.substring('--output='.length);
-    }
+  final ArgResults parsed;
+  try {
+    parsed = parser.parse(args);
+  } on FormatException catch (e) {
+    stderr.writeln('Error: ${e.message}');
+    stderr.writeln(parser.usage);
+    exit(64);
+  }
+
+  if (parsed['help'] == true) {
+    stdout.writeln(
+      'Compiles the A2UI CLI into a standalone native executable.\n\n'
+      'Usage: dart tool/compile.dart [options]\n',
+    );
+    stdout.writeln(parser.usage);
+    exit(0);
   }
 
   // Find package directory relative to script
   final File scriptFile = File(Platform.script.toFilePath());
   final Directory packageDir = scriptFile.parent.parent;
-  final String entrypoint =
-      '${packageDir.path}${Platform.pathSeparator}bin${Platform.pathSeparator}a2ui.dart';
+  final String entrypoint = p.join(packageDir.path, 'bin', 'a2ui.dart');
 
-  target ??= detectTarget();
-  version ??= readPubspecVersion(packageDir);
-  final String commitSha = getGitCommitSha();
+  final String target = (parsed['target'] as String?) ?? detectTarget();
+  final String version =
+      (parsed['version'] as String?) ?? readPubspecVersion(packageDir);
+  final String commitSha = getGitCommitSha(packageDir);
 
   final bool isWindows = target.startsWith('windows');
   final String ext = isWindows ? '.exe' : '';
-  final String outputPath =
-      output ??
-      '${packageDir.path}${Platform.pathSeparator}dist${Platform.pathSeparator}a2ui-$target$ext';
+  final String rawOutput =
+      (parsed['output'] as String?) ??
+      p.join(packageDir.path, 'dist', 'a2ui-$target$ext');
+  final File outFile = File(rawOutput).absolute;
+  final String outputPath = outFile.path;
 
   // Ensure output directory exists.
-  final File outFile = File(outputPath);
   if (!outFile.parent.existsSync()) {
     outFile.parent.createSync(recursive: true);
   }
@@ -148,9 +163,10 @@ void main(List<String> args) {
     outputPath,
   ];
 
-  stdout.writeln('Running: dart ${compileArgs.join(' ')}');
+  final String dartExec = Platform.resolvedExecutable;
+  stdout.writeln('Running: $dartExec ${compileArgs.join(' ')}');
   final ProcessResult result = Process.runSync(
-    'dart',
+    dartExec,
     compileArgs,
     workingDirectory: packageDir.path,
   );

@@ -34,8 +34,8 @@ on:
         default: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
-  cancel-in-progress: true
+  group: release-cli-binaries
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -57,24 +57,33 @@ jobs:
       - name: Resolve and Validate Version
         id: version_info
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          IS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          IS_DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
         run: |
-          IS_DRY_RUN="${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}"
-          IS_DRAFT="${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}"
-
+          set -euo pipefail
           PUBSPEC_VERSION=$(grep "^version:" dart/a2ui_cli/pubspec.yaml | awk '{print $2}' | tr -d '\r')
 
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            REF_NAME="${{ github.ref_name }}"
+          if [[ "$EVENT_NAME" == "push" ]]; then
             VERSION="${REF_NAME#cli-v}"
             TAG="$REF_NAME"
           else
-            INPUT_VERSION="${{ inputs.version }}"
-            if [[ -n "$INPUT_VERSION" ]]; then
-              VERSION="$INPUT_VERSION"
+            CLEAN_INPUT="${INPUT_VERSION#cli-v}"
+            CLEAN_INPUT="${CLEAN_INPUT#v}"
+            if [[ -n "$CLEAN_INPUT" ]]; then
+              VERSION="$CLEAN_INPUT"
             else
               VERSION="$PUBSPEC_VERSION"
             fi
             TAG="cli-v$VERSION"
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Error: Invalid semantic version '$VERSION'."
+            exit 1
           fi
 
           echo "Target Release Version: $VERSION"
@@ -90,7 +99,8 @@ jobs:
           fi
 
           # Verify CHANGELOG.md contains release notes
-          if grep -E "^##\s+\[?$VERSION" dart/a2ui_cli/CHANGELOG.md > /dev/null; then
+          ESCAPED_VERSION="${VERSION//./\.}"
+          if grep -E "^##[[:space:]]+\[?${ESCAPED_VERSION}(\]|([[:space:]]|$))" dart/a2ui_cli/CHANGELOG.md > /dev/null; then
             echo "Found release notes for version $VERSION in CHANGELOG.md."
           elif [[ "$IS_DRY_RUN" == "true" ]]; then
             echo "Warning: Version $VERSION not found in CHANGELOG.md, but continuing because dry_run=true."
@@ -105,17 +115,32 @@ jobs:
           echo "is_dry_run=$IS_DRY_RUN" >> $GITHUB_OUTPUT
           echo "is_draft=$IS_DRAFT" >> $GITHUB_OUTPUT
 
-      - uses: ./.github/actions/setup-dart
+      - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d361605b5d60931fb30 # v1.7.1
         with:
-          channel: 'stable'
+          sdk: stable
+
+      - name: Configure pure-Dart workspace
+        shell: bash
+        run: |
+          cat > pubspec.yaml << 'EOF'
+          name: a2ui_monorepo
+          publish_to: none
+          environment:
+            sdk: ">=3.10.0 <4.0.0"
+          workspace:
+            - dart/a2ui_core
+            - dart/a2ui_cli
+          dev_dependencies:
+            lints: ^6.1.0
+          EOF
 
       - name: Install dependencies
         working-directory: dart/a2ui_cli
-        run: flutter pub get
+        run: dart pub get
 
       - name: Run unit tests
         working-directory: dart/a2ui_cli
-        run: flutter test
+        run: dart test
 
   build:
     needs: preflight
@@ -151,13 +176,28 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-dart
+      - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d361605b5d60931fb30 # v1.7.1
         with:
-          channel: 'stable'
+          sdk: stable
+
+      - name: Configure pure-Dart workspace for CLI build
+        shell: bash
+        run: |
+          cat > pubspec.yaml << 'EOF'
+          name: a2ui_monorepo
+          publish_to: none
+          environment:
+            sdk: ">=3.10.0 <4.0.0"
+          workspace:
+            - dart/a2ui_core
+            - dart/a2ui_cli
+          dev_dependencies:
+            lints: ^6.1.0
+          EOF
 
       - name: Install dependencies
         working-directory: dart/a2ui_cli
-        run: flutter pub get
+        run: dart pub get
 
       - name: Compile CLI binary
         working-directory: dart/a2ui_cli
@@ -177,9 +217,9 @@ jobs:
         run: |
           chmod +x "$BIN_PATH"
           echo "Testing $BIN_PATH --version"
-          REPORTED_VERSION=$("$BIN_PATH" --version)
+          REPORTED_VERSION=$("$BIN_PATH" --version | tr -d '\r' | xargs)
           echo "Reported version: $REPORTED_VERSION"
-          if [[ "$REPORTED_VERSION" != *"$EXPECTED_VERSION"* ]]; then
+          if [[ "$REPORTED_VERSION" != "$EXPECTED_VERSION" ]]; then
             echo "Error: Binary reported '$REPORTED_VERSION', expected '$EXPECTED_VERSION'"
             exit 1
           fi
@@ -189,6 +229,13 @@ jobs:
 
           echo "Testing $BIN_PATH codegen --help"
           "$BIN_PATH" codegen --help
+
+          echo "Testing $BIN_PATH codegen execution"
+          SMOKE_OUT="${RUNNER_TEMP:-/tmp}/a2ui-smoke-out"
+          rm -rf "$SMOKE_OUT"
+          "$BIN_PATH" codegen --catalog ../../catalogs/basic/v1/catalog.json --out "$SMOKE_OUT"
+          test -s "$SMOKE_OUT/basic_catalog.py"
+          echo "Smoke test codegen passed successfully."
 
       - name: Package release artifacts
         working-directory: dart/a2ui_cli
@@ -210,7 +257,7 @@ jobs:
           if [[ "${TARGET}" == windows-* ]]; then
             powershell -Command "Compress-Archive -Path staging/* -DestinationPath artifacts/a2ui-v${VERSION}-${TARGET}.zip -Force"
           else
-            tar -czvf "artifacts/a2ui-v${VERSION}-${TARGET}.tar.gz" -C staging .
+            tar -czvf "artifacts/a2ui-v${VERSION}-${TARGET}.tar.gz" -C staging "${BINARY_NAME}" LICENSE README.md
           fi
 
           # Also copy raw standalone binary for direct curl / updater download
@@ -254,26 +301,28 @@ jobs:
           cat checksums.txt
 
       - name: Attest Build Provenance
+        if: needs.preflight.outputs.is_dry_run != 'true'
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.2.3
         with:
           subject-path: 'release-assets/*'
 
       - name: Extract Release Notes from CHANGELOG
         id: release_notes
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
         run: |
-          VERSION="${{ needs.preflight.outputs.version }}"
           python3 -c "
           import re, sys
           with open('dart/a2ui_cli/CHANGELOG.md') as f:
               content = f.read()
-          pattern = r'##\s+\[?' + re.escape(sys.argv[1]) + r'\]?.*?\n(.*?)(?=\n##\s+|\Z)'
-          match = re.search(pattern, content, re.DOTALL)
-          if match:
+          pattern = r'^##\s+\[?' + re.escape(sys.argv[1]) + r'(?:\\]|\s|$).*?\n(.*?)(?=\n^##\s+|\Z)'
+          match = re.search(pattern, content, re.DOTALL | re.MULTILINE)
+          if match and match.group(1).strip():
               print(match.group(1).strip())
           else:
               print(f'Release of A2UI CLI v{sys.argv[1]}')
-          " "$VERSION" > release_notes.md
-          echo "Extracted release notes:"
+          \" \"$VERSION\" > release_notes.md
+          echo \"Extracted release notes:\"
           cat release_notes.md
 
       - name: Publish GitHub Release
@@ -281,32 +330,38 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.preflight.outputs.tag }}
-          TITLE: "A2UI CLI v${{ needs.preflight.outputs.version }}"
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TITLE: \"A2UI CLI v${{ needs.preflight.outputs.version }}\"
           DRAFT_FLAG: ${{ needs.preflight.outputs.is_draft == 'true' && '--draft' || '' }}
         run: |
-          echo "Creating GitHub Release $TAG..."
-          gh release create "$TAG" release-assets/* \
-            --title "$TITLE" \
-            --notes-file release_notes.md \
-            --target "${{ github.sha }}" \
-            $DRAFT_FLAG
+          PRERELEASE_FLAG=\"\"
+          if [[ \"$VERSION\" == *\"-\"* ]]; then
+            PRERELEASE_FLAG=\"--prerelease\"
+          fi
+          echo \"Creating GitHub Release $TAG (draft: $DRAFT_FLAG, prerelease: $PRERELEASE_FLAG)...\"
+          gh release create \"$TAG\" release-assets/* \\
+            --title \"$TITLE\" \\
+            --notes-file release_notes.md \\
+            --target \"${{ github.sha }}\" \\
+            $DRAFT_FLAG \\
+            $PRERELEASE_FLAG
 
       - name: Dry Run Summary
         if: needs.preflight.outputs.is_dry_run == 'true'
         run: |
-          echo "=========================================="
-          echo "   A2UI CLI RELEASE DRY RUN SUCCESSFUL    "
-          echo "=========================================="
-          echo "Tag:     ${{ needs.preflight.outputs.tag }}"
-          echo "Version: ${{ needs.preflight.outputs.version }}"
-          echo ""
-          echo "Artifacts prepared:"
+          echo \"==========================================\"
+          echo \"   A2UI CLI RELEASE DRY RUN SUCCESSFUL    \"
+          echo \"==========================================\"
+          echo \"Tag:     ${{ needs.preflight.outputs.tag }}\"
+          echo \"Version: ${{ needs.preflight.outputs.version }}\"
+          echo \"\"
+          echo \"Artifacts prepared:\"
           ls -la release-assets/
-          echo ""
-          echo "Checksums:"
+          echo \"\"
+          echo \"Checksums:\"
           cat release-assets/checksums.txt
-          echo ""
-          echo "Release notes:"
+          echo \"\"
+          echo \"Release notes:\"
           cat release_notes.md
-          echo ""
-          echo "GitHub Release creation skipped (dry_run: true)."
+          echo \"\"
+          echo \"GitHub Release creation skipped (dry_run: true).\"

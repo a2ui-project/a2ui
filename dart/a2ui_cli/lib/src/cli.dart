@@ -19,24 +19,17 @@ import 'package:args/command_runner.dart';
 
 import 'commands/codegen_command.dart';
 
-const String defaultPackageVersion = '0.0.1-wip001';
+const String _defaultPackageVersion = '0.0.1-wip001';
 const String _injectedVersion = String.fromEnvironment(
   'CLI_VERSION',
-  defaultValue: '',
-);
-const String _injectedCommit = String.fromEnvironment(
-  'CLI_GIT_COMMIT',
   defaultValue: '',
 );
 
 /// The current version of the A2UI CLI package. Can be overridden at
 /// compile-time via `-DCLI_VERSION=<version>` during binary builds.
 const String packageVersion = _injectedVersion.isEmpty
-    ? defaultPackageVersion
+    ? _defaultPackageVersion
     : _injectedVersion;
-
-/// The git commit hash of the build, if injected via `-DCLI_GIT_COMMIT=<sha>`.
-const String packageGitCommit = _injectedCommit;
 
 class A2uiCommandRunner extends CommandRunner<int> {
   final StringSink outSink;
