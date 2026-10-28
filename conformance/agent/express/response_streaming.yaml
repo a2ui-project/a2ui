@@ -324,7 +324,7 @@
                     component: "Text"
                     text:
                       "@path": "/status"
-    - input: "$/status = \"act"
+    - input: '$/status = "act'
       expect: []
     - input: "ive\"\n</a2ui>"
       expect:
