@@ -152,6 +152,56 @@ extension CatalogProtocol {
   }
 }
 
+extension Dictionary where Key == String, Value: CatalogProtocol {
+  /// Filters catalogs to those compatible with `protocolVersion`.
+  public func filterCompatible(with protocolVersion: A2UIProtocolVersion?) -> [String: Value] {
+    guard let protocolVersion else { return self }
+    return filter { _, catalog in
+      guard let catalogVersion = catalog.a2uiProtocolVersion else { return true }
+      return catalogVersion.isAtLeastV10 == protocolVersion.isAtLeastV10
+    }
+  }
+
+  /// Resolves the default catalog ID when not explicitly provided.
+  public func resolveDefaultCatalogID(
+    explicitDefaultID: String?,
+    protocolVersion: A2UIProtocolVersion?
+  ) -> String? {
+    if let explicitDefaultID {
+      return explicitDefaultID
+    }
+    let allCatalogsAtLeastV10 = !isEmpty && values.allSatisfy(\.isAtLeastV10)
+    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
+    if !isAtLeastV10, count == 1 {
+      return keys.first
+    }
+    return nil
+  }
+
+  /// Resolves the effective protocol version based on catalogs and default catalog ID.
+  public func resolveExplicitProtocolVersion(
+    requestedVersion: A2UIProtocolVersion?,
+    defaultCatalogID: String?
+  ) -> A2UIProtocolVersion? {
+    if let requestedVersion {
+      return requestedVersion
+    }
+    if let defaultCatalogID,
+      let defaultCatalog = self[defaultCatalogID],
+      let catalogVersion = defaultCatalog.a2uiProtocolVersion
+    {
+      return catalogVersion
+    }
+    if !isEmpty && values.allSatisfy(\.isAtLeastV10) {
+      return .v10
+    }
+    if count == 1, let onlyCatalogVersion = values.first?.a2uiProtocolVersion {
+      return onlyCatalogVersion
+    }
+    return nil
+  }
+}
+
 /// A catalog whose components are erased to their name and schema.
 ///
 /// Its functions keep their implementations, so this is not the schema-only `CatalogApi` of the

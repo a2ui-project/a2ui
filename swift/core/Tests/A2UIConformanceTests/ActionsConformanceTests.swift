@@ -88,7 +88,7 @@ private final class ActionTestFunction: FunctionImplementation, Sendable {
     self.api = FunctionAPI(
       name: name,
       returnType: .any,
-      schema: try! Schema(instance: "{}")
+      schema: nil
     )
     self.block = block
   }

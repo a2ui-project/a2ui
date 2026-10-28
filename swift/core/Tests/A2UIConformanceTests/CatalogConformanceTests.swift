@@ -395,10 +395,10 @@ struct CatalogConformanceTests {
       }
       fullObj["$defs"] = .object(defs)
     }
-    guard
-      let schema = (try? Schema(rawSchema: .object(fullObj), context: context))
-        ?? (try? Schema(instance: "{}"))
-    else { return nil }
+    guard let schema = try? Schema(rawSchema: .object(fullObj), context: context) else {
+      Issue.record("Failed to compile schema for component '\(name)'")
+      return nil
+    }
     let parents = schemaValue["allowedParents"]?.arrayValue?.compactMap(\.stringValue)
     let children = schemaValue["allowedChildren"]?.arrayValue?.compactMap(\.stringValue)
     var meta: [String: JSONValue]?
@@ -432,18 +432,18 @@ struct CatalogConformanceTests {
     context: Context
   ) -> (any FunctionImplementation)? {
     let argsSchemaJSON = extractFunctionArgsSchema(from: funcValue)
-    guard
-      let schema = (try? Schema(rawSchema: argsSchemaJSON, context: context))
-        ?? (try? Schema(instance: "{}"))
-    else { return nil }
-    let retStr = funcValue["returnType"]?.stringValue ?? "any"
-    let retType = FunctionReturnType(rawValue: retStr) ?? .any
-    let callersStr = funcValue["allowedCallers"]?.stringValue ?? "rendererOnly"
-    let callers = AllowedCallers(rawValue: callersStr) ?? .rendererOnly
+    guard let schema = try? Schema(rawSchema: argsSchemaJSON, context: context) else {
+      Issue.record("Failed to compile schema for function '\(name)'")
+      return nil
+    }
+    let returnTypeString = funcValue["returnType"]?.stringValue ?? "any"
+    let returnType = FunctionReturnType(rawValue: returnTypeString) ?? .any
+    let allowedCallersString = funcValue["allowedCallers"]?.stringValue ?? "rendererOnly"
+    let callers = AllowedCallers(rawValue: allowedCallersString) ?? .rendererOnly
     let requiresActivation = funcValue["requiresUserActivation"]?.boolValue ?? false
     let api = FunctionAPI(
       name: name,
-      returnType: retType,
+      returnType: returnType,
       schema: schema,
       allowedCallers: callers,
       requiresUserActivation: requiresActivation

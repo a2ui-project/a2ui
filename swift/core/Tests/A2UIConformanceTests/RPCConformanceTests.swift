@@ -113,25 +113,23 @@ struct RPCConformanceTests {
   }
 
   private func makeMockRPCFunction(
-    name fnName: String,
-    metadata metaVal: JSONValue
+    name functionName: String,
+    metadata metadataValue: JSONValue
   ) -> any FunctionImplementation {
-    let callersStr = metaVal["allowedCallers"]?.stringValue ?? "rendererOrAgent"
-    let callers: AllowedCallers =
-      callersStr == "rendererOnly"
-      ? .rendererOnly : (callersStr == "agentOnly" ? .agentOnly : .rendererOrAgent)
-    let reqUserActivation = metaVal["requiresUserActivation"]?.boolValue ?? false
-    let paramSchema: Schema? = metaVal["parameters"].flatMap {
+    let allowedCallersString = metadataValue["allowedCallers"]?.stringValue ?? "rendererOrAgent"
+    let callers = AllowedCallers(rawValue: allowedCallersString) ?? .rendererOrAgent
+    let requiresUserActivation = metadataValue["requiresUserActivation"]?.boolValue ?? false
+    let parameterSchema: Schema? = metadataValue["parameters"].flatMap {
       try? Schema(rawSchema: $0, context: Context(dialect: .draft2020_12))
     }
 
-    switch fnName {
+    switch functionName {
     case "failingFunction":
       return ConformanceMockRPCFunction(
-        name: fnName,
-        schema: paramSchema,
+        name: functionName,
+        schema: parameterSchema,
         allowedCallers: callers,
-        requiresUserActivation: reqUserActivation
+        requiresUserActivation: requiresUserActivation
       ) { _, _ in
         throw A2UIValidationError("Runtime error")
       }
@@ -351,20 +349,24 @@ struct RPCConformanceTests {
     }
 
     let box = OutboundMessageBox()
-    let callTask = Task {
-      try await rpcHandler.callAgentFunction(
-        surfaceID: surfaceID,
-        functionName: call,
-        catalogID: catID,
-        functionCallID: fnCallID,
-        args: args,
-        version: .v10,
-        timeoutSeconds: 5.0,
-        sendOutbound: { msg in box.lastMessage = msg }
-      )
+    var callTask: Task<JSONValue, any Error>!
+    await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+      callTask = Task {
+        try await rpcHandler.callAgentFunction(
+          surfaceID: surfaceID,
+          functionName: call,
+          catalogID: catID,
+          functionCallID: fnCallID,
+          args: args,
+          version: .v10,
+          timeoutSeconds: 5.0,
+          sendOutbound: { message in
+            box.lastMessage = message
+            started.resume()
+          }
+        )
+      }
     }
-
-    try await Task.sleep(nanoseconds: 10_000_000)
 
     assertOutboundCallAgentMatches(
       captured: box.lastMessage,
@@ -428,17 +430,21 @@ struct RPCConformanceTests {
       firstCall["callFunction"]?["@call"]?.stringValue
       ?? firstCall["callFunction"]?["call"]?.stringValue ?? ""
 
-    let firstTask = Task {
-      try? await rpcHandler.callAgentFunction(
-        surfaceID: surfaceID,
-        functionName: call,
-        functionCallID: fnCallID,
-        version: .v10,
-        timeoutSeconds: 5.0,
-        sendOutbound: { _ in }
-      )
+    var firstTask: Task<JSONValue, any Error>!
+    await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+      firstTask = Task {
+        try await rpcHandler.callAgentFunction(
+          surfaceID: surfaceID,
+          functionName: call,
+          functionCallID: fnCallID,
+          version: .v10,
+          timeoutSeconds: 5.0,
+          sendOutbound: { _ in
+            started.resume()
+          }
+        )
+      }
     }
-    try? await Task.sleep(nanoseconds: 10_000_000)
 
     let secondID = secondCall["functionCallId"]?.stringValue ?? fnCallID
     do {
@@ -479,19 +485,24 @@ struct RPCConformanceTests {
     let inboundVal = scenario["inboundResponseValue"] ?? .null
 
     let box = OutboundMessageBox()
-    let callTask = Task {
-      try await rpcHandler.callAgentFunction(
-        surfaceID: surfaceID,
-        functionName: fnName,
-        catalogID: catalogID,
-        functionCallID: "ui-bind-1",
-        args: argsDict,
-        version: .v10,
-        timeoutSeconds: 5.0,
-        sendOutbound: { msg in box.lastMessage = msg }
-      )
+    var callTask: Task<JSONValue, any Error>!
+    await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+      callTask = Task {
+        try await rpcHandler.callAgentFunction(
+          surfaceID: surfaceID,
+          functionName: fnName,
+          catalogID: catalogID,
+          functionCallID: "ui-bind-1",
+          args: argsDict,
+          version: .v10,
+          timeoutSeconds: 5.0,
+          sendOutbound: { message in
+            box.lastMessage = message
+            started.resume()
+          }
+        )
+      }
     }
-    try await Task.sleep(nanoseconds: 10_000_000)
 
     assertOutboundCallAgentMatches(
       captured: box.lastMessage,
@@ -524,19 +535,24 @@ struct RPCConformanceTests {
     let inboundVal = scenario["inboundResponseValue"] ?? .null
 
     let box = OutboundMessageBox()
-    let callTask = Task {
-      try await rpcHandler.callAgentFunction(
-        surfaceID: surfaceID,
-        functionName: fnName,
-        catalogID: catalogID,
-        functionCallID: "ui-action-1",
-        args: argsDict,
-        version: .v10,
-        timeoutSeconds: 5.0,
-        sendOutbound: { msg in box.lastMessage = msg }
-      )
+    var callTask: Task<JSONValue, any Error>!
+    await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+      callTask = Task {
+        try await rpcHandler.callAgentFunction(
+          surfaceID: surfaceID,
+          functionName: fnName,
+          catalogID: catalogID,
+          functionCallID: "ui-action-1",
+          args: argsDict,
+          version: .v10,
+          timeoutSeconds: 5.0,
+          sendOutbound: { message in
+            box.lastMessage = message
+            started.resume()
+          }
+        )
+      }
     }
-    try await Task.sleep(nanoseconds: 10_000_000)
 
     assertOutboundCallAgentMatches(
       captured: box.lastMessage,

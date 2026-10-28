@@ -420,7 +420,12 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
       switch current.value {
       case .object(let dictionary):
         let nextFunctionDepth = try validateObjectExpressions(dictionary, state: current)
-        appendObjectChildren(dictionary, state: current, nextFunctionDepth: nextFunctionDepth, to: &stack)
+        appendObjectChildren(
+          dictionary,
+          state: current,
+          nextFunctionDepth: nextFunctionDepth,
+          to: &stack
+        )
       case .array(let array):
         appendArrayChildren(array, state: current, to: &stack)
       default:
@@ -430,12 +435,12 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   }
 
   private func checkRecursionDepths(_ state: PathRecursionState) throws {
-    if state.globalDepth > Self.maxGlobalDepth {
+    guard state.globalDepth <= Self.maxGlobalDepth else {
       throw A2UIRecursionError(
         "Global recursion limit exceeded: Depth > \(Self.maxGlobalDepth)"
       )
     }
-    if state.validateExpressions && state.functionDepth > Self.maxFunctionDepth {
+    if state.validateExpressions, state.functionDepth > Self.maxFunctionDepth {
       throw A2UIRecursionError(
         "Recursion limit exceeded: functionCall depth > \(Self.maxFunctionDepth)"
       )
