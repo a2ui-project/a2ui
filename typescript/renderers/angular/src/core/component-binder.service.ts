@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  DestroyRef,
-  Injectable,
-  inject,
-  Signal as AngularSignal,
-  EnvironmentInjector,
-} from '@angular/core';
+import {Injectable, inject, Signal as AngularSignal, EnvironmentInjector} from '@angular/core';
 import {
   ComponentContext,
   type ComponentNode,
@@ -30,56 +24,30 @@ import {
   isComponentNode,
   isWritable,
   peekValue,
-  signal,
 } from '@a2ui/web_core/v0_9';
 import {BoundProperty, ComponentTemplate} from './types';
 import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
-
-function isChildListTemplateObject(
-  value: unknown,
-): value is {componentId: string; path?: string; '@path'?: string} {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.hasOwn(value, 'componentId') &&
-    (Object.hasOwn(value, 'path') || Object.hasOwn(value, '@path'))
-  );
-}
-
-function extractBoundPath(value: unknown): string | undefined {
-  if (
-    typeof value !== 'object' ||
-    value === null ||
-    Array.isArray(value) ||
-    Object.hasOwn(value, 'componentId')
-  ) {
-    return undefined;
-  }
-  const rec = value as Record<string, unknown>;
-  if (typeof rec['@path'] === 'string') return rec['@path'];
-  if (typeof rec['path'] === 'string') return rec['path'];
-  return undefined;
-}
-
-function isStructuredValidationResult(val: unknown): val is Record<string, unknown> {
-  return (
-    typeof val === 'object' && val !== null && !Array.isArray(val) && Object.hasOwn(val, 'valid')
-  );
-}
 
 /** Represents a reference to a child component. */
 export interface Child {
   id: string;
   basePath: string;
+  /**
+   * The resolved node for this child when the parent was bound from a
+   * `ComponentNode`. Hosts render it directly instead of searching the tree.
+   */
+  node?: ComponentNode;
 }
 
 /**
- * Binds A2UI ComponentNode or ComponentModel properties to reactive Angular Signals.
+ * Binds the resolved properties of a `ComponentNode` to reactive Angular Signals.
  *
- * This service is used by {@link ComponentHostComponent} and {@link AngularWcHost}
- * to expose resolved `ComponentNode.props` (or `ComponentContext` properties) as
- * Angular Signals with two-way data model update callbacks.
+ * `NodeResolver` already resolves every property of a node: dynamic values arrive
+ * as `ResolvedBinding` instances (writable ones carry their setter), actions as
+ * ready-to-call closures, child properties as live `ComponentNode` references, and
+ * `checks` as `isValid`, `validationErrors`, and `validationResults`. This service
+ * is a thin adapter that exposes each entry of `node.props` as a {@link BoundProperty}
+ * for {@link ComponentHostComponent} and {@link AngularWcHost}.
  */
 @Injectable({
   providedIn: 'root',
@@ -92,64 +60,19 @@ export class ComponentBinder {
   }
 
   /**
-   * Unsubscribes any reactive signal subscriptions associated with a previously
-   * returned bound property map.
-   *
-   * @param bound The bound property map returned by {@link bind} or {@link bindNode}.
-   */
-  unbind(bound: Record<string, BoundProperty> | undefined): void {
-    if (!bound) return;
-    const cleanups = this.boundCleanups.get(bound);
-    if (!cleanups) return;
-    this.boundCleanups.delete(bound);
-    for (const cleanup of cleanups) {
-      cleanup();
-    }
-  }
-
-  private registerBoundCleanups(
-    bound: Record<string, BoundProperty>,
-    cleanups: Array<() => void>,
-    destroyRef?: DestroyRef,
-  ): void {
-    if (cleanups.length === 0) return;
-    this.boundCleanups.set(bound, cleanups);
-    destroyRef?.onDestroy(() => this.unbind(bound));
-  }
-
-  /**
    * Binds all properties of a resolved `ComponentNode` to an object of Angular Signals.
    *
-   * Reads directly from `node.props` (produced by `NodeResolver`) without
-   * duplicating `DataContext` subscriptions when the node's schema resolves them.
+   * Reads only from `node.props`; no additional `DataContext` subscriptions are created.
    *
    * @param node The resolved ComponentNode.
-   * @param destroyRef Optional component-scoped `DestroyRef` to automatically clean up subscriptions.
    * @returns A map of property names to reactive `BoundProperty` wrappers.
    */
-  bindNode(node: ComponentNode, destroyRef?: DestroyRef): Record<string, BoundProperty> {
+  bindNode(node: ComponentNode): Record<string, BoundProperty> {
     const rawProps = node.context?.componentModel.properties ?? {};
-    const initialNodeProps = peekValue(node.props);
     const bound: Record<string, BoundProperty<unknown>> = {};
-    const cleanups: Array<() => void> = [];
-    const allKeys = new Set([...Object.keys(rawProps), ...Object.keys(initialNodeProps)]);
-
-    for (const key of allKeys) {
-      bound[key] = this.bindNodeProperty(node, key, rawProps[key], cleanups);
+    for (const key of Object.keys(peekValue(node.props))) {
+      bound[key] = this.bindNodeProperty(node, key, rawProps[key]);
     }
-
-    if (
-      Object.hasOwn(rawProps, 'checks') &&
-      !Object.hasOwn(initialNodeProps, 'isValid') &&
-      node.context
-    ) {
-      const checkProps = this.bindChecks(rawProps['checks'], node.context, cleanups);
-      bound['isValid'] = checkProps.isValid;
-      bound['validationErrors'] = checkProps.validationErrors;
-      bound['validationResults'] = checkProps.validationResults;
-    }
-
-    this.registerBoundCleanups(bound, cleanups, destroyRef);
     return bound;
   }
 
@@ -157,44 +80,21 @@ export class ComponentBinder {
     node: ComponentNode,
     key: string,
     rawVal: unknown,
-    cleanups: Array<() => void>,
   ): BoundProperty<unknown> {
-    if (key === 'action') {
-      return {
-        value: signal(rawVal) as AngularSignal<unknown>,
-        raw: rawVal,
-        template: undefined,
-        onUpdate: () => {},
-      };
-    }
-
-    const isCheckSynthetic =
-      key === 'isValid' || key === 'validationErrors' || key === 'validationResults';
-    const directBound =
-      !isCheckSynthetic && rawVal !== undefined && node.context
-        ? this.bindProperty(key, rawVal, node.context, cleanups)
-        : undefined;
-
-    const valueSignal = computed(() => {
-      const currentProps = getValue(node.props);
-      const nodeVal = Object.hasOwn(currentProps, key) ? currentProps[key] : rawVal;
-      if (
-        isComponentNode(nodeVal) ||
-        (Array.isArray(nodeVal) && nodeVal.some(isComponentNode)) ||
-        !directBound
-      ) {
-        return this.unwrapNodePropValue(key, nodeVal, node.dataPath);
-      }
-      return directBound.value();
-    });
+    const valueSignal = computed(() =>
+      this.unwrapNodePropValue(key, getValue(node.props)[key], node.dataPath),
+    );
     assertAngularSignal(valueSignal);
-
-    const template = directBound?.template ?? this.extractNodeTemplate(key, rawVal);
     return {
       value: valueSignal as AngularSignal<unknown>,
-      raw: isCheckSynthetic ? null : rawVal,
-      template,
-      onUpdate: (newValue: unknown) => this.updateNodeProp(node, key, rawVal, newValue),
+      raw: rawVal,
+      template: this.extractNodeTemplate(key, rawVal),
+      onUpdate: (newValue: unknown) => {
+        const binding = peekValue(node.props)[key];
+        if (binding instanceof ResolvedBinding && isWritable(binding)) {
+          binding.set(newValue);
+        }
+      },
     };
   }
 
@@ -206,36 +106,17 @@ export class ComponentBinder {
     return rawVal.componentId && path ? {id: rawVal.componentId, path} : undefined;
   }
 
-  private updateNodeProp(
-    node: ComponentNode,
-    key: string,
-    rawVal: unknown,
-    newValue: unknown,
-  ): void {
-    const current = peekValue(node.props)[key];
-    if (current instanceof ResolvedBinding && isWritable(current)) {
-      current.set(newValue);
-      return;
-    }
-    const boundPath = extractBoundPath(rawVal);
-    if (boundPath !== undefined && node.context) {
-      node.context.dataContext.set(boundPath, newValue);
-    }
-  }
-
   private unwrapNodePropValue(key: string, val: unknown, defaultBasePath: string): unknown {
     if (val instanceof ResolvedBinding) {
       return this.unwrapNodePropValue(key, val.value, defaultBasePath);
     }
     if (isComponentNode(val)) {
-      return {id: val.componentId, basePath: val.dataPath};
+      return toChild(val);
     }
     if (Array.isArray(val)) {
-      if (key === 'children' || val.some(isComponentNode)) {
+      if (key === 'children') {
         return val.map(item =>
-          isComponentNode(item)
-            ? {id: item.componentId, basePath: item.dataPath}
-            : this.normalizeChildItem(item, defaultBasePath),
+          isComponentNode(item) ? toChild(item) : this.normalizeChildItem(item, defaultBasePath),
         );
       }
       return val.map(item => this.unwrapNodePropValue(key, item, defaultBasePath));
@@ -254,13 +135,34 @@ export class ComponentBinder {
   }
 
   /**
-   * Binds all properties of a component to an object of Angular Signals.
+   * Unsubscribes any reactive signal subscriptions created by {@link bind}.
    *
+   * Property maps returned by {@link bindNode} hold no subscriptions of their own, so
+   * calling this with one of them is a no-op.
+   *
+   * @param bound The bound property map returned by {@link bind} or {@link bindNode}.
+   */
+  unbind(bound: Record<string, BoundProperty> | undefined): void {
+    if (!bound) return;
+    const cleanups = this.boundCleanups.get(bound);
+    if (!cleanups) return;
+    this.boundCleanups.delete(bound);
+    for (const cleanup of cleanups) {
+      cleanup();
+    }
+  }
+
+  /**
+   * Binds all properties of a component to an object of Angular Signals from its
+   * `ComponentContext`, resolving data bindings through the `DataContext` directly.
+   *
+   * @deprecated Hosts bind from the resolved `ComponentNode` via {@link bindNode}. This
+   *   path remains for elements that are given a `ComponentContext` without a node and
+   *   will be removed in a future release.
    * @param context The ComponentContext containing the model and data context.
-   * @param destroyRef Optional component-scoped `DestroyRef` to automatically clean up subscriptions.
    * @returns An object where each key corresponds to a component prop and its value is an Angular Signal.
    */
-  bind(context: ComponentContext, destroyRef?: DestroyRef): Record<string, BoundProperty> {
+  bind(context: ComponentContext): Record<string, BoundProperty> {
     const props = context.componentModel.properties;
     const bound: Record<string, BoundProperty<unknown>> = {};
     const cleanups: Array<() => void> = [];
@@ -273,11 +175,12 @@ export class ComponentBinder {
         const checkProps = this.bindChecks(value, context, cleanups);
         bound['isValid'] = checkProps.isValid;
         bound['validationErrors'] = checkProps.validationErrors;
-        bound['validationResults'] = checkProps.validationResults;
       }
     }
 
-    this.registerBoundCleanups(bound, cleanups, destroyRef);
+    if (cleanups.length > 0) {
+      this.boundCleanups.set(bound, cleanups);
+    }
     return bound;
   }
 
@@ -287,21 +190,17 @@ export class ComponentBinder {
     context: ComponentContext,
     cleanups: Array<() => void>,
   ): BoundProperty<unknown> {
-    const isChildListTemplate = isChildListTemplateObject(value);
-    const boundPath = extractBoundPath(value);
+    const isChildListTemplate =
+      value && typeof value === 'object' && 'componentId' in value && 'path' in value;
+    const isBoundPath =
+      value && typeof value === 'object' && 'path' in value && !('componentId' in value);
 
-    const baseSignal =
-      key === 'action'
-        ? signal(value)
-        : isChildListTemplate
-          ? this.createChildListSignal(value, context, cleanups)
-          : context.dataContext.resolveSignal(value);
+    const baseSignal = isChildListTemplate
+      ? this.createChildListSignal(value, context, cleanups)
+      : context.dataContext.resolveSignal(value);
 
     const {valueSignal, template} = this.transformStructuralSignal(key, value, baseSignal, context);
 
-    if (baseSignal?.unsubscribe && baseSignal !== valueSignal) {
-      cleanups.push(() => baseSignal.unsubscribe!());
-    }
     if (valueSignal?.unsubscribe) {
       cleanups.push(() => valueSignal.unsubscribe!());
     }
@@ -310,35 +209,30 @@ export class ComponentBinder {
       value: valueSignal as AngularSignal<unknown>,
       raw: value,
       template,
-      onUpdate:
-        boundPath !== undefined
-          ? (newValue: unknown) => context.dataContext.set(boundPath, newValue)
-          : () => {}, // No-op for non-bound values
+      onUpdate: isBoundPath
+        ? (newValue: unknown) => context.dataContext.set(value.path, newValue)
+        : () => {}, // No-op for non-bound values
     };
   }
 
   private createChildListSignal(
-    value: {componentId: string; path?: string; '@path'?: string},
+    value: {componentId: string; path: string},
     context: ComponentContext,
     cleanups: Array<() => void>,
   ) {
-    const templatePath = value['@path'] ?? value.path ?? '';
-    const listBinding = context.dataContext.atLeastV10
-      ? {'@path': templatePath}
-      : {path: templatePath};
-    const listSig = context.dataContext.resolveSignal(listBinding);
+    const listSig = context.dataContext.resolveSignal({path: value.path});
     if (listSig?.unsubscribe) {
       cleanups.push(() => listSig.unsubscribe!());
     }
     assertAngularSignal(listSig);
 
-    const listContext = context.dataContext.nested(templatePath);
+    const listContext = context.dataContext.nested(value.path);
     return computed(() => {
       const arr = listSig();
       const currentArr = Array.isArray(arr) ? arr : [];
       return currentArr.map((_, i) => ({
         id: value.componentId,
-        basePath: listContext.nested(String(i), i).path,
+        basePath: listContext.nested(String(i)).path,
       }));
     });
   }
@@ -362,7 +256,7 @@ export class ComponentBinder {
     if (key === 'children') {
       assertAngularSignal(valueSignal);
       const id = value?.componentId;
-      const path = value?.['@path'] ?? value?.path;
+      const path = value?.path;
       const template = id && path ? {id, path} : undefined;
       return {
         template,
@@ -385,15 +279,16 @@ export class ComponentBinder {
     return {id: val, basePath};
   }
 
-  private resolveCheckRuleSignals(
-    checksArray: unknown[],
+  private bindChecks(
+    value: unknown,
     context: ComponentContext,
     cleanups: Array<() => void>,
-  ): Array<{conditionSig: unknown; messageSig: unknown}> {
-    return checksArray.map(rule => {
-      const ruleObj = rule as {condition?: unknown; message?: unknown};
-      const condition = ruleObj.condition ?? rule;
-      const message = ruleObj.message ?? 'Validation failed';
+  ): {isValid: BoundProperty<unknown>; validationErrors: BoundProperty<unknown>} {
+    const checksArray = Array.isArray(value) ? value : [];
+
+    const ruleResults = checksArray.map(rule => {
+      const condition = rule.condition ?? rule;
+      const message = rule.message ?? 'Validation failed';
       const conditionSig = context.dataContext.resolveSignal(condition);
       const messageSig = context.dataContext.resolveSignal(message);
       if (conditionSig?.unsubscribe) {
@@ -404,42 +299,21 @@ export class ComponentBinder {
       }
       return {conditionSig, messageSig};
     });
-  }
-
-  private bindChecks(
-    value: unknown,
-    context: ComponentContext,
-    cleanups: Array<() => void>,
-  ): {
-    isValid: BoundProperty<unknown>;
-    validationErrors: BoundProperty<unknown>;
-    validationResults: BoundProperty<unknown>;
-  } {
-    const checksArray = Array.isArray(value) ? value : [];
-    const ruleResults = this.resolveCheckRuleSignals(checksArray, context, cleanups);
 
     const isValidSignal = computed(() =>
       ruleResults.every(r => !this.evaluateCheckRule(r.conditionSig, r.messageSig).isBlockingError),
     );
 
-    const validationErrorsSignal = computed(() =>
-      ruleResults
-        .map(r => this.evaluateCheckRule(r.conditionSig, r.messageSig))
-        .filter(res => res.isBlockingError)
-        .map(res => res.errorMessage),
-    );
-
-    const validationResultsSignal = computed(() =>
-      ruleResults
-        .map(r => this.evaluateCheckRule(r.conditionSig, r.messageSig))
-        .filter(res => !res.isValid)
-        .map(res => ({
-          valid: false,
-          message: res.errorMessage,
-          ...(res.code !== undefined ? {code: res.code} : {}),
-          severity: res.severity,
-        })),
-    );
+    const validationErrorsSignal = computed(() => {
+      const errors: string[] = [];
+      for (const r of ruleResults) {
+        const result = this.evaluateCheckRule(r.conditionSig, r.messageSig);
+        if (result.isBlockingError) {
+          errors.push(result.errorMessage);
+        }
+      }
+      return errors;
+    });
 
     return {
       isValid: {
@@ -452,52 +326,49 @@ export class ComponentBinder {
         raw: null,
         onUpdate: () => {},
       },
-      validationResults: {
-        value: validationResultsSignal as AngularSignal<unknown>,
-        raw: null,
-        onUpdate: () => {},
-      },
     };
   }
 
   private evaluateCheckRule(
     conditionSig: unknown,
     messageSig: unknown,
-  ): {
-    isValid: boolean;
-    isBlockingError: boolean;
-    errorMessage: string;
-    severity: string;
-    code?: string;
-  } {
+  ): {isBlockingError: boolean; errorMessage: string} {
     assertAngularSignal(conditionSig);
     assertAngularSignal(messageSig);
     const rawResult = conditionSig();
-    const fallbackMsg = (messageSig() as string) || 'Validation failed';
 
-    if (isStructuredValidationResult(rawResult)) {
-      const isValid = Boolean(rawResult['valid']);
-      const severity = typeof rawResult['severity'] === 'string' ? rawResult['severity'] : 'error';
-      const code = typeof rawResult['code'] === 'string' ? rawResult['code'] : undefined;
+    if (typeof rawResult === 'object' && rawResult !== null && 'valid' in rawResult) {
+      const resObj = rawResult as Record<string, unknown>;
+      const isValid = Boolean(resObj['valid']);
+      const severity = typeof resObj['severity'] === 'string' ? resObj['severity'] : 'error';
       const dynamicMsg =
-        typeof rawResult['message'] === 'string' && rawResult['message']
-          ? rawResult['message']
-          : undefined;
+        typeof resObj['message'] === 'string' && resObj['message'] ? resObj['message'] : undefined;
       return {
-        isValid,
         isBlockingError: !isValid && severity === 'error',
-        errorMessage: dynamicMsg || fallbackMsg,
-        severity,
-        code,
+        errorMessage: dynamicMsg || (messageSig() as string) || 'Validation failed',
       };
     }
 
     const isValid = Boolean(rawResult);
     return {
-      isValid,
       isBlockingError: !isValid,
-      errorMessage: fallbackMsg,
-      severity: 'error',
+      errorMessage: (messageSig() as string) || 'Validation failed',
     };
   }
+}
+
+function toChild(node: ComponentNode): Child {
+  return {id: node.componentId, basePath: node.dataPath, node};
+}
+
+function isChildListTemplateObject(
+  value: unknown,
+): value is {componentId: string; path?: string; '@path'?: string} {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.hasOwn(value, 'componentId') &&
+    (Object.hasOwn(value, 'path') || Object.hasOwn(value, '@path'))
+  );
 }

@@ -80,7 +80,7 @@ export interface CheckValidationResult {
   valid: boolean;
   message: string;
   code?: string;
-  severity: string;
+  severity: 'error' | 'warning' | 'info';
 }
 
 interface CheckProps {

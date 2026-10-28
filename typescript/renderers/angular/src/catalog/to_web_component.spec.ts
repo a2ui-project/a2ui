@@ -22,6 +22,7 @@ import {
   Catalog,
   ComponentContext,
   ComponentModel,
+  DynamicStringSchema,
   NodeResolver,
   SurfaceModel,
   getValue,
@@ -459,19 +460,23 @@ describe('toWebComponent', () => {
   });
 
   it('binds via binder.bindNode when el.node is assigned from NodeResolver', () => {
+    // Inject the binder first so Angular reactivity is in place before the resolver
+    // creates any signals.
+    const binder = TestBed.inject(ComponentBinder);
     const impl = createUniversalImplementation(
-      {name: 'NodeHostTest', schema: z.object({text: z.string()})},
+      {name: 'NodeHostTest', schema: z.object({text: DynamicStringSchema})},
       TestBindContextComponent,
     );
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
     const surface = new SurfaceModel('surface-node-wc', catalog);
+    surface.dataModel.set('/text', 'From Node');
     surface.componentsModel.addComponent(
-      new ComponentModel('root', 'NodeHostTest', {text: 'From Node'}, catalog),
+      new ComponentModel('root', 'NodeHostTest', {text: {path: '/text'}}, catalog),
     );
     const resolver = new NodeResolver(surface, catalog);
     const rootNode = getValue(resolver.rootNode)!;
 
-    const bindNodeSpy = spyOn(TestBed.inject(ComponentBinder), 'bindNode').and.callThrough();
+    const bindNodeSpy = spyOn(binder, 'bindNode').and.callThrough();
     registerUniversalElement(impl);
     const el = document.createElement(impl.tagName) as AngularWcHost;
     el.injector = injector;
@@ -482,15 +487,18 @@ describe('toWebComponent', () => {
     expect(el.node).toBe(rootNode);
     expect(el.querySelector('.test-text')!.textContent).toBe('From Node');
 
-    // Clearing el.node should unsubscribe context updates and unbind previous props
-    const unbindSpy = spyOn(TestBed.inject(ComponentBinder), 'unbind').and.callThrough();
+    // A data change after mount reaches the DOM through the node's props.
+    surface.dataModel.set('/text', 'Updated Node');
+    TestBed.tick();
+    (el as any).componentRef?.changeDetectorRef.detectChanges();
+    expect(el.querySelector('.test-text')!.textContent).toBe('Updated Node');
+
+    // Clearing `node` keeps the current context and bindings in place; parents assign
+    // `node` and then `context`, and `set context` performs the rebind.
     el.node = undefined;
     expect(el.node).toBeUndefined();
-    expect(unbindSpy).toHaveBeenCalled();
-
-    const rootModel = surface.componentsModel.get('root')!;
-    rootModel.properties = {text: 'Should Not Update After Clear'};
-    expect(el.querySelector('.test-text')!.textContent).toBe('From Node');
+    expect(el.context).toBe(rootNode.context!);
+    expect(el.querySelector('.test-text')!.textContent).toBe('Updated Node');
 
     document.body.removeChild(el);
     resolver.dispose();

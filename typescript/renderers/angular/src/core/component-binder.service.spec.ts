@@ -450,9 +450,17 @@ describe('ComponentBinder', () => {
       const resolver = new NodeResolver(surface, basicCatalog);
       const rootNode = getValue(resolver.rootNode)!;
       const rootBound = binder.bindNode(rootNode);
-      expect(rootBound['children'].value()).toEqual([{id: 'input-1', basePath: '/'}]);
+      const children = rootBound['children'].value() as Array<{
+        id: string;
+        basePath: string;
+        node: unknown;
+      }>;
+      expect(children.length).toBe(1);
+      expect(children[0].id).toBe('input-1');
+      expect(children[0].basePath).toBe('/');
 
       const childNode = (getValue(rootNode.props)['children'] as any[])[0];
+      expect(children[0].node).toBe(childNode);
       const inputBound = binder.bindNode(childNode);
       expect(inputBound['label'].value()).toBe('Username');
       expect(inputBound['value'].value()).toBe('Initial Name');
@@ -460,10 +468,79 @@ describe('ComponentBinder', () => {
       // Two-way update writes through WritableBinding to DataModel
       inputBound['value'].onUpdate('Updated Name');
       expect(surface.dataModel.get('/userName')).toBe('Updated Name');
+      // The resolver refreshes `node.props` in an effect, which Angular runs on tick.
+      TestBed.tick();
       expect(inputBound['value'].value()).toBe('Updated Name');
 
-      binder.unbind(rootBound);
-      binder.unbind(inputBound);
+      // onUpdate on a read-only (literal) binding is a no-op
+      expect(() => inputBound['label'].onUpdate('Changed')).not.toThrow();
+      expect(inputBound['label'].value()).toBe('Username');
+
+      resolver.dispose();
+    });
+
+    it('does not create DataContext subscriptions of its own when binding a node', () => {
+      const surface = new SurfaceModel('node-surface-2', basicCatalog);
+      surface.dataModel.set('/title', 'A');
+      surface.componentsModel.addComponent(
+        new ComponentModel('root', 'Text', {text: {path: '/title'}}, basicCatalog),
+      );
+      const resolver = new NodeResolver(surface, basicCatalog);
+      const rootNode = getValue(resolver.rootNode)!;
+
+      const resolveSpy = spyOn(rootNode.context!.dataContext, 'resolveSignal').and.callThrough();
+      const bound = binder.bindNode(rootNode);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      expect(bound['text'].value()).toBe('A');
+      surface.dataModel.set('/title', 'B');
+      TestBed.tick();
+      expect(bound['text'].value()).toBe('B');
+
+      resolver.dispose();
+    });
+
+    it('exposes the resolver check outputs for nodes with checks', () => {
+      const surface = new SurfaceModel('node-surface-3', basicCatalog);
+      surface.dataModel.set('/ok', false);
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'root',
+          'TextField',
+          {label: 'Name', checks: [{condition: {path: '/ok'}, message: 'Required'}]},
+          basicCatalog,
+        ),
+      );
+      const resolver = new NodeResolver(surface, basicCatalog);
+      const bound = binder.bindNode(getValue(resolver.rootNode)!);
+
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Required']);
+      surface.dataModel.set('/ok', true);
+      TestBed.tick();
+      expect(bound['isValid'].value()).toBe(true);
+
+      resolver.dispose();
+    });
+
+    it('exposes action closures from the node props', () => {
+      const surface = new SurfaceModel('node-surface-4', basicCatalog);
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'root',
+          'Button',
+          {child: 'label', action: {event: {name: 'tap'}}},
+          basicCatalog,
+        ),
+      );
+      surface.componentsModel.addComponent(
+        new ComponentModel('label', 'Text', {text: 'Tap'}, basicCatalog),
+      );
+      const resolver = new NodeResolver(surface, basicCatalog);
+      const bound = binder.bindNode(getValue(resolver.rootNode)!);
+
+      expect(typeof bound['action'].value()).toBe('function');
+
       resolver.dispose();
     });
 

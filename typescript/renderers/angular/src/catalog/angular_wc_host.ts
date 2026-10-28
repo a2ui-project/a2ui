@@ -146,20 +146,17 @@ export class AngularWcHost extends HTMLElement {
 
   set node(node: ComponentNode | undefined) {
     this._node = node;
-    if (node) {
-      if (node.context) {
-        this._context = node.context;
-      }
-      if (this._context) {
-        this.subscribeToContext(this._context);
-        this.updateContext();
-      }
-    } else {
-      this._context = undefined;
-      this.contextSubscription?.unsubscribe();
-      this.contextSubscription = undefined;
-      this.binder?.unbind(this.boundProps);
-      this.boundProps = undefined;
+    if (!node) {
+      // Parents assign `node` (possibly undefined) and then `context`; `set context`
+      // rebinds, so clearing the node must not tear down the current bindings.
+      return;
+    }
+    if (node.context) {
+      this._context = node.context;
+    }
+    if (this._context) {
+      this.subscribeToContext(this._context);
+      this.updateContext();
     }
   }
 
