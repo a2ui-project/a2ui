@@ -205,7 +205,7 @@ class RendererState:
           A2uiCatalogError: If the processor's catalogs could not make a state,
             as for the constructor.
         """
-        state = RendererState.__new__(RendererState)
+        state = cls.__new__(cls)
         state._init(processor.catalogs, processor)
         return state
 
