@@ -365,4 +365,72 @@ describe('A2uiController', () => {
       controller.hostDisconnected();
     });
   });
+
+  it('binds directly to host.node.props without allocating a duplicate GenericBinder', async () => {
+    const {NodeResolver, getValue} = await import('../index.js');
+    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    nodeProcessor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'node-ctrl-surface',
+          catalogId: v1Basic.id,
+        },
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'node-ctrl-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'TextField',
+              label: 'Name',
+              value: {'@path': '/userName'},
+            },
+          ],
+        },
+      },
+      {
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 'node-ctrl-surface',
+          value: {userName: 'Alice'},
+        },
+      },
+    ]);
+
+    const nodeSurface = nodeProcessor.model.getSurface('node-ctrl-surface')!;
+    const resolver = new NodeResolver(nodeSurface, v1Basic);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement & {
+      node?: unknown;
+    };
+    document.body.appendChild(mockHost);
+
+    await asyncUpdate(mockHost, host => {
+      (host as any).node = rootNode;
+    });
+
+    const controller = mockHost.testController;
+    assert.strictEqual((controller as any).binder, undefined);
+    assert.strictEqual((controller.props as any).label, 'Name');
+    assert.strictEqual((controller.props as any).value, 'Alice');
+    assert.strictEqual(typeof (controller.props as any).setValue, 'function');
+    assert.strictEqual(typeof (controller.props as any).setLabel, 'function');
+
+    // Calling setValue writes back to the data model and triggers reactive update
+    (controller.props as any).setValue('Bob');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual((controller.props as any).value, 'Bob');
+    assert.strictEqual(nodeSurface.dataModel.get('/userName'), 'Bob');
+
+    // Read-only setter is a safe no-op
+    assert.doesNotThrow(() => (controller.props as any).setLabel('Ignored'));
+
+    resolver.dispose();
+  });
 });
