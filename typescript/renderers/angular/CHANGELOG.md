@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add `ComponentBinder.bindNode(node: ComponentNode)` and update `ComponentHostComponent` and `AngularWcHost` to resolve component trees via a ref-counted per-surface `NodeResolver` and bind `ComponentNode` instances directly. [#3692](https://github.com/a2ui-project/a2ui/pull/3692)
+
 ## 0.13.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.

@@ -74,16 +74,25 @@ export function initializeAngularReactivity(injector: EnvironmentInjector): void
       // Angular signals batch automatically. We just execute the function.
       batchFn();
     },
-    isSignal: (val: unknown): val is Signal<unknown> => isSignal(val),
-    getValue: <T>(sig: Signal<T>) => (sig as AngularSignal<T>)(),
+    isSignal: (val: unknown): val is Signal<unknown> =>
+      isSignal(val) || _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION.isSignal(val),
+    getValue: <T>(sig: Signal<T>) =>
+      isSignal(sig)
+        ? (sig as AngularSignal<T>)()
+        : _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION.getValue(sig),
     setValue: <T>(sig: Signal<T>, value: T) => {
-      assertAngularSignal(sig);
+      if (!isSignal(sig)) {
+        _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION.setValue(sig, value);
+        return;
+      }
       if (isWritableSignal(sig)) {
         sig.set(value);
       }
     },
     peekValue: <T>(sig: Signal<T>) => {
-      assertAngularSignal(sig);
+      if (!isSignal(sig)) {
+        return _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION.peekValue(sig);
+      }
       return untracked(() => sig() as T);
     },
   };

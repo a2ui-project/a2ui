@@ -18,7 +18,14 @@ import {Component, Injector} from '@angular/core';
 
 import {TestBed} from '@angular/core/testing';
 import {z} from 'zod';
-import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {
+  Catalog,
+  ComponentContext,
+  ComponentModel,
+  NodeResolver,
+  SurfaceModel,
+  getValue,
+} from '@a2ui/web_core/v0_9';
 import {toWebComponent} from './to_web_component';
 import {AngularWcHost, setDefaultUniversalInjector} from './angular_wc_host';
 import {ComponentBinder} from '../core/component-binder.service';
@@ -449,5 +456,33 @@ describe('toWebComponent', () => {
     el.injector = injector;
     el.context = new ComponentContext(surface, 'comp-6', '/');
     expect(() => el.connectedCallback()).toThrowError(/has no Angular component/);
+  });
+
+  it('binds via binder.bindNode when el.node is assigned from NodeResolver', () => {
+    const impl = createUniversalImplementation(
+      {name: 'NodeHostTest', schema: z.object({text: z.string()})},
+      TestBindContextComponent,
+    );
+    const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
+    const surface = new SurfaceModel('surface-node-wc', catalog);
+    surface.componentsModel.addComponent(
+      new ComponentModel('root', 'NodeHostTest', {text: 'From Node'}, catalog),
+    );
+    const resolver = new NodeResolver(surface, catalog);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    const bindNodeSpy = spyOn(TestBed.inject(ComponentBinder), 'bindNode').and.callThrough();
+    registerUniversalElement(impl);
+    const el = document.createElement(impl.tagName) as AngularWcHost;
+    el.injector = injector;
+    el.node = rootNode;
+
+    document.body.appendChild(el);
+    expect(bindNodeSpy).toHaveBeenCalledWith(rootNode);
+    expect(el.node).toBe(rootNode);
+    expect(el.querySelector('.test-text')!.textContent).toBe('From Node');
+
+    document.body.removeChild(el);
+    resolver.dispose();
   });
 });

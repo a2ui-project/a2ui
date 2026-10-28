@@ -16,7 +16,15 @@
 
 import {TestBed} from '@angular/core/testing';
 import {ComponentBinder} from './component-binder.service';
-import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {
+  Catalog,
+  ComponentContext,
+  ComponentModel,
+  NodeResolver,
+  SurfaceModel,
+  basicCatalog,
+  getValue,
+} from '@a2ui/web_core/v0_9';
 
 /**
  * Helper to construct instances of SurfaceModel, ComponentModel, and ComponentContext.
@@ -420,6 +428,41 @@ describe('ComponentBinder', () => {
       });
       expect(bound['isValid'].value()).toBe(true);
       expect(bound['validationErrors'].value()).toEqual([]);
+    });
+  });
+
+  describe('bindNode (NodeResolver integration)', () => {
+    it('binds resolved ComponentNode props, two-way WritableBinding updates, and child nodes', () => {
+      const surface = new SurfaceModel('node-surface', basicCatalog);
+      surface.dataModel.set('/userName', 'Initial Name');
+      surface.componentsModel.addComponent(
+        new ComponentModel('root', 'Column', {children: ['input-1']}, basicCatalog),
+      );
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'input-1',
+          'TextField',
+          {label: 'Username', value: {path: '/userName'}},
+          basicCatalog,
+        ),
+      );
+
+      const resolver = new NodeResolver(surface, basicCatalog);
+      const rootNode = getValue(resolver.rootNode)!;
+      const rootBound = binder.bindNode(rootNode);
+      expect(rootBound['children'].value()).toEqual([{id: 'input-1', basePath: '/'}]);
+
+      const childNode = (getValue(rootNode.props)['children'] as any[])[0];
+      const inputBound = binder.bindNode(childNode);
+      expect(inputBound['label'].value()).toBe('Username');
+      expect(inputBound['value'].value()).toBe('Initial Name');
+
+      // Two-way update writes through WritableBinding to DataModel
+      inputBound['value'].onUpdate('Updated Name');
+      expect(surface.dataModel.get('/userName')).toBe('Updated Name');
+      expect(inputBound['value'].value()).toBe('Updated Name');
+
+      resolver.dispose();
     });
   });
 });

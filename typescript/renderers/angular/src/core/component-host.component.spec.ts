@@ -501,5 +501,46 @@ describe('ComponentHostComponent', () => {
       const wrappedEl = testFixture.nativeElement.querySelector('a2ui-ng-testtype');
       expect(wrappedEl).toBeFalsy();
     });
+
+    it('should resolve root and child nodes via NodeResolver when surface has dataModel and schemas', () => {
+      @Component({
+        selector: 'test-node-resolver-child',
+        template: '<div>NodeResolver Child</div>',
+      })
+      class TestNodeResolverChildComponent {
+        @Input() props: any;
+        @Input() surfaceId?: string;
+        @Input() componentId?: string;
+        @Input() dataContextPath?: string;
+      }
+
+      const schemaCatalog = new AngularCatalog('schema-catalog', '0.9', [
+        createComponentImplementation(
+          {name: 'RootType', schema: z.object({text: z.string().default('')})},
+          TestNodeResolverChildComponent as unknown as Type<CatalogComponentInstance>,
+        ),
+      ]);
+      const realSurface = new SurfaceModel('real-surf', schemaCatalog);
+      realSurface.componentsModel.addComponent(
+        new ComponentModel('root', 'RootType', {text: 'From NodeResolver'}, schemaCatalog),
+      );
+      mockSurfaceGroup.getSurface.and.returnValue(realSurface);
+
+      const bindNodeSpy = spyOn(TestBed.inject(ComponentBinder), 'bindNode').and.callThrough();
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', 'root');
+      testFixture.componentRef.setInput('surfaceId', 'real-surf');
+      testFixture.detectChanges();
+
+      expect(bindNodeSpy).toHaveBeenCalled();
+      const childDebug = testFixture.debugElement.query(
+        By.directive(TestNodeResolverChildComponent),
+      );
+      expect(childDebug).toBeTruthy();
+      expect(
+        (childDebug.componentInstance as TestNodeResolverChildComponent).props.text.value(),
+      ).toBe('From NodeResolver');
+      testFixture.destroy();
+    });
   });
 });

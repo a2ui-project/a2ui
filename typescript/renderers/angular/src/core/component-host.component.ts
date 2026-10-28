@@ -29,7 +29,18 @@ import {
   NgZone,
 } from '@angular/core';
 import {NgComponentOutlet} from '@angular/common';
-import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
+import {
+  ComponentContext,
+  ComponentModel,
+  type ComponentNode,
+  NodeResolver,
+  ResolvedBinding,
+  SurfaceModel,
+  Subscription,
+  getValue,
+  isComponentNode,
+  peekValue,
+} from '@a2ui/web_core/v0_9';
 import {
   isWebComponentImplementation,
   registerUniversalElement,
@@ -43,8 +54,88 @@ import type {AngularCatalog, AngularComponentImplementation} from '../catalog/ty
 import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
+  node?: ComponentNode;
   context: ComponentContext;
   injector?: Injector;
+}
+
+const surfaceResolvers = new WeakMap<
+  SurfaceModel<AngularComponentImplementation>,
+  {resolver: NodeResolver<AngularComponentImplementation>; refs: number}
+>();
+
+function hasCatalogSchemas(
+  surface: SurfaceModel<AngularComponentImplementation>,
+  targetModel: ComponentModel,
+): boolean {
+  if (!surface.dataModel) return false;
+  const targetCatalog = targetModel.catalog as AngularCatalog | undefined;
+  const targetImpl = targetCatalog?.components.get(targetModel.type);
+  if (!targetImpl || !('schema' in targetImpl) || !targetImpl.schema) {
+    return false;
+  }
+  const rootModel = surface.componentsModel.get('root');
+  if (!rootModel) return false;
+  const rootCatalog = rootModel.catalog as AngularCatalog | undefined;
+  const rootImpl = rootCatalog?.components.get(rootModel.type);
+  return Boolean(rootImpl && 'schema' in rootImpl && rootImpl.schema);
+}
+
+function acquireSurfaceResolver(
+  surface: SurfaceModel<AngularComponentImplementation>,
+): NodeResolver<AngularComponentImplementation> {
+  let entry = surfaceResolvers.get(surface);
+  if (!entry) {
+    entry = {resolver: new NodeResolver(surface), refs: 0};
+    surfaceResolvers.set(surface, entry);
+  }
+  entry.refs++;
+  return entry.resolver;
+}
+
+function releaseSurfaceResolver(surface: SurfaceModel<AngularComponentImplementation>): void {
+  const entry = surfaceResolvers.get(surface);
+  if (!entry) return;
+  entry.refs--;
+  if (entry.refs <= 0) {
+    entry.resolver.dispose();
+    surfaceResolvers.delete(surface);
+  }
+}
+
+function findNodeInTree(
+  value: unknown,
+  componentId: string,
+  dataPath: string,
+): ComponentNode<AngularComponentImplementation> | undefined {
+  if (isComponentNode(value)) {
+    if (value.componentId === componentId && value.dataPath === dataPath && !value.isPlaceholder) {
+      return value as ComponentNode<AngularComponentImplementation>;
+    }
+    return findNodeInList(Object.values(peekValue(value.props)), componentId, dataPath);
+  }
+  if (value instanceof ResolvedBinding) {
+    return findNodeInTree(value.value, componentId, dataPath);
+  }
+  if (Array.isArray(value)) {
+    return findNodeInList(value, componentId, dataPath);
+  }
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return findNodeInList(Object.values(value), componentId, dataPath);
+  }
+  return undefined;
+}
+
+function findNodeInList(
+  items: unknown[],
+  componentId: string,
+  dataPath: string,
+): ComponentNode<AngularComponentImplementation> | undefined {
+  for (const item of items) {
+    const found = findNodeInTree(item, componentId, dataPath);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 /**
@@ -100,6 +191,8 @@ export class ComponentHostComponent {
   protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
   private context?: ComponentContext;
+  private resolvedNode?: ComponentNode<AngularComponentImplementation>;
+  private activeResolverSurface?: SurfaceModel<AngularComponentImplementation>;
   private mountedWcEl: UniversalComponentHostElement | null = null;
 
   protected resolvedComponentId: string = '';
@@ -217,6 +310,7 @@ export class ComponentHostComponent {
 
     this.context = new ComponentContext(surface, id, basePath);
     this.resolvedDataContextPath = this.context.dataContext.path;
+    this.resolvedNode = this.resolveComponentNode(surface, componentModel, id);
 
     // Entries from `createComponentImplementation` carry both an Angular component and a Custom
     // Element; the flag picks which one to mount. Web Component-only entries render only with the
@@ -229,6 +323,20 @@ export class ComponentHostComponent {
     } else {
       this.setupAngularComponent(componentImpl.component, componentModel);
     }
+  }
+
+  private resolveComponentNode(
+    surface: SurfaceModel<AngularComponentImplementation>,
+    componentModel: ComponentModel,
+    id: string,
+  ): ComponentNode<AngularComponentImplementation> | undefined {
+    if (!hasCatalogSchemas(surface, componentModel)) {
+      return undefined;
+    }
+    const resolver = acquireSurfaceResolver(surface);
+    this.activeResolverSurface = surface;
+    const root = getValue(resolver.rootNode);
+    return findNodeInTree(root, id, this.resolvedDataContextPath);
   }
 
   private setupAngularComponent(
@@ -249,7 +357,9 @@ export class ComponentHostComponent {
 
   /** Re-binds the props of the mounted Angular component and schedules change detection. */
   private updateProps(): void {
-    this.props.set(this.binder.bind(this.context!));
+    this.props.set(
+      this.resolvedNode ? this.binder.bindNode(this.resolvedNode) : this.binder.bind(this.context!),
+    );
     this.cdr.markForCheck();
   }
 
@@ -268,7 +378,8 @@ export class ComponentHostComponent {
 
     if (this.mountedWcEl && this.mountedWcEl.tagName.toLowerCase() === tagName.toLowerCase()) {
       this.mountedWcEl.injector = this.injector;
-      this.mountedWcEl.context = this.context!;
+      this.mountedWcEl.node = this.resolvedNode;
+      this.mountedWcEl.context = this.resolvedNode?.context ?? this.context!;
     } else {
       if (this.mountedWcEl) {
         this.mountedWcEl.remove();
@@ -276,7 +387,8 @@ export class ComponentHostComponent {
       }
       const el = document.createElement(tagName) as UniversalComponentHostElement;
       el.injector = this.injector;
-      el.context = this.context!;
+      el.node = this.resolvedNode;
+      el.context = this.resolvedNode?.context ?? this.context!;
       this.mountedWcEl = el;
       this.elementRef.nativeElement.appendChild(el);
     }
@@ -284,7 +396,9 @@ export class ComponentHostComponent {
     this.propsSub = componentModel.onUpdated.subscribe(() => {
       this.ngZone.run(() => {
         if (this.mountedWcEl) {
-          this.mountedWcEl.context = new ComponentContext(surface, id, basePath);
+          this.mountedWcEl.node = this.resolvedNode;
+          this.mountedWcEl.context =
+            this.resolvedNode?.context ?? new ComponentContext(surface, id, basePath);
         }
       });
     });
@@ -304,6 +418,12 @@ export class ComponentHostComponent {
     this.surfaceSub = undefined;
     this.deleteSub?.unsubscribe();
     this.deleteSub = undefined;
+
+    if (this.activeResolverSurface) {
+      releaseSurfaceResolver(this.activeResolverSurface);
+      this.activeResolverSurface = undefined;
+    }
+    this.resolvedNode = undefined;
 
     this.componentType.set(null);
     this.props.set({});
