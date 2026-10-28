@@ -19,12 +19,12 @@ export {
   mapErrorToRendererMessage,
   extractEnvelopeErrorContext,
   normalizeJsonPointer,
-  type ErrorMessage,
+  type RendererErrorMessage,
+  type ProcessingErrorMessage,
   type A2uiRendererError,
   type ValidationFailedErrorBody,
   type GenericErrorBody,
   type ErrorEnvelopeContext,
-  type EnvelopeErrorContext,
 } from './message-error-mapper.js';
 export * from './adapters/factory.js';
 export * from './adapters/base.js';

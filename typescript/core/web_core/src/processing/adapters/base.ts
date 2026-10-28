@@ -260,18 +260,13 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       const preliminaryErr = new A2uiValidationError(
         `Invalid ${this.version} message: ${formattedErrors}`,
         parseResult.error,
+        'VALIDATION_ERROR',
       );
       const mapped = mapErrorToRendererMessage(preliminaryErr, envCtx);
-      throw new A2uiValidationError(
-        `Invalid ${this.version} message: ${formattedErrors}`,
-        parseResult.error,
-        'VALIDATION_ERROR',
-        {
-          path: mapped.error.path,
-          surfaceId: mapped.error.surfaceId,
-          functionCallId: mapped.error.functionCallId,
-        },
-      );
+      preliminaryErr.path = mapped.error.path;
+      preliminaryErr.surfaceId = mapped.error.surfaceId || undefined;
+      preliminaryErr.functionCallId = mapped.error.functionCallId;
+      throw preliminaryErr;
     }
 
     return this.extractOperationsFromObject(msgObj);

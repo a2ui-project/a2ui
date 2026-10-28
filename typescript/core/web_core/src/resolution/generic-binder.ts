@@ -572,54 +572,6 @@ export class GenericBinder<T> {
     return res;
   }
 
-  private resolveActionContext(context: unknown): Record<string, unknown> | undefined {
-    if (typeof context !== 'object' || context === null || Array.isArray(context)) {
-      return undefined;
-    }
-    const res: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(context)) {
-      res[k] = this.context.dataContext.resolveDynamicValue(v);
-    }
-    return res;
-  }
-
-  /**
-   * Resolves a server-bound `event` action payload at invocation time, preserving
-   * the `event` wrapper while evaluating nested `context` and `userMessage` fields.
-   */
-  private resolveEventAction(val: unknown): Action | Record<string, unknown> {
-    if (typeof val !== 'object' || val === null) {
-      return val as Record<string, unknown>;
-    }
-    const obj = val as Record<string, unknown>;
-    if ('event' in obj && typeof obj.event === 'object' && obj.event !== null) {
-      const ev = obj.event as Record<string, unknown>;
-      const resolvedEvent: Record<string, unknown> = {
-        ...ev,
-        context: ev.context ? this.resolveActionContext(ev.context) : undefined,
-      };
-      // `userMessage` is a DynamicString; the agent expects it already
-      // resolved to a plain string.
-      if (ev['userMessage'] !== undefined) {
-        resolvedEvent['userMessage'] = this.context.dataContext.resolveDynamicValue(
-          ev['userMessage'],
-        );
-      }
-      return {...obj, event: resolvedEvent};
-    }
-    if ('name' in obj) {
-      const resolved: Record<string, unknown> = {
-        ...obj,
-        context: obj.context ? this.resolveActionContext(obj.context) : undefined,
-      };
-      if (obj['userMessage'] !== undefined) {
-        resolved['userMessage'] = this.context.dataContext.resolveDynamicValue(obj['userMessage']);
-      }
-      return resolved;
-    }
-    return this.resolveDeepSync(val, 0) as Action | Record<string, unknown>;
-  }
-
   private bindAction(value: unknown, path: string[]): () => Promise<void> {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey);
@@ -629,16 +581,19 @@ export class GenericBinder<T> {
     const closure = async () => {
       if (value && typeof value === 'object') {
         const valObj = value as Record<string, unknown>;
-        const isWrapped = Boolean(valObj.functionCall && typeof valObj.functionCall === 'object');
-        const fc = isWrapped ? (valObj.functionCall as Record<string, unknown>) : valObj;
-        const callName = ((fc as any)['@call'] ?? (fc as any).call) as string | undefined;
-        if (typeof callName === 'string') {
-          const callObj = isWrapped && !('@call' in fc) ? {'@call': callName, ...fc} : fc;
-          await this.context.dataContext.resolveDynamicValue(callObj, 0, true);
+        const isFunctionCall =
+          Boolean(valObj.functionCall && typeof valObj.functionCall === 'object') ||
+          'call' in valObj ||
+          '@call' in valObj;
+        const resolved = this.context.dataContext.resolveAction(
+          value as Action | Record<string, unknown>,
+          {userActivation: true},
+        );
+        if (resolved === undefined || isFunctionCall) {
           return;
         }
+        return this.context.dispatchAction(resolved as Action);
       }
-      return this.context.dispatchAction(this.resolveEventAction(value));
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
@@ -698,7 +653,8 @@ export class GenericBinder<T> {
 
   private extractValidationResult(
     val: unknown,
-    fallbackMessage: string,
+    explicitRuleMessage?: string,
+    fallbackMessage = 'Validation failed',
   ): {valid: boolean; message: string; code?: string; severity: 'error' | 'warning' | 'info'} {
     if (typeof val === 'object' && val !== null && 'valid' in val) {
       const rec = val as {valid: unknown; message?: unknown; code?: unknown; severity?: unknown};
@@ -706,19 +662,22 @@ export class GenericBinder<T> {
       const severity =
         rec.severity === 'warning' || rec.severity === 'info' ? rec.severity : 'error';
       const code = typeof rec.code === 'string' ? rec.code : undefined;
+      const message =
+        explicitRuleMessage !== undefined
+          ? explicitRuleMessage
+          : customMessage !== undefined && customMessage !== null
+            ? String(customMessage)
+            : fallbackMessage;
       return {
         valid: Boolean(rec.valid),
-        message:
-          customMessage !== undefined && customMessage !== null
-            ? String(customMessage)
-            : fallbackMessage,
+        message,
         ...(code !== undefined ? {code} : {}),
         severity,
       };
     }
     return {
       valid: Boolean(val),
-      message: fallbackMessage,
+      message: explicitRuleMessage ?? fallbackMessage,
       severity: 'error',
     };
   }
@@ -755,11 +714,11 @@ export class GenericBinder<T> {
       const ruleObj =
         typeof rule === 'object' && rule !== null ? (rule as Record<string, unknown>) : undefined;
       const condition = ruleObj && ruleObj.condition !== undefined ? ruleObj.condition : rule;
-      const message = typeof ruleObj?.message === 'string' ? ruleObj.message : 'Validation failed';
-      ruleResults[index].message = message;
+      const explicitMessage = typeof ruleObj?.message === 'string' ? ruleObj.message : undefined;
+      ruleResults[index].message = explicitMessage ?? 'Validation failed';
 
       const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
-        ruleResults[index] = this.extractValidationResult(newVal, message);
+        ruleResults[index] = this.extractValidationResult(newVal, explicitMessage);
         updateValidationState();
       });
 
@@ -769,7 +728,7 @@ export class GenericBinder<T> {
         bound.unsubscribe();
       }
 
-      ruleResults[index] = this.extractValidationResult(bound.value, message);
+      ruleResults[index] = this.extractValidationResult(bound.value, explicitMessage);
     });
 
     // Set initial state

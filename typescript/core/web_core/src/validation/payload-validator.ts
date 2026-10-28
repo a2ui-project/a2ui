@@ -544,14 +544,14 @@ export class PayloadValidator {
  */
 function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErrorDetail[] {
   return issues.map(issue => {
-    const segments = issue.path.map(String);
+    const segments = issue.path.map(s => String(s).replace(/~/g, '~0').replace(/\//g, '~1'));
     if (
       issue.code === 'unrecognized_keys' &&
       'keys' in issue &&
       Array.isArray(issue.keys) &&
       issue.keys.length > 0
     ) {
-      segments.push(String(issue.keys[0]));
+      segments.push(String(issue.keys[0]).replace(/~/g, '~0').replace(/\//g, '~1'));
     }
     const relPath = segments.length > 0 ? `/${segments.join('/')}` : '';
     const fullPath = `${prefix}${relPath}` || '/';

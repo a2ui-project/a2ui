@@ -133,13 +133,6 @@ function requiredNode(nodes: Map<string, ComponentNode>, path: string): Componen
   return node;
 }
 
-function resolveNodeType(node: ComponentNode, surface: SurfaceModel): string {
-  if (node.state === 'cyclic' && node.type === 'Placeholder') {
-    return surface.componentsModel.get(node.componentId)?.type ?? node.type;
-  }
-  return node.type;
-}
-
 function checkNodeValidationProps(
   props: Record<string, unknown>,
   fields: NodeExpectation,
@@ -159,7 +152,6 @@ function checkNodeValidationProps(
 
 function checkNodes(
   nodes: Map<string, ComponentNode>,
-  surface: SurfaceModel,
   expected: Expectation,
   reason: string,
 ): void {
@@ -172,7 +164,7 @@ function checkNodes(
     const node = requiredNode(nodes, path);
     const actual = {
       component_id: node.componentId,
-      type: resolveNodeType(node, surface),
+      type: node.type,
       state: node.state,
       data_path: node.dataPath,
     };
@@ -367,7 +359,7 @@ export async function runNodeResolutionCase(
 
   function check(expected: Expectation, before: Map<string, ComponentNode>, reason: string): void {
     const after = mountedNodes(resolver);
-    checkNodes(after, surface, expected, reason);
+    checkNodes(after, expected, reason);
     const surviving = new Set(after.values());
     const emissions: Record<string, number> = {};
     const destroyed: Record<string, number> = {};

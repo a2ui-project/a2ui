@@ -364,10 +364,11 @@ function validateParentConstraints(
   rootId: string,
   surfaceId?: string,
   compIndex?: number,
+  compIndexMap?: Map<string, number>,
 ): void {
-  const path = `/components/${compIndex ?? 0}`;
   if (id === rootId && !allowedParents.includes('Surface')) {
-    const message = `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}. (allowedParents)`;
+    const path = compIndex !== undefined ? `/components/${compIndex}` : '/components';
+    const message = `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`;
     const details = [
       {
         path,
@@ -378,10 +379,13 @@ function validateParentConstraints(
     ];
     throw new A2uiValidationError(message, details, 'UNALLOWED_PARENT', {path, surfaceId});
   }
+  }
 
   for (const parentInfo of parents ?? []) {
     if (!allowedParents.includes(parentInfo.parentType)) {
-      const message = `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}. (allowedParents)`;
+      const offendingIndex = compIndex ?? compIndexMap?.get(parentInfo.parentId);
+      const path = offendingIndex !== undefined ? `/components/${offendingIndex}` : '/components';
+      const message = `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}.`;
       const details = [
         {
           path,
@@ -404,17 +408,24 @@ function validateChildConstraints(
   surfaceId?: string,
   compIndex?: number,
   childPathMap?: ReadonlyMap<string, string>,
+  compIndexMap?: Map<string, number>,
 ): void {
   for (const childId of children) {
     const childType = typeMap.get(childId);
     if (childType && !allowedChildren.includes(childType)) {
-      const rawField = childPathMap?.get(childId) ?? 'children';
-      const normalizedField = rawField
-        .replace(/\[(\d+)\]/g, '/$1')
-        .replace(/\./g, '/')
-        .replace(/^\/+/, '');
-      const path = `/components/${compIndex ?? 0}${normalizedField ? `/${normalizedField}` : ''}`;
-      const message = `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(allowedChildren)}. (allowedChildren)`;
+      let path: string;
+      if (compIndex !== undefined) {
+        const rawField = childPathMap?.get(childId) ?? 'children';
+        const normalizedField = rawField
+          .replace(/\[(\d+)\]/g, '/$1')
+          .replace(/\./g, '/')
+          .replace(/^\/+/, '');
+        path = `/components/${compIndex}${normalizedField ? `/${normalizedField}` : ''}`;
+      } else {
+        const offendingIndex = compIndexMap?.get(childId);
+        path = offendingIndex !== undefined ? `/components/${offendingIndex}` : '/components';
+      }
+      const message = `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(allowedChildren)}.`;
       const details = [
         {
           path,
@@ -439,9 +450,7 @@ function buildCompositionTopology<T extends ComponentApi>(
   const childPathMap = new Map<string, Map<string, string>>();
   const compIndexMap = new Map<string, number>();
 
-  let modelIdx = 0;
   for (const [id, model] of surface.componentsModel.entries) {
-    compIndexMap.set(id, modelIdx++);
     typeMap.set(id, model.type);
     compCatalogMap.set(id, model.catalog as Catalog<T>);
     const refs = surface.componentsModel.getChildReferences(id);
@@ -529,6 +538,7 @@ export function validateCompositionConstraints<T extends ComponentApi>(
         rootId,
         surface.id,
         compIndexMap.get(id),
+        compIndexMap,
       );
     }
 
@@ -542,6 +552,7 @@ export function validateCompositionConstraints<T extends ComponentApi>(
         surface.id,
         compIndexMap.get(id),
         childPathMap.get(id),
+        compIndexMap,
       );
     }
   }

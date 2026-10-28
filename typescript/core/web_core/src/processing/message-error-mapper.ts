@@ -51,10 +51,16 @@ export interface GenericErrorBody {
 export type A2uiRendererError = ValidationFailedErrorBody | GenericErrorBody;
 
 /** Outbound renderer-to-agent error message envelope. */
-export interface ErrorMessage {
+export interface RendererErrorMessage {
   readonly version: 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0';
   readonly error: A2uiRendererError;
 }
+
+/** Alias for `RendererErrorMessage`. */
+export type ProcessingErrorMessage = RendererErrorMessage;
+
+/** Backwards-compatible alias for `RendererErrorMessage`. */
+export type ErrorMessage = RendererErrorMessage;
 
 /** Known top-level action envelope keys across A2UI protocol versions. */
 const ACTION_ENVELOPE_KEYS = [
@@ -85,9 +91,6 @@ export interface ErrorEnvelopeContext {
   /** Protocol version string extracted from the message or processor fallback. */
   readonly version?: string;
 }
-
-/** Backwards-compatible alias for `ErrorEnvelopeContext`. */
-export type EnvelopeErrorContext = ErrorEnvelopeContext;
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -150,6 +153,9 @@ function stripActionPrefix(segments: string[]): string[] {
  */
 export function normalizeJsonPointer(rawPath: string | undefined): string | undefined {
   if (!rawPath) return undefined;
+  if (rawPath.startsWith('/')) {
+    return rawPath;
+  }
   const converted = rawPath
     .replace(/\[(\d+)\]/g, '/$1')
     .replace(/\./g, '/')
@@ -191,14 +197,14 @@ function extractPathFromZodDetails(details: unknown, actionType?: string): strin
 
   const selected = collectLeafZodIssues(issues, actionType)[0];
   if (!selected) return undefined;
-  const segments = selected.path.map(String);
+  const segments = selected.path.map(s => String(s).replace(/~/g, '~0').replace(/\//g, '~1'));
   if (
     selected.code === z.ZodIssueCode.unrecognized_keys &&
     'keys' in selected &&
     Array.isArray(selected.keys) &&
     selected.keys.length > 0
   ) {
-    segments.push(String(selected.keys[0]));
+    segments.push(String(selected.keys[0]).replace(/~/g, '~0').replace(/\//g, '~1'));
   }
   const stripped = stripActionPrefix(segments);
   return stripped.length > 0 ? `/${stripped.join('/')}` : undefined;
@@ -239,26 +245,39 @@ function resolveErrorCode(err: unknown, isV1: boolean): string {
  */
 export function mapErrorToRendererMessage(
   err: unknown,
-  context: EnvelopeErrorContext = {},
-): ErrorMessage {
+  context: ErrorEnvelopeContext = {},
+): RendererErrorMessage {
   const version = normalizeOutputVersion(context.version);
   const isV1 = version === 'v1.0';
   const a2uiErr = err instanceof A2uiError ? err : undefined;
   const message = err instanceof Error ? err.message : String(err);
 
   const functionCallId = a2uiErr?.functionCallId ?? context.functionCallId;
-  if (
-    context.isCallRendererFunction ||
-    context.actionType === 'callRendererFunction' ||
+  const isRpcError =
     err instanceof A2uiRpcError ||
-    functionCallId !== undefined
-  ) {
+    (isV1 &&
+      (context.isCallRendererFunction ||
+        context.actionType === 'callRendererFunction' ||
+        functionCallId !== undefined));
+
+  if (isRpcError) {
     const rpcCode = err instanceof A2uiRpcError ? err.code : 'INVALID_FUNCTION_CALL';
+    if (functionCallId !== undefined) {
+      return {
+        version,
+        error: {
+          code: rpcCode,
+          functionCallId,
+          message,
+        },
+      };
+    }
+    const surfaceId = a2uiErr?.surfaceId ?? context.surfaceId ?? '';
     return {
       version,
       error: {
         code: rpcCode,
-        ...(functionCallId !== undefined ? {functionCallId} : {}),
+        surfaceId,
         message,
       },
     };
@@ -271,7 +290,13 @@ export function mapErrorToRendererMessage(
     (err instanceof A2uiValidationError
       ? extractPathFromZodDetails(err.details, context.actionType)
       : undefined);
-  const path = normalizeJsonPointer(rawPath);
+  let path = normalizeJsonPointer(rawPath);
+  if (
+    path === undefined &&
+    (code === 'VALIDATION_FAILED' || code === 'UNALLOWED_PARENT' || code === 'UNALLOWED_CHILD')
+  ) {
+    path = '/';
+  }
 
   return {
     version,

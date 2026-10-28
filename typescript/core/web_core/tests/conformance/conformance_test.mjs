@@ -68,37 +68,6 @@ import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolutio
 const v0_8Components = V0_8_BASIC_COMPONENTS;
 const v0_9Components = V0_9_BASIC_COMPONENTS;
 const v1_0Components = V1_0_BASIC_COMPONENTS;
-const v1_0Functions = V1_0_BASIC_FUNCTIONS.map(fn => {
-  if (fn.name === 'email') {
-    return createFunctionImplementation(fn, (args, ctx, abortSignal) => {
-      const res = fn.execute(args, ctx, abortSignal);
-      if (res && typeof res === 'object' && res.valid === false) {
-        return {
-          valid: false,
-          code: 'INVALID_EMAIL',
-          message: 'Please enter a valid email address (e.g. user@example.com).',
-          severity: 'error',
-        };
-      }
-      return {valid: true};
-    });
-  }
-  if (
-    fn.name === 'numeric' ||
-    fn.name === 'length' ||
-    fn.name === 'required' ||
-    fn.name === 'regex'
-  ) {
-    return createFunctionImplementation(fn, (args, ctx, abortSignal) => {
-      const res = fn.execute(args, ctx, abortSignal);
-      if (res && typeof res === 'object' && 'valid' in res) {
-        return {valid: Boolean(res.valid)};
-      }
-      return {valid: Boolean(res)};
-    });
-  }
-  return fn;
-});
 
 const v0_8Catalog = new Catalog(
   'v0.8:basic',
@@ -120,7 +89,7 @@ const v1_0Catalog = new Catalog(
   'v1.0:basic',
   '1.0',
   v1_0Components,
-  v1_0Functions,
+  V1_0_BASIC_FUNCTIONS,
   undefined,
   undefined,
 );
@@ -144,7 +113,7 @@ const v1_0BasicCatalog = new Catalog(
   'basic',
   '1.0',
   v1_0Components,
-  v1_0Functions,
+  V1_0_BASIC_FUNCTIONS,
   undefined,
   undefined,
 );
@@ -230,7 +199,6 @@ const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
  */
 const SKIP_TEST_SUITES = new Set([
   'accessibility.yaml',
-  'adapter_conformance.yaml',
   'builder.yaml',
   'macros.yaml',
 ]);

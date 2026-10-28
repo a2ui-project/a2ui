@@ -34,8 +34,8 @@ import {
   A2uiValidationError,
 } from '../errors.js';
 import {
-  EnvelopeErrorContext,
-  ErrorMessage,
+  ErrorEnvelopeContext,
+  RendererErrorMessage,
   extractEnvelopeErrorContext,
   mapErrorToRendererMessage,
 } from './message-error-mapper.js';
@@ -173,8 +173,8 @@ export interface MessageProcessorOptions {
   /** Listener receiving outbound renderer messages intended for the agent. Required for callAgentFunction. */
   outboundListener?: OutboundMessageListener;
   /** Optional listener invoked with a structured outbound ErrorMessage whenever message processing fails. */
-  errorHandler?: (error: ErrorMessage) => void;
-  /** When true, processing errors are emitted to errorHandler/outboundListener/onError without re-throwing. */
+  errorHandler?: (error: RendererErrorMessage) => void;
+  /** When true, processing errors are emitted to errorHandler/onError without re-throwing. */
   reportErrorsOnly?: boolean;
   /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
   defaultTimeoutMs?: number;
@@ -201,10 +201,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /** The processor's own rules, or the rules of the call in progress. */
   private validationConfig?: ValidationConfig;
   private readonly defaultVersion?: ProtocolVersion;
-  private readonly errorHandler?: (error: ErrorMessage) => void;
-  private readonly outboundListener?: OutboundMessageListener;
+  private readonly errorHandler?: (error: RendererErrorMessage) => void;
   private readonly reportErrorsOnly: boolean;
-  private activeEnvelopeContext: EnvelopeErrorContext = {};
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -229,7 +227,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.defaultVersion = options?.version;
     this.errorHandler = options?.errorHandler;
-    this.outboundListener = options?.outboundListener;
     this.reportErrorsOnly = options?.reportErrorsOnly ?? false;
     this.rpc = new RpcHandler({
       catalogs: this.registeredCatalogs,
@@ -570,18 +567,19 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    */
   processMessages(messages: ProcessableMessagePayload, context?: ExecutionContext): void {
     this.withValidationConfig(context, () => {
-      this.activeEnvelopeContext = extractEnvelopeErrorContext(
+      const initialContext = extractEnvelopeErrorContext(
         Array.isArray(messages) ? messages[0] : messages,
         this.defaultVersion,
       );
+      let currentContext = initialContext;
       try {
         const operations = this.prepareOperations(messages);
         for (const op of operations) {
-          this.activeEnvelopeContext = this.contextFromOperation(op, this.activeEnvelopeContext);
+          currentContext = this.contextFromOperation(op, initialContext);
           this.processOperation(op, context);
         }
       } catch (err: unknown) {
-        this.handleProcessingError(err, this.activeEnvelopeContext);
+        this.handleProcessingError(err, currentContext);
         if (!this.reportErrorsOnly) {
           throw err;
         }
@@ -598,22 +596,28 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param context Optional execution context.
    * @returns Array of `ErrorMessage` envelopes produced by failed messages.
    */
-  processMessagesWithErrors(messages: unknown, context?: ExecutionContext): ErrorMessage[] {
-    const items = Array.isArray(messages) ? messages : [messages];
-    const errors: ErrorMessage[] = [];
-    for (const item of items) {
-      this.activeEnvelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
-      try {
-        const operations = this.prepareOperations(item as ProcessableMessagePayload);
-        for (const op of operations) {
-          this.activeEnvelopeContext = this.contextFromOperation(op, this.activeEnvelopeContext);
-          this.processOperation(op, context);
+  processMessagesWithErrors(
+    messages: unknown,
+    context?: ExecutionContext,
+  ): RendererErrorMessage[] {
+    return this.withValidationConfig(context, () => {
+      const items = Array.isArray(messages) ? messages : [messages];
+      const errors: RendererErrorMessage[] = [];
+      for (const item of items) {
+        const itemEnvelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
+        let currentContext = itemEnvelopeContext;
+        try {
+          const operations = this.prepareOperations(item as ProcessableMessagePayload);
+          for (const op of operations) {
+            currentContext = this.contextFromOperation(op, itemEnvelopeContext);
+            this.processOperation(op, context);
+          }
+        } catch (err: unknown) {
+          errors.push(this.handleProcessingError(err, currentContext));
         }
-      } catch (err: unknown) {
-        errors.push(this.handleProcessingError(err, this.activeEnvelopeContext));
       }
-    }
-    return errors;
+      return errors;
+    });
   }
 
   /**
@@ -627,15 +631,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     messages: ProcessableMessagePayload,
     context?: ExecutionContext,
   ): Promise<RendererFunctionResponseMessage[]> {
-    this.activeEnvelopeContext = extractEnvelopeErrorContext(
+    const initialContext = extractEnvelopeErrorContext(
       Array.isArray(messages) ? messages[0] : messages,
       this.defaultVersion,
     );
+    let currentContext = initialContext;
     try {
       const operations = this.withValidationConfig(context, () => this.prepareOperations(messages));
       const responses: RendererFunctionResponseMessage[] = [];
       for (const op of operations) {
-        this.activeEnvelopeContext = this.contextFromOperation(op, this.activeEnvelopeContext);
+        currentContext = this.contextFromOperation(op, initialContext);
         const resp = await this.processOperationAsync(op, context);
         if (resp) {
           responses.push(resp);
@@ -643,7 +648,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
       return responses;
     } catch (err: unknown) {
-      this.handleProcessingError(err, this.activeEnvelopeContext);
+      this.handleProcessingError(err, currentContext);
       if (!this.reportErrorsOnly) {
         throw err;
       }
@@ -653,10 +658,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   private contextFromOperation(
     op: InternalOperation,
-    fallback: EnvelopeErrorContext,
-  ): EnvelopeErrorContext {
-    const surfaceId = 'surfaceId' in op ? op.surfaceId : fallback.surfaceId;
-    const functionCallId = 'functionCallId' in op ? op.functionCallId : fallback.functionCallId;
+    fallback: ErrorEnvelopeContext,
+  ): ErrorEnvelopeContext {
+    const opContext = (op as {envelopeContext?: ErrorEnvelopeContext}).envelopeContext ?? fallback;
+    const surfaceId = 'surfaceId' in op && op.surfaceId ? op.surfaceId : opContext.surfaceId;
+    const functionCallId =
+      'functionCallId' in op && op.functionCallId ? op.functionCallId : opContext.functionCallId;
     const opVersion = 'version' in op ? op.version : undefined;
     const surfaceVersion = surfaceId
       ? this.model.getSurface(surfaceId)?.protocolVersion
@@ -665,11 +672,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       surfaceId,
       functionCallId,
       actionType: op.type,
-      version: opVersion ?? surfaceVersion ?? fallback.version ?? this.defaultVersion,
+      version: opVersion ?? surfaceVersion ?? opContext.version ?? this.defaultVersion,
     };
   }
 
-  private handleProcessingError(err: unknown, context: EnvelopeErrorContext): ErrorMessage {
+  private handleProcessingError(
+    err: unknown,
+    context: ErrorEnvelopeContext,
+  ): RendererErrorMessage {
     const errorMsg = mapErrorToRendererMessage(err, context);
     const payload = {
       code: errorMsg.error.code,
@@ -686,12 +696,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.model.emitError(payload);
     }
     this.errorHandler?.(errorMsg);
-    this.outboundListener?.(errorMsg);
     return errorMsg;
   }
 
   private extractSingleMessageOperations(item: unknown): InternalOperation[] {
-    this.activeEnvelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
+    const envelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
     let adapter: VersionAdapter;
     try {
       adapter = this.adapterRegistry.resolveFromPayload(item);
@@ -706,13 +715,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     }
     const itemOps = adapter.extractOperations(item);
-    const itemVer = this.activeEnvelopeContext.version;
-    if (itemVer && toCanonicalVersion(itemVer)) {
-      for (const op of itemOps) {
+    const itemVer = envelopeContext.version;
+    for (const op of itemOps) {
+      if (itemVer && toCanonicalVersion(itemVer)) {
         if (!('version' in op && op.version)) {
           (op as {version?: string}).version = itemVer;
         }
       }
+      (op as {envelopeContext?: ErrorEnvelopeContext}).envelopeContext = envelopeContext;
     }
     return itemOps;
   }

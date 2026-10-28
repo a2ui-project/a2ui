@@ -895,35 +895,39 @@ export class DataContext {
     return objSig;
   }
 
-  private throwInvalidActionError(message: string): never {
+  private handleInvalidAction(message: string): undefined {
     this.surface?.dispatchError({
       code: 'INVALID_ACTION',
-      surfaceId: this.surface.id,
+      surfaceId: this.surface?.id,
       message,
     });
-    throw new A2uiValidationError(message, undefined, 'INVALID_ACTION', {
-      surfaceId: this.surface?.id,
-    });
+    return undefined;
   }
 
-  private resolveActionEventObject(ev: Record<string, unknown>): Record<string, unknown> {
+  private resolveActionEventObject(
+    ev: Record<string, unknown>,
+  ): Record<string, unknown> | undefined {
     if (typeof ev.name !== 'string' || ev.name.length === 0) {
-      this.throwInvalidActionError("Action event is missing required 'name' string.");
+      return this.handleInvalidAction("Action event is missing required 'name' string.");
     }
-    const resolvedContext: Record<string, unknown> = {};
+    let resolvedContext: Record<string, unknown> | undefined = undefined;
     if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
+      resolvedContext = {};
       for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
         resolvedContext[key] = this.resolveDynamicValue(value);
       }
     }
     const resolvedEvent: Record<string, unknown> = {
       ...ev,
-      context: resolvedContext,
+      ...(resolvedContext !== undefined ? {context: resolvedContext} : {}),
     };
+    if (ev.context === undefined) {
+      delete resolvedEvent.context;
+    }
     if (ev.userMessage !== undefined) {
       const resolvedMsg = this.resolveDynamicValue(ev.userMessage);
       if (typeof resolvedMsg !== 'string') {
-        this.throwInvalidActionError("Action event 'userMessage' must resolve to a string.");
+        return this.handleInvalidAction("Action event 'userMessage' must resolve to a string.");
       }
       resolvedEvent.userMessage = resolvedMsg;
     }
@@ -964,9 +968,13 @@ export class DataContext {
     options?: {userActivation?: boolean},
   ): Action | unknown {
     if ('event' in action && typeof action.event === 'object' && action.event !== null) {
+      const resolvedEvent = this.resolveActionEventObject(action.event as Record<string, unknown>);
+      if (resolvedEvent === undefined) {
+        return undefined;
+      }
       return {
         ...action,
-        event: this.resolveActionEventObject(action.event as Record<string, unknown>),
+        event: resolvedEvent,
       };
     }
     if ('name' in action) {
