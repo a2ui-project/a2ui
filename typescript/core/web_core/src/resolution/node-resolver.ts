@@ -573,7 +573,7 @@ export class NodeResolver<
       const occurrenceKey = `${escapeIdPart(componentId)}@${escapeIdPart(dataPath)}`;
       const occurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
       occurrences.set(occurrenceKey, occurrence);
-      const edgeKey = `${record.edgeKey}>${slot}>${occurrenceKey}`;
+      const edgeKey = `${record.edgeKey}>${slot}>${occurrenceKey}#${occurrence}`;
       const child = this.childNode(componentId, dataPath, edgeKey, record.node, occurrence);
       newEdges.set(edgeKey, child);
       return child;
@@ -594,23 +594,20 @@ export class NodeResolver<
             break;
           }
           const safeValue = getSafeChildList(value);
-          next[key] = safeValue.map((item, index) => {
+          const slotKey = escapeIdPart(key);
+          next[key] = safeValue.map(item => {
             if (typeof item === 'string' && item) {
-              return resolveChild(`${escapeIdPart(key)}[${index}]`, item, record.node.dataPath);
+              return resolveChild(slotKey, item, record.node.dataPath);
             }
             if (item && typeof item === 'object' && !Array.isArray(item)) {
               const entry = item as Record<string, unknown>;
               // The binder resolves a {componentId, path} template into
               // {id, basePath} pairs, one per array element.
               if (typeof entry.id === 'string' && typeof entry.basePath === 'string') {
-                return resolveChild(`${escapeIdPart(key)}[${index}]`, entry.id, entry.basePath);
+                return resolveChild(slotKey, entry.id, entry.basePath);
               }
               if (typeof entry.componentId === 'string' && entry.componentId) {
-                return resolveChild(
-                  `${escapeIdPart(key)}[${index}]`,
-                  entry.componentId,
-                  record.node.dataPath,
-                );
+                return resolveChild(slotKey, entry.componentId, record.node.dataPath);
               }
             }
             return item;

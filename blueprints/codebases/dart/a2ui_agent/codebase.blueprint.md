@@ -2,7 +2,8 @@
 codebase_path: dart/a2ui_agent
 associated_module: a2ui_agent
 module_blueprint_commit: ccf5dc20d0b0ed041b03e3913d807420ff45e178
-implemented_features: {}
+implemented_features:
+  agent_renderer_app: null
 local_development:
   test_command: 'dart test'
   lint_command: 'dart analyze --fatal-infos'
