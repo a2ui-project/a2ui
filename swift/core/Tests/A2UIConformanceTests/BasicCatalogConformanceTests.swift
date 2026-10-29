@@ -64,7 +64,9 @@ struct BasicCatalogConformanceTests {
   /// Surface cases that fail because of a known gap in the Swift SDK, with the reason.
   private static let knownSurfaceGaps: [String: Comment] = [
     "test_evaluate_function_v09_ignores_call_catalog_id":
-      "Before v1.0, a call's catalogId is looked up instead of ignored (#3550)"
+      "Before v1.0, a call's catalogId is looked up instead of ignored (#3550)",
+    "test_evaluate_function_v10_validation_result_coerced_in_format_number_grouping":
+      "A ValidationResult bound to a DynamicBoolean argument is not read as its valid flag yet (#3653 covers TypeScript, Python and Dart)",
   ]
 
   private let functionHandler = ConformanceMockFunctionHandler()

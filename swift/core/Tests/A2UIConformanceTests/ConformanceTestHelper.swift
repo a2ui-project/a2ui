@@ -796,7 +796,7 @@ extension ConformanceTestHelper {
   public static func runValidateCase(_ testCase: ConformanceTestCase) throws {
     let processor = MessageProcessor(
       catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
-      validationConfig: ValidationConfig(targetVersion: "v1.0")
+      validationConfig: ValidationConfig(targetVersion: "1.0")
     )
     // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
     // rather than being thrown out of `processMessages`.
