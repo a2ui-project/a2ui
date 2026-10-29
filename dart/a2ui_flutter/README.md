@@ -301,6 +301,12 @@ model.
 [example_v0_9](example_v0_9) is the same app on v0.9, and
 [e2e_test_v0_9](e2e_test_v0_9) runs it against the live model.
 
+## Gallery
+
+[a2ui_explorer](a2ui_explorer) is the gallery app. It renders the v0.9 and
+v1.0 basic catalog examples and steps through their messages, next to each
+surface's data model and a log of actions and errors.
+
 ## Tests
 
 `test/catalog/basic/examples_test.dart` renders every
