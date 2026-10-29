@@ -271,8 +271,10 @@ class Renderers:
         generator = A2uiGenerator(
             [CatalogConfig(BasicCatalog(version))], inference_format_factory=factory
         )
+        num = to_version_number(version)
+        cap_key = "1.0" if num == "1.0" else f"v{num}"
         return generator.create_processor({
-            f"v{to_version_number(version)}": {
+            cap_key: {
                 "supportedCatalogIds": [
                     c.transformed_catalog.catalog_id for c in generator.catalogs
                 ]
