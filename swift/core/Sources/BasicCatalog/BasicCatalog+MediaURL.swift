@@ -15,6 +15,9 @@
 import Foundation
 
 extension BasicCatalog {
+  private static let mediaURLTrimmingSet = CharacterSet.whitespacesAndNewlines.union(
+    .controlCharacters)
+
   /// Validates a media URL from an `Image`, `Video` or `AudioPlayer` component.
   ///
   /// Only `http:`, `https:` and `data:` URLs and genuine relative paths are accepted, matching
@@ -27,8 +30,7 @@ extension BasicCatalog {
   ///   allowed.
   public static func sanitizeMediaURL(_ urlString: String?) -> URL? {
     guard
-      let trimmed = urlString?.trimmingCharacters(
-        in: .whitespacesAndNewlines.union(.controlCharacters)),
+      let trimmed = urlString?.trimmingCharacters(in: mediaURLTrimmingSet),
       !trimmed.isEmpty
     else {
       return nil
@@ -78,14 +80,17 @@ extension BasicCatalog {
       return nil
     }
     let candidate = urlString[..<colon]
-    guard let first = candidate.unicodeScalars.first,
-      first.isASCII, CharacterSet.letters.contains(first),
+    guard let first = candidate.unicodeScalars.first, isASCIILetter(first),
       candidate.unicodeScalars.allSatisfy({
-        $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "+-.".unicodeScalars.contains($0))
+        isASCIILetter($0) || ("0"..."9").contains($0) || $0 == "+" || $0 == "-" || $0 == "."
       })
     else {
       return nil
     }
     return candidate.lowercased()
+  }
+
+  private static func isASCIILetter(_ scalar: Unicode.Scalar) -> Bool {
+    ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar)
   }
 }
