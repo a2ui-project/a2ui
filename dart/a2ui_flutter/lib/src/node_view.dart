@@ -23,9 +23,10 @@ import 'signal_state.dart';
 /// Renders one [ComponentNode] and rebuilds when the node's own props change.
 ///
 /// A resolved node renders through its implementation's builder, under the
-/// semantics its `accessibility` attributes give. A pending node renders a
-/// [LoadingPlaceholder], and an unknown-type or cyclic node a short
-/// diagnostic.
+/// semantics its `accessibility` attributes give. A pending, unknown-type or
+/// cyclic node renders nothing: the resolver has already reported unknown
+/// types and cycles to the surface, and a pending node is replaced in place
+/// when its component arrives.
 class NodeView extends StatefulWidget {
   /// Creates a view of [node], keyed by its instance id.
   NodeView(this.node) : super(key: NodeKey(node.instanceId));
@@ -70,13 +71,9 @@ class _NodeViewState extends State<NodeView> with SignalState {
     final ComponentNode<ComponentImplementation> node = widget.node;
     return switch (node.state) {
       NodeState.resolved => _buildResolved(context, node),
-      NodeState.pending => const LoadingPlaceholder(),
-      NodeState.unknownType => _Diagnostic(
-        'Unknown component type "${node.type}"',
-      ),
-      NodeState.cyclic => _Diagnostic(
-        'Cyclic reference to "${node.componentId}"',
-      ),
+      NodeState.pending ||
+      NodeState.unknownType ||
+      NodeState.cyclic => const SizedBox.shrink(),
     };
   }
 }
@@ -120,37 +117,5 @@ Widget _buildResolved(
         child: node.impl!.builder(context, node, props, NodeView.new),
       ),
     ),
-  );
-}
-
-/// A small progress indicator that stands in for a component that has not
-/// arrived.
-class LoadingPlaceholder extends StatelessWidget {
-  const LoadingPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) => const Align(
-    alignment: AlignmentDirectional.centerStart,
-    widthFactor: 1,
-    heightFactor: 1,
-    child: Padding(
-      padding: EdgeInsets.all(4),
-      child: SizedBox.square(
-        dimension: 16,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
-    ),
-  );
-}
-
-class _Diagnostic extends StatelessWidget {
-  const _Diagnostic(this.message);
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    message,
-    style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
   );
 }

@@ -151,9 +151,8 @@ class SurfaceModel:
         }
         if catalog_id and isinstance(catalog_id, str):
             action_event["catalogId"] = catalog_id
-        user_message = event_dict.get("userMessage")
-        if isinstance(user_message, str) and user_message:
-            action_event["userMessage"] = user_message
+        if isinstance(event_dict.get("userMessage"), str) and event_dict["userMessage"]:
+            action_event["userMessage"] = event_dict["userMessage"]
 
         self.on_action.emit(action_event)
 
