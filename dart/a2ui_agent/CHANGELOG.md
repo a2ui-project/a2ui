@@ -15,6 +15,12 @@
   `surface(...)` also accepts `update=` and `sendDataModel=` keyword arguments
   to update an existing surface without emitting `createSurface` or to request
   client data model echoing on surface creation.
+- Breaking: Use `'1.0'` (without a `'v'` prefix) as the `version` field on
+  v1.0 protocol messages and capabilities in `ExpressCompiler`,
+  `ExpressDecompiler`, `DirectJsonParser`, `RendererState`, `resolveCatalogs`,
+  and prompt examples ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+
 - Bumped `a2ui_core` constraint to `^0.4.0`.
 
 - Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in

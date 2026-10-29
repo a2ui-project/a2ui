@@ -42,7 +42,9 @@ from .response_stream import DEFAULT_EXPRESS_PROGRESSIVE_KEYS
 from .response_stream import ExpressResponseStream
 
 
-def _compilation_error_class(error: BaseException) -> Type[A2uiCompilationError]:
+def _compilation_error_class(
+    error: BaseException,
+) -> Type[A2uiCompilationError]:
     """Picks the compilation error the compiler's failure belongs under."""
     if isinstance(error, ExpressValidationError):
         return A2uiCompilationValidationError

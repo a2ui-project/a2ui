@@ -188,7 +188,9 @@ public enum ConformanceTestHelper {
 
   /// Finds the `common_types.json` schema for a given protocol version.
   public static func commonTypesSchema(forProtocolVersion version: String) throws -> JSONValue? {
-    let subpath = version.hasPrefix("v1") ? "v1_0" : (version.hasPrefix("v0.8") ? "v0_8" : "v0_9")
+    let subpath =
+      (version.hasPrefix("v1") || version.hasPrefix("1."))
+      ? "v1_0" : ((version.hasPrefix("v0.8") || version.hasPrefix("0.8")) ? "v0_8" : "v0_9")
     let fileURL = repoRoot.appendingPathComponent("specification/\(subpath)/json/common_types.json")
     guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
     return try JSONValue.parse(try Data(contentsOf: fileURL))

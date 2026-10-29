@@ -66,7 +66,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -90,7 +90,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -140,7 +140,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -162,7 +162,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -185,7 +185,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -204,7 +204,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/"
@@ -222,7 +222,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
   expect_contains:
@@ -236,7 +236,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -255,7 +255,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -274,7 +274,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -301,7 +301,7 @@
     format: express
     catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
@@ -320,7 +320,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -347,7 +347,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -371,7 +371,7 @@
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/custom"
@@ -391,7 +391,7 @@
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/custom"
@@ -411,7 +411,7 @@
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/custom"
@@ -431,7 +431,7 @@
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/custom"
@@ -452,7 +452,7 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
@@ -460,7 +460,7 @@
             component: "Text"
             catalogId: "conformance/simplified"
             text: "Summary"
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s2"
         components:
@@ -483,7 +483,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -503,7 +503,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -529,7 +529,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -555,7 +555,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -580,7 +580,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -609,7 +609,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -652,7 +652,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -681,7 +681,7 @@
     format: express
     catalog: "test_data/catalogs/list_item_action_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/list_item_action"
@@ -710,7 +710,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -739,7 +739,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -767,7 +767,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -796,7 +796,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -825,7 +825,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -860,7 +860,7 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/forms"
@@ -886,7 +886,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -894,7 +894,7 @@
           - id: "root"
             component: "Text"
             text: "First"
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         value:
@@ -905,7 +905,7 @@
     - 'root = Text("First")'
   expect_round_trip: false
   expect_recompiled:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -923,7 +923,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/title"
@@ -940,7 +940,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/user"
@@ -959,7 +959,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/"
@@ -976,7 +976,7 @@
     format: express
     catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/literal_map"
@@ -1001,7 +1001,7 @@
     format: express
     catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/literal_map"
@@ -1023,7 +1023,7 @@
     format: express
     catalog: "test_data/catalogs/literal_map_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/literal_map"

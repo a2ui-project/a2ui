@@ -129,14 +129,14 @@ describe('A2uiController', () => {
     // Initialize the test surface and seed an initial text component
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'test-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [
@@ -189,7 +189,7 @@ describe('A2uiController', () => {
     await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'test-surface',
             components: [
@@ -202,7 +202,7 @@ describe('A2uiController', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'test-surface',
             value: {myText: 'Updated'},
@@ -232,7 +232,7 @@ describe('A2uiController', () => {
     await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'test-surface',
             value: {myText: 'Update2'},
@@ -263,7 +263,7 @@ describe('A2uiController', () => {
     await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'test-surface',
             components: [
@@ -288,7 +288,7 @@ describe('A2uiController', () => {
     await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'test-surface',
             components: [
@@ -301,7 +301,7 @@ describe('A2uiController', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'test-surface',
             value: {myText: 'BeforeDispose'},
@@ -328,7 +328,7 @@ describe('A2uiController', () => {
     await asyncUpdate(processor, p =>
       p.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'test-surface',
             components: [
@@ -341,7 +341,7 @@ describe('A2uiController', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'test-surface',
             value: {myText: 'AfterDispose'},
@@ -372,14 +372,14 @@ describe('A2uiController', () => {
     const nodeProcessor = new MessageProcessorClass([v1Basic]);
     nodeProcessor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'node-ctrl-surface',
           catalogId: v1Basic.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'node-ctrl-surface',
           components: [
@@ -393,7 +393,7 @@ describe('A2uiController', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'node-ctrl-surface',
           value: {userName: 'Alice'},

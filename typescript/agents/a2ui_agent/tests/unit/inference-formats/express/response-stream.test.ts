@@ -126,7 +126,7 @@ describe('ExpressResponseStream unit tests', () => {
       type: 'a2ui',
       a2ui: [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'main',
             catalogId: v10Catalog.id,
@@ -172,7 +172,7 @@ describe('ExpressResponseStream unit tests', () => {
         type: 'a2ui',
         a2ui: [
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 'main',
               components: [

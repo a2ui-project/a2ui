@@ -1,5 +1,20 @@
 ## Unreleased
 
+- From v0.9, a component its catalog declares with no `ComponentId` or
+  `ChildList` property has no child references. Previously any of its string
+  properties that named a component on the surface, such as an `Icon` named
+  `mail` inside the `Row` whose id is `mail`, was read as one, so a valid
+  surface could fail topology checks as a cycle. A property declared as a plain
+  string is read as text, as the protocol's catalog rules require. v0.8
+  catalogs, and components a catalog does not declare, still infer references
+  from property names and values.
+- **BREAKING CHANGE**: Unify the v1.0 protocol version wire value on `'1.0'`
+  (without a `'v'` prefix) across message envelopes, capability objects, and
+  catalog documents (`ProtocolVersion.V1_0.value` is now `'1.0'`), while
+  continuing to accept `'v1.0'` in `Catalog.from_json`.
+  `Catalog.protocol_version` is typed as `ProtocolVersion | str`.
+  [#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)
 - A function defined without an argument schema (`FunctionApi` or
   `FunctionImplementation` without `schema`) takes any args, as one given
   `schema={}` does: `validation_schema` and `resolved_function_schema` give
@@ -11,12 +26,6 @@
   function, and neither do the paths that call it: `link_catalogs`, and so a
   `MessageProcessor` of two or more catalogs, and `get_renderer_capabilities`
   with v1.0 inline catalogs.
-- Schema validation never fetches a `$ref` over the network. A cross-catalog
-  `$ref` whose JSON Pointer passes through an array, such as
-  `<peer>#/components/Button/allOf/1/properties/action`, now resolves against
-  the held peer catalog; previously it was left in place and jsonschema
-  downloaded the peer. A `$ref` into a catalog that isn't held now fails
-  validation with an unresolvable-reference error instead.
 - (v1_0) `DataContext` reads a `ValidationResult` dict that a function argument
   resolves to by its `valid` boolean wherever the function's argument schema
   types that argument as `DynamicBoolean`, as the specification defines the

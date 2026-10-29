@@ -200,7 +200,7 @@ describe('Catalog.toJson', () => {
   for (const [label, builtin, catalogPath] of [
     ['v0.8', v08BasicCatalog, 'specification/v0_8/json/standard_catalog_definition.json'],
     ['v0.9', v09BasicCatalog, 'specification/v0_9/catalogs/basic/catalog.json'],
-    ['v1.0', v10BasicCatalog, 'catalogs/basic/v1/catalog.json'],
+    ['1.0', v10BasicCatalog, 'catalogs/basic/v1/catalog.json'],
   ] as const) {
     it(`returns the published document for the built-in ${label} basic catalog`, () => {
       assert.deepStrictEqual(builtin.toJson(), readRepoJson(catalogPath));
@@ -310,7 +310,7 @@ describe('Catalog.toJson', () => {
   });
 
   it('emits metadata given to a code-defined catalog', () => {
-    const out = new Catalog('https://example.com/meta', 'v1.0', [], [], {
+    const out = new Catalog('https://example.com/meta', '1.0', [], [], {
       schemaUri: 'https://json-schema.org/draft/2020-12/schema',
       schemaId: 'https://example.com/meta.json',
       title: 'Meta',
@@ -418,7 +418,7 @@ describe('union export', () => {
     };
   }
 
-  for (const version of ['v0.9', 'v1.0']) {
+  for (const version of ['v0.9', '1.0']) {
     it(`exports z.union as anyOf and keeps its accepted values on reload in ${version}`, () => {
       const schema = z.object({radius: z.union([z.enum(['md', 'lg']), z.string()])});
       const original = new Catalog('https://example.org/catalog.json', version, [
@@ -1233,7 +1233,7 @@ describe('built-in basic catalogs', () => {
   for (const [label, builtin] of [
     ['v0.8', v08BasicCatalog],
     ['v0.9', v09BasicCatalog],
-    ['v1.0', v10BasicCatalog],
+    ['1.0', v10BasicCatalog],
   ] as const) {
     it(`keeps the ${label} Zod schemas in line with the published document`, () => {
       // Copies of the entries without their annotations are generated from Zod.

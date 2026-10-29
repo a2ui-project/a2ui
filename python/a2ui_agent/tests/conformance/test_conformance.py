@@ -30,6 +30,7 @@ from a2ui.core import A2uiIntegrityError
 from a2ui.core import A2uiParseError
 from a2ui.core import A2uiRecursionError
 from a2ui.core import A2uiValidationError
+from a2ui.core.common import to_protocol_version
 from a2ui.inference_formats import DirectJsonFormat
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats import to_message_models
@@ -59,7 +60,7 @@ CATEGORY_TO_EXCEPTION = {
 }
 
 # Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
-SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0"}
+SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
 SKIP_TEST_NAMES: set[str] = {
@@ -175,8 +176,10 @@ def get_conformance_cases(filename):
             or first_catalog.get("protocolVersion")
             or "v0.9"
         )
-        if not version.startswith("v"):
+        if version.startswith("0."):
             version = f"v{version}"
+        elif version == "v1.0":
+            version = "1.0"
 
         if version not in SUPPORTED_PROTOCOL_VERSIONS or name in SKIP_TEST_NAMES:
             continue
@@ -225,7 +228,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     if isinstance(ref, dict):
         catalog = InMemoryCatalogProvider(
             ref,
-            protocol_version=None if "protocolVersion" in ref else "v1.0",
+            protocol_version=None if "protocolVersion" in ref else "1.0",
             catalog_id=None if "catalogId" in ref else "inline",
         ).load()
         return CatalogConfig(
@@ -238,7 +241,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     return CatalogConfig.from_path(
         catalog_path=get_conformance_path(relative_path),
         transformers=transformers,
-        protocol_version=None if "protocolVersion" in doc else "v1.0",
+        protocol_version=None if "protocolVersion" in doc else "1.0",
         catalog_id=(
             None
             if "catalogId" in doc
@@ -259,11 +262,8 @@ def _catalogs_for(args):
 
 
 def _protocol_version(catalogs) -> str:
-    """The `vX.Y` protocol version of the first catalog, which Express targets."""
-    version = str(getattr(catalogs[0].protocol_version, "value", None) or "")
-    if not version:
-        version = str(catalogs[0].protocol_version)
-    return version if version.startswith("v") else f"v{version}"
+    """The canonical wire protocol version of the first catalog, which Express targets."""
+    return to_protocol_version(catalogs[0].protocol_version).value
 
 
 def compile_checked(parser, content):
@@ -820,9 +820,11 @@ def _describe_configs(configs):
     described = []
     for config in configs:
         catalog = config.transformed_catalog
-        described.append(
-            (catalog.catalog_id, sorted(catalog.components), sorted(catalog.functions))
-        )
+        described.append((
+            catalog.catalog_id,
+            sorted(catalog.components),
+            sorted(catalog.functions),
+        ))
     return described
 
 

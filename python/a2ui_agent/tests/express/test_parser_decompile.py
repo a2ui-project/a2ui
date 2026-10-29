@@ -131,7 +131,8 @@ class TestExpressParser(unittest.TestCase):
 
         # Unescaped nested parentheses in multi-line strings
         self.assertEqual(
-            get_compiled_text('"""hello ) world\nline 2"""'), "hello ) world\nline 2"
+            get_compiled_text('"""hello ) world\nline 2"""'),
+            "hello ) world\nline 2",
         )
 
         # 7. Streaming Compatibility and Tolerance (is_final=False)
@@ -143,7 +144,7 @@ class TestExpressParser(unittest.TestCase):
         self.assertEqual(
             res_partial,
             [{
-                "version": "v1.0",
+                "version": "1.0",
                 "updateDataModel": {
                     "surfaceId": "default_surface",
                     "path": "/foo",
@@ -305,7 +306,7 @@ class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
             },
             protocol_version="1.0",
         )
-        self.compiler = ExpressCompiler([self.catalog], version="v1.0")
+        self.compiler = ExpressCompiler([self.catalog], version="1.0")
         self.decompiler = ExpressParser([self.catalog])
 
     def _round_trip(self, dsl: str) -> str:
@@ -327,11 +328,12 @@ class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
 
     def test_event_user_message_binding_follows_context(self):
         decompiled = self._round_trip(
-            'root = Links([{label: "Reply", action: Event("reply", {threadId: "t1"},'
-            " userMessage=$/draft/message)}])"
+            'root = Links([{label: "Reply", action: Event("reply", {threadId:'
+            ' "t1"}, userMessage=$/draft/message)}])'
         )
         self.assertIn(
-            'Event("reply", {threadId: "t1"}, userMessage=$/draft/message)', decompiled
+            'Event("reply", {threadId: "t1"}, userMessage=$/draft/message)',
+            decompiled,
         )
 
     def test_event_user_message_function_call_round_trips(self):

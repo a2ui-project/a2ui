@@ -63,7 +63,7 @@
     - input: "<a2ui>surface(\"s1\")\nroot = Text(\"Hello\")</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -90,7 +90,7 @@
     - input: "ui>\nsurface(\"s1\")\nroot = Text(\"Ready\")\n</a2"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -117,7 +117,7 @@
     - input: "a2ui\n<a2ui>\nsurface(\"s1\")\nroot = Text(\"Hello\")\n</a2ui>\n`"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -143,7 +143,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\n$/title = \"Menu\"\nroot = Card(col)\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -156,7 +156,7 @@
     - input: "col = Column([item1])\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "s1"
                 components:
@@ -166,7 +166,7 @@
     - input: "item1 = Text($/title)\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "s1"
                 components:
@@ -186,7 +186,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Text($/title)\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -198,7 +198,7 @@
     - input: "$/title = \"Welcome\"\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateDataModel:
                 surfaceId: "s1"
                 path: "/title"
@@ -223,7 +223,7 @@
     - input: "root = Card(body)\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -252,7 +252,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Hello "
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -263,7 +263,7 @@
     - input: "world\")\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "s1"
                 components:
@@ -284,7 +284,7 @@
     - input: "world\")\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -305,7 +305,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Text($/text)\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -317,7 +317,7 @@
     - input: '$/text = "Good '
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateDataModel:
                 surfaceId: "s1"
                 path: "/text"
@@ -325,7 +325,7 @@
     - input: "morning\"\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateDataModel:
                 surfaceId: "s1"
                 path: "/text"
@@ -342,7 +342,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Text($/status)\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -356,7 +356,7 @@
     - input: "ive\"\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateDataModel:
                 surfaceId: "s1"
                 path: "/status"
@@ -377,7 +377,7 @@
     - input: "save_evt = Event(\"save\")\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -406,7 +406,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(hdr)\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -417,7 +417,7 @@
     - input: "hdr = Text(\"Header\", id=\"custom_hdr\")\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "s1"
                 components:
@@ -441,7 +441,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(body)\nbody = Text($/msg)\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -456,7 +456,7 @@
     - input: "<a2ui>\nsurface(\"s1\", update=true)\n$/msg = \"Updated\"\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateDataModel:
                 surfaceId: "s1"
                 path: "/msg"
@@ -464,7 +464,7 @@
     - input: "body = Text(\"Replaced\")\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateComponents:
                 surfaceId: "s1"
                 components:
@@ -474,7 +474,7 @@
     - input: "<a2ui>\ndeleteSurface(\"s1\")\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               deleteSurface:
                 surfaceId: "s1"
 
@@ -489,7 +489,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"First\")\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -500,13 +500,13 @@
     - input: "<a2ui>\ndeleteSurface(\"s1\")\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               deleteSurface:
                 surfaceId: "s1"
     - input: "surface(\"s1\")\nroot = Text(\"Second\")\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -526,7 +526,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\n# user's \"card\nroot = Text(\"Hello\")\n</a2ui>\nDone."
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -550,7 +550,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(missing_child)\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -599,7 +599,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Complete\")\nextra = Text(\"Cut off"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -660,7 +660,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Kept\")\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -677,7 +677,7 @@
     - input: "more = Text(\"skipped\")\n</a2ui>\n<a2ui>\nsurface(\"s1\", update=true)\n$/title = \"Next\"\n</a2ui>"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               updateDataModel:
                 surfaceId: "s1"
                 path: "/title"
@@ -697,7 +697,7 @@
     - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Open\")\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
@@ -727,7 +727,7 @@
     - input: "surface(\"s1\")\nroot = Text(\"Hi\")\n"
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"

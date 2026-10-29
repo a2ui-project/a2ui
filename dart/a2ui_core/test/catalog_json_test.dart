@@ -687,7 +687,7 @@ void main() {
     test('reads instructions and protocolVersion from a document', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'c',
-        'protocolVersion': 'v1.0',
+        'protocolVersion': '1.0',
         'instructions': 'Prefer cards.',
         'components': <String, Object?>{},
       });
@@ -2148,7 +2148,7 @@ void main() {
       ).toJson();
 
       expect(
-        ((json['v1.0']! as Map)['inlineCatalogs'] as List).single,
+        ((json['1.0']! as Map)['inlineCatalogs'] as List).single,
         equals(_v10Document()),
       );
     });
@@ -2199,7 +2199,7 @@ void main() {
           .toJson();
 
       expect(
-        ((json['v1.0']! as Map)['inlineCatalogs'] as List).single,
+        ((json['1.0']! as Map)['inlineCatalogs'] as List).single,
         equals(TestCatalog().toJson()),
       );
       expect(

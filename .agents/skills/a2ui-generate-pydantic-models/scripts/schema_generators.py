@@ -1858,6 +1858,7 @@ def generate_renderer_capabilities(
             k
             for k in root_props
             if k == spec_dot
+            or k == version.lstrip("v")
             or k == f"v{version.lstrip('v')}"
             or (k.startswith("v") and isinstance(root_props[k], dict))
         ),
@@ -1978,6 +1979,7 @@ def generate_agent_capabilities(
             k
             for k in root_props
             if k == spec_dot
+            or k == version.lstrip("v")
             or k == f"v{version.lstrip('v')}"
             or (k.startswith("v") and isinstance(root_props[k], dict))
         ),

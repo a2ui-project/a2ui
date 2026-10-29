@@ -508,7 +508,7 @@ void main() {
       final List<AgentToRendererMessage> v1Messages =
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v1.0',
+              'version': '1.0',
               'createSurface': {
                 'surfaceId': 's',
                 'components': [
@@ -606,7 +606,7 @@ void main() {
       final List<AgentToRendererMessage> original =
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v1.0',
+              'version': '1.0',
               'createSurface': {
                 'surfaceId': 's',
                 'catalogId': links.id,
@@ -731,7 +731,7 @@ void main() {
       });
       final String written = ExpressDecompiler([menu]).decompile([
         AgentToRendererMessage.fromJson({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's1',
             'catalogId': menu.id,

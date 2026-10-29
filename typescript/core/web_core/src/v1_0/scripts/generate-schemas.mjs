@@ -377,7 +377,7 @@ function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
     const objSchema = {
       type: 'object',
       properties: {
-        version: {const: 'v1.0'},
+        version: {const: '1.0'},
         [msgProp]: propDef,
       },
       required: ['version', msgProp],
@@ -417,7 +417,7 @@ function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
  */
 function generateCapabilitiesSchemas() {
   const rcJson = JSON.parse(readFileSync(join(specDir, 'renderer_capabilities.json'), 'utf8'));
-  const v10Props = rcJson.properties['v1.0'];
+  const v10Props = rcJson.properties['1.0'];
   let v10Code = compileDefToZod(v10Props, 'V10RendererCapabilities');
   v10Code = v10Code.replace(/\.passthrough\(\)/g, '.strict()');
 

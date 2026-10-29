@@ -168,7 +168,7 @@ export class DirectJsonResponseStream<
     private readonly parser: DirectJsonStreamSource,
     {wrapped, state, afterRejectedBlock}: DirectJsonStreamOptions,
   ) {
-    this.v10 = isAtLeastVersion(parser.catalogs[0].protocolVersion ?? 'v1.0', '1.0');
+    this.v10 = isAtLeastVersion(parser.catalogs[0].protocolVersion ?? '1.0', '1.0');
     this.wrapped = wrapped;
     this.state = state;
     this.continues = afterRejectedBlock === 'continue';

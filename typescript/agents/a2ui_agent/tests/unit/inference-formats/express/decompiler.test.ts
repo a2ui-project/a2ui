@@ -33,8 +33,8 @@ import {
 
 const catalogInfo: Record<string, {catalog: CatalogApi; version: string}> = {
   basic_v0_9: {catalog: loadBasicCatalog('v0.9'), version: 'v0.9'},
-  forms: {catalog: loadConformanceCatalog('forms_catalog_v1_0.json'), version: 'v1.0'},
-  simplified: {catalog: loadConformanceCatalog('simplified_catalog_v1_0.json'), version: 'v1.0'},
+  forms: {catalog: loadConformanceCatalog('forms_catalog_v1_0.json'), version: '1.0'},
+  simplified: {catalog: loadConformanceCatalog('simplified_catalog_v1_0.json'), version: '1.0'},
 };
 
 describe('ExpressDecompiler', () => {
@@ -92,20 +92,20 @@ describe('ExpressDecompiler', () => {
       const parser = new ExpressParser([catalog], 's1', version);
 
       const valueless = {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {surfaceId: 's1', path: '/x'},
       } as unknown as AgentToRendererMessage;
       const dsl = decompiler.decompile(valueless);
       expect(dsl).toBe('surface("s1")\n$/x = null');
       expect(parser.compile(dsl)).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 's1', path: '/x', value: null},
         },
       ]);
 
       const emptyRoot = {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {surfaceId: 's1', path: '/', value: {}},
       } as unknown as AgentToRendererMessage;
       const emptyRootDsl = decompiler.decompile(emptyRoot);
@@ -158,7 +158,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const messages = [
         {
-          version: 'v1.0',
+          version: '1.0',
           callFunction: {'@call': 'openUrl', args: {url: 'https://example.com/help'}},
         },
       ] as unknown as AgentToRendererMessage[];
@@ -171,7 +171,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const messages = [
         {
-          version: 'v1.0',
+          version: '1.0',
           callFunction: {'@call': 'openUrl', args: ['https://example.com']},
         },
       ] as unknown as AgentToRendererMessage[];
@@ -184,7 +184,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('forms');
       const messages = [
         {
-          version: 'v1.0',
+          version: '1.0',
           callFunction: {'@call': 'regex', args: {value: '123', pattern: '^[0-9]+$'}},
         },
       ] as unknown as AgentToRendererMessage[];
@@ -196,7 +196,7 @@ describe('ExpressDecompiler', () => {
     it('writes a deleteSurface message', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const messages = [
-        {version: 'v1.0', deleteSurface: {surfaceId: 'panel_surface_42'}},
+        {version: '1.0', deleteSurface: {surfaceId: 'panel_surface_42'}},
       ] as unknown as AgentToRendererMessage[];
       expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
         'deleteSurface("panel_surface_42")',
@@ -276,7 +276,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
       const msg: AgentToRendererMessage = {
-        version: 'v1.0',
+        version: '1.0',
         deleteSurface: {
           surfaceId: 's1',
         },
@@ -295,7 +295,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
       const msg: AgentToRendererMessage = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: 'conformance/simplified',
@@ -373,7 +373,7 @@ describe('ExpressDecompiler', () => {
       const decompiler = new ExpressDecompiler([catalog], version);
       const parser = new ExpressParser([catalog], 'default_surface', version);
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'default_surface',
           catalogId: catalog.id,
@@ -444,7 +444,7 @@ describe('ExpressDecompiler', () => {
       const decompiler = new ExpressDecompiler([catalog], version);
       const parser = new ExpressParser([catalog], 's1', version);
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -518,7 +518,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const action = {event: {name: 'say "hi" \\ bye', context: {k: 1}}};
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -549,7 +549,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const action = {event: {name: 'reply', userMessage: 'Replying now', context: {id: 1}}};
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -595,7 +595,7 @@ describe('ExpressDecompiler', () => {
         event: {name: 'reply', userMessage: {'@call': 'formatString', args: {value: 'Hi ${/n}'}}},
       };
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -621,21 +621,21 @@ describe('ExpressDecompiler', () => {
       const decompiler = new ExpressDecompiler([catalog], version);
       const messages = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: catalog.id,
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Text', text: 'Hello'}],
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 's1',
             path: '/',
@@ -656,22 +656,22 @@ describe('ExpressDecompiler', () => {
 
       const twoRootUpdates = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {surfaceId: 's1', catalogId: catalog.id},
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Text', text: 'hi'}],
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 's1', path: '/', value: {a: 1, b: 2}},
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 's1', path: '/', value: {a: 3}},
         },
       ] as unknown as AgentToRendererMessage[];
@@ -684,7 +684,7 @@ describe('ExpressDecompiler', () => {
 
       const createWithDataThenRootUpdate = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: catalog.id,
@@ -693,7 +693,7 @@ describe('ExpressDecompiler', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 's1', value: {a: 3}},
         },
       ] as unknown as AgentToRendererMessage[];
@@ -710,7 +710,7 @@ describe('ExpressDecompiler', () => {
       const decompiler = new ExpressDecompiler([catalog], version);
       const messages = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: catalog.id,
@@ -718,7 +718,7 @@ describe('ExpressDecompiler', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 's1',
             path: '/count',
@@ -738,7 +738,7 @@ describe('ExpressDecompiler', () => {
       const parser = new ExpressParser([catalog], 'default_surface', version);
 
       const csADoc = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'a',
           catalogId: catalog.id,
@@ -749,7 +749,7 @@ describe('ExpressDecompiler', () => {
       const withDataUpdate = [
         csADoc,
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 'default_surface', path: '/x', value: 1},
         },
       ] as unknown as AgentToRendererMessage[];
@@ -758,7 +758,7 @@ describe('ExpressDecompiler', () => {
       expect(parser.compile(dslData)).toEqual([
         csADoc,
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 'default_surface', path: '/x', value: 1},
         },
       ]);
@@ -766,7 +766,7 @@ describe('ExpressDecompiler', () => {
       const withCreateDefault = [
         csADoc,
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'default_surface',
             catalogId: catalog.id,
@@ -783,7 +783,7 @@ describe('ExpressDecompiler', () => {
       const withUpdateComponents = [
         csADoc,
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'default_surface',
             components: [{id: 't2', component: 'Text', text: 'D'}],
@@ -802,7 +802,7 @@ describe('ExpressDecompiler', () => {
     const primaryCatalog = catalogFromTestDocument({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       catalogId: 'test/primary',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Column: {
           properties: {
@@ -856,7 +856,7 @@ describe('ExpressDecompiler', () => {
     const secondaryCatalog = catalogFromTestDocument({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       catalogId: 'test/secondary',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         SecondaryCard: {
           properties: {
@@ -904,7 +904,7 @@ describe('ExpressDecompiler', () => {
     });
 
     it('rejects duplicate catalog IDs and multiple v0.9 catalogs in the constructor', () => {
-      expect(() => new ExpressDecompiler([primaryCatalog, primaryCatalog], 'v1.0')).toThrow(
+      expect(() => new ExpressDecompiler([primaryCatalog, primaryCatalog], '1.0')).toThrow(
         A2uiCatalogError,
       );
 
@@ -926,10 +926,10 @@ describe('ExpressDecompiler', () => {
     });
 
     it('omits catalogId for unique names, emits catalogId for shared names, and never emits catalogId on surface(...)', () => {
-      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], 'v1.0');
+      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], '1.0');
       const messages = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'main',
             catalogId: 'test/primary',
@@ -1013,10 +1013,10 @@ describe('ExpressDecompiler', () => {
     });
 
     it('throws ExpressValidationError when createSurface or a component targets an inactive catalog or wrong catalog', () => {
-      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], 'v1.0');
+      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], '1.0');
 
       const unknownSurfaceCat = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: 'test/unknown',
@@ -1029,7 +1029,7 @@ describe('ExpressDecompiler', () => {
       );
 
       const unknownCompCat = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           components: [{id: 'root', component: 'Text', catalogId: 'test/unknown', text: 'Hi'}],
@@ -1040,7 +1040,7 @@ describe('ExpressDecompiler', () => {
       );
 
       const wrongCompCat = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           components: [
@@ -1059,10 +1059,10 @@ describe('ExpressDecompiler', () => {
     });
 
     it('forgets a surface catalog after deleteSurface when multiple catalogs are active', () => {
-      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], 'v1.0');
+      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], '1.0');
       const messages = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: 'test/primary',
@@ -1070,11 +1070,11 @@ describe('ExpressDecompiler', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           deleteSurface: {surfaceId: 's1'},
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 't1', component: 'Text', text: 'After delete'}],
@@ -1094,7 +1094,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -1112,7 +1112,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [{id: 'root', component: 'Text', text: 'Updated'}],
@@ -1127,7 +1127,7 @@ describe('ExpressDecompiler', () => {
       const decompiler = new ExpressDecompiler([catalog], version);
       const messages = [
         {
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'call_1',
             callFunction: {
@@ -1138,7 +1138,7 @@ describe('ExpressDecompiler', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'custom_id_99',
             callFunction: {
@@ -1160,7 +1160,7 @@ describe('ExpressDecompiler', () => {
       const decompiler = new ExpressDecompiler([catalog], version);
       const parser = new ExpressParser([catalog], 's1', version);
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -1186,7 +1186,7 @@ describe('ExpressDecompiler', () => {
       );
       expect(parser.compile(kwDsl)).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: catalog.id,
@@ -1214,7 +1214,7 @@ describe('ExpressDecompiler', () => {
       const decompiler = new ExpressDecompiler([catalog], version);
 
       const unknownComp = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -1224,13 +1224,13 @@ describe('ExpressDecompiler', () => {
       expect(() => decompiler.decompile(unknownComp)).toThrow(ExpressUnknownComponentError);
 
       const unknownStandaloneFn = {
-        version: 'v1.0',
+        version: '1.0',
         callFunction: {'@call': 'nonExistentFn', args: {}},
       } as unknown as AgentToRendererMessage;
       expect(() => decompiler.decompile(unknownStandaloneFn)).toThrow(ExpressUnknownFunctionError);
 
       const unknownExprFn = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,

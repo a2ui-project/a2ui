@@ -24,7 +24,7 @@ The Core module defines three SPM targets in root [Package.swift](../../Package.
   evaluates bidirectional RPC calls via `RPCHandler`, and manages action dispatching.
 - **`BasicCatalog`** (`Sources/BasicCatalog/`):
   Defines the schema APIs and standard function implementations (such as `formatString` and
-  `@index`) for the canonical A2UI Basic Catalog (`v0.9`, `v0.9.1`, and `v1.0`).
+  `@index`) for the canonical A2UI Basic Catalog (`v0.9`, `v0.9.1`, and `1.0`).
 
 ---
 
@@ -45,7 +45,7 @@ let cancellable = processor.surfaceGroupModel.onSurfaceCreated { surface in
 // 3. Ingest incoming JSON or message objects
 let jsonMessage = """
 {
-  "version": "v1.0",
+  "version": "1.0",
   "createSurface": {
     "surfaceId": "main",
     "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -121,7 +121,7 @@ public struct ToUpperFunction: FunctionImplementation {
 
 let customCatalog = Catalog(
   id: "https://example.com/catalogs/custom.json",
-  protocolVersion: "v1.0",
+  protocolVersion: .v10,
   components: [UserCardAPI().eraseToAnyComponentAPI()],
   functions: [ToUpperFunction()]
 )

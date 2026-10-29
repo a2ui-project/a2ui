@@ -95,7 +95,7 @@ class _PreparedRendererCall:
     fn: Any | None = None
     args: dict[str, Any] | None = None
     call_id: str = "unknown"
-    version: str = "v1.0"
+    version: str = "1.0"
     call_name: str = ""
     catalog: Any | None = None
     early_error_response: dict[str, Any] | None = None
@@ -184,7 +184,7 @@ class RpcHandler:
         Returns:
             An error response model if validation fails, or None if valid.
         """
-        version = str(getattr(message, "version", "v1.0"))
+        version = str(getattr(message, "version", "1.0"))
         if self._is_disposed:
             return self._create_response_error(
                 getattr(
@@ -928,7 +928,7 @@ class RpcHandler:
         version = call_info.version
 
         outbound_msg = CallAgentFunctionMessage(
-            version=cast(Any, version) if version is not None else cast(Any, "v1.0"),
+            version=cast(Any, version) if version is not None else cast(Any, "1.0"),
             callAgentFunction=CallAgentFunction(
                 surfaceId=surface_id,
                 functionCallId=call_id,

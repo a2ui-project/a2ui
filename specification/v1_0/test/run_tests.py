@@ -555,7 +555,7 @@ def validate_sample_schema():
         "name": "Test Sample",
         "description": "A minimal sample for testing schema integrity",
         "messages": [{
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test_surface",
                 "catalogId": (
@@ -611,7 +611,7 @@ def validate_a2a_schemas():
             "name": "renderer_capabilities.json",
             "schema_path": os.path.join(SCHEMA_DIR, "renderer_capabilities.json"),
             "data": {
-                "v1.0": {
+                "1.0": {
                     "supportedCatalogIds": [
                         "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
                     ],
@@ -629,7 +629,7 @@ def validate_a2a_schemas():
             "name": "agent_capabilities.json",
             "schema_path": os.path.join(SCHEMA_DIR, "agent_capabilities.json"),
             "data": {
-                "v1.0": {
+                "1.0": {
                     "supportedCatalogIds": [
                         "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
                     ],
@@ -642,7 +642,7 @@ def validate_a2a_schemas():
             "name": "renderer_data_model.json",
             "schema_path": os.path.join(SCHEMA_DIR, "renderer_data_model.json"),
             "data": {
-                "version": "v1.0",
+                "version": "1.0",
                 "surfaces": {"surface_123": {"user": {"name": "Alice"}}},
             },
             "refs": {},
@@ -654,7 +654,7 @@ def validate_a2a_schemas():
             ),
             "data": {
                 "messages": [{
-                    "version": "v1.0",
+                    "version": "1.0",
                     "createSurface": {
                         "surfaceId": "test_surface",
                         "catalogId": (
@@ -681,7 +681,7 @@ def validate_a2a_schemas():
             ),
             "data": {
                 "messages": [{
-                    "version": "v1.0",
+                    "version": "1.0",
                     "action": {
                         "name": "click_button",
                         "surfaceId": "test_surface",

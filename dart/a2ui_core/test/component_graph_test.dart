@@ -215,7 +215,7 @@ void main() {
       expect(
         () => checkPathsAndRecursion(
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 's1',
               'components': [
@@ -235,7 +235,7 @@ void main() {
       expect(
         () => checkPathsAndRecursion(
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 's1',
               'components': [
@@ -255,7 +255,7 @@ void main() {
       expect(
         () => checkPathsAndRecursion(
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 's1',
               'components': [
@@ -315,7 +315,7 @@ void main() {
 
       UpdateDataModelMessage items(List<Object?> value) =>
           UpdateDataModelMessage(
-            version: 'v1.0',
+            version: '1.0',
             surfaceId: 's1',
             path: '/items',
             value: value,
@@ -341,7 +341,7 @@ void main() {
       test('skips the same way in a message written as JSON', () {
         final List<Object?> deep = tooDeep();
         Map<String, Object?> json(List<Object?> value) => {
-              'version': 'v1.0',
+              'version': '1.0',
               'updateDataModel': {
                 'surfaceId': 's1',
                 'path': '/items',

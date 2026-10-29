@@ -51,15 +51,17 @@ class FunctionDefinition(BaseModel):
         "any",
         "void",
     ] = Field(
-        ..., alias="returnType", description="The type of value this function returns."
+        ...,
+        alias="returnType",
+        description="The type of value this function returns.",
     )
     allowed_callers: Literal["rendererOnly", "agentOnly", "rendererOrAgent"] | None = (
         Field(
             default=None,
             alias="allowedCallers",
             description=(
-                "Specifies which roles are authorized to invoke this function. Defaults"
-                ' to "rendererOnly" when absent.'
+                "Specifies which roles are authorized to invoke this function."
+                ' Defaults to "rendererOnly" when absent.'
             ),
         )
     )
@@ -67,8 +69,8 @@ class FunctionDefinition(BaseModel):
         default=None,
         alias="requiresUserActivation",
         description=(
-            "Specifies whether this function requires a user activation context to"
-            " execute. Defaults to false when absent."
+            "Specifies whether this function requires a user activation context"
+            " to execute. Defaults to false when absent."
         ),
     )
 
@@ -90,21 +92,21 @@ class ComponentDefinition(BaseModel):
         default=None,
         alias="allowedParents",
         description=(
-            "The list of parent component type names that can contain this component"
-            " type. If omitted, all parent component types are allowed. To restrict a"
-            " component so it can appear only as the top-level component (id='root')"
-            ' of a surface, set "allowedParents": ["Surface"]. To allow a component as'
-            " either the top-level component of a surface or a child of a specific"
-            ' container, specify both (e.g., "allowedParents": ["Surface",'
-            ' "CanvasContainer"]).'
+            "The list of parent component type names that can contain this"
+            " component type. If omitted, all parent component types are allowed."
+            " To restrict a component so it can appear only as the top-level"
+            " component (id='root') of a surface, set \"allowedParents\":"
+            ' ["Surface"]. To allow a component as either the top-level component'
+            " of a surface or a child of a specific container, specify both"
+            ' (e.g., "allowedParents": ["Surface", "CanvasContainer"]).'
         ),
     )
     allowed_children: list[str] | None = Field(
         default=None,
         alias="allowedChildren",
         description=(
-            "The list of child component type names allowed inside this container or"
-            " slot. If omitted, all child component types are allowed."
+            "The list of child component type names allowed inside this container"
+            " or slot. If omitted, all child component types are allowed."
         ),
     )
     metadata: CatalogMetadata | None = Field(default=None)
@@ -187,8 +189,8 @@ class CatalogDefinition(StrictBaseModel):
         default=None,
         alias="protocolVersion",
         description=(
-            "The A2UI specification version of this catalog definition (e.g. '1.0')."
-            " Defaults to '0.9' if omitted."
+            "The A2UI specification version of this catalog definition (e.g."
+            " '1.0'). Defaults to '0.9' if omitted."
         ),
         pattern=r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:\.(0|[1-9][0-9]*))?(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$",
     )
@@ -204,8 +206,8 @@ class CatalogDefinition(StrictBaseModel):
     instructions: str | None = Field(
         default=None,
         description=(
-            "Markdown-formatted design guidelines or instructions specific to this"
-            " catalog."
+            "Markdown-formatted design guidelines or instructions specific to"
+            " this catalog."
         ),
     )
     components: dict[str, ComponentDefinition] | None = Field(
@@ -213,7 +215,8 @@ class CatalogDefinition(StrictBaseModel):
         description="Definitions for UI components supported by this catalog.",
     )
     functions: dict[str, FunctionDefinition] | None = Field(
-        default=None, description="Definitions for functions supported by this catalog."
+        default=None,
+        description="Definitions for functions supported by this catalog.",
     )
 
     @model_validator(mode="after")

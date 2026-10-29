@@ -249,7 +249,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "createSurface": {
             "surfaceId": "s2",
             "catalogId": "cat-v10",
@@ -268,7 +268,7 @@ struct MessageProcessorTests {
     #expect(v091Model["surfaces"]?["s2"] == nil)
 
     let v10Model = try #require(try processor.getRendererDataModel(version: .v10))
-    #expect(v10Model["version"]?.stringValue == "v1.0")
+    #expect(v10Model["version"]?.stringValue == "1.0")
     #expect(v10Model["surfaces"]?["s1"] == nil)
     #expect(v10Model["surfaces"]?["s2"] != nil)
   }
@@ -287,7 +287,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "createSurface": {
             "surfaceId": "s1",
             "catalogId": "cat-v09"
@@ -448,7 +448,7 @@ struct MessageProcessorTests {
     #expect(theme?["primaryColor"]?["$ref"]?.stringValue == "common_types.json#/$defs/Color")
     #expect(theme?["primaryColor"]?["description"]?.stringValue == "The main color")
 
-    let inlineCatalogV10 = caps["v1.0"]?["inlineCatalogs"]?.arrayValue?.first
+    let inlineCatalogV10 = caps["1.0"]?["inlineCatalogs"]?.arrayValue?.first
     #expect(inlineCatalogV10?["protocolVersion"]?.stringValue == "1.0")
     #expect(inlineCatalogV10?["catalogId"]?.stringValue == "cat-full-v10")
     #expect(inlineCatalogV10?["theme"] == nil)
@@ -503,7 +503,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "createSurface": {
             "surfaceId": "s1",
             "catalogId": "default"
@@ -514,7 +514,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "updateDataModel": {
             "surfaceId": "s1",
             "path": "/user/name",
@@ -526,7 +526,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "callRendererFunction": {
             "surfaceId": "s1",
             "functionCallId": "rpc-1",
@@ -555,7 +555,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "callRendererFunction": {
             "surfaceId": "missing_surface",
             "functionCallId": "rpc-2",
@@ -584,7 +584,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "callRendererFunction": {
             "functionCallId": "rpc-3",
             "callFunction": {
@@ -613,7 +613,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "callRendererFunction": {
             "functionCallId": "rpc-4",
             "callFunction": {
@@ -640,7 +640,7 @@ struct MessageProcessorTests {
     let nullSurfacePayload = try JSONValue.parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "surfaceId": null,
           "functionCallId": "rpc-5",
@@ -660,7 +660,7 @@ struct MessageProcessorTests {
       try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "callRendererFunction": {
             "surfaceId": null,
             "functionCallId": "rpc-5",
@@ -679,7 +679,7 @@ struct MessageProcessorTests {
       message: try parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "callRendererFunction": {
             "surfaceId": "",
             "functionCallId": "rpc-6",
@@ -759,7 +759,7 @@ struct MessageProcessorTests {
     let payload = try JSONValue.parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "catalogId": "cat-v10",
@@ -779,6 +779,44 @@ struct MessageProcessorTests {
     let surface = try #require(processor.surfaceGroupModel["s1"])
     #expect(surface.metadata?["extensions"]?["custom_ext"]?["enabled"]?.boolValue == true)
     #expect(surface.dataModel.get("/a~1b~0c")?.stringValue == "escapedValue")
+  }
+
+  @Test func processPayloadResolvesLenientV10VersionOnError() throws {
+    let handler = TestProcessorActionHandler()
+    let catalogV09 = Catalog(
+      id: "cat-v09",
+      protocolVersion: .v09,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+    let catalogV10 = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+    let processor = MessageProcessor(
+      catalogs: [catalogV09, catalogV10],
+      actionHandler: handler
+    )
+    let payload = try JSONValue.parse(
+      """
+      {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "missing-surface",
+          "components": [
+            { "id": "root", "component": "Text" }
+          ]
+        }
+      }
+      """
+    )
+    processor.process(payload: payload)
+    let capturedError = try #require(handler.capturedErrors.first)
+    #expect(capturedError.version == .v10)
   }
 }
 
