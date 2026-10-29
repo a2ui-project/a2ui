@@ -14,7 +14,7 @@ This skill defines the standards, conventions, and authoring guidelines for crea
 Public documentation must read as professional, accurate, and human-authored technical writing.
 
 - **Follow the Natural Writing Skill**: Strictly adhere to [.agents/skills/natural-writing/SKILL.md](../natural-writing/SKILL.md).
-- **Avoid AI-isms and Buzzwords**: Never use banned puffery, hype, or overrepresented words (e.g. *seamlessly*, *robust*, *delve*, *transformative*, *testament*, *tapestry*, *interplay*, *empower*, *leverage*).
+- **Avoid AI-isms and Buzzwords**: Never use banned puffery, hype, or overrepresented words (e.g. _seamlessly_, _robust_, _delve_, _transformative_, _testament_, _tapestry_, _interplay_, _empower_, _leverage_).
 - **Direct and Neutral Tone**: State technical facts directly. Use plain copulas ("is", "are") rather than figurative phrasing ("serves as", "stands as"). Write instructions clearly and concisely.
 - **Link Key Terms**: Link new concepts or terminology to their formal definition in the glossary or specification on first mention.
 
@@ -47,7 +47,7 @@ Code examples must not favor a single programming language. Whenever demonstrati
 
 Use Starlight `<Tabs>` and `<TabItem>` components with a synchronized `syncKey="sdk-lang"` so a user's language selection remains active across page navigation:
 
-```markdown
+````markdown
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 <Tabs syncKey="sdk-lang">
@@ -55,7 +55,8 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
   ```typescript
   import { AgentClient } from '@a2ui/agent';
   // TypeScript example
-  ```
+````
+
   </TabItem>
   <TabItem label="Python">
   ```python
@@ -104,13 +105,13 @@ When documenting client-side UI rendering, catalog registration, or component ad
 To balance visual quality with ease of maintenance, public documentation uses a **hybrid diagram pattern**:
 
 - **Use Themed Mermaid (`starlight-mermaid`) for Protocol Sequences & Lifecycles**:
-  - *When to use*: Message exchange between Agent and Renderer, client/server event lifecycles, handshake flows, and error handling loops (e.g., `Messages and Data`).
-  - *Why*: Sequence diagrams are tedious to create by hand. Plaintext Mermaid blocks are directly diffable in Git and can be updated instantly whenever protocol schemas evolve.
-  - *Style*: Ensure diagrams use site typography (`Plus Jakarta Sans` / `JetBrains Mono`) and theme-aware colors matching Starlight's dark/light modes.
+  - _When to use_: Message exchange between Agent and Renderer, client/server event lifecycles, handshake flows, and error handling loops (e.g., `Messages and Data`).
+  - _Why_: Sequence diagrams are tedious to create by hand. Plaintext Mermaid blocks are directly diffable in Git and can be updated instantly whenever protocol schemas evolve.
+  - _Style_: Ensure diagrams use site typography (`Plus Jakarta Sans` / `JetBrains Mono`) and theme-aware colors matching Starlight's dark/light modes.
 - **Use Bespoke MDX / Astro Visual Components (Tailwind) for Conceptual & Structural Overviews**:
-  - *When to use*: Structural container models, component anatomy, taxonomy breakdowns, and feature comparisons (e.g., `Catalogs, Components and Functions`, `The Generative UI Spectrum`).
-  - *Why*: Standard Mermaid flowchart subgraphs look rigid, academic, and dated. Modern developer portals use styled card layouts with subtle borders, badges, and monospace pills.
-  - *How*: Author the documentation page as `.mdx` and import reusable visual Astro components (e.g., from `src/components/docs/`).
+  - _When to use_: Structural container models, component anatomy, taxonomy breakdowns, and feature comparisons (e.g., `Catalogs, Components and Functions`, `The Generative UI Spectrum`).
+  - _Why_: Standard Mermaid flowchart subgraphs look rigid, academic, and dated. Modern developer portals use styled card layouts with subtle borders, badges, and monospace pills.
+  - _How_: Author the documentation page as `.mdx` and import reusable visual Astro components (e.g., from `src/components/docs/`).
 - **Use Static Vector Graphics (SVGs) for Fixed Architectural Hero Art**:
   - For complex marketing illustrations or logos, place SVGs under `src/assets/` and import them into the page.
 
