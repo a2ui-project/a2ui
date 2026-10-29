@@ -318,6 +318,76 @@
     - a2ui_raw: 'root = Text("Hello") -- end of greeting'
     - text: "Trailing text."
 
+- name: test_unwrap_express_apostrophe_in_comment_does_not_open_a_string
+  description: Express strings are double-quoted only, so an apostrophe in a `/* */` block comment does not open a string that would swallow the closing tag. A `//` comment would not test this, since the lexer already skips single-line comments.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    /* Chef's 15-minute dinner */
+    root = Text("Hello")
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        /* Chef's 15-minute dinner */
+        root = Text("Hello")
+    - text: "Trailing text."
+
+- name: test_unwrap_express_quote_in_block_comment_does_not_open_a_string
+  description: A `"` inside a `/* */` block comment does not open a string that would swallow the closing tag.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    /* Shows the "Hello card */
+    root = Text("Hello")
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        /* Shows the "Hello card */
+        root = Text("Hello")
+    - text: "Trailing text."
+
+- name: test_unwrap_express_close_tag_in_block_comment_does_not_end_the_block
+  description: A closing tag inside a `/* */` block comment does not end the block, unlike one on a single-line comment line.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    /* Close the block with </a2ui> */
+    root = Text("Hello")
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        /* Close the block with </a2ui> */
+        root = Text("Hello")
+    - text: "Trailing text."
+
+- name: test_unwrap_express_unclosed_block_comment_leaves_the_block_unclosed
+  description: A `/* */` block comment that is never closed runs to the end of the response, as an unclosed string does, so the block is not closed.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    <a2ui>
+    root = Text("Hello")
+    /* unfinished note
+    </a2ui>
+    Trailing text.
+  expect:
+    - a2ui_raw: |-
+        root = Text("Hello")
+        /* unfinished note
+        </a2ui>
+        Trailing text.
+      is_final: false
+
 - name: test_has_format_content_express_recovered_bare_payload
   description: A bare Express payload closed by </a2ui> counts as complete format content.
   action: has_format_content

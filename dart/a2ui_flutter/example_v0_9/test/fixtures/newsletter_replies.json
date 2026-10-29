@@ -1,0 +1,43 @@
+{
+  "request": "Show a newsletter sign-up form with an email field and a \"Subscribe\" button.",
+  "replies": [
+    [
+      "Here is a sign-up form for your newsletter.\n\n<a",
+      "2ui-json>\n",
+      "[\n  {\n    \"version\": \"v0.9\",\n    \"createSurface\": {\n      \"surfaceId\": \"newsletter-signup\",\n      \"catalogId\": \"https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json\",\n      \"sendDataModel\": true\n    }\n  },\n  {\n    \"version\": \"v0.",
+      "9\",\n    \"updateDataModel\": {\n      \"surfaceId\": \"newsletter-signup\",\n      \"",
+      "value\": {\n        \"email\": \"\"\n      }\n    }\n  },\n  {\n    \"",
+      "version\": \"v0.9\",\n    \"updateComponents\": {\n      \"surfaceId\": \"newsletter-",
+      "signup\",\n      \"components\":",
+      " [\n        {\n          \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\": \"container\"\n        },\n        {\n          \"id\": \"container\",\n          \"component\": \"Column\",\n          \"children\":",
+      " [\n            \"title\",\n            \"description\",\n            \"emailInput\",\n            \"subscribeBtn\"\n          ]\n        },\n        {\n          \"id\": \"title\",\n          \"component\": \"",
+      "Text\",\n          \"text\": \"Subscribe to our Newsletter\",\n          \"variant\": \"h3\"\n        ",
+      "},\n        {\n          \"id\": \"description\",\n          \"component\": \"Text\",\n          \"text",
+      "\": \"Get the latest updates and news delivered straight to your inbox.\",\n          \"variant\": \"body\"\n        },\n",
+      "        {\n          \"id\": \"emailInput\",\n          \"component\": \"TextField",
+      "\",\n          \"label\":",
+      " \"Email Address\",\n          \"value\": {\n            \"path\": \"/email\"",
+      "\n          },\n          \"checks\":",
+      " [\n            {\n              \"condition\": {\n                \"call\": \"email\",\n                \"args\": {\n                  \"value\": {\n                    \"path\": \"/email\"\n                  }\n                }\n              },\n              \"message\": \"Please enter a valid email address.\"\n            }\n",
+      "          ]\n        },\n        {\n          \"id\": \"subscribeBtn\",\n          \"component\": \"Button\",\n          \"variant",
+      "\": \"primary\",\n          \"child\": \"subscribeText\",\n          \"action\": {\n            \"event\":",
+      " {\n              \"name\": \"subscribe\",\n              \"context\": {\n                \"email\": {\n                  \"",
+      "path\": \"/email\"\n                }\n              }\n            }\n          }\n        },\n        {\n",
+      "          \"id\": \"subscribeText\",\n          \"component\": \"Text\",\n          \"text\": \"Subscribe\"",
+      "\n        }\n      ]\n    }\n  }\n]\n</a2ui-json>"
+    ],
+    [
+      "Thank you for subscribing! We've sent a confirmation email",
+      " to ada@example.com.\n\n<a2ui-json>\n",
+      "[\n  {\n    \"version\": \"v0.9\",\n    \"updateComponents\": {\n      \"surfaceId\": \"newsletter-signup\",\n      \"components\":",
+      " [\n        {\n          \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\": \"container\"\n        },\n        {\n          \"id\": \"container\",\n          \"component\": \"Column\",\n          \"children\":",
+      " [\n            \"successIcon\",\n            \"title\",\n            \"description\"\n          ],\n          \"align\": \"center\"\n        },\n        {\n          \"id",
+      "\": \"successIcon\",\n          \"component\": \"Icon\",\n          \"name\": \"check\"\n        },",
+      "\n        {\n          \"id\": \"title\",\n          \"component\": \"Text\",\n          \"text\":",
+      " \"You're subscribed!\",\n          \"variant\": \"h3\"\n        },\n        {\n          \"",
+      "id\": \"description\",\n          \"component\": \"Text\",\n          \"text\": \"We sent a confirmation email to ada@",
+      "example.com. Check your inbox to confirm your subscription.\",\n          \"variant\": \"body\"\n        }\n      ]\n",
+      "    }\n  }\n]\n</a2ui-json>"
+    ]
+  ]
+}

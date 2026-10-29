@@ -23,7 +23,7 @@
 
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
-import {BlockLexer} from '../../parser/lexer.js';
+import {BlockLexer, EXPRESS_PAYLOAD_START_RE} from '../../parser/lexer.js';
 import {ContinuingStreamOptions, Parser, StreamOptions} from '../../parser/parser.js';
 import {RawResponsePart, StreamPart} from '../../parser/response-part.js';
 import {RendererState} from '../../utils/renderer-state.js';
@@ -77,8 +77,14 @@ export class ExpressParser extends Parser {
     this.lexer = new BlockLexer(
       A2UI_INFERENCE_OPEN_TAG,
       A2UI_INFERENCE_CLOSE_TAG,
-      new Set(["'", '"']),
+      // Strings and comments as Express.g4 reads them: strings are double-quoted
+      // only, so an apostrophe never opens one, and a quote or close tag inside
+      // a `/* */` comment does not affect the block.
+      new Set(['"']),
       new Set(['#', '//', '--']),
+      EXPRESS_PAYLOAD_START_RE,
+      false,
+      [['/*', '*/']],
     );
     this.decompiler = new ExpressDecompiler(this.catalogs, this.version);
   }

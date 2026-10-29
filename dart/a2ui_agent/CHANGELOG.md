@@ -215,6 +215,10 @@
   longer checks components, function calls, themes or catalog ids against the
   catalogs; `parseResponse(block, wrapped: false)` compiles and checks one
   block. A `Parser` subclass implements the new `catalogs` getter.
+- The v1.0 schema in the direct JSON prompt no longer says that `createSurface`
+  needs later messages for its components and data. They can be sent inline in
+  `createSurface` or in later `updateComponents` and `updateDataModel` messages.
+  [#3678](https://github.com/a2ui-project/a2ui/pull/3678)
 - `A2uiRequestProcessor` reuses one parser, which its `parser` getter
   returns. `createState` creates an empty `RendererState` for the active
   catalogs. A processor can be bound to a state, through its `state`
