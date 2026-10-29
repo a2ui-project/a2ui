@@ -28,6 +28,7 @@ workspace:
   - dart/a2ui_core
   - dart/a2ui_cli
   - dart/a2ui_flutter
+  - dart/a2ui_flutter/a2ui_explorer
   - dart/a2ui_flutter/e2e_test
   - dart/a2ui_flutter/example
 
