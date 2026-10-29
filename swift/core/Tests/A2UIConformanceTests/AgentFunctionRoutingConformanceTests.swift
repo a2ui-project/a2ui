@@ -64,7 +64,6 @@ struct AgentFunctionRoutingConformanceTests {
   private func run(_ testCase: JSONValue, name: String) async throws {
     let rawVersion = testCase["protocolVersion"]?.stringValue ?? "1.0"
     let version = try #require(A2UIProtocolVersion(lenientRawValue: rawVersion))
-    let atLeastV10 = version >= .v10
     let surfaceSpec = testCase["surface"] ?? .object([:])
 
     let recorder = RoutingRecorder()
