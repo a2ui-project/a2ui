@@ -18,7 +18,7 @@
  * Reading a streamed Direct JSON response chunk by chunk.
  */
 
-import {ParseError} from '../../errors.js';
+import {ParseError, withPartialResults} from '../../errors.js';
 import {
   A2uiError,
   A2uiIntegrityError,
@@ -26,7 +26,7 @@ import {
   isAtLeastVersion,
   validateRecursionAndPaths,
 } from '../../internal/web-core.js';
-import {ResponsePart} from '../../parser/response-part.js';
+import {ResponsePart, StreamPart} from '../../parser/response-part.js';
 import {ResponseStream} from '../../parser/response-stream.js';
 import {RendererState} from '../../utils/renderer-state.js';
 import {
@@ -57,6 +57,16 @@ export interface DirectJsonStreamSource {
   readonly catalogs: readonly {protocolVersion?: string}[];
   readonly progressiveKeys: ReadonlySet<string>;
   compile(formatContent: string): AgentToRendererMessage[];
+}
+
+/** How a stream is opened. */
+export interface DirectJsonStreamOptions {
+  /** False if the whole response is one block, without tags. */
+  wrapped: boolean;
+  /** The state the stream's messages are applied to. */
+  state: RendererState;
+  /** Whether the stream ends at a rejected block or reads past it. */
+  afterRejectedBlock: 'end' | 'continue';
 }
 
 /**
@@ -109,14 +119,22 @@ type Growing =
  * message the state rejects fails the same way on every later chunk, so nothing after it is
  * emitted, and the block throws when it closes.
  *
- * The stream ends when `close` returns or when `feed` or `close` throws: the response cannot
- * be read further once part of it is rejected. The messages already emitted stay in the
- * state, since the renderer holds them, and the components they added are marked checked
- * (`RendererState.markChecked`), so a later turn on the surface is not required to make them
- * reachable.
+ * The stream ends when `close` returns or when `feed` or `close` throws. By default it throws
+ * at the first rejected block; opened with `afterRejectedBlock: 'continue'`, it returns an
+ * `ErrorPart` in its place, skips the rest of the block, and reads on. Either way the messages
+ * the block emitted stay in the state, since the renderer holds them, and the components they
+ * added are marked checked (`RendererState.markChecked`), so a later turn on the surface is
+ * not required to make them reachable.
+ *
+ * @template Part The parts the stream returns. See `ResponseStream`.
  */
-export class DirectJsonResponseStream implements ResponseStream {
+export class DirectJsonResponseStream<
+  Part extends StreamPart = ResponsePart,
+> implements ResponseStream<Part> {
   private readonly v10: boolean;
+  private readonly wrapped: boolean;
+  readonly state: RendererState;
+  private readonly continues: boolean;
   private closed = false;
   // Text outside blocks.
   private held = '';
@@ -126,6 +144,8 @@ export class DirectJsonResponseStream implements ResponseStream {
   private stripCloseBackticks = false;
   // The open block.
   private inBlock: boolean;
+  /** Whether the open block was rejected, so the rest of it is skipped. */
+  private rejected = false;
   private block = '';
   private scanner = new BlockScanner(0);
   private readCache = new PartialReadCache();
@@ -141,54 +161,66 @@ export class DirectJsonResponseStream implements ResponseStream {
 
   /**
    * @param parser The parser that opened the stream.
-   * @param wrapped False if the whole response is one block, without tags.
-   * @param state The state the stream's messages are applied to.
+   * @param options Whether the response is wrapped in tags, the state the stream's messages
+   *     are applied to, and whether the stream reads past a rejected block.
    */
   constructor(
     private readonly parser: DirectJsonStreamSource,
-    private readonly wrapped: boolean,
-    readonly state: RendererState,
+    {wrapped, state, afterRejectedBlock}: DirectJsonStreamOptions,
   ) {
-    this.v10 = isAtLeastVersion(parser.catalogs[0].protocolVersion ?? 'v1.0', '1.0');
+    this.v10 = isAtLeastVersion(parser.catalogs[0].protocolVersion ?? '1.0', '1.0');
+    this.wrapped = wrapped;
+    this.state = state;
+    this.continues = afterRejectedBlock === 'continue';
     this.inBlock = !wrapped;
   }
 
-  feed(chunk: string): ResponsePart[] {
+  get isInBlock(): boolean {
+    return !this.closed && this.inBlock;
+  }
+
+  feed(chunk: string): Part[] {
     if (this.closed) {
       throw new Error('The response stream is closed.');
     }
-    // The surfaces of what was emitted before the chunk. A chunk may finish a block, which
-    // clears `touched`, and then fail in a second block; its rollback restores the first
-    // block's earlier messages, which these name.
-    const emittedOn = new Set(this.touched);
+    const parts: StreamPart[] = [];
     try {
-      // A chunk may apply messages and then fail, for example in a second block, before its
-      // parts are returned. The transaction undoes them, so the state holds only what was
-      // emitted.
-      return this.state.transaction(() => this.read(chunk));
+      this.read(chunk, parts);
     } catch (e) {
-      this.fail(emittedOn);
-      throw e;
+      this.fail();
+      throw withPartialResults(e, parts.filter(isResponsePart));
     }
+    // Only a stream that reads past rejected blocks, whose parts are `StreamPart`s, returns an
+    // `ErrorPart`.
+    return parts as Part[];
   }
 
-  close(): ResponsePart[] {
+  close(): Part[] {
+    return this.end() as Part[];
+  }
+
+  private end(): StreamPart[] {
     if (this.closed) return [];
     this.closed = true;
-    const parts: ResponsePart[] = [];
+    const parts: StreamPart[] = [];
     try {
       if (!this.wrapped) {
-        this.finishBlock(parts, this.block);
+        if (!this.rejected) this.readBlock(parts, () => this.finishBlock(parts, this.block));
         return parts;
       }
       if (this.inBlock) {
-        throw new ParseError(
-          `The response ended inside an ${OPEN_TAG} block, before its ${CLOSE_TAG} tag.`,
-        );
+        if (!this.rejected) {
+          this.readBlock(parts, () => {
+            throw new ParseError(
+              `The response ended inside an ${OPEN_TAG} block, before its ${CLOSE_TAG} tag.`,
+            );
+          });
+        }
+        return parts;
       }
     } catch (e) {
-      this.fail(this.touched);
-      throw e;
+      this.fail();
+      throw withPartialResults(e, parts.filter(isResponsePart));
     }
     if (this.heldBackticks) {
       this.emitText(parts, this.heldBackticks);
@@ -206,20 +238,33 @@ export class DirectJsonResponseStream implements ResponseStream {
    * The renderer holds the messages already emitted, and so does the state. No message
    * removes a component, so the components they added are marked checked: a later turn is
    * not required to make them reachable.
-   *
-   * @param surfaceIds The surfaces of the messages emitted and left unchecked.
    */
-  private fail(surfaceIds: Iterable<string>): void {
+  private fail(): void {
     this.closed = true;
-    this.state.markChecked(surfaceIds);
+    this.state.markChecked(this.touched);
   }
 
-  private read(chunk: string): ResponsePart[] {
-    const parts: ResponsePart[] = [];
+  /**
+   * Runs a step that reads the open block. If the block is rejected and the stream reads past
+   * rejected blocks, returns an `ErrorPart` for it and skips the rest of it; otherwise the
+   * error propagates.
+   */
+  private readBlock(parts: StreamPart[], step: () => void): void {
+    try {
+      step();
+    } catch (e) {
+      if (!this.continues || !(e instanceof A2uiError)) throw e;
+      parts.push({type: 'error', error: e});
+      this.state.markChecked(this.touched);
+      this.rejected = true;
+    }
+  }
+
+  private read(chunk: string, parts: StreamPart[]): void {
     if (!this.wrapped) {
       this.block += chunk;
-      this.emitReady(parts, this.block.length);
-      return parts;
+      if (!this.rejected) this.readBlock(parts, () => this.emitReady(parts, this.block.length));
+      return;
     }
 
     let input = this.held + chunk;
@@ -251,7 +296,7 @@ export class DirectJsonResponseStream implements ResponseStream {
         input = '';
         const [closeStart, readableEnd] = this.scanner.scan(this.block);
         if (closeStart === undefined) {
-          this.emitReady(parts, readableEnd);
+          if (!this.rejected) this.readBlock(parts, () => this.emitReady(parts, readableEnd));
           break;
         }
         const closeEnd = matchCloseTag(this.block, closeStart)!;
@@ -261,7 +306,9 @@ export class DirectJsonResponseStream implements ResponseStream {
         } else if (!input) {
           this.stripCloseBackticks = true;
         }
-        this.finishBlock(parts, this.block.slice(0, closeStart));
+        const body = this.block.slice(0, closeStart);
+        if (!this.rejected) this.readBlock(parts, () => this.finishBlock(parts, body));
+        this.resetBlock();
         continue;
       }
 
@@ -298,10 +345,9 @@ export class DirectJsonResponseStream implements ResponseStream {
       }
       this.emitText(parts, textToEmit);
     }
-    return parts;
   }
 
-  private emitText(parts: ResponsePart[], text: string): void {
+  private emitText(parts: StreamPart[], text: string): void {
     const body = (this.runStarted ? text : text.trimStart()).trimEnd();
     if (!body) {
       if (this.runStarted && !body) this.heldSpace += text;
@@ -318,7 +364,7 @@ export class DirectJsonResponseStream implements ResponseStream {
    *
    * @param end Where the part of the block that can be read ends.
    */
-  private emitReady(parts: ResponsePart[], end: number): void {
+  private emitReady(parts: StreamPart[], end: number): void {
     const start = payloadStart(this.block, end);
     if (start === undefined) return;
     // The block only grows, so what earlier reads found holds while the payload starts at
@@ -346,26 +392,31 @@ export class DirectJsonResponseStream implements ResponseStream {
     if (this.stalled) return;
 
     const ready: AgentToRendererMessage[] = [];
-    while (this.committed < this.closedMessages.length) {
-      const envelope = this.closedMessages[this.committed];
-      try {
-        ready.push(...this.applyMessage(this.committed, envelope, true));
-      } catch (e) {
-        if (e instanceof A2uiError && this.raisesWhileArriving(envelope)) throw e;
-        this.stalled = true;
-        break;
+    // The messages applied before a rejected one are emitted with the error, since the state
+    // holds them.
+    try {
+      while (this.committed < this.closedMessages.length) {
+        const envelope = this.closedMessages[this.committed];
+        try {
+          ready.push(...this.applyMessage(this.committed, envelope, true));
+        } catch (e) {
+          if (e instanceof A2uiError && this.raisesWhileArriving(envelope)) throw e;
+          this.stalled = true;
+          break;
+        }
+        this.committed += 1;
       }
-      this.committed += 1;
-    }
-    if (!this.stalled && isObject(open) && GROWING_KEYS.some(key => key in open)) {
-      try {
-        ready.push(...this.applyMessage(this.committed, open, false));
-      } catch (e) {
-        // Held back, and checked again as it grows.
-        if (e instanceof A2uiError && this.raisesWhileArriving(open)) throw e;
+      if (!this.stalled && isObject(open) && GROWING_KEYS.some(key => key in open)) {
+        try {
+          ready.push(...this.applyMessage(this.committed, open, false));
+        } catch (e) {
+          // Held back, and checked again as it grows.
+          if (e instanceof A2uiError && this.raisesWhileArriving(open)) throw e;
+        }
       }
+    } finally {
+      if (ready.length > 0) parts.push({type: 'a2ui', a2ui: ready});
     }
-    if (ready.length > 0) parts.push({type: 'a2ui', a2ui: ready});
   }
 
   /**
@@ -395,7 +446,7 @@ export class DirectJsonResponseStream implements ResponseStream {
    * The messages not emitted yet are emitted only if the checks pass, so a failed block
    * leaves the state holding what was emitted.
    */
-  private finishBlock(parts: ResponsePart[], block: string): void {
+  private finishBlock(parts: StreamPart[], block: string): void {
     const messages = this.parser.compile(block);
     const ready = this.state.transaction(() => {
       const applied: AgentToRendererMessage[] = [];
@@ -406,7 +457,12 @@ export class DirectJsonResponseStream implements ResponseStream {
       return applied;
     });
     if (ready.length > 0) parts.push({type: 'a2ui', a2ui: ready});
+  }
+
+  /** Forgets the block that closed, whether it was read or rejected. */
+  private resetBlock(): void {
     this.inBlock = false;
+    this.rejected = false;
     this.block = '';
     this.scanner = new BlockScanner(0);
     this.readCache = new PartialReadCache();
@@ -532,6 +588,10 @@ export class DirectJsonResponseStream implements ResponseStream {
       this.touched.add(surfaceId);
     }
   }
+}
+
+function isResponsePart(part: StreamPart): part is ResponsePart {
+  return part.type !== 'error';
 }
 
 /** What the stream keeps of a message it applied whole while it grows. */

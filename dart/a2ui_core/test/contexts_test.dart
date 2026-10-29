@@ -238,7 +238,7 @@ void main() {
           'surf-v1',
           defaultCatalog: withDefault ? catalog : null,
           availableCatalogs: [catalog],
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
         );
         v1Errors = [];
         s.onError.subscribe(v1Errors.add);

@@ -76,7 +76,9 @@ def _generate_constants_code(
 ) -> str:
     """Dynamically generates constants.py based on the version's schema definitions."""
     dir_name = version_to_underscore(version)
-    spec_dot = "v" + dir_name[1:].replace("_", ".")
+    bare_dot = dir_name[1:].replace("_", ".")
+    is_modern = is_modern_terminology(version)
+    spec_dot = bare_dot if is_modern else f"v{bare_dot}"
     if dir_name == "v0_9":
         ver_type_str = 'Literal["v0.9", "v0.9.1"]'
         sup_vers_str = 'Final[set[str]] = {"v0.9", "v0.9.1"}'
@@ -449,7 +451,8 @@ def update_root_schema_init(
     version_triples = []
     for v in known_versions:
         d_name = version_to_underscore(v)
-        s_dot = ensure_v_prefix(v)
+        bare_dot = d_name[1:].replace("_", ".")
+        s_dot = bare_dot if is_modern_terminology(v) else f"v{bare_dot}"
         e_name = d_name.upper()
         version_triples.append((d_name, s_dot, e_name))
 

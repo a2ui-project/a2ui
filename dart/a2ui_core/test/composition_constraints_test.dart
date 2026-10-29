@@ -25,7 +25,7 @@ const String _childListRef =
 /// A v1.0 catalog declaring composition constraints on three of its types.
 CatalogApi _catalog() => Catalog.fromJson({
       'catalogId': 'custom',
-      'protocolVersion': 'v1.0',
+      'protocolVersion': '1.0',
       'components': {
         'Column': {
           'type': 'object',
@@ -303,11 +303,11 @@ void main() {
         () => p.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v1.0',
+              'version': '1.0',
               'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
             },
             {
-              'version': 'v1.0',
+              'version': '1.0',
               'updateComponents': {
                 'surfaceId': 's1',
                 'components': [
@@ -337,11 +337,11 @@ void main() {
       p.processMessages(
         AgentToRendererMessage.parseAll([
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
           },
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 's1',
               'components': [
@@ -360,7 +360,7 @@ void main() {
         () => p.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v1.0',
+              'version': '1.0',
               'updateComponents': {
                 'surfaceId': 's1',
                 'components': [
@@ -408,11 +408,11 @@ void main() {
         () => p.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v1.0',
+              'version': '1.0',
               'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
             },
             {
-              'version': 'v1.0',
+              'version': '1.0',
               'updateComponents': {
                 'surfaceId': 's1',
                 'components': [
@@ -599,7 +599,7 @@ final Catalog<ComponentApi, FunctionImplementation> _deferredCatalog =
   protocolVersion: A2uiProtocolVersion.v1_0,
   components: Catalog.fromJson({
     'catalogId': 'custom',
-    'protocolVersion': 'v1.0',
+    'protocolVersion': '1.0',
     'components': {
       'Box': {
         'type': 'object',
@@ -657,7 +657,7 @@ class _DeferredPair {
         validationConfig: config,
       )..processMessages([
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
           },
         ]);
@@ -688,7 +688,7 @@ class _DeferredPair {
     try {
       processor.processMessages([
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {'surfaceId': 's1', 'components': components},
         },
       ]);

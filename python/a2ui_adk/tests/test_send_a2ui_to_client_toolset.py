@@ -42,7 +42,10 @@ _CTX = MagicMock(spec=ReadonlyContext)
 def _create(surface_id: str = "s1") -> dict[str, Any]:
     return {
         "version": "v0.9",
-        "createSurface": {"surfaceId": surface_id, "catalogId": _BASIC.catalog_id},
+        "createSurface": {
+            "surfaceId": surface_id,
+            "catalogId": _BASIC.catalog_id,
+        },
     }
 
 
@@ -271,7 +274,9 @@ async def test_process_llm_request_skips_a_prompt_snippet_already_in_the_instruc
     ids=["content", "part", "list"],
 )
 @pytest.mark.asyncio
-async def test_process_llm_request_reads_text_from_a_non_string_instruction(wrap):
+async def test_process_llm_request_reads_text_from_a_non_string_instruction(
+    wrap,
+):
     processor = _processor(examples=_turns())
     tool = _Tool(processor)
     llm_request = _llm_request()
@@ -291,7 +296,11 @@ async def test_process_llm_request_reads_text_from_a_non_string_instruction(wrap
         MagicMock(system_instruction=None),
         # Parts that hold no text, or a text that is not a string.
         MagicMock(
-            system_instruction=[None, genai_types.Part(), MagicMock(text=MagicMock())]
+            system_instruction=[
+                None,
+                genai_types.Part(),
+                MagicMock(text=MagicMock()),
+            ]
         ),
     ],
     ids=["no_config", "no_instruction", "no_text"],
@@ -456,7 +465,9 @@ async def test_run_async_rejects_a_payload_the_catalog_rejects():
     ids=lambda f: type(f).__name__,
 )
 @pytest.mark.asyncio
-async def test_run_async_validates_and_updates_the_bound_renderer_state(factory):
+async def test_run_async_validates_and_updates_the_bound_renderer_state(
+    factory,
+):
     state = RendererState([_BASIC])
     processor = _processor(format_factory=factory, state=state)
     tool = _Tool(processor)
@@ -524,12 +535,15 @@ async def test_run_async_accepts_a_block_whose_closing_tag_is_missing(
 def test_toolset_warns_about_one_processor_with_a_bound_state(caplog):
     with caplog.at_level("WARNING"):
         SendA2uiToClientToolset(
-            a2ui_enabled=True, a2ui_processor=_processor(state=RendererState([_BASIC]))
+            a2ui_enabled=True,
+            a2ui_processor=_processor(state=RendererState([_BASIC])),
         )
     assert "every conversation shares that state" in caplog.text
 
 
-def test_toolset_does_not_warn_about_a_provider_or_a_stateless_processor(caplog):
+def test_toolset_does_not_warn_about_a_provider_or_a_stateless_processor(
+    caplog,
+):
     with caplog.at_level("WARNING"):
         SendA2uiToClientToolset(a2ui_enabled=True, a2ui_processor=_processor())
         SendA2uiToClientToolset(

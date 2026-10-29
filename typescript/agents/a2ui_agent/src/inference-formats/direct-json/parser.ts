@@ -17,8 +17,8 @@
 import {ParseError} from '../../errors.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {BlockLexer, JSON_PAYLOAD_START_RE} from '../../parser/lexer.js';
-import {ParseOptions, Parser} from '../../parser/parser.js';
-import {RawResponsePart} from '../../parser/response-part.js';
+import {ContinuingStreamOptions, Parser, StreamOptions} from '../../parser/parser.js';
+import {RawResponsePart, StreamPart} from '../../parser/response-part.js';
 import {checkParserCatalogs} from '../../utils/catalog-checks.js';
 import {CLOSE_TAG, OPEN_TAG, cleanRaw} from './blocks.js';
 import {DirectJsonDecompiler} from './decompiler.js';
@@ -108,7 +108,17 @@ export class DirectJsonParser extends Parser {
     return this.decompiler.wrap(blocks);
   }
 
-  override openStream({wrapped = true, state}: ParseOptions = {}): DirectJsonResponseStream {
-    return new DirectJsonResponseStream(this, wrapped, state ?? this.emptyState());
+  override openStream(options: ContinuingStreamOptions): DirectJsonResponseStream<StreamPart>;
+  override openStream(options?: StreamOptions): DirectJsonResponseStream;
+  override openStream({
+    wrapped = true,
+    state,
+    afterRejectedBlock = 'end',
+  }: StreamOptions = {}): DirectJsonResponseStream<StreamPart> {
+    return new DirectJsonResponseStream<StreamPart>(this, {
+      wrapped,
+      state: state ?? this.emptyState(),
+      afterRejectedBlock,
+    });
   }
 }

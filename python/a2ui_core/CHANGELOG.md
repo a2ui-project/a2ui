@@ -8,6 +8,24 @@
   string is read as text, as the protocol's catalog rules require. v0.8
   catalogs, and components a catalog does not declare, still infer references
   from property names and values.
+- **BREAKING CHANGE**: Unify the v1.0 protocol version wire value on `'1.0'`
+  (without a `'v'` prefix) across message envelopes, capability objects, and
+  catalog documents (`ProtocolVersion.V1_0.value` is now `'1.0'`), while
+  continuing to accept `'v1.0'` in `Catalog.from_json`.
+  `Catalog.protocol_version` is typed as `ProtocolVersion | str`.
+  [#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)
+- A function defined without an argument schema (`FunctionApi` or
+  `FunctionImplementation` without `schema`) takes any args, as one given
+  `schema={}` does: `validation_schema` and `resolved_function_schema` give
+  `{}` for it rather than `None`. `Catalog.to_json` writes the `args` of either
+  as `{"type": "object", "additionalProperties": true}`, so a catalog read back
+  with `Catalog.from_json` accepts any args for it too. `to_json` used to write
+  `{"type": "object"}` for `schema={}`, which `from_json` reads as taking no
+  args. `to_json` no longer raises `TypeError` for a catalog that holds such a
+  function, and neither do the paths that call it: `link_catalogs`, and so a
+  `MessageProcessor` of two or more catalogs, and `get_renderer_capabilities`
+  with v1.0 inline catalogs.
 - (v1_0) `DataContext` reads a `ValidationResult` dict that a function argument
   resolves to by its `valid` boolean wherever the function's argument schema
   types that argument as `DynamicBoolean`, as the specification defines the
@@ -30,6 +48,15 @@
   it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- (v1_0) Relaxed v1.0 `CatalogDefinition` schema rules to permit non-object
+  catalog `$defs` (such as primitive, enum, or union design tokens), property
+  `$ref`s to `#/$defs/...`, and arbitrary vendor/metadata extension keys on
+  components and functions. Factored `weight` in the v1.0 basic catalog into
+  `#/$defs/Weight` (annotated with `CatalogDef`), inlining leaf catalog `$defs`
+  into component schemas in `Catalog.from_json` and
+  `Catalog.resolved_component_schema` while restoring `#/$defs/...` references
+  in `Catalog.to_json()` and `Catalog.validation_schema`
+  ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - Schema validation never fetches a `$ref` over the network. A `$ref` to a
   document that is not available locally fails validation with an
   unresolvable-reference error instead of being downloaded
