@@ -31,7 +31,7 @@ String detectTarget() => switch (Abi.current()) {
 
 /// Reads package version from pubspec.yaml.
 String readPubspecVersion(Directory packageDir) {
-  final File pubspecFile = File(p.join(packageDir.path, 'pubspec.yaml'));
+  final pubspecFile = File(p.join(packageDir.path, 'pubspec.yaml'));
   if (!pubspecFile.existsSync()) {
     throw StateError('pubspec.yaml not found at ${pubspecFile.path}');
   }
@@ -88,8 +88,8 @@ void main(List<String> args) {
   }
 
   // Find package directory relative to script
-  final File scriptFile = File(Platform.script.toFilePath());
-  final Directory packageDir = scriptFile.parent.parent;
+  final scriptFile = File(Platform.script.toFilePath());
+  final packageDir = scriptFile.parent.parent;
   final String entrypoint = p.join(packageDir.path, 'bin', 'a2ui.dart');
 
   final String hostTarget = detectTarget();
@@ -106,11 +106,11 @@ void main(List<String> args) {
       (parsed['version'] as String?) ?? readPubspecVersion(packageDir);
 
   final bool isWindows = target.startsWith('windows');
-  final String ext = isWindows ? '.exe' : '';
+  final ext = isWindows ? '.exe' : '';
   final String rawOutput =
       (parsed['output'] as String?) ??
       p.join(packageDir.path, 'dist', 'a2ui-$target$ext');
-  final File outFile = File(rawOutput).absolute;
+  final outFile = File(rawOutput).absolute;
   final String outputPath = outFile.path;
 
   // Ensure output directory exists.
@@ -124,7 +124,7 @@ void main(List<String> args) {
   stdout.writeln('  Version:    $version');
   stdout.writeln('  Output:     $outputPath');
 
-  final List<String> compileArgs = [
+  final compileArgs = [
     'compile',
     'exe',
     entrypoint,
@@ -133,9 +133,9 @@ void main(List<String> args) {
     outputPath,
   ];
 
-  final String dartExec = Platform.resolvedExecutable;
+  final dartExec = Platform.resolvedExecutable;
   stdout.writeln('Running: $dartExec ${compileArgs.join(' ')}');
-  final ProcessResult result = Process.runSync(
+  final result = Process.runSync(
     dartExec,
     compileArgs,
     workingDirectory: packageDir.path,
@@ -150,8 +150,8 @@ void main(List<String> args) {
   }
 
   if (outFile.existsSync()) {
-    final int sizeBytes = outFile.lengthSync();
-    final double sizeMb = sizeBytes / (1024 * 1024);
+    final sizeBytes = outFile.lengthSync();
+    final sizeMb = sizeBytes / (1024 * 1024);
     stdout.writeln(
       'Successfully compiled $outputPath (${sizeMb.toStringAsFixed(2)} MB)',
     );

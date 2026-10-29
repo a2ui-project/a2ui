@@ -123,7 +123,7 @@ jobs:
           echo "is_dry_run=$IS_DRY_RUN" >> $GITHUB_OUTPUT
           echo "is_draft=$IS_DRAFT" >> $GITHUB_OUTPUT
 
-      - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d361605b5d60931fb30 # v1.7.1
+      - uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: stable
 
@@ -184,7 +184,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d361605b5d60931fb30 # v1.7.1
+      - uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: stable
 
@@ -310,7 +310,7 @@ jobs:
 
       - name: Attest Build Provenance
         if: needs.preflight.outputs.is_dry_run != 'true'
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.2.3
+        uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
         with:
           subject-path: "release-assets/*"
 
