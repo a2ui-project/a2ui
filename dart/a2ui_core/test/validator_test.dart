@@ -161,7 +161,7 @@ void main() {
     });
 
     test('rejects payloads declaring another protocol version', () {
-      for (final version in ['v0.8', 'v1.0']) {
+      for (final version in ['v0.8', 'v1.0', '1.0']) {
         expect(
           () => parse([createSurface(version: version)]),
           throwsA(isA<A2uiValidationError>()),
@@ -747,7 +747,7 @@ Map<String, Object?> _functionDocument(String name, {required bool v1}) => {
 /// or `DynamicString` (v0.9), one `Loose` component whose `value` is
 /// unconstrained, and one function `f` taking a string `value`.
 CatalogApi _versionedCatalog(String? protocolVersion) {
-  final bool v1 = protocolVersion == 'v1.0' || protocolVersion == '1.0';
+  final bool v1 = protocolVersion == '1.0' || protocolVersion == '1.0';
   final String common = v1 ? _v1CommonTypes : _v0_9CommonTypes;
   return Catalog.fromJson({
     'catalogId': 'versioned',
@@ -798,7 +798,7 @@ Matcher _validationError({String? code, String? path, Object? message}) =>
 void v1RulesTests() {
   group('PayloadValidator catalog-driven versioning', () {
     test('Catalog.fromJson keeps the declared protocolVersion', () {
-      final CatalogApi catalog = _versionedCatalog('v1.0');
+      final CatalogApi catalog = _versionedCatalog('1.0');
 
       expect(catalog.protocolVersion, A2uiProtocolVersion.v1_0);
       expect(catalog.copyWith().protocolVersion, A2uiProtocolVersion.v1_0);
@@ -917,7 +917,7 @@ void v1RulesTests() {
 
     test('accepts v1.0 metadata and accessibility on a closed schema', () {
       expect(
-        () => _versionedValidator('v1.0').validateComponent({
+        () => _versionedValidator('1.0').validateComponent({
           ..._box('x'),
           'metadata': {'extensions': <String, Object?>{}},
           'accessibility': {'label': 'Box'},
@@ -928,7 +928,7 @@ void v1RulesTests() {
 
     test('does not walk v1.0 metadata extensions for directives', () {
       expect(
-        () => _versionedValidator('v1.0').validateComponent({
+        () => _versionedValidator('1.0').validateComponent({
           ..._box('x'),
           'metadata': {
             'extensions': {
@@ -939,7 +939,7 @@ void v1RulesTests() {
         returnsNormally,
       );
       expect(
-        () => _versionedValidator('v1.0').validateComponent({
+        () => _versionedValidator('1.0').validateComponent({
           ..._box('x'),
           'metadata': {
             'extensions': {'bad-key': 1},
@@ -951,7 +951,7 @@ void v1RulesTests() {
 
     test('still checks v1.0 accessibility against the common types', () {
       expect(
-        () => _versionedValidator('v1.0').validateComponent({
+        () => _versionedValidator('1.0').validateComponent({
           ..._box('x'),
           'accessibility': {'live': 'loudly'},
         }),
@@ -963,7 +963,7 @@ void v1RulesTests() {
   group('PayloadValidator v1.0 identifiers', () {
     test('rejects a component id that is not a UAX #31 identifier', () {
       expect(
-        () => _versionedValidator('v1.0').validateComponent({
+        () => _versionedValidator('1.0').validateComponent({
           ..._box('x'),
           'id': 'bad-id',
         }),
@@ -982,7 +982,7 @@ void v1RulesTests() {
       expect(
         () => Catalog.fromJson({
           'catalogId': 'c',
-          'protocolVersion': 'v1.0',
+          'protocolVersion': '1.0',
           'components': {
             'my-box': {'type': 'object'},
           },
@@ -992,7 +992,7 @@ void v1RulesTests() {
       expect(
         () => Catalog.fromJson({
           'catalogId': 'c',
-          'protocolVersion': 'v1.0',
+          'protocolVersion': '1.0',
           'components': {
             '@Box': {'type': 'object'},
           },
@@ -1002,7 +1002,7 @@ void v1RulesTests() {
       expect(
         () => Catalog.fromJson({
           'catalogId': 'c',
-          'protocolVersion': 'v1.0',
+          'protocolVersion': '1.0',
           'functions': {
             'bad-fn': _functionDocument('bad-fn', v1: true),
           },
@@ -1012,7 +1012,7 @@ void v1RulesTests() {
       expect(
         () => Catalog.fromJson({
           'catalogId': 'c',
-          'protocolVersion': 'v1.0',
+          'protocolVersion': '1.0',
           'functions': {
             'f': {
               'type': 'object',
@@ -1038,7 +1038,7 @@ void v1RulesTests() {
       expect(
         () => Catalog.fromJson({
           'catalogId': 'c',
-          'protocolVersion': 'v1.0',
+          'protocolVersion': '1.0',
           r'$defs': {
             'Mixin': {
               'type': 'object',
@@ -1068,7 +1068,7 @@ void v1RulesTests() {
       expect(
         Catalog.fromJson({
           'catalogId': 'c',
-          'protocolVersion': 'v1.0',
+          'protocolVersion': '1.0',
           r'$defs': {
             'Mixin': {
               'type': 'object',
@@ -1092,7 +1092,7 @@ void v1RulesTests() {
 
     test('rejects a call argument name that is not an identifier', () {
       expect(
-        () => _versionedValidator('v1.0').validateComponent(
+        () => _versionedValidator('1.0').validateComponent(
           _box({
             '@call': 'unknownFn',
             'args': {'bad-arg': 1},
@@ -1106,7 +1106,7 @@ void v1RulesTests() {
   group('PayloadValidator nested function calls', () {
     test('validates a nested v1.0 call against its function schema', () {
       final PayloadValidator<ComponentApi, FunctionApi> validator =
-          _versionedValidator('v1.0');
+          _versionedValidator('1.0');
 
       expect(
         () => validator.validateComponent(
@@ -1179,7 +1179,7 @@ void v1RulesTests() {
         'accepts an unknown nested function naming another catalog in a v1.0 '
         'catalog', () {
       expect(
-        () => _versionedValidator('v1.0').validateComponent(
+        () => _versionedValidator('1.0').validateComponent(
           _box({
             '@call': 'nope',
             'catalogId': 'other',
@@ -1190,7 +1190,7 @@ void v1RulesTests() {
       );
       expect(
         () => _versionedValidator(
-          'v1.0',
+          '1.0',
           config: const ValidationConfig(allowUnknownElements: true),
         ).validateComponent(
           _box({
@@ -1206,7 +1206,7 @@ void v1RulesTests() {
         'rejects an unknown nested function that runs in this catalog in a '
         'v1.0 catalog', () {
       expect(
-        () => _versionedValidator('v1.0').validateComponent(
+        () => _versionedValidator('1.0').validateComponent(
           _box({
             '@call': 'nope',
             'args': {'anything': 1},
@@ -1224,7 +1224,7 @@ void v1RulesTests() {
           };
       final PayloadValidator<ComponentApi, FunctionApi> validator =
           _versionedValidator(
-        'v1.0',
+        '1.0',
         config: const ValidationConfig(allowUnknownElements: true),
       );
 
@@ -1339,7 +1339,7 @@ void v1RulesTests() {
         'accepts foreign catalog call even when function name collides '
         'with local function', () {
       final PayloadValidator<ComponentApi, FunctionApi> validator =
-          _versionedValidator('v1.0');
+          _versionedValidator('1.0');
       // Local 'f' requires {'value': <string>}.
       // A foreign call to 'f' on 'catB' taking different args must pass.
       expect(
@@ -1366,7 +1366,7 @@ void v1RulesTests() {
     test('accepts foreign catalog call under allowUnknownElements', () {
       final PayloadValidator<ComponentApi, FunctionApi> validator =
           _versionedValidator(
-        'v1.0',
+        '1.0',
         config: ValidationConfig.relaxed,
       );
       expect(
@@ -1382,7 +1382,7 @@ void v1RulesTests() {
     test('rejects foreign-shaped call when catalogId matches local catalog.id',
         () {
       final PayloadValidator<ComponentApi, FunctionApi> validator =
-          _versionedValidator('v1.0');
+          _versionedValidator('1.0');
       expect(
         () => validator.validateComponent(_box({
           '@call': 'f',
@@ -1401,7 +1401,7 @@ void v1RulesTests() {
         {'@': 'x'},
       ]) {
         expect(
-          () => _versionedValidator('v1.0').validateComponent(_box(value)),
+          () => _versionedValidator('1.0').validateComponent(_box(value)),
           throwsA(_validationError(code: 'INVALID_RESERVED_KEY')),
           reason: '$value',
         );
@@ -1414,7 +1414,7 @@ void v1RulesTests() {
         {'path': 'a', 'call': 'b'},
       ]) {
         expect(
-          () => _versionedValidator('v1.0').validateComponent(_box(value)),
+          () => _versionedValidator('1.0').validateComponent(_box(value)),
           returnsNormally,
           reason: '$value',
         );

@@ -80,7 +80,7 @@ const v0_9Catalog = new Catalog(
 );
 const v1_0Catalog = new Catalog(
   'v1.0:basic',
-  'v1.0',
+  '1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
@@ -104,7 +104,7 @@ const v0_9BasicCatalog = new Catalog(
 );
 const v1_0BasicCatalog = new Catalog(
   'basic',
-  'v1.0',
+  '1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
@@ -560,12 +560,12 @@ async function validateRpcTestCase(testCase) {
   }
 
   const catVersion =
-    args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || 'v1.0';
+    args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || '1.0';
 
   const cat = new Catalog(catId, catVersion, [], funcs, undefined, undefined);
   let sentOutboundMsg;
   const processor = new MessageProcessor([cat], undefined, {
-    version: 'v1.0',
+    version: '1.0',
     outboundListener: msg => {
       sentOutboundMsg = msg;
     },
@@ -824,7 +824,7 @@ function validateSelectCatalogTestCase(testCase) {
   const catalogsDict = new Map();
   if (args.catalogs && typeof args.catalogs === 'object') {
     for (const [catId, catDef] of Object.entries(args.catalogs)) {
-      const pVer = catDef.protocolVersion || 'v1.0';
+      const pVer = catDef.protocolVersion || '1.0';
       catalogsDict.set(
         catId,
         new Catalog(catId, pVer, flexibleComponents, [], undefined, undefined),
@@ -835,14 +835,14 @@ function validateSelectCatalogTestCase(testCase) {
     for (const catId of supported) {
       catalogsDict.set(
         catId,
-        new Catalog(catId, 'v1.0', flexibleComponents, [], undefined, undefined),
+        new Catalog(catId, '1.0', flexibleComponents, [], undefined, undefined),
       );
     }
   }
 
   const defaultCat =
     catalogsDict.get(defaultCatId) ||
-    new Catalog(defaultCatId, 'v1.0', flexibleComponents, [], undefined, undefined);
+    new Catalog(defaultCatId, '1.0', flexibleComponents, [], undefined, undefined);
 
   const executeSelect = () => {
     // 1. Check protocol version consistency across catalogs
@@ -947,7 +947,7 @@ function validateValidateTestCase(testCase) {
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processor = new MessageProcessor(testCatalogs, undefined, {
-    version: testCase.protocolVersion || 'v1.0',
+    version: testCase.protocolVersion || '1.0',
     validationConfig: STRICT_VALIDATION,
   });
 
@@ -1758,7 +1758,7 @@ function resolveProtocolVersion(testCase) {
   const catId = String(testCase.catalogId || catSpec.catalogId || caseSchema.catalogId || '');
   if (catId.includes('v08') || catId.includes('v0_8')) return 'v0.8';
   if (catId.includes('v09') || catId.includes('v0_9')) return 'v0.9';
-  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return 'v1.0';
+  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return '1.0';
   return 'v0.9';
 }
 

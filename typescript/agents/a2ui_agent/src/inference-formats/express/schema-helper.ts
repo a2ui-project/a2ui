@@ -152,7 +152,7 @@ function standardDefsFor(protocolVersion: string): Record<string, unknown> {
     case 'v0.9':
     case 'v0.9.1':
       return V09_STANDARD_DEFS;
-    case 'v1.0':
+    case '1.0':
       return V10_STANDARD_DEFS;
     default:
       throw new A2uiCatalogError(`No common types for protocol version '${protocolVersion}'.`);

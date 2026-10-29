@@ -49,7 +49,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
   /** Answers the outbound `callAgentFunction` at `index`. */
   const respond = (index: number, response: {value?: unknown; error?: unknown}) => {
     proc.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: outbound[index].callAgentFunction.functionCallId,
         ...response,
@@ -71,7 +71,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
       defaultTimeoutMs: options.defaultTimeoutMs,
     });
     proc.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {surfaceId: 's1', catalogId: FIN_CATALOG_ID},
     } as any);
     const surface = proc.model.getSurface('s1')!;

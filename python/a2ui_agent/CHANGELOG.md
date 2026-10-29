@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
+  field on v1.0 protocol messages and capabilities in inference format
+  compilers, parsers, decompilers, builders (`a2ui.builder.v1_0`),
+  `RendererState`, `resolve_catalogs`, and prompt examples.
+  [#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)
 - **BREAKING CHANGE**: The `a2ui.extensions.file_resolve` module
   (`FileResolver`, `FileResolverSecurityError` and `ResolvedFileConverter`) is
   removed, and the package no longer depends on `httpx`. File pointers are not

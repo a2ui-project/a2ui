@@ -20,12 +20,12 @@
 /// hands the SDK to v0.9 and lifts what the SDK returns back to v1.0 before
 /// comparing:
 ///
-/// - A `version` of `v1.0` becomes `v0.9`, and one of `v0.9` becomes
-///   `v1.0`. A case written with `v0.9` means a version other than its
+/// - A `version` of `1.0` becomes `v0.9`, and one of `v0.9` becomes
+///   `1.0`. A case written with `v0.9` means a version other than its
 ///   catalog's, which for this SDK is v1.0.
 /// - A catalog document's `protocolVersion` of `1.0` becomes `0.9`, and any
 ///   function `returnType` of `validationResult` becomes `boolean`.
-/// - Capabilities keyed by `v1.0` are keyed by `v0.9`.
+/// - Capabilities keyed by `1.0` are keyed by `v0.9`.
 /// - v1.0 lets `createSurface` name no catalog and v0.9 does not, so a case
 ///   that never names a catalog has the first catalog of the case named in
 ///   each `createSurface`, and removed again from what the SDK returns.
@@ -326,14 +326,14 @@ Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) {
 /// [version] swapped between the suite's version and this SDK's, in either
 /// spelling; any other value is returned as it is.
 Object? swapVersion(Object? version) => switch (version) {
-  'v1.0' => 'v0.9',
-  'v0.9' => 'v1.0',
+  '1.0' || 'v1.0' => 'v0.9',
+  'v0.9' => '1.0',
   _ => version,
 };
 
 // A case may write the field in curly quotes, which the parser repairs.
 final RegExp _versionField = RegExp(
-  '([“"]version[”"]\\s*:\\s*[“"])(v1\\.0|v0\\.9)([”"])',
+  '([“"]version[”"]\\s*:\\s*[“"])(v?1\\.0|v0\\.9)([”"])',
 );
 
 /// [text], a payload a model wrote, lowered to v0.9: each `version` swapped,

@@ -176,8 +176,8 @@ describe('MessageProcessor', () => {
         themeSchema: BasicCatalogThemeSchema,
       });
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
-      const inlineCat = (caps['v1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
+      const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
 
       assertConformsToV10CatalogDefinition(inlineCat);
       assert.deepStrictEqual(Object.keys(inlineCat.$defs).sort(), [
@@ -233,8 +233,8 @@ describe('MessageProcessor', () => {
         },
       };
       const proc = new MessageProcessor([Catalog.fromJson(document) as Catalog<any>]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
-      const inlineCat = (caps['v1.0'] as any).inlineCatalogs?.[0];
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
+      const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0];
 
       assert.deepStrictEqual(inlineCat, document);
       assertConformsToV10CatalogDefinition(inlineCat);
@@ -255,14 +255,14 @@ describe('MessageProcessor', () => {
 
     function inlineV10Catalog(catalog: Catalog<any>): Record<string, any> {
       const proc = new MessageProcessor([catalog]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
-      return (caps['v1.0'] as any).inlineCatalogs[0];
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
+      return (caps['1.0'] as any).inlineCatalogs[0];
     }
 
     it('gives a v1.0 inline catalog the catalogId and bare protocolVersion of a $id-only document', () => {
       const document = {
         $id: 'https://example.com/by-id.json',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {Label: label},
         $defs: unionsOnly,
       };
@@ -543,16 +543,16 @@ describe('MessageProcessor', () => {
 
     describe('per call', () => {
       const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
-      const create = {version: 'v1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
+      const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
       const danglingChild = {
-        version: 'v1.0' as const,
+        version: '1.0' as const,
         updateComponents: {
           surfaceId: 's',
           components: [{id: 'root', component: 'Column', children: ['later']}],
         },
       };
       const unknownComponent = {
-        version: 'v1.0' as const,
+        version: '1.0' as const,
         updateComponents: {surfaceId: 's', components: [{id: 'root', component: 'Unknown'}]},
       };
 
@@ -660,12 +660,12 @@ describe('MessageProcessor', () => {
       );
       const processor = new MessageProcessor([basicCat, fnCatalog]);
       processor.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
       });
 
       const responses = await processor.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-1',
           callFunction: {
@@ -691,7 +691,7 @@ describe('MessageProcessor', () => {
 
       // 1. Initial valid surface
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's_atomic',
           catalogId: 'https://a2ui.org/catalog',
@@ -715,7 +715,7 @@ describe('MessageProcessor', () => {
       assert.throws(
         () =>
           proc.processMessages({
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's_atomic',
               components: [
@@ -742,7 +742,7 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([basicCatalog]);
 
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's_untyped',
           catalogId: 'https://a2ui.org/catalog',
@@ -797,12 +797,12 @@ describe('MessageProcessor', () => {
     it('processes callRendererFunction via processMessagesAsync and returns response', async () => {
       const proc = new MessageProcessor([rpcCatalog]);
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
       });
 
       const responses = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-call-1',
           callFunction: {
@@ -829,7 +829,7 @@ describe('MessageProcessor', () => {
       };
 
       await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-call-at',
           callFunction: {'@call': 'echoFunction', catalogId: 'rpc-cat', args: {text: 'A'}},
@@ -861,7 +861,7 @@ describe('MessageProcessor', () => {
 
       proc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: 'rpc-model-cat',
@@ -869,7 +869,7 @@ describe('MessageProcessor', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's2',
             catalogId: 'rpc-model-cat',
@@ -880,7 +880,7 @@ describe('MessageProcessor', () => {
 
       // 1. With surfaceId: 's2' and @path arg -> resolves against s2's data model ('Bob')
       const resWithSurface = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           surfaceId: 's2',
           functionCallId: 'rpc-surf-1',
@@ -896,7 +896,7 @@ describe('MessageProcessor', () => {
 
       // 2. Without surfaceId and @path arg -> resolves against isolated empty root model ('empty')
       const resIsolated = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-surf-2',
           callFunction: {
@@ -911,7 +911,7 @@ describe('MessageProcessor', () => {
 
       // 3. With non-existent surfaceId -> returns INVALID_FUNCTION_CALL
       const resMissing = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           surfaceId: 'non_existent_surface',
           functionCallId: 'rpc-surf-3',
@@ -934,7 +934,7 @@ describe('MessageProcessor', () => {
 
       // 4. With @call: '@index' in args -> returns EXECUTION_ERROR
       const resIndexErr = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-surf-4',
           callFunction: {
@@ -953,7 +953,7 @@ describe('MessageProcessor', () => {
       // 5. Wire message missing callFunction.catalogId -> throws A2uiValidationError
       await assert.rejects(
         proc.processMessagesAsync({
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'rpc-surf-5',
             callFunction: {
@@ -969,13 +969,13 @@ describe('MessageProcessor', () => {
     it('enforces requiresUserActivation in processMessagesAsync via context options', async () => {
       const proc = new MessageProcessor([rpcCatalog]);
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
       });
 
       // Without user activation
       const unauthResponses = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-call-2',
           callFunction: {
@@ -995,7 +995,7 @@ describe('MessageProcessor', () => {
       // With user activation
       const authResponses = await proc.processMessagesAsync(
         {
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'rpc-call-3',
             callFunction: {
@@ -1034,7 +1034,7 @@ describe('MessageProcessor', () => {
 
       // Inbound response processed through standard message processing pipeline
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         agentFunctionResponse: {
           functionCallId: callId,
           value: {data: 'Agent Result'},
@@ -1070,13 +1070,13 @@ describe('MessageProcessor', () => {
         },
       });
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
       });
 
       // Fire-and-forget callRendererFunction in synchronous pipeline
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-sync-1',
           callFunction: {
@@ -1108,7 +1108,7 @@ describe('MessageProcessor', () => {
         };
 
         proc.processMessages({
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'rpc-sync-2',
             callFunction: {
@@ -1299,7 +1299,7 @@ describe('MessageProcessor', () => {
 
       proc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'meta_surface',
             metadata: {extensions: {vendor_app: {author: 'test_agent', priority: 'high'}}},
@@ -1319,14 +1319,14 @@ describe('MessageProcessor', () => {
 
       proc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'comp_meta_surface',
             catalogId: 'default',
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'comp_meta_surface',
             components: [
@@ -1353,7 +1353,7 @@ describe('MessageProcessor', () => {
       // Update component metadata
       proc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'comp_meta_surface',
             components: [
@@ -1406,16 +1406,16 @@ describe('MessageProcessor', () => {
         validationConfig: {...STRICT_VALIDATION, allowOrphanComponents: true},
       });
       proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Text', catalogId: 'custom', text: 'Hi'}],
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Text', text: 'Bye'}],
@@ -1468,9 +1468,9 @@ describe('MessageProcessor', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
       const proc = new MessageProcessor<ComponentApi>([base]);
       proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's'}},
+        {version: '1.0', createSurface: {surfaceId: 's'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [
@@ -1501,9 +1501,9 @@ describe('MessageProcessor', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
       const proc = new MessageProcessor<ComponentApi>([base]);
       proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Text', text: {'@call': 'anything', args: {}}}],
@@ -1517,9 +1517,9 @@ describe('MessageProcessor', () => {
     /** Processes a v1.0 surface on `base` whose root Text has the given `text`. */
     function processV10Text(proc: MessageProcessor<ComponentApi>, text: unknown): void {
       proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Text', text}],
@@ -1560,9 +1560,9 @@ describe('MessageProcessor', () => {
       assert.throws(
         () =>
           proc.processMessages([
-            {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+            {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
             {
-              version: 'v1.0',
+              version: '1.0',
               updateComponents: {
                 surfaceId: 's',
                 components: [{id: 'root', component: 'Text', catalogId: '', text: 'x'}],
@@ -1632,8 +1632,8 @@ describe('MessageProcessor', () => {
         root: Record<string, unknown>,
       ): void {
         proc.processMessages([
-          {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
-          {version: 'v1.0', updateComponents: {surfaceId: 's', components: [root]}},
+          {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+          {version: '1.0', updateComponents: {surfaceId: 's', components: [root]}},
         ]);
       }
 
@@ -1841,9 +1841,9 @@ describe('MessageProcessor', () => {
           validationConfig: STRICT_VALIDATION,
         });
         proc.processMessages([
-          {version: 'v1.0', createSurface: {surfaceId: 's'}},
+          {version: '1.0', createSurface: {surfaceId: 's'}},
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's',
               components: [
@@ -1902,7 +1902,7 @@ describe('MessageProcessor', () => {
         ],
         [
           {id: 'root', component: 'Text', catalogId: 'v09', text: 'x'},
-          "Component 'root' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (v1.0).",
+          "Component 'root' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (1.0).",
         ],
         [
           {
@@ -1911,7 +1911,7 @@ describe('MessageProcessor', () => {
             catalogId: 'base',
             text: {'@call': 'upper', catalogId: 'v09'},
           },
-          "Function call 'upper' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (v1.0).",
+          "Function call 'upper' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (1.0).",
         ],
         [
           {id: 'root', component: 'Text', text: 'x'},
@@ -1927,8 +1927,8 @@ describe('MessageProcessor', () => {
         assert.throws(
           () =>
             proc.processMessages([
-              {version: 'v1.0', createSurface: {surfaceId: 's'}},
-              {version: 'v1.0', updateComponents: {surfaceId: 's', components: [component]}},
+              {version: '1.0', createSurface: {surfaceId: 's'}},
+              {version: '1.0', updateComponents: {surfaceId: 's', components: [component]}},
             ]),
           (err: unknown) => err instanceof A2uiCatalogError && err.message === message,
           message,

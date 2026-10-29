@@ -397,7 +397,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
 
     def setUp(self):
         self.catalog = _links_catalog("1.0")
-        self.compiler = ExpressCompiler([self.catalog], version="v1.0")
+        self.compiler = ExpressCompiler([self.catalog], version="1.0")
 
     def _root(self, dsl: str) -> dict:
         messages = to_message_dicts(self.compiler.compile(dsl))
@@ -426,8 +426,8 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
 
     def test_event_user_message_binding_with_positional_context(self):
         root = self._root(
-            'root = Links([{label: "Reply", action: Event("reply", {threadId: "t1"},'
-            " userMessage=$/draft/message)}])"
+            'root = Links([{label: "Reply", action: Event("reply", {threadId:'
+            ' "t1"}, userMessage=$/draft/message)}])'
         )
         self.assertEqual(
             root["items"][0]["action"],
@@ -554,7 +554,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
             },
             protocol_version="1.0",
         )
-        compiler = ExpressCompiler([catalog], version="v1.0")
+        compiler = ExpressCompiler([catalog], version="1.0")
         messages = to_message_dicts(
             compiler.compile(
                 'root = Menu({items: [{label: "Docs", action:'

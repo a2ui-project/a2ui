@@ -478,7 +478,7 @@
     },
     "ProtocolVersion": {
       "type": "string",
-      "enum": ["v0.8", "v0.9", "v0.9.1", "v1.0"],
+      "enum": ["v0.8", "v0.9", "v0.9.1", "1.0"],
       "description": "Supported A2UI protocol versions."
     },
     "Catalog": {
@@ -513,7 +513,7 @@
           "description": "Identifier of the catalog."
         },
         "protocolVersion": {
-          "description": "Protocol version supported by this catalog, written either as the conformance enum spells it (for example `v1.0`) or as the catalog definition schema requires (for example `1.0`).",
+          "description": "Protocol version supported by this catalog, written either as the conformance enum spells it (for example `1.0` or `v0.9`) or as a semver string.",
           "anyOf": [
             {"$ref": "#/$defs/ProtocolVersion"},
             {
@@ -1141,7 +1141,7 @@
         "catalog_id": {"type": "string"},
         "protocol_version": {
           "type": "string",
-          "description": "The protocol version the catalog reports, written as the enum spells it, such as `v1.0`."
+          "description": "The protocol version the catalog reports, written as the enum spells it, such as `1.0`."
         },
         "components": {"type": "array", "items": {"type": "string"}},
         "functions": {"type": "array", "items": {"type": "string"}}

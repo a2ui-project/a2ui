@@ -24,7 +24,7 @@ import 'catalogs.dart';
 const Map<A2uiProtocolVersion, Set<String>> _messageVersions = {
   A2uiProtocolVersion.v0_9: {'v0.9', 'v0.9.1'},
   A2uiProtocolVersion.v0_9_1: {'v0.9', 'v0.9.1'},
-  A2uiProtocolVersion.v1_0: {'v1.0'},
+  A2uiProtocolVersion.v1_0: {'1.0'},
 };
 
 /// Messages are applied one at a time, and a component may name a child that

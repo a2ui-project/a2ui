@@ -20,7 +20,7 @@ void main() {
     test('exposes each version as its wire value', () {
       expect(A2uiProtocolVersion.v0_9.jsonValue, 'v0.9');
       expect(A2uiProtocolVersion.v0_9_1.jsonValue, 'v0.9.1');
-      expect(A2uiProtocolVersion.v1_0.jsonValue, 'v1.0');
+      expect(A2uiProtocolVersion.v1_0.jsonValue, '1.0');
     });
 
     test('implements v0.9, v0.9.1 and v1.0', () {
@@ -31,7 +31,7 @@ void main() {
       ]);
       expect(
         A2uiProtocolVersion.supportedVersions,
-        "'v0.9', 'v0.9.1', 'v1.0'",
+        "'v0.9', 'v0.9.1', '1.0'",
       );
     });
 
@@ -88,7 +88,7 @@ void main() {
     });
 
     test('parse rejects an unknown version; tryParse returns null', () {
-      for (final version in ['v0.8', 'v1.1', '0.9', '1.0', 'v0_9', '']) {
+      for (final version in ['v0.8', 'v1.0', 'v1.1', '0.9', 'v0_9', '']) {
         expect(A2uiProtocolVersion.tryParse(version), isNull, reason: version);
         expect(
           () => A2uiProtocolVersion.parse(version),
@@ -118,7 +118,7 @@ void main() {
     });
 
     test('rejects earlier and later protocol versions', () {
-      for (final version in ['v0.8', 'v1.1', '0.9', '']) {
+      for (final version in ['v0.8', 'v1.0', 'v1.1', '0.9', '']) {
         expect(
           () => A2uiProtocolVersion.fromJson(version),
           throwsA(

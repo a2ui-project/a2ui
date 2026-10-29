@@ -21,9 +21,9 @@ import {Catalog, V10RendererCapabilities} from '../../../src/internal/web-core.j
 import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
 
 describe('resolveCatalogs', () => {
-  const catBasic = new Catalog('id_basic', 'v1.0', [], []);
-  const catCustom1 = new Catalog('id_custom1', 'v1.0', [], []);
-  const catCustom2 = new Catalog('id_custom2', 'v1.0', [], []);
+  const catBasic = new Catalog('id_basic', '1.0', [], []);
+  const catCustom1 = new Catalog('id_custom1', '1.0', [], []);
+  const catCustom2 = new Catalog('id_custom2', '1.0', [], []);
 
   const configBasic = new CatalogConfig(catBasic);
   const configCustom1 = new CatalogConfig(catCustom1);
@@ -101,7 +101,7 @@ describe('resolveCatalogs', () => {
 
   it('resolves version-keyed capabilities for the registered catalogs protocol version', () => {
     const caps = {
-      'v1.0': {
+      '1.0': {
         supportedCatalogIds: ['id_custom1', 'id_basic'],
       },
     };
@@ -122,7 +122,7 @@ describe('resolveCatalogs', () => {
     const catV09 = new Catalog('id_v09', 'v0.9', [], []);
     const mixedConfigs = [configBasic, new CatalogConfig(catV09)];
     expect(() =>
-      resolveCatalogs(mixedConfigs, {'v1.0': {supportedCatalogIds: ['id_basic']}}),
+      resolveCatalogs(mixedConfigs, {'1.0': {supportedCatalogIds: ['id_basic']}}),
     ).toThrowError(A2uiCatalogError);
   });
 });

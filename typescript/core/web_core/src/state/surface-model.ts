@@ -18,15 +18,15 @@ import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
-import {toCanonicalVersion} from '../common/semver.js';
+import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {A2uiExpressionError} from '../errors.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
 /**
- * Normalizes a protocol version to the `vMAJOR.MINOR` form used by messages.
+ * Normalizes a protocol version to the canonical wire form (`'1.0'` for 1.0+,
+ * `'v0.9'` / `'v0.8'` for pre-1.0 versions).
  *
- * Catalogs declare `'1.0'` while messages carry `'v1.0'`; storing one form
- * keeps comparisons by consumers simple. Unparseable versions are kept as is.
+ * Unparseable versions are kept as is.
  *
  * @param version Protocol version to normalize.
  * @returns The canonical version, or `undefined` when none was given.
@@ -34,7 +34,8 @@ import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 function canonicalProtocolVersion(version: string | undefined): string | undefined {
   if (!version) return undefined;
   const canonical = toCanonicalVersion(version);
-  return canonical ? `v${canonical}` : version;
+  if (!canonical) return version;
+  return isAtLeastVersion(canonical, '1.0') ? canonical : `v${canonical}`;
 }
 
 /** Action payload emitted by a renderer component. */
@@ -165,8 +166,8 @@ export class SurfaceModel<
    *
    * Defaults to the default catalog's version. A surface without a default
    * catalog (allowed from v1.0) takes it from the `protocolVersion`
-   * constructor argument instead. Stored in the `vMAJOR.MINOR` form used by
-   * messages (for example `'v1.0'`), whichever form it was given in.
+   * constructor argument instead. Stored in the canonical wire form used by
+   * messages (for example `'1.0'` or `'v0.9'`), whichever form it was given in.
    */
   readonly protocolVersion: string | undefined;
 

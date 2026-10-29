@@ -52,7 +52,10 @@ _A2A_EXPORTS: dict[str, tuple[str, str | None]] = {
     "A2uiEventConverter": (".a2a", "A2uiEventConverter"),
     "A2uiPartConverter": (".a2a", "A2uiPartConverter"),
     "A2uiSubagentMap": (".orchestration", "A2uiSubagentMap"),
-    "SurfaceIdAlreadyExistsError": (".orchestration", "SurfaceIdAlreadyExistsError"),
+    "SurfaceIdAlreadyExistsError": (
+        ".orchestration",
+        "SurfaceIdAlreadyExistsError",
+    ),
 }
 
 

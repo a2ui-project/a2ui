@@ -186,7 +186,8 @@ def test_pruning_leaves_the_input_catalog_unchanged():
 
 
 @pytest.mark.parametrize(
-    "transformer_class", [ComponentPruningTransformer, FunctionPruningTransformer]
+    "transformer_class",
+    [ComponentPruningTransformer, FunctionPruningTransformer],
 )
 def test_pruning_rejects_a_single_string(transformer_class):
     with pytest.raises(TypeError, match="not a string"):

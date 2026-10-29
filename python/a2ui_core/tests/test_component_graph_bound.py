@@ -78,7 +78,7 @@ CATALOG = Catalog.from_json(
         },
     },
     catalog_id="custom",
-    protocol_version="v1.0",
+    protocol_version="1.0",
 )
 
 IDS = ["root", "a", "b", "c", "d", "e", "f"]
@@ -127,7 +127,7 @@ def _batch(rng: random.Random) -> list[dict[str, Any]]:
 
 def _message(components: list[dict[str, Any]]) -> dict[str, Any]:
     return {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {"surfaceId": "s1", "components": components},
     }
 
@@ -137,7 +137,7 @@ def _processor(config: ValidationConfig) -> MessageProcessor:
         [CATALOG], options=MessageProcessorOptions(validation_config=config)
     )
     processor.process_messages([{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {"surfaceId": "s1", "catalogId": "custom"},
     }])
     return processor
@@ -287,14 +287,18 @@ DIFFERENTIAL_CONFIGS = ["missing_root_allowed", "orphans_allowed"]
 
 
 @pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
-def test_rejects_a_child_that_arrives_after_its_container(config_name: str) -> None:
+def test_rejects_a_child_that_arrives_after_its_container(
+    config_name: str,
+) -> None:
     pair = _Pair(CONFIGS[config_name])
     assert pair.send(_comp("root", "Strict", children=["a"])) is None
     assert _error_code(pair.send(_comp("a", "Card"))) == "UNALLOWED_CHILD"
 
 
 @pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
-def test_rejects_a_container_that_arrives_after_its_child(config_name: str) -> None:
+def test_rejects_a_container_that_arrives_after_its_child(
+    config_name: str,
+) -> None:
     pair = _Pair(CONFIGS[config_name])
     assert pair.send(_comp("root", "Box")) is None
     assert pair.send(_comp("a", "Card")) is None
@@ -313,7 +317,9 @@ def test_rejects_a_child_added_to_a_container_later(config_name: str) -> None:
 
 
 @pytest.mark.parametrize("config_name", DIFFERENTIAL_CONFIGS)
-def test_container_rewritten_to_drop_a_child_it_disallows(config_name: str) -> None:
+def test_container_rewritten_to_drop_a_child_it_disallows(
+    config_name: str,
+) -> None:
     pair = _Pair(CONFIGS[config_name])
     assert pair.send(_comp("root", "Box", children=["a", "h"])) is None
     assert pair.send(_comp("a", "Item"), _comp("h", "Header")) is None
@@ -325,7 +331,8 @@ def test_container_rewritten_to_drop_a_child_it_disallows(config_name: str) -> N
     assert _error_code(outcome) == "UNALLOWED_PARENT"
     assert (
         pair.send(
-            _comp("root", "Strict", children=["a"]), _comp("b", "Box", children=["h"])
+            _comp("root", "Strict", children=["a"]),
+            _comp("b", "Box", children=["h"]),
         )
         is None
     )
@@ -387,7 +394,7 @@ OTHER_CATALOG = Catalog.from_json(
         },
     },
     catalog_id="other",
-    protocol_version="v1.0",
+    protocol_version="1.0",
 )
 
 
@@ -397,7 +404,7 @@ def _multi_catalog_processor(config: ValidationConfig) -> MessageProcessor:
         options=MessageProcessorOptions(validation_config=config),
     )
     processor.process_messages([{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {"surfaceId": "s1", "catalogId": "custom"},
     }])
     return processor
@@ -506,7 +513,10 @@ V08_H1_COLUMN = {
     "id": "h1",
     "component": {"Column": {"children": {"explicitList": ["a"]}}},
 }
-V08_H1_TEXT = {"id": "h1", "component": {"Text": {"text": {"literalString": "H"}}}}
+V08_H1_TEXT = {
+    "id": "h1",
+    "component": {"Text": {"text": {"literalString": "H"}}},
+}
 
 
 def _v08_processor(config: ValidationConfig) -> MessageProcessor:

@@ -320,7 +320,9 @@ class ComponentGraphBound:
         return True
 
     def record_batch(
-        self, batch: Mapping[str, ComponentModel], held: Mapping[str, ComponentModel]
+        self,
+        batch: Mapping[str, ComponentModel],
+        held: Mapping[str, ComponentModel],
     ) -> None:
         """Records the composition references and positions of an admitted batch.
 

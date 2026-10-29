@@ -175,7 +175,7 @@ void main() {
         },
       });
       final call = CallRendererFunctionMessage(
-        version: 'v1.0',
+        version: '1.0',
         functionCallId: 'c1',
         callFunction: {
           '@call': 'ping',
@@ -238,7 +238,7 @@ void main() {
         expect(
           () => state.apply([
             CallRendererFunctionMessage(
-              version: 'v1.0',
+              version: '1.0',
               functionCallId: 'c2',
               callFunction: {
                 '@call': 'nope',
@@ -253,7 +253,7 @@ void main() {
 
       test('rejects a call with a malformed path when it is applied', () async {
         final badPath = CallRendererFunctionMessage(
-          version: 'v1.0',
+          version: '1.0',
           functionCallId: 'c4',
           callFunction: {
             '@call': 'ping',
@@ -279,7 +279,7 @@ void main() {
         expect(
           () => state.apply([
             CallRendererFunctionMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 'missing',
               functionCallId: 'c3',
               callFunction: {
