@@ -83,7 +83,7 @@ Follow three safeguards so your test suite never hides regressions behind green 
 
 ### 3. Mapping error categories
 
-Test cases express failures through `expectError` or `expect_error` using language-agnostic category names from `ExpectError` in [conformance_schema.json](conformance_schema.json). Agent suites always write `expect_error`, whereas Core suites and steps use both spellings (`data_model.yaml` and `expressions.yaml` write `expect_error`, and the remaining Core suites write `expectError`), so a Core runner must check both keys:
+Test cases express failures through `expectError` or `expect_error` using language-agnostic category names from `ExpectError` in [conformance_schema.json](conformance_schema.json). Agent suites always write `expect_error`, whereas Core suites and steps use both key names (`data_model.yaml` and `expressions.yaml` write `expect_error`, and the remaining Core suites write `expectError`), so a Core runner must check both keys:
 
 | Schema `category`  | Meaning                                                                                            | Typical SDK error classes                                                                           |
 | :----------------- | :------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------- |
@@ -268,7 +268,7 @@ The existing Python, TypeScript, and Dart harnesses show several reusable patter
 2. Format numbers consistently in Express decompilation and prompt examples. JavaScript and TypeScript decode `1500.00` in JSON as `1500`, whereas Python, Kotlin, Swift, and Rust decode `1500.0` with a `.0` suffix. Per [agent/express/decompiler.yaml](agent/express/decompiler.yaml), Express formats numbers like ECMAScript `Number.prototype.toString`: plain decimal for `1e-6 <= |v| < 1e21` and unpadded scientific notation (`1e-7`, `1e+21`) otherwise.
 3. Keep `InferenceFormat` stateless across turns. `InferenceFormat` instances live for an entire session or agent lifetime, while `Parser` and `ResponseStream` hold per-response buffers. Storing stream state on `InferenceFormat` causes subtle cross-turn corruption that fails `parser_state_isolated` in `request_processor.yaml`.
 4. Keep `unwrap` and `hasFormatContent` free of schema checks. Framing methods inspect only sentinel tags (`<a2ui-json>` or `<a2ui>`), Markdown code fences, and missing-opening-tag recovery rules. Several `response_parser.yaml` cases check that malformed payloads still unwrap cleanly into `RawA2uiPart` items before compilation runs.
-5. Read both reserved-key spellings where the version allows. v1.0 catalogs and suites write `@path` and `@call`; a decompiler that reads only `path` and `call` renders a v1.0 catalog example in the prompt as a literal map instead of notation, and the skill goldens under `test_data/skills/` embed that output.
+5. Accept both reserved-key forms where the version allows. v1.0 catalogs and suites write `@path` and `@call`; a decompiler that reads only `path` and `call` renders a v1.0 catalog example in the prompt as a literal map instead of notation, and the skill goldens under `test_data/skills/` embed that output.
 
 ## Framework adapter harness
 
