@@ -1,5 +1,29 @@
 ## Unreleased
 
+- (v1_0) A function call whose function the renderer does not implement
+  (undeclared in the catalog the call resolves to, or declared schema-only) is
+  routed to the agent with `callAgentFunction`, as the specification's fallback
+  routing defines, instead of failing with an `EXPRESSION_ERROR` (undeclared)
+  or silently evaluating to `None` (schema-only). This applies to bindings,
+  check rules and `action.functionCall`. The value is pending (`None`, or a
+  pending signal from `resolve_dynamic_value(..., peek=False)` and
+  `subscribe_dynamic_value`) until the `agentFunctionResponse` arrives; an
+  agent error or a timeout dispatches an `EXPRESSION_ERROR`. A call that takes
+  a pending agent result as an argument runs once the result arrives. The
+  outbound call always names the catalog the call resolved to, even when the
+  payload relied on the surface default. Arguments of a schema-only function
+  are validated against its schema before the call is sent, with its defaults
+  filled in, and its `requires_user_activation` is enforced: it is sent only
+  from `resolve_action`. Identical calls awaiting a response share one
+  request. A call whose catalog cannot be resolved stays a `CATALOG_ERROR` and
+  is not routed. `MessageProcessor` enables this on v1.0 surfaces when it has
+  an `outbound_listener`; without one, such calls still fail locally. Adds
+  `SurfaceModel.agent_function_caller`, `SurfaceModel.call_agent_function`,
+  `DataContext.is_user_activated`, and the `AgentFunctionCall` and
+  `AgentFunctionCaller` types.
+  [#3415](https://github.com/a2ui-project/a2ui/issues/3415),
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536)
+
 - **BREAKING CHANGE**: Unify the v1.0 protocol version wire value on `'1.0'`
   (without a `'v'` prefix) across message envelopes, capability objects, and
   catalog documents (`ProtocolVersion.V1_0.value` is now `'1.0'`), while

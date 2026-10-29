@@ -28,7 +28,13 @@ T = TypeVar("T")
 from ..common import is_at_least_version, to_protocol_version
 from ..common.events import EventSource
 from .adapters import is_catalog_version_compatible
-from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
+from ..state import (
+    AgentFunctionCall,
+    AgentFunctionCaller,
+    ComponentModel,
+    SurfaceGroupModel,
+    SurfaceModel,
+)
 from ..validation import (
     PayloadValidator,
     ValidationConfig,
@@ -270,6 +276,28 @@ class MessageProcessor:
     def _resolve_catalog(self, catalog_id: str | None = None) -> Any | None:
         """Resolves a catalog by catalog_id, or returns None if catalog_id is None or not found."""
         return self.rpc.resolve_catalog(catalog_id)
+
+    def _agent_function_caller(
+        self, surface_id: str, version: str
+    ) -> AgentFunctionCaller:
+        """Builds the caller that sends a surface's agent function calls.
+
+        Each call is dispatched as a `callAgentFunction` message through the
+        processor's `RpcHandler`, naming the catalog the call resolved to.
+        """
+
+        def _call(call: AgentFunctionCall) -> asyncio.Future[Any]:
+            return self.rpc.call_agent_function(
+                surface_id,
+                FunctionCall(  # type: ignore[call-arg]
+                    call=call.call,
+                    catalogId=call.catalog_id,
+                    args=call.args,
+                ),
+                CallOptions(version=version),
+            )
+
+        return _call
 
     @classmethod
     def _generate_legacy_inline_catalog(
@@ -641,6 +669,17 @@ class MessageProcessor:
         )
         if op.root:
             new_surface.root_id = op.root
+        # From v1.0, a function the renderer does not implement runs on the
+        # agent. Without an outbound listener there is no way to reach it, so
+        # such calls keep failing locally.
+        if (
+            self.rpc.outbound_listener is not None
+            and surface_proto_ver
+            and is_at_least_version(surface_proto_ver, ProtocolVersion.V1_0)
+        ):
+            new_surface.agent_function_caller = self._agent_function_caller(
+                surface_id, _version_label(surface_proto_ver)
+            )
         self.model.add_surface(new_surface)
 
         if op.data_model is not None:

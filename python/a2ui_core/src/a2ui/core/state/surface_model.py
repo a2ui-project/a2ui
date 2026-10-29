@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import copy
+import json
 import warnings
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import Any, cast
 from ..common.events import EventSource
 from .data_model import DataModel
@@ -23,7 +27,52 @@ from ..schema import ProtocolVersion
 
 
 from collections.abc import Sequence
-from ..exceptions import A2uiCatalogError
+from ..exceptions import A2uiCatalogError, A2uiExpressionError
+
+
+@dataclass(frozen=True)
+class AgentFunctionCall:
+    """A function call that a surface routes to the agent.
+
+    Unlike a `FunctionCall` in a payload, it always names the catalog the call
+    resolved to, and its arguments are resolved values.
+
+    Attributes:
+        call: Name of the function to call.
+        catalog_id: Identifier of the catalog the call resolved to on the
+            surface.
+        args: Resolved argument values.
+    """
+
+    call: str
+    catalog_id: str
+    args: dict[str, Any] = field(default_factory=dict)
+
+
+AgentFunctionCaller = Callable[[AgentFunctionCall], Awaitable[Any]]
+"""Sends a function call to the agent and resolves with the agent's result.
+
+`MessageProcessor` installs one on each v1.0 surface when it has an
+`outbound_listener`; it dispatches `callAgentFunction` through the processor's
+`RpcHandler`.
+"""
+
+
+def _agent_call_key(call: AgentFunctionCall) -> str | None:
+    """Builds the key that identifies identical agent function calls.
+
+    Returns:
+        The key, or None if the arguments cannot be serialized, in which case
+        the call is not shared.
+    """
+    try:
+        return json.dumps(
+            [call.catalog_id, call.call, call.args],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    except (TypeError, ValueError):
+        return None
 
 
 class SurfaceModel:
@@ -69,6 +118,14 @@ class SurfaceModel:
         self.on_action = EventSource()
         self.on_error = EventSource()
         self.on_warning = EventSource()
+        # Sends calls to functions the renderer does not implement to the
+        # agent. When set, a v1.0 function call whose function has no local
+        # implementation in the catalog it resolves to (undeclared, or
+        # declared schema-only) is routed here instead of failing, as the v1.0
+        # fallback routing defines.
+        self.agent_function_caller: AgentFunctionCaller | None = None
+        # Agent function calls awaiting a response, keyed by call.
+        self._in_flight_agent_calls: dict[str, asyncio.Future[Any]] = {}
 
     @property
     def catalog(self) -> CatalogApi | None:
@@ -109,6 +166,45 @@ class SurfaceModel:
                 " default catalogId."
             )
         return self.default_catalog
+
+    def call_agent_function(self, call: AgentFunctionCall) -> asyncio.Future[Any]:
+        """Sends a function call to the agent through `agent_function_caller`.
+
+        A call identical to one still awaiting its response (same catalog,
+        function and arguments) shares that response instead of sending
+        another message, so re-evaluating a binding does not repeat the
+        request.
+
+        Args:
+            call: The call to send, naming the catalog it resolved to.
+
+        Returns:
+            A future resolving to the agent's result.
+
+        Raises:
+            A2uiExpressionError: If no `agent_function_caller` is set.
+        """
+        caller = self.agent_function_caller
+        if caller is None:
+            raise A2uiExpressionError(
+                f"Function '{call.call}' is not implemented locally and surface"
+                f" '{self.id}' cannot call the agent."
+            )
+        key = _agent_call_key(call)
+        if key is not None:
+            in_flight = self._in_flight_agent_calls.get(key)
+            if in_flight is not None:
+                return in_flight
+        pending = asyncio.ensure_future(caller(call))
+        if key is not None:
+            self._in_flight_agent_calls[key] = pending
+
+            def _release(done: asyncio.Future[Any]) -> None:
+                if self._in_flight_agent_calls.get(key) is done:
+                    del self._in_flight_agent_calls[key]
+
+            pending.add_done_callback(_release)
+        return pending
 
     def dispatch_action(
         self, payload: dict[str, Any], source_component_id: str
@@ -179,6 +275,7 @@ class SurfaceModel:
 
     def dispose(self) -> None:
         """Disposes of the surface and its resources."""
+        self._in_flight_agent_calls.clear()
         if hasattr(self.data_model, "dispose") and callable(self.data_model.dispose):
             try:
                 self.data_model.dispose()
