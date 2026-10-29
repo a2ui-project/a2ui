@@ -814,16 +814,15 @@ void _cleanupRegistrationTests() {
           surface.componentsModel.get('root')!.properties = {
             'children': ['b'],
           };
-          // Removing the first position also replaces b's positional edge.
-          expect(events, [...childEvents, 'b:cleanup', 'b:destroyed']);
+          expect(events, childEvents);
           expect(children[0].disposed, isTrue);
-          expect(children[1].disposed, isTrue);
+          expect(children[1].disposed, isFalse);
           expect(resolver.activeNodeCount, 2);
           expect(resolver.rootNode.peek(), same(root));
-          final replacement =
+          final retained =
               (root.props.peek()['children'] as List).single as ComponentNode;
-          expect(replacement.componentId, 'b');
-          expect(replacement, isNot(same(children[1])));
+          expect(retained.componentId, 'b');
+          expect(retained, same(children[1]));
           _expectLiveTree(resolver);
         } else if (operation == 'root deletion') {
           surface.componentsModel.removeComponent('root');

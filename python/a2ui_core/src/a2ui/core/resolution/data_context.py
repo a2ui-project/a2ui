@@ -16,9 +16,19 @@ from __future__ import annotations
 
 import copy
 import inspect
-import warnings
 from typing import Any, Callable, Final
+import warnings
+
 from ..catalog import is_system_function_name, system_functions_for
+from ..common.events import AbortSignal, EventSource, Signal, Subscription
+from ..common.semver import is_at_least_version
+from ..exceptions import (
+    A2uiCatalogError,
+    A2uiErrorDetail,
+    A2uiExpressionError,
+    A2uiValidationError,
+)
+from ..schema import ProtocolVersion
 from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import (
@@ -26,9 +36,6 @@ from ..validation.payload_validator import (
     PayloadValidator,
     validate_system_function,
 )
-from ..common.events import Subscription, EventSource, Signal, AbortSignal
-from ..schema import ProtocolVersion
-from ..common.semver import is_at_least_version
 from .validation_result_coercion import coerce_validation_results
 
 
@@ -79,8 +86,6 @@ def validate_reserved_directives(keys: Any, protocol_version: str | None) -> Non
         return
     for k in keys:
         if is_single_at_key(k) and k not in RESERVED_DIRECTIVES:
-            from ..exceptions import A2uiErrorDetail, A2uiValidationError
-
             msg = (
                 f"Unrecognized reserved protocol directive '{k}' in v1.0 dynamic"
                 " object. Reserved keys must be in"
@@ -315,18 +320,64 @@ class DataContext:
             return {}
         return {k: self.resolve_dynamic_value(v) for k, v in context.items()}
 
-    def resolve_action(self, action: dict[str, Any]) -> Any:
+    def _emit_invalid_action_error(self, message: str) -> None:
+        if self.surface and hasattr(self.surface, "dispatch_error"):
+            self.surface.dispatch_error({
+                "code": "INVALID_ACTION",
+                "message": message,
+            })
+
+    def _resolve_event_action(self, action: dict[str, Any]) -> Any:
+        evt = dict(action["event"])
+        if not isinstance(evt.get("name"), str) or not evt.get("name"):
+            self._emit_invalid_action_error(
+                "Action event is missing required string 'name'."
+            )
+            return None
+        if "context" in evt:
+            evt["context"] = self._resolve_action_context(evt["context"])
+        if evt.get("userMessage") is not None:
+            resolved_um = self.resolve_dynamic_value(evt["userMessage"])
+            if resolved_um is not None and not isinstance(resolved_um, str):
+                self._emit_invalid_action_error(
+                    "Action event 'userMessage' must be a string."
+                )
+                return None
+            evt["userMessage"] = resolved_um
+        return {**action, "event": evt}
+
+    def _resolve_function_call_action(
+        self, action: dict[str, Any], fc: dict[str, Any], is_user_activated: bool
+    ) -> Any:
+        fn_name = fc.get("@call") or fc.get("call")
+        if isinstance(fn_name, str):
+            cat_id = (
+                (fc["catalogId"] if "catalogId" in fc else fc.get("catalog_id"))
+                if self.at_least_v10
+                else None
+            )
+            names_cat = self.at_least_v10 and ("catalogId" in fc or "catalog_id" in fc)
+            return self._execute_function(
+                fn_name,
+                fc.get("args", {}),
+                catalog_id=cat_id,
+                names_catalog=names_cat,
+                is_action=True,
+                is_user_activated=is_user_activated,
+            )
+        if "functionCall" in action:
+            return self.resolve_dynamic_value(action["functionCall"])
+        return action
+
+    def resolve_action(
+        self, action: dict[str, Any], is_user_activated: bool = True
+    ) -> Any:
         """Resolves an action by evaluating its top-level dynamic values."""
         if not isinstance(action, dict):
             return action
 
         if isinstance(action.get("event"), dict):
-            evt = dict(action["event"])
-            if "context" in evt:
-                evt["context"] = self._resolve_action_context(evt["context"])
-            if evt.get("userMessage") is not None:
-                evt["userMessage"] = self.resolve_dynamic_value(evt["userMessage"])
-            return {**action, "event": evt}
+            return self._resolve_event_action(action)
 
         if "name" in action:
             resolved = dict(action)
@@ -338,10 +389,12 @@ class DataContext:
                 )
             return resolved
 
-        if "functionCall" in action:
-            return self.resolve_dynamic_value(action["functionCall"])
+        if isinstance(action.get("functionCall"), dict):
+            return self._resolve_function_call_action(
+                action, action["functionCall"], is_user_activated
+            )
         if isinstance(action.get("@call"), str) or isinstance(action.get("call"), str):
-            return self.resolve_dynamic_value(action)
+            return self._resolve_function_call_action(action, action, is_user_activated)
 
         return action
 
@@ -441,6 +494,25 @@ class DataContext:
 
         return Subscription(_unsubscribe_all, initial_value=current_val[0])
 
+    @staticmethod
+    def _check_action_user_activation(
+        fn: Any, name: str, is_action: bool, is_user_activated: bool
+    ) -> None:
+        if not is_action or is_user_activated:
+            return
+        if getattr(fn, "requires_user_activation", False) or name == "openUrl":
+            raise RuntimeError(f"Function '{name}' requires user activation.")
+
+    @staticmethod
+    def _resolve_function_error_code(
+        err: Exception, is_action: bool, in_body: bool
+    ) -> str:
+        if isinstance(err, A2uiCatalogError):
+            return "CATALOG_ERROR"
+        if is_action and in_body:
+            return "EXECUTION_ERROR"
+        return "EXPRESSION_ERROR"
+
     def _execute_function(
         self,
         name: str,
@@ -448,6 +520,8 @@ class DataContext:
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
         names_catalog: bool = False,
+        is_action: bool = False,
+        is_user_activated: bool = True,
     ) -> Any:
         """Validates, resolves and runs a function call.
 
@@ -465,8 +539,7 @@ class DataContext:
         to no catalog, so a call to one that names a catalog is a malformed
         expression: it is reported as an ``EXPRESSION_ERROR`` and not run.
         """
-        from ..exceptions import A2uiCatalogError, A2uiExpressionError
-
+        in_body = False
         try:
             if isinstance(raw_args, dict) and len(raw_args) > MAX_FUNCTION_CALL_ARGS:
                 raise A2uiExpressionError(
@@ -513,6 +586,9 @@ class DataContext:
                         f"Function '{name}' not found in {catalog_desc}."
                     )
 
+            in_body = True
+            self._check_action_user_activation(fn, name, is_action, is_user_activated)
+
             resolved_args = self.resolve_dynamic_value(
                 raw_args, peek=True, abort_signal=abort_signal
             )
@@ -538,12 +614,10 @@ class DataContext:
                 # A call whose catalog can't be resolved is a catalog fault,
                 # not a broken expression: the function may exist in a
                 # catalog this surface doesn't have.
+                err_code = self._resolve_function_error_code(e, is_action, in_body)
                 error_payload: dict[str, Any] = {
-                    "code": (
-                        "CATALOG_ERROR"
-                        if isinstance(e, A2uiCatalogError)
-                        else "EXPRESSION_ERROR"
-                    ),
+                    "code": err_code,
+                    "surfaceId": getattr(self.surface, "id", ""),
                     "message": str(e),
                     "expression": name,
                 }
