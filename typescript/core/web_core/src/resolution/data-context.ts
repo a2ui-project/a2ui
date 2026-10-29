@@ -709,6 +709,24 @@ export class DataContext {
    * @returns A reactive Signal containing the result of the evaluation.
    */
   resolveSignal<V>(value: unknown, depth = 0): Signal<V> {
+    return this.resolveSignalValue<V>(value, depth, false);
+  }
+
+  /**
+   * Resolves a DynamicValue into a reactive Signal, as {@link resolveSignal}.
+   *
+   * Inside the arguments of a function call (`keepPending`), the pending
+   * result of an asynchronous function stays in its signal as a Promise, so
+   * the invoker of the enclosing call waits for it before validating and
+   * running, as it does when the value is resolved once. Elsewhere the
+   * signal holds `undefined` until the result settles.
+   *
+   * @param value The DynamicValue or raw value to evaluate and observe.
+   * @param depth The current recursion depth.
+   * @param keepPending Whether the value is (part of) a function argument.
+   * @returns A reactive Signal containing the result of the evaluation.
+   */
+  private resolveSignalValue<V>(value: unknown, depth: number, keepPending: boolean): Signal<V> {
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
       const err = new A2uiExpressionError(
         `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
@@ -727,8 +745,12 @@ export class DataContext {
       return signal(value as V);
     }
 
-    // 1a. A pending value: the signal holds `undefined` until it settles.
+    // 1a. A pending value: the signal holds `undefined` until it settles, or
+    // the Promise itself inside a function argument.
     if (isThenable(value)) {
+      if (keepPending) {
+        return signal(value as V);
+      }
       const pendingSig = signal<V | undefined>(undefined);
       this.settleIntoSignal(pendingSig, value, 'DynamicValue');
       return pendingSig as Signal<V>;
@@ -740,7 +762,7 @@ export class DataContext {
       if (!this.containsDynamicValue(value)) {
         return signal(value as V);
       }
-      const itemSignals = value.map(item => this.resolveSignal(item, depth + 1));
+      const itemSignals = value.map(item => this.resolveSignalValue(item, depth + 1, keepPending));
       const resultSig = computed(() => itemSignals.map(s => getValue(s))) as Signal<V>;
       resultSig.unsubscribe = () => {
         for (const s of itemSignals) {
@@ -779,7 +801,7 @@ export class DataContext {
       const argSignals: Record<string, Signal<unknown>> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
-        argSignals[key] = this.resolveSignal(argVal, depth + 1);
+        argSignals[key] = this.resolveSignalValue(argVal, depth + 1, true);
       }
 
       if (Object.keys(argSignals).length === 0) {
@@ -794,9 +816,13 @@ export class DataContext {
         if (isSignal(result)) {
           sig = result;
         } else if (isThenable(result)) {
-          const pendingSig = signal<V | undefined>(undefined);
-          this.settleIntoSignal(pendingSig, result, callName, abortController.signal);
-          sig = pendingSig as Signal<V>;
+          if (keepPending) {
+            sig = signal(this.keepPendingResult(result) as V);
+          } else {
+            const pendingSig = signal<V | undefined>(undefined);
+            this.settleIntoSignal(pendingSig, result, callName, abortController.signal);
+            sig = pendingSig as Signal<V>;
+          }
         } else {
           sig = signal(result as V);
         }
@@ -840,9 +866,15 @@ export class DataContext {
               setValue(resultSig, getValue(res));
             });
           } else if (isThenable(res)) {
-            // Keep the current value until the call settles; a completion
-            // that arrives after the arguments changed again is ignored.
-            this.settleIntoSignal(resultSig, res, callName, abortController.signal);
+            if (keepPending) {
+              // The enclosing call waits for the Promise and reports a
+              // rejection, once, as its own failure.
+              setValue(resultSig, this.keepPendingResult(res) as V);
+            } else {
+              // Keep the current value until the call settles; a completion
+              // that arrives after the arguments changed again is ignored.
+              this.settleIntoSignal(resultSig, res, callName, abortController.signal);
+            }
           } else {
             setValue(resultSig, res);
           }
@@ -875,7 +907,7 @@ export class DataContext {
 
     const entrySignals = Object.entries(rec).map(([k, v]) => {
       const key = this.atLeastV10 ? unescapeObjectKey(k) : k;
-      return [key, this.resolveSignal(v, depth + 1)] as const;
+      return [key, this.resolveSignalValue(v, depth + 1, keepPending)] as const;
     });
     const objSig = computed(() => {
       const resolved: Record<string, unknown> = {};
@@ -1071,6 +1103,22 @@ export class DataContext {
       this.dispatchExpressionError(e, name);
       return undefined as unknown as V;
     }
+  }
+
+  /**
+   * Returns a pending function result to keep in an argument signal.
+   *
+   * The enclosing call waits for it and reports a rejection. A handler is
+   * attached so that a rejection the enclosing call never awaits, such as
+   * when it fails before settling its arguments, is not reported as
+   * unhandled.
+   *
+   * @param pending The pending result.
+   * @returns The same pending result.
+   */
+  private keepPendingResult(pending: PromiseLike<unknown>): PromiseLike<unknown> {
+    Promise.resolve(pending).then(undefined, () => undefined);
+    return pending;
   }
 
   /**
