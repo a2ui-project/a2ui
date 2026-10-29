@@ -19,7 +19,8 @@
 # the site to GitHub Pages via `mkdocs gh-deploy`. Before building, it copies
 # the specification schemas into the docs tree (flattening versioned JSON to the
 # version root for clean URLs) and converts GitHub-style admonitions to the
-# MkDocs format. Runs only on the upstream `a2ui-project/a2ui` repository.
+# MkDocs format. A nightly run does the build-only check on `main`. Runs only
+# on the upstream `a2ui-project/a2ui` repository.
 name: Docs
 
 on:
@@ -36,9 +37,15 @@ on:
   pull_request:
     branches:
       - main
+  # Catches breakage from outside the repository, such as a new dependency
+  # release or runner image, when no change touches the paths above.
+  schedule:
+    - cron: "30 3 * * *" # daily at 03:30 UTC
+  workflow_dispatch:
 
+# A scheduled run has a group of its own, so that a push does not cancel it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref_name || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -47,8 +54,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Outside push and pull_request events the filter would only diff the last
+    # commit, so a scheduled or manual run skips it, and the output falls back
+    # to 'true'.
     outputs:
-      docs: ${{ steps.filter.outputs.docs }}
+      docs: ${{ steps.filter.outputs.docs || 'true' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,12 +67,13 @@ jobs:
       - name: Check for docs changes
         uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           # An empty token makes the action diff `pull_request.base.sha..HEAD`
           # with git instead of reading the pull request's files from the
           # GitHub API, which fails the job when the API has a transient
           # error. It fetches the base commit itself, so the shallow checkout
-          # above is enough. Push and scheduled runs always used git.
+          # above is enough. Push runs always used git.
           token: ""
           filters: |
             docs:
@@ -134,23 +145,23 @@ jobs:
       - name: Convert Admonitions in Documentation
         run: uv run python docs/scripts/convert_docs.py
 
-      - name: Build Documentation (PR Check)
-        if: github.event_name == 'pull_request'
+      - name: Build Documentation (Check)
+        if: github.event_name != 'push'
         run: uv run mkdocs build
 
-      # Pre-submit only: verify that links in every Markdown file resolve,
+      # Pull requests and nightly runs only: verify that links in every Markdown file resolve,
       # catching broken internal paths and dead external URLs. Placeholder URLs
       # and tuning live in lychee.toml at the repository root.
       - name: Restore lychee link-check cache
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: .lycheecache
           key: lychee-${{ github.sha }}
           restore-keys: lychee-
 
-      - name: Verify Markdown links (PR Check)
-        if: github.event_name == 'pull_request'
+      - name: Verify Markdown links (Check)
+        if: github.event_name != 'push'
         uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2.8.0
         with:
           args: >-
@@ -168,3 +179,23 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           uv run mkdocs gh-deploy
+
+  # Files an issue when the nightly run fails, or adds the run to the open
+  # issue. A manual run does not file one.
+  report-failure:
+    needs: [build_and_deploy]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      # Lets create_issue.sh find the last passing run.
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/create_issue.sh "Docs" "ci_failure"

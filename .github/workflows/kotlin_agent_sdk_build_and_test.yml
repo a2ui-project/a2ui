@@ -29,9 +29,15 @@ on:
       - "specification/**/json/**"
       - "specification/inference_formats/**"
       - "conformance/**"
+  # Catches breakage from outside the repository, such as a new dependency
+  # release or runner image, when no change touches the paths above.
+  schedule:
+    - cron: "15 4 * * *" # daily at 04:15 UTC
+  workflow_dispatch:
 
+# A scheduled run has a group of its own, so that a push does not cancel it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref_name || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -65,3 +71,23 @@ jobs:
       - name: Run tests
         working-directory: kotlin/agent_sdk_legacy
         run: ./gradlew test --info
+
+  # Files an issue when the nightly run fails, or adds the run to the open
+  # issue. A manual run does not file one.
+  report-failure:
+    needs: [build-and-test]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      # Lets create_issue.sh find the last passing run.
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/create_issue.sh "Kotlin agent SDK CI" "ci_failure"

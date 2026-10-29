@@ -38,9 +38,14 @@ on:
       - "specification/**"
       - "catalogs/**"
       - ".github/workflows/swift_build_and_test.yml"
+  # Catches breakage from outside the repository, such as a new dependency
+  # release or runner image, when no change touches the paths above.
+  schedule:
+    - cron: "45 3 * * *" # daily at 03:45 UTC
 
+# A scheduled run has a group of its own, so that a push does not cancel it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref_name || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -65,14 +70,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Outside push and pull_request events the filter would only diff the
+      # last commit, so a scheduled or manual run skips it and builds the
+      # sample app.
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           # An empty token makes the action diff `pull_request.base.sha..HEAD`
           # with git instead of reading the pull request's files from the
           # GitHub API, which fails the job when the API has a transient
           # error. It fetches the base commit itself, so the shallow checkout
-          # above is enough. Push and scheduled runs always used git.
+          # above is enough. Push runs always used git.
           token: ""
           filters: |
             sample:
@@ -96,6 +105,7 @@ jobs:
       # the app's build graph. Skip it on spec/catalog/conformance-only changes.
       - name: Build sample app (iOS Simulator)
         if: >-
+          github.event_name == 'schedule' ||
           github.event_name == 'workflow_dispatch' ||
           steps.filter.outputs.sample == 'true'
         run: >-
@@ -108,3 +118,23 @@ jobs:
           -skipPackagePluginValidation
           ARCHS=arm64
           CODE_SIGNING_ALLOWED=NO
+
+  # Files an issue when the nightly run fails, or adds the run to the open
+  # issue. A manual run does not file one.
+  report-failure:
+    needs: [test, ios-build]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      # Lets create_issue.sh find the last passing run.
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/create_issue.sh "Swift CI" "ci_failure"
