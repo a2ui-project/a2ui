@@ -352,6 +352,7 @@ function NodeView(node: ComponentNode): NativeView;
 1. **Check `node.state`**:
    - `resolved`: Render `node.impl`, the implementation the resolver already chose.
    - `pending`, `unknown-type` and `cyclic`: Render nothing. These states are not meant for end users: a `pending` node is replaced in place when its component arrives, and the resolver has already reported `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE` to the surface, so the adapter does not report it again. Applications that want visible UI for these states will configure it through fallbacks (see [#2013](https://github.com/a2ui-project/a2ui/issues/2013)).
+   - "Nothing" means **no layout footprint**: containers lay out as if the unresolved child were not in their children. It gets no size, no gap, no flex or weight share, and no part in `justify` distribution. Where the framework allows, the node produces no element at all (React `null`, Lit `nothing`, SwiftUI `EmptyView`, an empty `display: contents` host). Where every child needs a widget (Flutter), containers skip unresolved children (`node.isPlaceholder`) when they build their layout, and catalog authors writing their own containers do the same. A container's own chrome, such as a Card's padding, may still show.
 2. **Subscribe to `node.props`**: Rebuild the view when the node's props emit, and pass the current props to the implementation. Unsubscribe when the view unmounts.
 3. **Invoke Builder**: Pass `node`, its current props and a `buildChild` callback to the implementation.
 4. **Provide `buildChild`**: Construct a closure `(child: ComponentNode) => NativeView` that recursively invokes `NodeView(child)`.
@@ -415,7 +416,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 | **Validation results**         | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.        |
 | **Accessibility**              | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                               |
 | **Theme ignored**              | A `createSurface` at v1.0 or later that carries a `theme` object renders exactly as one without it.                                                                                                                         |
-| **Fallback States**            | Pending components, unknown component types and cyclic references render nothing without crashing, and the adapter reports nothing itself.                                                                                  |
+| **Fallback States**            | Pending components, unknown component types and cyclic references render nothing and take no layout space (no gap, no flex share) without crashing, and the adapter reports nothing itself.                                 |
 | **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                           |
 
 ---
