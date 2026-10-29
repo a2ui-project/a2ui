@@ -2,7 +2,29 @@
 
 Developer tool and typesafe component generator for A2UI catalogs.
 
-## Installation & Running
+## Installation
+
+### Standalone Pre-Built Binaries (Recommended)
+
+No Dart or Flutter SDK installation is required.
+
+#### macOS & Linux (curl)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/install_cli.sh | sh
+```
+
+The script automatically detects your platform (macOS Apple Silicon/Intel, Linux x86_64/ARM64), verifies the cryptographic SHA-256 checksum against official release assets, and installs `a2ui` into `~/.local/bin/` without requiring `sudo`.
+
+#### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/install_cli.ps1 | iex
+```
+
+Installs `a2ui.exe` into `%LOCALAPPDATA%\Programs\a2ui\bin` and ensures it is added to the user's `PATH`.
+
+### Running from Source (Dart SDK)
 
 Run directly using `dart`:
 
