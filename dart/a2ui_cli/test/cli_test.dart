@@ -31,6 +31,14 @@ String _findRepoRoot() {
   return dir.path;
 }
 
+/// The `dart` CLI executable (`Platform.resolvedExecutable` when running under
+/// `dart`, or `dart` on `PATH` when running under `flutter_tester`).
+String get _dartExecutable {
+  final String exe = Platform.resolvedExecutable;
+  final String name = exe.split(Platform.pathSeparator).last;
+  return (name == 'dart' || name == 'dart.exe') ? exe : 'dart';
+}
+
 /// Helper that runs [runCli] while capturing [stdout] and [stderr].
 Future<({int exitCode, String stdout, String stderr})> _captureCli(
   List<String> args,
@@ -83,11 +91,12 @@ void main() {
     });
 
     test('honors -DCLI_VERSION compile-time override', () {
-      final ProcessResult result = Process.runSync(
-        Platform.resolvedExecutable,
-        ['run', '-DCLI_VERSION=9.9.9-test', 'bin/a2ui.dart', '--version'],
-        workingDirectory: p.join(repoRoot, 'dart', 'a2ui_cli'),
-      );
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        'run',
+        '-DCLI_VERSION=9.9.9-test',
+        'bin/a2ui.dart',
+        '--version',
+      ], workingDirectory: p.join(repoRoot, 'dart', 'a2ui_cli'));
       expect(result.exitCode, equals(0), reason: result.stderr.toString());
       expect(result.stdout.toString().trim(), equals('9.9.9-test'));
     });
@@ -387,10 +396,10 @@ void main() {
         'compile.dart',
       );
       for (final flag in ['--help', '-h']) {
-        final ProcessResult result = Process.runSync(
-          Platform.resolvedExecutable,
-          [compileScript, flag],
-        );
+        final ProcessResult result = Process.runSync(_dartExecutable, [
+          compileScript,
+          flag,
+        ]);
         expect(result.exitCode, equals(0));
         expect(result.stdout, contains('Usage: dart tool/compile.dart'));
         expect(result.stdout, contains('--target'));
@@ -407,10 +416,10 @@ void main() {
         'tool',
         'compile.dart',
       );
-      final ProcessResult result = Process.runSync(
-        Platform.resolvedExecutable,
-        [compileScript, '--invalid-option'],
-      );
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        compileScript,
+        '--invalid-option',
+      ]);
       expect(result.exitCode, equals(64));
       expect(
         result.stderr,
@@ -426,10 +435,11 @@ void main() {
         'tool',
         'compile.dart',
       );
-      final ProcessResult result = Process.runSync(
-        Platform.resolvedExecutable,
-        [compileScript, '--target', 'nonexistent-arch'],
-      );
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        compileScript,
+        '--target',
+        'nonexistent-arch',
+      ]);
       expect(result.exitCode, equals(64));
       expect(result.stderr, contains('does not match host'));
     });
