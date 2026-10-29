@@ -125,11 +125,13 @@ class DataContext {
   /// [A2uiCatalogError]. Before v1.0 a call carries no `catalogId`, so every
   /// call runs through [invoke].
   ///
-  /// On a v1.0 context with [callAgentFunction], a call that neither resolves
-  /// (an [A2uiCatalogResolutionError]: no such catalog, no default catalog,
-  /// or no such function) is sent to the agent instead; see
-  /// [evaluateFunctionCall] and [isPendingAgentCall] for how its result
-  /// arrives.
+  /// On a v1.0 context with [callAgentFunction], a call whose catalog
+  /// resolves but has no function of that name is sent to the agent instead,
+  /// naming the catalog it resolved to; see [evaluateFunctionCall] and
+  /// [isPendingAgentCall] for how its result arrives. A call whose catalog
+  /// cannot be resolved (no such catalog, or no default catalog) is never
+  /// sent: it fails with an [A2uiCatalogResolutionError] as without a
+  /// caller.
   ///
   /// [index] is the collection iteration index when this context scopes a
   /// template child. [onMissingData] is called once per absolute path, per
@@ -581,9 +583,10 @@ class DataContext {
   /// call is honored only from v1.0; before it, every call runs in the
   /// default catalog.
   ///
-  /// A call that cannot be resolved locally on a v1.0 context with an agent
-  /// caller is sent to the agent; its value is null until the response
-  /// arrives, and the signal [resolveSignal] builds updates then.
+  /// A call to a function its resolved catalog does not have, on a v1.0
+  /// context with an agent caller, is sent to the agent; its value is null
+  /// until the response arrives, and the signal [resolveSignal] builds
+  /// updates then. A call whose catalog cannot be resolved is not sent.
   ///
   /// The reported error carries code `CATALOG_ERROR` when the call's catalog
   /// can't be resolved (the invoker threw [A2uiCatalogError]): the expression
@@ -601,15 +604,14 @@ class DataContext {
       }
       try {
         return _invokeLocally(call, args);
-      } on A2uiCatalogResolutionError {
-        if (atLeastV10) {
-          final _AgentCall? existing =
-              _agentCalls.entries[_agentCallKey(call, args)];
-          if (existing != null) return existing.value.value;
-        }
+      } on A2uiCatalogResolutionError catch (error) {
+        final String? catalogId = _routableCatalogId(error, name);
+        if (catalogId == null) rethrow;
+        final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
+        if (existing != null) return existing.value.value;
         final AgentFunctionCaller? caller = _agentCallerOrNull;
         if (caller == null) rethrow;
-        return _agentCall(call, args, caller).value.value;
+        return _agentCall(call, catalogId, args, caller).value.value;
       }
     } catch (error) {
       if (_onError == null) rethrow;
@@ -714,7 +716,6 @@ class DataContext {
         "Function '$name' names catalog '$catalogId', but this context "
         'has no catalogs to resolve it against.',
         catalogId: catalogId,
-        functionName: name,
       );
     }
     return invokerForCatalog(catalogId)(name, args, this);
@@ -724,6 +725,19 @@ class DataContext {
   /// v1.0, where `callAgentFunction` exists.
   AgentFunctionCaller? get _agentCallerOrNull =>
       atLeastV10 ? _callAgentFunction : null;
+
+  /// The id of the catalog a call to [name] resolved to when [error] reports
+  /// that the catalog has no such function, or null when the call may not go
+  /// to the agent: before v1.0, for a reserved `@` system function, and when
+  /// the catalog itself could not be resolved.
+  ///
+  /// The returned id is the one the outbound `callAgentFunction` names, even
+  /// when the call itself relied on the surface's default catalog.
+  String? _routableCatalogId(A2uiCatalogResolutionError error, String name) {
+    if (!atLeastV10 || name.startsWith('@')) return null;
+    if (error.functionName != name) return null;
+    return error.catalogId;
+  }
 
   /// Reports [error], raised evaluating the function [name], through the
   /// reporter. Callers without a reporter rethrow instead.
@@ -764,22 +778,27 @@ class DataContext {
   /// entry (so a later retry or argument change can re-send it), leaves the
   /// value null, and is reported once through the reporter with the
   /// `A2uiRpcError` as its cause.
+  ///
+  /// [catalogId] is the catalog the call resolved to: the outbound call names
+  /// it, and calls that resolve to the same catalog share one entry whether
+  /// or not they named it.
   _AgentCall _agentCall(
     FunctionCall call,
+    String catalogId,
     Map<String, dynamic> args,
     AgentFunctionCaller caller,
   ) {
-    final String key = _agentCallKey(call, args);
-    final _AgentCall? existing = _agentCalls.entries[key];
+    final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
     if (existing != null) return existing;
     _agentCalls.evictIfFull();
-    final entry = _AgentCall(call.call, call.catalogId);
+    final String key = _agentCallKey(call.call, catalogId, args);
+    final entry = _AgentCall(call.call, catalogId);
     _agentCalls.entries[key] = entry;
     final outbound = FunctionCall(
       call: call.call,
       args: args,
       returnType: call.returnType,
-      catalogId: call.catalogId,
+      catalogId: catalogId,
       reservedKeys: true,
     );
     Future<Object?> future;
@@ -822,11 +841,15 @@ class DataContext {
     return value;
   }
 
-  static String _agentCallKey(FunctionCall call, Map<String, dynamic> args) =>
+  static String _agentCallKey(
+    String name,
+    String? catalogId,
+    Map<String, dynamic> args,
+  ) =>
       jsonEncode(
         <String, Object?>{
-          'name': call.call,
-          'catalogId': call.catalogId,
+          'name': name,
+          'catalogId': catalogId,
           'args': _canonicalize(args),
         },
         toEncodable: (Object? value) => value.toString(),
@@ -847,9 +870,7 @@ class DataContext {
     if (isFunctionCall(value)) {
       final call = FunctionCall.fromJson(_asStringKeyedMap(value));
       if (call.args.values.any(isPendingAgentCall)) return true;
-      if (!_agentCalls.hasPendingFor(call.call, call.catalogId)) {
-        return false;
-      }
+      if (!_agentCalls.hasPendingFor(call.call)) return false;
       final peek = DataContext._derived(
         dataModel,
         _invoke,
@@ -869,7 +890,7 @@ class DataContext {
         for (final MapEntry<String, dynamic> entry in call.args.entries)
           entry.key: peek.resolveDynamicValue(entry.value),
       };
-      final _AgentCall? entry = _agentCalls.entries[_agentCallKey(call, args)];
+      final _AgentCall? entry = _agentCalls.lookup(call, null, args);
       return entry != null && entry.pending;
     }
     return value.values.any(isPendingAgentCall);
@@ -908,11 +929,13 @@ class DataContext {
     };
     Object? result;
     AgentFunctionCaller? agentCaller;
+    String? agentCatalogId;
     try {
       try {
         result = _invokeLocally(call, args);
-      } on A2uiCatalogResolutionError {
-        agentCaller = _agentCallerOrNull;
+      } on A2uiCatalogResolutionError catch (error) {
+        agentCatalogId = _routableCatalogId(error, call.call);
+        agentCaller = agentCatalogId == null ? null : _agentCallerOrNull;
         if (agentCaller == null) rethrow;
       }
     } catch (error) {
@@ -926,7 +949,7 @@ class DataContext {
           call: call.call,
           args: args,
           returnType: call.returnType,
-          catalogId: call.catalogId,
+          catalogId: agentCatalogId,
           reservedKeys: true,
         ),
       );
@@ -1053,15 +1076,40 @@ class _AgentCallCache {
   /// about a call completing with null can depend on it.
   final Signal<int> version = signal<int>(0);
 
-  bool hasPendingFor(String functionName, String? catalogId) {
+  /// The key of the entry a call is shared under, by the key of the call as
+  /// written: a call that names no catalog is sent naming the catalog it
+  /// resolved to, and so is filed under that catalog's key.
+  final Map<String, String> _aliases = {};
+
+  bool hasPendingFor(String functionName) {
     for (final _AgentCall call in entries.values) {
-      if (call.pending &&
-          call.functionName == functionName &&
-          call.catalogId == catalogId) {
-        return true;
-      }
+      if (call.pending && call.functionName == functionName) return true;
     }
     return false;
+  }
+
+  /// The entry for [call] with [args], filed under [resolvedCatalogId].
+  ///
+  /// With a [resolvedCatalogId], records that [call] as written resolves to
+  /// it, so a later lookup without one, such as from
+  /// [DataContext.isPendingAgentCall], finds the same entry.
+  _AgentCall? lookup(
+    FunctionCall call,
+    String? resolvedCatalogId,
+    Map<String, dynamic> args,
+  ) {
+    final String writtenKey =
+        DataContext._agentCallKey(call.call, call.catalogId, args);
+    if (resolvedCatalogId == null) {
+      return entries[_aliases[writtenKey] ?? writtenKey];
+    }
+    final String key =
+        DataContext._agentCallKey(call.call, resolvedCatalogId, args);
+    if (writtenKey != key) {
+      if (_aliases.length >= _maxEntries) _aliases.clear();
+      _aliases[writtenKey] = key;
+    }
+    return entries[key];
   }
 
   void evictIfFull() {

@@ -711,8 +711,12 @@ class MessageProcessor<T extends ComponentApi> {
       protocolVersion: operation.version.jsonValue,
       rootId: _config?.rootId ?? 'root',
       metadata: operation.metadata,
-      callAgentFunction: (call) =>
-          rpc.callAgentFunction(operation.surfaceId, call),
+      // Only a v1.0 surface routes calls to the agent, and only when this
+      // processor can send it messages.
+      callAgentFunction: _outboundListener != null &&
+              operation.version.isAtLeast(A2uiProtocolVersion.v1_0)
+          ? (call) => rpc.callAgentFunction(operation.surfaceId, call)
+          : null,
     );
 
     _CheckedBatch? batch;

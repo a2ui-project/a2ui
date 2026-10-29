@@ -242,6 +242,73 @@ void main() {
     );
   });
 
+  test('a binding sends callAgentFunction naming the default catalog',
+      () async {
+    processor.processMessages({
+      'version': '1.0',
+      'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
+    });
+    final SurfaceModel<ComponentApi> surface =
+        processor.model.getSurface('one')!;
+    final DataContext context =
+        ComponentContext(surface, ComponentModel('root', 'Text', {}))
+            .dataContext;
+    final ReadonlySignal<Object?> value = context.resolveSignal({
+      '@call': 'remote',
+      'args': {'a': 1},
+    });
+    expect(value.value, isNull);
+    final CallAgentFunctionMessage outbound =
+        sent.whereType<CallAgentFunctionMessage>().single;
+    expect(outbound.callFunction, {
+      '@call': 'remote',
+      'catalogId': 'alpha',
+      'args': {'a': 1},
+    });
+    processor.processMessages({
+      'version': '1.0',
+      'agentFunctionResponse': {
+        'functionCallId': outbound.functionCallId,
+        'value': 'ok',
+      },
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(value.value, 'ok');
+  });
+
+  test('a processor without an outbound listener installs no agent caller', () {
+    final silent = MessageProcessor<ComponentApi>(
+      catalogs: [_catalog('alpha')],
+      defaultVersion: A2uiProtocolVersion.v1_0,
+    );
+    addTearDown(silent.dispose);
+    silent.processMessages({
+      'version': '1.0',
+      'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
+    });
+    expect(silent.model.getSurface('one')!.callAgentFunction, isNull);
+  });
+
+  test('a pre-1.0 surface gets no agent caller', () {
+    final v09 = MessageProcessor<ComponentApi>(
+      catalogs: [
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: 'old',
+          protocolVersion: A2uiProtocolVersion.v0_9,
+          components: [TestTextApi()],
+        ),
+      ],
+      defaultVersion: A2uiProtocolVersion.v0_9,
+      outboundListener: sent.add,
+    );
+    addTearDown(v09.dispose);
+    v09.processMessages({
+      'version': 'v0.9',
+      'createSurface': {'surfaceId': 'old-surface', 'catalogId': 'old'},
+    });
+    expect(v09.model.getSurface('old-surface')!.callAgentFunction, isNull);
+  });
+
   test('preserves null protocolVersion on an unversioned surface', () async {
     processor.model.addSurface(
       SurfaceModel<ComponentApi>(

@@ -346,17 +346,135 @@ void main() {
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
     });
 
-    test('an unknown catalogId falls back to the agent', () {
+    test('an unknown catalogId is a CATALOG_ERROR and is not sent', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      expect(
+        context.resolveDynamicValue({
+          '@call': 'remote',
+          'catalogId': 'elsewhere',
+          'args': <String, Object?>{},
+        }),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors.single.code, 'CATALOG_ERROR');
+    });
+
+    test('a surface without a default catalog does not send the call',
+        () async {
+      final surface = SurfaceModel<ComponentApi>(
+        'no-default',
+        protocolVersion: '1.0',
+        availableCatalogs: [_catalog()],
+        callAgentFunction: callAgent,
+      );
+      surface.onError.subscribe(clientErrors.add);
+      addTearDown(surface.dispose);
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      expect(
+        context.resolveDynamicValue(
+          {'@call': 'remote', 'args': <String, Object?>{}},
+        ),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors.single.code, 'CATALOG_ERROR');
+
+      await expectLater(
+        context.evaluateFunctionCall(
+          {'@call': 'remote', 'args': <String, Object?>{}},
+        ),
+        completion(isNull),
+      );
+      expect(agentCalls, isEmpty);
+    });
+
+    test('a call missing from a named catalog is sent naming it', () {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
       context.resolveDynamicValue({
         '@call': 'remote',
-        'catalogId': 'elsewhere',
+        'catalogId': 'cat',
         'args': <String, Object?>{},
       });
-      expect(agentCalls.single.call.catalogId, 'elsewhere');
+      expect(agentCalls.single.call.catalogId, 'cat');
+    });
+
+    test('a call relying on the default catalog is sent naming it', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      context.resolveDynamicValue(
+        {'@call': 'remote', 'args': <String, Object?>{}},
+      );
+      expect(agentCalls.single.call.catalogId, 'cat');
+      expect(agentCalls.single.call.toJson(), {
+        '@call': 'remote',
+        'catalogId': 'cat',
+        'args': <String, Object?>{},
+      });
+
+      final Future<Object?> action = context.evaluateFunctionCall(
+        {'@call': 'remoteAction', 'args': <String, Object?>{}},
+      );
+      expect(agentCalls.last.call.catalogId, 'cat');
+      agentCalls.last.completer.complete('done');
+      expect(await action, 'done');
+    });
+
+    test('calls with and without the default catalogId share one request',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Map<String, Object?> implicit = {
+        '@call': 'lookup',
+        'args': {'id': 1},
+      };
+      final Map<String, Object?> explicit = {
+        '@call': 'lookup',
+        'catalogId': 'cat',
+        'args': {'id': 1},
+      };
+      expect(context.resolveDynamicValue(implicit), isNull);
+      expect(context.resolveDynamicValue(explicit), isNull);
+      expect(agentCalls, hasLength(1));
+      expect(context.isPendingAgentCall(implicit), isTrue);
+      expect(context.isPendingAgentCall(explicit), isTrue);
+
+      agentCalls.single.completer.complete('hit');
+      await _flush();
+      expect(context.resolveDynamicValue(implicit), 'hit');
+      expect(context.resolveDynamicValue(explicit), 'hit');
+      expect(context.isPendingAgentCall(implicit), isFalse);
+      expect(agentCalls, hasLength(1));
+    });
+
+    test('a reserved system function is never sent', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      expect(
+        context.resolveDynamicValue(
+          {'@call': '@unknownSystem', 'args': <String, Object?>{}},
+        ),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
     });
 
     test('user activation gates a local function', () async {
