@@ -22,12 +22,13 @@ import Testing
 /// Runs the shared `conformance/core/accessibility.yaml` suite.
 ///
 /// Each case's components are added to a surface built with the case's catalogs, and every
-/// `accessibilityTree` expectation is compared with the `accessibilityAttributes` of the node that
-/// the surface's `NodeResolver` resolves. An expectation is a string, a boolean, or a `{path}`
-/// (or `{"@path"}`) reference into the surface data model. The cases carry no data, so before
+/// `accessibilityTree` expectation is compared with the `accessibilityAttributes` of the node in
+/// the surface's `rootNode` tree. An expectation is a string, a boolean, or a `{path}` (or
+/// `{"@path"}`) reference into the surface data model. The cases carry no data, so before
 /// checking a case with references the runner writes a value to each referenced path and checks,
-/// then writes a different value and checks again, so a binding that does not follow the data
-/// model fails. Any other expectation shape, and any field the runner does not know, records an
+/// then writes different values and checks again. Paths bound to the same field get different
+/// values in each round, so a binding that does not follow the data model, or follows the wrong
+/// path, fails. Any other expectation shape, and any field the runner does not know, records an
 /// issue.
 @MainActor
 struct AccessibilityConformanceTests {
@@ -65,13 +66,16 @@ struct AccessibilityConformanceTests {
       let surface = try makeSurface(testCase: testCase, surfaceDefinition: surfaceDefinition)
 
       let references = dataModelReferences(in: expectedTree, testCase: testCase)
-      if references.isEmpty {
+      guard !references.isEmpty else {
         checkedFields += check(expectedTree, on: surface, testCase: testCase)
         continue
       }
+      let sortedReferences = references.sorted { $0.key < $1.key }
       for round in 0..<Self.dataModelRounds {
-        for (path, field) in references.sorted(by: { $0.key < $1.key }) {
-          guard let value = sampleValue(for: field, round: round) else {
+        for (index, (path, field)) in sortedReferences.enumerated() {
+          guard
+            let value = sampleValue(for: field, path: path, index: index, round: round)
+          else {
             Issue.record(
               "[\(testCase.name)] No sample value for field '\(field)' bound to '\(path)'")
             continue
@@ -99,37 +103,42 @@ struct AccessibilityConformanceTests {
     surfaceDefinition: [String: JSONValue]
   ) throws -> SurfaceViewModel {
     let catalogs = try ConformanceTestHelper.buildCatalogs(for: testCase)
-    let catalog = try #require(catalogs.first, "[\(testCase.name)] The case has no catalog")
+    let defaultCatalog = try #require(
+      catalogs.first,
+      "[\(testCase.name)] The case has no catalog"
+    )
     let surface = SurfaceViewModel(
       surfaceID: "accessibility-surface",
-      catalogs: [catalog.id: catalog],
-      defaultCatalogID: catalog.id,
-      protocolVersion: .v10
+      catalogs: catalogs,
+      defaultCatalogID: defaultCatalog.id,
+      protocolVersion: testCase.protocolVersion.flatMap(A2UIProtocolVersion.init(lenientRawValue:))
     )
 
     var definitions = [("root", surfaceDefinition)]
     for (componentID, definition) in surfaceDefinition["components"]?.objectValue ?? [:] {
-      guard let object = definition.objectValue else {
+      guard let componentDictionary = definition.dictionaryValue else {
         Issue.record("[\(testCase.name)] Component '\(componentID)' is not an object")
         continue
       }
-      definitions.append(
-        (componentID, object.reduce(into: [:]) { $0[$1.key] = $1.value })
-      )
+      definitions.append((componentID, componentDictionary))
     }
+    let metadataKeys: Set<String> = ["id", "component", "catalogId", "components"]
+    var components: [ComponentModel] = []
     for (fallbackID, definition) in definitions {
       guard let type = definition["component"]?.stringValue else {
         Issue.record("[\(testCase.name)] Component '\(fallbackID)' has no component type")
         continue
       }
-      surface.componentsModel.addComponent(
+      components.append(
         ComponentModel(
           id: definition["id"]?.stringValue ?? fallbackID,
           type: type,
-          properties: definition.filter { !["id", "component", "components"].contains($0.key) }
+          catalogID: definition["catalogId"]?.stringValue,
+          properties: definition.filter { !metadataKeys.contains($0.key) }
         )
       )
     }
+    surface.componentsModel.applyBatch(adding: components)
     return surface
   }
 
@@ -140,7 +149,7 @@ struct AccessibilityConformanceTests {
     on surface: SurfaceViewModel,
     testCase: ConformanceTestCase
   ) -> Int {
-    guard let root = surface.nodeResolver.resolveTree() else {
+    guard surface.rootNode != nil else {
       Issue.record("[\(testCase.name)] The surface resolved no tree")
       return 0
     }
@@ -151,7 +160,7 @@ struct AccessibilityConformanceTests {
         continue
       }
       guard
-        let node = findNode(id: componentID, in: root)
+        let node = surface.findNode(id: componentID)
           ?? resolveDetached(componentID: componentID, on: surface)
       else {
         Issue.record("[\(testCase.name)] Component '\(componentID)' could not be resolved")
@@ -159,13 +168,13 @@ struct AccessibilityConformanceTests {
       }
       let attributes = node.accessibilityAttributes
       for (field, expectedShape) in expectedFields {
-        if Self.rendererOnlyFields.contains(field) { continue }
+        guard !Self.rendererOnlyFields.contains(field) else { continue }
         let actual: JSONValue?
         switch field {
-        case "label": actual = attributes?.label.map { .string($0) }
-        case "description": actual = attributes?.description.map { .string($0) }
-        case "live": actual = attributes?.live.map { .string($0) }
-        case "hidden": actual = attributes?.hidden.map { .boolean($0) }
+        case "label": actual = attributes?.label.map(JSONValue.string)
+        case "description": actual = attributes?.description.map(JSONValue.string)
+        case "live": actual = attributes?.live.map(JSONValue.string)
+        case "hidden": actual = attributes?.hidden.map(JSONValue.boolean)
         default:
           Issue.record("[\(testCase.name)] Unhandled field '\(field)' for '\(componentID)'")
           continue
@@ -239,12 +248,21 @@ struct AccessibilityConformanceTests {
     return references
   }
 
-  /// A value of the field's type that differs from one round to the next.
-  private func sampleValue(for field: String, round: Int) -> JSONValue? {
+  /// A value of the field's type that differs across paths and from one round to the next.
+  ///
+  /// Two-state values alternate with the path's `index`, so two paths bound to the same field
+  /// get different values in each round and a component bound to the wrong one fails.
+  private func sampleValue(
+    for field: String,
+    path: String,
+    index: Int,
+    round: Int
+  ) -> JSONValue? {
+    let isEvenStep = (round + index).isMultiple(of: 2)
     switch field {
-    case "label", "description": return .string("\(field) \(round)")
-    case "live": return .string(round.isMultiple(of: 2) ? "polite" : "assertive")
-    case "hidden": return .boolean(round.isMultiple(of: 2))
+    case "label", "description": return .string("\(field) \(path) \(round)")
+    case "live": return .string(isEvenStep ? "polite" : "assertive")
+    case "hidden": return .boolean(isEvenStep)
     default: return nil
     }
   }
@@ -274,13 +292,5 @@ struct AccessibilityConformanceTests {
       protocolVersion: surface.protocolVersion
     )
     return resolver.resolveTree()
-  }
-
-  private func findNode(id: String, in node: Node) -> Node? {
-    if node.id == id { return node }
-    for child in node.allChildNodes {
-      if let found = findNode(id: id, in: child) { return found }
-    }
-    return nil
   }
 }
