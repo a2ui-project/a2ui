@@ -53,6 +53,8 @@
   a truthy dict; `and`, `or` and `not` already did. Catalogs below v1.0, whose
   validation functions return booleans, are unchanged.
   [#3653](https://github.com/a2ui-project/a2ui/pull/3653)
+- Add `map_error_to_renderer_message`, `extract_envelope_error_context`, and `ErrorEnvelopeContext` to `a2ui.core.processing` and the `a2ui.core` public facade, along with `SurfaceGroupModel.on_error` and `MessageProcessor.process_messages_with_errors` for emitting and collecting structured wire-format renderer error messages. [#3580](https://github.com/a2ui-project/a2ui/pull/3580)
+- Add `NodeResolver`, `ComponentNode`, and `NodeState` to `a2ui.core.resolution` and the `a2ui.core` public facade for reactive surface node-graph resolution, template expansion, and placeholder/cycle tracking. [#3580](https://github.com/a2ui-project/a2ui/pull/3580)
 - **BREAKING CHANGE**: Cross-catalog `$ref` resolution across peer catalogs is
   removed. `Catalog.peer_catalogs`, `Catalog.with_peer_catalogs` and
   `link_catalogs` are gone, `inline_local_refs` no longer takes a `peers`
@@ -66,6 +68,11 @@
   it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- Add `Catalog.derive`, which builds a catalog with a new `catalog_id` from
+  the named `components` and `functions` of an existing one and new entries,
+  with the `instructions` it is given, and does not keep the source's `$id`,
+  title, description or instructions.
+  [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - (v1_0) Relaxed v1.0 `CatalogDefinition` schema rules to permit non-object
   catalog `$defs` (such as primitive, enum, or union design tokens), property
   `$ref`s to `#/$defs/...`, and arbitrary vendor/metadata extension keys on
