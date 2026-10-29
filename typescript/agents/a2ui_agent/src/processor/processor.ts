@@ -36,6 +36,7 @@ export interface A2uiRequestProcessorOptions {
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
+  private readonly _catalogs: CatalogApi[];
   private readonly _format: InferenceFormat;
   private _parser?: Parser;
   private readonly _state?: RendererState;
@@ -48,11 +49,12 @@ export class A2uiRequestProcessor {
    * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
    */
   constructor(
-    private readonly catalogs: CatalogApi[],
+    catalogs: CatalogApi[],
     private readonly _examples?: Record<string, AgentToRendererMessage[] | string>,
     formatFactory?: InferenceFormatFactory,
     options: A2uiRequestProcessorOptions = {},
   ) {
+    this._catalogs = catalogs;
     const factory = formatFactory || new ExpressFormatFactory();
     this._format = factory.createFormat(catalogs, _examples);
     this.checkState(options.state);
@@ -60,8 +62,8 @@ export class A2uiRequestProcessor {
   }
 
   /** The negotiated catalogs active for this request. */
-  get activeCatalogs(): CatalogApi[] {
-    return this.catalogs;
+  get catalogs(): CatalogApi[] {
+    return this._catalogs;
   }
 
   get examples(): Record<string, AgentToRendererMessage[] | string> | undefined {

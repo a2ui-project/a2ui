@@ -419,17 +419,6 @@ export class ExpressDecompiler {
   }
 
   /**
-   * Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
-   *
-   * @param blocks A list of decompiled A2UI Express DSL statement strings.
-   * @returns The merged A2UI Express DSL string enclosed within opening and closing sentinel tags.
-   */
-  wrapDecompiledBlocks(blocks: string[]): string {
-    const fullDsl = blocks.join('\n');
-    return `${A2UI_INFERENCE_OPEN_TAG}\n${fullDsl}\n${A2UI_INFERENCE_CLOSE_TAG}`;
-  }
-
-  /**
    * Wraps raw response parts, adding format tags around A2UI payload sections.
    *
    * @param blocks A list of raw response parts.
@@ -450,17 +439,13 @@ export class ExpressDecompiler {
   /**
    * Decompiles standard A2UI wire JSON into clean A2UI Express lines.
    *
-   * @param messages Standard A2UI wire JSON envelope dict or list of message dicts.
+   * @param messages Standard A2UI wire JSON message envelopes.
    * @param useKeywordArgs Whether to format component arguments as keyword parameters (e.g. param=value).
    * @returns The decompiled A2UI Express DSL string.
    */
-  decompile(
-    messages: AgentToRendererMessage | AgentToRendererMessage[],
-    useKeywordArgs = false,
-  ): string {
-    const rawList = Array.isArray(messages) ? messages : [messages];
+  decompile(messages: AgentToRendererMessage[], useKeywordArgs = false): string {
     const coalesced = this.coalesceSurfaceMessages(
-      rawList as unknown as Array<Record<string, unknown>>,
+      messages as unknown as Array<Record<string, unknown>>,
     );
     const surfaceCatalogs = new Map<string, string>();
     const blocks: string[] = [];

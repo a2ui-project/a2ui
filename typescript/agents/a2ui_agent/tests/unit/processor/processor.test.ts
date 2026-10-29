@@ -32,6 +32,7 @@ describe('A2uiRequestProcessor', () => {
     const catalog = basicCatalogV10;
     const processor = new A2uiRequestProcessor([catalog]);
 
+    expect(processor.catalogs).toEqual([catalog]);
     expect(processor.promptSnippet).toContain('<a2ui>');
     expect(processor.promptSnippet).toContain('Text(');
 

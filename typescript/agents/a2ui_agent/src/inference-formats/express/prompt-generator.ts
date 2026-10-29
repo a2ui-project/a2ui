@@ -676,7 +676,9 @@ export class ExpressPromptGenerator extends PromptGenerator {
   private decompileMessages(messages: AgentToRendererMessage[], catalog?: CatalogApi): string {
     const decompiler = new ExpressDecompiler(this.catalogs, this.version);
     const normalized = withDefaultCatalog(messages, catalog?.id);
-    return decompiler.wrapDecompiledBlocks([decompiler.decompile(normalized)]);
+    return decompiler.wrap([
+      {type: 'a2ui', a2uiRaw: decompiler.decompile(normalized), isFinal: true},
+    ]);
   }
 
   protected renderExamples(catalog: CatalogApi): string {
@@ -696,7 +698,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         for (const turn of exampleMessages as AgentToRendererMessage[][]) {
           const dsl = decompiler.decompile(withDefaultCatalog(turn, catalog.id));
           if (dsl) {
-            blocks.push(decompiler.wrapDecompiledBlocks([dsl]));
+            blocks.push(decompiler.wrap([{type: 'a2ui', a2uiRaw: dsl, isFinal: true}]));
           }
         }
         return blocks.join('\n\n');
