@@ -312,7 +312,7 @@ void main() {
     await _selectVersion(tester, 'v1.0');
 
     expect(
-      _inPane('messages', find.textContaining('"version": "v1.0"')),
+      _inPane('messages', find.textContaining('"version": "1.0"')),
       findsNWidgets(2),
     );
     await tester.enterText(_inSurface(find.byType(TextField)), 'hello');

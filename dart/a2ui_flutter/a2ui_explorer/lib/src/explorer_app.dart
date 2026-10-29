@@ -146,7 +146,10 @@ class _ExplorerPageState extends State<ExplorerPage> {
               showSelectedIcon: false,
               segments: [
                 for (final version in versions)
-                  ButtonSegment(value: version, label: Text(version.jsonValue)),
+                  ButtonSegment(
+                    value: version,
+                    label: Text('v${version.major}.${version.minor}'),
+                  ),
               ],
               selected: {_run.example.version},
               onSelectionChanged: (selected) => _selectVersion(selected.single),
