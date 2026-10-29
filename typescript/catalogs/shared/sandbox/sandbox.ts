@@ -63,7 +63,9 @@ export const DEFAULT_INNER_SANDBOX = 'allow-scripts allow-forms allow-modals';
  * Sandbox flags a host may keep when it provides its own `sandbox` value. Anything outside this
  * set, including the flags `DEFAULT_INNER_SANDBOX` documents as omitted, is dropped.
  */
-const ALLOWED_INNER_SANDBOX_FLAGS: ReadonlySet<string> = new Set(DEFAULT_INNER_SANDBOX.split(' '));
+const ALLOWED_INNER_SANDBOX_FLAGS: ReadonlySet<string> = new Set(
+  DEFAULT_INNER_SANDBOX.split(/\s+/),
+);
 
 /** Sensitive capabilities the inner frame never gets unless the host delegates them explicitly. */
 export const SENSITIVE_PERMISSIONS = [
