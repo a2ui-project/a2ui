@@ -34,11 +34,19 @@ public final class DataContext {
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
 
-  /// The number of calls routed to the agent that are still awaiting a result.
+  /// The number of calls routed to the agent that have no result: they are still awaiting the
+  /// agent's response, or failed.
   ///
   /// A function call whose arguments include such a call is not evaluated or sent: its value is
-  /// pending too, like the value of the nested call.
-  private var pendingAgentCallCount = 0
+  /// pending too, like the value of the nested call. A failed nested call has been reported
+  /// already, so the enclosing call reports nothing.
+  private var unsettledAgentCallCount = 0
+
+  /// Whether a function call was not evaluated or sent because one of its arguments includes a
+  /// call routed to the agent that has no result yet (see `unsettledAgentCallCount`).
+  ///
+  /// ``NodeResolver`` runs an action's function call again once those calls have settled.
+  private(set) var hasDeferredFunctionCall = false
 
   /// The outcome of looking up the function that a v1.0 call runs.
   private enum V10FunctionTarget {
@@ -165,7 +173,7 @@ public final class DataContext {
           name: callName,
           declaration: declaration,
           catalogID: catalogID,
-          dict: dict
+          callDictionary: dict
         )
       }
     } else {
@@ -199,12 +207,12 @@ public final class DataContext {
       return .null
     }
 
-    guard let resolvedArgs = resolveArguments(of: dict) else {
+    guard let resolvedArguments = resolveArguments(of: dict) else {
       return .null
     }
 
     do {
-      return try function.evaluate(arguments: resolvedArgs, context: self)
+      return try function.evaluate(arguments: resolvedArguments, context: self)
     } catch {
       functionHandler?.handleFunctionError(error, functionName: callName)
       return .null
@@ -214,51 +222,62 @@ public final class DataContext {
   /// Resolves the arguments of a function call.
   ///
   /// - Returns: The resolved arguments, or `nil` if an argument includes a call routed to the
-  ///   agent that is still awaiting its result. The calling function's value is then pending too.
+  ///   agent that has no result: it is still awaiting the agent's response, or it failed. The
+  ///   calling function's value is then pending too.
   private func resolveArguments(
-    of dict: OrderedDictionary<String, JSONValue>
+    of callDictionary: OrderedDictionary<String, JSONValue>
   ) -> [String: JSONValue]? {
-    let pendingBefore = pendingAgentCallCount
-    var resolvedArgs: [String: JSONValue] = [:]
-    if let argsObj = dict["args"]?.dictionaryValue {
-      for (argKey, argVal) in argsObj {
-        resolvedArgs[argKey] = resolveDynamicValue(argVal)
-      }
+    let unsettledBefore = unsettledAgentCallCount
+    let resolvedArguments =
+      callDictionary["args"]?.dictionaryValue?.mapValues { resolveDynamicValue($0) } ?? [:]
+    guard unsettledAgentCallCount == unsettledBefore else {
+      hasDeferredFunctionCall = true
+      return nil
     }
-    return pendingAgentCallCount == pendingBefore ? resolvedArgs : nil
+    return resolvedArguments
   }
 
   /// Sends a v1.0 call that the renderer has no local implementation for to the agent: the
   /// fallback routing of `callAgentFunction`.
   ///
-  /// A call to a declared function must satisfy its `requiresUserActivation`, and its arguments
-  /// must match its schema; the schema's top-level defaults are applied to the arguments sent.
+  /// A call to a declared function must be allowed for renderer callers and satisfy its
+  /// `requiresUserActivation`, and its arguments must match its schema; the schema's top-level
+  /// defaults are applied to the arguments sent.
   ///
   /// - Returns: The agent's result, or `null` while it is pending or after reporting an error.
   private func routeToAgent(
     name callName: String,
     declaration: (any FunctionImplementation)?,
     catalogID: String,
-    dict: OrderedDictionary<String, JSONValue>
+    callDictionary: OrderedDictionary<String, JSONValue>
   ) -> JSONValue {
-    if let declaration, declaration.api.requiresUserActivation, !isUserActivated {
-      functionHandler?.handleFunctionError(
-        FunctionError.securityConstraintViolation(
-          "Function '\(callName)' requires user activation and cannot be evaluated without an"
-            + " active user gesture."
-        ),
-        functionName: callName
-      )
-      return .null
+    if let declaration {
+      guard declaration.api.allowedCallers != .agentOnly else {
+        functionHandler?.handleFunctionError(
+          FunctionError.callerDisallowed(name: callName, caller: "renderer"),
+          functionName: callName
+        )
+        return .null
+      }
+      guard !declaration.api.requiresUserActivation || isUserActivated else {
+        functionHandler?.handleFunctionError(
+          FunctionError.securityConstraintViolation(
+            "Function '\(callName)' requires user activation and cannot be evaluated without an"
+              + " active user gesture."
+          ),
+          functionName: callName
+        )
+        return .null
+      }
     }
-    guard var args = resolveArguments(of: dict) else {
+    guard var arguments = resolveArguments(of: callDictionary) else {
       return .null
     }
     if let declaration {
       let schema = declaration.api.schema
-      args = Self.applyingArgumentDefaults(of: schema.jsonValue, to: args)
-      let result = schema.validate(.object(OrderedDictionary(uniqueKeysWithValues: args)))
-      if !result.isValid {
+      arguments = Self.applyingArgumentDefaults(of: schema.jsonValue, to: arguments)
+      let result = schema.validate(.object(OrderedDictionary(uniqueKeysWithValues: arguments)))
+      guard result.isValid else {
         functionHandler?.handleFunctionError(
           A2UIValidationError(
             "Validation failed for function '\(callName)': the arguments do not match its schema."
@@ -268,21 +287,21 @@ public final class DataContext {
         return .null
       }
     }
-    let call = AgentFunctionCall(name: callName, catalogID: catalogID, args: args)
+    let call = AgentFunctionCall(name: callName, catalogID: catalogID, args: arguments)
     guard let value = functionHandler?.agentFunctionValue(for: call) else {
-      pendingAgentCallCount += 1
+      unsettledAgentCallCount += 1
       return .null
     }
     return value
   }
 
-  /// Adds the `default` of each top-level property in an argument schema that `args` lacks.
+  /// Adds the `default` of each top-level property in an argument schema that `arguments` lacks.
   private static func applyingArgumentDefaults(
     of schemaJSON: JSONValue,
-    to args: [String: JSONValue]
+    to arguments: [String: JSONValue]
   ) -> [String: JSONValue] {
-    guard let properties = schemaJSON["properties"]?.dictionaryValue else { return args }
-    var result = args
+    guard let properties = schemaJSON["properties"]?.dictionaryValue else { return arguments }
+    var result = arguments
     for (name, propertySchema) in properties where result[name] == nil {
       if let defaultValue = propertySchema["default"] {
         result[name] = defaultValue

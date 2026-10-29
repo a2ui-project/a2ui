@@ -66,22 +66,32 @@ public final class SurfaceViewModel: ObservableObject {
   /// routing defines. The value is `null` until the agent answers. When unset, such a call fails
   /// with an `EXPRESSION_ERROR`.
   ///
+  /// Setting or clearing it resolves the component tree again, so that calls already resolved
+  /// are sent to the agent, or fail locally.
+  ///
   /// ``MessageProcessor`` sets this on each v1.0 surface while it has an `outboundListener`.
   public var agentFunctionCaller: AgentFunctionCaller? {
     didSet {
-      if agentFunctionCaller == nil {
-        nodeResolver.agentFunctionCaller = nil
-      } else {
-        nodeResolver.agentFunctionCaller = { [weak self] call in
-          guard let self else { throw FunctionError.noListener(name: call.name) }
-          return try await self.callAgentFunction(call)
-        }
+      guard (oldValue == nil) != (agentFunctionCaller == nil) else { return }
+      nodeResolver.setNeedsFullResolve()
+      if componentsModel.components["root"] != nil {
+        rebuildTree()
       }
     }
   }
 
+  /// An agent function call awaiting a response, shared by identical calls.
+  private struct InFlightAgentCall {
+    /// Tells this call apart from a later identical one.
+    let id: UUID
+    let task: Task<JSONValue, any Error>
+  }
+
   /// Agent function calls awaiting a response, keyed by call.
-  private var inFlightAgentCalls: [AgentFunctionCall: Task<JSONValue, any Error>] = [:]
+  private var inFlightAgentCalls: [AgentFunctionCall: InFlightAgentCall] = [:]
+
+  /// The calls routed to the agent from bindings, checks and actions, and their results.
+  let agentCallCache = AgentCallCache()
 
   private var cancellables = Set<AnyCancellable>()
 
@@ -215,17 +225,120 @@ public final class SurfaceViewModel: ObservableObject {
     guard let caller = agentFunctionCaller else {
       throw FunctionError.noListener(name: call.name)
     }
+    return try await inFlightTask(for: call, caller: caller).value
+  }
+
+  /// Returns the task awaiting the agent's response to `call`, sending the call unless an
+  /// identical one is still awaiting its response.
+  ///
+  /// The task drops itself from the calls in flight as soon as the caller returns, so an
+  /// identical call made after that is sent again.
+  private func inFlightTask(
+    for call: AgentFunctionCall,
+    caller: @escaping AgentFunctionCaller
+  ) -> Task<JSONValue, any Error> {
     if let inFlight = inFlightAgentCalls[call] {
-      return try await inFlight.value
+      return inFlight.task
     }
-    let task = Task { @MainActor in try await caller(call) }
-    inFlightAgentCalls[call] = task
-    defer {
-      if inFlightAgentCalls[call] == task {
-        inFlightAgentCalls.removeValue(forKey: call)
+    let id = UUID()
+    let task = Task { @MainActor [weak self] in
+      defer {
+        if self?.inFlightAgentCalls[call]?.id == id {
+          self?.inFlightAgentCalls.removeValue(forKey: call)
+        }
       }
+      return try await caller(call)
     }
-    return try await task.value
+    inFlightAgentCalls[call] = InFlightAgentCall(id: id, task: task)
+    return task
+  }
+
+  /// Returns the agent's result for a call routed from a binding, check or action, sending the
+  /// call if the surface has no result for it yet.
+  ///
+  /// The agent's value is kept in ``agentCallCache``, so every later evaluation of the same call
+  /// reads it without sending the call again; ``NodeResolver`` resolves the nodes that made the
+  /// call again once it arrives. A failed call has no value. A node keeps reading it as failed,
+  /// rather than sending it again on each resolution pass, while an evaluation outside a pass
+  /// sends it again.
+  ///
+  /// - Parameters:
+  ///   - call: The call, naming the catalog it resolved to and its resolved arguments.
+  ///   - isRequestedByNode: Whether a node resolution pass makes the call. The failure of a call
+  ///     that only nodes asked for is reported only while a node still makes it.
+  /// - Returns: The agent's value, or `nil` while the call is pending or after it failed.
+  func agentFunctionValue(
+    for call: AgentFunctionCall,
+    isRequestedByNode: Bool
+  ) -> JSONValue? {
+    switch agentCallCache[call] {
+    case .answered(let value):
+      return value
+    case .pending:
+      if !isRequestedByNode {
+        agentCallCache.markRequestedDirectly(call)
+      }
+      return nil
+    case .failed:
+      if isRequestedByNode {
+        return nil
+      }
+    case nil:
+      break
+    }
+    guard let caller = agentFunctionCaller else {
+      handleFunctionError(FunctionError.noListener(name: call.name), functionName: call.name)
+      return nil
+    }
+    let task = inFlightTask(for: call, caller: caller)
+    let settlement = Task { @MainActor [weak self] () -> Bool in
+      let result = await task.result
+      self?.settleAgentCall(call, result: result)
+      if case .success = result {
+        return true
+      }
+      return false
+    }
+    agentCallCache.markPending(
+      call,
+      settlement: settlement,
+      isRequestedDirectly: !isRequestedByNode
+    )
+    return nil
+  }
+
+  /// Waits until `call`, routed to the agent from a binding, check or action, has settled.
+  ///
+  /// - Returns: Whether the agent answered the call with a value; `false` after a failure, which
+  ///   has been reported, or if the call was never sent.
+  func awaitAgentCallSettlement(_ call: AgentFunctionCall) async -> Bool {
+    switch agentCallCache[call] {
+    case .pending(let settlement, _):
+      return await settlement.value
+    case .answered:
+      return true
+    case .failed, nil:
+      return false
+    }
+  }
+
+  /// Records the agent's answer to a call routed from a binding, check or action.
+  ///
+  /// An error is reported as an `EXPRESSION_ERROR`, unless only nodes asked for the call and none
+  /// of them makes it anymore, such as after the component was removed.
+  private func settleAgentCall(_ call: AgentFunctionCall, result: Result<JSONValue, any Error>) {
+    switch result {
+    case .success(let value):
+      agentCallCache.answer(call, with: value)
+    case .failure(let error):
+      var isRequestedDirectly = false
+      if case .pending(_, let requestedDirectly) = agentCallCache[call] {
+        isRequestedDirectly = requestedDirectly
+      }
+      agentCallCache.fail(call)
+      guard isRequestedDirectly || nodeResolver.hasNodes(makingAgentCall: call) else { return }
+      handleFunctionError(error, functionName: call.name)
+    }
   }
 
   private func setUpSubscriptions() {
@@ -241,6 +354,7 @@ public final class SurfaceViewModel: ObservableObject {
       }
       .store(in: &cancellables)
 
+    nodeResolver.agentCallHost = self
     nodeResolver.agentFunctionResultPublisher
       .sink { [weak self] _ in
         self?.rebuildTree()
@@ -279,6 +393,6 @@ extension SurfaceViewModel: FunctionHandler {
   }
 
   public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
-    nodeResolver.agentFunctionValue(for: call)
+    agentFunctionValue(for: call, isRequestedByNode: false)
   }
 }

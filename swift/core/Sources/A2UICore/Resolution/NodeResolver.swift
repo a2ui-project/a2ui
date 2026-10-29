@@ -88,30 +88,35 @@ public final class NodeResolver: Sendable {
   private var currentPropertyPath: String?
   private var modelCancellables = Set<AnyCancellable>()
 
-  /// Sends calls to functions the renderer does not implement to the agent.
+  /// The surface that sends calls to functions the renderer does not implement to the agent, and
+  /// keeps their results; ``SurfaceViewModel`` sets itself.
   ///
-  /// When set on a v1.0 resolver, a call whose function has no local implementation in the
-  /// catalog it resolves to (undeclared, or declared schema-only) is sent here instead of
-  /// failing, as the v1.0 fallback routing defines. ``SurfaceViewModel`` sets it from its own
-  /// ``SurfaceViewModel/agentFunctionCaller``.
-  public var agentFunctionCaller: AgentFunctionCaller?
+  /// The resolver records which nodes make each such call, and resolves them again when the agent
+  /// answers it.
+  weak var agentCallHost: SurfaceViewModel? {
+    didSet {
+      agentCallCancellable = agentCallHost?.agentCallCache.answeredCallSubject
+        .sink { [weak self] call in
+          self?.markAgentCallAnswered(call)
+        }
+    }
+  }
+  private var agentCallCancellable: AnyCancellable?
 
   /// Agent function calls made while resolving a node, keyed to the nodes that made them.
   private var nodesByAgentCall: [AgentFunctionCall: Set<String>] = [:]
   /// The agent calls the node being resolved makes.
   private var currentNodeAgentCalls: Set<AgentFunctionCall>?
-  /// Agent calls made while resolving nodes that are awaiting the agent's response.
-  private var pendingAgentCalls: Set<AgentFunctionCall> = []
-  /// The settled values of agent calls that resolved nodes still make (`null` after an error).
-  private var agentCallResults: [AgentFunctionCall: JSONValue] = [:]
-  /// Agent calls settled since the last pass, whose nodes must be resolved again.
+  /// The agent calls the action function call being run makes.
+  private var currentActionAgentCalls: Set<AgentFunctionCall>?
+  /// Agent calls answered since the last pass, whose nodes must be resolved again.
   private var dirtyAgentCalls: Set<AgentFunctionCall> = []
-  private let agentCallSettledSubject = PassthroughSubject<Void, Never>()
+  private let agentCallAnsweredSubject = PassthroughSubject<Void, Never>()
 
-  /// Publishes when the agent answers a call made while resolving a node, so that the tree
+  /// Publishes when the agent answers a call that a resolved node makes, so that the tree
   /// should be resolved again to pick up the result. ``SurfaceViewModel`` rebuilds its tree.
-  public var agentFunctionResultPublisher: AnyPublisher<Void, Never> {
-    agentCallSettledSubject.eraseToAnyPublisher()
+  var agentFunctionResultPublisher: AnyPublisher<Void, Never> {
+    agentCallAnsweredSubject.eraseToAnyPublisher()
   }
 
   /// Whether this resolver follows v1.0 rules.
@@ -264,7 +269,6 @@ public final class NodeResolver: Sendable {
     let components = componentsModel.components
     guard components["root"] != nil else {
       resetResolutionState()
-      agentCallResults.removeAll()
       return nil
     }
 
@@ -277,8 +281,6 @@ public final class NodeResolver: Sendable {
     defer {
       resolvedInCurrentPass.removeAll()
       isResolvingTree = false
-      // Agent results are kept across the reset for the nodes resolved again; drop the rest.
-      agentCallResults = agentCallResults.filter { nodesByAgentCall[$0.key] != nil }
     }
     return resolveNode(
       definitionID: "root",
@@ -611,13 +613,11 @@ public final class NodeResolver: Sendable {
     }
   }
 
-  /// Removes a node from the nodes making an agent call, dropping the call's result once no
-  /// node makes it.
+  /// Removes a node from the nodes making an agent call.
   private func unregisterAgentCall(_ call: AgentFunctionCall, for nodeKey: String) {
     nodesByAgentCall[call]?.remove(nodeKey)
     if nodesByAgentCall[call]?.isEmpty ?? true {
       nodesByAgentCall.removeValue(forKey: call)
-      agentCallResults.removeValue(forKey: call)
     }
   }
 
@@ -1133,8 +1133,7 @@ public final class NodeResolver: Sendable {
   private func evaluateDynamicValue(
     _ value: JSONValue,
     basePath: String?,
-    index: Int? = nil,
-    isUserActivated: Bool = false
+    index: Int? = nil
   ) -> JSONValue {
     let currentData = dataModel.data
     let previousReadHook = dataModel.onReadPath
@@ -1151,8 +1150,7 @@ public final class NodeResolver: Sendable {
       path: basePath ?? "",
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
-      index: index,
-      isUserActivated: isUserActivated
+      index: index
     )
     return context.resolveDynamicValue(value)
   }
@@ -1551,17 +1549,43 @@ public final class NodeResolver: Sendable {
             return
           }
 
-          _ = self.evaluateDynamicValue(
-            funcCallVal,
-            basePath: basePath,
-            index: index,
-            isUserActivated: true
-          )
+          self.runActionFunctionCall(funcCallVal, basePath: basePath, index: index)
         }
       )
     }
 
     return nil
+  }
+
+  /// Runs the function call of an action, in response to a user gesture.
+  ///
+  /// A function call whose arguments include calls routed to the agent runs once those calls
+  /// have settled: each pass sends the agent calls it can, and the next pass, once they are
+  /// answered, reads their values. The run stops when an agent call fails, after reporting the
+  /// error once.
+  private func runActionFunctionCall(_ functionCall: JSONValue, basePath: String?, index: Int?) {
+    let previousActionAgentCalls = currentActionAgentCalls
+    currentActionAgentCalls = []
+    let context = DataContext(
+      dataModel: dataModel,
+      path: basePath ?? "",
+      functionHandler: self,
+      protocolVersion: effectiveProtocolVersion,
+      index: index,
+      isUserActivated: true
+    )
+    _ = context.resolveDynamicValue(functionCall)
+    let agentCalls = currentActionAgentCalls ?? []
+    currentActionAgentCalls = previousActionAgentCalls
+
+    guard context.hasDeferredFunctionCall, let agentCallHost else { return }
+    Task { @MainActor [weak self, weak agentCallHost] in
+      for call in agentCalls {
+        guard let isAnswered = await agentCallHost?.awaitAgentCallSettlement(call), isAnswered
+        else { return }
+      }
+      self?.runActionFunctionCall(functionCall, basePath: basePath, index: index)
+    }
   }
 
   // MARK: - Child List Resolution
@@ -1696,80 +1720,52 @@ extension NodeResolver: FunctionHandler {
   }
 
   /// Returns the catalog a v1.0 call is sent to the agent with: the catalog it names, else the
-  /// default catalog. Returns `nil` before v1.0 or without an ``agentFunctionCaller``.
+  /// default catalog. Returns `nil` before v1.0, or when the surface has no
+  /// ``SurfaceViewModel/agentFunctionCaller``.
   public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
-    guard atLeastV10, agentFunctionCaller != nil else { return nil }
+    guard atLeastV10, agentCallHost?.agentFunctionCaller != nil else { return nil }
     return catalogID ?? defaultCatalogID
   }
 
-  /// Sends a call to the agent through ``agentFunctionCaller``.
+  /// Sends a call to the agent through the surface, returning its result if the surface has it.
   ///
-  /// While a node is being resolved, the call is recorded as a dependency of that node: the
-  /// agent's result is kept for as long as a resolved node makes the call, and the node is
-  /// resolved again when the result arrives (see ``agentFunctionResultPublisher``). An identical
-  /// call made again before then is not sent again. A call made outside a resolution pass, such as
-  /// an action's function call, is always sent and its result is not kept.
+  /// While a node is being resolved, the call is recorded as a dependency of that node, and the
+  /// node is resolved again when the agent answers it (see ``agentFunctionResultPublisher``).
+  /// The surface keeps the result, so an identical call made again reads it instead of being
+  /// sent again (see `SurfaceViewModel.agentFunctionValue(for:isRequestedByNode:)`).
   ///
   /// An agent error or timeout is reported as an `EXPRESSION_ERROR`, and the value is `null`.
   ///
-  /// - Returns: The agent's result if a resolved node already received it, else `nil`.
+  /// - Returns: The agent's result if the surface already received it, else `nil`.
   public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
-    let tracksNode = currentNodeAgentCalls != nil
-    if tracksNode {
-      currentNodeAgentCalls?.insert(call)
-      if let result = agentCallResults[call] {
-        return result
-      }
-      guard pendingAgentCalls.insert(call).inserted else { return nil }
-    }
-    guard let caller = agentFunctionCaller else {
-      if tracksNode {
-        pendingAgentCalls.remove(call)
-      }
+    currentNodeAgentCalls?.insert(call)
+    currentActionAgentCalls?.insert(call)
+    guard let agentCallHost else {
       handleFunctionError(FunctionError.noListener(name: call.name), functionName: call.name)
       return nil
     }
-    Task { @MainActor [weak self] in
-      let result: Result<JSONValue, any Error>
-      do {
-        result = .success(try await caller(call))
-      } catch {
-        result = .failure(error)
-      }
-      self?.settleAgentCall(call, tracksNode: tracksNode, result: result)
-    }
-    return nil
+    return agentCallHost.agentFunctionValue(
+      for: call,
+      isRequestedByNode: currentNodeAgentCalls != nil
+    )
   }
 
-  /// Records the agent's answer to a call and resolves the nodes that made it again.
-  private func settleAgentCall(
-    _ call: AgentFunctionCall,
-    tracksNode: Bool,
-    result: Result<JSONValue, any Error>
-  ) {
-    if tracksNode {
-      pendingAgentCalls.remove(call)
-    }
-    let value: JSONValue
-    let isAnswered: Bool
-    switch result {
-    case .success(let resultValue):
-      value = resultValue
-      isAnswered = true
-    case .failure(let error):
-      handleFunctionError(error, functionName: call.name)
-      value = .null
-      isAnswered = false
-    }
-    // Keep the result only while a resolved node still makes the call. After a failure the value
-    // stays `null`, so the nodes are not resolved again, which would report errors of the
-    // functions that take the value as an argument.
-    guard tracksNode, nodesByAgentCall[call] != nil else { return }
-    agentCallResults[call] = value
-    if isAnswered {
-      dirtyAgentCalls.insert(call)
-      agentCallSettledSubject.send()
-    }
+  /// Makes the next ``resolveTree()`` resolve every node again, discarding cached resolutions.
+  func setNeedsFullResolve() {
+    needsFullResolve = true
+  }
+
+  /// Whether a resolved node makes `call`.
+  func hasNodes(makingAgentCall call: AgentFunctionCall) -> Bool {
+    nodesByAgentCall[call] != nil
+  }
+
+  /// Marks the nodes making `call` for resolution once the agent has answered it, and publishes
+  /// on ``agentFunctionResultPublisher`` if there are any.
+  private func markAgentCallAnswered(_ call: AgentFunctionCall) {
+    guard nodesByAgentCall[call] != nil else { return }
+    dirtyAgentCalls.insert(call)
+    agentCallAnsweredSubject.send()
   }
 
   /// Reports a failed function call: unresolvable catalogs map through `MessageErrorMapper`
