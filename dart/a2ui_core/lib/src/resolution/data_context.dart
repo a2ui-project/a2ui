@@ -997,9 +997,10 @@ class DataContext {
     if (eventObj is Map) {
       final Object? name = eventObj['name'];
       if (name is! String || name.isEmpty) return null;
-      final Map<String, dynamic> ev = _resolveActionFields(
+      final Map<String, dynamic>? ev = _resolveActionFields(
         Map<String, dynamic>.from(eventObj),
       );
+      if (ev == null) return null;
       return {...map, 'event': ev};
     }
     if (map.containsKey('name')) {
@@ -1010,7 +1011,7 @@ class DataContext {
     return null;
   }
 
-  Map<String, dynamic> _resolveActionFields(Map<String, dynamic> map) {
+  Map<String, dynamic>? _resolveActionFields(Map<String, dynamic> map) {
     final result = Map<String, dynamic>.from(map);
     final Object? ctx = result['context'];
     if (ctx is Map) {
@@ -1022,7 +1023,9 @@ class DataContext {
       result['context'] = <String, Object?>{};
     }
     if (result.containsKey('userMessage')) {
-      result['userMessage'] = resolveDynamicValue(result['userMessage']);
+      final Object? msg = resolveDynamicValue(result['userMessage']);
+      if (msg != null && msg is! String) return null;
+      result['userMessage'] = msg;
     }
     return result;
   }
