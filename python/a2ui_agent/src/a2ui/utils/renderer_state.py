@@ -198,6 +198,10 @@ class RendererState:
         # The components each surface added or replaced since its tree was
         # last checked.
         self._changed: dict[str, set[str]] = {}
+        # The pre-turn state of each component touched since its surface's tree
+        # was last checked (`None` when the component did not exist before the
+        # turn).
+        self._baseline: dict[str, dict[str, tuple[int, ComponentModel] | None]] = {}
         # What each change made inside an open `apply` or transaction
         # replaced, in the order of the changes. An `apply` or transaction is
         # a position in the log, and undoing one reverts the log to it.
@@ -330,17 +334,24 @@ class RendererState:
             self._forget_changed(surface_id)
 
     def drop_provisional_component(self, surface_id: str, component_id: str) -> None:
-        """Removes a provisional component whose ID was superseded during streaming.
+        """Removes or restores a provisional component whose ID was superseded.
 
         When a streamed statement is healed before its `id=` argument arrives,
         the component is first applied under its variable name and later
         re-emitted under its explicit ID. Dropping the provisional component
-        keeps the surface model and reachability checks free of the stale ID,
-        and logs an undo record so a failed transaction restores it.
+        reverts `component_id` to its state before the current unchecked turn
+        (removing it if it was created in this turn, or restoring the earlier
+        component if one already existed on the surface), and logs an undo
+        record so a failed transaction restores it.
         """
         surface = self._processor.model.get_surface(surface_id)
         if surface is None:
             return
+        baseline = self._baseline.get(surface_id)
+        if baseline is None or component_id not in baseline:
+            return
+        base_entry = baseline.pop(component_id)
+        self._record(lambda: baseline.__setitem__(component_id, base_entry))
         components_model = surface.components_model
         existing = components_model.get(component_id)
         if existing is not None:
@@ -359,10 +370,22 @@ class RendererState:
                 copy.deepcopy(existing.properties),
             )
             components_model.remove_component(component_id)
+            if base_entry is not None:
+                base_pos, base_comp = base_entry
+                components_model.insert_component(
+                    base_pos,
+                    ComponentModel(
+                        base_comp.id,
+                        base_comp.type,
+                        base_comp.catalog,
+                        copy.deepcopy(base_comp.properties),
+                    ),
+                )
 
             def undo_component() -> None:
                 surf = self._processor.model.get_surface(surface_id)
                 if surf is not None:
+                    surf.components_model.remove_component(component_id)
                     surf.components_model.insert_component(position, saved)
 
             self._record(undo_component)
@@ -457,6 +480,55 @@ class RendererState:
         pending.append(message)
         self._record(lambda: _discard(pending.pop()))
 
+    def _note_baseline(self, surface_id: str, component_ids: set[str]) -> None:
+        """Snapshots components on `surface_id` before their first change since last check."""
+        if not component_ids:
+            return
+        baseline = self._baseline.get(surface_id)
+        if baseline is None:
+            baseline = self._baseline[surface_id] = {}
+            self._record(lambda: _discard(self._baseline.pop(surface_id, None)))
+        unseen = [cid for cid in component_ids if cid not in baseline]
+        if not unseen:
+            return
+        surface = (
+            None
+            if surface_id in self._assumed
+            else self._processor.model.get_surface(surface_id)
+        )
+        components_model = (
+            surface.components_model if surface is not None else None
+        )
+        positions: dict[str, int] = {}
+        if components_model is not None:
+            wanted = {cid for cid in unseen if components_model.get(cid) is not None}
+            if wanted:
+                for idx, cid in enumerate(components_model.keys):
+                    if cid in wanted:
+                        positions[cid] = idx
+        for cid in unseen:
+            existing = (
+                components_model.get(cid) if components_model is not None else None
+            )
+            if existing is None:
+                baseline[cid] = None
+            else:
+                baseline[cid] = (
+                    positions.get(cid, sys.maxsize),
+                    ComponentModel(
+                        cid,
+                        existing.type,
+                        existing.catalog,
+                        copy.deepcopy(existing.properties),
+                    ),
+                )
+
+        def undo_baseline() -> None:
+            for cid in unseen:
+                baseline.pop(cid, None)
+
+        self._record(undo_baseline)
+
     def _note_changed(self, surface_id: str, component_ids: set[str]) -> None:
         """Records components a surface added or replaced since its last check."""
         changed = self._changed.get(surface_id)
@@ -473,6 +545,9 @@ class RendererState:
         changed = self._changed.pop(surface_id, None)
         if changed is not None:
             self._record(lambda: self._changed.__setitem__(surface_id, changed))
+        baseline = self._baseline.pop(surface_id, None)
+        if baseline is not None:
+            self._record(lambda: self._baseline.__setitem__(surface_id, baseline))
 
     def _process(self, messages: list[dict[str, Any]], *, log: bool = True) -> None:
         """Runs messages through the processor, logging what each one replaces.
@@ -674,6 +749,9 @@ class RendererState:
             return None
 
         model = self._processor.model
+        comp_ids = _component_ids(message) if "deleteSurface" not in message else set()
+        if comp_ids:
+            self._note_baseline(surface_id, comp_ids)
         if creates:
             pending = self._set_pending(surface_id, None)
             if pending is not None:
@@ -697,8 +775,8 @@ class RendererState:
             self._process([message])
             if surface_id in self._pending:
                 self._buffer(surface_id, message)
-        if "deleteSurface" not in message:
-            self._note_changed(surface_id, _component_ids(message))
+        if comp_ids:
+            self._note_changed(surface_id, comp_ids)
         return surface_id
 
     def _assumes(

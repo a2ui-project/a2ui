@@ -119,6 +119,23 @@ export class RendererState {
   private readonly assumed = new Set<string>();
   /** The components each surface added or replaced since its tree was last checked. */
   private readonly changed = new Map<string, Set<string>>();
+  /**
+   * The pre-turn state of each component touched since its surface's tree was last checked
+   * (`null` when the component did not exist before the turn).
+   */
+  private readonly baseline = new Map<
+    string,
+    Map<
+      string,
+      {
+        position: number;
+        type: string;
+        properties: Record<string, unknown>;
+        catalog: CatalogApi;
+        metadata: Record<string, unknown> | undefined;
+      } | null
+    >
+  >();
   /** How to undo each change made since the outermost open `apply` or transaction began. */
   private readonly log: Undo[] = [];
   /** How many `apply` calls and transactions are open. */
@@ -198,30 +215,66 @@ export class RendererState {
   }
 
   /**
-   * Removes a provisional component from `surfaceId` when a later statement in the same
-   * scope supersedes its wire ID.
+   * Removes or restores a provisional component on `surfaceId` when a later statement in the
+   * same scope supersedes its wire ID.
    */
   dropProvisionalComponent(surfaceId: string, componentId: string): void {
     const surface = this.processor.model.getSurface(surfaceId);
     if (!surface) {
       return;
     }
-    const existing = surface.componentsModel.get(componentId);
-    if (!existing) {
+    const baseMap = this.baseline.get(surfaceId);
+    if (!baseMap || !baseMap.has(componentId)) {
       return;
     }
-    const changedSet = this.changed.get(surfaceId);
-    const wasChanged = changedSet?.has(componentId) ?? false;
-    if (this.open > 0) {
-      this.log.push(() => {
-        surface.componentsModel.addComponent(existing);
-        if (wasChanged) {
-          this.changed.get(surfaceId)?.add(componentId);
+    const baseEntry = baseMap.get(componentId) ?? null;
+    baseMap.delete(componentId);
+    this.record(() => baseMap.set(componentId, baseEntry));
+
+    const components = surface.componentsModel;
+    const existing = components.get(componentId);
+    if (existing) {
+      let position = Infinity;
+      let idx = 0;
+      for (const id of components.keys) {
+        if (id === componentId) {
+          position = idx;
+          break;
         }
+        idx++;
+      }
+      const saved = new ComponentModel(
+        componentId,
+        existing.type,
+        structuredClone(existing.properties),
+        existing.catalog,
+        structuredClone(existing.metadata),
+      );
+      components.removeComponent(componentId);
+      if (baseEntry !== null) {
+        components.insertComponent(
+          baseEntry.position,
+          new ComponentModel(
+            componentId,
+            baseEntry.type,
+            structuredClone(baseEntry.properties),
+            baseEntry.catalog,
+            structuredClone(baseEntry.metadata),
+          ),
+        );
+      }
+      this.record(() => {
+        const current = this.processor.model.getSurface(surfaceId)?.componentsModel;
+        if (!current) return;
+        current.removeComponent(componentId);
+        current.insertComponent(position, saved);
       });
     }
-    surface.componentsModel.removeComponent(componentId);
-    changedSet?.delete(componentId);
+    const changedSet = this.changed.get(surfaceId);
+    if (changedSet?.has(componentId)) {
+      changedSet.delete(componentId);
+      this.record(() => changedSet.add(componentId));
+    }
   }
 
   /**
@@ -438,6 +491,50 @@ export class RendererState {
     }
   }
 
+  /** Snapshots components on `surfaceId` before their first change since last check. */
+  private noteBaseline(surfaceId: string, componentIds: ReadonlySet<string>): void {
+    if (componentIds.size === 0) return;
+    let baseMap = this.baseline.get(surfaceId);
+    if (!baseMap) {
+      baseMap = new Map();
+      this.baseline.set(surfaceId, baseMap);
+      this.record(() => this.baseline.delete(surfaceId));
+    }
+    const unseen = [...componentIds].filter(id => !baseMap.has(id));
+    if (unseen.length === 0) return;
+    const surface = this.assumed.has(surfaceId)
+      ? undefined
+      : this.processor.model.getSurface(surfaceId);
+    const components = surface?.componentsModel;
+    const positions = new Map<string, number>();
+    if (components) {
+      const wanted = new Set(unseen.filter(id => components.has(id)));
+      if (wanted.size > 0) {
+        let index = 0;
+        for (const id of components.keys) {
+          if (wanted.has(id)) positions.set(id, index);
+          index++;
+        }
+      }
+    }
+    for (const id of unseen) {
+      const existing = components?.get(id);
+      if (!existing) {
+        baseMap.set(id, null);
+      } else {
+        baseMap.set(id, {
+          position: positions.get(id) ?? Infinity,
+          type: existing.type,
+          properties: structuredClone(existing.properties),
+          catalog: existing.catalog,
+          metadata: structuredClone(existing.metadata),
+        });
+      }
+    }
+    const map = baseMap;
+    this.record(() => unseen.forEach(id => map.delete(id)));
+  }
+
   /** Records components a surface added or replaced since its tree was last checked. */
   private noteChanged(surfaceId: string, componentIds: Iterable<string>): void {
     let changed = this.changed.get(surfaceId);
@@ -471,9 +568,15 @@ export class RendererState {
   /** Stops holding what a surface changed against its next tree check. */
   private forgetChanged(surfaceId: string): void {
     const changed = this.changed.get(surfaceId);
-    if (changed === undefined) return;
-    this.changed.delete(surfaceId);
-    this.record(() => this.changed.set(surfaceId, changed));
+    if (changed !== undefined) {
+      this.changed.delete(surfaceId);
+      this.record(() => this.changed.set(surfaceId, changed));
+    }
+    const baseMap = this.baseline.get(surfaceId);
+    if (baseMap !== undefined) {
+      this.baseline.delete(surfaceId);
+      this.record(() => this.baseline.set(surfaceId, baseMap));
+    }
   }
 
   /**
@@ -779,6 +882,10 @@ export class RendererState {
     }
 
     const deletes = 'deleteSurface' in message;
+    const ids = deletes ? undefined : componentIds(message);
+    if (ids && ids.size > 0) {
+      this.noteBaseline(surfaceId, ids);
+    }
     if (creates) {
       this.process(message);
     } else if (deletes) {
@@ -793,8 +900,8 @@ export class RendererState {
     } else {
       this.process(message);
     }
-    if (!deletes) {
-      this.noteChanged(surfaceId, componentIds(message));
+    if (ids && ids.size > 0) {
+      this.noteChanged(surfaceId, ids);
     }
     return surfaceId;
   }

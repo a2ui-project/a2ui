@@ -600,6 +600,7 @@ class _CompileContext:
         self.resolving: set[str] = set()
         self.allow_pending: bool = allow_pending
         self.referenced_vars: set[str] = set()
+        self.used_ids: set[str] = set()
 
     def check_catalog_override(self, target: str) -> None:
         """Rejects a per-component or per-function catalogId below v1.0.
@@ -650,17 +651,29 @@ class _StandaloneCall:
 class _ScopeStreamState:
     """Incremental emission state for a single surface scope in an open block."""
 
+    surface_id: str = ""
     surface_created: bool = False
     emitted_components: dict[str, dict[str, Any]] = field(default_factory=dict)
     emitted_data_paths: dict[str, Any] = field(default_factory=dict)
     var_ids: dict[str, str] = field(default_factory=dict)
-    compiled_cache: dict[str, tuple[Any, list[dict[str, Any]], dict[str, Any], int]] = (
-        field(default_factory=dict)
+    compiled_cache: dict[
+        str,
+        tuple[
+            Any,
+            list[dict[str, Any]],
+            dict[str, tuple[Any, str | None]],
+            int,
+            int,
+            list[str],
+        ],
+    ] = field(default_factory=dict)
+    data_cache: dict[str, tuple[Any, Any, dict[str, tuple[Any, str | None]]]] = field(
+        default_factory=dict
     )
-    data_cache: dict[str, tuple[Any, Any, dict[str, Any]]] = field(default_factory=dict)
 
     def clone(self) -> "_ScopeStreamState":
         return _ScopeStreamState(
+            surface_id=self.surface_id,
             surface_created=self.surface_created,
             emitted_components=dict(self.emitted_components),
             emitted_data_paths=dict(self.emitted_data_paths),
@@ -903,7 +916,10 @@ class ExpressScopeSession:
             self._emitted_units.add(idx)
             self.has_emitted = True
             return [msg]
-        state = self._scope_states.setdefault(idx, _ScopeStreamState())
+        state = self._scope_states.setdefault(
+            idx, _ScopeStreamState(surface_id=unit.surface_id)
+        )
+        state.surface_id = unit.surface_id
         surface_exists = unit.surface_id in active_surfaces
         messages = self._compile_scope_delta(
             unit,
@@ -1036,12 +1052,37 @@ class ExpressScopeSession:
             self.has_emitted = True
         return messages
 
+    def _dep_snapshot(
+        self, scope: _SurfaceScope, dep: str, ctx: _CompileContext
+    ) -> tuple[Any, str | None]:
+        dep_ast = scope.raw_symbols.get(dep)
+        if isinstance(dep_ast, CallNode) and self.compiler._defines_component(
+            dep_ast.name, dep_ast.kwargs.get("catalogId")
+        ):
+            return (
+                dep_ast,
+                _component_id(dep, dep_ast, at_least_v10=ctx.at_least_v10),
+            )
+        return (dep_ast, None)
+
+    def _earlier_scope_component(
+        self, current_state: _ScopeStreamState, surface_id: str, comp_id: str
+    ) -> dict[str, Any] | None:
+        found: dict[str, Any] | None = None
+        for st in self._scope_states.values():
+            if st is current_state:
+                break
+            if st.surface_id == surface_id and comp_id in st.emitted_components:
+                found = st.emitted_components[comp_id]
+        return found
+
     def _collect_ready_components(
         self,
         scope: _SurfaceScope,
         state: _ScopeStreamState,
         ctx: _CompileContext,
     ) -> tuple[list[dict[str, Any]], bool]:
+        self.compiler._seed_scope_component_ids(scope, ctx)
         compiled: list[dict[str, Any]] = []
         has_pending = False
         superseded: list[str] = []
@@ -1050,15 +1091,19 @@ class ExpressScopeSession:
             if (
                 cached is not None
                 and cached[0] is ast
+                and (cached[4] == 0 or cached[3] == ctx.inline_counter)
+                and all(gid not in ctx.used_ids for gid in cached[5])
                 and all(
-                    scope.raw_symbols.get(dep) is dep_ast
-                    for dep, dep_ast in cached[2].items()
+                    self._dep_snapshot(scope, dep, ctx) == dep_snap
+                    for dep, dep_snap in cached[2].items()
                 )
             ):
                 var_comps = cached[1]
-                ctx.inline_counter += cached[3]
+                ctx.inline_counter += cached[4]
+                ctx.used_ids.update(cached[5])
             else:
                 prev_inline = ctx.inline_counter
+                prev_used_ids = set(ctx.used_ids)
                 ctx.referenced_vars.clear()
                 try:
                     comp_dict = self.compiler._compile_ast_node(
@@ -1067,16 +1112,25 @@ class ExpressScopeSession:
                 except _PendingVariableError:
                     ctx.extra_components = []
                     ctx.inline_counter = prev_inline
+                    ctx.used_ids = prev_used_ids
                     has_pending = True
                     continue
                 var_comps = [comp_dict, *ctx.extra_components] if comp_dict else []
                 ctx.extra_components = []
-                deps = {dep: scope.raw_symbols.get(dep) for dep in ctx.referenced_vars}
+                deps = {
+                    dep: self._dep_snapshot(scope, dep, ctx)
+                    for dep in ctx.referenced_vars
+                }
+                new_generated_ids = [
+                    gid for gid in ctx.used_ids if gid not in prev_used_ids
+                ]
                 state.compiled_cache[var_name] = (
                     ast,
                     var_comps,
                     deps,
+                    prev_inline,
                     ctx.inline_counter - prev_inline,
+                    new_generated_ids,
                 )
             if var_comps:
                 new_id = var_comps[0]["id"]
@@ -1090,7 +1144,13 @@ class ExpressScopeSession:
             for old_id in superseded:
                 if old_id not in active_ids:
                     state.emitted_components.pop(old_id, None)
-                    self.superseded_components.append((scope.surface_id, old_id))
+                    earlier_comp = self._earlier_scope_component(
+                        state, scope.surface_id, old_id
+                    )
+                    if earlier_comp is not None:
+                        compiled.append(earlier_comp)
+                    else:
+                        self.superseded_components.append((scope.surface_id, old_id))
         return compiled, has_pending
 
     def _collect_ready_data(
@@ -1106,8 +1166,8 @@ class ExpressScopeSession:
                 cached is not None
                 and cached[0] is ast_val
                 and all(
-                    scope.raw_symbols.get(dep) is dep_ast
-                    for dep, dep_ast in cached[2].items()
+                    self._dep_snapshot(scope, dep, ctx) == dep_snap
+                    for dep, dep_snap in cached[2].items()
                 )
             ):
                 compiled[path_name] = cached[1]
@@ -1117,7 +1177,10 @@ class ExpressScopeSession:
                 val = self.compiler._compile_data_value(scope, ast_val, ctx)
             except _PendingVariableError:
                 continue
-            deps = {dep: scope.raw_symbols.get(dep) for dep in ctx.referenced_vars}
+            deps = {
+                dep: self._dep_snapshot(scope, dep, ctx)
+                for dep in ctx.referenced_vars
+            }
             state.data_cache[path_name] = (ast_val, val, deps)
             compiled[path_name] = val
         return compiled
@@ -1512,9 +1575,28 @@ class ExpressCompiler:
             is_update=bool(is_update),
         )
 
+    def _seed_scope_component_ids(
+        self, scope: _SurfaceScope, ctx: _CompileContext
+    ) -> None:
+        ctx.used_ids.clear()
+        for var_name, ast in scope.raw_symbols.items():
+            if not isinstance(ast, CallNode):
+                continue
+            comp_cat_id = ast.kwargs.get("catalogId")
+            if self._defines_component(ast.name, comp_cat_id):
+                comp_id = _component_id(
+                    var_name, ast, at_least_v10=ctx.at_least_v10
+                )
+                if comp_id in ctx.used_ids:
+                    raise ExpressValidationError(
+                        f"Duplicate component ID '{comp_id}'."
+                    )
+                ctx.used_ids.add(comp_id)
+
     def _compile_components(
         self, scope: _SurfaceScope, ctx: _CompileContext
     ) -> list[dict[str, Any]]:
+        self._seed_scope_component_ids(scope, ctx)
         compiled_components = []
         for var_name, ast in scope.raw_symbols.items():
             comp_dict = self._compile_ast_node(var_name, ast, scope.raw_symbols, ctx)
@@ -2274,6 +2356,15 @@ class ExpressCompiler:
             else:
                 ctx.inline_counter += 1
                 inline_id = f"_inline_{ctx.inline_counter}"
+
+            actual_id = _component_id(
+                inline_id, val, at_least_v10=ctx.at_least_v10
+            )
+            if actual_id in ctx.used_ids:
+                raise ExpressValidationError(
+                    f"Duplicate component ID '{actual_id}'."
+                )
+            ctx.used_ids.add(actual_id)
 
             prev_extras = ctx.extra_components
             ctx.extra_components = []

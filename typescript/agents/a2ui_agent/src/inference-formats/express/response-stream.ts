@@ -72,9 +72,10 @@ const OPEN_TAG_START_RE = /<a2ui\s[^>]*$/iy;
 const CLOSE_TAG_START_RE = /<\/a2ui\s*$/iy;
 const LEADING_FENCE_RE = /^\s*(?:```[a-zA-Z0-9_-]*[ \t]*\r?\n|`+\s*)/;
 const TRAILING_FENCE_RE = /(?:\r?\n?[ \t]*```[a-zA-Z0-9_-]*|`+)\s*$/;
-const OUTER_TRAILING_FENCE_RE = /(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$/;
+const OUTER_TRAILING_FENCE_RE =
+  /(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|(?:^|(?<=\s))`{1,2})$/;
 const OUTER_TRAILING_FENCE_PREFIX_RE = /(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$/;
-const OUTER_INLINE_OPEN_BACKTICK_RE = /(?<!`)`{1,2}$/;
+const OUTER_INLINE_OPEN_BACKTICK_RE = /(?:^|(?<=\s))`{1,2}$/;
 const OUTER_LEADING_FENCE_RE = /^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)/;
 const OUTER_LEADING_FENCE_PREFIX_RE = /^\s*(?:`{0,2}|```[a-zA-Z0-9_-]*[ \t]*\r?)$/;
 const OUTER_LEADING_FENCE_INLINE_RE = /^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)|`+)/;
@@ -166,7 +167,10 @@ function scanExpressBlockFrom(
     }
     i += 1;
   }
-  return {closeStart: undefined, readableEnd: n, resumePos: n};
+  const lastChar = n > 0 ? content[n - 1] : '';
+  const resumePos =
+    lastChar === 'r' || lastChar === 'R' || lastChar === '/' || lastChar === '-' ? n - 1 : n;
+  return {closeStart: undefined, readableEnd: n, resumePos};
 }
 
 function skipBlockLiteralOrComment(content: string, i: number, n: number): [number, boolean] {
@@ -199,8 +203,8 @@ function skipBlockLiteralOrComment(content: string, i: number, n: number): [numb
     const endComment = content.indexOf('*/', i + 2);
     return endComment < 0 ? [n, false] : [endComment + 2, true];
   }
-  if (content[i] === '#' || content.startsWith('//', i)) {
-    let j = i + 1;
+  if (content[i] === '#' || content.startsWith('//', i) || content.startsWith('--', i)) {
+    let j = content[i] === '#' ? i + 1 : i + 2;
     while (j < n && content[j] !== '\n' && content[j] !== '\r') {
       if (content[j] === '<' && checkCloseTagAt(content, j) !== undefined) {
         return [j, true];
@@ -329,7 +333,7 @@ function stepStringOrComment(source: string, i: number, n: number): [number, boo
     const close = source.indexOf('*/', i + 2);
     return close >= 0 ? [close + 2, false] : [n, false];
   }
-  if (source[i] === '#' || source.startsWith('//', i)) {
+  if (source[i] === '#' || source.startsWith('//', i) || source.startsWith('--', i)) {
     const nl = source.indexOf('\n', i);
     return nl >= 0 ? [nl, false] : [n, false];
   }
@@ -461,7 +465,10 @@ export function healProgressiveFragment(
   if (!state.isRaw && hasOddTrailingBackslashes(healed)) {
     healed = healed.slice(0, -1);
   }
-  if (state.delim === '"""' && !state.isRaw && healed.endsWith('"')) {
+  if (state.delim === '"""' && healed.slice(state.strStart).endsWith('"')) {
+    if (state.isRaw) {
+      return undefined;
+    }
     healed = `${healed.slice(0, -1)}\\"`;
   }
   const closingBrackets = [...state.brackets]
@@ -532,7 +539,7 @@ function trySkipFragmentComment(fragment: string, i: number): number | undefined
     const close = fragment.indexOf('*/', i + 2);
     return close < 0 ? -1 : close + 2;
   }
-  if (fragment[i] === '#' || fragment.startsWith('//', i)) {
+  if (fragment[i] === '#' || fragment.startsWith('//', i) || fragment.startsWith('--', i)) {
     const nl = fragment.indexOf('\n', i);
     return nl < 0 ? -1 : nl + 1;
   }
@@ -970,11 +977,21 @@ export class ExpressResponseStream<
     }
     const readyMessages: AgentToRendererMessage[] = [];
     if (completePrefix.trim() && completePrefix !== this.lastCompiledPrefix) {
-      const prefixMsgs = this.compileStep(completePrefix, false, true);
-      this.lastCompiledPrefix = completePrefix;
-      if (prefixMsgs.length > 0) {
-        this.apply(prefixMsgs);
-        readyMessages.push(...prefixMsgs);
+      const savedSession = this.session.snapshot();
+      const savedTouched = new Set(this.touched);
+      try {
+        this.state.transaction(() => {
+          const prefixMsgs = this.compileStep(completePrefix, false, true);
+          if (prefixMsgs.length > 0) {
+            this.apply(prefixMsgs);
+            readyMessages.push(...prefixMsgs);
+          }
+        });
+        this.lastCompiledPrefix = completePrefix;
+      } catch (e) {
+        this.session.restore(savedSession);
+        this.touched = savedTouched;
+        throw e;
       }
     }
 
@@ -1058,6 +1075,7 @@ export class ExpressResponseStream<
     for (const [surfaceId, compId] of this.session.supersededComponents) {
       this.state.dropProvisionalComponent(surfaceId, compId);
     }
+    this.session.supersededComponents = [];
     const touched = this.state.apply(messages);
     for (const id of touched) {
       this.touched.add(id);

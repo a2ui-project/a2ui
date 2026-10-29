@@ -56,12 +56,12 @@ _CLOSE_TAG_START_RE = re.compile(r"</a2ui\s*$", re.IGNORECASE)
 _LEADING_FENCE_RE = re.compile(r"^\s*(?:```[a-zA-Z0-9_-]*[ \t]*\r?\n|`+\s*)")
 _TRAILING_FENCE_RE = re.compile(r"(?:\r?\n?[ \t]*```[a-zA-Z0-9_-]*|`+)\s*$")
 _OUTER_TRAILING_FENCE_RE = re.compile(
-    r"(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)\Z"
+    r"(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|(?:^|(?<=\s))`{1,2})\Z"
 )
 _OUTER_TRAILING_FENCE_PREFIX_RE = re.compile(
     r"(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)\Z"
 )
-_OUTER_INLINE_OPEN_BACKTICK_RE = re.compile(r"(?<!`)`{1,2}\Z")
+_OUTER_INLINE_OPEN_BACKTICK_RE = re.compile(r"(?:^|(?<=\s))`{1,2}\Z")
 _OUTER_LEADING_FENCE_RE = re.compile(r"^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|\Z)")
 _OUTER_LEADING_FENCE_PREFIX_RE = re.compile(
     r"^\s*(?:`{0,2}|```[a-zA-Z0-9_-]*[ \t]*\r?)\Z"
@@ -120,12 +120,17 @@ def _scan_express_block_from(
             if hit is not None:
                 return hit[0], hit[1], i
         i += 1
-    resume_pos = n - 1 if n > 0 and content[n - 1] in ("r", "R", "/") else n
+    resume_pos = n - 1 if n > 0 and content[n - 1] in ("r", "R", "/", "-") else n
     return None, n, resume_pos
 
 
 def _skip_block_literal_or_comment(content: str, i: int, n: int) -> tuple[int, bool]:
-    if content[i] in ("r", "R") and i + 1 < n and content[i + 1] == '"':
+    if (
+        content[i] in ("r", "R")
+        and i + 1 < n
+        and content[i + 1] == '"'
+        and (i == 0 or not (content[i - 1].isalnum() or content[i - 1] == "_"))
+    ):
         end = _skip_string_literal(content, i + 1, n, raw=True)
         return (end, True) if end is not None else (n, False)
     if content[i] == '"':
@@ -134,13 +139,13 @@ def _skip_block_literal_or_comment(content: str, i: int, n: int) -> tuple[int, b
     if content.startswith("/*", i):
         end_comment = content.find("*/", i + 2)
         return (end_comment + 2, True) if end_comment >= 0 else (n, False)
-    if content.startswith(("#", "//"), i):
-        newline = content.find("\n", i)
-        end = n if newline < 0 else newline
-        close = CLOSE_TAG_RE.search(content, i, end)
-        if close:
-            return close.start(), True
-        return (newline + 1, True) if newline >= 0 else (n, False)
+    if content.startswith(("#", "//", "--"), i):
+        j = i + (1 if content[i] == "#" else 2)
+        while j < n and content[j] not in ("\n", "\r"):
+            if content[j] == "<" and _check_close_tag_at(content, j) is not None:
+                return j, True
+            j += 1
+        return (j + 1, True) if j < n else (n, False)
     return i, True
 
 
@@ -243,7 +248,7 @@ def _step_string_or_comment(source: str, i: int, n: int) -> tuple[int, bool]:
     if source.startswith("/*", i):
         close = source.find("*/", i + 2)
         return (close + 2, False) if close >= 0 else (n, False)
-    if source[i] == "#" or source.startswith("//", i):
+    if source[i] == "#" or source.startswith(("//", "--"), i):
         nl = source.find("\n", i)
         return (nl, False) if nl >= 0 else (n, False)
     return i, False
@@ -343,7 +348,7 @@ def heal_progressive_fragment(
     healed = fragment
     if not is_raw and _has_odd_trailing_backslashes(healed):
         healed = healed[:-1]
-    if delim == '"""' and healed.endswith('"'):
+    if delim == '"""' and healed[str_start:].endswith('"'):
         if is_raw:
             return None
         healed = f'{healed[:-1]}\\"'
@@ -402,7 +407,7 @@ def _try_skip_fragment_comment(fragment: str, i: int, n: int) -> int | None:
     if fragment.startswith("/*", i):
         close = fragment.find("*/", i + 2)
         return -1 if close < 0 else close + 2
-    if fragment[i] == "#" or fragment.startswith("//", i):
+    if fragment[i] == "#" or fragment.startswith(("//", "--"), i):
         nl = fragment.find("\n", i)
         return -1 if nl < 0 else nl + 1
     return None

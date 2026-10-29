@@ -416,7 +416,15 @@ function advanceCommentInSentinelScan(dslText: string, pos: number): number | un
   const n = dslText.length;
   if (dslText.startsWith('//', pos) || dslText[pos] === '#' || dslText.startsWith('--', pos)) {
     const nl = dslText.indexOf('\n', pos);
-    return nl < 0 ? n : nl;
+    const end = nl < 0 ? n : nl;
+    let j = pos + (dslText[pos] === '#' ? 1 : 2);
+    while (j < end) {
+      if (dslText[j] === '<' && matchSentinelAt(dslText, j)?.kind === 'close') {
+        return j;
+      }
+      j += 1;
+    }
+    return end;
   }
   if (dslText.startsWith('/*', pos)) {
     const end = dslText.indexOf('*/', pos + 2);
@@ -619,6 +627,7 @@ interface CachedComponentEntry {
   ast: unknown;
   comps: Record<string, unknown>[];
   deps: Map<string, [unknown, string | undefined]>;
+  startInline: number;
   inlineDelta: number;
   generatedIds: string[];
 }
@@ -630,6 +639,7 @@ interface CachedDataEntry {
 }
 
 interface ScopeStreamState {
+  surfaceId: string;
   surfaceCreated: boolean;
   emittedComponents: Map<string, string>;
   emittedDataPaths: Map<string, string>;
@@ -682,6 +692,7 @@ export class ExpressScopeSession {
     const scopeStates = new Map<number, ScopeStreamState>();
     for (const [k, st] of this.scopeStates.entries()) {
       scopeStates.set(k, {
+        surfaceId: st.surfaceId,
         surfaceCreated: st.surfaceCreated,
         emittedComponents: new Map(st.emittedComponents),
         emittedDataPaths: new Map(st.emittedDataPaths),
@@ -815,6 +826,7 @@ export class ExpressScopeSession {
     let state = this.scopeStates.get(idx);
     if (!state) {
       state = {
+        surfaceId: unit.scope.surfaceId,
         surfaceCreated: false,
         emittedComponents: new Map(),
         emittedDataPaths: new Map(),
@@ -823,6 +835,8 @@ export class ExpressScopeSession {
         dataCache: new Map(),
       };
       this.scopeStates.set(idx, state);
+    } else {
+      state.surfaceId = unit.scope.surfaceId;
     }
     const surfaceExists = activeSurfaces.has(unit.scope.surfaceId);
     const messages = this.compileScopeDelta(
@@ -986,6 +1000,23 @@ export class ExpressScopeSession {
     return messages;
   }
 
+  private earlierScopeComponent(
+    currentState: ScopeStreamState,
+    surfaceId: string,
+    compId: string,
+  ): Record<string, unknown> | undefined {
+    let foundJson: string | undefined;
+    for (const st of this.scopeStates.values()) {
+      if (st === currentState) {
+        break;
+      }
+      if (st.surfaceId === surfaceId && st.emittedComponents.has(compId)) {
+        foundJson = st.emittedComponents.get(compId);
+      }
+    }
+    return foundJson !== undefined ? (JSON.parse(foundJson) as Record<string, unknown>) : undefined;
+  }
+
   private collectReadyComponents(
     scope: SurfaceScope,
     state: ScopeStreamState,
@@ -993,8 +1024,11 @@ export class ExpressScopeSession {
     ctx: CompileContext,
     targetMajorMinor: [number, number],
   ): {compiled: Record<string, unknown>[]; hasPending: boolean} {
+    ctx.generatedIds.clear();
+    const topLevelIds = new Set(compIds.values());
     const compiled: Record<string, unknown>[] = [];
     const extras: Record<string, unknown>[] = [];
+    const superseded: string[] = [];
     let hasPending = false;
     for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
       const cached = state.compiledCache.get(varName);
@@ -1006,7 +1040,16 @@ export class ExpressScopeSession {
             break;
           }
         }
-        if (depsUnchanged && cached.generatedIds.every(gid => !ctx.generatedIds.has(gid))) {
+        if (
+          depsUnchanged &&
+          (cached.inlineDelta === 0 || cached.startInline === ctx.inlineCounter) &&
+          cached.generatedIds.every(
+            gid =>
+              !ctx.generatedIds.has(gid) &&
+              !topLevelIds.has(gid) &&
+              !Object.hasOwn(scope.rawSymbols, gid),
+          )
+        ) {
           ctx.inlineCounter += cached.inlineDelta;
           for (const gid of cached.generatedIds) {
             ctx.generatedIds.add(gid);
@@ -1016,8 +1059,7 @@ export class ExpressScopeSession {
             const compId = String(compDict.id);
             const prevId = state.varIds.get(varName);
             if (prevId !== undefined && prevId !== compId) {
-              state.emittedComponents.delete(prevId);
-              this.supersededComponents.push([scope.surfaceId, prevId]);
+              superseded.push(prevId);
             }
             state.varIds.set(varName, compId);
             compiled.push(compDict);
@@ -1048,8 +1090,7 @@ export class ExpressScopeSession {
           const compId = String(compDict.id);
           const prevId = state.varIds.get(varName);
           if (prevId !== undefined && prevId !== compId) {
-            state.emittedComponents.delete(prevId);
-            this.supersededComponents.push([scope.surfaceId, prevId]);
+            superseded.push(prevId);
           }
           state.varIds.set(varName, compId);
           const nodeExtras = [...ctx.extraComponents];
@@ -1058,6 +1099,7 @@ export class ExpressScopeSession {
             ast,
             comps: [compDict, ...nodeExtras],
             deps,
+            startInline: prevInlineCounter,
             inlineDelta,
             generatedIds: newGeneratedIds,
           });
@@ -1068,6 +1110,7 @@ export class ExpressScopeSession {
             ast,
             comps: [],
             deps,
+            startInline: prevInlineCounter,
             inlineDelta,
             generatedIds: newGeneratedIds,
           });
@@ -1084,6 +1127,20 @@ export class ExpressScopeSession {
       }
     }
     compiled.push(...extras);
+    if (superseded.length > 0) {
+      const activeIds = new Set(compiled.map(c => String(c.id)));
+      for (const oldId of superseded) {
+        if (!activeIds.has(oldId)) {
+          state.emittedComponents.delete(oldId);
+          const earlierComp = this.earlierScopeComponent(state, scope.surfaceId, oldId);
+          if (earlierComp !== undefined) {
+            compiled.push(earlierComp);
+          } else {
+            this.supersededComponents.push([scope.surfaceId, oldId]);
+          }
+        }
+      }
+    }
     return {compiled, hasPending};
   }
 
@@ -1484,6 +1541,7 @@ export class ExpressCompiler {
     targetMajorMinor: [number, number],
   ): Map<string, string> {
     const compIds = new Map<string, string>();
+    const seenIds = new Set<string>();
     for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
       if (!isExpressNode(ast, 'call')) {
         continue;
@@ -1503,7 +1561,12 @@ export class ExpressCompiler {
         }
       }
       if (this.definesComponent(compName, ast.kwargs.catalogId)) {
-        compIds.set(varName, (explicitId as string | undefined) ?? varName);
+        const resolvedId = (explicitId as string | undefined) ?? varName;
+        if (seenIds.has(resolvedId)) {
+          throw new ExpressIdCollisionError(resolvedId);
+        }
+        seenIds.add(resolvedId);
+        compIds.set(varName, resolvedId);
       }
     }
     return compIds;
@@ -1661,6 +1724,7 @@ export class ExpressCompiler {
     targetVersion: string,
     targetMajorMinor: [number, number],
   ): AgentToRendererMessage[] {
+    ctx.generatedIds.clear();
     const compIds = this.collectComponentIds(scope, targetMajorMinor);
 
     const compiledComponents: Record<string, unknown>[] = [];
@@ -2674,14 +2738,16 @@ export class ExpressCompiler {
         ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
         : `${inlineCtx.parentId}_${inlineCtx.property}`
       : `_inline_${ctx.inlineCounter}`;
+    const actualId =
+      typeof callVal.kwargs.id === 'string' && callVal.kwargs.id ? callVal.kwargs.id : inlineId;
     if (
-      Object.hasOwn(rawSymbols, inlineId) ||
-      Array.from(compIds.values()).includes(inlineId) ||
-      ctx.generatedIds.has(inlineId)
+      Object.hasOwn(rawSymbols, actualId) ||
+      Array.from(compIds.values()).includes(actualId) ||
+      ctx.generatedIds.has(actualId)
     ) {
-      throw new ExpressIdCollisionError(inlineId);
+      throw new ExpressIdCollisionError(actualId);
     }
-    ctx.generatedIds.add(inlineId);
+    ctx.generatedIds.add(actualId);
     const extraStartIndex = ctx.extraComponents.length;
     const compiledInline = this._compileAstNode(
       inlineId,

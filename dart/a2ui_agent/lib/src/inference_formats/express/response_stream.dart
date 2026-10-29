@@ -41,12 +41,12 @@ final RegExp _trailingFence = RegExp(
   caseSensitive: false,
 );
 final RegExp _outerTrailingFence = RegExp(
-  r'(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$',
+  r'(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|(?:^|(?<=\s))`{1,2})$',
 );
 final RegExp _outerTrailingFencePrefix = RegExp(
   r'(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$',
 );
-final RegExp _outerInlineOpenBacktick = RegExp(r'(?<!`)`{1,2}$');
+final RegExp _outerInlineOpenBacktick = RegExp(r'(?:^|(?<=\s))`{1,2}$');
 final RegExp _outerLeadingFence = RegExp(
   r'^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)',
 );
@@ -72,7 +72,7 @@ final RegExp _token = RegExp(
   r'|[rR](?!""")"[^\r\n"]*"'
   r'|"""(?:\\[\s\S]|[^\\])*?"""'
   r'|(?!""")"(?:\\[\s\S]|[^\\"\r\n])*?"'
-  r'|(?:#|//)[^\r\n]*'
+  r'|(?:#|//|--)[^\r\n]*'
   r'|/\*[\s\S]*?\*/'
   r'|\$[a-zA-Z0-9_/]*'
   r'|\?[\p{XID_Start}_]\p{XID_Continue}*'
@@ -98,12 +98,19 @@ int possibleOpenTagStart(String text) {
 int _possibleFenceStart(String text) =>
     _outerTrailingFencePrefix.firstMatch(text)?.start ?? text.length;
 
-int? _commentCloseIndex(String content, int start, int end) {
-  if (!content.startsWith('#', start) && !content.startsWith('//', start)) {
+(int?, int)? _commentCloseTag(String content, int start, int end) {
+  if (!content.startsWith('#', start) &&
+      !content.startsWith('//', start) &&
+      !content.startsWith('--', start)) {
     return null;
   }
-  final Match? inComment = _closeTag.firstMatch(content.substring(start, end));
-  return inComment == null ? null : start + inComment.start;
+  for (var j = start; j < end; j++) {
+    if (content.codeUnitAt(j) == 0x3C /* '<' */ ) {
+      if (_closeTag.matchAsPrefix(content, j) != null) return (j, j);
+      if (_isPartialCloseTag(content, j)) return (null, j);
+    }
+  }
+  return null;
 }
 
 bool _isPartialCloseTag(String content, int i) {
@@ -158,9 +165,11 @@ bool _isAmbiguousEmptyQuoteAtEof(String content, int start, int end) {
       if (_isAmbiguousEmptyQuoteAtEof(content, i, token.end)) {
         return (null, n, i);
       }
-      final int? inComment = _commentCloseIndex(content, i, token.end);
-      if (inComment != null) return (inComment, inComment, i);
-      if ((content.startsWith('#', i) || content.startsWith('//', i)) &&
+      final (int?, int)? inComment = _commentCloseTag(content, i, token.end);
+      if (inComment != null) return (inComment.$1, inComment.$2, i);
+      if ((content.startsWith('#', i) ||
+              content.startsWith('//', i) ||
+              content.startsWith('--', i)) &&
           token.end == n) {
         return (null, n, i);
       }
@@ -171,7 +180,12 @@ bool _isAmbiguousEmptyQuoteAtEof(String content, int start, int end) {
       i++;
     }
   }
-  return (null, n, n);
+  final String lastChar = n > 0 ? content[n - 1] : '';
+  final int resumePos =
+      lastChar == 'r' || lastChar == 'R' || lastChar == '/' || lastChar == '-'
+      ? n - 1
+      : n;
+  return (null, n, resumePos);
 }
 
 /// Strips leading/trailing markdown fences and edge backticks from
@@ -262,7 +276,9 @@ class _ScanCursor {
     final int close = source.indexOf('*/', i + 2);
     return close >= 0 ? (close + 2, false) : (n, false);
   }
-  if (source[i] == '#' || source.startsWith('//', i)) {
+  if (source[i] == '#' ||
+      source.startsWith('//', i) ||
+      source.startsWith('--', i)) {
     final int nl = source.indexOf('\n', i);
     return nl >= 0 ? (nl, false) : (n, false);
   }
@@ -396,7 +412,8 @@ String? healProgressiveFragment(
   if (!isRaw && _hasOddTrailingBackslashes(healed)) {
     healed = healed.substring(0, healed.length - 1);
   }
-  if (delim == '"""' && !isRaw && healed.endsWith('"')) {
+  if (delim == '"""' && healed.substring(strStart).endsWith('"')) {
+    if (isRaw) return null;
     healed = '${healed.substring(0, healed.length - 1)}\\"';
   }
   final String closingBrackets = [
@@ -459,7 +476,9 @@ int? _trySkipFragmentComment(String fragment, int i, int n) {
     final int close = fragment.indexOf('*/', i + 2);
     return close < 0 ? -1 : close + 2;
   }
-  if (fragment[i] == '#' || fragment.startsWith('//', i)) {
+  if (fragment[i] == '#' ||
+      fragment.startsWith('//', i) ||
+      fragment.startsWith('--', i)) {
     final int nl = fragment.indexOf('\n', i);
     return nl < 0 ? -1 : nl + 1;
   }
@@ -922,6 +941,7 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
         in _session.supersededComponents) {
       state.dropProvisionalComponent(surfaceId, compId);
     }
+    _session.supersededComponents.clear();
     _touched.addAll(state.apply(messages));
   }
 }

@@ -34,36 +34,90 @@ const Set<String> _reservedHelpers = {'Event', '_template'};
 /// The keyword arguments the reserved `Event(...)` signature accepts.
 const List<String> _eventKeywords = ['userMessage', 'context'];
 
-final RegExp _sentinelTag = RegExp(
-  r'</?a2ui(?:\s[^>]*)?>',
+final RegExp _openSentinelTag = RegExp(
+  r'<a2ui(?:\s[^>]*)?>',
   caseSensitive: false,
 );
+final RegExp _closeSentinelTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
 final RegExp _literalOrComment = RegExp(
-  r'[rR]"""[\s\S]*?"""'
-  r'|[rR](?!""")"[^\r\n"]*"'
-  r'|"""(?:\\[\s\S]|[^\\])*?"""'
-  r'|(?!""")"(?:\\[\s\S]|[^\\"\r\n])*?"'
+  r'[rR]"""[\s\S]*?(?:"""|$)'
+  r'|[rR](?!""")"[^\r\n"]*(?:"|$)'
+  r'|"""(?:\\[\s\S]|[^\\])*?(?:"""|$)'
+  r'|(?!""")"(?:\\[\s\S]|[^\\"\r\n])*?(?:"|$)'
   r'|(?:#|//|--)[^\r\n]*'
-  r'|/\*[\s\S]*?\*/',
+  r'|/\*[\s\S]*?(?:\*/|$)',
 );
 
 String _stripSentinelTags(String text) {
   if (!text.contains('<')) return text;
+  final segments = <(bool, String)>[];
+  var pos = 0;
+  for (final Match m in _literalOrComment.allMatches(text)) {
+    if (m.start > pos) {
+      segments.add((false, text.substring(pos, m.start)));
+    }
+    final String tok = m.group(0)!;
+    if (!tok.startsWith('"') &&
+        !tok.startsWith('r') &&
+        !tok.startsWith('R') &&
+        !tok.startsWith('/*')) {
+      final RegExpMatch? closeMatch = _closeSentinelTag.firstMatch(tok);
+      if (closeMatch != null) {
+        if (closeMatch.start > 0) {
+          segments.add((true, tok.substring(0, closeMatch.start)));
+        }
+        segments.add((false, tok.substring(closeMatch.start)));
+        pos = m.end;
+        continue;
+      }
+    }
+    segments.add((true, tok));
+    pos = m.end;
+  }
+  if (pos < text.length) {
+    segments.add((false, text.substring(pos)));
+  }
+
+  final bool hasOpen = segments.any(
+    (seg) => !seg.$1 && _openSentinelTag.hasMatch(seg.$2),
+  );
   final out = StringBuffer();
-  var i = 0;
-  final int n = text.length;
-  while (i < n) {
-    if (_literalOrComment.matchAsPrefix(text, i) case final Match m) {
-      out.write(text.substring(i, m.end));
-      i = m.end;
+  bool inside = !hasOpen;
+  for (final (bool isTok, String seg) in segments) {
+    if (isTok) {
+      if (inside) out.write(seg);
       continue;
     }
-    if (_sentinelTag.matchAsPrefix(text, i) case final Match tag) {
-      i = tag.end;
-      continue;
+    var cursor = 0;
+    while (cursor < seg.length) {
+      if (!inside) {
+        final Match? openMatch = _openSentinelTag.firstMatch(
+          seg.substring(cursor),
+        );
+        if (openMatch == null) break;
+        inside = true;
+        cursor += openMatch.end;
+        continue;
+      }
+      final String rem = seg.substring(cursor);
+      final Match? closeMatch = _closeSentinelTag.firstMatch(rem);
+      final Match? openMatch = _openSentinelTag.firstMatch(rem);
+      if (openMatch != null &&
+          (closeMatch == null || openMatch.start < closeMatch.start)) {
+        out.write(rem.substring(0, openMatch.start));
+        cursor += openMatch.end;
+        continue;
+      }
+      if (closeMatch != null) {
+        out.write(rem.substring(0, closeMatch.start));
+        inside = false;
+        cursor += closeMatch.end;
+        if (!hasOpen) return out.toString();
+        continue;
+      }
+      out.write(rem);
+      break;
     }
-    out.write(text[i]);
-    i++;
   }
   return out.toString();
 }
@@ -553,6 +607,7 @@ class _SurfaceCompiler {
     List<(String, String)>? supersededComponents,
   ]) {
     final components = <Map<String, Object?>>[];
+    final superseded = <String>[];
     for (final MapEntry<String, ExpressNode> symbol
         in surface.symbols.entries) {
       final String varName = symbol.key;
@@ -585,8 +640,7 @@ class _SurfaceCompiler {
               final compId = cached.comps.first['id']! as String;
               final String? prevId = state.varIds[varName];
               if (prevId != null && prevId != compId) {
-                state.emittedComponents.remove(prevId);
-                supersededComponents?.add((surface.surfaceId, prevId));
+                superseded.add(prevId);
               }
               state.varIds[varName] = compId;
             }
@@ -624,8 +678,7 @@ class _SurfaceCompiler {
               final compId = compiled.first['id']! as String;
               final String? prevId = state.varIds[varName];
               if (prevId != null && prevId != compId) {
-                state.emittedComponents.remove(prevId);
-                supersededComponents?.add((surface.surfaceId, prevId));
+                superseded.add(prevId);
               }
               state.varIds[varName] = compId;
             }
@@ -640,6 +693,17 @@ class _SurfaceCompiler {
         throw _unknownCall(node);
       } else if (varName == 'root') {
         throw A2uiValidationError("'root' must be assigned a component.");
+      }
+    }
+    if (state != null && superseded.isNotEmpty) {
+      final Set<String> activeIds = {
+        for (final c in components) c['id']! as String,
+      };
+      for (final oldId in superseded) {
+        if (!activeIds.contains(oldId)) {
+          state.emittedComponents.remove(oldId);
+          supersededComponents?.add((surface.surfaceId, oldId));
+        }
       }
     }
     return components;
@@ -1648,6 +1712,7 @@ typedef _CachedData = ({
 });
 
 class _StreamSurfaceState {
+  String surfaceId = '';
   bool created = false;
   final Map<String, Map<String, Object?>> emittedComponents = {};
   final Map<String, Object?> emittedDataPaths = {};
@@ -1656,6 +1721,7 @@ class _StreamSurfaceState {
   final Map<String, _CachedData> dataCache = {};
 
   _StreamSurfaceState clone() => _StreamSurfaceState()
+    ..surfaceId = surfaceId
     ..created = created
     ..emittedComponents.addAll(emittedComponents)
     ..emittedDataPaths.addAll(emittedDataPaths)
@@ -1933,6 +1999,22 @@ class ExpressScopeSession {
     ];
   }
 
+  Map<String, Object?>? _earlierScopeComponent(
+    _StreamSurfaceState currentState,
+    String surfaceId,
+    String compId,
+  ) {
+    Map<String, Object?>? found;
+    for (final _StreamSurfaceState st in _surfaceStates.values) {
+      if (identical(st, currentState)) break;
+      if (st.surfaceId == surfaceId &&
+          st.emittedComponents.containsKey(compId)) {
+        found = st.emittedComponents[compId];
+      }
+    }
+    return found;
+  }
+
   List<Map<String, Object?>> _stepSurface(
     int opIndex,
     _Surface surface, {
@@ -1943,10 +2025,23 @@ class ExpressScopeSession {
     final _StreamSurfaceState state = _surfaceStates.putIfAbsent(
       opIndex,
       _StreamSurfaceState.new,
-    );
+    )..surfaceId = surfaceId;
     final sc = _SurfaceCompiler(compiler, surface, allowPending: !isFinal);
+    final localSuperseded = <(String, String)>[];
     final List<Map<String, Object?>> readyComponents = sc
-        .collectReadyComponents(state, supersededComponents);
+        .collectReadyComponents(state, localSuperseded);
+    for (final (String surfId, String oldId) in localSuperseded) {
+      final Map<String, Object?>? earlierComp = _earlierScopeComponent(
+        state,
+        surfId,
+        oldId,
+      );
+      if (earlierComp != null) {
+        readyComponents.add(earlierComp);
+      } else {
+        supersededComponents.add((surfId, oldId));
+      }
+    }
     final List<(String, Object?)> readyData = sc.collectReadyData(state);
 
     final bool hasRootReady = readyComponents.any((c) => c['id'] == 'root');

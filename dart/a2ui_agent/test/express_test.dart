@@ -823,6 +823,49 @@ surface("s1")
       );
       expect(attrStream.close(), isEmpty);
     });
+
+    test('re-emits earlier scope component when superseded and handles '
+        'triple-quote and scanner boundaries', () {
+      final state = RendererState([basic]);
+      final ResponseStream stream = parser.openStream(state: state);
+      expect(
+        stream.feed(
+          '<a2ui>\nsurface("s1")\nroot = Column([hdr, body])\n'
+          'hdr = Text("V1")\nbody = Text("Initial")\n'
+          'surface("s1", update=true)\nhdr = Text("Hel',
+        ),
+        hasLength(1),
+      );
+      final List<ResponsePart> second = stream.feed('lo", id="body")\n</a2ui>');
+      expect(second, hasLength(1));
+      expect(
+        ((second.single as A2uiPart).a2ui.single as UpdateComponentsMessage)
+            .components,
+        [
+          {'id': 'body', 'component': 'Text', 'text': 'Hello'},
+          {'id': 'hdr', 'component': 'Text', 'text': 'V1'},
+        ],
+      );
+      expect(
+        state.getSurface('s1')!.componentsModel.get('hdr')!.properties['text'],
+        'V1',
+      );
+      expect(
+        state.getSurface('s1')!.componentsModel.get('body')!.properties['text'],
+        'Hello',
+      );
+
+      final ResponseStream emptyTriple = parser.openStream();
+      final List<ResponsePart> healedEmpty = emptyTriple.feed(
+        '<a2ui>\nsurface("s1")\nroot = Text("""',
+      );
+      expect(healedEmpty, hasLength(1));
+      final ResponseStream rawTripleQuote = parser.openStream();
+      expect(
+        rawTripleQuote.feed('<a2ui>\nsurface("s1")\nroot = Text(r"""Hello "'),
+        isEmpty,
+      );
+    });
   });
 
   group('public API', () {

@@ -353,4 +353,83 @@ describe('ExpressResponseStream unit tests', () => {
     expect(feedParts[0].type).toBe('a2ui');
     expect(stream.close().map(part => part.type)).toEqual(['error']);
   });
+
+  it('re-emits an earlier scope component when a later scope in the same block supersedes its ID', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const state = new RendererState([v10Catalog]);
+    const stream = parser.openStream({state});
+
+    const p1 = stream.feed(
+      '<a2ui>\nsurface("s1")\nroot = Column([hdr, body])\nhdr = Text("V1")\n' +
+        'body = Text("Initial")\nsurface("s1", update=true)\nhdr = Text("Hel',
+    );
+    expect(p1).toHaveLength(1);
+    const p2 = stream.feed('lo", id="body")\n</a2ui>');
+    expect(p2).toEqual([
+      {
+        type: 'a2ui',
+        a2ui: [
+          {
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [
+                {id: 'body', component: 'Text', text: 'Hello'},
+                {id: 'hdr', component: 'Text', text: 'V1'},
+              ],
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('rolls back completePrefix statements when a later statement in the same chunk fails', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const state = new RendererState([v10Catalog]);
+    const stream = parser.openStream({state, afterRejectedBlock: 'continue'});
+
+    expect(stream.feed('<a2ui>\nsurface("s1")\nroot = Column([t1])\n')).toHaveLength(1);
+    const errParts = stream.feed('t1 = Text("Good")\nbad = UnknownWidget("x")\n');
+    expect(errParts.map(p => p.type)).toEqual(['error']);
+    expect(state.getSurface('s1')?.componentsModel.get('t1')).toBeUndefined();
+  });
+
+  it('heals empty triple-quoted strings and skips raw triple-quoted strings ending in a quote', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const stream = parser.openStream();
+    const p1 = stream.feed('<a2ui>\nsurface("s1")\nroot = Text("""');
+    expect(p1).toEqual([
+      {
+        type: 'a2ui',
+        a2ui: [
+          {
+            version: '1.0',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: v10Catalog.id,
+              components: [{id: 'root', component: 'Text', text: ''}],
+            },
+          },
+        ],
+      },
+    ]);
+    const streamRaw = parser.openStream();
+    expect(streamRaw.feed('<a2ui>\nsurface("s1")\nroot = Text(r"""Hello "')).toEqual([]);
+  });
+
+  it('handles chunk boundaries across raw strings, //, --, and /* comments', () => {
+    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const response =
+      '<a2ui>\nsurface("s1")\n' +
+      '// comment with " quote\n' +
+      '-- sql comment with " quote\n' +
+      '/* block comment with </a2ui> and " quote */\n' +
+      'root = Text(r"raw </a2ui> text")\n' +
+      '</a2ui>\nAfter';
+    const expected = coalesceText(streamBySize(parser, response, response.length));
+    for (const size of [1, 2, 3, 4, 7]) {
+      expect(coalesceText(streamBySize(parser, response, size))).toEqual(expected);
+    }
+  });
 });

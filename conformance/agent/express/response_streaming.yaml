@@ -975,3 +975,155 @@
                   - id: "panel1"
                     component: "Text"
                     text: "Content"
+
+- name: test_express_stream_update_surface_heals_reassigned_custom_id_without_dropping_baseline
+  description: Healing a progressive string on an update=true block for a variable name that already existed on the surface restores the baseline component in RendererState when a custom id kwarg arrives.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys:
+      - "text"
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Column([hdr, body])\nhdr = Text(\"Header\")\nbody = Text(\"Initial\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Column"
+                    children:
+                      - "hdr"
+                      - "body"
+                  - id: "hdr"
+                    component: "Text"
+                    text: "Header"
+                  - id: "body"
+                    component: "Text"
+                    text: "Initial"
+    - input: "<a2ui>\nsurface(\"s1\", update=true)\nhdr = Text(\"Upd"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "hdr"
+                    component: "Text"
+                    text: "Upd"
+    - input: "ated\", id=\"body\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "body"
+                    component: "Text"
+                    text: "Updated"
+
+- name: test_express_stream_duplicate_component_id_across_variables_raises_validation_error
+  description: A variable that resolves to a custom component ID colliding with another variable's component ID after progressive healing raises ValidationError.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys:
+      - "text"
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Column([b, a])\nb = Text(\"bbbb\")\na = Text(\"aaaa"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Column"
+                    children:
+                      - "b"
+                      - "a"
+                  - id: "b"
+                    component: "Text"
+                    text: "bbbb"
+                  - id: "a"
+                    component: "Text"
+                    text: "aaaa"
+    - input: " aaaa\", id=\"b\")\n</a2ui>"
+      expect_error:
+        category: "ValidationError"
+
+- name: test_express_stream_cached_inline_component_id_collision_raises_validation_error
+  description: A later variable whose name collides with a previously cached inline child component ID raises ValidationError instead of reusing the cached entry.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(Text(\"Inline\"))\n"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "root_child"
+                  - id: "root_child"
+                    component: "Text"
+                    text: "Inline"
+    - input: "root_child = Text(\"Collision\")\n</a2ui>"
+      expect_error:
+        category: "ValidationError"
+
+- name: test_express_stream_double_dash_comment_and_close_tag_on_comment_line
+  description: Double-dash comments with quotes and closing tags on a single-line comment line are handled consistently in streaming and single-shot parsing.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\n-- SQL style \"comment\nroot = Text(\"Hello\") -- inline comment </a2ui>\nTrailing note: x = 1"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello"
+        - text: "Trailing note: x = 1"
+  expect_matches_single_shot: true
+
+- name: test_express_stream_inline_code_adjacent_to_sentinel_tags_without_whitespace
+  description: Inline backtick code spans immediately adjacent to <a2ui> and </a2ui> without intervening whitespace are preserved in the surrounding text parts.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "See `foo`<a2ui>\nsurface(\"s1\")\nroot = Text(\"Bar\")\n</a2ui>`baz` done."
+      expect:
+        - text: "See `foo`"
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Bar"
+        - text: "`baz` done."
+  expect_matches_single_shot: true

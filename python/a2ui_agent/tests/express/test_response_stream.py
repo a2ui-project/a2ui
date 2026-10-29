@@ -319,3 +319,103 @@ def test_express_stream_wraps_non_a2ui_error_from_compile():
     stream = broken.open_stream()
     with pytest.raises(A2uiCompilationError):
         stream.feed('<a2ui>surface("s1")</a2ui>')
+
+
+def test_express_stream_two_scopes_same_block_restores_superseded_component():
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
+    state = RendererState([catalog])
+    parser = ExpressParser([catalog], surface_id="s1")
+    stream = parser.open_stream(state=state)
+
+    parts1 = stream.feed(
+        '<a2ui>\nsurface("s1")\nroot = Column([hdr, body])\nhdr = Text("V1")\n'
+        'body = Text("Initial")\nsurface("s1", update=true)\nhdr = Text("Hel'
+    )
+    assert len(parts1) == 1
+    parts2 = stream.feed('lo", id="body")\n</a2ui>')
+    assert len(parts2) == 1
+    msgs2 = [m.model_dump(by_alias=True, exclude_none=True) for m in parts2[0].a2ui]
+    # Scope 1's hdr ("V1") is re-emitted alongside body ("Hello") so a
+    # downstream wire consumer does not stay stuck on the provisional "Hel".
+    assert msgs2 == [{
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+                {"id": "body", "component": "Text", "text": "Hello"},
+                {"id": "hdr", "component": "Text", "text": "V1"},
+            ],
+        },
+    }]
+    surface = state.get_surface("s1")
+    assert surface is not None
+    assert surface.components_model.get("hdr").properties["text"] == "V1"
+    assert surface.components_model.get("body").properties["text"] == "Hello"
+
+
+def test_express_stream_triple_quote_and_raw_triple_quote_healing():
+    from a2ui.inference_formats.express.compiler import ExpressCompiler
+
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
+    compiler = ExpressCompiler([catalog], version=ProtocolVersion.V0_9)
+    assert (
+        heal_progressive_fragment(
+            'root = Text("""',
+            compiler.helpers,
+            frozenset({"text"}),
+        )
+        == 'root = Text("""""")'
+    )
+    assert (
+        heal_progressive_fragment(
+            'root = Text(r"""',
+            compiler.helpers,
+            frozenset({"text"}),
+        )
+        == 'root = Text(r"""""")'
+    )
+    assert (
+        heal_progressive_fragment(
+            'root = Text(r"""Hello "',
+            compiler.helpers,
+            frozenset({"text"}),
+        )
+        is None
+    )
+
+
+def test_express_stream_scanner_chunk_boundaries_for_raw_strings_and_comments():
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
+    parser = ExpressParser([catalog], surface_id="s1", progressive_keys=frozenset())
+    response = (
+        '<a2ui>\nsurface("s1")\n'
+        '// comment with " quote\n'
+        '-- sql comment with " quote\n'
+        '/* block comment with </a2ui> and " quote */\n'
+        'root = Text(r"raw </a2ui> text")\n'
+        '</a2ui>\nAfter'
+    )
+    expected = _dump(_coalesce_text(_stream_by_size(parser, response, len(response))))
+    for size in (1, 2, 3, 4, 7):
+        assert _dump(_coalesce_text(_stream_by_size(parser, response, size))) == expected
+
+
+def test_express_stream_inline_counter_shift_invalidates_cached_inline_ids():
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
+    parser = ExpressParser([catalog], surface_id="s1", progressive_keys=frozenset())
+    stream = parser.open_stream()
+
+    # Step 1: `a` is held waiting on `msg`; `root` is ready and its inline child
+    # inside Column's list temporarily takes `_inline_1`.
+    parts1 = stream.feed(
+        '<a2ui>\nsurface("s1")\n'
+        'a = Card(Column([Text(msg)]))\n'
+        'root = Column([a, Text("Ready")])\n'
+    )
+    assert len(parts1) == 1
+
+    # Step 2: `msg` arrives, so `a` compiles first and takes `_inline_1`, while
+    # `root` re-compiles with `_inline_2` instead of reusing a stale cache entry.
+    parts2 = stream.feed('msg = "Resolved"\n</a2ui>')
+    assert len(parts2) == 1
+    assert stream.close() == []
