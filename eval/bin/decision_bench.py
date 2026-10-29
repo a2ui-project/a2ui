@@ -47,9 +47,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--backend",
-        choices=["mock", "local", "jev", "step0"],
+        choices=["mock", "jev", "step0"],
         default=None,
-        help="Decision backend to evaluate (mock, local, jev, or step0; default: env).",
+        help="Decision backend to evaluate (mock, jev, or step0; default: env).",
     )
     parser.add_argument(
         "--two-stage",

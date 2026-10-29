@@ -123,7 +123,13 @@ async def test_decision_solver_scripted_success() -> None:
     # Metadata keys
     for key in DECISION_METADATA_KEYS:
         assert key in state.metadata, f"Missing decision metadata key: {key}"
+    assert state.metadata["decision_stage"] == "archetype"
     assert state.metadata["decision_archetype"] == "dashboard"
+    assert isinstance(state.metadata["decision_block"], dict)
+    assert "intent" in state.metadata["decision_block"]
+    assert isinstance(state.metadata["decision_blocks"], list)
+    assert len(state.metadata["decision_blocks"]) > 0
+    assert isinstance(state.metadata["decision_reasked"], bool)
     assert state.metadata["decision_backend"] == "mock"
     assert state.metadata["decision_calls"] > 0
     assert state.metadata["decision_latency_ms"] >= 0.0

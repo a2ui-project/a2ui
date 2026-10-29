@@ -40,7 +40,7 @@ All format strategies (`direct`, `express`, `elemental`, and `atom`), `skill_mod
 
 ### **The Decision Strategy**
 
-The `decision` strategy evaluates the two-stage decision-model synthesis route. In Stage 1, the model emits intent, payload, and optional copy or layout hints in a `<a2ui>` block. In Stage 2, the decision synthesizer plans and expands the surface using the configured decision backend (`--decision-backend`, defaulting to `local`) without an additional UI generation model call. The strategy tracks Stage 1 validation retries (`pass_at_1`), decision latency (`decision_latency_ms`), decision calls (`decision_calls`), and planned archetype metadata.
+The `decision` strategy evaluates the two-stage decision-model synthesis route. In Stage 1, the model emits intent, payload, and optional copy or layout hints in a `<a2ui>` block. In Stage 2, the decision synthesizer plans and expands the surface using the configured decision backend (`--decision-backend`, defaulting to `mock`) without an additional UI generation model call. The strategy tracks Stage 1 validation retries (`pass_at_1`), decision latency (`decision_latency_ms`), decision calls (`decision_calls`), and planned archetype metadata.
 
 ### **Runner Options**
 

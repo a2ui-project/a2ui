@@ -333,11 +333,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--decision-backend",
-        choices=["mock", "local", "jev"],
+        choices=["mock", "jev", "step0"],
         default=None,
         help=(
             "Decision backend to use for the decision strategy ('mock',"
-            " 'local', 'jev')."
+            " 'jev', 'step0')."
         ),
     )
     parser.add_argument(

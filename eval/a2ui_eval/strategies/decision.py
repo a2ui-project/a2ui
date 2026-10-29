@@ -129,7 +129,10 @@ def compile_decision_payload(
             version,
             options.to_dict() if options else None,
         )
-        backend = build_decision_backend(decision_backend)
+        backend_name = (
+            decision_backend or os.environ.get("A2UI_DECISION_BACKEND") or "mock"
+        )
+        backend = build_decision_backend(backend_name)
         factory = DecisionFormatFactory(backend=backend)
         format_obj = factory.create_format(catalogs)
 
@@ -137,6 +140,7 @@ def compile_decision_payload(
             surface_id = _find_surface_id(completion, allowed_surface_ids)
             parser = format_obj.create_parser()
             try:
+                parsed_blocks = parser._extract_blocks(completion)  # pylint: disable=protected-access
                 outputs = await parser.synthesize_blocks(
                     completion, default_surface_id=surface_id
                 )
@@ -146,8 +150,11 @@ def compile_decision_payload(
             if not outputs:
                 return _CompileResult(error="No decision blocks produced any messages")
 
-            backend_name = decision_backend or "mock"
-            meta = decision_metadata(outputs, backend_name=backend_name)
+            meta = decision_metadata(
+                outputs,
+                backend_name=backend_name,
+                block=parsed_blocks[0] if parsed_blocks else None,
+            )
             state.metadata["decision_latency_ms"] = (
                 state.metadata.get("decision_latency_ms") or 0.0
             ) + meta.get("decision_latency_ms", 0.0)
@@ -190,16 +197,19 @@ def compile_decision_payload(
 
             return _CompileResult(formatted=formatted, compiled_jsons=all_message_dicts)
 
-        result, completion, _ = await retry_until_ok(
-            state,
-            generate,
-            attempt_synthesize,
-            max_retries=max_validation_retries,
-            retry_prompt=_decision_retry_prompt,
-            measured=measured,
-        )
-        _apply_compile_result(state, result, completion)
-        return state
+        try:
+            result, completion, _ = await retry_until_ok(
+                state,
+                generate,
+                attempt_synthesize,
+                max_retries=max_validation_retries,
+                retry_prompt=_decision_retry_prompt,
+                measured=measured,
+            )
+            _apply_compile_result(state, result, completion)
+            return state
+        finally:
+            await factory.aclose()
 
     return solve
 

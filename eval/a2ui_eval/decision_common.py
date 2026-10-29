@@ -32,10 +32,14 @@ DECISION_BACKEND_NAMES: tuple[str, ...] = ("mock", "jev", "step0")
 
 DECISION_METADATA_KEYS: tuple[str, ...] = (
     "decision_backend",
+    "decision_stage",
     "decision_latency_ms",
     "decision_calls",
     "decision_confidence",
     "decision_archetype",
+    "decision_block",
+    "decision_blocks",
+    "decision_reasked",
     "decision_answers",
     "decision_fallback_source",
 )
@@ -92,31 +96,48 @@ def decision_metadata(
     Returns:
         Mapping of metadata keys conforming to `DECISION_METADATA_KEYS`.
     """
-    del block
     latency_ms = sum(out.decision_latency_ms for out in outputs)
     calls = sum(out.decision_calls for out in outputs)
     confidence = min((out.confidence for out in outputs), default=0.0)
+    stage = outputs[0].stage.value if outputs else None
     archetype: str | None = None
+    blocks: list[str] = []
     fallback_source: str | None = None
     answers_count = 0
     for out in outputs:
         answers_count += len(out.decision_answers)
         if archetype is None and out.layout_plan is not None:
             archetype = out.layout_plan.archetype
+            blocks = list(out.layout_plan.block_ids())
         elif (
             archetype is None
             and out.component_tree_spec
             and "archetype" in out.component_tree_spec
         ):
             archetype = str(out.component_tree_spec["archetype"])
+            if isinstance(out.component_tree_spec.get("blocks"), list):
+                blocks = [
+                    str(b.get("id"))
+                    for b in out.component_tree_spec["blocks"]
+                    if isinstance(b, dict) and b.get("id")
+                ]
         if fallback_source is None and out.fallback_source is not None:
             fallback_source = str(out.fallback_source)
+    block_dict = (
+        {"intent": block.intent, "payload": block.payload}
+        if block is not None
+        else None
+    )
     return {
         "decision_backend": backend_name,
+        "decision_stage": stage,
         "decision_latency_ms": latency_ms,
         "decision_calls": calls,
         "decision_confidence": confidence,
         "decision_archetype": archetype,
+        "decision_block": block_dict,
+        "decision_blocks": blocks,
+        "decision_reasked": any(out.decision_calls > 1 for out in outputs),
         "decision_answers": answers_count,
         "decision_fallback_source": fallback_source,
     }
