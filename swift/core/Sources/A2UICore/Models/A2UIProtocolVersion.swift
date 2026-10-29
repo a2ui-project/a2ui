@@ -16,13 +16,24 @@
 public enum A2UIProtocolVersion: String, Codable, Sendable, CaseIterable, Comparable {
   case v09 = "v0.9"
   case v091 = "v0.9.1"
-  case v10 = "v1.0"
+  case v10 = "1.0"
 
   /// Initializes a protocol version from a string, accepting both `"v"`-prefixed
   /// (`"v1.0"`) and bare (`"1.0"`) version strings.
   public init?(lenientRawValue: String) {
-    let normalized = lenientRawValue.hasPrefix("v") ? lenientRawValue : "v\(lenientRawValue)"
-    self.init(rawValue: normalized)
+    if let direct = Self(rawValue: lenientRawValue) {
+      self = direct
+      return
+    }
+    let stripped =
+      lenientRawValue.hasPrefix("v") || lenientRawValue.hasPrefix("V")
+      ? String(lenientRawValue.dropFirst())
+      : lenientRawValue
+    if let bare = Self(rawValue: stripped) {
+      self = bare
+      return
+    }
+    self.init(rawValue: "v\(stripped)")
   }
 
   /// Whether this protocol version is v1.0 or newer.

@@ -270,11 +270,7 @@ describe('SkillGenerator', () => {
 
   it('accepts explicit catalog arguments overriding format defaults', () => {
     const testingCatalogPath = path.join(SPEC_DIR, 'test', 'testing_catalog.json');
-    const testingCatalog = CatalogConfig.fromPath(
-      testingCatalogPath,
-      [],
-      'v1.0',
-    ).transformedCatalog;
+    const testingCatalog = CatalogConfig.fromPath(testingCatalogPath, [], '1.0').transformedCatalog;
 
     // 1. generateCatalogSkill with explicit catalog generates for that catalog
     const catSkill = generator.generateCatalogSkill({catalog: testingCatalog});
@@ -325,11 +321,11 @@ describe('SkillGenerator', () => {
     const other = new InMemoryCatalogProvider(
       {
         catalogId: 'https://a2ui.org/other',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {},
         functions: {},
       },
-      'v1.0',
+      '1.0',
       'https://a2ui.org/other',
     ).load();
 

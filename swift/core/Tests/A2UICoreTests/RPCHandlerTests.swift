@@ -309,7 +309,7 @@ struct RPCHandlerTests {
 
     let inboundCallJSON = """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "proc_call_1",
           "callFunction": {

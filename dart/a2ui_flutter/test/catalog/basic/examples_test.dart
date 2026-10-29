@@ -149,7 +149,7 @@ void main() {
       '../../specification/v0_9/catalogs/basic/examples',
       v0_9.basicCatalog,
     ),
-    'v1.0': _examplesIn('../../catalogs/basic/v1/examples', v1_0.basicCatalog),
+    '1.0': _examplesIn('../../catalogs/basic/v1/examples', v1_0.basicCatalog),
   };
 
   setUp(() => FakeVideoPlayerPlatform().install());

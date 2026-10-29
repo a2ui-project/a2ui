@@ -5,16 +5,11 @@ hide:
 
 <!-- markdownlint-disable MD041 -->
 <!-- markdownlint-disable MD033 -->
-<div style="text-align: center; margin: 2rem 0 3rem 0;" markdown>
+<div style="margin: 2rem 0 3rem 0;" markdown>
 
-<!-- Logo for Light Mode (shows dark logo on light background) -->
-<img src="assets/A2UI_dark.svg" alt="A2UI Logo" width="120" class="light-mode-only" style="margin-bottom: 1rem;">
-<!-- Logo for Dark Mode (shows light logo on dark background) -->
-<img src="assets/A2UI_light.svg" alt="A2UI Logo" width="120" class="dark-mode-only" style="margin-bottom: 1rem;">
+# A generative UI protocol and framework for cross-platform agentic experiences
 
-# A Protocol for Agent-Driven Interfaces
-
-<p style="font-size: 1.2rem; max-width: 800px; margin: 0 auto 1rem auto; opacity: 0.9; line-height: 1.6;">
+<p style="font-size: 1.2rem; max-width: 800px; margin: 0 0 1rem 0; opacity: 0.9; line-height: 1.6;">
 A2UI enables AI agents to generate rich, interactive user interfaces that render natively across web, mobile, and desktop—without executing arbitrary code.
 </p>
 

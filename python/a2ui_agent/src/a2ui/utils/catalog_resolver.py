@@ -40,7 +40,7 @@ _CAPABILITIES_ENTRIES: dict[ProtocolVersion, tuple[str, type[BaseModel]]] = {
     ProtocolVersion.V0_8: ("v0.8", v0_8.V08Capabilities),
     ProtocolVersion.V0_9: ("v0.9", v0_9.V09Capabilities),
     ProtocolVersion.V0_9_1: ("v0.9", v0_9.V09Capabilities),
-    ProtocolVersion.V1_0: ("v1.0", v1_0.V10Capabilities),
+    ProtocolVersion.V1_0: ("1.0", v1_0.V10Capabilities),
 }
 _V0_8_KEY = _CAPABILITIES_ENTRIES[ProtocolVersion.V0_8][0]
 # The fields of a capabilities entry, as the specification names them.

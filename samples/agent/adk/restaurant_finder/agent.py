@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 from collections.abc import AsyncIterable
 import json
 import logging
@@ -39,8 +38,8 @@ import jsonschema
 
 from a2ui.a2a import (
     get_a2ui_agent_extension,
-    parse_response_to_parts,
     stream_response_to_parts,
+    to_a2a_parts,
 )
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
@@ -73,8 +72,6 @@ class RestaurantAgent:
         self._generators: dict[str, A2uiGenerator] = {}
         self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
-        self._parsers = OrderedDict()
-        self._max_parsers = 1000  # Max active sessions to keep in memory
 
         for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
             generator = self._build_generator(version)
@@ -277,6 +274,9 @@ class RestaurantAgent:
 
             full_content_list = []
             parts_streamed = False
+            is_valid = False
+            error_message = ""
+            stream_failed = False
 
             async def token_stream():
                 async for event in runner.run_async(
@@ -298,23 +298,27 @@ class RestaurantAgent:
                                 yield p.text
 
             if processor and selected_catalog:
-                if session_id in self._parsers:
-                    self._parsers.move_to_end(session_id)
-                else:
-                    self._parsers[session_id] = processor.create_parser()
-                    if len(self._parsers) > self._max_parsers:
-                        self._parsers.popitem(last=False)
-
-                async for part in stream_response_to_parts(
-                    self._parsers[session_id],
-                    token_stream(),
-                    version=ui_version,
-                ):
-                    parts_streamed = True
-                    yield {
-                        "is_task_complete": False,
-                        "parts": [part],
-                    }
+                try:
+                    async for part in stream_response_to_parts(
+                        processor.open_stream(),
+                        token_stream(),
+                        version=ui_version,
+                    ):
+                        parts_streamed = True
+                        yield {
+                            "is_task_complete": False,
+                            "parts": [part],
+                        }
+                except ValueError as e:
+                    # The stream ends at the first block it rejects, so the
+                    # rest of the response is not read, and the request is
+                    # retried below.
+                    logger.warning(
+                        f"--- RestaurantAgent.stream: A2UI stream failed: {e}"
+                        f" (Attempt {attempt}) ---"
+                    )
+                    error_message = f"Validation failed: {e}."
+                    stream_failed = True
             else:
                 async for token in token_stream():
                     yield {
@@ -323,11 +327,11 @@ class RestaurantAgent:
                     }
 
             final_response_content = "".join(full_content_list)
+            response_parts = None
 
-            is_valid = False
-            error_message = ""
-
-            if ui_version and processor:
+            if stream_failed:
+                pass  # Logged above; the request is retried below.
+            elif ui_version and processor:
                 logger.info(
                     "--- RestaurantAgent.stream: Validating UI response (Attempt"
                     f" {attempt})... ---"
@@ -369,9 +373,12 @@ class RestaurantAgent:
                     "--- RestaurantAgent.stream: Response is valid. Sending final"
                     f" response (Attempt {attempt}). ---"
                 )
-                final_parts = parse_response_to_parts(
-                    final_response_content, fallback_text="OK.", version=ui_version
-                )
+                if response_parts is not None:
+                    final_parts = to_a2a_parts(response_parts, ui_version)
+                elif final_response_content:
+                    final_parts = [Part(root=TextPart(text=final_response_content))]
+                else:
+                    final_parts = [Part(root=TextPart(text="OK."))]
 
                 yield {
                     "is_task_complete": True,

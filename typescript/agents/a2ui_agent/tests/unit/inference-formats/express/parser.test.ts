@@ -31,11 +31,11 @@ import {
 } from '../../../../src/inference-formats/express/errors.js';
 import {RawResponsePart} from '../../../../src/parser/response-part.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 
 describe('ExpressParser', () => {
   const catalog = basicCatalogV10;
-  const parser = new ExpressParser(catalog, 'main', 'v1.0');
+  const parser = new ExpressParser(catalog, 'main', '1.0');
 
   describe('unwrap', () => {
     it('unwraps empty content to empty array', () => {
@@ -113,7 +113,7 @@ describe('ExpressParser', () => {
       const messages = parser.compile('root = Text("Hello")');
       expect(messages).toEqual([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'main',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
@@ -241,7 +241,7 @@ describe('ExpressParser', () => {
     it('decompile delegates to ExpressDecompiler', () => {
       const messages = [
         {
-          version: 'v1.0' as const,
+          version: '1.0' as const,
           createSurface: {
             surfaceId: 'main',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',

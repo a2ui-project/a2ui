@@ -408,6 +408,15 @@ def validate_catalogs_identifiers():
                     errors.append(f"Invalid function name: '{func_name}'")
                 check_schema_properties(func_def)
 
+        defs = catalog.get("$defs", {})
+        if isinstance(defs, dict):
+            for def_name, def_schema in defs.items():
+                if def_name in ("anyComponent", "anyFunction"):
+                    continue
+                if not def_name.isidentifier():
+                    errors.append(f"Invalid $defs name: '{def_name}'")
+                check_schema_properties(def_schema)
+
         if errors:
             failed += 1
             print(f"  [FAIL] {name}")
@@ -503,6 +512,12 @@ def validate_catalogs_ref_targets():
                 target = ref[len("#/functions/") :]
                 if not isinstance(functions, dict) or target not in functions:
                     errors.append(f"Unknown local $ref target: '{ref}'")
+            elif ref.startswith("#/$defs/"):
+                target = ref[len("#/$defs/") :]
+                if target in ("anyComponent", "anyFunction"):
+                    errors.append(f"Disallowed $ref target: '{ref}'")
+                elif not isinstance(defs, dict) or target not in defs:
+                    errors.append(f"Unknown local $ref target: '{ref}'")
             elif ref.startswith("common_types.json#/$defs/"):
                 target = ref[len("common_types.json#/$defs/") :]
                 if target not in ALLOWED_EXTERNAL_REF_TARGETS:
@@ -540,7 +555,7 @@ def validate_sample_schema():
         "name": "Test Sample",
         "description": "A minimal sample for testing schema integrity",
         "messages": [{
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test_surface",
                 "catalogId": (
@@ -596,7 +611,7 @@ def validate_a2a_schemas():
             "name": "renderer_capabilities.json",
             "schema_path": os.path.join(SCHEMA_DIR, "renderer_capabilities.json"),
             "data": {
-                "v1.0": {
+                "1.0": {
                     "supportedCatalogIds": [
                         "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
                     ],
@@ -614,7 +629,7 @@ def validate_a2a_schemas():
             "name": "agent_capabilities.json",
             "schema_path": os.path.join(SCHEMA_DIR, "agent_capabilities.json"),
             "data": {
-                "v1.0": {
+                "1.0": {
                     "supportedCatalogIds": [
                         "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
                     ],
@@ -627,7 +642,7 @@ def validate_a2a_schemas():
             "name": "renderer_data_model.json",
             "schema_path": os.path.join(SCHEMA_DIR, "renderer_data_model.json"),
             "data": {
-                "version": "v1.0",
+                "version": "1.0",
                 "surfaces": {"surface_123": {"user": {"name": "Alice"}}},
             },
             "refs": {},
@@ -639,7 +654,7 @@ def validate_a2a_schemas():
             ),
             "data": {
                 "messages": [{
-                    "version": "v1.0",
+                    "version": "1.0",
                     "createSurface": {
                         "surfaceId": "test_surface",
                         "catalogId": (
@@ -666,7 +681,7 @@ def validate_a2a_schemas():
             ),
             "data": {
                 "messages": [{
-                    "version": "v1.0",
+                    "version": "1.0",
                     "action": {
                         "name": "click_button",
                         "surfaceId": "test_surface",
