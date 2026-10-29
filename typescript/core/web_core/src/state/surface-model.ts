@@ -141,8 +141,8 @@ export class SurfaceModel<
    *
    * Defaults to the default catalog's version. A surface without a default
    * catalog (allowed from v1.0) takes it from the `protocolVersion`
-   * constructor argument instead. Stored in the `vMAJOR.MINOR` form used by
-   * messages (for example `'v1.0'`), whichever form it was given in.
+   * constructor argument instead. Stored in the canonical wire form used by
+   * messages (for example `'1.0'` or `'v0.9'`), whichever form it was given in.
    */
   readonly protocolVersion: string | undefined;
 

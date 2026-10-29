@@ -661,7 +661,9 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         )
 
 
-def _timed_processing(case: dict[str, Any]) -> Callable[[str], Callable[[], object]]:
+def _timed_processing(
+    case: dict[str, Any],
+) -> Callable[[str], Callable[[], object]]:
     """Returns how a `process_messages` timing case prepares a timed run.
 
     The catalogs are built and the payload decoded before the timing starts.

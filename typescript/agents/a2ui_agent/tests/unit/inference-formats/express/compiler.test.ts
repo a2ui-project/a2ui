@@ -40,7 +40,7 @@ import {
   loadConformanceCatalog,
 } from '../../../helpers/conformance-catalogs.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
 const basicCatalogV091 = loadBasicCatalog('v0.9.1');
 
@@ -57,7 +57,7 @@ describe('ExpressCompiler', () => {
 
   describe('Compiling against the v1.0 basic catalog', () => {
     it('compiles a Text with a variant', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(compiler.compile('root = Text("Hello world", "body")')).toEqual([
         {
           version: '1.0',
@@ -71,7 +71,7 @@ describe('ExpressCompiler', () => {
     });
 
     it('advances a positional numeric argument to the next numeric property', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(compiler.compile('-- SQL comment\nroot = Column([t], 2)\nt = Text("Hello")')).toEqual([
         {
           version: '1.0',
@@ -88,7 +88,7 @@ describe('ExpressCompiler', () => {
     });
 
     it('compiles a Card whose child is declared on its own line', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(compiler.compile('root = Card(t)\nt = Text("Card body")')).toEqual([
         {
           version: '1.0',
@@ -105,7 +105,7 @@ describe('ExpressCompiler', () => {
     });
 
     it('compiles a Column holding a Text and a Button with an event', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(
         compiler.compile(
           'root = Column([t1, b1])\nt1 = Text("Title", "body")\nb1 = Button(Text("Click"), action=Event("btn_click", {"id": 1}))',
@@ -133,7 +133,7 @@ describe('ExpressCompiler', () => {
     });
 
     it('hoists inline children with indexed ids', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(compiler.compile('root = Column([Text("Line 1"), Text("Line 2")])')).toEqual([
         {
           version: '1.0',
@@ -151,7 +151,7 @@ describe('ExpressCompiler', () => {
     });
 
     it('compiles data assignments alone into per-path updateDataModel messages', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(compiler.compile('$/user/name = "Alice"\n$/user/age = 30')).toEqual([
         {
           version: '1.0',
@@ -173,7 +173,7 @@ describe('ExpressCompiler', () => {
     });
 
     it('compiles root $/ assignment into a root updateDataModel message', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(compiler.compile('$/ = {user: {name: "Alice"}}')).toEqual([
         {
           version: '1.0',
@@ -187,7 +187,7 @@ describe('ExpressCompiler', () => {
     });
 
     it('preserves array elements when overriding nested array item properties in createSurface', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       const messages = compiler.compile(
         '$/items = [{id: "w1", state: "Draft"}, {id: "w2", state: "Open"}]\n' +
           '$/items/0/state = "Ready"\n' +
@@ -210,7 +210,7 @@ describe('ExpressCompiler', () => {
     });
 
     it('rejects invalid array or primitive path traversal in createSurface', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(() =>
         compiler.compile('$/items = ["a"]\n$/items/foo = "b"\nroot = Text("ok")'),
       ).toThrow(ExpressValidationError);
@@ -300,7 +300,7 @@ describe('ExpressCompiler', () => {
       // and throws ExpressForbiddenDatabindingError('Tabs', 'tabs'), rejecting dynamic title inside tab item.
       // TS divergence rationale (plan §5.2 item 5): TS walks alongside the schema positionally.
       // Tabs.tabs items have title of type DynamicString, which admits path, so Tabs([{title: $/t, child: c}]) is valid.
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       const dsl = `
 root = Tabs([{title: $/tab_title, child: c}])
 c = Text("Content")
@@ -318,7 +318,7 @@ c = Text("Content")
 
     it('rejects databinding when nested item schema does NOT admit path (departure 5)', () => {
       // In Tabs.tabs items, 'child' is ComponentId (static string), which does NOT admit path.
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       const dsl = `
 root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 `;
@@ -335,7 +335,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
   describe('3. Specific error cases (§Wave 2a item 3)', () => {
     it('throws ExpressSyntaxError on lexer error', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() => compiler.compile('root = @Text("Hello")')).toThrow(ExpressSyntaxError);
       try {
         compiler.compile('root = @Text("Hello")');
@@ -350,7 +350,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressParseError wrapping ExpressSyntaxError on parser error', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() => compiler.compile('root = Text(')).toThrow(ExpressParseError);
       try {
         compiler.compile('root = Text(');
@@ -369,19 +369,19 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressUndefinedRootError on empty block', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() => compiler.compile('')).toThrow(ExpressUndefinedRootError);
     });
 
     it('throws ExpressUnknownPropertyError on unknown property', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() => compiler.compile('root = Text("hi", unknownProp="val")')).toThrow(
         ExpressUnknownPropertyError,
       );
     });
 
     it('throws ExpressValidationError on enum violation, listing the allowed values', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() => compiler.compile('root = Text("hi", "invalid_variant")')).toThrow(
         ExpressValidationError,
       );
@@ -396,14 +396,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('throws ExpressForbiddenDatabindingError on static property receiving data binding', () => {
-      const compiler = new ExpressCompiler([customCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([customCatalog], '1.0');
       expect(() => compiler.compile('root = Gauge($/value)')).toThrow(
         ExpressForbiddenDatabindingError,
       );
     });
 
     it('suppresses syntax errors and returns empty statements when isFinal is false (sanctioned swallow)', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       // When isFinal=false, syntax error in incomplete input is swallowed and statements becomes []
       // With no statements, scopes is [] which raises ExpressUndefinedRootError
       expect(() => compiler.compile('root = Text(', 'default_surface', false)).toThrow(
@@ -416,7 +416,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     const literalMapCatalog = loadConformanceCatalog('literal_map_catalog_v1_0.json');
 
     it('keeps a __proto__ key as data without changing the prototype', () => {
-      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([literalMapCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile('root = Probe({"__proto__": {polluted: true}, count: 6})'),
       ) as Array<{payload: Record<string, unknown>}>;
@@ -431,7 +431,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('keeps a __proto__ key in an Event context as data', () => {
-      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([literalMapCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile('root = Probe({e: Event("go", {"__proto__": {polluted: true}, n: 1})})'),
       ) as Array<{payload: {e: {event: {context: Record<string, unknown>}}}}>;
@@ -443,14 +443,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('rejects a __proto__ keyword argument as an unknown property', () => {
-      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([literalMapCatalog], '1.0');
       expect(() => compiler.compile('root = Probe(payload={a: 1}, __proto__={b: 2})')).toThrow(
         ExpressUnknownPropertyError,
       );
     });
 
     it('keeps a variable named __proto__ as a variable without changing the prototype', () => {
-      const compiler = new ExpressCompiler([literalMapCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([literalMapCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile('__proto__ = {a: 1}\nroot = Probe(__proto__)'),
       ) as Array<{payload: Record<string, unknown>}>;
@@ -459,14 +459,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('does not resolve a name inherited from Object.prototype as a variable', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       expect(createSurfaceComponents(compiler.compile('root = Text(toString)'))).toEqual([
         {id: 'root', component: 'Text', text: 'toString'},
       ]);
     });
 
     it('does not bind checks to a map literal shaped like a data binding', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10], 'v1.0');
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile('root = TextField("L", {"@path": "/x"}, ?required)'),
       ) as Array<{checks: Array<{condition: {args: Record<string, unknown>}}>}>;
@@ -477,7 +477,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
   describe('Event actions', () => {
     it('compiles userMessage= on an Event', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile(
           'root = Button(Text("Reply"), action=Event("reply", userMessage="Replying now"))',
@@ -488,7 +488,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('compiles a $path userMessage with a positional context', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile(
           'root = Button(Text("Go"), action=Event("go", {id: 1}, userMessage=$/draft/message))',
@@ -501,7 +501,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('accepts context= as a keyword argument', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile('root = Button(Text("Go"), action=Event("go", context={id: 1}))'),
       ) as Array<{action: unknown}>;
@@ -510,7 +510,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('keeps a function call inside an event context a plain call', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile(
           'root = Button(Text("Go"), action=Event("go", {label: formatString("Hi ${/name}")}))',
@@ -526,21 +526,21 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('rejects a context given both positionally and by keyword', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() =>
         compiler.compile('root = Button(Text("Go"), action=Event("go", {a: 1}, context={b: 2}))'),
       ).toThrow(ExpressValidationError);
     });
 
     it('rejects an unknown Event keyword instead of dropping it', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() =>
         compiler.compile('root = Button(Text("Go"), action=Event("go", message="hi"))'),
       ).toThrow("Argument 'message' is not a valid parameter of function 'Event'.");
     });
 
     it('compiles a function call userMessage, as DynamicString allows', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile(
           'root = Button(Text("Go"), action=Event("go", userMessage=formatString("Hi ${/name}")))',
@@ -556,7 +556,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('rejects a userMessage that is not a DynamicString, naming what it got', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() =>
         compiler.compile('root = Button(Text("Go"), action=Event("go", userMessage=42))'),
       ).toThrow(
@@ -623,7 +623,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('wraps a function call in functionCall inside a list item action', () => {
-      const compiler = new ExpressCompiler([listItemActionCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([listItemActionCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile(
           'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label: "Go", action: Event("go")}])',
@@ -685,7 +685,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           },
         },
       });
-      const compiler = new ExpressCompiler([catalog], 'v1.0');
+      const compiler = new ExpressCompiler([catalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile(
           'root = Menu({items: [{label: "Docs", action: openUrl("https://a2ui.org")}]})',
@@ -703,7 +703,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('wraps a function call reached through a variable', () => {
-      const compiler = new ExpressCompiler([listItemActionCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([listItemActionCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile(
           'docs = {label: "Docs", action: openUrl("https://a2ui.org")}\nroot = Links([docs])',
@@ -719,7 +719,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('keeps a function call outside an action slot as a plain call', () => {
-      const compiler = new ExpressCompiler([listItemActionCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([listItemActionCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile(
           'root = Links([{label: openUrl("https://a2ui.org"), action: Event("go")}])',
@@ -732,7 +732,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
   describe('_template argument errors', () => {
     it('shows a non-path first argument as JSON', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       expect(() =>
         compiler.compile('root = Column(_template([1, "a", null], item))\nitem = Text("x")'),
       ).toThrow(
@@ -745,7 +745,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
   describe('Statement handling', () => {
     it('compiles statements separated by semicolons on one line', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       const messages = compiler.compile('child = Text("Hi"); root = Column([child])');
       expect(messages).toEqual([
         {
@@ -763,7 +763,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('keeps the complete data statements of a truncated block when not final', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       const messages = compiler.compile(
         '$/foo = 123\n$/bar = """unclosed string...\n',
         'default_surface',
@@ -778,7 +778,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('keeps the complete components of a truncated block when not final', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
+      const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
       const messages = compiler.compile(
         'root = Column([title])\ntitle = Text("Hello")\nfooter = Text("unfin',
         'default_surface',
@@ -830,12 +830,12 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('rejects a v1.0 target for a v0.9 catalog', () => {
-      expect(() => new ExpressCompiler(basicCatalogV09, 'v1.0')).toThrow(A2uiCatalogError);
+      expect(() => new ExpressCompiler(basicCatalogV09, '1.0')).toThrow(A2uiCatalogError);
     });
 
     it('rejects a per-call v1.0 version for a v0.9 catalog', () => {
       const compiler = new ExpressCompiler(basicCatalogV09);
-      expect(() => compiler.compile('root = Text("Hi")', 's', true, 'v1.0')).toThrow(
+      expect(() => compiler.compile('root = Text("Hi")', 's', true, '1.0')).toThrow(
         A2uiCatalogError,
       );
     });
@@ -1174,17 +1174,17 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('compiles against a catalog defined in code as against its published document', () => {
       const codeDefined = codeDefinedBasicCatalogV10 as unknown as CatalogApi;
-      const fromCode = new ExpressCompiler([codeDefined], 'v1.0').compile(columnSource);
-      const fromDocument = new ExpressCompiler([basicCatalogV10], 'v1.0').compile(columnSource);
+      const fromCode = new ExpressCompiler([codeDefined], '1.0').compile(columnSource);
+      const fromDocument = new ExpressCompiler([basicCatalogV10], '1.0').compile(columnSource);
       expect(fromCode).toEqual(fromDocument);
       expect(createSurfaceComponents(fromCode)).toHaveLength(4);
     });
 
     it('decompiles against a catalog defined in code', () => {
       const codeDefined = codeDefinedBasicCatalogV10 as unknown as CatalogApi;
-      const messages = new ExpressCompiler([codeDefined], 'v1.0').compile(columnSource);
-      const dsl = new ExpressDecompiler([codeDefined], 'v1.0').decompile(messages[0]);
-      expect(new ExpressCompiler([codeDefined], 'v1.0').compile(dsl)).toEqual(messages);
+      const messages = new ExpressCompiler([codeDefined], '1.0').compile(columnSource);
+      const dsl = new ExpressDecompiler([codeDefined], '1.0').decompile(messages[0]);
+      expect(new ExpressCompiler([codeDefined], '1.0').compile(dsl)).toEqual(messages);
     });
 
     it.each([
@@ -1194,7 +1194,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const pruned = new FunctionPruningTransformer([]).transform(
         new ComponentPruningTransformer(['Column', 'Text']).transform(source()),
       );
-      const compiler = new ExpressCompiler([pruned], 'v1.0');
+      const compiler = new ExpressCompiler([pruned], '1.0');
       expect(
         createSurfaceComponents(compiler.compile('root = Column([t])\nt = Text("hi")')),
       ).toEqual([
@@ -1223,7 +1223,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       label.properties = {component: {const: 'Label'}, caption: {type: 'string'}};
       label.required = ['component', 'caption'];
 
-      const messages = new ExpressCompiler([catalog], 'v1.0').compile('root = Label("hi")');
+      const messages = new ExpressCompiler([catalog], '1.0').compile('root = Label("hi")');
       expect(createSurfaceComponents(messages)).toEqual([
         {id: 'root', component: 'Label', text: 'hi'},
       ]);

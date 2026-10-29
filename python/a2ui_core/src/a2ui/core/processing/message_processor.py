@@ -379,8 +379,8 @@ class MessageProcessor:
         """
         if not options or not options.versions:
             raise A2uiValidationError(
-                "At least one protocol version must be provided in CapabilitiesOptions"
-                " to generate renderer capabilities."
+                "At least one protocol version must be provided in"
+                " CapabilitiesOptions to generate renderer capabilities."
             )
 
         effective_versions = options.versions

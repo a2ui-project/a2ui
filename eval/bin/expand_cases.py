@@ -213,7 +213,11 @@ def build_initial_state(version: str, catalog_id: str) -> list[dict[str, Any]]:
             "updateComponents": {
                 "surfaceId": STATEFUL_SURFACE_ID,
                 "components": [
-                    {"id": "root", "component": "Column", "children": ["heading"]},
+                    {
+                        "id": "root",
+                        "component": "Column",
+                        "children": ["heading"],
+                    },
                     {"id": "heading", "component": "Text", "text": "Welcome"},
                 ],
             },
@@ -350,7 +354,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--names", help="Comma-separated sample names to expand.")
     parser.add_argument(
-        "--dry-run", action="store_true", help="Print the YAML instead of writing."
+        "--dry-run",
+        action="store_true",
+        help="Print the YAML instead of writing.",
     )
     return parser
 

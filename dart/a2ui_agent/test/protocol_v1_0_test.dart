@@ -129,7 +129,7 @@ void main() {
 
   /// One v1.0 message, parsed from [json].
   AgentToRendererMessage message(Map<String, Object?> json) =>
-      AgentToRendererMessage.fromJson({'version': 'v1.0', ...json});
+      AgentToRendererMessage.fromJson({'version': '1.0', ...json});
 
   /// The JSON of [messages].
   List<Map<String, Object?>> json(List<AgentToRendererMessage> messages) => [
@@ -140,7 +140,7 @@ void main() {
   /// [bodies].
   String jsonBlock(List<Map<String, Object?>> bodies) =>
       '<a2ui-json>${jsonEncode([
-        for (final body in bodies) {'version': 'v1.0', ...body},
+        for (final body in bodies) {'version': '1.0', ...body},
       ])}</a2ui-json>';
 
   /// A v1.0 `createSurface` carrying [components], on [catalogId] or by
@@ -210,7 +210,7 @@ void main() {
       final List<CatalogApi> active = resolveCatalogs(
         [CatalogConfig(basic)],
         A2uiRendererCapabilities.fromJson({
-          'v1.0': {
+          '1.0': {
             'supportedCatalogIds': [basic.id],
             'inlineCatalogs': [
               {
@@ -559,8 +559,8 @@ void main() {
           .createParser()
           .openStream();
       stream.feed(
-        '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s", '
-        '"catalogId": "${basic.id}"}}, {"version": "v1.0", '
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s", '
+        '"catalogId": "${basic.id}"}}, {"version": "1.0", '
         '"updateComponents": {"surfaceId": "s", "components": [',
       );
       expect(
@@ -578,8 +578,8 @@ void main() {
             .createParser()
             .openStream();
         stream.feed(
-          '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": '
-          '"s", "catalogId": "${basic.id}"}}, {"version": "v1.0", '
+          '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": '
+          '"s", "catalogId": "${basic.id}"}}, {"version": "1.0", '
           '"updateComponents": {"surfaceId": "s", "components": [',
         );
         return stream;
@@ -636,7 +636,7 @@ void main() {
     List<AgentToRendererMessage> compile(List<Map<String, Object?>> bodies) {
       final List<AgentToRendererMessage> messages = parser().compile(
         jsonEncode([
-          for (final body in bodies) {'version': 'v1.0', ...body},
+          for (final body in bodies) {'version': '1.0', ...body},
         ]),
       );
       validatePayload([callable, custom], messages);

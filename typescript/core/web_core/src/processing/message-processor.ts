@@ -281,8 +281,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         versionCaps.inlineCatalogs = inlineCatalogs;
       }
 
-      const key = ver === 'v1.0' ? '1.0' : ver;
-      result[key] = versionCaps;
+      result[ver] = versionCaps;
     }
 
     return result as RendererCapabilities;
@@ -709,7 +708,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         break;
       case 'agentFunctionResponse':
         this.rpc.handleAgentFunctionResponse({
-          version: (op.version && op.version !== 'v1.0' ? op.version : '1.0') as '1.0',
+          version: (op.version ?? '1.0') as '1.0',
           agentFunctionResponse: {
             functionCallId: op.functionCallId,
             value: op.value,
@@ -774,7 +773,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version && op.version !== 'v1.0' ? op.version : '1.0') as '1.0',
+        version: (op.version ?? '1.0') as '1.0',
         callRendererFunction: {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
@@ -802,7 +801,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version && op.version !== 'v1.0' ? op.version : '1.0') as '1.0',
+        version: (op.version ?? '1.0') as '1.0',
         callRendererFunction: {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,

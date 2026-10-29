@@ -40,7 +40,7 @@ class TestVersionCompliance(unittest.TestCase):
         cls.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
     def test_compile_v1_0_unified(self):
-        compiler = ExpressCompiler([self.catalog], version="v1.0")
+        compiler = ExpressCompiler([self.catalog], version="1.0")
         dsl = """
         root = Column([txt])
         txt = Text("Hello World")

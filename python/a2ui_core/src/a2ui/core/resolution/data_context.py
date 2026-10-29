@@ -214,7 +214,10 @@ class DataContext:
         return obj
 
     def resolve_dynamic_value(
-        self, value: Any, peek: bool = True, abort_signal: AbortSignal | None = None
+        self,
+        value: Any,
+        peek: bool = True,
+        abort_signal: AbortSignal | None = None,
     ) -> Any:
         """Recursively evaluates Literals, Data Paths, and Function Calls against the active DataModel."""
         if value is None:

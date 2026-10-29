@@ -33,8 +33,8 @@ import {
 
 const catalogInfo: Record<string, {catalog: CatalogApi; version: string}> = {
   basic_v0_9: {catalog: loadBasicCatalog('v0.9'), version: 'v0.9'},
-  forms: {catalog: loadConformanceCatalog('forms_catalog_v1_0.json'), version: 'v1.0'},
-  simplified: {catalog: loadConformanceCatalog('simplified_catalog_v1_0.json'), version: 'v1.0'},
+  forms: {catalog: loadConformanceCatalog('forms_catalog_v1_0.json'), version: '1.0'},
+  simplified: {catalog: loadConformanceCatalog('simplified_catalog_v1_0.json'), version: '1.0'},
 };
 
 describe('ExpressDecompiler', () => {
@@ -196,7 +196,7 @@ describe('ExpressDecompiler', () => {
     it('writes a deleteSurface message', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const messages = [
-        {version: 'v1.0', deleteSurface: {surfaceId: 'panel_surface_42'}},
+        {version: '1.0', deleteSurface: {surfaceId: 'panel_surface_42'}},
       ] as unknown as AgentToRendererMessage[];
       expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
         'deleteSurface("panel_surface_42")',
@@ -549,7 +549,7 @@ describe('ExpressDecompiler', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const action = {event: {name: 'reply', userMessage: 'Replying now', context: {id: 1}}};
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -595,7 +595,7 @@ describe('ExpressDecompiler', () => {
         event: {name: 'reply', userMessage: {'@call': 'formatString', args: {value: 'Hi ${/n}'}}},
       };
       const msg = {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
@@ -802,7 +802,7 @@ describe('ExpressDecompiler', () => {
     const primaryCatalog = catalogFromTestDocument({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       catalogId: 'test/primary',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Column: {
           properties: {
@@ -856,7 +856,7 @@ describe('ExpressDecompiler', () => {
     const secondaryCatalog = catalogFromTestDocument({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       catalogId: 'test/secondary',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         SecondaryCard: {
           properties: {
@@ -904,7 +904,7 @@ describe('ExpressDecompiler', () => {
     });
 
     it('rejects duplicate catalog IDs and multiple v0.9 catalogs in the constructor', () => {
-      expect(() => new ExpressDecompiler([primaryCatalog, primaryCatalog], 'v1.0')).toThrow(
+      expect(() => new ExpressDecompiler([primaryCatalog, primaryCatalog], '1.0')).toThrow(
         A2uiCatalogError,
       );
 
@@ -926,7 +926,7 @@ describe('ExpressDecompiler', () => {
     });
 
     it('omits catalogId for unique names, emits catalogId for shared names, and never emits catalogId on surface(...)', () => {
-      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], 'v1.0');
+      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], '1.0');
       const messages = [
         {
           version: '1.0',
@@ -1013,7 +1013,7 @@ describe('ExpressDecompiler', () => {
     });
 
     it('throws ExpressValidationError when createSurface or a component targets an inactive catalog or wrong catalog', () => {
-      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], 'v1.0');
+      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], '1.0');
 
       const unknownSurfaceCat = {
         version: '1.0',
@@ -1059,7 +1059,7 @@ describe('ExpressDecompiler', () => {
     });
 
     it('forgets a surface catalog after deleteSurface when multiple catalogs are active', () => {
-      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], 'v1.0');
+      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], '1.0');
       const messages = [
         {
           version: '1.0',

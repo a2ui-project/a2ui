@@ -37,12 +37,12 @@ void main() {
   );
 
   String create(String surfaceId) => jsonEncode({
-    'version': 'v1.0',
+    'version': '1.0',
     'createSurface': {'surfaceId': surfaceId, 'catalogId': basic.id},
   });
 
   String root(String surfaceId, Map<String, Object?> component) => jsonEncode({
-    'version': 'v1.0',
+    'version': '1.0',
     'updateComponents': {
       'surfaceId': surfaceId,
       'components': [
@@ -146,7 +146,7 @@ void main() {
 
     test('drops a surface the answer deletes', () {
       final String remove = jsonEncode({
-        'version': 'v1.0',
+        'version': '1.0',
         'deleteSurface': {'surfaceId': 'a'},
       });
       final StreamedAnswer<ComponentApi> answer = newAnswer()

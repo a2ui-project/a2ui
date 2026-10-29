@@ -687,7 +687,7 @@ void main() {
     test('reads instructions and protocolVersion from a document', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'c',
-        'protocolVersion': 'v1.0',
+        'protocolVersion': '1.0',
         'instructions': 'Prefer cards.',
         'components': <String, Object?>{},
       });

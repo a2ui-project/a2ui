@@ -340,7 +340,7 @@ struct RendererToAgentMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "surfaceId": "main",
           "functionCallId": "call_1",
@@ -399,7 +399,7 @@ struct RendererToAgentMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "call_2",
           "value": "ok"

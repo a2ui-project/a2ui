@@ -160,8 +160,6 @@ def _capabilities_entry(
             f"Renderer capabilities must be a mapping, got {type(capabilities)}."
         )
     entry = capabilities.get(key)
-    if entry is None and key == "1.0":
-        entry = capabilities.get("v1.0")
     if entry is None and key == _V0_8_KEY and _is_bare_entry(capabilities):
         # v0.8 capabilities aren't keyed by protocol version.
         entry = capabilities

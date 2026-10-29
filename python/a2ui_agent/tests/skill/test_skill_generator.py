@@ -291,7 +291,10 @@ class TestSkillGenerator(unittest.TestCase):
     def test_examples_shared_by_catalogs_are_added_once(self):
         """Verifies examples the format returns for every catalog aren't repeated."""
         other = Catalog.from_json(
-            catalog_schema={"catalogId": "https://a2ui.org/other", "components": {}},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/other",
+                "components": {},
+            },
             protocol_version="1.0",
         )
         mock_fmt = MagicMock()

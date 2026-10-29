@@ -67,14 +67,12 @@ class V1Point0Adapter(BaseVersionAdapter):
         res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:
             cs = message[MSG_TYPE_CREATE_SURFACE]
-            raw_ver = message.get("version")
-            norm_ver = "1.0" if raw_ver == "v1.0" else raw_ver
             res.append(
                 InternalCreateSurfaceOp(
                     surface_id=self._get_surface_id(cs),
                     catalog_id=cs.get("catalogId"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
-                    version=norm_ver
+                    version=message.get("version")
                     or (
                         self.version.value
                         if hasattr(self.version, "value")

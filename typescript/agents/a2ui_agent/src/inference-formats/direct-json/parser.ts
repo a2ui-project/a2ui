@@ -97,17 +97,7 @@ export class DirectJsonParser extends Parser {
     } catch (e) {
       throw new ParseError(`The direct JSON block is not JSON: ${(e as Error).message}`);
     }
-    const items = Array.isArray(decoded) ? decoded : [decoded];
-    for (const item of items) {
-      if (
-        typeof item === 'object' &&
-        item !== null &&
-        (item as Record<string, unknown>).version === 'v1.0'
-      ) {
-        (item as Record<string, unknown>).version = '1.0';
-      }
-    }
-    return items as AgentToRendererMessage[];
+    return (Array.isArray(decoded) ? decoded : [decoded]) as AgentToRendererMessage[];
   }
 
   decompile(a2uiPayload: AgentToRendererMessage[]): string {

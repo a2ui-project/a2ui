@@ -82,25 +82,13 @@ def _generate_constants_code(
     if dir_name == "v0_9":
         ver_type_str = 'Literal["v0.9", "v0.9.1"]'
         sup_vers_str = 'Final[set[str]] = {"v0.9", "v0.9.1"}'
-        typing_imports = "from typing import Final, Literal"
-    elif is_modern:
-        ver_type_str = (
-            f'Annotated[Literal["{spec_dot}"],'
-            f' BeforeValidator(lambda v: "{spec_dot}" if v == "v{spec_dot}" else v)]'
-        )
-        sup_vers_str = f'Final[set[str]] = {{"{spec_dot}", "v{spec_dot}"}}'
-        typing_imports = (
-            "from typing import Annotated, Final, Literal\n"
-            "from pydantic import BeforeValidator"
-        )
     else:
         ver_type_str = f'Literal["{spec_dot}"]'
         sup_vers_str = f'Final[set[str]] = {{"{spec_dot}"}}'
-        typing_imports = "from typing import Final, Literal"
 
     lines = [
         FILE_HEADER,
-        typing_imports,
+        "from typing import Final, Literal",
         "",
         f'PROTOCOL_VERSION: Final[Literal["{spec_dot}"]] = "{spec_dot}"',
         f"PROTOCOL_VERSION_TYPE = {ver_type_str}",
@@ -576,21 +564,6 @@ from typing import Any
 {base_common_section}# Multi-version Protocol Version Enum
 class A2uiProtocolVersion(str, Enum):
 {chr(10).join(enum_members)}
-
-    @classmethod
-    def _missing_(cls, value: object) -> "A2uiProtocolVersion | None":
-        if isinstance(value, str):
-            stripped = value.strip().lower()
-            alt = (
-                stripped[1:]
-                if stripped.startswith("v")
-                else f"v{{stripped}}"
-            )
-            for member in cls:
-                if member.value in (stripped, alt):
-                    return member
-        return None
-
 
 ProtocolVersion = A2uiProtocolVersion
 

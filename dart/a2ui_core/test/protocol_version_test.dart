@@ -41,9 +41,6 @@ void main() {
         expect(A2uiProtocolVersion.parse(version.jsonValue), version);
         expect(A2uiProtocolVersion.tryParse(version.jsonValue), version);
       }
-      expect(A2uiProtocolVersion.fromJson('v1.0'), A2uiProtocolVersion.v1_0);
-      expect(A2uiProtocolVersion.parse('v1.0'), A2uiProtocolVersion.v1_0);
-      expect(A2uiProtocolVersion.tryParse('v1.0'), A2uiProtocolVersion.v1_0);
     });
 
     test('parses v0.9.1 as its own version, distinct from v0.9', () {
@@ -91,7 +88,7 @@ void main() {
     });
 
     test('parse rejects an unknown version; tryParse returns null', () {
-      for (final version in ['v0.8', 'v1.1', '0.9', 'v0_9', '']) {
+      for (final version in ['v0.8', 'v1.0', 'v1.1', '0.9', 'v0_9', '']) {
         expect(A2uiProtocolVersion.tryParse(version), isNull, reason: version);
         expect(
           () => A2uiProtocolVersion.parse(version),
@@ -121,7 +118,7 @@ void main() {
     });
 
     test('rejects earlier and later protocol versions', () {
-      for (final version in ['v0.8', 'v1.1', '0.9', '']) {
+      for (final version in ['v0.8', 'v1.0', 'v1.1', '0.9', '']) {
         expect(
           () => A2uiProtocolVersion.fromJson(version),
           throwsA(

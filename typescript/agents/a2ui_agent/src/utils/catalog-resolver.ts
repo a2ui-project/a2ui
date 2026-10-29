@@ -45,9 +45,6 @@ function extractCapabilitiesEntry(
   let entry: unknown = Object.hasOwn(rendererCapabilities, key)
     ? rendererCapabilities[key]
     : undefined;
-  if (entry === undefined && key === '1.0' && Object.hasOwn(rendererCapabilities, 'v1.0')) {
-    entry = rendererCapabilities['v1.0'];
-  }
   if (
     entry === undefined &&
     ENTRY_FIELDS.some(field => Object.hasOwn(rendererCapabilities, field))

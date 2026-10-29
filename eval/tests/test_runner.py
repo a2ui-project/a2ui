@@ -199,11 +199,11 @@ def test_runner_rejects_version_that_conflicts_with_catalog() -> None:
 def test_parse_and_validate_direct_json_v10() -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {"surfaceId": "main", "catalogId": V10_CATALOG_ID},
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "main",
                 "components": [

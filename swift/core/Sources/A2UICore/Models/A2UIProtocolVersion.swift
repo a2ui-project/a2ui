@@ -36,23 +36,6 @@ public enum A2UIProtocolVersion: String, Codable, Sendable, CaseIterable, Compar
     self.init(rawValue: "v\(stripped)")
   }
 
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    let raw = try container.decode(String.self)
-    if let direct = Self(rawValue: raw) {
-      self = direct
-      return
-    }
-    if raw == "v1.0" {
-      self = .v10
-      return
-    }
-    throw DecodingError.dataCorruptedError(
-      in: container,
-      debugDescription: "Cannot initialize A2UIProtocolVersion from invalid String value \(raw)"
-    )
-  }
-
   /// Whether this protocol version is v1.0 or newer.
   public var isAtLeastV10: Bool {
     self >= .v10

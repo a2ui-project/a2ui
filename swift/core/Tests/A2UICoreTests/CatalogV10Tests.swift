@@ -72,7 +72,7 @@ struct CatalogV10Tests {
 
     let catalog = Catalog(
       id: "testCatalog",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [comp]
     )
     #expect(catalog.protocolVersion == "1.0")
@@ -105,7 +105,7 @@ struct CatalogV10Tests {
     #expect(A2UIProtocolVersion(lenientRawValue: "0.9.1") == .v091)
     #expect(A2UIProtocolVersion(lenientRawValue: "invalid") == nil)
 
-    let catV10 = AnyCatalog(id: "c1", protocolVersion: "v1.0", components: [])
+    let catV10 = AnyCatalog(id: "c1", protocolVersion: "1.0", components: [])
     #expect(catV10.a2uiProtocolVersion == .v10)
     #expect(catV10.isAtLeastV10 == true)
 

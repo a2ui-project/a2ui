@@ -63,7 +63,11 @@ INLINE_DEF_MARKER: Final[str] = "x-a2ui-inline"
 CATALOG_DEF_MARKER: Final[str] = "x-a2ui-catalog-def"
 
 # Leading keyword order of an inlined def, as the specification writes them.
-_INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = ("type", "description", "properties")
+_INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = (
+    "type",
+    "description",
+    "properties",
+)
 
 # Whether JSON schemas are generated in the specification's shape.
 _SPEC_SCHEMA: ContextVar[bool] = ContextVar("_SPEC_SCHEMA", default=False)

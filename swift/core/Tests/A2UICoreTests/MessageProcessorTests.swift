@@ -804,7 +804,7 @@ struct MessageProcessorTests {
     let payload = try JSONValue.parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "missing-surface",
           "components": [

@@ -248,7 +248,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 1.0}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 1.0}},
@@ -278,7 +281,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.5}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 0.5}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 0.5}},
@@ -319,7 +325,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 1.0}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 1.0}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 1.0}},
@@ -331,7 +340,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         baseline_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.8}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 0.8}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 0.8}},
@@ -576,7 +588,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.8}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 0.8}},
+                    },
                     {
                         "name": "measured_model_graded_qa",
                         "metrics": {"accuracy": {"value": 0.9}},
@@ -607,7 +622,10 @@ class TestRunnerAndReporter(unittest.TestCase):
         log_data = {
             "results": {
                 "scores": [
-                    {"name": "a2ui_scorer", "metrics": {"accuracy": {"value": 0.7}}},
+                    {
+                        "name": "a2ui_scorer",
+                        "metrics": {"accuracy": {"value": 0.7}},
+                    },
                 ]
             },
             "samples": [{

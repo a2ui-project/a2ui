@@ -45,7 +45,7 @@ PRIMARY = "https://example.com/catalogs/primary"
 SECONDARY = "https://example.com/catalogs/secondary"
 
 
-def _catalog(catalog_id: str, protocol_version: str = "v1.0") -> Catalog:
+def _catalog(catalog_id: str, protocol_version: str = "1.0") -> Catalog:
     return Catalog(catalog_id=catalog_id, protocol_version=protocol_version)
 
 
@@ -72,12 +72,19 @@ def _catalog(catalog_id: str, protocol_version: str = "v1.0") -> Catalog:
         pytest.param(
             {
                 "version": "1.0",
-                "updateDataModel": {"surfaceId": "s1", "path": "/a", "value": None},
+                "updateDataModel": {
+                    "surfaceId": "s1",
+                    "path": "/a",
+                    "value": None,
+                },
             },
             id="v1_0_explicit_null_value",
         ),
         pytest.param(
-            {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/a"}},
+            {
+                "version": "v0.9",
+                "updateDataModel": {"surfaceId": "s1", "path": "/a"},
+            },
             id="v0_9_omitted_value_stays_omitted",
         ),
         pytest.param(
@@ -158,7 +165,7 @@ def test_normalize_prompt_example_messages_fills_in_example_defaults():
             {"callFunction": {"@call": "openUrl", "args": {"url": "x"}}},
             {"version": "1.0", "deleteSurface": {"surfaceId": "s2"}},
         ],
-        version="v1.0",
+        version="1.0",
         default_catalog_id=PRIMARY,
     )
     assert to_message_dicts(models) == [
@@ -188,7 +195,7 @@ def test_normalize_prompt_example_messages_rejects_empty_or_none_version(
     with pytest.raises(A2uiValidationError, match="Version cannot be None or empty"):
         normalize_prompt_example_messages(
             [{"version": bad_version, "deleteSurface": {"surfaceId": "s1"}}],
-            version="v1.0",
+            version="1.0",
             default_catalog_id=PRIMARY,
         )
 
@@ -259,7 +266,7 @@ def test_check_catalogs_rejects_duplicate_ids():
 
 def test_check_catalogs_rejects_mixed_protocol_versions():
     with pytest.raises(A2uiCatalogError, match="incompatible protocol versions"):
-        check_catalogs([_catalog(PRIMARY, "v1.0"), _catalog(SECONDARY, "v0.9")])
+        check_catalogs([_catalog(PRIMARY, "1.0"), _catalog(SECONDARY, "v0.9")])
 
 
 def test_check_catalogs_requires_a_catalog():
@@ -276,9 +283,7 @@ def test_check_mixed_catalogs_requires_v10_when_multiple_catalogs():
     assert len(check_mixed_catalogs([_catalog(PRIMARY, "v0.9")])) == 1
     assert (
         len(
-            check_mixed_catalogs(
-                [_catalog(PRIMARY, "v1.0"), _catalog(SECONDARY, "v1.0")]
-            )
+            check_mixed_catalogs([_catalog(PRIMARY, "1.0"), _catalog(SECONDARY, "1.0")])
         )
         == 2
     )
@@ -293,7 +298,7 @@ def test_surface_catalog_id_returns_id_only_for_single_catalog():
 
 def test_catalogs_protocol_version_reads_the_catalogs_version():
     assert catalogs_protocol_version([_catalog(PRIMARY, "0.9")]) == "v0.9"
-    assert catalogs_protocol_version([_catalog(PRIMARY, "v1.0")]) == "1.0"
+    assert catalogs_protocol_version([_catalog(PRIMARY, "1.0")]) == "1.0"
 
 
 def test_build_catalog_helpers_keys_by_catalog_id_in_order():
@@ -354,7 +359,10 @@ def test_coalesce_root_data_update_replaces_the_data_model(path: str | None):
 
 def test_coalesce_keeps_a_sub_path_data_update():
     coalesced = coalesce_surface_messages([_create("s1"), _data("s1", 5, "/count")])
-    assert [c.message for c in coalesced] == [_create("s1"), _data("s1", 5, "/count")]
+    assert [c.message for c in coalesced] == [
+        _create("s1"),
+        _data("s1", 5, "/count"),
+    ]
     assert coalesced[1].is_update
     assert coalesced[1].surface_catalog_id == SECONDARY
 
@@ -405,7 +413,10 @@ def test_coalesce_merges_interleaved_surfaces_independently():
         _components("a", "root"),
         _components("b", "root"),
     ])
-    assert [c.message["createSurface"]["surfaceId"] for c in coalesced] == ["a", "b"]
+    assert [c.message["createSurface"]["surfaceId"] for c in coalesced] == [
+        "a",
+        "b",
+    ]
     assert all("components" in c.message["createSurface"] for c in coalesced)
     assert [c.surface_catalog_id for c in coalesced] == [PRIMARY, SECONDARY]
 
@@ -415,7 +426,11 @@ def test_coalesce_does_not_merge_across_a_function_call():
         "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "c1",
-            "callFunction": {"catalogId": PRIMARY, "@call": "openUrl", "args": {}},
+            "callFunction": {
+                "catalogId": PRIMARY,
+                "@call": "openUrl",
+                "args": {},
+            },
         },
     }
     coalesced = coalesce_surface_messages(

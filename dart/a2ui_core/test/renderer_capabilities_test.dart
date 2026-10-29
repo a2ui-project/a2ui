@@ -47,7 +47,7 @@ void main() {
 
     test('reads an inline catalog that states no version as the entry\'s', () {
       final caps = A2uiRendererCapabilities.fromJson({
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': <String>[],
           'inlineCatalogs': [
             {
@@ -224,7 +224,7 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['basic', 'extra'],
         },
         'v2.0': {

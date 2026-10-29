@@ -383,9 +383,6 @@ export class DirectJsonResponseStream<
     for (const [offset, [envelope, closed]] of read.messages.entries()) {
       const index = read.skipped + offset;
       if (index !== this.closedMessages.length) continue;
-      if (isObject(envelope) && envelope.version === 'v1.0') {
-        envelope.version = '1.0';
-      }
       if (closed) {
         this.closedMessages.push(envelope);
       } else {

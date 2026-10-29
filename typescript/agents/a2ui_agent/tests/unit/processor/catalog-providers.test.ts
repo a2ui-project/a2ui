@@ -50,7 +50,7 @@ describe('Catalog Providers', () => {
     it('does not treat $id as the catalog id', () => {
       const provider = new InMemoryCatalogProvider(
         {$id: 'https://example.com/catalog.json', components: {}},
-        'v1.0',
+        '1.0',
       );
       expect(() => provider.load()).toThrow(A2uiCatalogError);
     });
@@ -69,7 +69,7 @@ describe('Catalog Providers', () => {
     });
 
     it('throws A2uiCatalogError on catalog ID mismatch', () => {
-      const provider = new InMemoryCatalogProvider(validSchema, 'v1.0', 'wrong_id');
+      const provider = new InMemoryCatalogProvider(validSchema, '1.0', 'wrong_id');
       expect(() => provider.load()).toThrow(A2uiCatalogError);
     });
 
@@ -85,7 +85,7 @@ describe('Catalog Providers', () => {
     it('loads successfully from file', () => {
       const provider = new FileSystemCatalogProvider(
         conformancePath('test_data/catalogs/simplified_catalog_v1_0.json'),
-        'v1.0',
+        '1.0',
         'conformance/simplified',
       );
       const catalog = provider.load();

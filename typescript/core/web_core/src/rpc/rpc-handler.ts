@@ -595,9 +595,7 @@ export class RpcHandler {
     functionCallId: string,
     version: string,
   ): Promise<RendererFunctionResponseMessage> {
-    const respVersion = (
-      version && version !== 'v1.0' ? version : '1.0'
-    ) as RendererFunctionResponseMessage['version'];
+    const respVersion = (version || '1.0') as RendererFunctionResponseMessage['version'];
     try {
       const rawResult = await Promise.resolve(funcImpl.execute(args, context));
       const unwrapped = isSignal(rawResult) ? getValue(rawResult) : rawResult;
@@ -740,9 +738,7 @@ export class RpcHandler {
     const {call: legacyCallName, '@call': callName, ...rest} = call as Record<string, unknown>;
     const callFunction = {'@call': callName ?? legacyCallName, ...rest} as FunctionCall;
     const outboundMsg: CallAgentFunctionMessage = {
-      version: (version && version !== 'v1.0'
-        ? version
-        : '1.0') as CallAgentFunctionMessage['version'],
+      version: (version || '1.0') as CallAgentFunctionMessage['version'],
       callAgentFunction: {
         surfaceId,
         functionCallId,
@@ -790,9 +786,7 @@ export class RpcHandler {
     version: string,
   ): RendererFunctionResponseMessage {
     return {
-      version: (version && version !== 'v1.0'
-        ? version
-        : '1.0') as RendererFunctionResponseMessage['version'],
+      version: (version || '1.0') as RendererFunctionResponseMessage['version'],
       rendererFunctionResponse: {
         functionCallId,
         error: {code, message},

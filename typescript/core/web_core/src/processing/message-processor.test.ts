@@ -176,7 +176,7 @@ describe('MessageProcessor', () => {
         themeSchema: BasicCatalogThemeSchema,
       });
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
       const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
 
       assertConformsToV10CatalogDefinition(inlineCat);
@@ -233,7 +233,7 @@ describe('MessageProcessor', () => {
         },
       };
       const proc = new MessageProcessor([Catalog.fromJson(document) as Catalog<any>]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
       const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0];
 
       assert.deepStrictEqual(inlineCat, document);
@@ -255,14 +255,14 @@ describe('MessageProcessor', () => {
 
     function inlineV10Catalog(catalog: Catalog<any>): Record<string, any> {
       const proc = new MessageProcessor([catalog]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
       return (caps['1.0'] as any).inlineCatalogs[0];
     }
 
     it('gives a v1.0 inline catalog the catalogId and bare protocolVersion of a $id-only document', () => {
       const document = {
         $id: 'https://example.com/by-id.json',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {Label: label},
         $defs: unionsOnly,
       };

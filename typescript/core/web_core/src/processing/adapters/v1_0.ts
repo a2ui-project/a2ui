@@ -33,15 +33,6 @@ export class V1Point0Adapter extends BaseVersionAdapter {
     return [...INTERNAL_OPERATION_TYPES];
   }
 
-  protected override preparePayloadForValidation(
-    msgObj: Record<string, unknown>,
-  ): Record<string, unknown> {
-    if (msgObj.version === 'v1.0') {
-      return {...msgObj, version: '1.0'};
-    }
-    return msgObj;
-  }
-
   protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
     const ops: InternalOperation[] = [];
     if ('createSurface' in msgObj) {
@@ -59,10 +50,7 @@ export class V1Point0Adapter extends BaseVersionAdapter {
           cs?.dataModel && typeof cs.dataModel === 'object' && !Array.isArray(cs.dataModel)
             ? (cs.dataModel as Record<string, unknown>)
             : undefined,
-        version:
-          typeof msgObj.version === 'string' && msgObj.version !== 'v1.0'
-            ? msgObj.version
-            : this.version,
+        version: typeof msgObj.version === 'string' ? msgObj.version : this.version,
         metadata:
           cs?.metadata && typeof cs.metadata === 'object' && !Array.isArray(cs.metadata)
             ? (cs.metadata as Record<string, unknown>)

@@ -43,7 +43,7 @@ class _Fn extends FunctionImplementation {
 Catalog<ComponentApi, FunctionImplementation> _catalog(
   String id,
   List<FunctionImplementation> functions, {
-  String? protocolVersion = 'v1.0',
+  String? protocolVersion = '1.0',
 }) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: id,
@@ -59,7 +59,7 @@ CallRendererFunctionMessage _inbound(
   String? catalogId = 'basic',
   Map<String, Object?> args = const {},
   String id = 'call-1',
-  String version = 'v1.0',
+  String version = '1.0',
 }) =>
     CallRendererFunctionMessage(
       version: version,
@@ -246,7 +246,7 @@ void main() {
       );
       expect(sent, hasLength(1));
       h.handleAgentFunctionResponse(AgentFunctionResponseMessage(
-        version: 'v1.0',
+        version: '1.0',
         response: const A2uiFunctionResponse.value('dup', 1),
       ));
       expect(await first, 1);
@@ -373,7 +373,7 @@ void main() {
     test('ignores an unknown id', () {
       final RpcHandler h = handler();
       h.handleAgentFunctionResponse(AgentFunctionResponseMessage(
-        version: 'v1.0',
+        version: '1.0',
         response: const A2uiFunctionResponse.value('nope', 1),
       ));
       expect(h.pendingCallCount, 0);
@@ -387,7 +387,7 @@ void main() {
         options: const CallOptions(functionCallId: 'e1'),
       );
       h.handleAgentFunctionResponse(AgentFunctionResponseMessage(
-        version: 'v1.0',
+        version: '1.0',
         response: const A2uiFunctionResponse.error(
           'e1',
           A2uiFunctionResponseError(code: 'EXECUTION_ERROR', message: 'bad'),
@@ -408,7 +408,7 @@ void main() {
         options: const CallOptions(functionCallId: 'e2'),
       );
       h.handleAgentFunctionResponse(AgentFunctionResponseMessage(
-        version: 'v1.0',
+        version: '1.0',
         response: const A2uiFunctionResponse.error(
           'e2',
           A2uiFunctionResponseError(code: 'CUSTOM_THING', message: 'odd'),
@@ -432,7 +432,7 @@ void main() {
       surface = SurfaceModel<ComponentApi>(
         'surf',
         defaultCatalog: catalog,
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
       );
       addTearDown(surface.dispose);
     });

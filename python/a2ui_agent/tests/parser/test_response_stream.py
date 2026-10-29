@@ -44,7 +44,7 @@ CUSTOM_ID = "https://a2ui.org/catalogs/custom"
 
 @pytest.fixture
 def basic_catalog_v10():
-    return BasicCatalog("v1.0")
+    return BasicCatalog("1.0")
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ def custom_catalog_v10():
                 },
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
         catalog_id=CUSTOM_ID,
     )
 
@@ -95,7 +95,7 @@ def _item_catalog(catalog_id, required):
                 }
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
         catalog_id=catalog_id,
     )
 
@@ -217,14 +217,14 @@ def test_v10_surfaces_use_their_own_catalogs(basic_catalog_v10, custom_catalog_v
                 f' "catalogId": "{CUSTOM_ID}"}}}}, '
             ),
             (
-                '{"version": "1.0", "updateComponents": {"surfaceId": "surface-1",'
-                ' "components": [{"id": "root", "component": "Text", "text": "Surface'
-                ' 1"}]}}, '
+                '{"version": "1.0", "updateComponents": {"surfaceId":'
+                ' "surface-1", "components": [{"id": "root", "component": "Text",'
+                ' "text": "Surface 1"}]}}, '
             ),
             (
-                '{"version": "1.0", "updateComponents": {"surfaceId": "surface-2",'
-                ' "components": [{"id": "root", "component": "CustomCard", "child":'
-                ' "m1"}, '
+                '{"version": "1.0", "updateComponents": {"surfaceId":'
+                ' "surface-2", "components": [{"id": "root", "component":'
+                ' "CustomCard", "child": "m1"}, '
             ),
             '{"id": "m1", "component": "CustomMetric", "value": 99}]}}]'
             + A2UI_CLOSE_TAG,
@@ -285,8 +285,8 @@ def test_v10_deleted_surface_can_be_recreated_on_another_catalog(
             ),
             (
                 '{"version": "1.0", "updateComponents": {"surfaceId": "s1",'
-                ' "components": [{"id": "root", "component": "CustomMetric", "value":'
-                " 1}]}}, "
+                ' "components": [{"id": "root", "component": "CustomMetric",'
+                ' "value": 1}]}}, '
             ),
             '{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}, ',
             (
@@ -346,7 +346,9 @@ def test_v10_invalid_component_raises_when_it_closes(basic_catalog_v10):
         stream.feed('{"id": "a", "component": "Bogus"}, ')
 
 
-def test_v10_components_before_surface_id_waits_for_surface_id(basic_catalog_v10):
+def test_v10_components_before_surface_id_waits_for_surface_id(
+    basic_catalog_v10,
+):
     """When components arrive before surfaceId in updateComponents, the parser waits."""
     stream = DirectJsonParser([basic_catalog_v10]).open_stream()
 
@@ -383,13 +385,15 @@ def test_v08_deleted_surface_can_be_recreated():
             A2UI_OPEN_TAG + "[",
             '{"beginRendering": {"surfaceId": "s1", "root": "root"}}, ',
             (
-                '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root",'
-                ' "component": {"Text": {"text": {"literalString": "First"}}}}]}}, '
+                '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id":'
+                ' "root", "component": {"Text": {"text": {"literalString":'
+                ' "First"}}}}]}}, '
             ),
             '{"deleteSurface": {"surfaceId": "s1"}}, ',
             (
-                '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root",'
-                ' "component": {"Text": {"text": {"literalString": "Recreated"}}}}]}}, '
+                '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id":'
+                ' "root", "component": {"Text": {"text": {"literalString":'
+                ' "Recreated"}}}}]}}, '
             ),
             '{"beginRendering": {"surfaceId": "s1", "root": "root"}}]' + A2UI_CLOSE_TAG,
         ],
@@ -429,14 +433,14 @@ def test_v10_message_types(basic_catalog_v10):
         parser,
         [
             A2UI_OPEN_TAG
-            + '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":'
-            f' "{basic_id}"}}}}, '
-            '{"version": "1.0", "callRendererFunction": {"functionCallId": "c1",'
+            + '[{"version": "1.0", "createSurface": {"surfaceId": "s1",'
+            f' "catalogId": "{basic_id}"}}}}, {{"version": "1.0",'
+            ' "callRendererFunction": {"functionCallId": "c1",'
             f' "callFunction": {{"@call": "openUrl", "catalogId": "{basic_id}",'
-            ' "args": {"url": "https://a2ui.org"}}}}, '
-            '{"version": "1.0", "agentFunctionResponse": {"functionCallId": "c2",'
-            ' "value": {"success": true}}}, '
-            '{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+            ' "args": {"url": "https://a2ui.org"}}}}, {"version": "1.0",'
+            ' "agentFunctionResponse": {"functionCallId": "c2", "value":'
+            ' {"success": true}}}, {"version": "1.0", "deleteSurface":'
+            ' {"surfaceId": "s1"}}]'
             + A2UI_CLOSE_TAG
         ],
     )
@@ -472,8 +476,8 @@ def test_v10_message_types(basic_catalog_v10):
     "message",
     [
         (
-            '{"version": "v0.9", "callRendererFunction": {"surfaceId": "s1", "callId":'
-            ' "c1", "function": "alert"}}'
+            '{"version": "v0.9", "callRendererFunction": {"surfaceId": "s1",'
+            ' "callId": "c1", "function": "alert"}}'
         ),
         '{"version": "v0.9", "agentFunctionResponse": {"callId": "c1", "result": 123}}',
     ],
@@ -499,7 +503,7 @@ def test_v09_rejects_v10_function_messages(message):
 )
 def test_url_value_under_a_progressive_key_is_not_healed(value, healed):
     """A cut string that starts as a URL waits, since a shorter URL is a broken one."""
-    catalog = BasicCatalog("v1.0")
+    catalog = BasicCatalog("1.0")
     parser = DirectJsonParser([catalog], progressive_keys=frozenset({"greeting"}))
     create = {
         "version": "1.0",
@@ -512,8 +516,8 @@ def test_url_value_under_a_progressive_key_is_not_healed(value, healed):
         parser,
         [
             A2UI_OPEN_TAG
-            + '[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value":'
-            f' {{"greeting": "{value}'
+            + '[{"version": "1.0", "updateDataModel": {"surfaceId": "s1",'
+            f' "value": {{"greeting": "{value}'
         ],
         state=state,
     )

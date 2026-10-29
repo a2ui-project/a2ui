@@ -328,10 +328,6 @@ function generateIncomingMessageSchemas({pureCommonNames, helperNames}) {
   for (const msgName of a2rMsgNames) {
     const rawDef = a2rJson.$defs[msgName];
     let code = compileDefToZod(rawDef, msgName);
-    code = code.replace(
-      /["']?version["']?:\s*z\.literal\(["']1\.0["']\)/,
-      "'version': z.preprocess((v) => (v === 'v1.0' ? '1.0' : v), z.literal('1.0'))",
-    );
     if (msgName === 'CallRendererFunctionMessage') {
       code = code.replace(
         'z.intersection(FunctionCallSchema, z.any())',
@@ -387,11 +383,7 @@ function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
       required: ['version', msgProp],
       additionalProperties: false,
     };
-    let code = compileDefToZod(objSchema, msgName);
-    code = code.replace(
-      /["']?version["']?:\s*z\.literal\(["']1\.0["']\)/,
-      "'version': z.preprocess((v) => (v === 'v1.0' ? '1.0' : v), z.literal('1.0'))",
-    );
+    const code = compileDefToZod(objSchema, msgName);
     bodyCode += code + '\n\n';
   }
 

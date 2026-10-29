@@ -90,7 +90,7 @@ describe('SurfaceModel', () => {
       undefined,
       undefined,
       undefined,
-      'v1.0',
+      '1.0',
     );
     assert.strictEqual(noDefault.defaultCatalog, undefined);
     assert.strictEqual(noDefault.protocolVersion, '1.0');

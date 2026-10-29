@@ -184,8 +184,7 @@ class RpcHandler:
         Returns:
             An error response model if validation fails, or None if valid.
         """
-        raw_ver = str(getattr(message, "version", "1.0"))
-        version = "1.0" if raw_ver == "v1.0" else raw_ver
+        version = str(getattr(message, "version", "1.0"))
         if self._is_disposed:
             return self._create_response_error(
                 getattr(

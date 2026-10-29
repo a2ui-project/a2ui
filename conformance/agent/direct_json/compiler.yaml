@@ -119,7 +119,7 @@
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: "[{“version”: “v1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]"
+  input: "[{“version”: “1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]"
   expect:
     - version: "1.0"
       deleteSurface:

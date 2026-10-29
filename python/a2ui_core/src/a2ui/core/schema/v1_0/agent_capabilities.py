@@ -15,7 +15,7 @@
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
 from typing import Any
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
@@ -25,18 +25,18 @@ class V10AgentCapabilities(StrictBaseModel):
         default=None,
         alias="supportedCatalogIds",
         description=(
-            "An array of strings, where each is an ID identifying a Catalog for which"
-            " the agent can generate content. This is not a resolvable URI. Multiple"
-            " catalogs can be mixed in a single surface."
+            "An array of strings, where each is an ID identifying a Catalog for"
+            " which the agent can generate content. This is not a resolvable URI."
+            " Multiple catalogs can be mixed in a single surface."
         ),
     )
     accepts_inline_catalogs: bool | None = Field(
         default=None,
         alias="acceptsInlineCatalogs",
         description=(
-            "A boolean indicating if the agent can accept an 'inlineCatalogs' array in"
-            " the renderer's a2uiRendererCapabilities. If omitted, this defaults to"
-            " false."
+            "A boolean indicating if the agent can accept an 'inlineCatalogs'"
+            " array in the renderer's a2uiRendererCapabilities. If omitted, this"
+            " defaults to false."
         ),
     )
 
@@ -46,17 +46,3 @@ V1_0AgentCapabilities = V10AgentCapabilities
 
 class A2uiAgentCapabilities(StrictBaseModel):
     v1_0: V10AgentCapabilities | None = Field(default=None, alias=PROTOCOL_VERSION)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_version_key(cls, data: Any) -> Any:
-        if (
-            isinstance(data, dict)
-            and f"v{PROTOCOL_VERSION}" in data
-            and PROTOCOL_VERSION not in data
-        ):
-            return {
-                PROTOCOL_VERSION if k == f"v{PROTOCOL_VERSION}" else k: v
-                for k, v in data.items()
-            }
-        return data

@@ -515,13 +515,13 @@ public final class MessageProcessor: ObservableObject {
     surfaceID: String
   ) -> A2UIProtocolVersion {
     if let versionStr = payload["version"]?.stringValue,
-      let version = A2UIProtocolVersion(lenientRawValue: versionStr)
+      let version = A2UIProtocolVersion(rawValue: versionStr)
     {
       return version
     }
     if let firstItem = payload.arrayValue?.first,
       let versionStr = firstItem["version"]?.stringValue,
-      let version = A2UIProtocolVersion(lenientRawValue: versionStr)
+      let version = A2UIProtocolVersion(rawValue: versionStr)
     {
       return version
     }

@@ -433,7 +433,7 @@ void main() {
 
       void addSurface(String id, String? version, {bool send = true}) {
         final catalog =
-            (version == '1.0' || version == 'v1.0') ? v10Catalog : v09Catalog;
+            (version == '1.0' || version == '1.0') ? v10Catalog : v09Catalog;
         final surface = SurfaceModel<ComponentApi>(
           id,
           defaultCatalog: catalog,
@@ -1094,7 +1094,7 @@ void main() {
           'createSurface': {'surfaceId': 'old', 'catalogId': minimalId},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 'new', 'catalogId': 'v10'},
         },
       ]);
@@ -1227,7 +1227,7 @@ void main() {
       });
 
       processor.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's1',
           'catalogId': 'v10',
@@ -1276,7 +1276,7 @@ void main() {
       );
       expect(
         () => processor.processMessages({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's1',
             'catalogId': 'v10',
@@ -1297,7 +1297,7 @@ void main() {
         catalogs: [v10Catalog()],
       );
       processor.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {'surfaceId': 's1'},
       });
       final SurfaceModel<ComponentApi> surface =
@@ -1306,7 +1306,7 @@ void main() {
       expect(surface.availableCatalogs.keys, ['v10']);
 
       Map<String, Object?> update(Map<String, Object?> component) => {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 's1',
               'components': [component],
@@ -1335,7 +1335,7 @@ void main() {
         catalogs: [basic],
       );
       processor.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {'surfaceId': 's1', 'catalogId': basic.id},
       });
       expect(
@@ -1367,7 +1367,7 @@ void main() {
       // Rejected from v1.0 on.
       expect(
         () => processor.processMessages({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's_v1', 'catalogId': 'plain'},
         }),
         throwsA(
@@ -1388,7 +1388,7 @@ void main() {
       );
       expect(
         () => processor.processMessages({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's1', 'catalogId': minimalId},
         }),
         throwsA(

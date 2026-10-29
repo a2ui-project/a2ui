@@ -62,7 +62,7 @@ Map<String, Object?> _callRendererFunction(
   String? catalogId,
 }) =>
     {
-      'version': 'v1.0',
+      'version': '1.0',
       'callRendererFunction': {
         if (surfaceId != null) 'surfaceId': surfaceId,
         'functionCallId': id,
@@ -113,11 +113,11 @@ void main() {
       'when omitted, and rejects missing surfaceId', () async {
     processor.processMessages([
       {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
       },
       {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {'surfaceId': 'two', 'catalogId': 'beta'},
       },
     ]);
@@ -191,7 +191,7 @@ void main() {
       'args': {'a': 1},
     });
     processor.processMessages({
-      'version': 'v1.0',
+      'version': '1.0',
       'agentFunctionResponse': {'functionCallId': 'r1', 'value': 'ok'},
     });
     expect(await pending, 'ok');
@@ -212,7 +212,7 @@ void main() {
 
   test('a surface created by the processor falls back to the agent', () async {
     processor.processMessages({
-      'version': 'v1.0',
+      'version': '1.0',
       'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
     });
     final SurfaceModel<ComponentApi> surface =
@@ -226,7 +226,7 @@ void main() {
         sent.whereType<CallAgentFunctionMessage>().single;
     expect(outbound.surfaceId, 'one');
     processor.processMessages({
-      'version': 'v1.0',
+      'version': '1.0',
       'agentFunctionResponse': {
         'functionCallId': outbound.functionCallId,
         'error': {'code': 'EXECUTION_ERROR', 'message': 'nope'},

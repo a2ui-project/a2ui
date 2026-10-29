@@ -38,7 +38,9 @@ from .errors import ExpressParseError
 from .errors import ExpressValidationError
 
 
-def _compilation_error_class(error: BaseException) -> Type[A2uiCompilationError]:
+def _compilation_error_class(
+    error: BaseException,
+) -> Type[A2uiCompilationError]:
     """Picks the compilation error the compiler's failure belongs under."""
     if isinstance(error, ExpressValidationError):
         return A2uiCompilationValidationError

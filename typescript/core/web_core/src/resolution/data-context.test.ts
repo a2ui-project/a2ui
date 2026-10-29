@@ -960,7 +960,7 @@ describe('DataContext', () => {
         undefined,
         undefined,
         undefined,
-        'v1.0',
+        '1.0',
       );
       const errors: any[] = [];
       surface.onError.subscribe(err => {
@@ -988,7 +988,7 @@ describe('DataContext', () => {
         undefined,
         undefined,
         undefined,
-        'v1.0',
+        '1.0',
       );
       const errors: any[] = [];
       surface.onError.subscribe(err => {
@@ -1066,7 +1066,7 @@ describe('DataContext', () => {
         undefined,
         undefined,
         undefined,
-        'v1.0',
+        '1.0',
       );
       const errors: any[] = [];
       surface.onError.subscribe(err => {

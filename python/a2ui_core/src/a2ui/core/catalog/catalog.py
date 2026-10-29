@@ -2027,7 +2027,12 @@ class Catalog(Generic[TComponent, TFunction]):
             ),
         )
 
-        return cleaned_schema, referenced_dynamics, bool(spec_shaped), protocol_version
+        return (
+            cleaned_schema,
+            referenced_dynamics,
+            bool(spec_shaped),
+            protocol_version,
+        )
 
     def _bundle_common_types(
         self,

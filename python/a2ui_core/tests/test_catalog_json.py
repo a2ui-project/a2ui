@@ -273,7 +273,7 @@ def test_to_json_keeps_unknown_top_level_keys() -> None:
     assert Catalog.from_json(document).to_json() == document
 
 
-@pytest.mark.parametrize("version", ["v0.9", "v1.0"])
+@pytest.mark.parametrize("version", ["v0.9", "1.0"])
 @pytest.mark.parametrize(
     "functions",
     [
@@ -289,14 +289,17 @@ def test_to_json_keeps_unknown_top_level_keys() -> None:
     ids=["args-only", "empty", "list-without-parameters", "system-names"],
 )
 def test_loaded_function_entries_round_trip(version: str, functions: Any) -> None:
-    document = {"catalogId": "https://example.com/catalogs/f", "functions": functions}
+    document = {
+        "catalogId": "https://example.com/catalogs/f",
+        "functions": functions,
+    }
     catalog = Catalog.from_json(document, protocol_version=version)
     assert catalog.to_json() == document
     # A copy keeps its entries as they were loaded.
     assert catalog.copy_with().to_json() == document
 
 
-@pytest.mark.parametrize("version", ["v0.9", "v1.0"])
+@pytest.mark.parametrize("version", ["v0.9", "1.0"])
 @pytest.mark.parametrize(
     "document",
     [
@@ -341,7 +344,11 @@ def test_loaded_function_entries_round_trip(version: str, functions: Any) -> Non
         # Null component metadata.
         {
             "components": {
-                "A": {"type": "object", "allowedParents": None, "allowedChildren": None}
+                "A": {
+                    "type": "object",
+                    "allowedParents": None,
+                    "allowedChildren": None,
+                }
             }
         },
         # Top-level instructions that are not a string.
@@ -399,16 +406,19 @@ def test_function_is_definition_overrides_the_schema_shape() -> None:
     entry = FunctionApi(name="f", schema=args, is_definition=True)
     wrapped = FunctionApi(name="g", schema={"returnType": "any"}, is_definition=False)
     out = Catalog(
-        catalog_id="c", protocol_version="v1.0", functions=[entry, wrapped]
+        catalog_id="c", protocol_version="1.0", functions=[entry, wrapped]
     ).to_json()
 
     assert out["functions"]["f"] == args
     assert out["functions"]["g"]["properties"]["@call"] == {"const": "g"}
 
 
-@pytest.mark.parametrize("version", ["v0.9", "v1.0"])
+@pytest.mark.parametrize("version", ["v0.9", "1.0"])
 def test_to_json_keeps_an_empty_theme_in_defs(version: str) -> None:
-    document = {"catalogId": "https://example.com/catalogs/t", "$defs": {"theme": {}}}
+    document = {
+        "catalogId": "https://example.com/catalogs/t",
+        "$defs": {"theme": {}},
+    }
     catalog = Catalog.from_json(document, protocol_version=version)
     assert catalog.theme_location == "$defs"
     assert catalog.to_json() == document
@@ -432,7 +442,14 @@ _DANGLING_REF: dict[str, Any] = {"$ref": "#/$defs/DynamicString"}
         {"$defs": {"theme": {"properties": {"t": _DANGLING_REF}}}},
         {"$defs": {"Own": {"properties": {"t": _DANGLING_REF}}}},
     ],
-    ids=["component", "map_function", "list_function", "theme", "defs_theme", "def"],
+    ids=[
+        "component",
+        "map_function",
+        "list_function",
+        "theme",
+        "defs_theme",
+        "def",
+    ],
 )
 def test_loaded_refs_to_undefined_common_types_round_trip(
     fields: dict[str, Any], version: str
@@ -511,7 +528,7 @@ def test_source_without_unions_does_not_gain_them() -> None:
             }
         },
     }
-    catalog = Catalog.from_json(document, protocol_version="v1.0")
+    catalog = Catalog.from_json(document, protocol_version="1.0")
     added = FunctionApi(name="noop", return_type="void", schema={"type": "object"})
     out = catalog.copy_with(functions=[added]).to_json()
 
@@ -562,7 +579,7 @@ def test_v09_basic_catalog_to_json_keeps_catalog_mixin_local() -> None:
 
 
 def test_code_defined_v10_catalog_always_emits_both_unions() -> None:
-    catalog = Catalog(catalog_id="https://example.com/empty", protocol_version="v1.0")
+    catalog = Catalog(catalog_id="https://example.com/empty", protocol_version="1.0")
     out = catalog.to_json()
 
     _catalog_definition_validator().validate(out)
@@ -652,7 +669,7 @@ def test_code_defined_function_uses_version_call_shape() -> None:
         allowed_callers="agentOnly",
         description="Pings a host.",
     )
-    v1 = Catalog(catalog_id="c", protocol_version="v1.0", functions=[fn]).to_json()
+    v1 = Catalog(catalog_id="c", protocol_version="1.0", functions=[fn]).to_json()
     v09 = Catalog(catalog_id="c", protocol_version="v0.9", functions=[fn]).to_json()
 
     assert v1["functions"]["ping"]["properties"]["@call"] == {"const": "ping"}
@@ -662,7 +679,7 @@ def test_code_defined_function_uses_version_call_shape() -> None:
     assert v09["functions"]["ping"]["properties"]["returnType"] == {"const": "boolean"}
 
 
-@pytest.mark.parametrize("version", ["v0.9", "v1.0"])
+@pytest.mark.parametrize("version", ["v0.9", "1.0"])
 def test_function_without_a_schema_takes_any_args(version: str) -> None:
     def catalog(**schema: Any) -> Catalog:
         fn = FunctionApi(name="ping", allowed_callers="agentOnly", **schema)
@@ -701,9 +718,9 @@ def test_v10_renderer_capabilities_inline_catalogs_use_to_json() -> None:
     catalog = v1_0.BasicCatalog()
     processor = MessageProcessor([catalog])
     caps = processor.get_renderer_capabilities(
-        CapabilitiesOptions(versions=["v1.0"], include_inline_catalogs=True)
+        CapabilitiesOptions(versions=["1.0"], include_inline_catalogs=True)
     )
-    inline = caps["v1.0"]["inlineCatalogs"]
+    inline = caps["1.0"]["inlineCatalogs"]
 
     assert inline == [catalog.to_json()]
     _catalog_definition_validator().validate(inline[0])
@@ -711,7 +728,9 @@ def test_v10_renderer_capabilities_inline_catalogs_use_to_json() -> None:
 
 def test_v10_renderer_capabilities_inline_a_function_without_a_schema() -> None:
     catalog = Catalog(
-        catalog_id="c", protocol_version="1.0", functions=[FunctionApi(name="ping")]
+        catalog_id="c",
+        protocol_version="1.0",
+        functions=[FunctionApi(name="ping")],
     )
     caps = MessageProcessor([catalog]).get_renderer_capabilities(
         CapabilitiesOptions(versions=["1.0"], include_inline_catalogs=True)
@@ -823,7 +842,7 @@ def _local_refs(node: Any) -> list[str]:
     return []
 
 
-@pytest.mark.parametrize(("version", "call_key"), [("v0.9", "call"), ("v1.0", "@call")])
+@pytest.mark.parametrize(("version", "call_key"), [("v0.9", "call"), ("1.0", "@call")])
 def test_validation_schema_bundles_published_common_types(
     version: str, call_key: str
 ) -> None:
@@ -852,7 +871,7 @@ def test_validation_schema_bundles_published_common_types(
 
 @pytest.mark.parametrize(
     ("version", "expected"),
-    [("v0.8", None), ("v0.9", True), ("v1.0", True)],
+    [("v0.8", None), ("v0.9", True), ("1.0", True)],
 )
 def test_validation_schema_states_an_open_theme(
     version: str, expected: bool | None
@@ -894,7 +913,7 @@ def test_validation_schema_keeps_authored_titles() -> None:
                 }
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
     props = catalog.validation_schema["components"]["Card"]["properties"]
 
@@ -918,7 +937,7 @@ def test_to_json_emits_catalog_id_only_when_the_document_declares_it() -> None:
     )
     assert declared.to_json()["catalogId"] == "app"
     assert (
-        Catalog(catalog_id="app", protocol_version="v1.0").to_json()["catalogId"]
+        Catalog(catalog_id="app", protocol_version="1.0").to_json()["catalogId"]
         == "app"
     )
 
@@ -926,7 +945,9 @@ def test_to_json_emits_catalog_id_only_when_the_document_declares_it() -> None:
 def test_from_json_reads_v08_styles_as_the_theme() -> None:
     styles = {"font": {"type": "string"}}
     catalog = Catalog.from_json(
-        {"components": {}, "styles": styles}, catalog_id="app", protocol_version="v0.8"
+        {"components": {}, "styles": styles},
+        catalog_id="app",
+        protocol_version="v0.8",
     )
 
     assert catalog.theme_schema == {"type": "object", "properties": styles}
@@ -1044,9 +1065,9 @@ def test_catalog_def_preserves_field_level_description_and_default_overrides() -
     assert doc["$defs"]["Weight"] == {
         "type": "number",
         "description": (
-            "The relative weight of this component within a Row or Column. This is"
-            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
-            " the component is a direct descendant of a Row or Column."
+            "The relative weight of this component within a Row or Column. This"
+            " is similar to the CSS 'flex-grow' property. Note: this may ONLY be"
+            " set when the component is a direct descendant of a Row or Column."
         ),
     }
     assert doc["components"]["CustomWeighted"]["properties"]["weight"] == {
@@ -1079,7 +1100,7 @@ def test_catalog_definition_validates_catalog_schema_relaxation_cases() -> None:
                 CatalogDefinition.model_validate(case["data"])
 
 
-def _catalog_with_ref(ref: str, version: str = "v1.0") -> dict[str, Any]:
+def _catalog_with_ref(ref: str, version: str = "1.0") -> dict[str, Any]:
     return {
         "catalogId": "https://example.com/catalogs/refs",
         "protocolVersion": version,
@@ -1123,7 +1144,7 @@ def test_v10_from_json_rejects_external_ref_in_function_args() -> None:
     ref = "other_catalog.json#/functions/formatString/properties/args"
     document = {
         "catalogId": "https://example.com/catalogs/function_refs",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "functions": {
             "formatBadge": {
                 "type": "object",

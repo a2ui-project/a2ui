@@ -79,8 +79,7 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     themeSchema: Schema? = nil
   ) {
     self.id = id
-    self.protocolVersion =
-      protocolVersion.map { A2UIProtocolVersion(lenientRawValue: $0)?.rawValue ?? $0 }
+    self.protocolVersion = protocolVersion
     self.components = Dictionary(
       components.map { ($0.name, $0) },
       uniquingKeysWith: { _, last in last }

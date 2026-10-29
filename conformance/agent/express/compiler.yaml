@@ -473,7 +473,7 @@
     root = Button(label, Event("reply", userMessage="Replying now"))
     label = Text("Reply")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -499,7 +499,7 @@
     root = Button(label, Event("reply", {threadId: "t1"}, userMessage=$/draft/message))
     label = Text("Reply")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -528,7 +528,7 @@
     root = Button(label, Event("reply", userMessage=formatString("Replying to ${/thread/title}")))
     label = Text("Reply")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -569,7 +569,7 @@
     root = Button(label, Event("submit", context={itemId: "42"}))
     label = Text("Submit")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -596,7 +596,7 @@
     root = Button(label, Event("go", {greeting: formatString("Hi ${/name}")}))
     label = Text("Go")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -660,7 +660,7 @@
   input: |-
     root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label: "Go", action: Event("go")}], primary=openUrl("https://a2ui.org/start"))
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/list_item_action"
@@ -694,7 +694,7 @@
     docs = {label: "Docs", action: openUrl("https://a2ui.org")}
     root = Links([docs])
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/list_item_action"

@@ -179,7 +179,8 @@ def build_dynamic_type_index(defs: dict[str, Any]) -> DynamicTypeIndex:
     }
     all_kinds = frozenset().union(*kinds_by_name.values())
     catch_all = next(
-        (name for name, kinds in kinds_by_name.items() if kinds >= all_kinds), None
+        (name for name, kinds in kinds_by_name.items() if kinds >= all_kinds),
+        None,
     )
     by_literal_shape = {
         shape_by_name[name]: name
@@ -251,7 +252,12 @@ def clean_schema_node(
             if k == SPEC_TITLE_KEY and not is_properties_dict:
                 cleaned["title"] = v
                 continue
-            if not is_properties_dict and k in ("const", "default", "enum", "examples"):
+            if not is_properties_dict and k in (
+                "const",
+                "default",
+                "enum",
+                "examples",
+            ):
                 cleaned[k] = v
                 continue
             cleaned[k] = clean_schema_node(

@@ -83,7 +83,7 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
     return parse(value);
   }
 
-  /// Parses a protocol version from its wire value, such as `'v1.0'`.
+  /// Parses a protocol version from its wire value, such as `'1.0'`.
   ///
   /// Throws [A2uiValidationError] if [value] names a version this SDK does
   /// not implement.
@@ -99,16 +99,14 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   /// Parses a protocol version from its wire value, returning null when
   /// [value] names one this SDK does not implement.
   ///
-  /// Only the wire value (plus `'v1.0'` as a backward-compatible alias for
-  /// [v1_0]) matches: `'v0.9.1'` is [v0_9_1], and spellings the envelope
-  /// schemas reject, such as `'0.9'` or `'v1_0'`, are not versions. For a
-  /// version that must be present and supported, use [fromJson] or [parse],
-  /// which report why it was rejected.
+  /// Only the exact wire value matches: `'v0.9.1'` is [v0_9_1], and spellings
+  /// the envelope schemas reject, such as `'0.9'`, `'v1.0'` or `'v1_0'`, are
+  /// not versions. For a version that must be present and supported, use
+  /// [fromJson] or [parse], which report why it was rejected.
   static A2uiProtocolVersion? tryParse(String value) {
     for (final A2uiProtocolVersion version in values) {
       if (version.jsonValue == value) return version;
     }
-    if (value == 'v1.0') return v1_0;
     return null;
   }
 

@@ -82,7 +82,7 @@ def primary_catalog() -> Catalog:
                 },
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
 
@@ -138,7 +138,7 @@ def secondary_catalog() -> Catalog:
                 },
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
 
@@ -148,7 +148,7 @@ def test_express_multi_catalog_per_component_and_function_override(
     fmt = ExpressFormat(
         catalogs=[primary_catalog, secondary_catalog],
         surface_id="main",
-        version="v1.0",
+        version="1.0",
     )
     dsl = """<a2ui>
 surface("main")

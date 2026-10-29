@@ -609,7 +609,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -652,7 +652,7 @@
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -681,7 +681,7 @@
     format: express
     catalog: "test_data/catalogs/list_item_action_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/list_item_action"
