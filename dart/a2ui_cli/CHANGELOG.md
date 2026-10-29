@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add standalone native binary compilation script (`tool/compile.dart`) and support compile-time `CLI_VERSION` injection. [#3700](https://github.com/a2ui-project/a2ui/pull/3700)
+- Support compile-time `CLI_VERSION` overrides for `packageVersion`. [#3700](https://github.com/a2ui-project/a2ui/pull/3700)
 - Bump `a2ui_core` dependency to `^0.4.0`.
 - Initial release of the A2UI CLI developer tool and typesafe component generator.
 - Support `codegen` command for generating Python client component builders from catalog schemas across protocol versions 0.9, 0.9.1, and 1.0.

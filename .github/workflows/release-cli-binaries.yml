@@ -67,10 +67,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Enforce that non-dry-run manual dispatches must be triggered from main
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$IS_DRY_RUN" != "true" && "$DISPATCH_REF" != "refs/heads/main" ]]; then
-            echo "Error: Non-dry-run releases must be dispatched from main (got $DISPATCH_REF)."
-            exit 1
+          # Enforce that non-dry-run releases originate from main
+          if [[ "$IS_DRY_RUN" != "true" ]]; then
+            if [[ "$EVENT_NAME" == "workflow_dispatch" && "$DISPATCH_REF" != "refs/heads/main" ]]; then
+              echo "Error: Non-dry-run releases must be dispatched from main (got $DISPATCH_REF)."
+              exit 1
+            fi
+            git fetch origin +refs/heads/main:refs/remotes/origin/main --deepen=2147483647
+            if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+              echo "Error: Tagged commit $GITHUB_SHA is not an ancestor of origin/main."
+              exit 1
+            fi
           fi
 
           PUBSPEC_VERSION=$(grep "^version:" dart/a2ui_cli/pubspec.yaml | awk '{print $2}' | tr -d '\r')
@@ -323,7 +330,7 @@ jobs:
           import re, sys
           with open('dart/a2ui_cli/CHANGELOG.md') as f:
               content = f.read()
-          pattern = r'^##\s+\[?' + re.escape(sys.argv[1]) + r'(?:\]|\s|$).*?\n(.*?)(?=\n^##\s+|\Z)'
+          pattern = r'^##[ \t]+\[?' + re.escape(sys.argv[1]) + r'(?:\]|[ \t]|$)[^\n]*\n(.*?)(?=^##[ \t]+|\Z)'
           match = re.search(pattern, content, re.DOTALL | re.MULTILINE)
           if match and match.group(1).strip():
               print(match.group(1).strip())

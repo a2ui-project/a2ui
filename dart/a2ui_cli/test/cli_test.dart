@@ -32,11 +32,21 @@ String _findRepoRoot() {
 }
 
 /// The `dart` CLI executable (`Platform.resolvedExecutable` when running under
-/// `dart`, or `dart` on `PATH` when running under `flutter_tester`).
+/// `dart`, or locating `dart-sdk/bin/dart` when running under `flutter_tester`).
 String get _dartExecutable {
   final String exe = Platform.resolvedExecutable;
-  final String name = exe.split(Platform.pathSeparator).last;
-  return (name == 'dart' || name == 'dart.exe') ? exe : 'dart';
+  final String name = p.basename(exe);
+  if (name == 'dart' || name == 'dart.exe') return exe;
+  final dartBin = Platform.isWindows ? 'dart.exe' : 'dart';
+  for (
+    Directory dir = File(exe).parent;
+    dir.parent.path != dir.path;
+    dir = dir.parent
+  ) {
+    final candidate = File(p.join(dir.path, 'dart-sdk', 'bin', dartBin));
+    if (candidate.existsSync()) return candidate.path;
+  }
+  return dartBin;
 }
 
 /// Helper that runs [runCli] while capturing [stdout] and [stderr].

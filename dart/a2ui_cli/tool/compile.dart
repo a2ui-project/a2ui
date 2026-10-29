@@ -92,8 +92,13 @@ void main(List<String> args) {
   final Directory packageDir = scriptFile.parent.parent;
   final String entrypoint = p.join(packageDir.path, 'bin', 'a2ui.dart');
 
+  String? nonEmptyOption(String name) {
+    final String? value = (parsed[name] as String?)?.trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
   final String hostTarget = detectTarget();
-  final String target = (parsed['target'] as String?) ?? hostTarget;
+  final String target = nonEmptyOption('target') ?? hostTarget;
   if (target != hostTarget) {
     stderr.writeln(
       'Error: --target $target does not match host $hostTarget; '
@@ -103,12 +108,12 @@ void main(List<String> args) {
   }
 
   final String version =
-      (parsed['version'] as String?) ?? readPubspecVersion(packageDir);
+      nonEmptyOption('version') ?? readPubspecVersion(packageDir);
 
   final bool isWindows = target.startsWith('windows');
   final ext = isWindows ? '.exe' : '';
   final String rawOutput =
-      (parsed['output'] as String?) ??
+      nonEmptyOption('output') ??
       p.join(packageDir.path, 'dist', 'a2ui-$target$ext');
   final File outFile = File(rawOutput).absolute;
   final String outputPath = outFile.path;
