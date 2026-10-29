@@ -19,6 +19,9 @@
 
 $ErrorActionPreference = "Stop"
 
+# Ensure TLS 1.2 is enabled for older PowerShell environments
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 $Repo = if ($env:A2UI_REPO) { $env:A2UI_REPO } else { "a2ui-project/a2ui" }
 $InstallDir = if ($env:A2UI_INSTALL_DIR) {
     $env:A2UI_INSTALL_DIR
@@ -75,15 +78,17 @@ try {
             Write-Host "Verifying cryptographic SHA-256 checksum..."
             $ChecksumContent = Get-Content $ChecksumsPath
             $ExpectedLine = $ChecksumContent | Where-Object { $_ -match "\s$ArchiveName$" } | Select-Object -First 1
-            if ($ExpectedLine) {
-                $ExpectedHash = ($ExpectedLine -split "\s+")[0].Trim().ToLower()
-                $ActualHash = (Get-FileHash -Path $ZipPath -Algorithm SHA256).Hash.ToLower()
-                if ($ActualHash -ne $ExpectedHash) {
-                    Write-Error "Cryptographic checksum mismatch for $ArchiveName!`nExpected: $ExpectedHash`nActual:   $ActualHash"
-                    exit 1
-                }
-                Write-Host "✓ SHA-256 checksum verified."
+            if (-not $ExpectedLine) {
+                Write-Error "Error: $ArchiveName not found in checksums.txt!"
+                exit 1
             }
+            $ExpectedHash = ($ExpectedLine -split "\s+")[0].Trim().ToLower()
+            $ActualHash = (Get-FileHash -Path $ZipPath -Algorithm SHA256).Hash.ToLower()
+            if ($ActualHash -ne $ExpectedHash) {
+                Write-Error "Cryptographic checksum mismatch for $ArchiveName!`nExpected: $ExpectedHash`nActual:   $ActualHash"
+                exit 1
+            }
+            Write-Host "✓ SHA-256 checksum verified."
         }
     } catch {
         Write-Warning "Checksum verification skipped."
@@ -104,9 +109,11 @@ try {
 
     # Verify and update User PATH
     $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($UserPath -notlike "*$InstallDir*") {
+    $PathParts = if ($UserPath) { $UserPath -split ";" } else { @() }
+    if ($PathParts -notcontains $InstallDir) {
         Write-Host "Adding $InstallDir to user PATH environment variable..."
-        [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
+        $NewUserPath = if ($UserPath) { "$UserPath;$InstallDir" } else { $InstallDir }
+        [Environment]::SetEnvironmentVariable("Path", $NewUserPath, "User")
         $env:Path = "$env:Path;$InstallDir"
         Write-Host "✓ Added $InstallDir to PATH."
     }
