@@ -2775,7 +2775,6 @@ function validateProcessMessagesTestCase(testCase) {
   const processorOptions = {
     ...(protocolVersion ? {version: protocolVersion} : {}),
     ...caseValidationConfig(testCase),
-    ...(testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {}),
     errorHandler: msg => {
       lastErrorMsg = msg;
     },

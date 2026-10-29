@@ -573,7 +573,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       );
       let currentContext = initialContext;
       try {
-        const operations = this.prepareOperations(messages);
+        const operations = this.prepareOperations(messages, ctx => {
+          currentContext = ctx;
+        });
         for (const op of operations) {
           currentContext = this.contextFromOperation(op, initialContext);
           this.processOperation(op, context);
@@ -589,12 +591,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   /**
    * Processes one or more messages, catching any validation or processing errors
-   * and returning them as spec-compliant outbound `ErrorMessage` objects instead
+   * and returning them as spec-compliant outbound `RendererErrorMessage` objects instead
    * of throwing.
    *
    * @param messages Array of messages or single message payload to process.
    * @param context Optional execution context.
-   * @returns Array of `ErrorMessage` envelopes produced by failed messages.
+   * @returns Array of `RendererErrorMessage` envelopes produced by failed messages.
    */
   processMessagesWithErrors(messages: unknown, context?: ExecutionContext): RendererErrorMessage[] {
     return this.withValidationConfig(context, () => {
@@ -604,7 +606,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         const itemEnvelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
         let currentContext = itemEnvelopeContext;
         try {
-          const operations = this.prepareOperations(item as ProcessableMessagePayload);
+          const operations = this.prepareOperations(item as ProcessableMessagePayload, ctx => {
+            currentContext = ctx;
+          });
           for (const op of operations) {
             currentContext = this.contextFromOperation(op, itemEnvelopeContext);
             this.processOperation(op, context);
@@ -634,7 +638,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     );
     let currentContext = initialContext;
     try {
-      const operations = this.withValidationConfig(context, () => this.prepareOperations(messages));
+      const operations = this.withValidationConfig(context, () =>
+        this.prepareOperations(messages, ctx => {
+          currentContext = ctx;
+        }),
+      );
       const responses: RendererFunctionResponseMessage[] = [];
       for (const op of operations) {
         currentContext = this.contextFromOperation(op, initialContext);
@@ -740,26 +748,40 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
   }
 
-  private prepareOperations(messages: ProcessableMessagePayload): InternalOperation[] {
-    if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
+  private prepareSingleItem(
+    item: ProcessableMessagePayload,
+    onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+  ): InternalOperation[] {
+    onItemContext?.(extractEnvelopeErrorContext(item, this.defaultVersion));
 
     if (this.validationConfig) {
-      validateRecursionAndPaths(messages);
+      validateRecursionAndPaths(item);
     }
 
     if (this.validationConfig?.targetVersion) {
-      this.validateTargetVersion(messages);
+      this.validateTargetVersion(item);
     }
 
-    if (isInternalOperation(messages)) {
-      return [messages];
+    if (isInternalOperation(item)) {
+      return [item];
     }
+
+    return this.extractSingleMessageOperations(item);
+  }
+
+  private prepareOperations(
+    messages: ProcessableMessagePayload,
+    onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+  ): InternalOperation[] {
+    if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
 
     if (Array.isArray(messages)) {
-      return messages.flatMap(item => this.extractSingleMessageOperations(item));
+      return messages.flatMap(item =>
+        this.prepareSingleItem(item as ProcessableMessagePayload, onItemContext),
+      );
     }
 
-    return this.extractSingleMessageOperations(messages);
+    return this.prepareSingleItem(messages, onItemContext);
   }
 
   /**

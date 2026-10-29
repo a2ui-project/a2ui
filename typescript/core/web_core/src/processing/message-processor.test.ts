@@ -2221,5 +2221,48 @@ describe('MessageProcessor', () => {
       assert.strictEqual(mapped.error.surfaceId, undefined);
       assert.strictEqual(mapped.error.path, undefined);
     });
+
+    it('attributes prepareOperations parse errors to the failing item in multi-message arrays', async () => {
+      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
+      const v09Cat = new Catalog<ComponentApi>('cat-v09', '0.9', [textApi]);
+      const v10Cat = new Catalog<ComponentApi>('cat-v10', '1.0', [textApi]);
+      const handledErrors: any[] = [];
+      const proc = new MessageProcessor<ComponentApi>([v09Cat, v10Cat], undefined, {
+        errorHandler: msg => handledErrors.push(msg),
+      });
+
+      assert.throws(() => {
+        proc.processMessages([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'cat-v09'}},
+          {version: '1.0', updateComponents: {surfaceId: 's2', components: 'not-an-array'}},
+        ] as any);
+      });
+
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, '1.0');
+      assert.strictEqual(handledErrors[0].error.surfaceId, 's2');
+
+      handledErrors.length = 0;
+      await assert.rejects(async () => {
+        await proc.processMessagesAsync([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'cat-v09'}},
+          {
+            version: '1.0',
+            callRendererFunction: {
+              functionCallId: 'fn-item-2',
+              callFunction: {call: 'missingFn', catalogId: 'cat-v10', args: 'invalid'},
+            },
+          },
+        ] as any);
+      });
+
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, '1.0');
+      assert.strictEqual(handledErrors[0].error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(handledErrors[0].error.functionCallId, 'fn-item-2');
+      assert.strictEqual(handledErrors[0].error.surfaceId, undefined);
+    });
   });
 });
