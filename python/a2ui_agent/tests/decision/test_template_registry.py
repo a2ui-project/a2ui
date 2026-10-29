@@ -150,7 +150,7 @@ class TestSurfaceTemplate:
         )
         assert bare_v10.root_component() == "MetricGauge"
         v10_dicts = to_message_dicts(bare_v10.render_messages({}))
-        assert [m["version"] for m in v10_dicts] == ["v1.0", "v1.0"]
+        assert [m["version"] for m in v10_dicts] == ["1.0", "1.0"]
 
     def test_render_messages_v10_with_and_without_catalog_id(self) -> None:
         template_with_cat = _make_v10_template(
@@ -160,19 +160,19 @@ class TestSurfaceTemplate:
         msg_dicts = to_message_dicts(msgs)
         assert len(msg_dicts) == 3
         assert msg_dicts[0] == {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "metrics_v10_surface",
                 "catalogId": "https://example.com/catalogs/devops/v1",
             },
         }
-        assert msg_dicts[1]["version"] == "v1.0"
-        assert msg_dicts[2]["version"] == "v1.0"
+        assert msg_dicts[1]["version"] == "1.0"
+        assert msg_dicts[2]["version"] == "1.0"
 
         template_no_cat = _make_v10_template(catalog_id=None)
         no_cat_dicts = to_message_dicts(template_no_cat.render_messages({}))
         assert no_cat_dicts[0] == {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {"surfaceId": "metrics_v10_surface"},
         }
 
@@ -248,14 +248,14 @@ class TestTemplateRegistry:
         registry = TemplateRegistry()
         raw_messages = to_message_models([
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "createSurface": {
                     "surfaceId": "synth_surface",
                     "catalogId": "https://example.com/catalogs/finance/v1",
                 },
             },
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "updateComponents": {
                     "surfaceId": "synth_surface",
                     "components": [{
@@ -266,7 +266,7 @@ class TestTemplateRegistry:
                 },
             },
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "updateDataModel": {
                     "surfaceId": "synth_surface",
                     "path": "/",
@@ -293,7 +293,7 @@ class TestTemplateRegistry:
         assert promoted.template_id == "ticker_template"
         assert promoted.surface_id == "synth_surface"
         assert promoted.catalog_id == "https://example.com/catalogs/finance/v1"
-        assert promoted.protocol_version == "v1.0"
+        assert promoted.protocol_version == "1.0"
         assert promoted.required_pointers == ("/ticker",)
         assert promoted.is_mutable is True
         assert registry.get("ticker_template") == promoted

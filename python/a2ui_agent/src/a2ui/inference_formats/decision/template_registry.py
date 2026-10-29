@@ -34,7 +34,7 @@ def _normalize_wire_version(protocol_version: str) -> str:
     """Returns the wire envelope version string for a given protocol version."""
     clean = protocol_version.strip().lstrip("v")
     if clean == "1" or clean.startswith("1."):
-        return "v1.0"
+        return "1.0"
     if clean in ("0.8", "0.9", "0.9.1"):
         return "v0.9"
     return protocol_version
@@ -269,7 +269,7 @@ class SurfaceTemplate:
         data: Mapping[str, Any],
         *,
         default_catalog_id: str | None = None,
-        default_protocol_version: str = "v1.0",
+        default_protocol_version: str = "1.0",
     ) -> SurfaceTemplate:
         """Constructs a `SurfaceTemplate` from a JSON object."""
         if not isinstance(template_id, str) or not template_id.strip():
@@ -415,7 +415,7 @@ class TemplateRegistry:
         )
         default_catalog_id = str(raw_cat_id) if raw_cat_id is not None else None
         default_protocol_version = str(
-            data.get("protocolVersion") or data.get("protocol_version") or "v1.0"
+            data.get("protocolVersion") or data.get("protocol_version") or "1.0"
         )
         registry = cls()
         for template_id, spec in raw_templates.items():
