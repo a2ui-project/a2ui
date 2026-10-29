@@ -210,6 +210,34 @@ void main() {
     expect(processor.rpc.isDisposed, isTrue);
   });
 
+  test('deleteSurface cancels pending calls for that surface', () async {
+    processor.processMessages({
+      'version': '1.0',
+      'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
+    });
+    final SurfaceModel<ComponentApi> surface =
+        processor.model.getSurface('one')!;
+    final errors = <A2uiRendererError>[];
+    surface.onError.subscribe(errors.add);
+    final DataContext context =
+        ComponentContext(surface, ComponentModel('root', 'Text', {}))
+            .dataContext;
+    final ReadonlySignal<Object?> sig = context.resolveSignal({
+      '@call': 'remote',
+      'args': {'a': 1},
+    });
+    expect(sig.value, isNull);
+    expect(processor.rpc.pendingCallCount, 1);
+
+    processor.processMessages({
+      'version': '1.0',
+      'deleteSurface': {'surfaceId': 'one'},
+    });
+    expect(processor.rpc.pendingCallCount, 0);
+    await Future<void>.delayed(Duration.zero);
+    expect(errors, isEmpty);
+  });
+
   test('a surface created by the processor falls back to the agent', () async {
     processor.processMessages({
       'version': '1.0',

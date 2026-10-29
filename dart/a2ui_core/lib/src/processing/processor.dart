@@ -403,10 +403,10 @@ class MessageProcessor<T extends ComponentApi> {
   }) =>
       rpc.callAgentFunction(surfaceId, call, options: options);
 
-  /// Disposes the RPC layer, failing its pending calls, and every surface.
+  /// Disposes every surface and the RPC layer, failing its pending calls.
   void dispose() {
-    rpc.dispose();
     model.dispose();
+    rpc.dispose();
   }
 
   /// The items [payload] carries, each a raw envelope or a parsed message.
@@ -497,6 +497,7 @@ class MessageProcessor<T extends ComponentApi> {
         // An unknown surface id is a no-op, matching the conformance suite
         // and the TypeScript and Python SDKs.
         model.deleteSurface(operation.surfaceId);
+        rpc.cancelSurfaceCalls(operation.surfaceId);
       case CallRendererFunctionOp():
         if (_checksOnly) {
           _checkRendererFunctionCall(operation, isUserActivated);

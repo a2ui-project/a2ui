@@ -20,7 +20,7 @@ import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {isThenable, settleDeep} from '../common/settle_deep.js';
+import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {SpecVersion} from '../spec_versions.js';
 import {parseCatalogSchema} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
@@ -928,7 +928,11 @@ function createCatalogInvoker<F extends FunctionApi>(
         if (fn) {
           assertUserActivation(fn, ctx);
         }
-        const sendToAgent = (resolvedArgs: unknown): Promise<unknown> => {
+        const sendToAgent = (resolvedArgs: unknown): unknown => {
+          const failed = findFailedArgument(resolvedArgs);
+          if (failed) {
+            return failed;
+          }
           let args = (resolvedArgs ?? {}) as Record<string, unknown>;
           if (fn) {
             // A declared function's arguments are checked against its schema
@@ -946,7 +950,7 @@ function createCatalogInvoker<F extends FunctionApi>(
             // arguments, with the schema's defaults applied.
             args = parsed.data as Record<string, unknown>;
           }
-          return surface.callAgentFunction({'@call': name, catalogId, args});
+          return surface.callAgentFunction({'@call': name, catalogId, args}, abortSignal);
         };
         const settledArgs = settleDeep(rawArgs);
         if (!isThenable(settledArgs)) {
@@ -970,6 +974,10 @@ function createCatalogInvoker<F extends FunctionApi>(
     }
 
     const parseAndExecute = (resolvedArgs: unknown): unknown => {
+      const failed = findFailedArgument(resolvedArgs);
+      if (failed) {
+        return failed;
+      }
       try {
         // From v1.0 a `DynamicBoolean` argument may resolve to the
         // `ValidationResult` a validation function returns; it is read by its
