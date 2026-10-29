@@ -49,6 +49,7 @@ export 'src/processing/adapters/v0_9_adapter.dart';
 export 'src/processing/adapters/v1_0_adapter.dart';
 export 'src/processing/adapters/version_adapter.dart';
 // Processing & expressions.
+export 'src/processing/message_error_mapper.dart';
 export 'src/processing/operations.dart';
 export 'src/processing/processor.dart';
 // Resolution & rendering support.
