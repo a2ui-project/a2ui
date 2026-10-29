@@ -38,7 +38,6 @@ from a2ui.core import (
     STRICT_VALIDATION,
     SurfaceModel,
     ValidationConfig,
-    link_catalogs,
 )
 from a2ui.core.common import is_at_least_version, to_protocol_version
 from a2ui.core.processing import (
@@ -73,7 +72,7 @@ _MESSAGE_VERSIONS: dict[ProtocolVersion, frozenset[str]] = {
     ProtocolVersion.V0_8: frozenset(),
     ProtocolVersion.V0_9: frozenset({"v0.9", "v0.9.1"}),
     ProtocolVersion.V0_9_1: frozenset({"v0.9", "v0.9.1"}),
-    ProtocolVersion.V1_0: frozenset({"v1.0"}),
+    ProtocolVersion.V1_0: frozenset({"1.0"}),
 }
 
 _CREATE_ACTIONS = ("createSurface", "beginRendering")
@@ -177,7 +176,6 @@ class RendererState:
         """
         if not catalogs:
             raise A2uiCatalogError("A renderer state requires at least one catalog.")
-        catalogs = link_catalogs(catalogs)
         protocol_version = to_protocol_version(catalogs[0].protocol_version)
         for catalog in catalogs[1:]:
             other_version = to_protocol_version(catalog.protocol_version)
@@ -187,7 +185,7 @@ class RendererState:
                     f" '{catalogs[0].catalog_id}' targets {protocol_version.value} and"
                     f" '{catalog.catalog_id}' targets {other_version.value}."
                 )
-        self._catalogs = catalogs
+        self._catalogs = list(catalogs)
         self._protocol_version = protocol_version
         self._processor = MessageProcessor(
             self._catalogs,

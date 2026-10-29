@@ -92,7 +92,7 @@ jobs:
             --with ./python/a2ui_core --with ./python/a2ui_agent \
             python -c "
           import importlib.util
-          import a2ui.extensions.file_resolve, a2ui.inference_formats, a2ui.parser, a2ui.processor
+          import a2ui.inference_formats, a2ui.parser, a2ui.processor
           leaked = [m for m in ('a2a', 'google.adk', 'google.genai') if importlib.util.find_spec(m.split('.')[0]) and importlib.util.find_spec(m)]
           assert not leaked, f'a2ui-agent-sdk pulls in agent frameworks: {leaked}'
           "

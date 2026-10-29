@@ -95,11 +95,8 @@ typedef _CheckedBatch = ({
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> model;
 
-  /// The catalogs this processor supports, in the order given, each linked
-  /// with the others so a cross-catalog `$ref` resolves (see [linkCatalogs]).
-  ///
-  /// A catalog whose document references another catalog's is held as a
-  /// linked copy; the catalogs passed to the constructor are not changed.
+  /// The catalogs the processor was created with, in priority order. The
+  /// list cannot be modified.
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
   /// The protocol version this processor targets by default, or null for
@@ -127,6 +124,13 @@ class MessageProcessor<T extends ComponentApi> {
   /// batch and the schemas of declared component types are still checked.
   final ValidationConfig? validationConfig;
 
+  /// The validation config of the call in progress, which replaces
+  /// [validationConfig] while the call runs.
+  ValidationConfig? _callConfig;
+
+  /// The validation config the checks of the current call follow.
+  ValidationConfig? get _config => _callConfig ?? validationConfig;
+
   /// The shared `common_types.json` definitions the validators resolve
   /// against, for every protocol version, or null to use the copy this package
   /// publishes for each message's version.
@@ -134,8 +138,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// Pass an empty map to leave the shared types unchecked.
   final Map<String, Object?>? commonTypesSchema;
 
-  /// One validator per catalog and protocol version, built on first use.
-  final Map<(String, A2uiProtocolVersion),
+  /// One validator per catalog, protocol version and whether unknown
+  /// elements are allowed, built on first use.
+  final Map<(String, A2uiProtocolVersion, bool),
       PayloadValidator<T, FunctionImplementation>> _validators = {};
 
   /// Each catalog's child-reference fields, by catalog id, built on first use.
@@ -170,7 +175,7 @@ class MessageProcessor<T extends ComponentApi> {
     void Function(A2uiRendererAction)? onAction,
     OutboundMessageListener? outboundListener,
     Duration defaultTimeout = const Duration(seconds: 30),
-  })  : catalogs = linkCatalogs(catalogs),
+  })  : catalogs = List.unmodifiable(catalogs),
         adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
         model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
@@ -236,9 +241,12 @@ class MessageProcessor<T extends ComponentApi> {
   /// catalog from passing on a surface whose default is another, and what lets
   /// a v1.0 surface mix catalogs.
   ///
-  /// Built once per catalog and version and reused. The validator caches
-  /// resolved component schemas, which a fresh instance per batch would
-  /// rebuild on every message.
+  /// Built once per catalog, version and
+  /// [ValidationConfig.allowUnknownElements], and reused. The validator
+  /// caches resolved component schemas, which a fresh instance per batch
+  /// would rebuild on every message. It reads no other part of the config, so
+  /// a config passed to one call, which may be a new object each time, does
+  /// not build another.
   ///
   /// A v1.0 function call nested in a component runs in the catalog it
   /// resolves to, not necessarily the component's. The component's validator
@@ -251,19 +259,20 @@ class MessageProcessor<T extends ComponentApi> {
   PayloadValidator<T, FunctionImplementation> validatorFor(
     Catalog<T, FunctionImplementation> catalog, {
     A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
-  }) =>
-      _validators.putIfAbsent(
-        (catalog.id, version),
-        () => PayloadValidator<T, FunctionImplementation>(
-          catalog: catalog,
-          commonTypesSchema: commonTypesSchema,
-          protocolVersion: version,
-          // Without a config nothing is being validated against the graph,
-          // and an undeclared type is tolerated too.
-          config: validationConfig ??
-              const ValidationConfig(allowUnknownElements: true),
-        ),
-      );
+  }) {
+    // Without a config nothing is being validated against the graph, and an
+    // undeclared type is tolerated too.
+    final bool allowUnknown = _config?.allowUnknownElements ?? true;
+    return _validators.putIfAbsent(
+      (catalog.id, version, allowUnknown),
+      () => PayloadValidator<T, FunctionImplementation>(
+        catalog: catalog,
+        commonTypesSchema: commonTypesSchema,
+        protocolVersion: version,
+        config: ValidationConfig(allowUnknownElements: allowUnknown),
+      ),
+    );
+  }
 
   /// The supported catalog with [catalogId].
   ///
@@ -300,6 +309,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// [ValidationConfig.allowDanglingReferences], or both in one message, or
   /// no config.
   ///
+  /// Errors and warnings that surfaces report while a message is applied
+  /// reach their listeners in a microtask after this returns or throws.
+  ///
   /// Throws [A2uiValidationError] for a payload of any other shape, an
   /// envelope that is not a well-formed message of the version it declares, a
   /// version no adapter in [adapterRegistry] serves, a component that does not
@@ -315,16 +327,26 @@ class MessageProcessor<T extends ComponentApi> {
   /// [isUserActivated] tells it whether the payload is being handled within
   /// a user activation, which a function that requires one needs. Use
   /// [processMessagesAsync] to wait for the answer.
-  void processMessages(Object? payload, {bool isUserActivated = false}) {
-    final List<_RoutedMessage> routed = [
-      for (final Object? item in _itemsOf(payload)) _route(item),
-    ];
-    for (final message in routed) {
-      for (final Future<void>? work in _apply(message, isUserActivated)) {
-        // Never fails: handleCallRendererFunction answers errors instead.
-        if (work != null) unawaited(work);
+  ///
+  /// A [validationConfig] replaces the processor's own for this call. An
+  /// agent that checks its messages against a renderer's processor passes
+  /// the checks it makes, whatever the renderer was created with.
+  void processMessages(
+    Object? payload, {
+    bool isUserActivated = false,
+    ValidationConfig? validationConfig,
+  }) {
+    _withConfig(validationConfig, () {
+      final List<_RoutedMessage> routed = [
+        for (final Object? item in _itemsOf(payload)) _route(item),
+      ];
+      for (final message in routed) {
+        for (final Future<void>? work in _apply(message, isUserActivated)) {
+          // Never fails: handleCallRendererFunction answers errors instead.
+          if (work != null) unawaited(work);
+        }
       }
-    }
+    });
   }
 
   /// [processMessages], for messages whose operations complete
@@ -334,17 +356,40 @@ class MessageProcessor<T extends ComponentApi> {
   /// and its `rendererFunctionResponse` emitted; the other operations are
   /// applied as [processMessages] applies them, and a failure of theirs fails
   /// the returned future.
+  ///
+  /// A [validationConfig] replaces the processor's own while each message is
+  /// checked and applied, as for [processMessages]. The call does not hold
+  /// it across the waits for function calls.
   Future<void> processMessagesAsync(
     Object? payload, {
     bool isUserActivated = false,
+    ValidationConfig? validationConfig,
   }) async {
-    final List<_RoutedMessage> routed = [
-      for (final Object? item in _itemsOf(payload)) _route(item),
-    ];
+    final List<_RoutedMessage> routed = _withConfig(
+      validationConfig,
+      () => [for (final Object? item in _itemsOf(payload)) _route(item)],
+    );
     for (final message in routed) {
-      for (final Future<void>? work in _apply(message, isUserActivated)) {
+      final List<Future<void>?> started = _withConfig(
+        validationConfig,
+        () => _apply(message, isUserActivated),
+      );
+      for (final work in started) {
         if (work != null) await work;
       }
+    }
+  }
+
+  /// Runs [body] under [config], when given, in place of the processor's own
+  /// config. [body] must be synchronous.
+  R _withConfig<R>(ValidationConfig? config, R Function() body) {
+    if (config == null) return body();
+    final ValidationConfig? outer = _callConfig;
+    _callConfig = config;
+    try {
+      return body();
+    } finally {
+      _callConfig = outer;
     }
   }
 
@@ -413,7 +458,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// Applies [message]'s operations in order and returns, for each, the
   /// asynchronous work it started, or null for one that completed in place.
   List<Future<void>?> _apply(_RoutedMessage message, bool isUserActivated) {
-    final List<String>? allowed = validationConfig?.allowedMessages;
+    final List<String>? allowed = _config?.allowedMessages;
     if (allowed != null) {
       for (final InternalOperation operation in message.operations) {
         if (!allowed.contains(operation.messageType)) {
@@ -428,7 +473,7 @@ class MessageProcessor<T extends ComponentApi> {
     // Data-model paths and nested function calls, which need no surface state
     // and so are checked for every message before it is applied. Part of the
     // validation a config turns on.
-    if (validationConfig != null) {
+    if (_config != null) {
       checkPathsAndRecursion(message.json);
     }
 
@@ -664,7 +709,7 @@ class MessageProcessor<T extends ComponentApi> {
       theme: operation.theme ?? {},
       sendDataModel: operation.sendDataModel,
       protocolVersion: operation.version.jsonValue,
-      rootId: validationConfig?.rootId ?? 'root',
+      rootId: _config?.rootId ?? 'root',
       metadata: operation.metadata,
       callAgentFunction: (call) =>
           rpc.callAgentFunction(operation.surfaceId, call),
@@ -854,7 +899,7 @@ class MessageProcessor<T extends ComponentApi> {
       surface,
       catalogIds,
     );
-    final ValidationConfig? config = validationConfig;
+    final ValidationConfig? config = _config;
     ComponentGraphBound? bound;
     if (config == null) {
       checkDuplicateComponentIds(resolved);

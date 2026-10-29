@@ -15,17 +15,20 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 
 import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/data_model.dart';
 import '../core/surface_model.dart';
+import '../core/validation_result.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../validation/component_graph.dart' show maxFunctionCallArgs;
 import '../validation/schema_resolution.dart';
+import 'validation_result_coercion.dart';
 
 /// A function that invokes a catalog function by name.
 typedef FunctionInvoker = Object? Function(
@@ -1137,6 +1140,11 @@ extension CatalogInvokerExtension
   /// A null argument is an unresolved value, such as a binding to data that
   /// is not there yet, so it is left for the function to handle rather than
   /// checked against the schema.
+  ///
+  /// From v1.0 an argument the schema types as `DynamicBoolean` may resolve
+  /// to the `ValidationResult` a validation function returns; it is read by
+  /// its validity, as the specification defines the type (see
+  /// [coerceValidationResults]).
   Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
     final FunctionImplementation? fn = functions[name];
     if (fn == null) {
@@ -1159,16 +1167,21 @@ extension CatalogInvokerExtension
         expression: name,
       );
     }
-    final List<ValidationError> errors = argumentErrors(fn, args);
+    final bool atLeastV10 =
+        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+    final Map<String, dynamic> callArgs = atLeastV10
+        ? coerceValidationResultArgs(fn.argumentSchema.value, args)
+        : args;
+    final List<ValidationError> errors = argumentErrors(fn, callArgs);
     if (errors.isNotEmpty) {
       throw A2uiExpressionError(
         "Arguments to '$name' do not match its schema in catalog '$id': "
         '${errors.map((e) => e.toErrorString()).join('; ')}',
         expression: name,
-        details: args,
+        details: callArgs,
       );
     }
-    return fn.execute(args, context);
+    return fn.execute(callArgs, context);
   }
 
   /// The argument schema of [fn] with its references resolved, so that a
@@ -1180,21 +1193,46 @@ extension CatalogInvokerExtension
   Map<String, Object?> _resolvedArgumentSchema(FunctionImplementation fn) {
     final Map<FunctionImplementation, Map<String, Object?>> byFunction =
         _resolvedArgumentSchemas[this] ??= Map.identity();
-    return byFunction[fn] ??= resolveSchemaRefs(
+    return byFunction[fn] ??= _resolveArgumentSchema(fn);
+  }
+
+  /// The argument schema of [fn] with its references resolved and, in a
+  /// catalog for v1.0 or later, each boolean position also accepting an
+  /// object with a boolean `valid`, as a DynamicBoolean coerces one to that
+  /// boolean.
+  Map<String, Object?> _resolveArgumentSchema(FunctionImplementation fn) {
+    final Map<String, Object?> schema = resolveSchemaRefs(
       fn.argumentSchema.value,
       validationSchema,
       commonTypes: commonTypesSchema,
     );
+    final A2uiProtocolVersion? version = protocolVersion;
+    if (version == null || !version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+      return schema;
+    }
+    return _withValidityInBooleans(schema) as Map<String, Object?>;
   }
 
   /// The ways [args] fail [fn]'s argument schema, or an empty list when they
-  /// match. Null arguments are left unchecked, as in [invoke].
+  /// match. Null arguments are left unchecked, as in [invoke], and a
+  /// [ValidationResult] is checked as its JSON object.
   List<ValidationError> argumentErrors(
     FunctionImplementation fn,
     Map<String, dynamic> args,
+  ) =>
+      _errorsOf(fn, {
+        for (final MapEntry<String, dynamic> entry in args.entries)
+          entry.key: _asJson(entry.value),
+      });
+
+  /// The ways [args] fail [fn]'s argument schema, leaving null arguments
+  /// unchecked.
+  List<ValidationError> _errorsOf(
+    FunctionImplementation fn,
+    Map<String, Object?> args,
   ) {
     final Set<String> unresolved = {
-      for (final MapEntry<String, dynamic> entry in args.entries)
+      for (final MapEntry<String, Object?> entry in args.entries)
         if (entry.value == null) entry.key,
     };
     final Map<String, Object?> schema = _resolvedArgumentSchema(fn);
@@ -1208,8 +1246,61 @@ extension CatalogInvokerExtension
             if (!unresolved.contains(key)) key,
         ],
     }).validateSync({
-      for (final MapEntry<String, dynamic> entry in args.entries)
+      for (final MapEntry<String, Object?> entry in args.entries)
         if (entry.value != null) entry.key: entry.value,
     });
   }
+
+  /// [value] with each [ValidationResult] in it, at any depth, replaced by its
+  /// JSON object.
+  static Object? _asJson(Object? value) => switch (value) {
+        final ValidationResult result => result.toJson(),
+        final List<Object?> list => [
+            for (final Object? item in list) _asJson(item),
+          ],
+        final Map<String, Object?> map => <String, Object?>{
+            for (final MapEntry<String, Object?> entry in map.entries)
+              entry.key: _asJson(entry.value),
+          },
+        _ => value,
+      };
+
+  /// [schema] with each boolean position in it, at any depth, also accepting
+  /// an object with a boolean `valid`, unless it is a branch of a `oneOf`
+  /// that already accepts any `object` (such as `DynamicValue`).
+  static Object? _withValidityInBooleans(Object? schema) => switch (schema) {
+        {'type': 'boolean'} => {
+            'anyOf': [schema, _validityObject],
+          },
+        final Map<String, Object?> map => <String, Object?>{
+            for (final MapEntry<String, Object?> entry in map.entries)
+              entry.key: entry.key == 'oneOf' &&
+                      entry.value is List<Object?> &&
+                      _acceptsAnyObject(entry.value! as List<Object?>)
+                  ? entry.value
+                  : _withValidityInBooleans(entry.value),
+          },
+        final List<Object?> list => [
+            for (final Object? item in list) _withValidityInBooleans(item),
+          ],
+        _ => schema,
+      };
+
+  static bool _acceptsAnyObject(List<Object?> branches) => branches.any(
+        (Object? branch) =>
+            branch is Map &&
+            branch['type'] == 'object' &&
+            !branch.containsKey('properties') &&
+            !branch.containsKey('required'),
+      );
 }
+
+/// The schema of an object with a boolean `valid`, which a DynamicBoolean
+/// coerces to that boolean.
+const Map<String, Object?> _validityObject = {
+  'type': 'object',
+  'properties': {
+    'valid': {'type': 'boolean'},
+  },
+  'required': ['valid'],
+};

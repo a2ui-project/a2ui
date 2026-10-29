@@ -19,12 +19,11 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import (
     DEFAULT_PROGRESSIVE_KEYS,
+    DEFAULT_WORKFLOW_RULES,
     DirectJsonFormat,
     DirectJsonParser,
 )
-from a2ui.adk import A2uiPartConverter
 from a2ui.utils import resolve_catalogs
-from google.genai import types as genai_types
 from a2ui.inference_formats.express import ExpressFormat, ExpressParser
 from a2ui.inference_formats.experimental.elemental import (
     ElementalFormat,
@@ -76,12 +75,61 @@ def test_schema_strategy_prompt_shows_the_protocol_schemas_once(test_catalog):
     )
 
     prompt = direct_json_format.prompt_generator.generate()
+    base_rules = direct_json_format.prompt_generator.generate_base_rules()
     instructions = direct_json_format.prompt_generator.generate_catalog_instructions()
 
-    for text in (prompt, instructions):
+    for text in (prompt, base_rules + instructions):
         assert text.count("### Agent to Renderer Schema:") == 1
         assert text.count("### Common Types Schema:") <= 1
         assert text.count("### Catalog Schema:") == 2
+
+
+def test_schema_strategy_base_rules_hold_the_protocol_schemas(test_catalog):
+    generator = DirectJsonFormat(
+        [test_catalog, BasicCatalog(ProtocolVersion.V0_9)]
+    ).prompt_generator
+
+    base_rules = generator.generate_base_rules()
+    assert base_rules.startswith(DEFAULT_WORKFLOW_RULES)
+    assert "### Agent to Renderer Schema:" in base_rules
+    assert "### Catalog Schema:" not in base_rules
+
+    for catalog in (None, test_catalog):
+        instructions = generator.generate_catalog_instructions(catalog=catalog)
+        assert "### Agent to Renderer Schema:" not in instructions
+        assert "### Common Types Schema:" not in instructions
+    assert (
+        generator.generate_catalog_instructions(catalog=test_catalog).count(
+            "### Catalog Schema:"
+        )
+        == 1
+    )
+
+
+def test_schema_strategy_base_rules_keep_only_the_allowed_messages(
+    test_catalog,
+):
+    generator = DirectJsonFormat([test_catalog]).prompt_generator
+    pruned_generator = DirectJsonFormat(
+        [test_catalog], allowed_messages=["CreateSurfaceMessage"]
+    ).prompt_generator
+
+    every_message = generator.generate_base_rules()
+    overridden = generator.generate_base_rules(
+        allowed_messages=["CreateSurfaceMessage"]
+    )
+
+    assert "UpdateDataModelMessage" in every_message
+    assert "CreateSurfaceMessage" in overridden
+    assert "UpdateDataModelMessage" not in overridden
+    # The generator's own allowlist is the default, and the argument overrides it.
+    assert pruned_generator.generate_base_rules() == overridden
+    assert (
+        pruned_generator.generate_base_rules(
+            allowed_messages=["CreateSurfaceMessage", "UpdateDataModelMessage"]
+        ).count("UpdateDataModelMessage")
+        > 0
+    )
 
 
 def test_schema_parser(test_catalog):
@@ -109,23 +157,13 @@ def test_schema_parser_with_nested_close_tag(test_catalog):
     parser = DirectJsonParser([test_catalog])
     # The JSON string literal itself contains '</a2ui-json>'
     response = (
-        "<a2ui-json>[{\n"
-        '  "version": "v0.9",\n'
-        '  "createSurface": {\n'
-        '    "surfaceId": "main",\n'
-        '    "catalogId": "https://a2ui.org/test_catalog"\n'
-        "  }\n"
-        "}, {\n"
-        '  "version": "v0.9",\n'
-        '  "updateComponents": {\n'
-        '    "surfaceId": "main",\n'
-        '    "components": [{\n'
-        '      "id": "root",\n'
-        '      "component": "Text",\n'
-        '      "text": "This is a literal close tag: </a2ui-json> inside a string."\n'
-        "    }]\n"
-        "  }\n"
-        "}]</a2ui-json>"
+        '<a2ui-json>[{\n  "version": "v0.9",\n  "createSurface": {\n   '
+        ' "surfaceId": "main",\n    "catalogId":'
+        ' "https://a2ui.org/test_catalog"\n  }\n}, {\n  "version": "v0.9",\n '
+        ' "updateComponents": {\n    "surfaceId": "main",\n    "components": [{\n'
+        '      "id": "root",\n      "component": "Text",\n      "text": "This is'
+        ' a literal close tag: </a2ui-json> inside a string."\n    }]\n '
+        " }\n}]</a2ui-json>"
     )
     parsed = parser.parse_response(response)
     assert len(parsed) == 1
@@ -298,8 +336,9 @@ def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
 
 _CUT_TEXT_CHUNK = (
     '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1",'
-    ' "catalogId": "%s"}}, {"version": "v0.9", "updateComponents": {"surfaceId":'
-    ' "s1", "components": [{"id": "root", "component": "Text", "text": "Hel'
+    ' "catalogId": "%s"}}, {"version": "v0.9", "updateComponents":'
+    ' {"surfaceId": "s1", "components": [{"id": "root", "component": "Text",'
+    ' "text": "Hel'
 )
 
 

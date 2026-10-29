@@ -24,6 +24,7 @@ from a2a.types import Part
 import pytest
 
 from a2ui.a2a import (
+    create_a2ui_part,
     is_a2ui_part,
     parse_content_to_parts,
     stream_response_to_parts,
@@ -88,22 +89,26 @@ def test_to_a2a_parts_splits_messages_and_drops_empty_text():
     assert all(is_a2ui_part(part) for part in parts[1:])
 
 
-def test_parse_content_to_parts_falls_back_when_the_response_is_invalid():
+def test_parse_content_to_parts_falls_back_when_the_response_is_invalid(caplog):
     """A response that updates an unknown surface is dropped, not raised."""
     update = {
         "version": "v0.9",
         "updateComponents": {
-            "surfaceId": "unknown",
+            "surfaceId": "secret-surface",
             "components": [{"id": "root", "component": "Text", "text": "Hi"}],
         },
     }
     content = f"<a2ui-json>{json.dumps([update])}</a2ui-json>"
 
-    parts = parse_content_to_parts(
-        content, DirectJsonParser([_BASIC]), fallback_text="OK."
-    )
+    with caplog.at_level("WARNING"):
+        parts = parse_content_to_parts(
+            content, DirectJsonParser([_BASIC]), fallback_text="OK."
+        )
 
     assert [part.root.text for part in parts] == ["OK."]
+    # The error may quote the response, so only its type is logged.
+    assert "Failed to parse A2UI response" in caplog.text
+    assert "secret-surface" not in caplog.text
 
 
 def test_parse_content_to_parts_checks_a_canvas_turn_against_its_state():
@@ -116,11 +121,16 @@ def test_parse_content_to_parts_checks_a_canvas_turn_against_its_state():
         "updateComponents": {"surfaceId": "s", "components": [root]},
     }
     parse_content_to_parts(
-        f"<a2ui-json>{json.dumps([_CREATE, update])}</a2ui-json>", parser, state=state
+        f"<a2ui-json>{json.dumps([_CREATE, update])}</a2ui-json>",
+        parser,
+        state=state,
     )
     changed = {
         **update,
-        "updateComponents": {"surfaceId": "s", "components": [{**root, "text": "Bye"}]},
+        "updateComponents": {
+            "surfaceId": "s",
+            "components": [{**root, "text": "Bye"}],
+        },
     }
 
     parts = parse_content_to_parts(
@@ -128,3 +138,18 @@ def test_parse_content_to_parts_checks_a_canvas_turn_against_its_state():
     )
 
     assert [part.root.data for part in parts] == [changed]
+
+
+def test_create_a2ui_part_defaults_to_the_messages_version():
+    v0_9_1 = {"version": "v0.9.1", "deleteSurface": {"surfaceId": "s"}}
+    v0_9 = {"version": "v0.9", "deleteSurface": {"surfaceId": "s"}}
+    v0_8 = {"deleteSurface": {"surfaceId": "s"}}
+
+    def mime(part):
+        return part.root.metadata["mimeType"]
+
+    assert mime(create_a2ui_part(v0_9_1)) == "application/a2ui+json"
+    assert mime(create_a2ui_part(v0_9)) == "application/json+a2ui"
+    assert mime(create_a2ui_part(v0_8)) == "application/json+a2ui"
+    # An explicit version still wins.
+    assert mime(create_a2ui_part(v0_9_1, version="0.9")) == "application/json+a2ui"

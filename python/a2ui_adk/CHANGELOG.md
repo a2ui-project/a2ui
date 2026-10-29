@@ -1,10 +1,62 @@
 ## Unreleased
 
-- **BREAKING**: `A2uiPartConverter` checks text-based A2UI as a response that
-  shows new UI, so a response that updates a surface it does not create is
-  rejected and logged instead of converted. Tool-based A2UI from
-  `SendA2uiToClientToolset` is still checked with `validate_payload`, which
-  assumes such a surface exists.
+- **BREAKING CHANGE**: `GenAIFileResolver` is removed, along with the
+  `FileResolver` it extended in `a2ui-agent-sdk`.
+  [#3731](https://github.com/a2ui-project/a2ui/pull/3731)
+- **BREAKING CHANGE**: `SendA2uiToClientToolset(a2ui_enabled, a2ui_processor)`
+  takes the request's `A2uiRequestProcessor`, or an `A2uiProcessorProvider`
+  that returns it per context, instead of catalogs and examples. The processor
+  holds the catalogs, the example turns, the inference format and, for a canvas
+  agent, the bound `RendererState`. `A2uiCatalogsProvider` and
+  `A2uiExamplesProvider` are removed; markdown examples are no longer accepted,
+  so pass example turns to `A2uiGenerator` or `A2uiRequestProcessor`. To
+  migrate, put `generator.create_processor(capabilities)` in an
+  `A2uiProcessorStore` and pass `A2uiProcessorStore.get` as the
+  provider. A canvas agent binds its `RendererState` to the processor it puts
+  there.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- **BREAKING CHANGE**: The tool reads its argument, renamed from `a2ui_json` to
+  `a2ui_payload`, in the processor's inference format (Express by default)
+  instead of always reading JSON. It compiles the payload with the format's
+  parser, no longer with `parse_and_fix`, validates it against the processor's
+  bound state or, without one, with `validate_payload`, and still returns A2UI
+  JSON messages for the part converter. The prompt it adds comes from the
+  format's prompt generator, and it skips each section (rules, catalogs,
+  examples) that the agent's system instruction already holds, such as when the
+  instruction includes `processor.prompt_snippet`.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- **BREAKING CHANGE**: `A2uiPartConverter` takes the processor, plus the
+  keyword arguments `bypass_tool_check` and `fallback_text`, instead of
+  `catalogs`, `parser`, `version` and `state`. It reads text-based A2UI with the
+  processor's parser and checks it against the processor's bound state, as a
+  response that shows new UI when there is none, so a response that updates a
+  surface it does not create is then rejected and logged. Each part is labeled
+  with its message's protocol version.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- **BREAKING CHANGE**: `A2uiEventConverter` takes the request's processor, or
+  a provider that returns it or None, in the required keyword argument
+  `a2ui_processor`, instead of reading catalogs from session state. Its
+  `catalogs_key` argument and the `system:a2ui_catalogs` key are removed. When
+  the processor's format can stream, it opens one `ResponseStream` per
+  response, feeds it each partial ADK event, and closes it on the final event.
+  A response is keyed by its invocation and its event's branch or author, so
+  the sub-agents of a `ParallelAgent` don't share a stream. A stream that gets
+  no event for `stream_idle_timeout` seconds (600 by default), as when a run is
+  cancelled, is dropped.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `A2uiProcessorStore` keeps each session's request processor in memory, since
+  ADK's persistent session services save state as JSON and can't hold one. Its
+  `get` and `is_enabled` methods are providers for `SendA2uiToClientToolset`
+  and `A2uiEventConverter`.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `SendA2uiToClientToolset` and `A2uiEventConverter` log a warning when they
+  get one processor for every request with a `RendererState` bound to it,
+  since every conversation would share that state.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- Tool and parse errors, which may quote the A2UI payload, are logged by type
+  at warning level and in full only at debug level.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 
 ## 0.1.0 (2026-10-17)
 

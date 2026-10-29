@@ -53,7 +53,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       if let rawCatalogID = actionObject["catalogId"], rawCatalogID != .null {
         guard let str = rawCatalogID.stringValue, !str.isEmpty else {
           throw A2UIValidationError(
-            "Invalid v1.0 message: createSurface.catalogId must be a non-empty string",
+            "Invalid 1.0 message: createSurface.catalogId must be a non-empty string",
             details: [
               A2UIErrorDetail(
                 path: "messages.0.createSurface.catalogId",
@@ -69,7 +69,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       if let rawSend = actionObject["sendDataModel"], rawSend != .null {
         guard let boolVal = rawSend.boolValue else {
           throw A2UIValidationError(
-            "Invalid v1.0 message: createSurface.sendDataModel must be a boolean",
+            "Invalid 1.0 message: createSurface.sendDataModel must be a boolean",
             details: [
               A2UIErrorDetail(
                 path: "messages.0.createSurface.sendDataModel",
@@ -88,7 +88,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       if let rawDataModel = actionObject["dataModel"], rawDataModel != .null {
         guard let dmObj = rawDataModel.objectValue else {
           throw A2UIValidationError(
-            "Invalid v1.0 message: createSurface.dataModel must be an object",
+            "Invalid 1.0 message: createSurface.dataModel must be an object",
             details: [
               A2UIErrorDetail(
                 path: "messages.0.createSurface.dataModel",
@@ -135,7 +135,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
       guard let componentsValue = actionObject["components"] else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: updateComponents.components is required",
+          "Invalid 1.0 message: updateComponents.components is required",
           details: [
             A2UIErrorDetail(
               path: "messages.0.updateComponents.components",
@@ -166,7 +166,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       if let rawPath = actionObject["path"], rawPath != .null {
         guard let pathStr = rawPath.stringValue else {
           throw A2UIValidationError(
-            "Invalid v1.0 message: updateDataModel.path must be a string",
+            "Invalid 1.0 message: updateDataModel.path must be a string",
             details: [
               A2UIErrorDetail(
                 path: "messages.0.updateDataModel.path",
@@ -178,7 +178,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         }
         if !pathStr.isEmpty && !pathStr.hasPrefix("/") {
           throw A2UIValidationError(
-            "Invalid v1.0 message: updateDataModel.path must start with '/'",
+            "Invalid 1.0 message: updateDataModel.path must start with '/'",
             details: [
               A2UIErrorDetail(
                 path: "messages.0.updateDataModel.path",
@@ -194,7 +194,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       }
       guard let value = actionObject["value"] else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: updateDataModel.value is required",
+          "Invalid 1.0 message: updateDataModel.value is required",
           details: [
             A2UIErrorDetail(
               path: "messages.0.updateDataModel.value",
@@ -237,7 +237,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       if let rawSurfaceID = actionObject["surfaceId"] {
         guard let str = rawSurfaceID.stringValue else {
           throw A2UIValidationError(
-            "Invalid v1.0 message: callRendererFunction.surfaceId must be a string",
+            "Invalid 1.0 message: callRendererFunction.surfaceId must be a string",
             details: [
               A2UIErrorDetail(
                 path: "messages.0.callRendererFunction.surfaceId",
@@ -253,7 +253,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         !functionCallID.isEmpty
       else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: callRendererFunction.functionCallId is required",
+          "Invalid 1.0 message: callRendererFunction.functionCallId is required",
           details: [
             A2UIErrorDetail(
               path: "messages.0.callRendererFunction.functionCallId",
@@ -268,7 +268,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         !call.isEmpty
       else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: callRendererFunction.callFunction.call is required",
+          "Invalid 1.0 message: callRendererFunction.callFunction.call is required",
           details: [
             A2UIErrorDetail(
               path: "messages.0.callRendererFunction.callFunction.call",
@@ -283,7 +283,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         !catalogID.isEmpty
       else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: callRendererFunction.callFunction.catalogId is required",
+          "Invalid 1.0 message: callRendererFunction.callFunction.catalogId is required",
           details: [
             A2UIErrorDetail(
               path: "messages.0.callRendererFunction.callFunction.catalogId",
@@ -299,7 +299,6 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       let args: [String: JSONValue]? = callFunctionObj["args"]?.objectValue.map {
         Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
       }
-      let returnType = callFunctionObj["returnType"]?.stringValue
       return [
         .callRendererFunction(
           InternalCallRendererFunctionOp(
@@ -308,8 +307,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
             call: call,
             version: .v10,
             catalogID: catalogID,
-            args: args,
-            returnType: returnType
+            args: args
           )
         )
       ]
@@ -324,7 +322,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         !functionCallID.isEmpty
       else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: agentFunctionResponse.functionCallId is required",
+          "Invalid 1.0 message: agentFunctionResponse.functionCallId is required",
           details: [
             A2UIErrorDetail(
               path: "messages.0.agentFunctionResponse.functionCallId",
@@ -338,7 +336,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       let hasError = actionObject["error"] != nil
       if !hasValue && !hasError {
         throw A2UIValidationError(
-          "Invalid v1.0 message: agentFunctionResponse must contain either 'value' or 'error'",
+          "Invalid 1.0 message: agentFunctionResponse must contain either 'value' or 'error'",
           details: [
             A2UIErrorDetail(
               path: "messages.0.agentFunctionResponse",
@@ -350,7 +348,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       }
       if hasValue && hasError {
         throw A2UIValidationError(
-          "Invalid v1.0 message: agentFunctionResponse cannot contain both 'value' and 'error'",
+          "Invalid 1.0 message: agentFunctionResponse cannot contain both 'value' and 'error'",
           details: [
             A2UIErrorDetail(
               path: "messages.0.agentFunctionResponse",
@@ -369,7 +367,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
           let errMessage = errObj["message"]?.stringValue
         else {
           throw A2UIValidationError(
-            "Invalid v1.0 message: agentFunctionResponse.error must be an object with 'code' and 'message'",
+            "Invalid 1.0 message: agentFunctionResponse.error must be an object with 'code' and 'message'",
             details: [
               A2UIErrorDetail(
                 path: "messages.0.agentFunctionResponse.error",
@@ -406,7 +404,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     }
     guard !components.isEmpty else {
       throw A2UIValidationError(
-        "Invalid v1.0 message: \(action).components must contain at least 1 item",
+        "Invalid 1.0 message: \(action).components must contain at least 1 item",
         details: [
           A2UIErrorDetail(
             path: "messages.0.\(action).components",
@@ -448,7 +446,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
   ) throws -> [String: JSONValue] {
     guard let metaObj = rawMetadata.objectValue else {
       throw A2UIValidationError(
-        "Invalid v1.0 message: metadata must be an object",
+        "Invalid 1.0 message: metadata must be an object",
         details: [
           A2UIErrorDetail(
             path: pathPrefix,
@@ -460,7 +458,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     }
     for key in metaObj.keys where key != "extensions" {
       throw A2UIValidationError(
-        "Invalid v1.0 message: unrecognized property '\(key)' in metadata",
+        "Invalid 1.0 message: unrecognized property '\(key)' in metadata",
         details: [
           A2UIErrorDetail(
             path: "\(pathPrefix).\(key)",
@@ -473,7 +471,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     if let rawExtensions = metaObj["extensions"], rawExtensions != .null {
       guard let extObj = rawExtensions.objectValue else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: metadata.extensions must be an object",
+          "Invalid 1.0 message: metadata.extensions must be an object",
           details: [
             A2UIErrorDetail(
               path: "\(pathPrefix).extensions",

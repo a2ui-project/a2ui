@@ -1,0 +1,187 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* ==========================================================================
+   Starlight Global Theme Tokens & Markdown Polish (Matched to Front Page)
+   ========================================================================== */
+
+:root {
+  --sl-font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Dark mode palette — matches index.astro (#090d16 / #111827 / #14b8a6) */
+  --sl-color-accent-low: #0d3b38;
+  --sl-color-accent: #14b8a6;
+  --sl-color-accent-high: #5eead4;
+  --sl-color-text-accent: #2dd4bf;
+  --sl-color-bg: #090d16;
+  --sl-color-bg-nav: rgba(9, 13, 22, 0.92);
+  --sl-color-bg-sidebar: #0c121e;
+  --sl-color-hairline-shade: #1e293b;
+  --sl-color-hairline-light: #1e293b;
+  --sl-color-hairline: #1e293b;
+  --sl-nav-height: 60px;
+  --sl-nav-pad-x: 24px;
+  --sl-nav-pad-y: 0px;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ccfbf1;
+  --sl-color-accent: #0d9488;
+  --sl-color-accent-high: #0f766e;
+  --sl-color-text-accent: #0d9488;
+  --sl-color-bg: #f8fafc;
+  --sl-color-bg-nav: rgba(248, 250, 252, 0.92);
+  --sl-color-bg-sidebar: #f1f5f9;
+  --sl-color-hairline-shade: #e2e8f0;
+  --sl-color-hairline-light: #e2e8f0;
+  --sl-color-hairline: #e2e8f0;
+}
+
+/* Header & Sidebar visual alignment with landing page */
+header.header {
+  height: 60px !important;
+  padding: 0 24px !important;
+  box-sizing: border-box;
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+
+.site-title {
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  gap: 0.55rem;
+  color: var(--sl-color-white) !important;
+}
+
+.site-title:hover {
+  color: var(--sl-color-text-accent) !important;
+}
+
+.site-title img {
+  height: 1.55rem;
+  width: auto;
+}
+
+/* Subtle active state in sidebar instead of harsh solid block */
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus {
+  background-color: rgba(20, 184, 166, 0.14);
+  color: var(--sl-color-text-accent);
+  border-left: 2px solid var(--sl-color-accent);
+  font-weight: 600;
+}
+
+/* Polished Markdown typography & tables */
+.sl-markdown-content {
+  font-size: 0.98rem;
+  line-height: 1.74;
+}
+
+.content-panel h1 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.sl-markdown-content h2 {
+  font-weight: 700;
+  margin-top: 2.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  letter-spacing: -0.02em;
+}
+
+.sl-markdown-content h3 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.sl-markdown-content code:not(pre code) {
+  font-family: var(--sl-font-mono);
+  font-size: 0.86em;
+  padding: 0.18em 0.42em;
+  border-radius: 5px;
+  background: rgba(20, 184, 166, 0.1);
+  border: 1px solid rgba(20, 184, 166, 0.22);
+}
+
+:root[data-theme='light'] .sl-markdown-content code:not(pre code) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.sl-markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.92rem;
+}
+
+.sl-markdown-content th {
+  background: var(--sl-color-bg-sidebar);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* GitHub-flavored alert callouts rendered by remark-a2ui-includes */
+.a2-callout {
+  margin: 1.35rem 0;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid rgba(20, 184, 166, 0.28);
+  border-left: 4px solid var(--sl-color-accent);
+  background: rgba(20, 184, 166, 0.07);
+}
+
+.a2-callout__title {
+  font-family: var(--sl-font-mono);
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.35rem;
+  color: var(--sl-color-text-accent);
+}
+
+.a2-callout--caution {
+  border-color: rgba(245, 158, 11, 0.28);
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.07);
+}
+
+.a2-callout--caution .a2-callout__title {
+  color: #f59e0b;
+}
+
+:root[data-theme='light'] .a2-callout--caution .a2-callout__title {
+  color: #b45309;
+}
+
+.a2-callout--danger {
+  border-color: rgba(239, 68, 68, 0.28);
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.07);
+}
+
+.a2-callout--danger .a2-callout__title {
+  color: #ef4444;
+}

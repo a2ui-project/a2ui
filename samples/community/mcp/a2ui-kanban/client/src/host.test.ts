@@ -73,9 +73,9 @@ function moveCard(board: Board, taskId: string, toColumn: string): Board {
 /** What the scripted Python agent sends for "show me the board" (see a2ui_messages.py). */
 function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
   return [
-    {version: 'v1.0', createSurface: {surfaceId: 'kanban', catalogId: BASIC_CATALOG_ID}},
+    {version: '1.0', createSurface: {surfaceId: 'kanban', catalogId: BASIC_CATALOG_ID}},
     {
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {
         surfaceId: 'kanban',
         path: '/kanban',
@@ -88,7 +88,7 @@ function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
       },
     },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId: 'kanban',
         components: [
@@ -202,7 +202,7 @@ describe('KanbanHost', () => {
       texts: ['Moved Write docs to Todo.'],
       a2uiMessages: [
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'kanban',
             path: BOARD_PATH,
@@ -247,7 +247,7 @@ describe('KanbanHost', () => {
       text: 'Who owns the selected card and when is it due?',
     });
     const [rendererDataModel] = dataParts(parts);
-    expect(rendererDataModel['version']).toBe('v1.0');
+    expect(rendererDataModel['version']).toBe('1.0');
     const kanban = (rendererDataModel['surfaces'] as {kanban: {kanban: Record<string, unknown>}})
       .kanban.kanban;
     expect(kanban['modelContext']).toEqual(modelContext);
@@ -296,7 +296,7 @@ describe('KanbanHost', () => {
     expect(parts[0]).toEqual({kind: 'text', text: 'Moved "Fix login" from In progress to Review.'});
     const [action, rendererDataModel] = dataParts(parts);
     expect(action).toEqual({
-      version: 'v1.0',
+      version: '1.0',
       action: {
         name: MCP_APP_MESSAGE_ACTION,
         surfaceId: 'kanban',
@@ -352,7 +352,7 @@ describe('KanbanHost', () => {
       texts: ['Updated the surface to use Basic Catalog Tabs.'],
       a2uiMessages: [
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'kanban',
             components: [

@@ -30,6 +30,7 @@ from a2ui.core import A2uiIntegrityError
 from a2ui.core import A2uiParseError
 from a2ui.core import A2uiRecursionError
 from a2ui.core import A2uiValidationError
+from a2ui.core.common import to_protocol_version
 from a2ui.inference_formats import DirectJsonFormat
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats import to_message_models
@@ -59,10 +60,23 @@ CATEGORY_TO_EXCEPTION = {
 }
 
 # Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
-SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0"}
+SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
-SKIP_TEST_NAMES: set[str] = set()
+SKIP_TEST_NAMES: set[str] = {
+    # partial_results, after_rejected_block and is_in_block on a response
+    # stream, which this SDK does not implement yet:
+    # https://github.com/a2ui-project/a2ui/issues/3699
+    "test_chunk_error_carries_the_text_before_the_failing_block",
+    "test_chunk_error_carries_a_block_finished_in_the_same_chunk",
+    "test_chunk_continue_returns_an_error_part_for_an_unreadable_block",
+    "test_chunk_continue_takes_back_a_block_rejected_whole",
+    "test_chunk_continue_keeps_the_messages_emitted_before_the_rejection",
+    "test_chunk_continue_skips_the_rest_of_a_rejected_block",
+    "test_chunk_continue_returns_an_error_part_for_a_block_still_open_at_the_end",
+    "test_chunk_in_block_from_the_open_tag_to_the_close_tag",
+    "test_chunk_in_block_for_an_unwrapped_response",
+}
 
 # Transition skip list containing specific test suite files to skip during active feature transitions.
 SKIP_TEST_SUITES = {
@@ -157,8 +171,10 @@ def get_conformance_cases(filename):
             or first_catalog.get("protocolVersion")
             or "v0.9"
         )
-        if not version.startswith("v"):
+        if version.startswith("0."):
             version = f"v{version}"
+        elif version == "v1.0":
+            version = "1.0"
 
         if version not in SUPPORTED_PROTOCOL_VERSIONS or name in SKIP_TEST_NAMES:
             continue
@@ -180,11 +196,6 @@ KNOWN_GAPS: dict[str, str] = {
     "test_compile_express_components_without_root_is_update_components": (
         "ExpressCompiler does not emit updateComponents for component blocks"
         " that omit root (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_decompile_express_update_data_model_map_at_path": (
-        "ExpressDecompiler does not flatten map values in updateDataModel at a"
-        " non-root path into per-leaf assignments"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
     ),
 }
 
@@ -212,7 +223,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     if isinstance(ref, dict):
         catalog = InMemoryCatalogProvider(
             ref,
-            protocol_version=None if "protocolVersion" in ref else "v1.0",
+            protocol_version=None if "protocolVersion" in ref else "1.0",
             catalog_id=None if "catalogId" in ref else "inline",
         ).load()
         return CatalogConfig(
@@ -225,7 +236,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     return CatalogConfig.from_path(
         catalog_path=get_conformance_path(relative_path),
         transformers=transformers,
-        protocol_version=None if "protocolVersion" in doc else "v1.0",
+        protocol_version=None if "protocolVersion" in doc else "1.0",
         catalog_id=(
             None
             if "catalogId" in doc
@@ -246,11 +257,8 @@ def _catalogs_for(args):
 
 
 def _protocol_version(catalogs) -> str:
-    """The `vX.Y` protocol version of the first catalog, which Express targets."""
-    version = str(getattr(catalogs[0].protocol_version, "value", None) or "")
-    if not version:
-        version = str(catalogs[0].protocol_version)
-    return version if version.startswith("v") else f"v{version}"
+    """The canonical wire protocol version of the first catalog, which Express targets."""
+    return to_protocol_version(catalogs[0].protocol_version).value
 
 
 def compile_checked(parser, content):
@@ -696,6 +704,11 @@ def run_format_case(test_case, tmp_path):
         if test_case.get("expect_round_trip"):
             recompiled = to_message_dicts(compile_checked(parser, notation))
             assert sort_components_by_id(recompiled) == sort_components_by_id(messages)
+        if "expect_recompiled" in test_case:
+            recompiled = to_message_dicts(parser.compile(notation))
+            assert sort_components_by_id(recompiled) == sort_components_by_id(
+                test_case["expect_recompiled"]
+            )
 
     elif action == "parse_response":
         parser = make_parser(args)
@@ -791,9 +804,11 @@ def _describe_configs(configs):
     described = []
     for config in configs:
         catalog = config.transformed_catalog
-        described.append(
-            (catalog.catalog_id, sorted(catalog.components), sorted(catalog.functions))
-        )
+        described.append((
+            catalog.catalog_id,
+            sorted(catalog.components),
+            sorted(catalog.functions),
+        ))
     return described
 
 

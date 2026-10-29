@@ -29,7 +29,6 @@ import {
 } from '../../src/index.js';
 import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
 import {V10RendererCapabilities} from '../../src/internal/web-core.js';
-import {parseAndFix} from '../../src/parser/payload-fixer.js';
 import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
 import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
@@ -37,7 +36,7 @@ import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
 import {conformancePath} from './suite-helpers.js';
 
 // Cases that name no catalog run against the v1.0 basic catalog.
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
 
 // We map category strings to actual error classes for assertions
@@ -124,7 +123,7 @@ function runParseFullCase(testCase: LoadedCase): void {
     const declared = (testCase.catalog as Record<string, unknown> | undefined)?.protocolVersion as
       | string
       | undefined;
-    const version = declared ? toWireProtocolVersion(declared) : 'v1.0';
+    const version = declared ? toWireProtocolVersion(declared) : '1.0';
     const parser = new ExpressParser(version === 'v0.9' ? basicCatalogV09 : basicCatalogV10);
 
     if (expectError) {
@@ -148,8 +147,10 @@ function runParseFullCase(testCase: LoadedCase): void {
     const parts: ResponsePart[] = [];
     for (const p of unwrapped) {
       if (p.type === 'a2ui') {
-        const fixed = parseAndFix(p.a2uiRaw);
-        parts.push({type: 'a2ui', a2uiRaw: p.a2uiRaw, a2ui: fixed, isFinal: true});
+        // The parser's own reader repairs the payload, as the payload fixer
+        // these cases were written for did.
+        const messages = parser.compile(p.a2uiRaw);
+        parts.push({type: 'a2ui', a2uiRaw: p.a2uiRaw, a2ui: messages, isFinal: true});
       } else {
         parts.push(p);
       }
@@ -161,20 +162,6 @@ function runParseFullCase(testCase: LoadedCase): void {
     assertThrows(parseUnwrappedParts, expectError);
   } else {
     assertAdaptedPartsEqual(adaptParts(parseUnwrappedParts()), expected);
-  }
-}
-
-function runFixPayloadCase(testCase: LoadedCase): void {
-  const input = testCase.input as string;
-  const expected = testCase.expect;
-  const expectError = testCase.expectError as Record<string, unknown> | string | undefined;
-
-  if (expectError) {
-    assertThrows(() => {
-      parseAndFix(input);
-    }, expectError);
-  } else {
-    expect(parseAndFix(input)).toEqual(expected);
   }
 }
 
@@ -225,7 +212,7 @@ function runSelectCatalogCase(testCase: LoadedCase): void {
   const configs = supportedCatalogs.map(c =>
     createCatalogConfig({
       name: c.catalogId,
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       catalogSchema: {components: c.components || {}},
     }),
   );
@@ -264,7 +251,6 @@ function runSelectCatalogCase(testCase: LoadedCase): void {
 
 const LEGACY_ACTION_HANDLERS: Record<string, (testCase: LoadedCase) => void | Promise<void>> = {
   parse_full: runParseFullCase,
-  fix_payload: runFixPayloadCase,
   has_parts: runHasPartsCase,
   load_catalog: runLoadCatalogCase,
   select_catalog: runSelectCatalogCase,

@@ -42,7 +42,7 @@
 - name: test_toolset_execute_valid_payload
   action: execute_tool
   args:
-    a2uiJson: '{"beginRendering": {"surfaceId": "dummy-surface", "root": {"component": "TestComp", "id": "1"}}}'
+    a2uiJson: '{"beginRendering": {"surfaceId": "dummy-surface", "root": "1"}}'
   expect:
     success: true
     containsValidatedJson: true
@@ -53,7 +53,7 @@
     wrongArg: "b"
   expect:
     success: false
-    errorContains: "missing required arg a2ui_json"
+    errorContains: "missing required arg"
 
 - name: test_subagent_map_record_surface_ownership
   description: Verifies surface creation assigns ownership to authoring subagent in session state.
@@ -107,37 +107,3 @@
           count: 1
         surface_3:
           count: 3
-
-- name: test_file_resolver_data_uri_base64
-  description: Verifies resolving base64 data URIs with verified MIME type.
-  action: resolve_path
-  args:
-    fileInfo:
-      fileId: "data:text/plain;base64,SGVsbG8sIEEyVUkgV29ybGQh"
-      fileName: "test.txt"
-      mimeType: "text/plain"
-  expect:
-    text: "Hello, A2UI World!"
-    mimeType: "text/plain"
-
-- name: test_file_resolver_mime_magic_mismatch_security_error
-  description: Verifies claiming image/png for content with %PDF magic header triggers a security error.
-  action: resolve_path
-  args:
-    fileInfo:
-      fileId: "data:image/png;base64,JVBERi0xLjQgZGlzZ3Vpc2VkIGFzIGltYWdl"
-      mimeType: "image/png"
-  expectError:
-    category: "ValidationError"
-    message: "MIME mismatch"
-
-- name: test_file_resolver_ssrf_private_ip_blocked
-  description: Verifies HTTP downloads to private and link-local addresses are blocked.
-  action: resolve_path
-  args:
-    fileInfo:
-      fileId: "http://169.254.169.254/latest/meta-data"
-      mimeType: "text/plain"
-  expectError:
-    category: "ValidationError"
-    message: "169.254.169.254"

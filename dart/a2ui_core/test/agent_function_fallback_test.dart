@@ -41,7 +41,7 @@ class _Fn extends FunctionImplementation {
 typedef _AgentCall = ({FunctionCall call, Completer<Object?> completer});
 
 Catalog<ComponentApi, FunctionImplementation> _catalog({
-  String? protocolVersion = 'v1.0',
+  String? protocolVersion = '1.0',
 }) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'cat',
@@ -68,7 +68,7 @@ void main() {
   }
 
   SurfaceModel<ComponentApi> makeSurface({
-    String? protocolVersion = 'v1.0',
+    String? protocolVersion = '1.0',
     bool withCaller = true,
   }) {
     final surface = SurfaceModel<ComponentApi>(
@@ -193,7 +193,7 @@ void main() {
       expect(clientErrors.single.functionCallId, 'fc-9');
       expect(clientErrors.single.message, contains('agent said no'));
       final Map<String, dynamic> wire =
-          ErrorMessage(version: 'v1.0', error: clientErrors.single).toJson();
+          ErrorMessage(version: '1.0', error: clientErrors.single).toJson();
       expect(RendererToAgentMessage.fromJson(wire), isA<ErrorMessage>());
 
       // A failed call is evicted so a later retry invokes the agent again.
@@ -295,7 +295,8 @@ void main() {
       expect(clientErrors, isEmpty);
     });
 
-    test('a v0.9 surface still reports EXPRESSION_ERROR and never calls', () {
+    test('a v0.9 surface still reports EXPRESSION_ERROR and never calls',
+        () async {
       final SurfaceModel<ComponentApi> surface =
           makeSurface(protocolVersion: 'v0.9');
       final DataContext context =
@@ -308,10 +309,11 @@ void main() {
         isNull,
       );
       expect(agentCalls, isEmpty);
+      await _flush();
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
     });
 
-    test('a v1.0 surface without a caller reports EXPRESSION_ERROR', () {
+    test('a v1.0 surface without a caller reports EXPRESSION_ERROR', () async {
       final SurfaceModel<ComponentApi> surface = makeSurface(withCaller: false);
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
@@ -322,11 +324,12 @@ void main() {
         ),
         isNull,
       );
+      await _flush();
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.message, contains('Function not found'));
     });
 
-    test('argument and execution failures are not sent to the agent', () {
+    test('argument and execution failures are not sent to the agent', () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
@@ -339,6 +342,7 @@ void main() {
         isNull,
       );
       expect(agentCalls, isEmpty);
+      await _flush();
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
     });
 
@@ -355,7 +359,7 @@ void main() {
       expect(agentCalls.single.call.catalogId, 'elsewhere');
     });
 
-    test('user activation gates a local function', () {
+    test('user activation gates a local function', () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
@@ -367,6 +371,7 @@ void main() {
         ),
         isNull,
       );
+      await _flush();
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(
         clientErrors.single.message,
@@ -417,7 +422,7 @@ void main() {
       final syncThrowSurface = SurfaceModel<ComponentApi>(
         'surf-sync-throw',
         defaultCatalog: _catalog(),
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         callAgentFunction: (_) =>
             throw A2uiRpcError('sync fail', RpcErrorCode.noListener),
       );
@@ -589,7 +594,7 @@ void main() {
       expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.message, contains('refused'));
       final Map<String, dynamic> wire =
-          ErrorMessage(version: 'v1.0', error: clientErrors.single).toJson();
+          ErrorMessage(version: '1.0', error: clientErrors.single).toJson();
       expect(RendererToAgentMessage.fromJson(wire), isA<ErrorMessage>());
     });
 

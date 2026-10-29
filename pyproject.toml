@@ -72,6 +72,7 @@ testpaths = [
     "python/a2ui_core/tests",
     "eval/tests",
     "samples/agent/adk/tests",
+    "samples/community/agent/adk/file_upload_summarizer/tests",
     "samples/community/agent/adk/personalized_learning/tests",
     "samples/community/mcp/a2ui-over-mcp-recipe/tests",
 ]

@@ -19,10 +19,6 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
-/// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
-/// reason each is currently failing.
-const Map<String, String> _v10ExpectedFailures = {};
-
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.
 const Map<String, String> _reservedKeysExpectedFailures = {};
@@ -39,10 +35,7 @@ const Map<String, String> _functionsExpectedFailures = {};
 /// and `core/multi_catalog.yaml`, which render basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
-  _registerSuite(
-    'core/message_processor_v1_0.yaml',
-    expectedFailures: _v10ExpectedFailures,
-  );
+  _registerSuite('core/message_processor_v1_0.yaml');
   _registerSuite(
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
@@ -77,13 +70,13 @@ void _registerSuite(
 String _actionOf(Map<String, Object?> testCase) =>
     (testCase['action'] as String?) ?? 'process_messages';
 
-void _runCase(Map<String, Object?> testCase) {
+Future<void> _runCase(Map<String, Object?> testCase) async {
   final String action = _actionOf(testCase);
   switch (action) {
     case 'process_messages' || 'validate':
-      _runProcessMessagesCase(testCase);
+      await _runProcessMessagesCase(testCase);
     case 'get_renderer_data_model':
-      _runGetRendererDataModelCase(testCase);
+      await _runGetRendererDataModelCase(testCase);
     case 'get_renderer_capabilities':
       _runGetRendererCapabilitiesCase(testCase);
     case 'resolve_path':
@@ -93,7 +86,7 @@ void _runCase(Map<String, Object?> testCase) {
   }
 }
 
-void _runProcessMessagesCase(Map<String, Object?> testCase) {
+Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final isValidate = _actionOf(testCase) == 'validate';
   final bool strictMode = isValidate || testCase['strictMode'] == true;
@@ -104,7 +97,7 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
   );
 
   if (testCase['steps'] case final List<Object?> steps) {
-    _runSteps(
+    await _runSteps(
       processor,
       testCase,
       steps.cast<Map<String, Object?>>(),
@@ -115,7 +108,7 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
 
   final Object? expectError = testCase['expectError'];
   if (expectError != null) {
-    expect(
+    await expectLater(
       () => _process(processor, testCase, resolveNodes: isValidate),
       throwsA(_matchesError(expectError as Map<String, Object?>)),
       reason: name,
@@ -123,7 +116,7 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
     return;
   }
 
-  _process(processor, testCase, resolveNodes: isValidate);
+  await _process(processor, testCase, resolveNodes: isValidate);
 
   final Map<String, Object?> expected =
       (testCase['expect'] as Map<String, Object?>?) ?? const {};
@@ -133,31 +126,43 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
 /// Processes each step's payload in turn, as the validator harness does.
 ///
 /// A step's own `expectError` applies to that step, and the case's applies to
-/// the last one. The case's `expect` is checked once every step has run.
-void _runSteps(
+/// the last one. A step's `validationConfig` replaces the processor's for
+/// that step. The case's `expect` is checked once every step has run.
+Future<void> _runSteps(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase,
   List<Map<String, Object?>> steps, {
   bool resolveNodes = false,
-}) {
+}) async {
   final name = testCase['name']! as String;
   for (var index = 0; index < steps.length; index++) {
     final Map<String, Object?> step = steps[index];
     final Object? payload = step['messages'] ?? step['payload'];
     final Object? expectError = step['expectError'] ??
         (index == steps.length - 1 ? testCase['expectError'] : null);
+    final ValidationConfig? validationConfig =
+        switch (step['validationConfig']) {
+      final Map<String, Object?> rules => _validationConfig(rules),
+      _ => null,
+    };
     if (expectError != null) {
-      expect(
+      await expectLater(
         () => _processPayload(
           processor,
           payload,
           resolveNodes: resolveNodes,
+          validationConfig: validationConfig,
         ),
         throwsA(_matchesError(expectError as Map<String, Object?>)),
         reason: '$name: step $index',
       );
     } else {
-      _processPayload(processor, payload, resolveNodes: resolveNodes);
+      await _processPayload(
+        processor,
+        payload,
+        resolveNodes: resolveNodes,
+        validationConfig: validationConfig,
+      );
     }
   }
   _checkSurfaces(
@@ -167,9 +172,20 @@ void _runSteps(
   );
 }
 
+/// The validation rules a step names, each one it leaves out strict.
+ValidationConfig _validationConfig(Map<String, Object?> rules) =>
+    ValidationConfig(
+      allowOrphanComponents: rules['allowOrphanComponents'] == true,
+      allowDanglingReferences: rules['allowDanglingReferences'] == true,
+      allowMissingRoot: rules['allowMissingRoot'] == true,
+      allowUnknownElements: rules['allowUnknownElements'] == true,
+    );
+
 /// Runs a data model request, after the case's `messages` or, one batch per
 /// step, its `steps`. `args.version` is the version requested.
-void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
+Future<void> _runGetRendererDataModelCase(
+  Map<String, Object?> testCase,
+) async {
   final name = testCase['name']! as String;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
@@ -178,10 +194,10 @@ void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
   );
   if (testCase['steps'] case final List<Object?> steps) {
     for (final step in steps) {
-      _process(processor, step! as Map<String, Object?>);
+      await _process(processor, step! as Map<String, Object?>);
     }
   } else {
-    _process(processor, testCase);
+    await _process(processor, testCase);
   }
 
   final Map<String, Object?> args =
@@ -259,7 +275,7 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   ];
   final List<Map<String, Object?>> documents = [
     if (testCase['catalogPaths'] case final List<Object?> paths
-        when compareVersions(version, 'v1.0') >= 0)
+        when compareVersions(version, '1.0') >= 0)
       for (final Object? path in paths)
         if (path is String) readConformanceJson(path),
   ];
@@ -351,24 +367,24 @@ String _catalogIdOf(Map<String, Object?> testCase) =>
     _catalogIdsOf(testCase).firstOrNull ?? 'test-catalog';
 
 /// Processes the case's raw payload, in whichever shape it declares it.
-void _process(
+Future<void> _process(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase, {
   bool resolveNodes = false,
-}) {
-  _processPayload(
-    processor,
-    testCase['messages'] ?? testCase['payload'],
-    resolveNodes: resolveNodes,
-  );
-}
+}) =>
+    _processPayload(
+      processor,
+      testCase['messages'] ?? testCase['payload'],
+      resolveNodes: resolveNodes,
+    );
 
-void _processPayload(
+Future<void> _processPayload(
   MessageProcessor<ComponentApi> processor,
   Object? payload, {
   required bool resolveNodes,
-}) {
-  processor.processMessages(payload);
+  ValidationConfig? validationConfig,
+}) async {
+  processor.processMessages(payload, validationConfig: validationConfig);
   if (!resolveNodes) return;
   for (final SurfaceModel<ComponentApi> surface
       in processor.model.allSurfaces) {
@@ -378,6 +394,7 @@ void _processPayload(
     });
     final resolver = NodeResolver<ComponentApi>(surface);
     resolver.dispose();
+    await Future<void>.microtask(() {});
     sub.unsubscribe();
     if (reported != null) {
       throw A2uiValidationError(reported!.message);

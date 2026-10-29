@@ -23,12 +23,21 @@ import {
   MAX_DYNAMIC_CHILD_LIST_SIZE,
   scrapeSchemaBehavior,
   type GenerateSetters,
+  type ResolveA2uiProps,
+  type ResolvedChildRef,
 } from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
-import {CommonSchemas, type DataBinding, type FunctionCall} from '../types/common-types.js';
+import {
+  CommonSchemas,
+  type ChildList,
+  type DataBinding,
+  type DynamicString,
+  type FunctionCall,
+} from '../types/common-types.js';
+import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
   function setupSurfaceAndMocks() {
@@ -1113,6 +1122,65 @@ describe('GenericBinder Checkable Trait', () => {
   it('scrapeSchemaBehavior returns the same tree for the same schema', () => {
     const schema = z.object({label: z.string()});
     assert.strictEqual(scrapeSchemaBehavior(schema), scrapeSchemaBehavior(schema));
+  });
+
+  describe('Resolved prop types', () => {
+    type Props = ResolveA2uiProps<{
+      action?: V1Action;
+      items: {name?: string; title?: DynamicString; action?: V1Action}[];
+      header?: {action: V1Action};
+      checks?: V1CheckRule[];
+      rule?: V1CheckRule;
+      data?: Record<string, unknown>;
+    }>;
+    const props = {} as Props;
+
+    it('types an action in a list item or an object as the function the binder makes', () => {
+      const run: () => Promise<void> = async () => {};
+      const item = {} as Props['items'][number];
+      const fromItem: (() => Promise<void>) | undefined = item.action;
+      const fromHeader: (() => Promise<void>) | undefined = props.header?.action;
+      const topLevel: (() => Promise<void>) | undefined = props.action;
+      const assigned: Props['items'][number] = {name: 'a', action: run, setTitle: () => {}};
+      // @ts-expect-error a nested action is a function, not the raw action.
+      const raw: Props['items'][number] = {action: {event: {name: 'x'}}, setTitle: () => {}};
+      assert.deepStrictEqual(
+        [fromItem, fromHeader, topLevel, raw.name],
+        [undefined, undefined, undefined, undefined],
+      );
+      assert.strictEqual(assigned.action, run);
+    });
+
+    it('types a binding in a list item as its value, with a setter', () => {
+      const item: Props['items'][number] = {title: 'Hello', setTitle: () => {}};
+      const title: string | undefined = item.title;
+      // @ts-expect-error a nested binding resolves to its value.
+      const bound: Props['items'][number] = {title: {path: '/x'}, setTitle: () => {}};
+      assert.deepStrictEqual([title, bound.name], ['Hello', undefined]);
+    });
+
+    it('leaves check rules and data objects as they are', () => {
+      const checks: V1CheckRule[] | undefined = props.checks;
+      const rule: Props['rule'] = {condition: {path: '/valid'}};
+      const data: Record<string, unknown> | undefined = props.data;
+      assert.deepStrictEqual(
+        [checks, rule.condition, data],
+        [undefined, {path: '/valid'}, undefined],
+      );
+    });
+
+    it('types a list of strings as strings and a child list as child references', () => {
+      type Lists = ResolveA2uiProps<{
+        names?: string[];
+        csp?: {domains?: string[]};
+        children: ChildList;
+      }>;
+      const lists = {children: ['a', {id: 'b', basePath: '/'}]} as Lists;
+      const names: readonly string[] | undefined = lists.names;
+      const domains: readonly string[] | undefined = lists.csp?.domains;
+      const children: (string | ResolvedChildRef)[] = lists.children;
+      assert.deepStrictEqual([names, domains, children.length], [undefined, undefined, 2]);
+    });
   });
 
   describe('Generated setter types', () => {

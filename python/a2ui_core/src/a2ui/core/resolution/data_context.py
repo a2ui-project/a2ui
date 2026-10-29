@@ -29,6 +29,7 @@ from ..validation.payload_validator import (
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
 from ..schema import ProtocolVersion
 from ..common.semver import is_at_least_version
+from .validation_result_coercion import coerce_validation_results
 
 
 class MissingDataBindingWarning(UserWarning):
@@ -40,6 +41,26 @@ class MissingDataBindingWarning(UserWarning):
 def is_single_at_key(key: str) -> bool:
     """Checks whether a key starts with a single '@' (not doubled '@@')."""
     return key.startswith("@") and not key.startswith("@@")
+
+
+def _function_args_schema(catalog: Any, fn: Any) -> Any:
+    """Returns the argument schema of ``fn`` in ``catalog``.
+
+    A function defined in code carries its Pydantic model; a function read
+    from a catalog document carries a JSON schema, which the catalog resolves
+    so the catalog's own ``$defs`` are inlined and references to the common
+    types become local ``#/$defs/...`` pointers.
+    """
+    schema = getattr(fn, "schema", None)
+    if not isinstance(schema, dict):
+        return schema
+    resolve = getattr(catalog, "resolved_function_schema", None)
+    name = getattr(fn, "name", None)
+    if callable(resolve) and isinstance(name, str):
+        resolved = resolve(name)
+        if isinstance(resolved, dict):
+            return resolved
+    return schema
 
 
 def unescape_object_key(key: str) -> str:
@@ -193,7 +214,10 @@ class DataContext:
         return obj
 
     def resolve_dynamic_value(
-        self, value: Any, peek: bool = True, abort_signal: AbortSignal | None = None
+        self,
+        value: Any,
+        peek: bool = True,
+        abort_signal: AbortSignal | None = None,
     ) -> Any:
         """Recursively evaluates Literals, Data Paths, and Function Calls against the active DataModel."""
         if value is None:
@@ -271,7 +295,7 @@ class DataContext:
         # 4. Recurse into normal objects/dictionaries (with v1.0 escaping and validation)
         if isinstance(value, dict):
             if at_least_v10:
-                validate_reserved_directives(value.keys(), proto_ver or "v1.0")
+                validate_reserved_directives(value.keys(), proto_ver or "1.0")
                 return {
                     unescape_object_key(k): self.resolve_dynamic_value(
                         v, peek=peek, abort_signal=abort_signal
@@ -430,10 +454,11 @@ class DataContext:
         The catalog's argument schema describes the arguments as written,
         before nested bindings and calls are resolved: a ``DynamicBoolean``
         admits ``{"@call": ...}`` as well as a boolean. So ``raw_args`` are
-        validated against it first, then resolved, and the resolved values
-        are handed to the function body as they are. Validating the resolved
-        values instead would reject, for example, the ``ValidationResult``
-        that a v1.0 validator returns to ``and``, ``or`` or ``not``.
+        validated against it first, then resolved. From v1.0 a resolved
+        argument that is the ``ValidationResult`` of a validation function
+        is read by its ``valid`` boolean where the schema asks for a
+        ``DynamicBoolean`` (see ``coerce_validation_results``); every other
+        resolved value is handed to the function body as it is.
 
         ``names_catalog`` says whether the call carries a ``catalogId`` key,
         whatever its value. From v1.0 a reserved ``@`` system function belongs
@@ -450,6 +475,7 @@ class DataContext:
                 )
 
             fn: Any
+            target_catalog: Any = None
             if self.at_least_v10 and is_system_function_name(name):
                 # A system function belongs to no catalog, so it skips catalog
                 # resolution and works on a surface without a default catalog.
@@ -492,6 +518,13 @@ class DataContext:
             )
             if resolved_args is None:
                 resolved_args = {}
+            elif self.at_least_v10 and isinstance(resolved_args, dict):
+                # From v1.0 a `DynamicBoolean` argument may resolve to the
+                # `ValidationResult` a validation function returns; it is read
+                # by its validity, as the specification defines the type.
+                resolved_args = coerce_validation_results(
+                    _function_args_schema(target_catalog, fn), resolved_args
+                )
 
             if hasattr(fn, "execute") and callable(fn.execute):
                 return fn.execute(resolved_args, self, abort_signal)

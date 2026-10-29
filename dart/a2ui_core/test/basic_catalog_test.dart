@@ -161,7 +161,7 @@ void main() {
 
     for (final (String label, _RendererCatalog catalog, String path) in [
       ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
-      ('v1.0', v10, 'catalogs/basic/v1/catalog.json'),
+      ('1.0', v10, 'catalogs/basic/v1/catalog.json'),
     ]) {
       test('$label implements every published function, and no other', () {
         final Map<String, Object?> document = published(path);
@@ -399,6 +399,74 @@ void main() {
         expect(buttonEnabled(terms: true, email: '', phone: '555'), isTrue);
       });
 
+      test('invoke checks a result operand as its validity', () {
+        final DataContext context = _contextFor(
+          v10,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
+        expect(
+          v10.invoke(
+              'and',
+              {
+                'values': [required('x'), required('')],
+              },
+              context),
+          isFalse,
+        );
+        expect(
+          v10.invoke(
+              'or',
+              {
+                'values': [required(''), required('x')],
+              },
+              context),
+          isTrue,
+        );
+        expect(v10.invoke('not', {'value': required('')}, context), isTrue);
+      });
+
+      test(
+          'invoke checks a result object from the data model as its '
+          'validity', () {
+        final DataContext context = _contextFor(
+          v10,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
+        expect(
+          v10.invoke(
+              'not',
+              {
+                'value': {'valid': false, 'message': 'Too short.'},
+              },
+              context),
+          isTrue,
+        );
+        expect(
+          v10.invoke(
+              'and',
+              {
+                'values': [
+                  {'valid': true},
+                  {'valid': true, 'severity': 'warning', 'fieldPath': '/email'},
+                ],
+              },
+              context),
+          isTrue,
+        );
+      });
+
+      test('a v0.9 invoke checks a result object as an object', () {
+        expect(
+          () => v09.invoke(
+              'not',
+              {
+                'value': {'valid': false},
+              },
+              _contextFor(v09)),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
       test('v0.9 validators return booleans, so the result is unchanged', () {
         Object? requiredV09(Object? value) =>
             _call(v09, 'required', {'value': value});
@@ -605,7 +673,13 @@ void main() {
       );
       expect(
         () => _call(v09, 'regex', {'value': 'abc', 'pattern': '[invalid('}),
-        throwsA(isA<A2uiExpressionError>()),
+        throwsA(
+          isA<A2uiExpressionError>().having(
+            (e) => e.details,
+            'details',
+            isA<String>(),
+          ),
+        ),
       );
     });
   });
@@ -629,6 +703,29 @@ void main() {
 
     test('returns an empty string for a non-number', () {
       expect(_call(v10, 'formatNumber', {'value': 'nope'}), '');
+    });
+
+    test('reads a validation result as grouping by its validity', () {
+      for (final name in ['formatNumber', 'formatCurrency']) {
+        expect(
+          _call(v10, name, {
+            'value': 1234,
+            'currency': 'USD',
+            'grouping': const ValidationResult(valid: false),
+          }),
+          isNot(contains(',')),
+          reason: name,
+        );
+        expect(
+          _call(v10, name, {
+            'value': 1234,
+            'currency': 'USD',
+            'grouping': {'valid': true},
+          }),
+          contains(','),
+          reason: name,
+        );
+      }
     });
 
     test('uses the catalog locale', () {

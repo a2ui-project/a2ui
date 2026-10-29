@@ -450,7 +450,7 @@ void main() {
       surface = SurfaceModel<ComponentApi>(
         'scope',
         defaultCatalog: catalog,
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
       );
       errors = [];
       surface.onError.subscribe(errors.add);
@@ -540,11 +540,12 @@ void main() {
       );
     });
 
-    test('@index at the root is reported and resolves to null', () {
+    test('@index at the root is reported and resolves to null', () async {
       add('root', 'Text', {
         'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
       expect(textOf(resolver.rootNode.value!), isNull);
+      await Future<void>.delayed(Duration.zero);
       expect(errors.single.code, 'EXPRESSION_ERROR');
       expect(
         errors.single.message,
@@ -596,6 +597,7 @@ void main() {
       );
       expect(accessibility['live'], 'polite');
       _expectReadOnlyNull(accessibility['description']);
+      _expectReadOnlyNull(accessibility['hidden']);
       surface.dataModel.set('/label', 'Hi');
       expect(
         ((resolver.rootNode.value!.props.peek()['accessibility']!
@@ -603,6 +605,24 @@ void main() {
             .value,
         'Hi',
       );
+    });
+
+    test('binds accessibility.hidden to its data path', () {
+      surface.dataModel.set('/hidden', true);
+      add('root', 'Text', {
+        'text': 'Hello',
+        'accessibility': {
+          'hidden': {'@path': '/hidden'},
+        },
+      });
+      Object? hidden() =>
+          ((resolver.rootNode.value!.props.peek()['accessibility']!
+                      as Map<String, Object?>)['hidden']!
+                  as ResolvedBinding<Object?>)
+              .value;
+      expect(hidden(), isTrue);
+      surface.dataModel.set('/hidden', false);
+      expect(hidden(), isFalse);
     });
 
     test('rejects a catalog other than the surface default catalog', () {
