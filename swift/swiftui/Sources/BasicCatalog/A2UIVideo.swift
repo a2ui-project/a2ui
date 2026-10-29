@@ -59,8 +59,7 @@ public struct A2UIVideo: View {
 
           if isShowingPoster,
             let posterStr = posterURLString,
-            !posterStr.isEmpty,
-            let posterURL = URL(string: posterStr)
+            let posterURL = BasicCatalog.sanitizeMediaURL(posterStr)
           {
             Button {
               isShowingPoster = false
@@ -116,7 +115,7 @@ public struct A2UIVideo: View {
   }
 
   private func updatePlayer() {
-    guard let url = URL(string: urlString), !urlString.isEmpty else {
+    guard let url = BasicCatalog.sanitizeMediaURL(urlString) else {
       player?.pause()
       player = nil
       return
