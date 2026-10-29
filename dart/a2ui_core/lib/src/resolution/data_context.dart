@@ -1106,10 +1106,29 @@ class _AgentCallCache {
     final String key =
         DataContext._agentCallKey(call.call, resolvedCatalogId, args);
     if (writtenKey != key) {
-      if (_aliases.length >= _maxEntries) _aliases.clear();
+      if (!_aliases.containsKey(writtenKey) && _aliases.length >= _maxEntries) {
+        _evictAlias();
+      }
       _aliases[writtenKey] = key;
     }
     return entries[key];
+  }
+
+  /// Removes one alias to make room for another.
+  ///
+  /// Prefers the oldest alias whose call is no longer pending, so that
+  /// [DataContext.isPendingAgentCall] keeps finding calls still in flight.
+  /// Only when every alias points at a pending call is the oldest one
+  /// removed.
+  void _evictAlias() {
+    for (final MapEntry<String, String> alias in _aliases.entries) {
+      if (entries[alias.value]?.pending != true) {
+        _aliases.remove(alias.key);
+        return;
+      }
+    }
+    final String? oldest = _aliases.keys.firstOrNull;
+    if (oldest != null) _aliases.remove(oldest);
   }
 
   void evictIfFull() {
