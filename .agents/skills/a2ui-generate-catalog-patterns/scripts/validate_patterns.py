@@ -59,7 +59,7 @@ from synthetic_bindings import (
     synthetic_payload,
 )
 
-_CRITERIA_PATTERN_RE = re.compile(r"\bpattern:([a-z_]+)(?::([a-z_]+))?\b")
+_CRITERIA_PATTERN_RE = re.compile(r"\bpattern:([a-z_]+)(?::([A-Za-z0-9_]+))?\b")
 
 
 @dataclass(frozen=True)
@@ -281,7 +281,7 @@ def dry_run_block(
     runs = 0
 
     for knobs in combos:
-        merged_knobs = {**resolved.knobs, **knobs}
+        merged_knobs = {**knobs, **resolved.knobs}
         runs += 1
         try:
             expanded = expander.expand_block(

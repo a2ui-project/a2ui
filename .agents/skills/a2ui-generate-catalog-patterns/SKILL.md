@@ -109,6 +109,7 @@ uv run python python/a2ui_agent/scripts/sync_decision_assets.py
 Present the validation summary to the user (eligible archetypes, degraded fallback blocks, validated templates, and per-sample eligibility) along with the Python snippet to load the generated files from the catalog directory at runtime:
 
 ```python
+import json
 from pathlib import Path
 from a2ui.core import Catalog
 from a2ui.inference_formats.decision import (
@@ -120,8 +121,8 @@ from a2ui.inference_formats.decision import (
 )
 
 catalog_dir = Path("<target_dir>")
-catalog = Catalog.from_file(catalog_dir / "catalog.json")
-graph = CatalogDecisionGraph.from_catalogs([catalog])
+catalog = Catalog.from_json(json.loads((catalog_dir / "catalog.json").read_text()))
+graph = CatalogDecisionGraph([catalog])
 
 # Load patterns.json when present (composable or hybrid catalogs):
 pattern_lib = MergedPatternLibrary([PatternLibrary.from_file(catalog_dir)])
@@ -130,9 +131,9 @@ pattern_lib = MergedPatternLibrary([PatternLibrary.from_file(catalog_dir)])
 template_registry = TemplateRegistry.from_file(catalog_dir)
 
 synthesizer = DecisionSynthesizer(
-    backend,
     graph,
-    template_registry=template_registry,
-    pattern_library=pattern_lib,
+    backend,
+    registry=template_registry,
+    patterns=pattern_lib,
 )
 ```

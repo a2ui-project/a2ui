@@ -221,7 +221,7 @@ def test_catalog_id_mismatch_and_synthetic_helpers(tmp_path: Path) -> None:
     head_bindings = synthetic_bindings.synthetic_block_bindings(
         grammar.blocks["headline"]
     )
-    assert len(head_bindings.slots["items"].items) == 2
+    assert len(head_bindings.slots["items"].items) == 4
 
     # Ensure non-SemanticType entries in `from` ('mutable', 'action', 'key', 'any') do not raise
     synthetic_bindings.synthetic_block_bindings(grammar.blocks["form"])
@@ -242,3 +242,21 @@ def test_catalog_id_mismatch_and_synthetic_helpers(tmp_path: Path) -> None:
     g_v09 = CatalogDecisionGraph([build_design_system_catalog("0.9")])
     assert validate_patterns.surface_messages(g_v10, [], {})[0]["version"] == "1.0"
     assert validate_patterns.surface_messages(g_v09, [], {})[0]["version"] == "v0.9"
+
+    form_bindings = synthetic_bindings.synthetic_block_bindings(grammar.blocks["form"])
+    form_inst = synthetic_bindings.synthetic_instances(
+        grammar.blocks["form"], form_bindings
+    )
+    assert len({v["control"] for k, v in form_inst.items() if k.isdigit()}) == 9
+
+    groups_bindings = synthetic_bindings.synthetic_block_bindings(
+        grammar.blocks["groups"]
+    )
+    groups_inst = synthetic_bindings.synthetic_instances(
+        grammar.blocks["groups"], groups_bindings
+    )
+    assert len({v["row_kind"] for k, v in groups_inst.items() if k.isdigit()}) == 4
+
+    assert validate_patterns._CRITERIA_PATTERN_RE.findall(
+        "must match pattern:collection:grid2D"
+    ) == [("collection", "grid2D")]

@@ -82,21 +82,43 @@ def _scalar_sample_value(slot: SlotSpec, key: str, idx: int = 0) -> Any:
     return f"Sample {key} {idx + 1}" if idx > 0 else f"Sample {key}"
 
 
-def _build_groups_binding() -> SlotBinding:
+def _repeat_item_count(block: BlockSpec) -> int:
+    """Returns enough synthetic items to exercise every instance option on `block`."""
+    max_opts = 2
+    for q_spec in block.instance.values():
+        if q_spec.kind is not QuestionKind.BOOLEAN:
+            max_opts = max(max_opts, len(q_spec.option_ids()))
+    return max_opts
+
+
+def _build_groups_binding(block: BlockSpec) -> SlotBinding:
     """Builds synthetic nested group and row bindings for the `groups` block."""
-    row0 = {
-        "label": SlotBinding(literal="Notifications"),
-        "value": SlotBinding(
-            pointer="/group_row_0", semantic_type=SemanticType.BOOLEAN
-        ),
-    }
-    row1 = {
-        "label": SlotBinding(literal="Theme"),
-        "value": SlotBinding(pointer="/group_row_1", semantic_type=SemanticType.STRING),
-    }
+    count = _repeat_item_count(block)
+    rows = tuple(
+        {
+            "label": SlotBinding(literal=f"Setting {idx + 1}"),
+            "value": SlotBinding(
+                pointer=f"/group_row_{idx}",
+                semantic_type=(
+                    SemanticType.BOOLEAN
+                    if idx == 0
+                    else (SemanticType.NUMBER if idx == 2 else SemanticType.STRING)
+                ),
+            ),
+            "options": SlotBinding(
+                literal=[
+                    {"label": "Option A", "value": "a"},
+                    {"label": "Option B", "value": "b"},
+                ]
+            ),
+            "min": SlotBinding(literal=0),
+            "max": SlotBinding(literal=100),
+        }
+        for idx in range(count)
+    )
     group0 = {
         "heading": SlotBinding(literal="Preferences"),
-        "rows": SlotBinding(items=(row0, row1)),
+        "rows": SlotBinding(items=rows),
     }
     return SlotBinding(items=(group0,))
 
@@ -128,8 +150,8 @@ def _build_comparison_binding(slot: SlotSpec) -> SlotBinding:
     return SlotBinding(pointer="/options", fields=fields, items=items)
 
 
-def _build_scalar_repeated_binding(slot: SlotSpec) -> SlotBinding:
-    """Builds two unrolled item mappings for scalar-repeated slots (`headline`, `facts`, `form`, `actions`)."""
+def _build_scalar_repeated_binding(block: BlockSpec, slot: SlotSpec) -> SlotBinding:
+    """Builds unrolled item mappings for scalar-repeated slots (`headline`, `facts`, `form`, `actions`)."""
     if "action" in slot.from_types:
         return SlotBinding(
             pointer=f"/{slot.name}",
@@ -138,8 +160,9 @@ def _build_scalar_repeated_binding(slot: SlotSpec) -> SlotBinding:
                 {"label": SlotBinding(literal="Cancel")},
             ),
         )
+    count = _repeat_item_count(block)
     items: list[dict[str, SlotBinding]] = []
-    for idx in range(2):
+    for idx in range(count):
         item_map: dict[str, SlotBinding] = {}
         for f_name, f_spec in slot.fields.items():
             if "key" in f_spec.from_types:
@@ -160,7 +183,7 @@ def _build_scalar_repeated_binding(slot: SlotSpec) -> SlotBinding:
 def synthetic_block_bindings(block: BlockSpec) -> BlockBindings:
     """Constructs synthetic `BlockBindings` covering all slots of `block`."""
     if block.id == "groups":
-        return BlockBindings(slots={"groups": _build_groups_binding()})
+        return BlockBindings(slots={"groups": _build_groups_binding(block)})
     if block.id == "comparison":
         return BlockBindings(
             slots={"options": _build_comparison_binding(block.slots["options"])}
@@ -178,7 +201,7 @@ def synthetic_block_bindings(block: BlockSpec) -> BlockBindings:
             }
             slots[name] = SlotBinding(pointer=f"/{name}", fields=fields)
         elif slot.repeat:
-            slots[name] = _build_scalar_repeated_binding(slot)
+            slots[name] = _build_scalar_repeated_binding(block, slot)
         elif name == "categories":
             slots[name] = SlotBinding(literal=_scalar_sample_value(slot, name, 0))
             slots["categories.selected"] = SlotBinding(literal=["a"])
@@ -213,17 +236,19 @@ def synthetic_instances(
             "Confirm": {"primary": "Confirm", "destructive": "false"},
             "Cancel": {"primary": "Confirm", "destructive": "false"},
         }
-    instances: dict[str, dict[str, str]] = {"0": {}, "1": {}, block.id: {}}
+    count = _repeat_item_count(block)
+    instances: dict[str, dict[str, str]] = {
+        **{str(idx): {} for idx in range(count)},
+        block.id: {},
+    }
     for q_name, q_spec in block.instance.items():
         if q_spec.kind is QuestionKind.BOOLEAN:
             opts: tuple[str, ...] = ("false", "true")
         else:
             opts = q_spec.option_ids() or ("default",)
-        first = opts[0]
-        second = opts[1] if len(opts) > 1 else first
-        instances["0"][q_name] = first
-        instances["1"][q_name] = second
-        instances[block.id][q_name] = first
+        for idx in range(count):
+            instances[str(idx)][q_name] = opts[idx % len(opts)]
+        instances[block.id][q_name] = opts[0]
     return instances
 
 
@@ -245,7 +270,9 @@ def knob_combinations(
     return (tuple(combos), truncated)
 
 
-def _populate_slot_payload(payload: dict[str, Any], name: str, slot: SlotSpec) -> None:
+def _populate_slot_payload(
+    payload: dict[str, Any], block: BlockSpec, name: str, slot: SlotSpec
+) -> None:
     """Populates synthetic payload values for one `SlotSpec`."""
     if slot.repeat and "array" in slot.from_types:
         elem = {
@@ -255,7 +282,8 @@ def _populate_slot_payload(payload: dict[str, Any], name: str, slot: SlotSpec) -
         payload[name] = [elem, dict(elem)]
         return
     if slot.repeat:
-        for idx in range(2):
+        count = _repeat_item_count(block)
+        for idx in range(count):
             for f_name, f_spec in slot.fields.items():
                 payload[f"{name}_{idx}_{f_name}"] = _scalar_sample_value(
                     f_spec, f_name, idx
@@ -266,13 +294,16 @@ def _populate_slot_payload(payload: dict[str, Any], name: str, slot: SlotSpec) -
 
 def synthetic_payload(block: BlockSpec) -> dict[str, Any]:
     """Builds a synthetic data model matching `synthetic_block_bindings(block)`."""
+    count = _repeat_item_count(block)
     payload: dict[str, Any] = {
         "page_title": "Sample Page Title",
         "page_subtitle": "Sample Page Subtitle",
         "page_mark": "https://example.com/logo.png",
-        "group_row_0": True,
-        "group_row_1": "Dark",
     }
+    for idx in range(count):
+        payload[f"group_row_{idx}"] = (
+            True if idx == 0 else (50 if idx == 2 else f"Value {idx}")
+        )
     for name, slot in block.slots.items():
-        _populate_slot_payload(payload, name, slot)
+        _populate_slot_payload(payload, block, name, slot)
     return payload
