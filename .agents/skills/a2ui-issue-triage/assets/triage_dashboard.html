@@ -406,6 +406,24 @@ limitations under the License.
         color: #fff;
       }
 
+      .milestone-badge {
+        font-family: var(--font-sans);
+        font-size: 0.7rem;
+        font-weight: 500;
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        background-color: rgba(99, 102, 241, 0.15);
+        color: #a5b4fc;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        max-width: 140px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
       .badge-p0 {
         background-color: var(--color-p0);
       }
@@ -423,6 +441,65 @@ limitations under the License.
       }
       .badge-none {
         background-color: var(--text-muted);
+      }
+
+      .issue-item.applied {
+        border-left: 3px solid #10b981;
+        opacity: 0.8;
+      }
+      .issue-item.applied:hover {
+        opacity: 1;
+      }
+
+      .applied-badge {
+        font-family: var(--font-sans);
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 0.1rem 0.45rem;
+        border-radius: 4px;
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+      }
+
+      /* Toast notification */
+      .toast-container {
+        position: fixed;
+        top: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        pointer-events: none;
+      }
+
+      .toast {
+        background-color: var(--bg-surface-elevated);
+        color: #f3f4f6;
+        border: 1px solid #10b981;
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        animation: toast-in 0.3s ease forwards;
+        pointer-events: auto;
+      }
+
+      @keyframes toast-in {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
 
       .issue-title {
@@ -756,8 +833,10 @@ limitations under the License.
         <h1>A2UI Issue Triage</h1>
       </div>
       <div class="global-actions">
-        <button class="btn-secondary" onclick="abortTriage()">Abort</button>
-        <button class="btn-primary" onclick="saveAndApply()">Apply Triages</button>
+        <button class="btn-secondary" onclick="finishSession()">Finish & Exit</button>
+        <button class="btn-primary" id="btnApplyBatch" onclick="applyCurrentBatch()">
+          Apply Batch (<span id="batchCount">0</span> reviewed)
+        </button>
       </div>
     </header>
 
@@ -772,6 +851,32 @@ limitations under the License.
             placeholder="Search issues..."
             oninput="filterIssues()"
           />
+        </div>
+        <div
+          class="filter-controls"
+          style="
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+          "
+        >
+          <label
+            style="
+              display: flex;
+              align-items: center;
+              gap: 0.4rem;
+              cursor: pointer;
+              user-select: none;
+            "
+          >
+            <input type="checkbox" id="chkHideApplied" onchange="filterIssues()" />
+            <span>Hide applied</span>
+          </label>
+          <span id="sessionProgress" style="font-weight: 500; color: #a5b4fc">0 / 107 applied</span>
         </div>
         <ul class="issue-list" id="issueListContainer">
           <!-- Issue items dynamically loaded -->
@@ -805,6 +910,13 @@ limitations under the License.
               <option value="P2">P2 - Medium Priority (Upcoming)</option>
               <option value="P3">P3 - Low Priority (Community Help)</option>
               <option value="P4">P4 - Unplanned (Out of Scope)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="triageMilestone">Milestone</label>
+            <select id="triageMilestone" onchange="updateActiveMilestone(this.value)">
+              <option value="">No Milestone</option>
             </select>
           </div>
 
@@ -1135,6 +1247,9 @@ limitations under the License.
             standardLabels.splice(0, standardLabels.length, ...filteredLabels);
           }
 
+          // Populate milestone dropdown options
+          renderMilestoneOptions();
+
           // Pre-populate decisions object with AI suggestions
           repoData.issues.forEach(issue => {
             const existingAssignees = Array.isArray(issue.assignees) ? issue.assignees : [];
@@ -1148,11 +1263,24 @@ limitations under the License.
                       .filter(Boolean)
                   : [];
 
+            const initialMilestone =
+              issue.suggestions && issue.suggestions.milestone !== undefined
+                ? issue.suggestions.milestone
+                : issue.milestone
+                  ? issue.milestone.title || ''
+                  : '';
+
+            const isAlreadyApplied =
+              Array.isArray(repoData.applied_ids) && repoData.applied_ids.includes(issue.id);
+
             decisions[issue.id] = {
               id: issue.id,
-              approved: false,
+              approved: isAlreadyApplied,
+              applied: isAlreadyApplied,
               priority: issue.suggestions.priority || 'None',
               assignee: initialAssignees,
+              milestone: initialMilestone || '',
+              remove_milestone: false,
               action: issue.suggestions.action || 'investigate',
               labels: issue.suggestions.labels || [],
               reply: issue.suggestions.reply || '',
@@ -1160,6 +1288,7 @@ limitations under the License.
           });
 
           renderIssueList();
+          updateBatchCount();
         } catch (err) {
           console.error(err);
           document.getElementById('detailPane').innerHTML = `
@@ -1168,6 +1297,20 @@ limitations under the License.
             <h3>Failed to Load Issues</h3>
             <p>${err.message}</p>
           </div>`;
+        }
+      }
+
+      function renderMilestoneOptions() {
+        const select = document.getElementById('triageMilestone');
+        if (!select) return;
+        select.innerHTML = '<option value="">No Milestone</option>';
+        if (Array.isArray(repoData.milestones)) {
+          repoData.milestones.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.title;
+            opt.textContent = `${m.title}${m.number ? ` (#${m.number})` : ''}`;
+            select.appendChild(opt);
+          });
         }
       }
 
@@ -1180,20 +1323,34 @@ limitations under the License.
           const pClass =
             dec.priority !== 'None' ? `badge-${dec.priority.toLowerCase()}` : 'badge-none';
 
+          const mBadge = dec.milestone
+            ? `<span class="milestone-badge" id="list-milestone-badge-${issue.id}" title="Milestone: ${dec.milestone}">🎯 ${dec.milestone.length > 15 ? dec.milestone.substring(0, 15) + '…' : dec.milestone}</span>`
+            : '';
+
+          const statusBadge = dec.applied
+            ? `<span class="applied-badge" id="list-applied-badge-${issue.id}">✅ Applied</span>`
+            : '';
+
+          const itemClass = dec.applied ? 'applied' : dec.approved ? 'reviewed' : '';
+
           const li = document.createElement('li');
-          li.className = `issue-item ${dec.approved ? 'reviewed' : ''} ${issue.id === activeIssueId ? 'active' : ''}`;
+          li.className = `issue-item ${itemClass} ${issue.id === activeIssueId ? 'active' : ''}`;
           li.id = `issue-item-${issue.id}`;
           li.onclick = () => selectIssue(issue.id);
 
           li.innerHTML = `
           <div class="issue-meta">
-            <span class="issue-id">#${issue.id}</span>
-            <span class="priority-badge ${pClass}" id="list-priority-badge-${issue.id}">${dec.priority}</span>
+            <span class="issue-id">#${issue.id}${dec.applied ? ' <span class="applied-check" style="color: #34d399; font-weight: bold; margin-left: 4px;">✓</span>' : ''}</span>
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+              ${statusBadge}
+              ${mBadge}
+              <span class="priority-badge ${pClass}" id="list-priority-badge-${issue.id}">${dec.priority}</span>
+            </div>
           </div>
           <div class="issue-title">${issue.title}</div>
           <div class="issue-subtext">
             <span>@${issue.author}</span>
-            <span class="reviewed-icon">✓ Reviewed</span>
+            ${dec.applied ? '<span class="applied-subtext" style="color: #34d399; font-size: 0.75rem; font-weight: 500;">✓ Applied to GitHub</span>' : dec.approved ? '<span class="reviewed-icon">✓ Reviewed</span>' : ''}
           </div>
         `;
           container.appendChild(li);
@@ -1264,9 +1421,10 @@ limitations under the License.
               View on GitHub ↗
             </a>
           </div>
-          <div class="detail-dates" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 1.5rem; display: flex; gap: 16px;">
+          <div class="detail-dates" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
             <span>Opened: <strong>${formatDate(issue.createdAt)}</strong></span>
             <span>Last modified: <strong>${formatDate(issue.updatedAt || issue.createdAt)}</strong></span>
+            <span id="detailMilestoneDisplay">Milestone: <strong style="color: ${dec.milestone ? '#a5b4fc' : 'var(--text-muted)'};">${dec.milestone || 'None'}</strong></span>
           </div>
         </div>
         <div class="detail-body-container">
@@ -1280,6 +1438,11 @@ limitations under the License.
         document.getElementById('triagePane').style.visibility = 'visible';
         document.getElementById('paneResizer').style.visibility = 'visible';
         document.getElementById('triagePriority').value = dec.priority;
+
+        const milestoneSelect = document.getElementById('triageMilestone');
+        if (milestoneSelect) {
+          milestoneSelect.value = dec.milestone || '';
+        }
 
         // Dynamically populate assignee dropdown with sorted suggested contributors
         renderAssigneeSelect(issue, dec.assignee);
@@ -1354,9 +1517,31 @@ limitations under the License.
         }
       }
 
+      function updateActiveMilestone(value) {
+        if (!activeIssueId) return;
+        const dec = decisions[activeIssueId];
+        const issue = repoData.issues.find(i => i.id === activeIssueId);
+        const originalMilestone = (issue && issue.milestone && issue.milestone.title) || '';
+
+        dec.milestone = value;
+        dec.remove_milestone = !value && !!originalMilestone;
+
+        const displayEl = document.getElementById('detailMilestoneDisplay');
+        if (displayEl) {
+          displayEl.innerHTML = `Milestone: <strong style="color: ${value ? '#a5b4fc' : 'var(--text-muted)'};">${value || 'None'}</strong>`;
+        }
+
+        renderIssueList();
+      }
+
       function updateApproveButton(approved) {
         const btn = document.getElementById('approveBtn');
-        if (approved) {
+        if (!activeIssueId) return;
+        const dec = decisions[activeIssueId];
+        if (dec && dec.applied) {
+          btn.textContent = 'Already Applied to GitHub';
+          btn.className = 'btn-secondary btn-block';
+        } else if (approved) {
           btn.textContent = 'Mark as Unreviewed';
           btn.className = 'btn-secondary btn-block';
         } else {
@@ -1382,6 +1567,7 @@ limitations under the License.
         }
 
         updateApproveButton(isApproving);
+        updateBatchCount();
 
         // Sequential navigation: Only auto-select next issue when transitioning to APPROVED
         if (isApproving) {
@@ -1389,7 +1575,7 @@ limitations under the License.
           let nextIssue = null;
           for (let i = currentIndex + 1; i < repoData.issues.length; i++) {
             const issue = repoData.issues[i];
-            if (!decisions[issue.id].approved) {
+            if (!decisions[issue.id].approved && !decisions[issue.id].applied) {
               nextIssue = issue;
               break;
             }
@@ -1397,7 +1583,7 @@ limitations under the License.
           if (!nextIssue) {
             for (let i = 0; i < currentIndex; i++) {
               const issue = repoData.issues[i];
-              if (!decisions[issue.id].approved) {
+              if (!decisions[issue.id].approved && !decisions[issue.id].applied) {
                 nextIssue = issue;
                 break;
               }
@@ -1407,20 +1593,29 @@ limitations under the License.
           if (nextIssue) {
             selectIssue(nextIssue.id);
           } else {
-            alert(
-              "All issues have been triaged! Click 'Apply Triages' to save and push to GitHub.",
-            );
+            alert("All issues reviewed! Click 'Apply Batch' to push decisions to GitHub.");
           }
         }
       }
 
       function filterIssues() {
         const q = document.getElementById('searchBar').value.toLowerCase();
+        const hideApplied = document.getElementById('chkHideApplied')?.checked || false;
+
         repoData.issues.forEach(issue => {
           const li = document.getElementById(`issue-item-${issue.id}`);
           if (li) {
+            const dec = decisions[issue.id];
+            if (hideApplied && dec && dec.applied) {
+              li.style.display = 'none';
+              return;
+            }
+            const m = (dec && dec.milestone ? dec.milestone : '').toLowerCase();
             const match =
-              issue.title.toLowerCase().includes(q) || issue.author.toLowerCase().includes(q);
+              issue.title.toLowerCase().includes(q) ||
+              issue.author.toLowerCase().includes(q) ||
+              String(issue.id).includes(q) ||
+              m.includes(q);
             li.style.display = match ? 'block' : 'none';
           }
         });
@@ -1496,6 +1691,9 @@ limitations under the License.
                 </span>
                 <span style="background-color: #1e212b; border: 1px solid #2b2f3d; padding: 0.15rem 0.4rem; border-radius: 4px; color: #9ca3af;">
                   Action: <strong>${actionText}</strong>
+                </span>
+                <span style="background-color: #1e212b; border: 1px solid #2b2f3d; padding: 0.15rem 0.4rem; border-radius: 4px; color: #9ca3af;">
+                  Milestone: <strong>${d.milestone ? `🎯 ${d.milestone}` : d.remove_milestone ? 'Remove Milestone' : 'None'}</strong>
                 </span>
               </div>
               ${
@@ -1615,24 +1813,215 @@ limitations under the License.
       `;
       }
 
-      async function saveAndApply() {
-        // Map assignee array back to comma-separated string
-        const decisionList = Object.values(decisions).map(d => ({
+      function showToast(msg) {
+        let container = document.getElementById('toastContainer');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'toastContainer';
+          container.className = 'toast-container';
+          document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = msg;
+        container.appendChild(toast);
+        setTimeout(() => {
+          toast.style.transition = 'opacity 0.4s ease';
+          toast.style.opacity = '0';
+          setTimeout(() => toast.remove(), 400);
+        }, 3500);
+      }
+
+      function updateBatchCount() {
+        const unappliedCount = Object.values(decisions).filter(
+          d => d.approved && !d.applied,
+        ).length;
+        const appliedCount = Object.values(decisions).filter(d => d.applied).length;
+        const total = repoData.issues ? repoData.issues.length : 0;
+
+        const countEl = document.getElementById('batchCount');
+        if (countEl) countEl.textContent = unappliedCount;
+
+        const progressEl = document.getElementById('sessionProgress');
+        if (progressEl) progressEl.textContent = `${appliedCount} / ${total} applied`;
+
+        const btn = document.getElementById('btnApplyBatch');
+        if (btn) {
+          btn.style.opacity = unappliedCount > 0 ? '1' : '0.6';
+        }
+      }
+
+      function selectNextUnappliedIssue() {
+        const next = repoData.issues.find(iss => !decisions[iss.id].applied);
+        if (next) {
+          selectIssue(next.id);
+        }
+      }
+
+      function markIssueAsApplied(issueId) {
+        if (decisions[issueId]) {
+          decisions[issueId].applied = true;
+          decisions[issueId].approved = true;
+        }
+
+        const item = document.getElementById(`issue-item-${issueId}`);
+        if (item) {
+          item.classList.remove('reviewed');
+          item.classList.add('applied');
+
+          // Add checkmark next to issue-id if not already present
+          const idEl = item.querySelector('.issue-id');
+          if (idEl && !idEl.querySelector('.applied-check')) {
+            const check = document.createElement('span');
+            check.className = 'applied-check';
+            check.style.cssText = 'color: #34d399; font-weight: bold; margin-left: 4px;';
+            check.textContent = '✓';
+            idEl.appendChild(check);
+          }
+
+          // Ensure applied badge is present in the meta row
+          const metaDiv = item.querySelector('.issue-meta > div');
+          if (metaDiv && !item.querySelector(`#list-applied-badge-${issueId}`)) {
+            const badge = document.createElement('span');
+            badge.className = 'applied-badge';
+            badge.id = `list-applied-badge-${issueId}`;
+            badge.textContent = '✅ Applied';
+            metaDiv.insertBefore(badge, metaDiv.firstChild);
+          }
+
+          // Ensure checkmark in issue subtext
+          const subtext = item.querySelector('.issue-subtext');
+          if (subtext) {
+            const reviewedIcon = subtext.querySelector('.reviewed-icon');
+            if (reviewedIcon) reviewedIcon.remove();
+            let appliedSpan = subtext.querySelector('.applied-subtext');
+            if (!appliedSpan) {
+              appliedSpan = document.createElement('span');
+              appliedSpan.className = 'applied-subtext';
+              appliedSpan.style.cssText =
+                'color: #34d399; font-size: 0.75rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.25rem;';
+              appliedSpan.textContent = '✓ Applied to GitHub';
+              subtext.appendChild(appliedSpan);
+            }
+          }
+        }
+      }
+
+      async function applyCurrentBatch() {
+        const unappliedApproved = Object.values(decisions).filter(d => d.approved && !d.applied);
+        if (unappliedApproved.length === 0) {
+          alert(
+            'No reviewed issues ready to apply. Review and click "Mark as Reviewed" on issues first.',
+          );
+          return;
+        }
+
+        const btn = document.getElementById('btnApplyBatch');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        const total = unappliedApproved.length;
+        btn.innerHTML = `Applying: 0 / ${total} updates made...`;
+
+        const decisionList = unappliedApproved.map(d => ({
           ...d,
           assignee: Array.isArray(d.assignee) ? d.assignee.join(',') : d.assignee || '',
         }));
 
         try {
-          const res = await fetch('/api/save', {
+          const res = await fetch('/api/apply_batch', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'text/event-stream',
+            },
             body: JSON.stringify({decisions: decisionList}),
           });
-          if (!res.ok) throw new Error('Failed to save triage decisions');
+          if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            throw new Error(errJson.error || `HTTP ${res.status}`);
+          }
 
-          renderSummaryPage(Object.values(decisions));
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('text/event-stream')) {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let appliedCount = 0;
+
+            while (true) {
+              const {done, value} = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, {stream: true});
+              const blocks = buffer.split('\n\n');
+              buffer = blocks.pop(); // keep partial chunk
+
+              for (const block of blocks) {
+                const trimmed = block.trim();
+                if (trimmed.startsWith('data:')) {
+                  try {
+                    const event = JSON.parse(trimmed.replace(/^data:\s*/, ''));
+                    if (event.type === 'progress') {
+                      btn.innerHTML = `Applying: ${event.current} / ${event.total} updates made...`;
+                      if (event.success) {
+                        appliedCount++;
+                        markIssueAsApplied(event.issue_id);
+                        updateBatchCount();
+                      }
+                    } else if (event.type === 'done') {
+                      appliedCount = event.applied_count;
+                    }
+                  } catch (e) {
+                    console.error('Failed to parse SSE event:', e, block);
+                  }
+                }
+              }
+            }
+
+            showToast(
+              `✅ Successfully applied ${appliedCount} issue${appliedCount > 1 ? 's' : ''} to GitHub!`,
+            );
+          } else {
+            const result = await res.json();
+            unappliedApproved.forEach(d => {
+              markIssueAsApplied(d.id);
+            });
+            updateBatchCount();
+            showToast(
+              `✅ Successfully applied ${result.applied_count} issue${result.applied_count > 1 ? 's' : ''} to GitHub!`,
+            );
+          }
+
+          selectNextUnappliedIssue();
         } catch (err) {
-          alert('Error: ' + err.message);
+          alert('Error applying batch: ' + err.message);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+          updateBatchCount();
+        }
+      }
+
+      async function finishSession() {
+        const unapplied = Object.values(decisions).filter(d => d.approved && !d.applied);
+        let promptMsg = 'Are you ready to finish and exit this triage session?';
+        if (unapplied.length > 0) {
+          promptMsg = `You have ${unapplied.length} reviewed issue(s) that haven't been applied yet. Finish and exit without applying them?`;
+        }
+        if (confirm(promptMsg)) {
+          const decisionList = Object.values(decisions).map(d => ({
+            ...d,
+            assignee: Array.isArray(d.assignee) ? d.assignee.join(',') : d.assignee || '',
+          }));
+          try {
+            await fetch('/api/save', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({decisions: decisionList}),
+            });
+            renderSummaryPage(Object.values(decisions));
+          } catch (err) {
+            alert('Error closing session: ' + err.message);
+          }
         }
       }
 

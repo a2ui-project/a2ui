@@ -64,7 +64,7 @@ void main() {
   group('BasicCatalog child references', () {
     for (final (String label, _RendererCatalog catalog) in [
       ('v0.9', BasicCatalog.v0_9()),
-      ('v1.0', BasicCatalog.v1_0()),
+      ('1.0', BasicCatalog.v1_0()),
     ]) {
       test('$label declares the child references of its layout components', () {
         final Map<String, ComponentRefFields> refs = extractComponentRefFields(

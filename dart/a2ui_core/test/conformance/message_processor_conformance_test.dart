@@ -19,10 +19,6 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
-/// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
-/// reason each is currently failing.
-const Map<String, String> _v10ExpectedFailures = {};
-
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.
 const Map<String, String> _reservedKeysExpectedFailures = {};
@@ -34,19 +30,21 @@ const Map<String, String> _functionsExpectedFailures = {};
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
 /// `core/message_processor_v1_0.yaml`, the `process_messages` cases of
-/// `core/reserved_keys.yaml`, and the `validate` cases of
-/// `core/functions.yaml`, `core/expressions.yaml`, `core/index_function.yaml`,
-/// and `core/multi_catalog.yaml`, which render basic-catalog components.
+/// `core/reserved_keys.yaml` and `core/composition_constraints.yaml`, and the
+/// `validate` cases of `core/functions.yaml`, `core/expressions.yaml`,
+/// `core/index_function.yaml`, and `core/multi_catalog.yaml`, which render
+/// basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
-  _registerSuite(
-    'core/message_processor_v1_0.yaml',
-    expectedFailures: _v10ExpectedFailures,
-  );
+  _registerSuite('core/message_processor_v1_0.yaml');
   _registerSuite(
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
     expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerSuite(
+    'core/composition_constraints.yaml',
+    onlyAction: 'process_messages',
   );
   _registerSuite(
     'core/functions.yaml',
@@ -93,14 +91,52 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   }
 }
 
+/// The flags a case's `validationConfig` may set (`validationConfig` in
+/// `conformance_schema.json`).
+const Set<String> _caseValidationFlags = {
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+};
+
+/// The processor's validation config for [testCase].
+///
+/// A case's `validationConfig` sets its checks, so they don't depend on this
+/// harness: a flag it leaves out is false. Without one, a `validate` case or a
+/// case with `strictMode` is checked strictly, and any other case with the
+/// relaxed config.
+ValidationConfig _validationConfigFor(
+  Map<String, Object?> testCase, {
+  required bool isValidate,
+}) {
+  final Object? raw = testCase['validationConfig'];
+  if (raw == null) {
+    return isValidate || testCase['strictMode'] == true
+        ? ValidationConfig.strict
+        : ValidationConfig.relaxed;
+  }
+  final Map<String, Object?> flags = (raw as Map).cast<String, Object?>();
+  final Iterable<String> unknown =
+      flags.keys.where((name) => !_caseValidationFlags.contains(name));
+  if (unknown.isNotEmpty) {
+    throw UnsupportedError('Unknown validationConfig flags: $unknown');
+  }
+  bool flag(String name) => flags[name] as bool? ?? false;
+  return ValidationConfig(
+    allowOrphanComponents: flag('allowOrphanComponents'),
+    allowDanglingReferences: flag('allowDanglingReferences'),
+    allowMissingRoot: flag('allowMissingRoot'),
+    allowUnknownElements: flag('allowUnknownElements'),
+  );
+}
+
 Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final isValidate = _actionOf(testCase) == 'validate';
-  final bool strictMode = isValidate || testCase['strictMode'] == true;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
-    validationConfig:
-        strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
+    validationConfig: _validationConfigFor(testCase, isValidate: isValidate),
   );
 
   if (testCase['steps'] case final List<Object?> steps) {
@@ -133,7 +169,8 @@ Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
 /// Processes each step's payload in turn, as the validator harness does.
 ///
 /// A step's own `expectError` applies to that step, and the case's applies to
-/// the last one. The case's `expect` is checked once every step has run.
+/// the last one. A step's `validationConfig` replaces the processor's for
+/// that step. The case's `expect` is checked once every step has run.
 Future<void> _runSteps(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase,
@@ -146,18 +183,29 @@ Future<void> _runSteps(
     final Object? payload = step['messages'] ?? step['payload'];
     final Object? expectError = step['expectError'] ??
         (index == steps.length - 1 ? testCase['expectError'] : null);
+    final ValidationConfig? validationConfig =
+        switch (step['validationConfig']) {
+      final Map<String, Object?> rules => _validationConfig(rules),
+      _ => null,
+    };
     if (expectError != null) {
       await expectLater(
         () => _processPayload(
           processor,
           payload,
           resolveNodes: resolveNodes,
+          validationConfig: validationConfig,
         ),
         throwsA(_matchesError(expectError as Map<String, Object?>)),
         reason: '$name: step $index',
       );
     } else {
-      await _processPayload(processor, payload, resolveNodes: resolveNodes);
+      await _processPayload(
+        processor,
+        payload,
+        resolveNodes: resolveNodes,
+        validationConfig: validationConfig,
+      );
     }
   }
   _checkSurfaces(
@@ -166,6 +214,15 @@ Future<void> _runSteps(
     name,
   );
 }
+
+/// The validation rules a step names, each one it leaves out strict.
+ValidationConfig _validationConfig(Map<String, Object?> rules) =>
+    ValidationConfig(
+      allowOrphanComponents: rules['allowOrphanComponents'] == true,
+      allowDanglingReferences: rules['allowDanglingReferences'] == true,
+      allowMissingRoot: rules['allowMissingRoot'] == true,
+      allowUnknownElements: rules['allowUnknownElements'] == true,
+    );
 
 /// Runs a data model request, after the case's `messages` or, one batch per
 /// step, its `steps`. `args.version` is the version requested.
@@ -261,7 +318,7 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   ];
   final List<Map<String, Object?>> documents = [
     if (testCase['catalogPaths'] case final List<Object?> paths
-        when compareVersions(version, 'v1.0') >= 0)
+        when compareVersions(version, '1.0') >= 0)
       for (final Object? path in paths)
         if (path is String) readConformanceJson(path),
   ];
@@ -368,8 +425,9 @@ Future<void> _processPayload(
   MessageProcessor<ComponentApi> processor,
   Object? payload, {
   required bool resolveNodes,
+  ValidationConfig? validationConfig,
 }) async {
-  processor.processMessages(payload);
+  processor.processMessages(payload, validationConfig: validationConfig);
   if (!resolveNodes) return;
   for (final SurfaceModel<ComponentApi> surface
       in processor.model.allSurfaces) {
@@ -598,11 +656,14 @@ Matcher _matchesError(Map<String, Object?> expectError) {
       isA<A2uiError>().having(
         (e) => e.message,
         'message',
-        matches(RegExp(pattern, caseSensitive: false)),
+        anyOf(
+          contains(message),
+          matches(RegExp(pattern, caseSensitive: false)),
+        ),
       ),
     );
   }
-  return matcher;
+  return allOf(matcher, matchesErrorFields(expectError));
 }
 
 String _align(String pattern) {

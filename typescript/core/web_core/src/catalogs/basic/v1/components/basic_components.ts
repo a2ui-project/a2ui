@@ -18,7 +18,7 @@
 // Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
 import {z} from 'zod';
 
-import {spec} from '../../../../catalog/spec_annotations.js';
+import {spec, specDef} from '../../../../catalog/spec_annotations.js';
 import {CatalogDocumentOptions, ComponentApi} from '../../../../catalog/types.js';
 import {
   ActionSchema,
@@ -31,6 +31,15 @@ import {
   DynamicStringListSchema,
   DynamicStringSchema,
 } from '../../../../v1_0/schema/common-types.js';
+
+export const WeightSchema = specDef(
+  'Weight',
+  z
+    .number()
+    .describe(
+      "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+    ),
+);
 
 export const TextApi = {
   name: 'Text',
@@ -45,12 +54,7 @@ export const TextApi = {
           .default('body')
           .describe('A hint for the base text style.')
           .optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -80,12 +84,7 @@ export const ImageApi = {
           .default('mediumFeature')
           .describe('A hint for the image size and style.')
           .optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -169,12 +168,7 @@ export const IconApi = {
             DataBindingSchema.describe('REF:#/$defs/DataBinding'),
           ])
           .describe('The name of the icon to display.'),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -192,12 +186,7 @@ export const VideoApi = {
         'posterUrl': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|The URL of the poster image to display before the video plays.',
         ).optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -215,12 +204,7 @@ export const AudioPlayerApi = {
         'description': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|A description of the audio, such as a title or summary.',
         ).optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -249,12 +233,7 @@ export const RowApi = {
             "Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start').",
           )
           .optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .describe(
         'A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.',
@@ -286,12 +265,7 @@ export const ColumnApi = {
             "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
           )
           .optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .describe(
         'A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.',
@@ -319,12 +293,7 @@ export const ListApi = {
           .default('stretch')
           .describe('Defines the alignment of children along the cross axis.')
           .optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -339,12 +308,7 @@ export const CardApi = {
         'child': ChildSchema.describe(
           "REF:#/$defs/Child|The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.",
         ),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -370,12 +334,7 @@ export const TabsApi = {
           .describe(
             'An array of objects, where each object defines a tab with a title and a child component.',
           ),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -393,12 +352,7 @@ export const ModalApi = {
         'content': ChildSchema.describe(
           'REF:#/$defs/Child|The ID of the component to be displayed inside the modal.',
         ),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -415,12 +369,7 @@ export const DividerApi = {
           .default('horizontal')
           .describe('The orientation of the divider.')
           .optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: []},
@@ -447,12 +396,7 @@ export const ButtonApi = {
           )
           .optional(),
         'action': ActionSchema.describe('REF:#/$defs/Action'),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: ['Checkable']},
@@ -482,12 +426,7 @@ export const TextFieldApi = {
           .default('shortText')
           .describe('The type of input field to display.')
           .optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: ['Checkable']},
@@ -509,12 +448,7 @@ export const CheckBoxApi = {
         'value': DynamicBooleanSchema.describe(
           'REF:#/$defs/DynamicBoolean|The current state of the checkbox (true for checked, false for unchecked).',
         ),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: ['Checkable']},
@@ -564,12 +498,7 @@ export const ChoicePickerApi = {
           .default(false)
           .describe('If true, displays a search input to filter the options.')
           .optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .describe('A component that allows selecting one or more options from a list.')
       .strict(),
@@ -603,12 +532,7 @@ export const SliderApi = {
             ),
           {keywords: {minimum: 1}},
         ).optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: ['Checkable'], required: ['value', 'max']},
@@ -666,12 +590,7 @@ export const DateTimeInputApi = {
         'label': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|The text label for the input field.',
         ).optional(),
-        'weight': z
-          .number()
-          .describe(
-            "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
-          )
-          .optional(),
+        'weight': WeightSchema.optional(),
       })
       .strict(),
     {mixins: ['Checkable']},
@@ -708,7 +627,7 @@ export const BASIC_CATALOG_DOCUMENT_OPTIONS = {
   title: 'A2UI Basic Catalog',
   description: 'Unified catalog of basic A2UI components and functions.',
   instructions:
-    'For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like \'+\' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `${expression}`:\n   formatString("Hello ${/user/name}")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is \'inside\' or \'contained in\' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the \'message\' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    "version": "v1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Column",\n          "children": ["repField", "valueField"]\n        },\n        {\n          "id": "repField",\n          "component": "TextField",\n          "label": "Representative",\n          "value": {"@path": "/form/rep"},\n          "placeholder": "Enter name"\n        },\n        {\n          "id": "valueField",\n          "component": "TextField",\n          "label": "Deal Value",\n          "value": {"@path": "/form/value"},\n          "placeholder": "0.00",\n          "variant": "number",\n          "checks": [\n            {\n              "condition": {\n                "@call": "required",\n                "args": {"value": {"@path": "/form/value"}}\n              },\n              "message": "Deal value is required."\n            }\n          ]\n        }\n      ],\n      "dataModel": {\n        "form": {\n          "rep": "John Doe",\n          "value": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    "version": "v1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Card",\n          "child": "breedList"\n        },\n        {\n          "id": "breedList",\n          "component": "List",\n          "children": {\n            "path": "/breeds",\n            "componentId": "breedTemplate"\n          },\n          "direction": "horizontal"\n        },\n        {\n          "id": "breedTemplate",\n          "component": "Image",\n          "url": {"@path": "url"}\n        }\n      ],\n      "dataModel": {\n        "breeds": [\n          {\n            "url": "https://example.com/poodle.jpg"\n          },\n          {\n            "url": "https://example.com/lab.jpg"\n          }\n        ]\n      }\n    }\n  }\n]\n```',
+    'For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like \'+\' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `${expression}`:\n   formatString("Hello ${/user/name}")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is \'inside\' or \'contained in\' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the \'message\' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Column",\n          "children": ["repField", "valueField"]\n        },\n        {\n          "id": "repField",\n          "component": "TextField",\n          "label": "Representative",\n          "value": {"@path": "/form/rep"},\n          "placeholder": "Enter name"\n        },\n        {\n          "id": "valueField",\n          "component": "TextField",\n          "label": "Deal Value",\n          "value": {"@path": "/form/value"},\n          "placeholder": "0.00",\n          "variant": "number",\n          "checks": [\n            {\n              "condition": {\n                "@call": "required",\n                "args": {"value": {"@path": "/form/value"}}\n              },\n              "message": "Deal value is required."\n            }\n          ]\n        }\n      ],\n      "dataModel": {\n        "form": {\n          "rep": "John Doe",\n          "value": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Card",\n          "child": "breedList"\n        },\n        {\n          "id": "breedList",\n          "component": "List",\n          "children": {\n            "path": "/breeds",\n            "componentId": "breedTemplate"\n          },\n          "direction": "horizontal"\n        },\n        {\n          "id": "breedTemplate",\n          "component": "Image",\n          "url": {"@path": "url"}\n        }\n      ],\n      "dataModel": {\n        "breeds": [\n          {\n            "url": "https://example.com/poodle.jpg"\n          },\n          {\n            "url": "https://example.com/lab.jpg"\n          }\n        ]\n      }\n    }\n  }\n]\n```',
   declaredProtocolVersion: '1.0',
   commonTypesUri: 'common_types.json',
 } satisfies CatalogDocumentOptions;

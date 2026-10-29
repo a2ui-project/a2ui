@@ -183,6 +183,7 @@ The Generic Binder is a framework-agnostic engine that transforms raw JSON paylo
 - **Automatic Resolution**: Properties typed as `DynamicString`, `DynamicNumber`, and `DynamicBoolean` are automatically resolved to their current values (strings, numbers, booleans).
 - **Two-Way Binding**: If a schema uses a dynamic type (like `DynamicString`), the binder automatically injects a setter. For a property `username`, it adds `props.setUsername(val: string)`, which updates the underlying data model.
 - **Action Context**: `Action` properties are resolved into ready-to-call functions. When called, they automatically resolve their deep context bindings (e.g., gathering form data from the model) before notifying the server.
+- **Nested Values**: Lists and objects are resolved item by item, so an action, a binding or a child list inside a list item resolves as it does at the top level, and its props are typed so.
 - **Reactive Validation**: If your schema includes `checks`, the binder reactively evaluates the rules and injects `props.isValid` and `props.validationErrors` based on the results of the logic functions.
 
 ## Binderless Components
@@ -240,6 +241,22 @@ export const myCatalog = new Catalog(
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
+
+### Markdown in `Text`
+
+`Text` renders its Markdown with a renderer the app provides. Give `MarkdownContext` a function that returns HTML, such as the one from `@a2ui/markdown-it`, or give `MarkdownComponentContext` a React component:
+
+```tsx
+import {A2uiSurface, MarkdownComponentContext} from '@a2ui/react/v0_9';
+
+const ChatMarkdown = ({markdown}: {markdown: string}) => <Markdown text={markdown} />;
+
+<MarkdownComponentContext.Provider value={ChatMarkdown}>
+  <A2uiSurface surface={surface} />
+</MarkdownComponentContext.Provider>;
+```
+
+The component renders inside each `Text`, as part of the app's React tree, so it reads the app's context. When both are given, the component is used. `Text` reads one Markdown renderer for the whole page, so give the component to every `A2uiSurface` on the page or to none.
 
 ## Styling and CSS Modules
 

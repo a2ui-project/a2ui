@@ -31,18 +31,18 @@ class V10Capabilities(StrictBaseModel):
         ...,
         alias="supportedCatalogIds",
         description=(
-            "An array of string identifiers for each of the component and function"
-            " catalogs supported by the renderer. Multiple catalogs can be mixed in a"
-            " single surface."
+            "An array of string identifiers for each of the component and"
+            " function catalogs supported by the renderer. Multiple catalogs can"
+            " be mixed in a single surface."
         ),
     )
     inline_catalogs: list[CatalogDefinition] | None = Field(
         default=None,
         alias="inlineCatalogs",
         description=(
-            "An array of inline catalog definitions, which can contain both components"
-            " and functions. This should only be provided if the agent declares"
-            " 'acceptsInlineCatalogs: true' in its capabilities."
+            "An array of inline catalog definitions, which can contain both"
+            " components and functions. This should only be provided if the agent"
+            " declares 'acceptsInlineCatalogs: true' in its capabilities."
         ),
     )
 

@@ -172,10 +172,17 @@ export class PayloadValidator {
    *   envelope keys.
    * @param knownType Component type to assume when the payload omits
    *   `component`, as happens on a partial update to an existing component.
+   * @param options Validation options. `skipNestedFunctions` leaves the
+   *   function calls in the properties unchecked, as pre-1.0 renderers did
+   *   when validation was off.
    * @throws {A2uiValidationError} If the identifier, the component type, any
    *   property, or any nested function call fails validation.
    */
-  validateComponent(comp: Record<string, unknown>, knownType?: string): void {
+  validateComponent(
+    comp: Record<string, unknown>,
+    knownType?: string,
+    options?: {skipNestedFunctions?: boolean},
+  ): void {
     const id = comp['id'];
     if (typeof id !== 'string' || !id) {
       throw new A2uiValidationError(
@@ -208,7 +215,9 @@ export class PayloadValidator {
       // the function calls in them still run, so they are checked all the
       // same. `MessageProcessor` relies on this for the calls it leaves to
       // component validation.
-      this.validateNestedFunctions(properties, componentCatalogId);
+      if (!options?.skipNestedFunctions) {
+        this.validateNestedFunctions(properties, componentCatalogId);
+      }
       return;
     }
 
@@ -224,7 +233,9 @@ export class PayloadValidator {
       );
     }
 
-    this.validateNestedFunctions(properties, componentCatalogId);
+    if (!options?.skipNestedFunctions) {
+      this.validateNestedFunctions(properties, componentCatalogId);
+    }
   }
 
   /**

@@ -19,12 +19,13 @@ import {ComponentContext} from './component-context.js';
 import {
   AccessibilityAttributesSchema,
   Action,
+  CheckRule,
   ChildList,
   DataBinding,
   FunctionCall,
 } from '../types/common-types.js';
 import {childRefKindOf} from '../types/child-ref-helpers.js';
-import type {Action as V1Action} from '../v1_0/schema/common-types.js';
+import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {isAtLeastVersion} from '../common/semver.js';
@@ -340,6 +341,17 @@ type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) exten
             : false;
 
 /**
+ * Evaluates to true if type T is a child list, which can be a template as well as a list of
+ * component ids. A plain list of strings is not one: the binder resolves only properties
+ * declared as child lists.
+ */
+type IsChildList<T> = [NonNullable<T>] extends [ChildList]
+  ? Extract<ChildList, {componentId: string}> extends NonNullable<T>
+    ? true
+    : false
+  : false;
+
+/**
  * Resolved reference to a child component with its unique identifier and data context path.
  */
 export interface ResolvedChildRef {
@@ -352,17 +364,40 @@ export interface ResolvedChildRef {
 /**
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  *
- * For example, an `Action` object becomes a callable `() => Promise<void>` function.
+ * For example, an `Action` object becomes a callable `() => Promise<void>` function. The
+ * binder walks lists and objects, so an action, binding or child list inside them resolves
+ * too, as at the top level.
  */
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
   ? HasStringIndex<NonNullable<T>> extends true
     ? Exclude<T, DynamicTypes>
     : (() => Promise<void>) | Extract<T, undefined>
-  : [NonNullable<T>] extends [ChildList]
+  : IsChildList<T> extends true
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never
       ? unknown
-      : Exclude<T, DynamicTypes>;
+      : IsDynamic<T> extends true
+        ? Exclude<T, DynamicTypes>
+        : ResolveNested<T>;
+
+/**
+ * Resolves the items of a list and the properties of an object, as the binder does.
+ *
+ * A check rule or a list of them is left as it is, since the binder hands it on unresolved,
+ * and so is an object with a string index signature, which carries data. A value bound to
+ * the data model is not walked either: the binder hands on the value the model holds.
+ */
+type ResolveNested<T> = T extends CheckRule | V1CheckRule | readonly (CheckRule | V1CheckRule)[]
+  ? T
+  : T extends readonly (infer Item)[]
+    ? ResolveA2uiProp<Item>[]
+    : T extends (...args: never[]) => unknown
+      ? T
+      : T extends object
+        ? HasStringIndex<T> extends true
+          ? T
+          : {[K in keyof T]: ResolveA2uiProp<T[K]>} & GenerateSetters<T>
+        : T;
 
 /**
  * Generates two-way binding setters for dynamic properties.
