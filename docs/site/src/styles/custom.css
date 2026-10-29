@@ -112,7 +112,7 @@ header.header {
   letter-spacing: -0.015em;
 }
 
-.sl-markdown-content code:not(pre code) {
+.sl-markdown-content code:not(pre code):not(.not-content code) {
   font-family: var(--sl-font-mono);
   font-size: 0.86em;
   padding: 0.18em 0.42em;
@@ -121,7 +121,7 @@ header.header {
   border: 1px solid rgba(20, 184, 166, 0.22);
 }
 
-:root[data-theme='light'] .sl-markdown-content code:not(pre code) {
+:root[data-theme='light'] .sl-markdown-content code:not(pre code):not(.not-content code) {
   background: #f1f5f9;
   border-color: #cbd5e1;
   color: #0f172a;

@@ -1,0 +1,437 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+---
+
+<div class="cs-root not-content">
+  <div class="cs-header">
+    <div class="cs-header__left">
+      <span class="cs-badge">COLLECTION SCOPE &amp; TEMPLATE EXPANSION</span>
+      <span class="cs-title">How <code>ChildList</code> Templates Resolve Relative Pointers &amp; <code>@index</code></span>
+    </div>
+    <code class="cs-expr">children: &#123; "path": "/addons", "componentId": "addonRow" &#125;</code>
+  </div>
+
+  <div class="cs-grid">
+    <!-- Left: Template Component Blueprint -->
+    <div class="cs-card cs-card--blueprint">
+      <div class="cs-card__head">
+        <span>Template Blueprint</span>
+        <code>id: "addonRow"</code>
+      </div>
+      <div class="cs-code">
+        <div><span class="cs-k">"component"</span>: <span class="cs-s">"Row"</span>,</div>
+        <div><span class="cs-k">"label"</span>: &#123; <span class="cs-p">"@path"</span>: <span class="cs-s">"title"</span> &#125;,</div>
+        <div><span class="cs-k">"price"</span>: &#123; <span class="cs-p">"@path"</span>: <span class="cs-s">"price"</span> &#125;,</div>
+        <div><span class="cs-k">"rowNum"</span>: &#123; <span class="cs-p">"@call"</span>: <span class="cs-s">"@index"</span> &#125;,</div>
+        <div><span class="cs-k">"currency"</span>: &#123; <span class="cs-p">"@path"</span>: <span class="cs-s">"/invoice/currency"</span> &#125;</div>
+      </div>
+      <div class="cs-legend">
+        <span><strong class="cs-p">Relative:</strong> <code>"title"</code> (no leading <code>/</code>)</span>
+        <span><strong class="cs-s">Absolute:</strong> <code>"/invoice/currency"</code> (leading <code>/</code>)</span>
+      </div>
+    </div>
+
+    <!-- Right: Instantiated Scopes -->
+    <div class="cs-instances">
+      <div class="cs-instance">
+        <div class="cs-instance__head">
+          <span class="cs-scope-pill">Scope 0: <code>/addons/0</code></span>
+          <span class="cs-index-pill"><code>@index</code> &rarr; <code>0</code></span>
+        </div>
+        <div class="cs-instance__rows">
+          <div class="cs-res-row">
+            <code>@path: "title"</code>
+            <span>&rarr; <code>/addons/0/title</code></span>
+            <strong class="cs-val">"Late Checkout"</strong>
+          </div>
+          <div class="cs-res-row">
+            <code>@path: "price"</code>
+            <span>&rarr; <code>/addons/0/price</code></span>
+            <strong class="cs-val">45</strong>
+          </div>
+          <div class="cs-res-row">
+            <code>@path: "/invoice/currency"</code>
+            <span>&rarr; root pointer</span>
+            <strong class="cs-val">"USD"</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="cs-instance">
+        <div class="cs-instance__head">
+          <span class="cs-scope-pill">Scope 1: <code>/addons/1</code></span>
+          <span class="cs-index-pill"><code>@index</code> &rarr; <code>1</code></span>
+        </div>
+        <div class="cs-instance__rows">
+          <div class="cs-res-row">
+            <code>@path: "title"</code>
+            <span>&rarr; <code>/addons/1/title</code></span>
+            <strong class="cs-val">"Airport Transfer"</strong>
+          </div>
+          <div class="cs-res-row">
+            <code>@path: "price"</code>
+            <span>&rarr; <code>/addons/1/price</code></span>
+            <strong class="cs-val">60</strong>
+          </div>
+          <div class="cs-res-row">
+            <code>@path: "/invoice/currency"</code>
+            <span>&rarr; root pointer</span>
+            <strong class="cs-val">"USD"</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .cs-root {
+    margin: 1.5rem 0 2rem;
+    font-family: var(--sl-font);
+    color: #e2e8f0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
+    border: 1px solid #1e293b;
+    overflow: hidden;
+  }
+
+  :root[data-theme='light'] .cs-root {
+    color: #0f172a;
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .cs-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.8rem 1.15rem;
+    background: rgba(15, 23, 42, 0.8);
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .cs-header {
+    background: #f8fafc;
+    border-bottom-color: #e2e8f0;
+  }
+
+  .cs-header__left {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .cs-badge {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.18rem 0.5rem;
+    border-radius: 4px;
+    background: rgba(168, 85, 247, 0.16);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+  }
+
+  :root[data-theme='light'] .cs-badge {
+    background: #f3e8ff;
+    color: #6b21a8;
+    border-color: #d8b4fe;
+  }
+
+  .cs-title {
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+
+  .cs-title code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+    color: #c084fc;
+  }
+
+  :root[data-theme='light'] .cs-title code {
+    color: #7e22ce;
+  }
+
+  .cs-expr {
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    padding: 0.18rem 0.5rem;
+    border-radius: 5px;
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid #334155;
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .cs-expr {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #1e293b;
+  }
+
+  .cs-grid {
+    display: grid;
+    grid-template-columns: 0.78fr 1.22fr;
+    gap: 0.85rem;
+    padding: 1rem 1.1rem;
+    align-items: stretch;
+  }
+
+  .cs-card--blueprint {
+    padding: 0.85rem;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  :root[data-theme='light'] .cs-card--blueprint {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  .cs-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+
+  .cs-card__head code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .cs-card__head code {
+    color: #0f766e;
+  }
+
+  .cs-code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.71rem;
+    line-height: 1.55;
+    padding: 0.6rem 0.7rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.7);
+    border: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .cs-code {
+    background: #ffffff;
+    border-color: #e2e8f0;
+  }
+
+  .cs-k {
+    color: #94a3b8;
+  }
+
+  .cs-p {
+    color: #c084fc;
+    font-weight: 600;
+  }
+
+  :root[data-theme='light'] .cs-p {
+    color: #7e22ce;
+  }
+
+  .cs-s {
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .cs-s {
+    color: #0f766e;
+  }
+
+  .cs-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.7rem;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .cs-legend {
+    color: #475569;
+  }
+
+  .cs-legend code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+  }
+
+  .cs-arrow-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cs-arrow-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    text-align: center;
+  }
+
+  .cs-arrow-box code {
+    font-family: var(--sl-font-mono);
+    color: #c084fc;
+    font-weight: 700;
+  }
+
+  :root[data-theme='light'] .cs-arrow-box code {
+    color: #7e22ce;
+  }
+
+  .cs-arrow-glyph {
+    font-size: 1.2rem;
+    color: #c084fc;
+    font-weight: 700;
+  }
+
+  .cs-instances {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .cs-instance {
+    padding: 0.65rem 0.8rem;
+    border-radius: 8px;
+    background: rgba(168, 85, 247, 0.06);
+    border: 1px solid rgba(168, 85, 247, 0.28);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  :root[data-theme='light'] .cs-instance {
+    background: #faf5ff;
+    border-color: #d8b4fe;
+  }
+
+  .cs-instance__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .cs-scope-pill {
+    color: #e2e8f0;
+  }
+
+  .cs-scope-pill code {
+    font-family: var(--sl-font-mono);
+    color: #c084fc;
+  }
+
+  :root[data-theme='light'] .cs-scope-pill {
+    color: #0f172a;
+  }
+
+  :root[data-theme='light'] .cs-scope-pill code {
+    color: #7e22ce;
+  }
+
+  .cs-index-pill {
+    font-family: var(--sl-font-mono);
+    font-size: 0.67rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: rgba(2, 6, 23, 0.5);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #c084fc;
+  }
+
+  :root[data-theme='light'] .cs-index-pill {
+    background: #ffffff;
+    border-color: #c084fc;
+    color: #6b21a8;
+  }
+
+  .cs-instance__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    font-size: 0.7rem;
+  }
+
+  .cs-res-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding: 0.24rem 0.5rem;
+    border-radius: 4px;
+    background: rgba(2, 6, 23, 0.4);
+  }
+
+  :root[data-theme='light'] .cs-res-row {
+    background: #ffffff;
+  }
+
+  .cs-res-row code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+    color: #cbd5e1;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .cs-res-row code {
+    color: #334155;
+  }
+
+  .cs-res-row span {
+    color: #94a3b8;
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .cs-res-row span {
+    color: #64748b;
+  }
+
+  .cs-val {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    color: #34d399;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .cs-val {
+    color: #047857;
+  }
+
+  @media (max-width: 900px) {
+    .cs-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
