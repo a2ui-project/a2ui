@@ -157,6 +157,7 @@ public final class DataContext {
     if atLeastV10 {
       switch resolveV10Function(name: callName, dict: dict) {
       case nil:
+        pendingAgentCallCount += 1
         return .null
       case .local(let resolved):
         function = resolved
@@ -175,6 +176,7 @@ public final class DataContext {
           Self.systemFunctionNamesCatalogError(callName, catalogID: catalogID),
           functionName: callName
         )
+        pendingAgentCallCount += 1
         return .null
       }
       function =
@@ -186,6 +188,7 @@ public final class DataContext {
         FunctionError.functionNotFound(callName),
         functionName: callName
       )
+      pendingAgentCallCount += 1
       return .null
     }
     // Bindings, checks and actions are renderer callers. In v1.0 an agentOnly function runs
@@ -196,6 +199,7 @@ public final class DataContext {
         FunctionError.callerDisallowed(name: callName, caller: "renderer"),
         functionName: callName
       )
+      pendingAgentCallCount += 1
       return .null
     }
 
@@ -207,6 +211,7 @@ public final class DataContext {
       return try function.evaluate(arguments: resolvedArgs, context: self)
     } catch {
       functionHandler?.handleFunctionError(error, functionName: callName)
+      pendingAgentCallCount += 1
       return .null
     }
   }
@@ -249,6 +254,7 @@ public final class DataContext {
         ),
         functionName: callName
       )
+      pendingAgentCallCount += 1
       return .null
     }
     guard var args = resolveArguments(of: dict) else {
@@ -265,6 +271,7 @@ public final class DataContext {
           ),
           functionName: callName
         )
+        pendingAgentCallCount += 1
         return .null
       }
     }

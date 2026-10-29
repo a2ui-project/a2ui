@@ -102,10 +102,13 @@ public final class NodeResolver: Sendable {
   private var currentNodeAgentCalls: Set<AgentFunctionCall>?
   /// Agent calls made while resolving nodes that are awaiting the agent's response.
   private var pendingAgentCalls: Set<AgentFunctionCall> = []
-  /// The settled values of agent calls that resolved nodes still make (`null` after an error).
+  /// The settled values of agent calls that resolved nodes still make.
   private var agentCallResults: [AgentFunctionCall: JSONValue] = [:]
+  /// Agent calls that failed and are still referenced by resolved nodes.
+  private var failedAgentCalls: Set<AgentFunctionCall> = []
   /// Agent calls settled since the last pass, whose nodes must be resolved again.
   private var dirtyAgentCalls: Set<AgentFunctionCall> = []
+  private var isDisposed = false
   private let agentCallSettledSubject = PassthroughSubject<Void, Never>()
 
   /// Publishes when the agent answers a call made while resolving a node, so that the tree
@@ -265,6 +268,7 @@ public final class NodeResolver: Sendable {
     guard components["root"] != nil else {
       resetResolutionState()
       agentCallResults.removeAll()
+      failedAgentCalls.removeAll()
       return nil
     }
 
@@ -279,6 +283,7 @@ public final class NodeResolver: Sendable {
       isResolvingTree = false
       // Agent results are kept across the reset for the nodes resolved again; drop the rest.
       agentCallResults = agentCallResults.filter { nodesByAgentCall[$0.key] != nil }
+      failedAgentCalls = failedAgentCalls.filter { nodesByAgentCall[$0] != nil }
     }
     return resolveNode(
       definitionID: "root",
@@ -618,7 +623,18 @@ public final class NodeResolver: Sendable {
     if nodesByAgentCall[call]?.isEmpty ?? true {
       nodesByAgentCall.removeValue(forKey: call)
       agentCallResults.removeValue(forKey: call)
+      failedAgentCalls.remove(call)
     }
+  }
+
+  /// Disposes the resolver, cancelling subscriptions and suppressing late async callbacks.
+  public func dispose() {
+    isDisposed = true
+    modelCancellables.removeAll()
+    pendingAgentCalls.removeAll()
+    agentCallResults.removeAll()
+    failedAgentCalls.removeAll()
+    dirtyAgentCalls.removeAll()
   }
 
   private func cachedSchema(
@@ -1714,11 +1730,15 @@ extension NodeResolver: FunctionHandler {
   ///
   /// - Returns: The agent's result if a resolved node already received it, else `nil`.
   public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
+    guard !isDisposed else { return nil }
     let tracksNode = currentNodeAgentCalls != nil
     if tracksNode {
       currentNodeAgentCalls?.insert(call)
       if let result = agentCallResults[call] {
         return result
+      }
+      if failedAgentCalls.contains(call) {
+        return nil
       }
       guard pendingAgentCalls.insert(call).inserted else { return nil }
     }
@@ -1747,28 +1767,22 @@ extension NodeResolver: FunctionHandler {
     tracksNode: Bool,
     result: Result<JSONValue, any Error>
   ) {
+    guard !isDisposed else { return }
     if tracksNode {
       pendingAgentCalls.remove(call)
     }
-    let value: JSONValue
-    let isAnswered: Bool
     switch result {
     case .success(let resultValue):
-      value = resultValue
-      isAnswered = true
-    case .failure(let error):
-      handleFunctionError(error, functionName: call.name)
-      value = .null
-      isAnswered = false
-    }
-    // Keep the result only while a resolved node still makes the call. After a failure the value
-    // stays `null`, so the nodes are not resolved again, which would report errors of the
-    // functions that take the value as an argument.
-    guard tracksNode, nodesByAgentCall[call] != nil else { return }
-    agentCallResults[call] = value
-    if isAnswered {
+      guard tracksNode, nodesByAgentCall[call] != nil else { return }
+      failedAgentCalls.remove(call)
+      agentCallResults[call] = resultValue
       dirtyAgentCalls.insert(call)
       agentCallSettledSubject.send()
+    case .failure(let error):
+      handleFunctionError(error, functionName: call.name)
+      guard tracksNode, nodesByAgentCall[call] != nil else { return }
+      agentCallResults.removeValue(forKey: call)
+      failedAgentCalls.insert(call)
     }
   }
 
@@ -1776,6 +1790,7 @@ extension NodeResolver: FunctionHandler {
   /// (`CATALOG_ERROR`), while missing functions and errors thrown by `evaluate` are reported as
   /// `EXPRESSION_ERROR`, matching the other core SDKs.
   public func handleFunctionError(_ error: any Error, functionName: String) {
+    guard !isDisposed else { return }
     let version = effectiveProtocolVersion ?? .v09
     let rendererError: RendererError
     if let catalogError = error as? A2UICatalogError {
