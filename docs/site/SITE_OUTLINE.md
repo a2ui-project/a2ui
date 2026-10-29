@@ -135,7 +135,7 @@
 
 1. **What is the Data Model?**:
     - **Per-Surface Reactive State**: A reactive JSON object tree scoped to a specific `surfaceId`.
-    - **Decoupled from UI Hierarchy**: The data model exists independently of the component tree. An agent can stream state updates via `updateDataModel` (using JSON Pointer paths, upsert semantics, and `value: null` for key deletion) without resending or rebuilding the UI component hierarchy.
+    - **Decoupled from UI Hierarchy**: The data model exists independently of the component tree. An agent can stream state updates via `updateDataModel` (using JSON Pointer paths, upsert semantics, and key deletion by setting `value: null` in v1.0 or omitting `value` in v0.9.1) without resending or rebuilding the UI component hierarchy.
 2. **Populating the Data Model: Deterministic vs. Generative**:
     - **Deterministic Sources**: External API responses, database queries, or tool outputs can populate the data model directly.
     - **Direct LLM Generation**: Agents can emit initial `dataModel` state in `createSurface` or stream incremental `updateDataModel` messages.
@@ -189,7 +189,7 @@
         - Explain how container components (`List`, `Row`, `Column`) dynamically generate children from a data model array using a template object:
             ```json
             "children": {
-              "path": "/breeds",
+              "@path": "/breeds",
               "componentId": "breedTemplate"
             }
             ```
@@ -212,12 +212,12 @@
 1. **The Four Execution Paths**:
    Present a structured 4-row matrix comparing how interactions and logic execute across the protocol:
 
-    | Execution Path                                                           | Trigger                                        | Executor                    | Wire Message(s)                                                 | Catalog & Security Rules                                                          |
-    | :----------------------------------------------------------------------- | :--------------------------------------------- | :-------------------------- | :-------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
-    | **1. User Action Event** (`action.event`)                                | User gesture (e.g. button click)               | Agent LLM or server handler | `action` (Renderer $\rightarrow$ Agent)                         | Resolves `context` pointers before sending                                        |
-    | **2. Local Client Function** (`action.functionCall` or property `@call`) | User gesture or reactive data binding          | Client Renderer (local)     | _None (zero network round-trip)_                                | Must be registered locally; `allowedCallers`: `rendererOnly` or `rendererOrAgent` |
-    | **3. Renderer-to-Agent RPC** (`callAgentFunction`)                       | Client function call targeting remote function | Agent Server endpoint       | `callAgentFunction` $\rightarrow$ `agentFunctionResponse`       | `allowedCallers`: `agentOnly` or `rendererOrAgent`                                |
-    | **4. Agent-to-Renderer RPC** (`callRendererFunction`)                    | Agent instruction during active session        | Client Renderer             | `callRendererFunction` $\rightarrow$ `rendererFunctionResponse` | Cannot invoke functions with `requiresUserActivation: true`                       |
+    | Execution Path                                                           | Trigger                                        | Executor                    | Wire Message(s)                                                 | Catalog & Security Rules                                                                                        |
+    | :----------------------------------------------------------------------- | :--------------------------------------------- | :-------------------------- | :-------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
+    | **1. User Action Event** (`action.event`)                                | User gesture (e.g. button click)               | Agent LLM or server handler | `action` (Renderer $\rightarrow$ Agent)                         | Resolves `context` pointers before sending                                                                      |
+    | **2. Local Client Function** (`action.functionCall` or property `@call`) | User gesture or reactive data binding          | Client Renderer (local)     | _None (zero network round-trip)_                                | Must be registered locally; `allowedCallers`: `rendererOnly` or `rendererOrAgent`                               |
+    | **3. Renderer-to-Agent RPC** (`callAgentFunction`)                       | Client function call targeting remote function | Agent Server endpoint       | `callAgentFunction` $\rightarrow$ `agentFunctionResponse`       | `allowedCallers`: `rendererOnly` or `rendererOrAgent`                                                           |
+    | **4. Agent-to-Renderer RPC** (`callRendererFunction`)                    | Agent instruction during active session        | Client Renderer             | `callRendererFunction` $\rightarrow$ `rendererFunctionResponse` | `allowedCallers`: `agentOnly` or `rendererOrAgent`; cannot invoke functions with `requiresUserActivation: true` |
     - > **Warning — Implicit Fallback Routing**: Per the v1.0 specification (`§callAgentFunction`), if a component invokes a function name that is **not** registered in the client renderer's local function table, the renderer automatically falls back to dispatching it as a `callAgentFunction` RPC over the network. A typo in a local function name will therefore result in an unexpected network call that fails with `UNKNOWN_FUNCTION`.
 
 2. **Actions with Context & Dynamic `userMessage`**:
@@ -284,7 +284,7 @@
 
 - **Nomenclature and Version Tabs**:
     - Present comparative tabbed examples labeled **v1.0 (Candidate)** and **v0.9.1 (Current)** synced across the page.
-    - Include a concise **v0.9.1 $\rightarrow$ v1.0 Terminology & Wire Delta Table** (`server_to_client` $\rightarrow$ `agent_to_renderer`, `client_to_server` $\rightarrow$ `renderer_to_agent`, `path` $\rightarrow$ `@path`, `call` $\rightarrow$ `@call`, `theme` removed from `createSurface`, inline `components`/`dataModel` added to `createSurface`, UAX #31 component IDs).
+    - Include a concise **v0.9.1 $\rightarrow$ v1.0 Terminology & Wire Delta Table** (`server_to_client` $\rightarrow$ `agent_to_renderer`, `client_to_server` $\rightarrow$ `renderer_to_agent`, `path` $\rightarrow$ `@path`, `call` $\rightarrow$ `@call`, `theme` removed from `createSurface`, inline `components`/`dataModel` added to `createSurface`, `updateDataModel` key deletion via `value: null` in v1.0 vs. omitting `value` in v0.9.1, UAX #31 component IDs).
 - **Diagram Format**:
     - Use **Themed Mermaid (`sequenceDiagram`)** for the temporal message exchange. _(Prerequisite: add `starlight-mermaid` to `docs/site/package.json` and `docs/site/astro.config.mjs`)._
 
@@ -307,12 +307,12 @@
         Renderer->>Agent: action (resolved context + optional dataModel metadata)
         Agent->>Renderer: updateDataModel / updateComponents (reactive updates)
         opt Renderer-Initiated RPC (v1.0)
-            Renderer->>Agent: callAgentFunction (functionCallId, callFunction)
-            Agent->>Renderer: agentFunctionResponse (functionCallId, result / error)
+            Renderer->>Agent: callAgentFunction (surfaceId, functionCallId, callFunction)
+            Agent->>Renderer: agentFunctionResponse (functionCallId, value / error)
         end
         opt Agent-Initiated RPC (v1.0)
-            Agent->>Renderer: callRendererFunction (functionCallId, callFunction)
-            Renderer->>Agent: rendererFunctionResponse (functionCallId, result / error)
+            Agent->>Renderer: callRendererFunction (surfaceId, functionCallId, callFunction)
+            Renderer->>Agent: rendererFunctionResponse (functionCallId, value / error)
         end
         alt Validation or Execution Failure
             Renderer->>Agent: error (code, path, message, surfaceId)
@@ -337,7 +337,7 @@
     - `updateComponents`:
         - Adds or updates components by `id` within the surface's flat component map.
     - `updateDataModel`:
-        - Upserts data at a JSON Pointer `path` (or root `/`). Setting `value: null` deletes the target key.
+        - Upserts data at a JSON Pointer `path` (or root `/`). Deletes the target key by setting `value: null` in v1.0 (or omitting `value` in v0.9.1).
     - `deleteSurface`:
         - Tears down the surface and frees state and subscriptions.
     - `callRendererFunction` & `agentFunctionResponse` _(v1.0)_:
@@ -383,7 +383,7 @@
 
         generator = A2uiGenerator(
             catalogs=[CatalogConfig.from_path("path/to/catalog.json")],
-            format_factory=ExpressFormatFactory(),  # Or DirectJsonFormatFactory()
+            inference_format_factory=ExpressFormatFactory(),  # Or DirectJsonFormatFactory()
         )
         ```
 
@@ -628,12 +628,12 @@
     - Connect your active transport (AG-UI, A2A, SSE, or WebSockets) and pass incoming parsed message payloads into `messageProcessor.processMessages(messages)` (avoid assuming any single wire framing format such as JSONL—the transport layer delivers messages according to the chosen protocol binding).
 
 6. **Step 5: Mount Surface Components (Canonical Renderer Tabs)**:
-    - Flutter: `A2uiSurface(surfaceId: 'main', processor: processor)`
+    - Flutter: `A2uiSurface(surface: surface)`
     - Web (React / Angular / Lit):
-        - React: `<A2uiSurface surfaceId="main" processor={processor} />`
-        - Angular: `<a2ui-component-host [surfaceId]="'main'"></a2ui-component-host>`
-        - Lit: `<a2ui-surface surface-id="main" .processor=${processor}></a2ui-surface>`
-    - SwiftUI: `A2UISurfaceView(surfaceId: "main", processor: processor)`
+        - React: `<A2uiSurface surface={surface} />`
+        - Angular: `<a2ui-v09-surface [surfaceId]="'main'"></a2ui-v09-surface>`
+        - Lit: `<a2ui-surface .surface=${surface}></a2ui-surface>`
+    - SwiftUI: `Surface(viewModel: viewModel, catalogs: [basicCatalog])`
     - Jetpack Compose: `A2uiSurface(surfaceId = "main", processor = processor)`
 
 7. **Step 6: Handle Outbound Actions, RPCs, and Errors**:
@@ -669,7 +669,7 @@
     - Dart: `dart pub add a2ui_agent a2ui_core`
 
 3. **Step 2: Configure `A2uiGenerator`, Catalogs & Inference Format**:
-    - Initialize `A2uiGenerator` with your `CatalogConfig` list and chosen `format_factory` (`ExpressFormatFactory()` by default, or `DirectJsonFormatFactory()`).
+    - Initialize `A2uiGenerator` with your `CatalogConfig` list and chosen `inference_format_factory` (`ExpressFormatFactory()` by default, or `DirectJsonFormatFactory()`).
     - If using server-side macros, briefly note where `MacroExpander` plugs in and link to the canonical [Macros](#macros) page.
 
 4. **Step 3: Negotiate Capabilities & Inject System Prompt Snippet**:
@@ -694,8 +694,8 @@
 
 7. **Step 6: Integrating with Agent Frameworks & Standard Transports (ADK, A2A, AG-UI / CopilotKit)**:
     - Consolidates and updates the guidance from `docs/public/guides/a2ui-with-any-agent-framework.md`:
-        - **Google ADK (`a2ui-adk`)**: Using `SendA2uiToClientToolset` and `A2uiProcessorStore` to equip ADK agents with A2UI rendering capabilities.
-        - **A2A Protocol (`a2ui-a2a`)**: Using `create_a2ui_part`, `to_a2a_parts`, and `A2uiEventConverter` to transmit A2UI payloads over Agent-to-Agent envelopes.
+        - **Google ADK (`a2ui-adk`)**: Using `SendA2uiToClientToolset`, `A2uiProcessorStore`, and `A2uiEventConverter` (`a2ui-adk[a2a]`) to equip ADK agents with A2UI rendering capabilities.
+        - **A2A Protocol (`a2ui-a2a`)**: Using `create_a2ui_part`, `to_a2a_parts`, and `stream_response_to_parts` to transmit A2UI payloads over Agent-to-Agent envelopes.
         - **AG-UI / CopilotKit & Custom Harnesses**: Wiring A2UI message streams into AG-UI event streams, LangGraph, or custom SSE/WebSocket agent harnesses.
 
 #### How to Define a Catalog
@@ -930,7 +930,7 @@ To improve the developer experience over the legacy site—where JSON schemas we
     - **Schema Summary & Key Definitions**: Brief overview of the top-level definitions in that file.
 
 3. **Zero-Duplication Embedded Code Viewers**:
-    - Each schema is embedded directly into Starlight tab panels via our Remark include plugin (`--8<-- "specification/<version>/json/<file>.json"`).
+    - Each schema is embedded inside a `json` code fence via our Remark include plugin (using `specification/<version>/json/<file>.json`, `specification/<version>/catalogs/basic/catalog.json`, or `catalogs/basic/v1/catalog.json`, with MDX support enabled in `remark-a2ui-includes.mjs`).
     - Rendered using Expressive Code with syntax highlighting, line numbers, search, and collapsible root blocks.
 
 ---

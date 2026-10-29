@@ -1,6 +1,10 @@
 ---
 name: public-documentation
-description: Guidelines and authoring standards for writing public documentation, concepts, guides, and tutorials for the A2UI developer site.
+description: >-
+  Defines authoring, multi-version tabbing, multi-SDK code example, and diagram
+  standards for the A2UI developer site (docs/site/). Use when creating,
+  editing, or reviewing public documentation, conceptual guides, tutorials, or
+  quickstarts.
 ---
 
 # Public Documentation Authoring Skill
@@ -22,11 +26,11 @@ Public documentation must read as professional, accurate, and human-authored tec
 
 ## 2. Protocol Version Parity in JSON Examples
 
-A2UI actively supports multiple protocol specifications during the transition from v0.9 to v1.0:
+A2UI actively supports multiple protocol specifications during the transition from v0.9.1 to v1.0:
 
-- **Always Provide Both v0.9 and v1.0 Where Relevant**:
+- **Always Provide Both v0.9.1 and v1.0 Where Relevant**:
   Whenever presenting wire format JSON, message payloads (e.g., `createSurface`, `updateDataModel`), or component definitions:
-  - Provide side-by-side or tabbed examples for **v0.9** (current published protocol) and **v1.0** (candidate / next stable release).
+  - Provide side-by-side or tabbed examples for **v0.9.1** (current published protocol) and **v1.0** (candidate / next stable release).
   - Explicitly call out version-specific differences, deprecations, or syntax enhancements (e.g. payload envelope evolution, property restructuring).
 - **Express / Wire Mapping**: When contrasting human-readable inference formats (like Express `.a2ui`) with raw JSON, show the resulting compiled JSON for both versions if there are structural differences.
 
@@ -36,7 +40,7 @@ A2UI actively supports multiple protocol specifications during the transition fr
 
 Code examples must not favor a single programming language. Whenever demonstrating SDK integration, surface creation, data binding, or agent communication:
 
-- **Include All Available SDKs**: Always provide code examples for every active SDK supported in the repository.
+- **Include All Available SDKs**: Always provide code examples for active SDKs supported in the repository. (Note: Swift currently focuses on client-side rendering with Core and SwiftUI, without an Agent SDK. For Agent SDK examples, include TypeScript, Python, and Dart, noting Swift's client focus; for Core state and message processing, include all four).
 - **Strict Tab Ordering**: Tabs must **always** appear in the following canonical order:
   1. **TypeScript** (`TS` / Node / Web)
   2. **Python**
@@ -53,14 +57,13 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
   ```typescript
-  import { AgentClient } from '@a2ui/agent';
+  import { A2uiGenerator, CatalogConfig } from '@a2ui/agent';
   // TypeScript example
-````
-
+  ```
   </TabItem>
   <TabItem label="Python">
   ```python
-  from a2ui_agent import AgentClient
+  from a2ui.processor import A2uiGenerator, CatalogConfig
   # Python example
   ```
   </TabItem>
@@ -73,11 +76,11 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
   <TabItem label="Swift">
   ```swift
   import A2UICore
-  // Swift example
+  // Swift Core state or client-side example
   ```
   </TabItem>
 </Tabs>
-```
+````
 
 ---
 
