@@ -220,9 +220,9 @@
             - label
   args:
     includeInlineCatalogs: true
-    version: "v1.0"
+    version: "1.0"
   expect:
-    v1.0:
+    "1.0":
       supportedCatalogIds:
         - "cat-v10"
       inlineCatalogs:

@@ -505,7 +505,7 @@ struct MessageProcessorTests {
     )
     #expect(buttonV091["allOf/0/$ref"]?.stringValue == "custom.json#/$defs/Envelope")
 
-    let inlineCatalogV10 = try #require(caps["v1.0"]?["inlineCatalogs"]?.arrayValue?.first)
+    let inlineCatalogV10 = try #require(caps["1.0"]?["inlineCatalogs"]?.arrayValue?.first)
     let buttonV10 = try #require(inlineCatalogV10["components"]?["Button"])
     let expectedButtonV10: JSONValue = .object([
       "type": .string("object"),
@@ -744,7 +744,7 @@ struct MessageProcessorTests {
         """))
 
     try await Task.sleep(nanoseconds: 20_000_000)
-    #expect(capturedOutbound.count == 5)
+    #expect(capturedOutbound.count == 6)
     if case .rendererFunctionResponse(let resp6) = capturedOutbound.last {
       #expect(resp6.functionCallID == "rpc-6")
       #expect(resp6.error?.code == FunctionErrorPayload.Code.invalidFunctionCall.rawValue)
