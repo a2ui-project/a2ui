@@ -1,9 +1,9 @@
 ---
-title: "Data Model and Data Binding"
-description: "Learn how A2UI separates surface UI structure from reactive JSON state, enabling two-way local bindings, reactive formatting, dynamic list templates, and on-demand state synchronization."
+title: 'Data Model and Data Binding'
+description: 'Learn how A2UI separates surface UI structure from reactive JSON state, enabling two-way local bindings, reactive formatting, dynamic list templates, and on-demand state synchronization.'
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 import DataBindingAnatomy from '../../../components/docs/DataBindingAnatomy.astro';
 import CollectionScopeDiagram from '../../../components/docs/CollectionScopeDiagram.astro';
 
@@ -303,13 +303,15 @@ When a container uses a template object, the Core SDK creates a **scoped `DataCo
 
 Local two-way data bindings never stream individual keystrokes or slider movements across the network. State returns from the client renderer to the agent only when an interaction triggers an outbound message (`action` or `callAgentFunction`), using one of two mechanisms:
 
-| Mechanism | How to Configure | When to Use |
-| :--- | :--- | :--- |
-| **Explicit Action Context (`action.event.context`)** | Declare a `context` map on the interactive component's `action.event` containing the specific `@path` pointers needed for that action. | **Recommended default.** Keeps payloads compact and explicit; the agent receives only the fields relevant to the triggered action. |
-| **Full Surface Sync (`sendDataModel: true`)** | Set `"sendDataModel": true` inside the `createSurface` message when creating the surface. | Multi-step wizards or complex forms where the agent wants the complete surface `dataModel` attached automatically to every outbound client message. |
+| Mechanism                                            | How to Configure                                                                                                                       | When to Use                                                                                                                                         |
+| :--------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Explicit Action Context (`action.event.context`)** | Declare a `context` map on the interactive component's `action.event` containing the specific `@path` pointers needed for that action. | **Recommended default.** Keeps payloads compact and explicit; the agent receives only the fields relevant to the triggered action.                  |
+| **Full Surface Sync (`sendDataModel: true`)**        | Set `"sendDataModel": true` inside the `createSurface` message when creating the surface.                                              | Multi-step wizards or complex forms where the agent wants the complete surface `dataModel` attached automatically to every outbound client message. |
 
 <Aside type="note" title="Multi-Agent Privacy Boundary">
-When `"sendDataModel": true` is enabled on a surface, the client renderer attaches that surface's `dataModel` snapshot strictly to messages routed to the agent that created the surface—never broadcasting surface state to unrelated third-party agents.
+  When `"sendDataModel": true` is enabled on a surface, the client renderer attaches that surface's
+  `dataModel` snapshot strictly to messages routed to the agent that created the surface—never
+  broadcasting surface state to unrelated third-party agents.
 </Aside>
 
 ---
@@ -328,20 +330,21 @@ const processor = new MessageProcessor([travelCatalog]);
 
 // Process an incoming updateDataModel message
 processor.processMessages([
-  {
-    version: '1.0',
-    updateDataModel: {
-      surfaceId: 'checkout',
-      path: '/invoice/total',
-      value: 285.0,
-    },
-  },
+{
+version: '1.0',
+updateDataModel: {
+surfaceId: 'checkout',
+path: '/invoice/total',
+value: 285.0,
+},
+},
 ]);
 
 // Read or mutate the surface's reactive DataModel directly on the client
 const surface = processor.model.getSurface('checkout');
 const totalSignal = surface?.dataModel.get('/invoice/total');
-```
+
+````
   </TabItem>
   <TabItem label="Python">
 ```python
@@ -363,7 +366,8 @@ processor.process_messages([
 
 surface = processor.get_surface("checkout")
 current_total = surface.data_model.get("/invoice/total")
-```
+````
+
   </TabItem>
   <TabItem label="Dart">
 ```dart
@@ -373,19 +377,20 @@ final processor = MessageProcessor(catalogs: [travelCatalog]);
 
 // Process an incoming updateDataModel payload
 processor.processMessages([
-  {
-    'version': '1.0',
-    'updateDataModel': {
-      'surfaceId': 'checkout',
-      'path': '/invoice/total',
-      'value': 285.0,
-    },
-  },
+{
+'version': '1.0',
+'updateDataModel': {
+'surfaceId': 'checkout',
+'path': '/invoice/total',
+'value': 285.0,
+},
+},
 ]);
 
 final surface = processor.getSurface('checkout');
 final currentTotal = surface?.dataModel.get('/invoice/total');
-```
+
+````
   </TabItem>
   <TabItem label="Swift">
 ```swift
@@ -406,6 +411,7 @@ try processor.processMessages([
 
 let surface = processor.surface(forId: "checkout")
 let currentTotal = surface?.dataModel.get(path: "/invoice/total")
-```
+````
+
   </TabItem>
 </Tabs>
