@@ -578,32 +578,29 @@ export class GenericBinder<T> {
     if (cached && jsonEquals(cached.raw, value)) {
       return cached.closure;
     }
-    const closure = () => {
-      if (value && typeof value === 'object') {
-        const valObj = value as Record<string, unknown>;
-        const isFunctionCall =
-          Boolean(valObj.functionCall && typeof valObj.functionCall === 'object') ||
-          'call' in valObj ||
-          '@call' in valObj;
-        const resolved = this.context.dataContext.resolveAction(
-          value as Action | Record<string, unknown>,
-          {userActivation: true},
-        );
-        if (isFunctionCall) {
-          if (
-            resolved instanceof Promise ||
-            (typeof resolved === 'object' && resolved !== null && 'then' in (resolved as any))
-          ) {
-            return (resolved as Promise<unknown>).then(() => undefined);
-          }
-          return Promise.resolve();
-        }
-        if (resolved === undefined) {
-          return Promise.resolve();
-        }
-        return this.context.dispatchAction(resolved as Action);
+    const closure = async () => {
+      if (!value || typeof value !== 'object') {
+        return;
       }
-      return Promise.resolve();
+      const valObj = value as Record<string, unknown>;
+      const isFunctionCall =
+        Boolean(valObj.functionCall && typeof valObj.functionCall === 'object') ||
+        'call' in valObj ||
+        '@call' in valObj;
+      if (isFunctionCall) {
+        await this.context.dataContext.resolveAction(value as Action | Record<string, unknown>, {
+          userActivation: true,
+        });
+        return;
+      }
+      const resolved = this.context.dataContext.resolveAction(
+        value as Action | Record<string, unknown>,
+        {userActivation: true},
+      );
+      if (resolved === undefined) {
+        return;
+      }
+      await this.context.dispatchAction(resolved as Action);
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;

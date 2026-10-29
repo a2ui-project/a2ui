@@ -56,12 +56,6 @@ export interface RendererErrorMessage {
   readonly error: A2uiRendererError;
 }
 
-/** Alias for `RendererErrorMessage`. */
-export type ProcessingErrorMessage = RendererErrorMessage;
-
-/** Backwards-compatible alias for `RendererErrorMessage`. */
-export type ErrorMessage = RendererErrorMessage;
-
 /** Known top-level action envelope keys across A2UI protocol versions. */
 const ACTION_ENVELOPE_KEYS = [
   'createSurface',
@@ -237,11 +231,11 @@ function resolveErrorCode(err: unknown, isV1: boolean): string {
 
 /**
  * Maps an internal `A2uiError` (or unknown thrown error) and envelope context
- * into a spec-compliant outbound renderer `ErrorMessage`.
+ * into a spec-compliant outbound `RendererErrorMessage`.
  *
  * @param err Thrown error instance.
  * @param context Extracted envelope correlation context.
- * @returns Spec-compliant outbound `ErrorMessage`.
+ * @returns Spec-compliant outbound `RendererErrorMessage`.
  */
 export function mapErrorToRendererMessage(
   err: unknown,

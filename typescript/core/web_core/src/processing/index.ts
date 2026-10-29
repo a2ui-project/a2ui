@@ -20,7 +20,6 @@ export {
   extractEnvelopeErrorContext,
   normalizeJsonPointer,
   type RendererErrorMessage,
-  type ProcessingErrorMessage,
   type A2uiRendererError,
   type ValidationFailedErrorBody,
   type GenericErrorBody,
