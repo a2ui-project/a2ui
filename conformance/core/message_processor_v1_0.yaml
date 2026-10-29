@@ -124,13 +124,13 @@
 - name: test_v10_update_components_with_metadata_extensions
   description: Tests that v1.0 updateComponents accepts component metadata whose extension keys are Unicode identifiers (UAX 31).
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10_comp_meta"
         catalogId: "test-catalog-v10"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s_v10_comp_meta"
         components:
@@ -151,13 +151,13 @@
 - name: test_v10_update_components_metadata_extension_key_must_be_identifier
   description: Tests that v1.0 updateComponents rejects component metadata extensions whose key is not a Unicode identifier (UAX 31).
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10_comp_meta_bad_key"
         catalogId: "test-catalog-v10"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s_v10_comp_meta_bad_key"
         components:
