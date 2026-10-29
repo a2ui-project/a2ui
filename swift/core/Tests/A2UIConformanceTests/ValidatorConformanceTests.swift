@@ -386,9 +386,6 @@ struct ValidatorConformanceTests {
       }
     }
   }
-      }
-    }
-  }
 
   private func assertErrorMatches(
     error: Error,
