@@ -95,13 +95,13 @@ struct RPCConformanceTests {
     for id in ["basic", "media_catalog", "system_catalog", "store_catalog"] {
       catalogs[id] = Catalog<AnyComponentAPI>(
         id: id,
-        protocolVersion: "v1.0",
+        protocolVersion: "1.0",
         components: [],
         functions: functions
       ).eraseToAnyCatalog()
     }
     if let extraCatID = testCase.args?["catalogId"]?.stringValue {
-      let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "v1.0"
+      let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "1.0"
       catalogs[extraCatID] = Catalog<AnyComponentAPI>(
         id: extraCatID,
         protocolVersion: extraCatVersion,
