@@ -103,6 +103,7 @@ public struct Node: Identifiable, Equatable, Sendable {
   /// view, can subscribe to each child's publisher (for example with `.onReceive`) to update
   /// when that child changes. Because it fires before the new values are stored, read the child's
   /// properties on the next render rather than inside the subscriber.
+  @MainActor
   public var objectWillChange: ObservableObjectPublisher { box.objectWillChange }
 
   /// Creates a new resolved component node.
