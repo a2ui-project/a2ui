@@ -73,18 +73,23 @@ public struct A2UIText: View {
     case "h1":
       Text(attributedMarkdown(text))
         .font(Self.headingFont(level: 1))
+        .a2uiHeading(level: 1)
     case "h2":
       Text(attributedMarkdown(text))
         .font(Self.headingFont(level: 2))
+        .a2uiHeading(level: 2)
     case "h3":
       Text(attributedMarkdown(text))
         .font(Self.headingFont(level: 3))
+        .a2uiHeading(level: 3)
     case "h4":
       Text(attributedMarkdown(text))
         .font(Self.headingFont(level: 4))
+        .a2uiHeading(level: 4)
     case "h5":
       Text(attributedMarkdown(text))
         .font(Self.headingFont(level: 5))
+        .a2uiHeading(level: 5)
     case "caption":
       Text(attributedMarkdown(text))
         .font(.caption)
@@ -93,6 +98,28 @@ public struct A2UIText: View {
     default:
       MarkdownBlockView(text: text)
     }
+  }
+}
+
+extension View {
+  /// Marks this view as a heading for assistive technologies, so VoiceOver announces it as one
+  /// and lists it in the headings rotor, like the `<h1>`–`<h5>` elements of the web renderer.
+  ///
+  /// Levels deeper than 6 are reported as level 6, the deepest level SwiftUI supports.
+  fileprivate func a2uiHeading(level: Int) -> some View {
+    let headingLevel: AccessibilityHeadingLevel =
+      switch level {
+      case 1: .h1
+      case 2: .h2
+      case 3: .h3
+      case 4: .h4
+      case 5: .h5
+      default: .h6
+      }
+    return
+      self
+      .accessibilityAddTraits(.isHeader)
+      .accessibilityHeading(headingLevel)
   }
 }
 
@@ -156,6 +183,7 @@ struct MarkdownBlockView: View {
     case .heading(let level, let hText):
       Text(attributedMarkdown(hText))
         .font(A2UIText.headingFont(level: level))
+        .a2uiHeading(level: level)
 
     case .unorderedList(let items):
       VStack(alignment: .leading, spacing: 4) {
