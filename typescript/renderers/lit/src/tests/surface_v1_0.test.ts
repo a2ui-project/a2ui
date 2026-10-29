@@ -71,7 +71,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'inline-v1-surface',
           catalogId: basicCatalog.id,
@@ -111,7 +111,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'props-v1-surface',
           catalogId: basicCatalog.id,
@@ -182,7 +182,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'a11y-v1-surface',
           catalogId: basicCatalog.id,
@@ -222,7 +222,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'list-index-surface',
           catalogId: basicCatalog.id,
@@ -287,7 +287,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
 
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'actions-v1-surface',
           catalogId: basicCatalog.id,
@@ -416,7 +416,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     // Case A: Surface default catalog is basicCatalog, child uses secondaryCatalog
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'multi-child-surface',
           catalogId: basicCatalog.id,
@@ -447,7 +447,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     // and renders a child from basicCatalog
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'multi-root-surface',
           catalogId: basicCatalog.id,
@@ -484,9 +484,9 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   it('renders a surface with no default catalog whose root names its catalog', async () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
-      {version: 'v1.0', createSurface: {surfaceId: 'no-default-surface'}},
+      {version: '1.0', createSurface: {surfaceId: 'no-default-surface'}},
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'no-default-surface',
           components: [

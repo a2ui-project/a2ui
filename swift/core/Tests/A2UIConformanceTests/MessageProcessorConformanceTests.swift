@@ -78,7 +78,7 @@ struct MessageProcessorConformanceTests {
   @Test func messageProcessorV10Conformance() throws {
     try runMessageProcessorSuite(
       filename: "core/message_processor_v1_0.yaml",
-      defaultVersion: "v1.0"
+      defaultVersion: "1.0"
     )
   }
 
@@ -349,12 +349,22 @@ struct MessageProcessorConformanceTests {
     defaultVersion: String
   ) throws {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
+    // A case's `validationConfig` sets its checks; without one, `strictMode` decides.
     let strictMode = testCase["strictMode"] as? Bool ?? false
+    let validationConfig: ValidationConfig
+    if let flags = testCase["validationConfig"] as? [String: Bool] {
+      validationConfig = try #require(
+        ConformanceTestHelper.validationConfig(from: flags),
+        "[\(name)] Unknown validationConfig flags \(flags.keys.sorted())"
+      )
+    } else {
+      validationConfig = strictMode ? .strict : .relaxed
+    }
     let handler = ConformanceActionCaptureHandler()
     let processor = MessageProcessor(
       catalogs: catalogs,
       actionHandler: handler,
-      validationConfig: strictMode ? .strict : .relaxed
+      validationConfig: validationConfig
     )
     let expectedRuntimeError = Self.expectedRuntimeErrors[name]
 

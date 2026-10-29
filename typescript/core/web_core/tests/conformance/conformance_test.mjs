@@ -80,7 +80,7 @@ const v0_9Catalog = new Catalog(
 );
 const v1_0Catalog = new Catalog(
   'v1.0:basic',
-  'v1.0',
+  '1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
@@ -104,7 +104,7 @@ const v0_9BasicCatalog = new Catalog(
 );
 const v1_0BasicCatalog = new Catalog(
   'basic',
-  'v1.0',
+  '1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
@@ -560,12 +560,12 @@ async function validateRpcTestCase(testCase) {
   }
 
   const catVersion =
-    args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || 'v1.0';
+    args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || '1.0';
 
   const cat = new Catalog(catId, catVersion, [], funcs, undefined, undefined);
   let sentOutboundMsg;
   const processor = new MessageProcessor([cat], undefined, {
-    version: 'v1.0',
+    version: '1.0',
     outboundListener: msg => {
       sentOutboundMsg = msg;
     },
@@ -824,7 +824,7 @@ function validateSelectCatalogTestCase(testCase) {
   const catalogsDict = new Map();
   if (args.catalogs && typeof args.catalogs === 'object') {
     for (const [catId, catDef] of Object.entries(args.catalogs)) {
-      const pVer = catDef.protocolVersion || 'v1.0';
+      const pVer = catDef.protocolVersion || '1.0';
       catalogsDict.set(
         catId,
         new Catalog(catId, pVer, flexibleComponents, [], undefined, undefined),
@@ -835,14 +835,14 @@ function validateSelectCatalogTestCase(testCase) {
     for (const catId of supported) {
       catalogsDict.set(
         catId,
-        new Catalog(catId, 'v1.0', flexibleComponents, [], undefined, undefined),
+        new Catalog(catId, '1.0', flexibleComponents, [], undefined, undefined),
       );
     }
   }
 
   const defaultCat =
     catalogsDict.get(defaultCatId) ||
-    new Catalog(defaultCatId, 'v1.0', flexibleComponents, [], undefined, undefined);
+    new Catalog(defaultCatId, '1.0', flexibleComponents, [], undefined, undefined);
 
   const executeSelect = () => {
     // 1. Check protocol version consistency across catalogs
@@ -947,7 +947,7 @@ function validateValidateTestCase(testCase) {
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processor = new MessageProcessor(testCatalogs, undefined, {
-    version: testCase.protocolVersion || 'v1.0',
+    version: testCase.protocolVersion || '1.0',
     validationConfig: STRICT_VALIDATION,
   });
 
@@ -1758,7 +1758,7 @@ function resolveProtocolVersion(testCase) {
   const catId = String(testCase.catalogId || catSpec.catalogId || caseSchema.catalogId || '');
   if (catId.includes('v08') || catId.includes('v0_8')) return 'v0.8';
   if (catId.includes('v09') || catId.includes('v0_9')) return 'v0.9';
-  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return 'v1.0';
+  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return '1.0';
   return 'v0.9';
 }
 
@@ -2267,13 +2267,43 @@ function assertSurfacesMatch(processor, expect) {
   }
 }
 
+/**
+ * The flags a case's `validationConfig` may set (`validationConfig` in
+ * conformance_schema.json). An unknown flag fails the case rather than being
+ * silently ignored.
+ */
+const CASE_VALIDATION_FLAGS = new Set([
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+]);
+
+/**
+ * The processor's validation config for a process_messages case. A case's
+ * `validationConfig` sets its checks, so they don't depend on this harness: a
+ * flag it leaves out is false. Without one, `strictMode` selects strict
+ * validation and anything else none.
+ */
+function caseValidationConfig(testCase) {
+  const flags = testCase.validationConfig;
+  if (flags === undefined) {
+    return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
+  }
+  const unknown = Object.keys(flags).filter(name => !CASE_VALIDATION_FLAGS.has(name));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown validationConfig flags: ${unknown.join(', ')}`);
+  }
+  return {validationConfig: {...STRICT_VALIDATION, ...flags}};
+}
+
 function validateProcessMessagesTestCase(testCase) {
   const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processorOptions = {
     ...(protocolVersion ? {version: protocolVersion} : {}),
-    ...(testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {}),
+    ...caseValidationConfig(testCase),
   };
   const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
 
@@ -2305,10 +2335,24 @@ function validateProcessMessagesTestCase(testCase) {
         );
       }
     }
+    if (expectedErr.code) {
+      if (
+        !err.message.includes(expectedErr.code) &&
+        err.name !== expectedErr.code &&
+        err.code !== expectedErr.code
+      ) {
+        throw new Error(
+          `Expected error matching '${expectedErr.code}' but received: ${err.message}`,
+        );
+      }
+    }
     if (expectedErr.message) {
       const expectedMsg = expectedErr.message;
+      const normalizedActual = err.message.replaceAll('"', "'").replaceAll("','", "', '");
+      const normalizedExpected = expectedMsg.replaceAll('"', "'").replaceAll("','", "', '");
       const matches =
         err.message.includes(expectedMsg) ||
+        normalizedActual.includes(normalizedExpected) ||
         (expectedMsg.includes('Unsupported protocol version') &&
           (err.message.includes('Invalid enum value') ||
             err.message.includes('Unsupported protocol version'))) ||
@@ -2325,7 +2369,9 @@ function validateProcessMessagesTestCase(testCase) {
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      let stepMsgs = step.messages || (step.payload ? [step.payload] : []);
+      let stepMsgs =
+        step.messages ||
+        (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
       if (!stepMsgs && step.message) stepMsgs = [step.message];
       stepMsgs = normalizeMsgs(stepMsgs);
 

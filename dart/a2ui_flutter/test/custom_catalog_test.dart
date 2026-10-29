@@ -188,7 +188,7 @@ void main() {
       tester,
       [
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': testSurfaceId,
             'catalogId': BasicCatalog.v1_0Id,

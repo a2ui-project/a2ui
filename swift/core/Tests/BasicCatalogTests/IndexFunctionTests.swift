@@ -120,7 +120,7 @@ struct IndexFunctionTests {
   @Test func v10CatalogConfiguration() {
     let v10 = BasicCatalog.makeCatalog(version: .v10)
     #expect(v10.id == BasicCatalog.catalogURI(version: .v10))
-    #expect(v10.protocolVersion == "v1.0")
+    #expect(v10.protocolVersion == "1.0")
     #expect(v10.components.count == 18)
     #expect(v10.functions.count == 15)
     #expect(v10.functions["@index"] != nil)

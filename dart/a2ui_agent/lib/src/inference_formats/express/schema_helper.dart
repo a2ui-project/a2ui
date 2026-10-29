@@ -116,6 +116,68 @@ class CatalogSchemaHelper {
     return check(schema);
   }
 
+  /// The schema the catalog declares for the items of an array, or null if
+  /// it declares none.
+  ///
+  /// Follows `$ref`s into the definitions of [catalog]'s validation schema,
+  /// which bundles the common types, and the members of `allOf`, `oneOf` and
+  /// `anyOf`, so that a nested slot such as `items: [{label, action}]` is
+  /// found whichever way the catalog writes it.
+  Map<String, Object?>? resolveItemSchema(Map<String, Object?>? schema) =>
+      _resolveAt(schema, null);
+
+  /// The schema the catalog declares for the property [name] of an object,
+  /// or `additionalProperties` when it declares no such property, or null.
+  ///
+  /// Follows `$ref`s and the members of `allOf`, `oneOf` and `anyOf` as
+  /// [resolveItemSchema] does. A property named `items` is looked up as a
+  /// property, not as the array items.
+  Map<String, Object?>? resolvePropertySchema(
+    Map<String, Object?>? schema,
+    String name,
+  ) => _resolveAt(schema, name);
+
+  /// The schema at the property [property], or at the array items when
+  /// [property] is null.
+  Map<String, Object?>? _resolveAt(
+    Map<String, Object?>? schema,
+    String? property,
+  ) {
+    final Object? defsObj = catalog.validationSchema[r'$defs'];
+    final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
+    // A definition may refer to itself, so each is followed once.
+    final visitedRefs = <String>{};
+
+    Map<String, Object?>? resolve(Map<String, Object?>? s) {
+      if (s == null) return null;
+      if (property == null) {
+        if (s['items'] case final Map<Object?, Object?> items) {
+          return items.cast<String, Object?>();
+        }
+      } else {
+        if (_properties(s)[property] case final Map<Object?, Object?> found) {
+          return found.cast<String, Object?>();
+        }
+        if (s['additionalProperties'] case final Map<Object?, Object?> more) {
+          return more.cast<String, Object?>();
+        }
+      }
+      if (_refName(s) case final String ref when visitedRefs.add(ref)) {
+        if (defs?[ref] case final Map<Object?, Object?> target) {
+          if (resolve(target.cast<String, Object?>()) case final found?) {
+            return found;
+          }
+        }
+      }
+      for (final Map<String, Object?> alt in _alternatives(s)) {
+        if (resolve(alt) case final found?) return found;
+      }
+      return null;
+    }
+
+    return resolve(schema);
+  }
+
   /// The component's own description, if its schema has one.
   String? componentDescription(String component) {
     final Map<String, Object?> schema = catalog

@@ -243,7 +243,7 @@ export interface CallMcpToolOptions {
   readonly processor?: MessageProcessor<any>;
   /**
    * The A2UI protocol version given to decoded messages that carry no `version`, such as the
-   * payloads of MCP catalog servers that predate the field. Defaults to `'v1.0'`.
+   * payloads of MCP catalog servers that predate the field. Defaults to `'1.0'`.
    */
   readonly defaultVersion?: string;
   /**

@@ -44,11 +44,11 @@
     - input: "it is: "
       expect_parts:
         - text: "Here it is:"
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
       expect_parts:
         - text: "Here it is:"
         - surface: "a"
-    - input: ' and <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "b", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "b", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json> Done.'
+    - input: ' and <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "b", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "b", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json> Done.'
       expect_parts:
         - text: "Here it is:"
         - surface: "a"
@@ -69,7 +69,7 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
-    - input: 'Before <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "bad", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "bad", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json> after <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "good", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "good", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+    - input: 'Before <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "bad", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "bad", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json> after <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "good", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "good", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
       expect_parts:
         - text: "Before"
         - error:
@@ -84,11 +84,11 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, '
       expect_parts:
         - surface: "a"
       expect_in_block: true
-    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json> after'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json> after'
       expect_parts:
         - surface: "a"
         - error:
@@ -103,11 +103,11 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json> <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "b", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "b", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json> <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "b", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "b", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
       expect_parts:
         - surface: "a"
         - surface: "b"
-    - input: ' <a2ui-json>{"version": "v1.0", "deleteSurface": {"surfaceId": "a"}}</a2ui-json>'
+    - input: ' <a2ui-json>{"version": "1.0", "deleteSurface": {"surfaceId": "a"}}</a2ui-json>'
       expect_parts:
         - surface: "b"
 

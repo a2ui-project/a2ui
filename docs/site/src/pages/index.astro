@@ -1,0 +1,2390 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A2UI — Give your agents UI on every surface</title>
+    <meta
+      name="description"
+      content="A2UI is the open Agent-to-UI protocol and SDK suite that lets AI agents respond with stateful, native user interfaces across the entire Generative UI Spectrum."
+    />
+    <link rel="icon" type="image/svg+xml" href={`${base}/assets/favicon.svg`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    />
+    <script is:inline>
+      // Sync theme with Starlight's localStorage key ('starlight-theme')
+      (function () {
+        const stored = typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+        const theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <style is:global>
+      :root,
+      :root[data-theme='dark'] {
+        --bg: #080d1a;
+        --bg-alt: #0d1527;
+        --surface: #111c33;
+        --surface-raised: #162440;
+        --surface-subtle: #0c1425;
+        --code-bg: #060a14;
+        --code-header: #0f182d;
+        --text: #f8fafc;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+        --border: #1e293b;
+        --border-strong: #334155;
+        --accent: #14b8a6;
+        --accent-strong: #2dd4bf;
+        --accent-soft: rgba(20, 184, 166, 0.14);
+        --accent-border: rgba(45, 212, 191, 0.35);
+        --blue: #38bdf8;
+        --blue-soft: rgba(56, 189, 248, 0.14);
+        --amber: #fbbf24;
+        --amber-soft: rgba(251, 191, 36, 0.14);
+        --danger: #f87171;
+        --danger-soft: rgba(248, 113, 113, 0.12);
+        --success: #34d399;
+        --success-soft: rgba(52, 211, 153, 0.14);
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+        --shadow-md: 0 12px 28px -6px rgba(0, 0, 0, 0.5), 0 4px 10px -2px rgba(0, 0, 0, 0.35);
+        --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.65);
+        --font-sans: "Plus Jakarta Sans", "Inter", "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      :root[data-theme='light'] {
+        --bg: #f8fafc;
+        --bg-alt: #f1f5f9;
+        --surface: #ffffff;
+        --surface-raised: #ffffff;
+        --surface-subtle: #f8fafc;
+        --code-bg: #0f172a;
+        --code-header: #1e293b;
+        --text: #0f172a;
+        --text-secondary: #334155;
+        --text-muted: #64748b;
+        --border: #e2e8f0;
+        --border-strong: #cbd5e1;
+        --accent: #0d9488;
+        --accent-strong: #0f766e;
+        --accent-soft: rgba(13, 148, 136, 0.1);
+        --accent-border: rgba(13, 148, 136, 0.32);
+        --blue: #0284c7;
+        --blue-soft: rgba(2, 132, 199, 0.1);
+        --amber: #d97706;
+        --amber-soft: rgba(217, 119, 6, 0.1);
+        --danger: #dc2626;
+        --danger-soft: rgba(220, 38, 38, 0.08);
+        --success: #059669;
+        --success-soft: rgba(5, 150, 105, 0.12);
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+        --shadow-md: 0 8px 24px -4px rgba(15, 23, 42, 0.07), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+        --shadow-lg: 0 20px 40px -12px rgba(15, 23, 42, 0.1);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: var(--font-sans);
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--text);
+        background-color: var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      /* --- Top Navigation Bar --- */
+      .a2-nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        height: 60px;
+        box-sizing: border-box;
+        background: var(--bg-alt);
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(12px);
+      }
+
+      .a2-nav__inner {
+        width: 100%;
+        padding: 0 24px;
+        height: 100%;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .a2-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        font-weight: 800;
+        font-size: 18px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        color: var(--text);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .a2-brand__badge {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 4px;
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+        border: 1px solid var(--accent-border);
+        white-space: nowrap;
+      }
+
+      .a2-nav__links {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        overflow-x: auto;
+      }
+
+      .a2-nav__link {
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 20px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        white-space: nowrap;
+        transition: color 0.15s ease, background-color 0.15s ease;
+      }
+
+      .a2-nav__link:hover {
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .a2-nav__actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .a2-theme-btn {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        color: var(--text);
+        padding: 6px 11px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+
+      .a2-theme-btn:hover {
+        border-color: var(--accent);
+      }
+
+      /* --- Layout & Typography --- */
+      .a2-container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      .a2-section {
+        padding: 84px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .a2-section--alt {
+        background: var(--bg-alt);
+      }
+
+      .a2-eyebrow {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 12px;
+      }
+
+      .a2-h1 {
+        font-size: clamp(36px, 4.5vw, 56px);
+        font-weight: 800;
+        line-height: 1.08;
+        letter-spacing: -0.035em;
+        color: var(--text);
+        margin: 0 0 20px 0;
+      }
+
+      .a2-h2 {
+        font-size: clamp(28px, 3.2vw, 38px);
+        font-weight: 700;
+        line-height: 1.16;
+        letter-spacing: -0.025em;
+        color: var(--text);
+        margin: 0 0 16px 0;
+      }
+
+      .a2-lead {
+        font-size: 18px;
+        line-height: 1.65;
+        color: var(--text-secondary);
+        margin: 0 0 28px 0;
+        max-width: 70ch;
+      }
+
+      .a2-section-intro {
+        max-width: 840px;
+        margin-bottom: 40px;
+      }
+
+      /* --- Buttons --- */
+      .a2-cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+
+      .a2-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14.5px;
+        font-weight: 600;
+        padding: 11px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 1px solid transparent;
+        font-family: var(--font-sans);
+      }
+
+      .a2-btn--primary {
+        background: var(--accent);
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
+      }
+
+      .a2-btn--primary:hover {
+        background: var(--accent-strong);
+      }
+
+      .a2-btn--secondary {
+        background: var(--surface);
+        color: var(--text);
+        border-color: var(--border-strong);
+      }
+
+      .a2-btn--secondary:hover {
+        border-color: var(--accent);
+      }
+
+      .a2-btn--code {
+        background: var(--code-bg);
+        color: #e2e8f0;
+        border-color: #334155;
+        font-family: var(--font-mono);
+        font-size: 13px;
+      }
+
+      /* --- Hero Section --- */
+      .a2-hero {
+        padding: 68px 0 80px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .a2-hero__header {
+        max-width: 900px;
+        margin: 0 auto 44px auto;
+        text-align: center;
+      }
+
+      .a2-hero__header .a2-lead {
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      /* --- Workbench (Prose vs Interactive Surface) --- */
+      .a2-workbench {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 12px;
+        box-shadow: var(--shadow-lg);
+        overflow: hidden;
+      }
+
+      .a2-workbench__promptbar {
+        background: var(--code-header);
+        color: #f8fafc;
+        padding: 14px 20px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .a2-prompt-tag {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 4px;
+        background: rgba(20, 184, 166, 0.22);
+        color: #5eead4;
+      }
+
+      .a2-workbench__split {
+        display: grid;
+        grid-template-columns: 1fr 1.18fr;
+      }
+
+      @media (max-width: 960px) {
+        .a2-workbench__split {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .a2-pane {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .a2-pane--prose {
+        background: var(--surface-subtle);
+        border-right: 1px solid var(--border);
+      }
+
+      .a2-pane__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .a2-pane__title {
+        font-size: 12.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+      }
+
+      .a2-status-tag {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+      }
+
+      .a2-status-tag--bad {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .a2-status-tag--good {
+        background: var(--success-soft);
+        color: var(--success);
+      }
+
+      .a2-prose-bubble {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px 18px;
+        font-size: 13.5px;
+        line-height: 1.65;
+        color: var(--text-secondary);
+      }
+
+      .a2-prose-bubble p {
+        margin: 0 0 10px 0;
+      }
+
+      .a2-prose-bubble p:last-child {
+        margin-bottom: 0;
+      }
+
+      .a2-prose-highlight {
+        background: var(--danger-soft);
+        color: var(--danger);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-weight: 600;
+      }
+
+      .a2-travel-card {
+        background: var(--surface-raised);
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 18px;
+      }
+
+      .a2-flight-leg {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        background: var(--surface-subtle);
+      }
+
+      .a2-flight-leg__top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .a2-flight-badge {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .a2-flight-leg__controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 8px;
+        border-top: 1px dashed var(--border);
+      }
+
+      .a2-stepper {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        padding: 3px 6px;
+      }
+
+      .a2-stepper__btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        background: var(--bg-alt);
+        color: var(--text);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .a2-stepper__label {
+        font-size: 13px;
+        font-weight: 600;
+        min-width: 90px;
+        text-align: center;
+      }
+
+      .a2-chip-toggle {
+        font-size: 12.5px;
+        font-weight: 600;
+        padding: 5px 11px;
+        border-radius: 6px;
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        color: var(--text-secondary);
+        cursor: pointer;
+      }
+
+      .a2-chip-toggle.is-active {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+        color: var(--accent-strong);
+      }
+
+      .a2-datamodel-bar {
+        margin-top: 12px;
+        background: var(--code-bg);
+        color: #94a3b8;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .a2-datamodel-bar code {
+        color: #5eead4;
+      }
+
+      /* --- Section 2: Generative UI Spectrum --- */
+      .a2-spectrum-shell {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 12px;
+        padding: 26px;
+        box-shadow: var(--shadow-md);
+      }
+
+      .a2-spectrum-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 14px;
+      }
+
+      .a2-spectrum-bar__track {
+        flex: 1;
+        height: 4px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--blue), var(--accent), var(--amber));
+        margin: 0 16px;
+      }
+
+      .a2-spectrum-bands {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      @media (max-width: 960px) {
+        .a2-spectrum-bands {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      .a2-band-card {
+        text-align: left;
+        background: var(--surface-subtle);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        color: var(--text);
+        font-family: var(--font-sans);
+      }
+
+      .a2-band-card:hover {
+        border-color: var(--accent);
+      }
+
+      .a2-band-card.is-active {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .a2-band-card__tag {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--accent);
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .a2-band-card__title {
+        font-size: 15.5px;
+        font-weight: 700;
+        margin: 0 0 6px 0;
+      }
+
+      .a2-band-card__sub {
+        font-size: 12.5px;
+        color: var(--text-secondary);
+        margin: 0;
+        line-height: 1.5;
+      }
+
+      .a2-spectrum-detail {
+        display: grid;
+        grid-template-columns: 1fr 1.25fr;
+        gap: 20px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+      }
+
+      @media (max-width: 960px) {
+        .a2-spectrum-detail {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .a2-spectrum-meta-box {
+        background: var(--surface-subtle);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 18px 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .a2-meta-kv {
+        margin-bottom: 12px;
+      }
+
+      .a2-meta-kv__label {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--accent);
+        display: block;
+        margin-bottom: 3px;
+      }
+
+      .a2-meta-kv__val {
+        font-size: 13.5px;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      /* --- Section 3: Real Use Cases (Logos + Screenshot Tabs) --- */
+      .a2-logos-strip {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+
+      @media (max-width: 960px) {
+        .a2-logos-strip {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      .a2-logo-tab {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 16px 14px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.15s ease;
+        color: var(--text);
+        font-family: var(--font-sans);
+      }
+
+      .a2-logo-tab:hover {
+        border-color: var(--accent);
+        transform: translateY(-1px);
+      }
+
+      .a2-logo-tab.is-active {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .a2-logo-tab__svg {
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .a2-logo-tab__name {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .a2-logo-tab__role {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        color: var(--text-muted);
+      }
+
+      .a2-usecase-stage {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--shadow-lg);
+        display: grid;
+        grid-template-columns: 0.95fr 1.35fr;
+      }
+
+      @media (max-width: 960px) {
+        .a2-usecase-stage {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .a2-usecase-info {
+        padding: 28px;
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .a2-usecase-preview {
+        background: var(--surface-subtle);
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .a2-screenshot-window {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: var(--shadow-md);
+      }
+
+      .a2-screenshot-chrome {
+        background: var(--code-header);
+        color: #cbd5e1;
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+      }
+
+      .a2-screenshot-dots {
+        display: flex;
+        gap: 6px;
+      }
+
+      .a2-screenshot-dots span {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #475569;
+      }
+
+      .a2-screenshot-body {
+        padding: 20px;
+      }
+
+      /* --- Code Windows & Why A2UI Sections --- */
+      .a2-code-window {
+        background: var(--code-bg);
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: var(--shadow-md);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .a2-code-window__header {
+        background: var(--code-header);
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .a2-code-window__title {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        font-weight: 600;
+        color: #e2e8f0;
+      }
+
+      .a2-code-window__badge {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: rgba(20, 184, 166, 0.2);
+        color: #5eead4;
+      }
+
+      .a2-code-pre {
+        margin: 0;
+        padding: 16px 18px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        line-height: 1.6;
+        color: #e2e8f0;
+        overflow-x: auto;
+        flex: 1;
+      }
+
+      .a2-tok-path { color: #38bdf8; }
+      .a2-tok-comp { color: #2dd4bf; font-weight: 600; }
+      .a2-tok-str { color: #fcd34d; }
+      .a2-tok-kw { color: #f472b6; }
+      .a2-tok-comment { color: #64748b; }
+
+      .a2-express-grid {
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      @media (max-width: 960px) {
+        .a2-express-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .a2-bench-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px 24px;
+      }
+
+      .a2-bench-track {
+        height: 26px;
+        background: var(--bg-alt);
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        margin-top: 6px;
+      }
+
+      .a2-bench-fill {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+
+      /* --- Macros 3-Stage Grid --- */
+      .a2-macro-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.1fr 1.15fr;
+        gap: 18px;
+      }
+
+      @media (max-width: 1024px) {
+        .a2-macro-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .a2-macro-stage {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .a2-macro-stage__head {
+        padding: 13px 16px;
+        background: var(--surface-subtle);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+
+      .a2-macro-stage__body {
+        padding: 16px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .a2-macro-stage__body .a2-code-pre {
+        font-size: 11.8px;
+        padding: 14px;
+      }
+
+      /* --- Native Renderers Grid --- */
+      .a2-platform-tabs {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+        margin-bottom: 20px;
+      }
+
+      @media (max-width: 1024px) {
+        .a2-platform-tabs {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .a2-plat-tab {
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        color: var(--text-secondary);
+        font-family: var(--font-sans);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        text-align: center;
+      }
+
+      .a2-plat-tab.is-active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #ffffff;
+      }
+
+      .a2-platform-showcase {
+        display: grid;
+        grid-template-columns: 1fr 1.15fr;
+        gap: 20px;
+      }
+
+      @media (max-width: 960px) {
+        .a2-platform-showcase {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* --- Unified Top Navigation (Vercel json-render style) --- */
+      .a2-nav__left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .a2-nav__slash {
+        color: var(--border-strong);
+        font-size: 18px;
+        font-weight: 300;
+        line-height: 1;
+        margin: 0 4px;
+        user-select: none;
+      }
+
+      .a2-nav__link.is-active {
+        color: var(--accent-strong);
+        background: var(--accent-soft);
+        font-weight: 600;
+      }
+
+      .a2-search-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        color: var(--text-muted);
+        font-size: 12.5px;
+        text-decoration: none;
+        transition: border-color 0.15s ease, color 0.15s ease;
+        white-space: nowrap;
+      }
+
+      .a2-search-pill:hover {
+        border-color: var(--accent);
+        color: var(--text);
+      }
+
+      .a2-search-pill kbd {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--bg-alt);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+      }
+
+      .a2-icon-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        transition: color 0.15s ease, background 0.15s ease;
+      }
+
+      .a2-icon-link:hover {
+        color: var(--text);
+        background: var(--surface);
+      }
+
+      /* --- Placeholder Logo & UI Screenshot Wireframes --- */
+      .a2-logo-placeholder-box {
+        width: 88px;
+        height: 30px;
+        border: 1.5px dashed var(--border-strong);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        background: var(--surface-subtle);
+        margin-bottom: 4px;
+      }
+
+      .a2-logo-tab.is-active .a2-logo-placeholder-box {
+        border-color: var(--accent);
+        color: var(--accent-strong);
+        background: var(--accent-soft);
+      }
+
+      .a2-ui-placeholder-frame {
+        border: 1.5px dashed var(--border-strong);
+        border-radius: 10px;
+        background: repeating-linear-gradient(
+          -45deg,
+          var(--surface-subtle),
+          var(--surface-subtle) 10px,
+          var(--bg-alt) 10px,
+          var(--bg-alt) 20px
+        );
+        padding: 24px;
+        min-height: 250px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .a2-ui-placeholder-wireframe {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 12px;
+      }
+
+      .a2-wire-box {
+        background: var(--surface);
+        border: 1px dashed var(--border-strong);
+        border-radius: 8px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .a2-wire-bar {
+        height: 8px;
+        border-radius: 4px;
+        background: var(--border-strong);
+        opacity: 0.55;
+      }
+
+      /* --- Consolidated 3-Pillar "Why A2UI?" Section --- */
+      .a2-why-pillars {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+
+      @media (max-width: 960px) {
+        .a2-why-pillars {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .a2-why-card {
+        text-align: left;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 12px;
+        padding: 22px;
+        cursor: pointer;
+        font-family: var(--font-sans);
+        color: var(--text);
+        transition: all 0.16s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .a2-why-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+      }
+
+      .a2-why-card.is-active {
+        border-color: var(--accent);
+        background: linear-gradient(180deg, var(--accent-soft), var(--surface));
+        box-shadow: 0 0 0 1px var(--accent);
+      }
+
+      .a2-why-card__num {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .a2-why-card__title {
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 6px 0 8px 0;
+      }
+
+      .a2-why-card__desc {
+        font-size: 13.5px;
+        color: var(--text-secondary);
+        line-height: 1.58;
+        margin: 0;
+      }
+
+      .a2-why-card__cta {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--accent-strong);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .a2-why-deck {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 14px;
+        padding: 24px;
+        box-shadow: var(--shadow-lg);
+      }
+
+      .a2-why-panel {
+        display: none;
+      }
+
+      .a2-why-panel.is-active {
+        display: block;
+      }
+
+      /* --- Bottom Docs Transition Banner --- */
+      .a2-docs-bridge {
+        margin-top: 56px;
+        background: linear-gradient(135deg, var(--surface), var(--bg-alt));
+        border: 1px solid var(--border-strong);
+        border-radius: 14px;
+        padding: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Unified Header Navigation (Matches StarlightHeader.astro) -->
+    <header class="a2-nav">
+      <div class="a2-nav__inner">
+        <div class="a2-nav__left">
+          <a href={`${base}/`} class="a2-brand">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="2.5" y="3.5" width="19" height="17" rx="4" stroke="currentColor" stroke-width="2" />
+              <circle cx="8.5" cy="11" r="1.6" fill="#14b8a6" />
+              <circle cx="15.5" cy="11" r="1.6" fill="#14b8a6" />
+              <path d="M8.5 15.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            <span>A2UI</span>
+          </a>
+          <span class="a2-nav__slash" aria-hidden="true">/</span>
+          <nav class="a2-nav__links" aria-label="Primary section navigation">
+            <a class="a2-nav__link is-active" href={`${base}/`} aria-current="page">Overview</a>
+            <a class="a2-nav__link" href={`${base}/quickstart/`}>Docs</a>
+            <a class="a2-nav__link" href={`${base}/specification/v1.0-a2ui/`}>Specification</a>
+          </nav>
+        </div>
+
+        <div class="a2-nav__actions">
+          <a class="a2-search-pill" id="a2-search-shortcut" href={`${base}/quickstart/`} title="Jump to Documentation & Search (⌘K / Ctrl+K)">
+            <span>🔍 Search docs...</span>
+            <kbd>⌘K</kbd>
+          </a>
+          <a class="a2-icon-link" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" aria-label="GitHub Repository" title="GitHub">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg>
+          </a>
+          <a class="a2-icon-link" href="https://discord.gg/6fS2326966" target="_blank" rel="noopener" aria-label="Discord Community" title="Discord">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.61 1.25a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.89 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.09 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1-.01-.12c.13-.09.25-.19.37-.29a.08.08 0 0 1 .08-.01c3.93 1.8 8.18 1.8 12.07 0a.08.08 0 0 1 .08.01c.12.1.24.2.37.29a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.36.7.77 1.37 1.22 2a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.03.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z"/></svg>
+          </a>
+          <button type="button" class="a2-theme-btn" id="a2-theme-toggle" aria-label="Toggle color theme">
+            <span id="a2-theme-label">☀️ / 🌙</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- =====================================================================
+           1. HERO: GIVE YOUR AGENTS UI ON EVERY SURFACE
+           ===================================================================== -->
+      <section class="a2-hero" id="hero">
+        <div class="a2-container">
+          <div class="a2-hero__header">
+            <span class="a2-eyebrow">OPEN AGENT-TO-UI PROTOCOL · APACHE 2.0 · CREATED BY GOOGLE</span>
+            <h1 class="a2-h1">Give your agents UI on every surface.</h1>
+            <p class="a2-lead">
+              Chat is a great input, but walls of prose are a terrible output. <strong>A2UI</strong> is the open protocol and SDK suite that lets AI agents respond with stateful, interactive user interfaces—spanning the entire Generative UI Spectrum and rendering natively on Web, Flutter, SwiftUI, and Jetpack Compose.
+            </p>
+            <div class="a2-cta-row">
+              <a class="a2-btn a2-btn--primary" href={`${base}/quickstart/`}>Run 5-Minute Quickstart →</a>
+              <a class="a2-btn a2-btn--secondary" href={`${base}/specification/v1.0-a2ui/`}>Read v1.0 Protocol Spec</a>
+              <a class="a2-btn a2-btn--secondary" href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener">Open A2UI Composer ↗</a>
+              <button type="button" class="a2-btn a2-btn--code" id="a2-copy-prompt">📋 Copy Agent Prompt</button>
+            </div>
+          </div>
+
+          <!-- Interactive Wall of Prose vs. Stateful A2UI Surface -->
+          <div class="a2-workbench" id="hero-workbench">
+            <div class="a2-workbench__promptbar">
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span class="a2-prompt-tag">User Prompt</span>
+                <span style="font-size: 14px;">“Book a flight from Berlin to San Francisco on Oct 12, and two tickets back on Oct 19.”</span>
+              </div>
+              <span class="a2-code-window__badge">Click the steppers &amp; options on the right →</span>
+            </div>
+
+            <div class="a2-workbench__split">
+              <!-- Left: Wall of Text -->
+              <div class="a2-pane a2-pane--prose">
+                <div>
+                  <div class="a2-pane__header">
+                    <span class="a2-pane__title">Standard Agent · Text Output</span>
+                    <span class="a2-status-tag a2-status-tag--bad">WALL OF TEXT · HIGH COGNITIVE LOAD</span>
+                  </div>
+                  <div class="a2-prose-bubble">
+                    <p>I found the following flight options for your trip from Berlin (BER) to San Francisco (SFO):</p>
+                    <p>
+                      <strong>1. Outbound (Mon, Oct 12):</strong> Lufthansa LH 454 departing BER at 09:15 and arriving SFO at 12:05 (11h 50m nonstop). The fare is €455 per adult in Economy.
+                      <span class="a2-prose-highlight">Please clarify if you want 1 or 2 outbound tickets.</span>
+                    </p>
+                    <p>
+                      <strong>2. Return (Mon, Oct 19):</strong> United UA 901 departing SFO at 13:05 and arriving BER at 09:10+1 for 2 adults at €498 each (€996 subtotal).
+                    </p>
+                    <p>
+                      Would you like to upgrade to Premium Economy (+€280/ticket) or add checked bags (+€65)?
+                      <span class="a2-prose-highlight">Type your selection and passenger counts to continue.</span>
+                    </p>
+                  </div>
+                </div>
+                <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 14px;">
+                  ⚠️ Forces users to read 4 paragraphs and type another prompt just to adjust passenger count or cabin.
+                </div>
+              </div>
+
+              <!-- Right: Interactive A2UI Surface -->
+              <div class="a2-pane">
+                <div class="a2-pane__header">
+                  <span class="a2-pane__title">A2UI Agent · Stateful Native Surface</span>
+                  <span class="a2-status-tag a2-status-tag--good">60FPS DATAMODEL · CLICK TO INTERACT</span>
+                </div>
+
+                <div class="a2-travel-card">
+                  <div class="a2-flight-leg">
+                    <div class="a2-flight-leg__top">
+                      <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;">
+                        <span class="a2-flight-badge">OUTBOUND · OCT 12</span>
+                        <span>Berlin (BER) → San Francisco (SFO)</span>
+                      </div>
+                      <span style="font-size: 12px; color: var(--text-muted);">LH 454 · 09:15 – 12:05</span>
+                    </div>
+                    <div class="a2-flight-leg__controls">
+                      <div class="a2-stepper">
+                        <button type="button" class="a2-stepper__btn" data-action="out-dec" aria-label="Decrease outbound passengers">−</button>
+                        <span class="a2-stepper__label" id="out-pax-label">1 Passenger</span>
+                        <button type="button" class="a2-stepper__btn" data-action="out-inc" aria-label="Increase outbound passengers">+</button>
+                      </div>
+                      <strong style="font-family: var(--font-mono); font-size: 14px;" id="out-price">€455</strong>
+                    </div>
+                  </div>
+
+                  <div class="a2-flight-leg">
+                    <div class="a2-flight-leg__top">
+                      <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;">
+                        <span class="a2-flight-badge">RETURN · OCT 19</span>
+                        <span>San Francisco (SFO) → Berlin (BER)</span>
+                      </div>
+                      <span style="font-size: 12px; color: var(--text-muted);">UA 901 · 13:05 – 09:10+1</span>
+                    </div>
+                    <div class="a2-flight-leg__controls">
+                      <div class="a2-stepper">
+                        <button type="button" class="a2-stepper__btn" data-action="ret-dec" aria-label="Decrease return passengers">−</button>
+                        <span class="a2-stepper__label" id="ret-pax-label">2 Passengers</span>
+                        <button type="button" class="a2-stepper__btn" data-action="ret-inc" aria-label="Increase return passengers">+</button>
+                      </div>
+                      <strong style="font-family: var(--font-mono); font-size: 14px;" id="ret-price">€996 (€498 × 2)</strong>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0;">
+                    <div style="display: flex; gap: 8px;">
+                      <button type="button" class="a2-chip-toggle" id="toggle-premium" data-action="toggle-premium">Upgrade Premium (+€280/pax)</button>
+                      <button type="button" class="a2-chip-toggle is-active" id="toggle-bags" data-action="toggle-bags">✓ Checked Bag (+€65)</button>
+                    </div>
+                    <span style="font-size: 12px; color: var(--text-muted);">Bound to <code>dataModel</code></span>
+                  </div>
+
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
+                    <div>
+                      <span style="font-size: 12px; color: var(--text-muted); display: block;">Total Trip Price</span>
+                      <strong style="font-size: 20px; font-family: var(--font-mono);" id="travel-total">€1,516</strong>
+                    </div>
+                    <button type="button" class="a2-btn a2-btn--primary" id="book-btn" data-action="book-trip">Confirm &amp; Book Trip →</button>
+                  </div>
+
+                  <div class="a2-datamodel-bar">
+                    <span>LIVE DATA MODEL:</span>
+                    <code id="datamodel-code">$/outbound/pax = 1  ·  $/return/pax = 2  ·  $/cabin = "economy"  ·  $/totalEur = 1516</code>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           2. THE GENERATIVE UI SPECTRUM
+           ===================================================================== -->
+      <section class="a2-section a2-section--alt" id="spectrum">
+        <div class="a2-container">
+          <div class="a2-section-intro">
+            <span class="a2-eyebrow">01 · THE GENERATIVE UI SPECTRUM</span>
+            <h2 class="a2-h2">No single Generative UI pattern fits every screen. A2UI gives you the entire spectrum.</h2>
+            <p class="a2-lead">
+              Across production agentic apps, UI needs live along a spectrum—from <strong>full developer control over every pixel</strong> to <strong>full agent autonomy over the rendered surface</strong>. Picking a single band for your entire product is the most common architectural mistake. With A2UI, one protocol and one renderer investment covers every band.
+            </p>
+          </div>
+
+          <div class="a2-spectrum-shell" id="spectrum-explorer">
+            <div class="a2-spectrum-bar">
+              <span>◀ Fully Controlled · Developer Holds the Brush</span>
+              <div class="a2-spectrum-bar__track"></div>
+              <span>Fully Open · Agent Owns the Canvas ▶</span>
+            </div>
+
+            <div class="a2-spectrum-bands" role="tablist" aria-label="Generative UI Spectrum Bands">
+              <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="prebuilt">
+                <span class="a2-band-card__tag">BAND 1 · DETERMINISTIC SDUI</span>
+                <h3 class="a2-band-card__title">Prebuilt &amp; Fixed Schema</h3>
+                <p class="a2-band-card__sub">Server code emits exact UI structures and streams live <code>updateDataModel</code> updates with zero LLM latency.</p>
+              </button>
+
+              <button type="button" role="tab" aria-selected="true" class="a2-band-card is-active" data-band="controlled">
+                <span class="a2-band-card__tag">BAND 2 · CONTROLLED GEN UI</span>
+                <h3 class="a2-band-card__title">Controlled &amp; Server Macros</h3>
+                <p class="a2-band-card__sub">The workhorse band: register domain <code>@macro</code> templates so the agent picks the component and fills typed data.</p>
+              </button>
+
+              <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="declarative">
+                <span class="a2-band-card__tag">BAND 3 · DECLARATIVE GEN UI</span>
+                <h3 class="a2-band-card__title">Composable Catalogs</h3>
+                <p class="a2-band-card__sub">Where the long tail lives: declare a catalog of Lego-like building blocks that the agent assembles on demand.</p>
+              </button>
+
+              <button type="button" role="tab" aria-selected="false" class="a2-band-card" data-band="open">
+                <span class="a2-band-card__tag">BAND 4 · MCP APPS &amp; OPEN</span>
+                <h3 class="a2-band-card__title">MCP Apps &amp; Sandboxes</h3>
+                <p class="a2-band-card__sub">Inject 3rd-party <code>ui://</code> MCP App iframes inside A2UI surfaces, or ship A2UI surfaces inside Claude &amp; ChatGPT.</p>
+              </button>
+            </div>
+
+            <div class="a2-spectrum-detail">
+              <div class="a2-spectrum-meta-box">
+                <div>
+                  <div class="a2-meta-kv">
+                    <span class="a2-meta-kv__label">Selected Spectrum Band</span>
+                    <h4 style="margin: 0 0 8px 0; font-size: 18px;" id="band-title">Band 2: Controlled Generative UI &amp; Server Macros</h4>
+                  </div>
+                  <div class="a2-meta-kv">
+                    <span class="a2-meta-kv__label">Who Holds the Brush?</span>
+                    <p class="a2-meta-kv__val" id="band-brush">Developer defines pixel-perfect domain templates (<code>@macro</code>); the agent chooses which template fits the moment and populates typed parameters.</p>
+                  </div>
+                  <div class="a2-meta-kv">
+                    <span class="a2-meta-kv__label">Best For</span>
+                    <p class="a2-meta-kv__val" id="band-bestfor">High-traffic, brand-critical surfaces (flight tickets, checkout cards, approval widgets) where predictability and zero layout drift are mandatory.</p>
+                  </div>
+                </div>
+                <div style="padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);">
+                  ✓ Mix all 4 bands in a single conversation using the same A2UI wire protocol &amp; client renderers.
+                </div>
+              </div>
+
+              <div class="a2-code-window">
+                <div class="a2-code-window__header">
+                  <span class="a2-code-window__title" id="band-code-title">Controlled GenUI with A2UI Server @macros</span>
+                  <span class="a2-code-window__badge" id="band-code-badge">Predictable · Zero Layout Drift</span>
+                </div>
+                <pre class="a2-code-pre" is:raw><code id="band-code-body"># Register a developer-defined @macro treatment; prune raw layout primitives
+from a2ui.transformers.macros import MacroExpander, macro
+from a2ui.catalog_transformers import ComponentPruningTransformer
+
+@macro(description="Standardized airline boarding &amp; fare card")
+def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -&gt; Card:
+    return Card(Column([
+        Row([Icon("flight_takeoff"), Text(flight), Text(f"€{price_eur}")]),
+        Row([Text(origin), Text("→"), Text(dest)]),
+    ]))</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           3. REAL USE CASES (PLACEHOLDER LOGOS + PLACEHOLDER UI SCREENSHOTS)
+           ===================================================================== -->
+      <section class="a2-section" id="use-cases">
+        <div class="a2-container">
+          <div class="a2-section-intro">
+            <span class="a2-eyebrow">02 · BATTLE-TESTED IN PRODUCTION</span>
+            <h2 class="a2-h2">Real use cases across consumer and enterprise products.</h2>
+            <p class="a2-lead">
+              From smart home device controls and AI research workspaces to enterprise data catalogs and IDE copilots, teams use A2UI to ship generative interfaces in production.
+            </p>
+          </div>
+
+          <!-- Interactive Placeholder Logo Bar -->
+          <div class="a2-logos-strip" role="tablist" aria-label="Production Use Cases">
+            <button type="button" role="tab" aria-selected="true" class="a2-logo-tab is-active" data-usecase="app-01">
+              <div class="a2-logo-placeholder-box">[ LOGO 01 ]</div>
+              <span class="a2-logo-tab__name">App Example 01</span>
+              <span class="a2-logo-tab__role">Smart Home Controls</span>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-02">
+              <div class="a2-logo-placeholder-box">[ LOGO 02 ]</div>
+              <span class="a2-logo-tab__name">App Example 02</span>
+              <span class="a2-logo-tab__role">Research Synthesis</span>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-03">
+              <div class="a2-logo-placeholder-box">[ LOGO 03 ]</div>
+              <span class="a2-logo-tab__name">App Example 03</span>
+              <span class="a2-logo-tab__role">IDE Agentic Surfaces</span>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-04">
+              <div class="a2-logo-placeholder-box">[ LOGO 04 ]</div>
+              <span class="a2-logo-tab__name">App Example 04</span>
+              <span class="a2-logo-tab__role">Data Intelligence UI</span>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" class="a2-logo-tab" data-usecase="app-05">
+              <div class="a2-logo-placeholder-box">[ LOGO 05 ]</div>
+              <span class="a2-logo-tab__name">App Example 05</span>
+              <span class="a2-logo-tab__role">Native Mobile GenUI</span>
+            </button>
+          </div>
+
+          <!-- Active Use Case Stage (Placeholder Text & UI Screenshot Frame) -->
+          <div class="a2-usecase-stage" id="usecase-stage">
+            <div class="a2-usecase-info">
+              <div>
+                <span class="a2-eyebrow" id="uc-eyebrow">APP EXAMPLE 01 · CONSUMER HARDWARE &amp; IOT</span>
+                <h3 style="font-size: 24px; font-weight: 700; margin: 0 0 12px 0;" id="uc-title">Dynamic Smart Home Automation &amp; Device Control Cards</h3>
+                <p style="font-size: 14.5px; color: var(--text-secondary); margin: 0 0 18px 0; line-height: 1.65;" id="uc-desc">
+                  Placeholder description for App Example 01: Instead of returning a paragraph of text when a user asks to configure an automation routine, the agent streams an interactive A2UI surface with device sliders, status tiles, and 1-tap triggers.
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-secondary);" id="uc-bullets">
+                  <div>✓ <strong>Spectrum Band:</strong> Controlled Macros + Declarative Device Catalog</div>
+                  <div>✓ <strong>Renderer:</strong> Native Mobile (Flutter / Android Jetpack Compose / SwiftUI)</div>
+                  <div>✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live controls</div>
+                </div>
+              </div>
+              <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);" id="uc-footer">
+                Placeholder slot — replace with approved partner logo and product surface screenshot.
+              </div>
+            </div>
+
+            <div class="a2-usecase-preview">
+              <div class="a2-screenshot-window">
+                <div class="a2-screenshot-chrome">
+                  <div class="a2-screenshot-dots"><span></span><span></span><span></span></div>
+                  <span id="uc-window-title">example-app-01 · screenshot_placeholder.png</span>
+                  <span class="a2-code-window__badge" id="uc-window-badge">UI Placeholder</span>
+                </div>
+                <div class="a2-screenshot-body" id="uc-screenshot-body">
+                  <div class="a2-ui-placeholder-frame">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--accent);">[ UI SCREENSHOT PLACEHOLDER · APP EXAMPLE 01 ]</span>
+                      <span class="a2-flight-badge">16:10 Surface Capture</span>
+                    </div>
+                    <div class="a2-ui-placeholder-wireframe">
+                      <div class="a2-wire-box">
+                        <div class="a2-wire-bar" style="width: 48%;"></div>
+                        <div class="a2-wire-bar" style="width: 82%; height: 18px;"></div>
+                        <div class="a2-wire-bar" style="width: 100%;"></div>
+                        <div class="a2-wire-bar" style="width: 65%;"></div>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div class="a2-wire-box">
+                          <div class="a2-wire-bar" style="width: 60%;"></div>
+                          <div class="a2-wire-bar" style="width: 40%;"></div>
+                        </div>
+                        <div class="a2-wire-box">
+                          <div class="a2-wire-bar" style="width: 70%;"></div>
+                          <div class="a2-wire-bar" style="width: 50%;"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
+                      Drop screenshot asset into <code>docs/site/public/assets/use-cases/app-01.png</code>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           4. WHY A2UI? (UNIFIED 3-PILLAR PERSUASIVE SECTION)
+           ===================================================================== -->
+      <section class="a2-section a2-section--alt" id="why-a2ui">
+        <div class="a2-container">
+          <div class="a2-section-intro">
+            <span class="a2-eyebrow">03 · WHY A2UI?</span>
+            <h2 class="a2-h2">Built for model speed, developer control, and native feel.</h2>
+            <p class="a2-lead">
+              Other agent UI approaches force a painful trade-off: raw HTML/code generation is slow and unpredictable, while rigid tool-call cards lock you into a handful of hardcoded views. <strong>A2UI gives you all three advantages in one protocol.</strong>
+            </p>
+          </div>
+
+          <!-- Three Major Points Side-by-Side -->
+          <div class="a2-why-pillars" role="tablist" aria-label="Why A2UI Pillars">
+            <button type="button" role="tab" aria-selected="true" class="a2-why-card is-active" data-why-tab="inference">
+              <div>
+                <div class="a2-why-card__num">
+                  <span>01 · SPEED &amp; FLEXIBILITY</span>
+                  <span class="a2-code-window__badge">~3x Faster</span>
+                </div>
+                <h3 class="a2-why-card__title">Swappable inference formats</h3>
+                <p class="a2-why-card__desc">
+                  JSON is the universal wire protocol, while the Agent SDK lets you swap what the LLM generates—like <strong>A2UI Express</strong> for ~3x faster token streaming and 77% fewer characters.
+                </p>
+              </div>
+              <div class="a2-why-card__cta">Inspect Express vs. Wire JSON ↓</div>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" class="a2-why-card" data-why-tab="macros">
+              <div>
+                <div class="a2-why-card__num">
+                  <span>02 · HYBRID SDUI + GEN UI</span>
+                  <span class="a2-code-window__badge">Zero Drift</span>
+                </div>
+                <h3 class="a2-why-card__title">Macros: Give the model bigger words</h3>
+                <p class="a2-why-card__desc">
+                  Define rich domain UI treatments (<code>@macro</code>) in server code and expose a single high-level call to the LLM—shipping brand-new UIs without client binary or App Store updates.
+                </p>
+              </div>
+              <div class="a2-why-card__cta">Inspect 3-Stage Macro Expansion ↓</div>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" class="a2-why-card" data-why-tab="native">
+              <div>
+                <div class="a2-why-card__num">
+                  <span>03 · EVERY CLIENT SURFACE</span>
+                  <span class="a2-code-window__badge">6 SDKs</span>
+                </div>
+                <h3 class="a2-why-card__title">Native rendering everywhere</h3>
+                <p class="a2-why-card__desc">
+                  Agents describe the UI once; official SDKs render genuine 60fps host widgets on <strong>SwiftUI</strong>, <strong>Jetpack Compose</strong>, <strong>Flutter</strong>, <strong>React</strong>, <strong>Angular</strong>, and <strong>Lit</strong>.
+                </p>
+              </div>
+              <div class="a2-why-card__cta">Inspect 6 Native Platform SDKs ↓</div>
+            </button>
+          </div>
+
+          <!-- Interactive Proof Deck Inside the Same Unified Section -->
+          <div class="a2-why-deck">
+            <!-- PILLAR 1 PANEL: SWAPPABLE INFERENCE FORMATS -->
+            <div class="a2-why-panel is-active" data-why-panel="inference" id="express">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <div>
+                  <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 01 · SWAPPABLE INFERENCE FORMATS</span>
+                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Decouple LLM token generation from the JSON wire contract.</h3>
+                </div>
+                <span style="font-size: 13px; color: var(--text-secondary);">Swap between JSON, A2UI Express, or custom formats in 1 line of SDK config.</span>
+              </div>
+
+              <div class="a2-express-grid">
+                <div class="a2-code-window">
+                  <div class="a2-code-window__header">
+                    <span class="a2-code-window__title">What the LLM generates · A2UI Express Format</span>
+                    <span class="a2-code-window__badge">13 lines · 397 chars (−77%)</span>
+                  </div>
+                  <pre class="a2-code-pre"><code><span class="a2-tok-path">$/description</span> = <span class="a2-tok-str">"Get alerts for order status changes"</span>
+<span class="a2-tok-path">$/icon</span> = <span class="a2-tok-str">"check"</span>
+<span class="a2-tok-path">$/title</span> = <span class="a2-tok-str">"Enable notification"</span>
+root = <span class="a2-tok-comp">Card</span>(main_column)
+main_column = <span class="a2-tok-comp">Column</span>([icon, title, description, actions], _, <span class="a2-tok-str">"center"</span>)
+icon = <span class="a2-tok-comp">Icon</span>(<span class="a2-tok-path">$/icon</span>)
+title = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-path">$/title</span>)
+description = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-path">$/description</span>, <span class="a2-tok-str">"body"</span>)
+actions = <span class="a2-tok-comp">Row</span>([yes_btn, no_btn], <span class="a2-tok-str">"center"</span>)
+yes_btn_text = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"Yes"</span>)
+yes_btn = <span class="a2-tok-comp">Button</span>(yes_btn_text, _, <span class="a2-tok-kw">Event</span>(<span class="a2-tok-str">"accept"</span>))
+no_btn_text = <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"No"</span>)
+no_btn = <span class="a2-tok-comp">Button</span>(no_btn_text, _, <span class="a2-tok-kw">Event</span>(<span class="a2-tok-str">"decline"</span>))</code></pre>
+                </div>
+
+                <div class="a2-code-window">
+                  <div class="a2-code-window__header">
+                    <span class="a2-code-window__title">What the SDK sends on the wire · Standard A2UI v1.0 JSON</span>
+                    <span class="a2-code-window__badge" style="background: rgba(148,163,184,0.18); color: #cbd5e1;">104 lines · 1,780 chars</span>
+                  </div>
+                  <pre class="a2-code-pre"><code>&#123;
+  <span class="a2-tok-path">"version"</span>: <span class="a2-tok-str">"1.0"</span>,
+  <span class="a2-tok-path">"updateComponents"</span>: &#123;
+    <span class="a2-tok-path">"surfaceId"</span>: <span class="a2-tok-str">"gallery-notification-permission"</span>,
+    <span class="a2-tok-path">"components"</span>: [
+      &#123; <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"root"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Card"</span>, <span class="a2-tok-path">"child"</span>: <span class="a2-tok-str">"main_column"</span> &#125;,
+      &#123; <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"main_column"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Column"</span>, <span class="a2-tok-path">"align"</span>: <span class="a2-tok-str">"center"</span>,
+        <span class="a2-tok-path">"children"</span>: [<span class="a2-tok-str">"icon"</span>, <span class="a2-tok-str">"title"</span>, <span class="a2-tok-str">"description"</span>, <span class="a2-tok-str">"actions"</span>] &#125;,
+      &#123; <span class="a2-tok-path">"id"</span>: <span class="a2-tok-str">"yes_btn"</span>, <span class="a2-tok-path">"component"</span>: <span class="a2-tok-str">"Button"</span>, <span class="a2-tok-path">"child"</span>: <span class="a2-tok-str">"yes_btn_text"</span>,
+        <span class="a2-tok-path">"action"</span>: &#123; <span class="a2-tok-path">"event"</span>: &#123; <span class="a2-tok-path">"name"</span>: <span class="a2-tok-str">"accept"</span>, <span class="a2-tok-path">"context"</span>: &#123;&#125; &#125; &#125; &#125;
+      <span class="a2-tok-comment">// ... + 78 additional lines of component &amp; dataModel JSON</span>
+    ]
+  &#125;
+&#125;</code></pre>
+                </div>
+              </div>
+
+              <div class="a2-bench-card" style="background: var(--surface-subtle);">
+                <div style="margin-bottom: 12px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;">
+                    <span>A2UI Express Inference Format (LLM Output)</span>
+                    <span style="color: var(--accent); font-family: var(--font-mono);">397 chars · ~3x faster generation · 55–70% fewer tokens across spec</span>
+                  </div>
+                  <div class="a2-bench-track">
+                    <div class="a2-bench-fill" style="width: 22.3%; min-width: 155px; background: var(--accent);">397 chars (−77%)</div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600;">
+                    <span>Raw JSON Inference Baseline</span>
+                    <span style="color: var(--text-muted); font-family: var(--font-mono);">1,780 chars · 1.0x baseline</span>
+                  </div>
+                  <div class="a2-bench-track">
+                    <div class="a2-bench-fill" style="width: 100%; background: #475569;">1,780 chars (100% wire JSON)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PILLAR 2 PANEL: MACROS -->
+            <div class="a2-why-panel" data-why-panel="macros" id="macros">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <div>
+                  <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 02 · SERVER-DEFINED @MACROS</span>
+                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Write rich UI treatments on the server; give the LLM a single domain call.</h3>
+                </div>
+                <span style="font-size: 13px; color: var(--text-secondary);">Ship new domain cards instantaneously without client binary updates.</span>
+              </div>
+
+              <div class="a2-macro-grid">
+                <div class="a2-macro-stage">
+                  <div class="a2-macro-stage__head">
+                    <span>1. MODEL WRITES MACRO</span>
+                    <span style="color: var(--text-muted);">Inference Catalog</span>
+                  </div>
+                  <div class="a2-macro-stage__body">
+                    <div class="a2-code-window" style="margin-bottom: 12px;">
+                      <pre class="a2-code-pre"><code><span class="a2-tok-comment"># High-level domain call:</span>
+root = <span class="a2-tok-comp">FlightCard</span>(
+  flight=<span class="a2-tok-str">"OS 87"</span>,
+  date=<span class="a2-tok-str">"Mon, Dec 15"</span>,
+  origin=<span class="a2-tok-str">"Vienna"</span>,
+  dest=<span class="a2-tok-str">"New York"</span>,
+  departs=<span class="a2-tok-str">"10:15 AM"</span>,
+  arrives=<span class="a2-tok-str">"2:30 PM"</span>,
+  status=<span class="a2-tok-str">"On Time"</span>
+)</code></pre>
+                    </div>
+                    <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;">
+                      <strong>Simple inputs, zero layout drift:</strong> The model passes domain arguments without inventing layout boxes.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="a2-macro-stage">
+                  <div class="a2-macro-stage__head">
+                    <span>2. SERVER EXPANDS</span>
+                    <span style="color: var(--text-muted);">@macro Decorator</span>
+                  </div>
+                  <div class="a2-macro-stage__body">
+                    <div class="a2-code-window" style="margin-bottom: 12px;">
+                      <pre class="a2-code-pre"><code><span class="a2-tok-kw">@macro</span>(description=<span class="a2-tok-str">"Flight status card"</span>)
+<span class="a2-tok-kw">def</span> <span class="a2-tok-comp">flight_card</span>(
+  flight: str, date: str, origin: str,
+  dest: str, departs: str,
+  arrives: str, status: str
+) -&gt; Card:
+  <span class="a2-tok-kw">return</span> <span class="a2-tok-comp">Card</span>(<span class="a2-tok-comp">Column</span>([
+    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Icon</span>(<span class="a2-tok-str">"send"</span>), <span class="a2-tok-comp">Text</span>(flight)]),
+    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(origin), <span class="a2-tok-comp">Text</span>(<span class="a2-tok-str">"→"</span>), <span class="a2-tok-comp">Text</span>(dest)]),
+    <span class="a2-tok-comp">Divider</span>(),
+    <span class="a2-tok-comp">Row</span>([<span class="a2-tok-comp">Text</span>(departs), <span class="a2-tok-comp">Text</span>(status)]),
+  ]))</code></pre>
+                    </div>
+                    <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;">
+                      <strong>Server-defined UI treatment:</strong> Generates the LLM schema and expands calls into standard primitives.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="a2-macro-stage">
+                  <div class="a2-macro-stage__head">
+                    <span>3. EXPANDED PRIMITIVES</span>
+                    <span style="color: var(--text-muted);">Rendering Catalog</span>
+                  </div>
+                  <div class="a2-macro-stage__body">
+                    <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+                      <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; margin-bottom: 8px;">
+                        <span style="color: var(--accent);">✈️ OS 87</span>
+                        <span style="color: var(--text-muted);">Mon, Dec 15</span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px;">
+                        <span>Vienna</span>
+                        <span style="color: var(--accent);">→</span>
+                        <span>New York</span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-family: var(--font-mono);">
+                        <span>10:15 AM</span>
+                        <span style="color: var(--success); font-weight: 700;">On Time</span>
+                        <span>2:30 PM</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                      <span class="a2-flight-badge">Card(root)</span>
+                      <span class="a2-flight-badge">Column(main)</span>
+                      <span class="a2-flight-badge">Row(header)</span>
+                      <span class="a2-flight-badge">Icon("send")</span>
+                      <span class="a2-flight-badge">Text($/flight)</span>
+                      <span class="a2-flight-badge">Row(route)</span>
+                      <span class="a2-flight-badge">Divider()</span>
+                      <span class="a2-flight-badge">Row(times)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PILLAR 3 PANEL: NATIVE RENDERING -->
+            <div class="a2-why-panel" data-why-panel="native" id="native-rendering">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <div>
+                  <span class="a2-eyebrow" style="margin-bottom: 4px;">PILLAR 03 · MULTI-PLATFORM NATIVE SDKS</span>
+                  <h3 style="font-size: 20px; font-weight: 800; margin: 0;">Render genuine host widgets on Mobile, Desktop, and Web.</h3>
+                </div>
+                <span style="font-size: 13px; color: var(--text-secondary);">Inherits system dark mode, Dynamic Type, and VoiceOver / TalkBack accessibility.</span>
+              </div>
+
+              <div class="a2-platform-tabs" role="tablist" aria-label="Native Platform Renderers">
+                <button type="button" role="tab" aria-selected="true" class="a2-plat-tab is-active" data-plat="swiftui">🍎 SwiftUI (iOS / macOS)</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="compose">🤖 Jetpack Compose</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="flutter">💙 Flutter (Multi-Platform)</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="react">⚛️ React (@a2ui/react)</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="angular">🅰️ Angular (@a2ui/angular)</button>
+                <button type="button" role="tab" aria-selected="false" class="a2-plat-tab" data-plat="lit">🔥 Lit (@a2ui/lit)</button>
+              </div>
+
+              <div class="a2-platform-showcase">
+                <div style="background: var(--surface-subtle); border: 1px solid var(--border-strong); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+                  <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border);">
+                      <strong style="font-size: 12.5px;" id="plat-chrome-label">iOS 18 / macOS Sequoia · Native SwiftUI Views</strong>
+                      <span class="a2-flight-badge" id="plat-pkg-label">A2UISwiftUI · BasicCatalogSwiftUI</span>
+                    </div>
+                    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div>
+                          <div style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase;">Rendered Native Widget Tree</div>
+                          <div style="font-size: 15.5px; font-weight: 700;">Cloud Production Cluster Upgrade</div>
+                        </div>
+                        <span class="a2-status-tag a2-status-tag--good">Native 60fps</span>
+                      </div>
+                      <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">
+                        Mapped directly to host toolkit views—inheriting system dark mode, Dynamic Type / font scaling, and platform accessibility.
+                      </p>
+                      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12px;">
+                        <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
+                          <span style="color: var(--text-muted); display: block;">Region</span>
+                          <strong>us-central1</strong>
+                        </div>
+                        <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
+                          <span style="color: var(--text-muted); display: block;">Nodes</span>
+                          <strong>12 → 18 replicas</strong>
+                        </div>
+                        <div style="padding: 8px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px;">
+                          <span style="color: var(--text-muted); display: block;">Est. Delta</span>
+                          <strong>+$140/mo</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="margin-top: 14px; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-muted);">
+                    <span>All renderers pass the shared A2UI Conformance Suite</span>
+                    <a href={`${base}/quickstart/`} style="color: var(--accent-strong); font-weight: 600; text-decoration: none;">Explore Quickstart →</a>
+                  </div>
+                </div>
+
+                <div class="a2-code-window">
+                  <div class="a2-code-window__header">
+                    <span class="a2-code-window__title" id="plat-code-title">SwiftUI Native Renderer (iOS &amp; macOS)</span>
+                    <span class="a2-code-window__badge" id="plat-code-badge">Cupertino &amp; SwiftUI</span>
+                  </div>
+                  <pre class="a2-code-pre"><code id="plat-code-pre">import SwiftUI
+import A2UISwiftCore
+import A2UISwiftUI
+
+struct AgentSurfaceScreen: View &#123;
+  @ObservedObject var processor: A2UIMessageProcessor
+  var body: some View &#123;
+    A2UISurfaceView(surfaceId: "travel-booking", processor: processor)
+  &#125;
+&#125;</code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Seamless Bridge to Documentation & Specification -->
+          <div class="a2-docs-bridge">
+            <div>
+              <span class="a2-eyebrow" style="margin-bottom: 6px;">READY TO BUILD?</span>
+              <h3 style="font-size: 24px; font-weight: 800; margin: 0 0 6px 0; letter-spacing: -0.02em;">Explore the A2UI Documentation &amp; Protocol Specification.</h3>
+              <p style="font-size: 14.5px; color: var(--text-secondary); margin: 0;">
+                Run a working Gemini + A2UI agent in 5 minutes or inspect the full v1.0 protocol schema.
+              </p>
+            </div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <a class="a2-btn a2-btn--primary" href={`${base}/quickstart/`}>Open 5-Minute Quickstart →</a>
+              <a class="a2-btn a2-btn--secondary" href={`${base}/specification/v1.0-a2ui/`}>Read v1.0 Specification →</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script is:inline>
+      (function () {
+        // 1. Theme Toggle, Copy Prompt & Cmd+K Shortcut
+        const themeBtn = document.getElementById('a2-theme-toggle');
+        if (themeBtn) {
+          themeBtn.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            try {
+              localStorage.setItem('starlight-theme', next);
+            } catch (_) {}
+          });
+        }
+
+        const copyBtn = document.getElementById('a2-copy-prompt');
+        if (copyBtn) {
+          const placeholderPrompt = [
+            'Integrate A2UI (the open Agent-to-UI protocol) into this application so our AI agent can stream stateful, native UI surfaces.',
+            '',
+            'Guidelines:',
+            '- Always use the official A2UI Agent and Renderer SDKs (Python/TypeScript agent SDKs; Lit, React, Angular, Flutter, SwiftUI, or Jetpack Compose client renderers) rather than hand-rolling wire messages.',
+            '- Consult the official A2UI documentation and specifications before writing code:',
+            '  - Documentation & Quickstart: https://a2ui.org/quickstart/',
+            '  - Protocol Specification (v1.0): https://a2ui.org/specification/v1.0-a2ui/',
+            '  - LLM Context Reference: https://a2ui.org/llms.txt',
+            '  - Official Repository & SDKs: https://github.com/a2ui-project/a2ui',
+          ].join('\n');
+
+          copyBtn.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(placeholderPrompt);
+              const originalText = copyBtn.textContent;
+              copyBtn.textContent = '✓ Copied Agent Prompt!';
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+              }, 2000);
+            } catch (_) {}
+          });
+        }
+
+        document.addEventListener('keydown', (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+            const searchLink = document.getElementById('a2-search-shortcut') || document.querySelector('.a2-search-pill');
+            if (searchLink && searchLink.getAttribute('href')) {
+              e.preventDefault();
+              window.location.href = searchLink.getAttribute('href');
+            }
+          }
+        });
+
+        document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
+          tablist.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
+            const idx = tabs.indexOf(document.activeElement);
+            if (idx === -1) return;
+            e.preventDefault();
+            const nextIdx = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+            tabs[nextIdx].focus();
+            tabs[nextIdx].click();
+          });
+        });
+
+        // 2. Travel Booking Interactive Surface
+        const state = { outPax: 1, retPax: 2, premium: false, bags: true, booked: false };
+        function renderTravel() {
+          const outUnit = state.premium ? 455 + 280 : 455;
+          const retUnit = state.premium ? 498 + 280 : 498;
+          const outSub = outUnit * state.outPax;
+          const retSub = retUnit * state.retPax;
+          const total = outSub + retSub + (state.bags ? 65 : 0);
+
+          document.getElementById('out-pax-label').textContent = state.outPax + (state.outPax === 1 ? ' Passenger' : ' Passengers');
+          document.getElementById('ret-pax-label').textContent = state.retPax + (state.retPax === 1 ? ' Passenger' : ' Passengers');
+          document.getElementById('out-price').textContent = '€' + outSub.toLocaleString();
+          document.getElementById('ret-price').textContent = '€' + retSub.toLocaleString() + ' (€' + retUnit + ' × ' + state.retPax + ')';
+          document.getElementById('travel-total').textContent = '€' + total.toLocaleString();
+          document.getElementById('datamodel-code').textContent =
+            `$/outbound/pax = ${state.outPax}  ·  $/return/pax = ${state.retPax}  ·  $/cabin = "${state.premium ? 'premium' : 'economy'}"  ·  $/totalEur = ${total}`;
+        }
+
+        document.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-action]');
+          if (!btn) return;
+          const act = btn.getAttribute('data-action');
+          if (act === 'out-inc') state.outPax = Math.min(6, state.outPax + 1);
+          if (act === 'out-dec') state.outPax = Math.max(1, state.outPax - 1);
+          if (act === 'ret-inc') state.retPax = Math.min(6, state.retPax + 1);
+          if (act === 'ret-dec') state.retPax = Math.max(1, state.retPax - 1);
+          if (act === 'toggle-premium') {
+            state.premium = !state.premium;
+            btn.classList.toggle('is-active', state.premium);
+          }
+          if (act === 'toggle-bags') {
+            state.bags = !state.bags;
+            btn.classList.toggle('is-active', state.bags);
+          }
+          if (act === 'book-trip') {
+            btn.textContent = '✓ Confirmed (actionResponse #A2UI-849)';
+          }
+          renderTravel();
+        });
+
+        // 3. Generative UI Spectrum Switcher
+        const bands = {
+          prebuilt: {
+            title: 'Band 1: Prebuilt UIs & Fixed Schema (Deterministic SDUI)',
+            brush: 'Developer holds 100% of the brush. Server code emits exact component trees and streams reactive data updates.',
+            bestfor: 'Zero-latency status cards, live progress meters, and deterministic checkout summaries.',
+            codeTitle: 'Mode 1: Deterministic Server-Driven UI (Python SDK)',
+            codeBadge: '0 LLM Tokens · Instant',
+            code: `from a2ui.schema.common_modifiers import Surface
+from a2ui.basic_catalog.builder import Card, Column, Text
+
+surface = Surface(
+    surface_id="order-tracker",
+    root=Card(child=Column(children=[Text(text="$/status"), Text(text="$/eta")])),
+    initial_data={"status": "Out for delivery", "eta": "14:20"},
+)`,
+          },
+          controlled: {
+            title: 'Band 2: Controlled Generative UI & Server Macros',
+            brush: 'Developer defines pixel-perfect domain templates (@macro); the agent chooses which template fits the moment and populates typed parameters.',
+            bestfor: 'High-traffic, brand-critical surfaces (flight tickets, checkout cards, approval widgets) where predictability and zero layout drift are mandatory.',
+            codeTitle: 'Controlled GenUI with A2UI Server @macros',
+            codeBadge: 'Predictable · Zero Layout Drift',
+            code: `# Register a developer-defined @macro treatment; prune raw layout primitives
+from a2ui.transformers.macros import MacroExpander, macro
+from a2ui.catalog_transformers import ComponentPruningTransformer
+
+@macro(description="Standardized airline boarding & fare card")
+def flight_ticket(flight: str, origin: str, dest: str, price_eur: int) -> Card:
+    return Card(Column([
+        Row([Icon("flight_takeoff"), Text(flight), Text(f"€{price_eur}")]),
+        Row([Text(origin), Text("→"), Text(dest)]),
+    ]))`,
+          },
+          declarative: {
+            title: 'Band 3: Declarative Generative UI (Composable Catalogs)',
+            brush: 'Developer declares an allowlisted catalog of Lego-like building blocks; the agent dynamically assembles them into bespoke UI trees at runtime.',
+            bestfor: 'The long tail of secondary consumer workflows and internal enterprise tools where coverage and speed beat hand-coding every screen.',
+            codeTitle: 'Declarative Catalog Composition (A2UI Express)',
+            codeBadge: 'Dynamic Long-Tail Composition',
+            code: `# Agent dynamically composes forms, sliders & cards from your catalog:
+$/claim/item = "Black Carry-On Suitcase"
+$/claim/flight = "LH 454"
+root = Card(Column([
+  Text("Lost Baggage Claim · BER Airport", "h3"),
+  TextField("Item Description", $/claim/item),
+  DateTimeInput("Date Lost", $/claim/date),
+  Button(Text("Submit Baggage Trace"), "primary", Event("submit_claim"))
+]))`,
+          },
+          open: {
+            title: 'Band 4: MCP Apps & Open-Ended Sandboxed Surfaces',
+            brush: '3rd-party MCP servers or autonomous agents deliver complete interactive applets inside a secure sandboxed iframe.',
+            bestfor: 'Embedding 3rd-party ecosystem tools (Excalidraw, interactive maps, BI canvases) or shipping A2UI surfaces inside Claude, ChatGPT, and Cursor.',
+            codeTitle: 'Two-Way MCP Apps Integration (catalogs/mcp)',
+            codeBadge: 'Sandboxed ui:// Handshake',
+            code: `{
+  "version": "1.0",
+  "updateComponents": {
+    "surfaceId": "interactive-seat-map",
+    "components": [{
+      "id": "root",
+      "component": "McpApp",
+      "resourceUri": "ui://airline-tools/seat-selector",
+      "allowedTools": ["select_seat", "confirm_upgrade"]
+    }]
+  }
+}`,
+          },
+        };
+
+        document.querySelectorAll('[data-band]').forEach((card) => {
+          card.addEventListener('click', () => {
+            const key = card.getAttribute('data-band');
+            const data = bands[key];
+            if (!data) return;
+            document.querySelectorAll('[data-band]').forEach((c) => {
+              const active = c === card;
+              c.classList.toggle('is-active', active);
+              c.setAttribute('aria-selected', String(active));
+            });
+            document.getElementById('band-title').textContent = data.title;
+            document.getElementById('band-brush').textContent = data.brush;
+            document.getElementById('band-bestfor').textContent = data.bestfor;
+            document.getElementById('band-code-title').textContent = data.codeTitle;
+            document.getElementById('band-code-badge').textContent = data.codeBadge;
+            document.getElementById('band-code-body').textContent = data.code;
+          });
+        });
+
+        // 4. Placeholder App Examples Tabs (Scrubbed Names + Placeholder UIs)
+        function buildPlaceholderHtml(label, assetFile) {
+          return `<div class="a2-ui-placeholder-frame">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--accent);">[ UI SCREENSHOT PLACEHOLDER · ${label} ]</span>
+              <span class="a2-flight-badge">16:10 Surface Capture</span>
+            </div>
+            <div class="a2-ui-placeholder-wireframe">
+              <div class="a2-wire-box">
+                <div class="a2-wire-bar" style="width: 48%;"></div>
+                <div class="a2-wire-bar" style="width: 82%; height: 18px;"></div>
+                <div class="a2-wire-bar" style="width: 100%;"></div>
+                <div class="a2-wire-bar" style="width: 65%;"></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div class="a2-wire-box">
+                  <div class="a2-wire-bar" style="width: 60%;"></div>
+                  <div class="a2-wire-bar" style="width: 40%;"></div>
+                </div>
+                <div class="a2-wire-box">
+                  <div class="a2-wire-bar" style="width: 70%;"></div>
+                  <div class="a2-wire-bar" style="width: 50%;"></div>
+                </div>
+              </div>
+            </div>
+            <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: center;">
+              Drop screenshot asset into <code>docs/site/public/assets/use-cases/${assetFile}</code>
+            </div>
+          </div>`;
+        }
+
+        const useCases = {
+          'app-01': {
+            eyebrow: 'APP EXAMPLE 01 · CONSUMER HARDWARE & IOT',
+            title: 'Dynamic Smart Home Automation & Device Control Cards',
+            desc: 'Placeholder description for App Example 01: Instead of returning a paragraph of text when a user asks to configure an automation routine, the agent streams an interactive A2UI surface with device sliders, status tiles, and 1-tap triggers.',
+            bullets: [
+              '✓ <strong>Spectrum Band:</strong> Controlled Macros + Declarative Device Catalog',
+              '✓ <strong>Renderer:</strong> Native Mobile (Flutter / Android Jetpack Compose / SwiftUI)',
+              '✓ <strong>Key Capability:</strong> Two-way <code>updateDataModel</code> bindings for live controls',
+            ],
+            winTitle: 'example-app-01 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 01', 'app-01.png'),
+          },
+          'app-02': {
+            eyebrow: 'APP EXAMPLE 02 · INTERACTIVE RESEARCH SYNTHESIS',
+            title: 'Bespoke Study Guides, Source Matrices & Interactive Quizzes',
+            desc: 'Placeholder description for App Example 02: Instead of dumping static text summaries, research agents assemble custom study surfaces, source-grounded comparison tables, and verification cards tailored to the uploaded corpus.',
+            bullets: [
+              '✓ <strong>Spectrum Band:</strong> Declarative Generative UI + Bespoke Mini-Apps',
+              '✓ <strong>Renderer:</strong> Web (Lit / Angular / React) with streaming Express format',
+              '✓ <strong>Key Capability:</strong> Dynamic table & flashcard composition grounded in citations',
+            ],
+            winTitle: 'example-app-02 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 02', 'app-02.png'),
+          },
+          'app-03': {
+            eyebrow: 'APP EXAMPLE 03 · IDE-NATIVE AGENTIC WORKFLOWS',
+            title: 'Interactive Refactoring Previews & Dependency Upgrade Surfaces',
+            desc: 'Placeholder description for App Example 03: Inside developer IDEs, coding agents render native tool-window surfaces for multi-module refactoring plans, test failure matrices, and 1-click selective patch application.',
+            bullets: [
+              '✓ <strong>Spectrum Band:</strong> Controlled Domain Macros + Declarative Inspection Trees',
+              '✓ <strong>Renderer:</strong> Desktop / JVM & Multiplatform Compose Renderer',
+              '✓ <strong>Key Capability:</strong> Client-to-server <code>actionResponse</code> RPC for diff approval',
+            ],
+            winTitle: 'example-app-03 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 03', 'app-03.png'),
+          },
+          'app-04': {
+            eyebrow: 'APP EXAMPLE 04 · ENTERPRISE DATA INTELLIGENCE',
+            title: 'Self-Service Data Discovery, Lineage & Stewardship Approvals',
+            desc: 'Placeholder description for App Example 04: Enterprise data agents guide analysts through governed datasets—rendering interactive schema cards, SQL parameter builders, and compliance sign-off forms directly in the workspace.',
+            bullets: [
+              '✓ <strong>Spectrum Band:</strong> Declarative Enterprise Catalog + Controlled Approval Forms',
+              '✓ <strong>Renderer:</strong> React (<code>@a2ui/react</code>) + AG-UI / CopilotKit transport',
+              '✓ <strong>Key Capability:</strong> Schema-validated form inputs bound to governance workflows',
+            ],
+            winTitle: 'example-app-04 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 04', 'app-04.png'),
+          },
+          'app-05': {
+            eyebrow: 'APP EXAMPLE 05 · HIGH-PERFORMANCE CROSS-PLATFORM GEN UI',
+            title: '60fps Dual-Threaded Agentic Surfaces on Mobile',
+            desc: 'Placeholder description for App Example 05: Cross-platform mobile rendering engines integrate A2UI to deliver instant, native-feel agentic cards across consumer super-app surfaces without WebView jank.',
+            bullets: [
+              '✓ <strong>Spectrum Band:</strong> Controlled & Declarative Mobile Commerce Catalogs',
+              '✓ <strong>Renderer:</strong> Cross-Platform Native Mobile Widget Trees',
+              '✓ <strong>Key Capability:</strong> Progressive streaming updates rendered on a dedicated UI thread',
+            ],
+            winTitle: 'example-app-05 · screenshot_placeholder.png',
+            winBadge: 'UI Placeholder',
+            html: buildPlaceholderHtml('APP EXAMPLE 05', 'app-05.png'),
+          },
+        };
+
+        document.querySelectorAll('[data-usecase]').forEach((tab) => {
+          tab.addEventListener('click', () => {
+            const key = tab.getAttribute('data-usecase');
+            const data = useCases[key];
+            if (!data) return;
+            document.querySelectorAll('[data-usecase]').forEach((t) => {
+              const active = t === tab;
+              t.classList.toggle('is-active', active);
+              t.setAttribute('aria-selected', String(active));
+            });
+            document.getElementById('uc-eyebrow').textContent = data.eyebrow;
+            document.getElementById('uc-title').textContent = data.title;
+            document.getElementById('uc-desc').textContent = data.desc;
+            document.getElementById('uc-bullets').innerHTML = data.bullets.map((b) => `<div>${b}</div>`).join('');
+            document.getElementById('uc-window-title').textContent = data.winTitle;
+            document.getElementById('uc-window-badge').textContent = data.winBadge;
+            document.getElementById('uc-screenshot-body').innerHTML = data.html;
+          });
+        });
+
+        // 5. Consolidated "Why A2UI?" 3-Pillar Switcher
+        document.querySelectorAll('[data-why-tab]').forEach((card) => {
+          card.addEventListener('click', () => {
+            const target = card.getAttribute('data-why-tab');
+            document.querySelectorAll('[data-why-tab]').forEach((c) => {
+              const active = c === card;
+              c.classList.toggle('is-active', active);
+              c.setAttribute('aria-selected', String(active));
+            });
+            document.querySelectorAll('[data-why-panel]').forEach((panel) => {
+              panel.classList.toggle('is-active', panel.getAttribute('data-why-panel') === target);
+            });
+          });
+        });
+
+        // 6. Native Platform Renderer Switcher
+        const platforms = {
+          swiftui: {
+            chrome: 'iOS 18 / macOS Sequoia · Native SwiftUI Views',
+            pkg: 'A2UISwiftUI · BasicCatalogSwiftUI',
+            title: 'SwiftUI Native Renderer (iOS & macOS)',
+            badge: 'Cupertino & SwiftUI',
+            code: `import SwiftUI
+import A2UISwiftCore
+import A2UISwiftUI
+
+struct AgentSurfaceScreen: View {
+  @ObservedObject var processor: A2UIMessageProcessor
+  var body: some View {
+    A2UISurfaceView(surfaceId: "travel-booking", processor: processor)
+  }
+}`,
+          },
+          compose: {
+            chrome: 'Android 15 · Jetpack Compose Material 3',
+            pkg: 'com.google.a2ui.compose',
+            title: 'Jetpack Compose Renderer (AndroidX)',
+            badge: 'Material You · Kotlin',
+            code: `@Composable
+fun AgentSurfaceScreen(processor: A2uiMessageProcessor) {
+  A2uiSurface(
+    surfaceId = "travel-booking",
+    processor = processor,
+    catalog = BasicComposeCatalog.default()
+  )
+}`,
+          },
+          flutter: {
+            chrome: 'Flutter Impeller · iOS, Android, Desktop & Web',
+            pkg: 'package:genui / a2ui_flutter',
+            title: 'Flutter GenUI SDK (Multi-Platform)',
+            badge: 'Material 3 & Cupertino',
+            code: `class AgentSurfacePanel extends StatelessWidget {
+  final GenUiSurfaceController controller;
+  @override
+  Widget build(BuildContext context) {
+    return GenUiSurface(surfaceId: 'travel-booking', controller: controller);
+  }
+}`,
+          },
+          react: {
+            chrome: 'React 19 · Next.js / Vite / CopilotKit',
+            pkg: '@a2ui/react · @a2ui/web_core',
+            title: 'React Native-DOM Renderer (@a2ui/react)',
+            badge: 'React 18/19 & AG-UI',
+            code: `${'import'} { A2UISurface } from '@a2ui/react';
+${'import'} { basicCatalog } from '@a2ui/react/catalogs/basic';
+
+export function AgentPanel({ stream }) {
+  return <A2UISurface surfaceId="travel-booking" stream={stream} catalog={basicCatalog} />;
+}`,
+          },
+          angular: {
+            chrome: 'Angular 19 · Signals & Standalone Components',
+            pkg: '@a2ui/angular',
+            title: 'Angular Renderer (@a2ui/angular)',
+            badge: 'Standalone Signals',
+            code: `@Component({
+  selector: 'app-agent-surface',
+  standalone: true,
+  imports: [A2uiSurfaceComponent],
+  template: \`<a2ui-surface surfaceId="travel-booking" [messages]="messages()" />\`
+})
+export class AgentSurfaceHostComponent {}`,
+          },
+          lit: {
+            chrome: 'Standards-Based Web Components · Custom Elements',
+            pkg: '@a2ui/lit · <a2ui-surface>',
+            title: 'Lit Web Components Renderer (@a2ui/lit)',
+            badge: 'Zero-Framework Custom Elements',
+            code: `${'import'} '@a2ui/lit/surface.js';
+${'import'} { html } from 'lit';
+
+export const renderSurface = (processor) => html\`
+  <a2ui-surface surfaceId="travel-booking" .processor=\${processor}></a2ui-surface>
+\`;`,
+          },
+        };
+
+        document.querySelectorAll('[data-plat]').forEach((tab) => {
+          tab.addEventListener('click', () => {
+            const key = tab.getAttribute('data-plat');
+            const data = platforms[key];
+            if (!data) return;
+            document.querySelectorAll('[data-plat]').forEach((t) => {
+              const active = t === tab;
+              t.classList.toggle('is-active', active);
+              t.setAttribute('aria-selected', String(active));
+            });
+            document.getElementById('plat-chrome-label').textContent = data.chrome;
+            document.getElementById('plat-pkg-label').textContent = data.pkg;
+            document.getElementById('plat-code-title').textContent = data.title;
+            document.getElementById('plat-code-badge').textContent = data.badge;
+            document.getElementById('plat-code-pre').textContent = data.code;
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
