@@ -1337,12 +1337,100 @@ class Catalog(Generic[TComponent, TFunction]):
         Returns:
             A schema-only catalog.
         """
-        new_components: list[ComponentApi] = list(
-            self.components.values() if components is None else components
+        return cast(
+            "CatalogApi",
+            self._rebuild(
+                list(self.components.values() if components is None else components),
+                list(self.functions.values() if functions is None else functions),
+                defs,
+                catalog_id=self.catalog_id,
+                schema_id=self.schema_id,
+                title=self.title,
+                description=self.description,
+                instructions=self.instructions,
+            ),
         )
-        new_functions: list[FunctionApi] = list(
-            self.functions.values() if functions is None else functions
+
+    def derive(
+        self,
+        *,
+        catalog_id: str,
+        components: Sequence[str | TComponent] | None = None,
+        functions: Sequence[str | TFunction] | None = None,
+        instructions: str | None = None,
+    ) -> "Catalog[TComponent, TFunction]":
+        """Returns a new catalog, under its own ID, built from entries of this one and new entries.
+
+        In `components` and `functions`, a name keeps this catalog's entry of
+        that name, and an entry adds it, or replaces this catalog's entry of
+        the same name. Leaving either out keeps all of this catalog's entries
+        of that kind. The new catalog keeps this catalog's protocol version,
+        theme and document layout, and drops the `$defs` that only entries
+        left out referenced, as `copy_with` does.
+
+        It does not keep this catalog's `$id`, title, description or
+        instructions, which describe this catalog: instructions often name its
+        ID and its components in their examples, so they would teach a model
+        to write messages for the wrong catalog.
+
+        Args:
+            catalog_id: The ID of the new catalog.
+            components: The new catalog's components, by name or as entries.
+            functions: The new catalog's functions, by name or as entries.
+            instructions: Instructions for agents that use the new catalog.
+
+        Returns:
+            A new catalog.
+
+        Raises:
+            A2uiCatalogError: If a name is not an entry of this catalog.
+        """
+
+        def pick(
+            kind: str, own: Mapping[str, Any], wanted: Sequence[Any] | None
+        ) -> list[Any]:
+            if wanted is None:
+                return list(own.values())
+            # Keyed by name, so a later item replaces an earlier one of the
+            # same name and the replaced entry's schema leaves the catalog.
+            picked: dict[str, Any] = {}
+            for item in wanted:
+                if not isinstance(item, str):
+                    picked[item.name] = item
+                    continue
+                if item not in own:
+                    raise A2uiCatalogError(
+                        f"Catalog '{self.catalog_id}' has no {kind} '{item}' to"
+                        f" derive catalog '{catalog_id}' from."
+                    )
+                picked[item] = own[item]
+            return list(picked.values())
+
+        return self._rebuild(
+            pick("component", self.components, components),
+            pick("function", self.functions, functions),
+            None,
+            catalog_id=catalog_id,
+            schema_id=None,
+            title=None,
+            description=None,
+            instructions=instructions,
         )
+
+    def _rebuild(
+        self,
+        new_components: list[Any],
+        new_functions: list[Any],
+        defs: Mapping[str, Any] | None,
+        *,
+        catalog_id: str,
+        schema_id: str | None,
+        title: str | None,
+        description: str | None,
+        instructions: str | None,
+    ) -> "Catalog[Any, Any]":
+        """Builds a catalog with this catalog's version, theme and layout, the
+        given entries, and the given fields that describe the catalog."""
         union_defs = self.union_defs
         null_unions = set(self._layout.null_unions)
         if union_defs is not None:
@@ -1396,19 +1484,19 @@ class Catalog(Generic[TComponent, TFunction]):
         else:
             new_defs = dict(defs)
 
-        return CatalogApi(
-            catalog_id=self.catalog_id,
+        return Catalog(
+            catalog_id=catalog_id,
             protocol_version=self.protocol_version,
             components=new_components,
             functions=new_functions,
             theme_schema=copy.deepcopy(self.theme_schema),
-            instructions=self.instructions,
+            instructions=instructions,
             defs=new_defs,
             common_types_defs=self.common_types_defs,
             schema_dialect=self.schema_dialect,
-            schema_id=self.schema_id,
-            title=self.title,
-            description=self.description,
+            schema_id=schema_id,
+            title=title,
+            description=description,
             declared_protocol_version=self.declared_protocol_version,
             declares_catalog_id=self.declares_catalog_id,
             declares_components=self.declares_components,

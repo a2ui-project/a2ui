@@ -20,10 +20,15 @@
     local `EXPRESSION_ERROR` instead of failing with `NO_LISTENER`.
   - A function call whose argument reads an agent call that is still pending
     waits for it to settle instead of running with a null argument. This
-    applies to local functions and to agent calls, so an outer agent call is
-    sent only once its agent arguments have settled. If an argument's agent
-    call fails, the enclosing call does not run, and the failure is reported
-    once.
+    applies to local functions and to agent calls (in bindings, check rules,
+    and action calls), so an outer call runs only once its agent arguments
+    have settled. If an argument's agent call fails, the enclosing call does
+    not run, and the failure is reported once.
+  - **Breaking:** An agent error or timeout (`A2uiRpcError`) in a dynamic
+    value, a `checks` rule or a `functionCall` action is reported on
+    `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of
+    `EXECUTION_ERROR`, as the other SDKs report it. The error still names the
+    `functionCallId`, and carries the agent's message.
 - A function call naming a `catalogId` on a `DataContext` created without
   `invokerForCatalog` is now reported as a `CATALOG_ERROR` rather than an
   `EXPRESSION_ERROR`.
@@ -45,6 +50,11 @@
   of the list the processor was created with, and adding to it throws
   `UnsupportedError`. Pass every catalog when creating the processor
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
+  `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`
+  exceptions into structured wire-format `ErrorMessage` envelopes, and
+  populated structured `A2uiErrorDetail` entries on `PayloadValidator`
+  component and function validation failures.
 - `MessageProcessor.processMessages` and `processMessagesAsync` take a
   `validationConfig` for one call, which replaces the processor's own while
   the call checks and applies its messages. An agent that checks its messages
@@ -103,6 +113,7 @@
   validation as `false`, and such an argument no longer fails the argument
   schema check. Catalogs below v1.0, whose validation functions return
   booleans, are unchanged.
+
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several

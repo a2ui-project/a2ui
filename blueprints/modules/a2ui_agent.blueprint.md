@@ -438,66 +438,7 @@ class ResponseStream(ABC):
 
 An SDK whose type system can say so returns `ErrorPart` only from a stream opened with `after_rejected_block="continue"`, so that the code of a caller that never asks for one does not have to handle it.
 
-#### Agent and renderer in one app
-
-An app can call the model and render its answer itself, such as a chat running in a browser. It then holds the renderer's `MessageProcessor`, and checks and applies each message once by making the stream's state on that processor:
-
-```python
-class RendererState:
-    @classmethod
-    def of(cls, processor: MessageProcessor) -> "RendererState":
-        """Creates the state of a renderer that renders from processor.
-
-        The state's catalogs are the processor's. It checks each message by its own rules,
-        whatever validation config the processor was created with, passing them to the
-        processor for that call, and applies the messages it accepts to the processor
-        itself. A rollback takes a message back out of the processor's model. A function
-        call reaches the processor only once the outermost apply or transaction it was
-        applied in succeeds, since a function that ran cannot be rolled back. The processor
-        must take its messages from the state only.
-        """
-```
-
-The core supports this with the processor's `catalogs` and a validation config passed for one call (see [`a2ui_core.blueprint.md`](a2ui_core.blueprint.md#messageprocessor)).
-
-`StreamedAnswer` reads one streamed answer this way and keeps its parts in the order the model wrote them:
-
-```python
-@dataclass
-class AnswerTextPart:
-    """Text the model wrote between two surfaces, or before or after them."""
-    text: str
-
-@dataclass
-class AnswerSurfacePart:
-    """A surface the answer created, where the model wrote it."""
-    surface: SurfaceModel
-
-AnswerPart = Union[AnswerTextPart, AnswerSurfacePart, ErrorPart]
-
-class StreamedAnswer:
-    def __init__(self, processor: A2uiRequestProcessor, *, renderer: MessageProcessor):
-        """Opens a stream on processor whose state is RendererState.of(renderer), reading
-        past rejected blocks. Raises A2uiCatalogError if renderer's catalogs are not
-        processor's active catalogs, in the same order."""
-
-    @property
-    def renderer(self) -> MessageProcessor:
-        """The processor the answer's surfaces are applied to."""
-
-    @property
-    def parts(self) -> Sequence[AnswerPart]:
-        """The text, one part per surface the answer created and still holds, and an
-        ErrorPart per rejected block, in order. Text that arrives in pieces is joined into
-        one part until a block comes between."""
-
-    @property
-    def is_in_block(self) -> bool:
-        """See ResponseStream.is_in_block."""
-
-    def feed(self, chunk: str) -> None: ...
-    def close(self) -> None: ...
-```
+The optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature adds `RendererState.of` and `StreamedAnswer`, for an app that is both the agent and the renderer. Such an app checks and applies each message once, on the renderer's own `MessageProcessor`, and reads a streamed answer into its text, surfaces and rejected blocks in the order the model wrote them.
 
 ---
 
