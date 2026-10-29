@@ -78,8 +78,8 @@ def _validate_skill_filename(filename: str) -> str:
     )
     if escapes:
         raise A2uiValidationError(
-            f"Skill filename {filename!r} must be a relative path without '.' or '..'"
-            " segments."
+            f"Skill filename {filename!r} must be a relative path without '.' or"
+            " '..' segments."
         )
     return filename
 

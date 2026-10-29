@@ -25,41 +25,31 @@ def run_cmd(args):
     return res.stdout.strip()
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Apply approved triage decisions to GitHub."
-    )
-    parser.add_argument(
-        "--decisions-file", required=True, help="Path to triage_decisions.json."
-    )
-    args = parser.parse_args()
-
-    decisions_path = os.path.abspath(os.path.expanduser(args.decisions_file))
-    if not os.path.exists(decisions_path):
-        print(
-            f"Error: Decisions file '{decisions_path}' does not exist.", file=sys.stderr
-        )
-        sys.exit(1)
-
-    with open(decisions_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    decisions = data["decisions"]
-    approved_decisions = [d for d in decisions if d["approved"]]
-
+def apply_decisions(decisions, on_progress=None):
+    approved_decisions = [d for d in decisions if d.get("approved")]
     print(f"Applying {len(approved_decisions)} approved triage decisions to GitHub...")
-
     failed_issues = []
+    logs = []
 
+    def log(msg, to_stderr=False):
+        logs.append(msg)
+        if to_stderr:
+            print(msg, file=sys.stderr)
+        else:
+            print(msg)
+
+    total_count = len(approved_decisions)
     for i, dec in enumerate(approved_decisions):
         issue_id = str(dec["id"])
-        priority = dec["priority"]
-        assignee = dec["assignee"]
-        action = dec["action"]
-        labels = dec["labels"]
-        reply = dec["reply"]
+        priority = dec.get("priority", "None")
+        assignee = dec.get("assignee")
+        action = dec.get("action", "investigate")
+        labels = dec.get("labels", [])
+        reply = dec.get("reply", "")
 
-        print(f"\n[{i+1}/{len(approved_decisions)}] Processing Issue #{issue_id}...")
+        log(f"\n[{i+1}/{total_count}] Processing Issue #{issue_id}...")
+        is_success = True
+        err_msg = None
 
         try:
             # 1. Update Labels (Priority and component/type labels)
@@ -76,9 +66,9 @@ def main():
                         if l.get("name")
                     ]
                 except Exception as e:
-                    print(
+                    log(
                         f"  Warning: Failed to parse current labels: {e}",
-                        file=sys.stderr,
+                        to_stderr=True,
                     )
 
             # Identify existing priority labels
@@ -130,17 +120,17 @@ def main():
             # Apply label changes via gh CLI
             if remove_labels:
                 remove_str = ",".join(remove_labels)
-                print(f"  Removing conflicting priority labels: {remove_str}")
+                log(f"  Removing conflicting priority labels: {remove_str}")
                 run_cmd(["gh", "issue", "edit", issue_id, "--remove-label", remove_str])
 
             if add_labels:
                 add_str = ",".join(add_labels)
-                print(f"  Adding labels: {add_str}")
+                log(f"  Adding labels: {add_str}")
                 run_cmd(["gh", "issue", "edit", issue_id, "--add-label", add_str])
 
             # 2. Assignee
             if assignee:
-                print(f"  Assigning to: @{assignee}")
+                log(f"  Assigning to: @{assignee}")
                 run_cmd(["gh", "issue", "edit", issue_id, "--add-assignee", assignee])
 
             # 3. Post Response Comment
@@ -164,20 +154,30 @@ def main():
                                 already_posted = True
                                 break
                     except Exception as e:
-                        print(
+                        log(
                             f"  Warning: Failed to parse existing comments: {e}",
-                            file=sys.stderr,
+                            to_stderr=True,
                         )
 
                 if already_posted:
-                    print(f"  Comment already posted. Skipping to prevent duplicate.")
+                    log(f"  Comment already posted. Skipping to prevent duplicate.")
                 else:
-                    print(f"  Posting comment...")
+                    log(f"  Posting comment...")
                     run_cmd(
                         ["gh", "issue", "comment", issue_id, "--body", comment_body]
                     )
 
-            # 4. Close Issue if action dictates it
+            # 4. Update Milestone if specified
+            if dec.get("milestone"):
+                log(f"  Setting milestone to: '{dec['milestone']}'")
+                run_cmd(
+                    ["gh", "issue", "edit", issue_id, "--milestone", dec["milestone"]]
+                )
+            elif dec.get("remove_milestone"):
+                log(f"  Removing milestone...")
+                run_cmd(["gh", "issue", "edit", issue_id, "--remove-milestone"])
+
+            # 5. Close Issue if action dictates it
             if action in ["close_duplicate", "close_invalid", "close_resolved"]:
                 if action == "close_duplicate":
                     reason = "duplicate"
@@ -185,31 +185,66 @@ def main():
                     reason = "not planned"
                 else:
                     reason = "completed"
-                print(f"  Closing issue (reason: {reason})...")
+                log(f"  Closing issue (reason: {reason})...")
                 run_cmd(["gh", "issue", "close", issue_id, "--reason", reason])
 
         except subprocess.CalledProcessError as e:
-            print(
+            log(
                 f"  Error: Command '{' '.join(e.cmd)}' failed with exit code"
                 f" {e.returncode}.",
-                file=sys.stderr,
+                to_stderr=True,
             )
-            print(f"  Stderr: {e.stderr.strip()}", file=sys.stderr)
-            print(
-                f"  Skipping remaining updates for Issue #{issue_id}.", file=sys.stderr
+            log(f"  Stderr: {e.stderr.strip()}", to_stderr=True)
+            log(
+                f"  Skipping remaining updates for Issue #{issue_id}.",
+                to_stderr=True,
             )
+            is_success = False
+            err_msg = str(e)
             failed_issues.append(issue_id)
-            continue
         except Exception as e:
-            print(
+            log(
                 f"  Error: Unexpected error updating Issue #{issue_id}: {e}",
-                file=sys.stderr,
+                to_stderr=True,
             )
-            print(
-                f"  Skipping remaining updates for Issue #{issue_id}.", file=sys.stderr
+            log(
+                f"  Skipping remaining updates for Issue #{issue_id}.",
+                to_stderr=True,
             )
+            is_success = False
+            err_msg = str(e)
             failed_issues.append(issue_id)
-            continue
+        finally:
+            if on_progress:
+                try:
+                    on_progress(issue_id, i + 1, total_count, is_success, err_msg)
+                except Exception:
+                    pass
+
+    return len(failed_issues) == 0, failed_issues, logs
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Apply approved triage decisions to GitHub."
+    )
+    parser.add_argument(
+        "--decisions-file", required=True, help="Path to triage_decisions.json."
+    )
+    args = parser.parse_args()
+
+    decisions_path = os.path.abspath(os.path.expanduser(args.decisions_file))
+    if not os.path.exists(decisions_path):
+        print(
+            f"Error: Decisions file '{decisions_path}' does not exist.", file=sys.stderr
+        )
+        sys.exit(1)
+
+    with open(decisions_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    decisions = data["decisions"]
+    success, failed_issues, _ = apply_decisions(decisions)
 
     if failed_issues:
         print(

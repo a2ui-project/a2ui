@@ -72,7 +72,7 @@ _MESSAGE_VERSIONS: dict[ProtocolVersion, frozenset[str]] = {
     ProtocolVersion.V0_8: frozenset(),
     ProtocolVersion.V0_9: frozenset({"v0.9", "v0.9.1"}),
     ProtocolVersion.V0_9_1: frozenset({"v0.9", "v0.9.1"}),
-    ProtocolVersion.V1_0: frozenset({"v1.0"}),
+    ProtocolVersion.V1_0: frozenset({"1.0"}),
 }
 
 _CREATE_ACTIONS = ("createSurface", "beginRendering")

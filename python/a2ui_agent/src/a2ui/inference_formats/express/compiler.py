@@ -23,6 +23,7 @@ The grammar for A2UI Express is defined in Express.g4.
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+import json
 import re
 from typing import Any, Literal
 
@@ -37,6 +38,7 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     catalogs_protocol_version,
     check_mixed_catalogs,
+    is_action_slot,
     surface_catalog_id,
     to_message_models,
 )
@@ -69,6 +71,41 @@ _ID_KEY = "id"
 _FUNCTION_CALL_ID_KEY = "functionCallId"
 _SEND_DATA_MODEL_KEY = "sendDataModel"
 _UPDATE_KEY = "update"
+
+# Keyword arguments accepted by the reserved `Event(...)` signature.
+_EVENT_KEYWORDS = ("userMessage", "context")
+
+
+@dataclass(frozen=True)
+class _ValueSlot:
+    """The catalog schema declared at a value's position, with the helper that owns it."""
+
+    schema: dict[str, Any]
+    helper: CatalogSchemaHelper
+
+
+def _item_slot(slot: _ValueSlot | None) -> _ValueSlot | None:
+    """Descends a value slot into the items of an array.
+
+    Returns:
+        The item slot, or None when the schema is unknown at that position.
+    """
+    if slot is None:
+        return None
+    schema = slot.helper.resolve_item_schema(slot.schema)
+    return _ValueSlot(schema, slot.helper) if schema else None
+
+
+def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
+    """Descends a value slot into a property of an object, whatever its name.
+
+    Returns:
+        The property's slot, or None when the schema is unknown at that position.
+    """
+    if slot is None:
+        return None
+    schema = slot.helper.resolve_property_schema(slot.schema, name)
+    return _ValueSlot(schema, slot.helper) if schema else None
 
 
 def _component_id(var_name: str, ast: Any, *, at_least_v10: bool = False) -> str:
@@ -228,6 +265,38 @@ def _schema_allows_databinding(schema: Any) -> bool:
                 if _schema_allows_databinding(sub):
                     return True
     return False
+
+
+def _describe_express_value(val: Any) -> str:
+    """Names a parsed value for an error message in the terms the model wrote it in.
+
+    Returns:
+        A short phrase such as `a map literal` or `the number 42`, rather than
+        the node's repr.
+    """
+    if isinstance(val, CallNode):
+        return f"a call to {val.name}(...)"
+    if isinstance(val, CheckNode):
+        return f"a check (?{val.name})"
+    if isinstance(val, VariableNode):
+        return f"the variable {val.name}"
+    if isinstance(val, PathNode):
+        return f"the data binding ${val.path}"
+    if isinstance(val, SkippedNode):
+        return "'_'"
+    if isinstance(val, dict):
+        return "a map literal"
+    if isinstance(val, list):
+        return "a list"
+    if val is None:
+        return "null"
+    if isinstance(val, bool):
+        return f"the boolean {str(val).lower()}"
+    if isinstance(val, (int, float)):
+        return f"the number {json.dumps(val)}"
+    if isinstance(val, str):
+        return f"the string {json.dumps(val)}"
+    return f"a {type(val).__name__}"
 
 
 def _binding_path(v: Any, path_key: str) -> str | None:
@@ -1216,15 +1285,16 @@ class ExpressCompiler:
                 comp_dict[prop_name] = None
                 continue
 
+            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             mapped_val = self._compile_value(
                 arg,
                 raw_symbols,
                 ctx,
-                is_action=(prop_name in ["action", "submitAction"]),
+                is_action=is_action_slot(prop_schema),
                 parent_id=comp_id,
                 parent_prop=prop_name,
+                slot=_ValueSlot(prop_schema, comp_helper) if prop_schema else None,
             )
-            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
                 if _has_databinding(arg, raw_symbols):
                     raise ExpressForbiddenDatabindingError(comp_name, prop_name)
@@ -1368,6 +1438,91 @@ class ExpressCompiler:
         condition["args"] = compiled_args
         return condition, message_val
 
+    def _compile_event_call(
+        self,
+        val: CallNode,
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+    ) -> dict[str, Any]:
+        """Compiles the reserved `Event(name, context?, userMessage=?, context=?)` signature.
+
+        `userMessage` is a v1.0 Action field. It is rejected when targeting an
+        earlier protocol version, and so is any other keyword the signature does
+        not define, rather than being dropped from the compiled action.
+
+        The event's name, message and context entries are `DynamicValue`s, not
+        actions, so a function call among them stays a plain call whatever slot
+        the event itself sits in.
+
+        Raises:
+            ExpressValidationError: If there are more than two positional
+                arguments, `userMessage` is used before v1.0, or `userMessage`
+                is neither a string nor a `$path` data binding.
+            ExpressInvalidParamError: If a keyword other than `userMessage` or
+                `context` is given.
+            ExpressDuplicateParamError: If the context is given both
+                positionally and by keyword.
+        """
+        fn_args = val.args
+        fn_kwargs = val.kwargs
+
+        if len(fn_args) > 2:
+            raise ExpressValidationError(
+                "Event accepts at most 2 positional arguments (name, context),"
+                f" got {len(fn_args)}."
+            )
+        for key in fn_kwargs:
+            if key not in _EVENT_KEYWORDS:
+                raise ExpressInvalidParamError("Event", key, list(_EVENT_KEYWORDS))
+        if len(fn_args) == 2 and "context" in fn_kwargs:
+            raise ExpressDuplicateParamError("Event", "context")
+
+        compiled_event_name = (
+            self._compile_value(fn_args[0], raw_symbols, ctx) if fn_args else ""
+        )
+        event_dict: dict[str, Any] = {"name": compiled_event_name}
+
+        if "userMessage" in fn_kwargs:
+            if not ctx.at_least_v10:
+                raise ExpressValidationError(
+                    "Event userMessage requires protocol v1.0 or later; the"
+                    f" target version {ctx.version} has no userMessage field."
+                )
+            # `userMessage` is a DynamicString: a string, a data binding or a
+            # function call.
+            user_message = self._compile_value(
+                fn_kwargs["userMessage"], raw_symbols, ctx
+            )
+            is_binding_or_call = isinstance(user_message, dict) and (
+                ctx.path_key in user_message or ctx.call_key in user_message
+            )
+            if not isinstance(user_message, str) and not is_binding_or_call:
+                raise ExpressValidationError(
+                    "Event userMessage must be a string, a $path data binding or"
+                    " a function call, got"
+                    f" {_describe_express_value(fn_kwargs['userMessage'])}."
+                )
+            event_dict["userMessage"] = user_message
+
+        if len(fn_args) == 2:
+            context_node = fn_args[1]
+        elif "context" in fn_kwargs:
+            context_node = fn_kwargs["context"]
+        else:
+            return {"event": event_dict}
+
+        raw_context = self._compile_value(context_node, raw_symbols, ctx)
+        # A context written in the DSL is kept even when it is empty.
+        compiled_context: dict[str, Any] = {}
+        if isinstance(raw_context, dict):
+            compiled_context.update(raw_context)
+        elif isinstance(raw_context, list):
+            for item in raw_context:
+                if isinstance(item, dict):
+                    compiled_context.update(item)
+        event_dict["context"] = compiled_context
+        return {"event": event_dict}
+
     def _compile_value(
         self,
         val: Any,
@@ -1377,6 +1532,7 @@ class ExpressCompiler:
         parent_id: str | None = None,
         parent_prop: str | None = None,
         list_index: int | None = None,
+        slot: _ValueSlot | None = None,
     ) -> Any:
         """Compiles an individual AST node value into valid A2UI equivalents.
 
@@ -1388,6 +1544,10 @@ class ExpressCompiler:
             parent_id: The parent component ID if compiling a component property.
             parent_prop: The parent component property name.
             list_index: The index within an array property if applicable.
+            slot: The catalog schema declared at this position, when known.
+                Array items and map entries resolve their own sub-schema from
+                it, so an `Action` slot nested inside a list item (e.g.
+                `items: [{label, action}]`) is compiled as an action too.
 
         Returns:
             The semantically correct A2UI JSON structure.
@@ -1420,6 +1580,7 @@ class ExpressCompiler:
                     raw_symbols,
                     ctx,
                     is_action,
+                    slot=slot,
                 )
             finally:
                 ctx.resolving.discard(ref_name)
@@ -1441,21 +1602,33 @@ class ExpressCompiler:
 
         # A dict is always a map literal, whatever its keys are.
         if isinstance(val, dict):
-            return {
-                k: self._compile_value(v, raw_symbols, ctx, is_action)
-                for k, v in val.items()
-            }
+            dict_res: dict[str, Any] = {}
+            for k, v in val.items():
+                entry_slot = _property_slot(slot, k)
+                entry_is_action = is_action or (
+                    entry_slot is not None and is_action_slot(entry_slot.schema)
+                )
+                dict_res[k] = self._compile_value(
+                    v, raw_symbols, ctx, entry_is_action, slot=entry_slot
+                )
+            return dict_res
 
         if isinstance(val, list):
+            # Resolved once for the list, since every item shares the schema.
+            item_slot = _item_slot(slot)
+            item_is_action = is_action or (
+                item_slot is not None and is_action_slot(item_slot.schema)
+            )
             return [
                 self._compile_value(
                     item,
                     raw_symbols,
                     ctx,
-                    is_action,
+                    item_is_action,
                     parent_id=parent_id,
                     parent_prop=parent_prop,
                     list_index=idx,
+                    slot=item_slot,
                 )
                 for idx, item in enumerate(val)
             ]
@@ -1495,38 +1668,7 @@ class ExpressCompiler:
             return {"path": template_path, "componentId": comp_id_val}
 
         if fn_name == "Event":
-            compiled_event_name = (
-                self._compile_value(
-                    fn_args[0],
-                    raw_symbols,
-                    ctx,
-                    is_action,
-                )
-                if len(fn_args) > 0
-                else ""
-            )
-            raw_context = (
-                self._compile_value(
-                    fn_args[1],
-                    raw_symbols,
-                    ctx,
-                    is_action,
-                )
-                if len(fn_args) > 1
-                else {}
-            )
-            compiled_context = {}
-            if isinstance(raw_context, dict):
-                compiled_context.update(raw_context)
-            elif isinstance(raw_context, list):
-                for item in raw_context:
-                    if isinstance(item, dict):
-                        compiled_context.update(item)
-            event_dict: dict[str, Any] = {"name": compiled_event_name}
-            # A context written in the DSL is kept even when it is empty.
-            if compiled_context or len(fn_args) > 1:
-                event_dict["context"] = compiled_context
-            return {"event": event_dict}
+            return self._compile_event_call(val, raw_symbols, ctx)
 
         call_cat_id = raw_kwargs.pop("catalogId", None)
         if self._defines_component(fn_name, call_cat_id):
