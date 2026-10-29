@@ -86,6 +86,10 @@
   document that is not available locally fails validation with an
   unresolvable-reference error instead of being downloaded
   ([#3554](https://github.com/a2ui-project/a2ui/pull/3554)).
+- (v1_0) The `createSurface` description no longer says that a surface's
+  components and data must come in later messages. They can be sent inline in
+  `createSurface` or in later `updateComponents` and `updateDataModel` messages.
+  [#3678](https://github.com/a2ui-project/a2ui/pull/3678)
 - `SchemaValidator.evolve` no longer raises `TypeError` (`_registry`) for a
   subschema that declares its own `$schema`, and keeps the validator's
   registry.
