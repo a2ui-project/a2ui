@@ -452,7 +452,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     const res = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-agent-only-1',
           callFunction: {
