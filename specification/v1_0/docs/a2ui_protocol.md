@@ -192,7 +192,7 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "createSurface": {
     "surfaceId": "user_profile_card",
     "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -229,7 +229,7 @@ This message provides a flat list of UI components to add or update within a spe
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateComponents": {
     "surfaceId": "user_profile_card",
     "components": [
@@ -267,7 +267,7 @@ This message is used to send or update the data that populates the UI components
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateDataModel": {
     "surfaceId": "user_profile_card",
     "path": "/user/name",
@@ -288,7 +288,7 @@ This message instructs the renderer to remove a surface and all its associated c
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "deleteSurface": {
     "surfaceId": "user_profile_card"
   }
@@ -306,7 +306,7 @@ This message is sent by the agent to execute a function registered on the render
   - `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `rendererFunctionResponse` message.
   - `callFunction` (object, required): The description of the function call.
     - `@call` (string, required): The registered name of the function to execute.
-    - `catalogId` (string, required): The catalog ID defining the function to execute. `catalogId` MUST be specified on `callRendererFunction`; if omitted or unregistered, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
+    - `catalogId` (string, required): The catalog ID defining the function to execute. `catalogId` MUST be specified on `callRendererFunction`. A call without it violates the schema, so the message is malformed, and should be rejected. Agents should validate outgoing messages against the schema so that a missing `catalogId` never reaches the renderer. If `catalogId` names a catalog the renderer has not registered, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
     - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
 
 **Evaluation Scope and Ordering:**
@@ -332,7 +332,7 @@ Agent sends this message to the renderer:
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "callRendererFunction": {
     "functionCallId": "get_device_resolution_123",
     "callFunction": {
@@ -350,7 +350,7 @@ If the function executes successfully, the renderer responds with a `rendererFun
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
     "value": [1920, 1080]
@@ -362,7 +362,7 @@ If the agent attempts to call a `rendererOnly` function (e.g., a local-only comp
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
     "error": {
@@ -390,7 +390,7 @@ The payload MUST include either `value` or `error`.
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "agentFunctionResponse": {
     "functionCallId": "verify_provider_99",
     "value": {
@@ -405,7 +405,7 @@ The payload MUST include either `value` or `error`.
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "agentFunctionResponse": {
     "functionCallId": "verify_provider_99",
     "error": {
@@ -482,10 +482,10 @@ sequenceDiagram
 The following example demonstrates a complete interaction to render a Contact Form, expressed as a JSONL stream.
 
 ```jsonl
-{"version": "v1.0", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}
-{"version": "v1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"@path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"@path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"@path":"/contact/email"},"variant":"shortText","checks":[{"condition":{"@call":"required","args":{"value":{"@path":"/contact/email"}}},"message":"Email is required."},{"condition":{"@call":"email","args":{"value":{"@path":"/contact/email"}}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"@path":"/contact/phone"},"variant":"shortText","checks":[{"condition":{"@call":"regex","args":{"value":{"@path":"/contact/phone"},"pattern":"^\\d{10}$"}},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"@path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"@path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","rendererTime":{"@call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"@path":"/contact/subscribe"}}}}}]}}
-{"version": "v1.0", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
-{"version": "v1.0", "deleteSurface":{"surfaceId":"contact_form_1"}}
+{"version": "1.0", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}
+{"version": "1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"@path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"@path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"@path":"/contact/email"},"variant":"shortText","checks":[{"condition":{"@call":"required","args":{"value":{"@path":"/contact/email"}}},"message":"Email is required."},{"condition":{"@call":"email","args":{"value":{"@path":"/contact/email"}}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"@path":"/contact/phone"},"variant":"shortText","checks":[{"condition":{"@call":"regex","args":{"value":{"@path":"/contact/phone"},"pattern":"^\\d{10}$"}},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"@path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"@path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","rendererTime":{"@call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"@path":"/contact/subscribe"}}}}}]}}
+{"version": "1.0", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
+{"version": "1.0", "deleteSurface":{"surfaceId":"contact_form_1"}}
 ```
 
 ## Component model
@@ -571,13 +571,13 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - **External References inside `$defs`:** Any definition referenced externally (e.g., from the envelope schema `agent_to_renderer.json` or `common_types.json`) MUST reside inside the `"$defs"` object at the catalog root. This strictly includes:
      - `anyComponent`: Referenced as `catalog.json#/$defs/anyComponent`.
      - `anyFunction`: Referenced as `catalog.json#/$defs/anyFunction`.
-2. **No Custom `$defs` or Helpers:**
-   - To prevent unconstrained branching, custom definitions or shared helper schemas inside a catalog are strictly prohibited under `"$defs"`.
-   - The only allowed keys within the catalog's `"$defs"` object are `anyComponent` and `anyFunction`.
-   - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
+2. **Catalog-Scoped Leaf `$defs`:**
+   - Custom leaf definitions (such as design system tokens, value unions, or shared object option schemas) MAY be declared under `"$defs"` at the catalog root alongside `anyComponent` and `anyFunction`.
+   - Component schemas MUST NOT be defined inside `"$defs"` (including inside `allOf` wrappers); all UI components must be declared at the top level under `"components"`.
 3. **Restricted `$ref` Targets:**
-   - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
-   - External `$ref` targets, other than references to peer catalogs (below), MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
+   - Component properties and leaf definitions MAY reference catalog-scoped leaf definitions using `#/$defs/<TypeName>` (where `<TypeName>` is not `anyComponent` or `anyFunction`).
+   - Component schemas inside `anyComponent` and function schemas inside `anyFunction` reference top-level components and functions (e.g., `#/components/Text`, `#/functions/required`).
+   - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
      - `Child`
      - `ChildList`
@@ -592,7 +592,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `Action`
      - `DataBinding`
      - `FunctionCall`
-   - External `$ref` targets MAY also reference a **peer catalog**, as described in [Cross-Catalog References](#cross-catalog-references). These are the only other external targets allowed.
+   - Any other external `$ref` target, such as a reference into another catalog, makes the catalog invalid. Implementations MUST report a catalog error when the catalog is loaded, and MUST NOT fetch the target over the network.
 
    > [!NOTE]
    > **Catalog Evolution and Protocol Compatibility**
@@ -609,8 +609,10 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      }
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
-5. **Standard Component Structure:**
+5. **Standard Component Structure & Scoped Combinators:**
    - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
+   - Components MUST remain flat: declared as a single `type: "object"` with direct `properties`. Structural combinators (`oneOf`, `anyOf`, or non-trait `allOf`) MUST NOT be used at the component root.
+   - Combinators (`oneOf`, `anyOf`) are scoped exclusively to leaf property types (such as design token definitions or value unions in `$defs` or property schemas).
    - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
@@ -629,6 +631,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `description`
      - `catalogId`
      - `instructions`
+     - `metadata` (optional; supports `metadata.extensions` for catalog-wide extension metadata)
      - `components`
      - `functions`
      - `$defs`
@@ -652,6 +655,15 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
+  // Optional catalog-level metadata extensions
+  "metadata": {
+    "extensions": {
+      "org_example_theme": {
+        "primaryColor": "md.sys.color.primary",
+      },
+    },
+  },
+
   // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
@@ -665,6 +677,11 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         "text": {
           "$ref": "common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
+        },
+        // Leaf property referencing a catalog-scoped design token $def
+        "color": {
+          "$ref": "#/$defs/ColorToken",
+          "description": "Text color token.",
         },
         // Deprecated property.
         "rawContent": {
@@ -707,8 +724,8 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
     },
   },
 
-  // $defs is restricted strictly to anyComponent and anyFunction.
-  // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
+  // $defs contains external references (anyComponent, anyFunction) and optional leaf definitions.
+  // Custom component definitions inside $defs are strictly prohibited.
   "$defs": {
     "anyComponent": {
       "oneOf": [
@@ -729,33 +746,24 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         },
       ],
     },
+    // Catalog-scoped leaf definition (design token)
+    "ColorToken": {
+      "type": "string",
+      "description": "Design token or hex color string.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^md\\.sys\\.color\\.[a-z0-9-]+$",
+        },
+        {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+        },
+      ],
+    },
   },
 }
 ```
-
-#### Cross-Catalog References
-
-A catalog MAY reuse definitions from another catalog, its **peer**, through an external `$ref`. For example, a custom catalog can inherit the basic catalog's `Text` and add a property, or reuse the `action` property of another catalog's `Button`. Cross-catalog references are still local: the peer MUST be a catalog that the agent or renderer already holds, because it is registered with the agent or renderer or supplied together with the referencing catalog. An implementation MUST NOT fetch or download a peer catalog over the network to resolve a reference.
-
-A cross-catalog `$ref` has the form `<peer document>#<pointer>`, and the pointer MUST address one of the peer's top-level components or functions, or a subschema inside one:
-
-- `<peer document>#/components/<Name>` inherits a whole component, usually as an `allOf` entry. The peer's `component` discriminator, `id` envelope and closure keywords (`unevaluatedProperties`, `additionalProperties`) are not inherited; the referencing component declares its own discriminator.
-- `<peer document>#/components/<Name>/properties/<property>` reuses the schema of one property.
-- `<peer document>#/functions/<Name>` and pointers into a function, such as `#/functions/<Name>/properties/args/properties/<arg>`, do the same for functions.
-
-`<peer document>` names the peer by its `catalogId` or `$id`, or by a path or file name that ends one of them. Implementations MUST resolve it against the peer catalogs they hold in this order, and the first catalog that matches wins:
-
-1. A document named `common_types.json`, or a path ending in `/common_types.json`, refers to the protocol's common types and never to a peer.
-2. A document named exactly `catalog.json` refers to the referencing catalog itself, as in the envelope schemas.
-3. **Exact or path-suffix match:** a peer whose `catalogId` or `$id` equals the document, ends with `/` followed by the document, or is itself a path suffix of the document (the document ends with `/` followed by it).
-4. A path ending in `/catalog.json` that no peer matches in step 3 refers to the referencing catalog itself.
-5. **File name match:** a peer whose `$id` or `catalogId` has the same last path segment as the document.
-
-Only a document named exactly `catalog.json` is generic. A file whose name merely ends in `catalog.json`, such as `mcp_catalog.json`, is matched like any other name, and a full URI such as `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json` resolves to the peer with that `$id` before it is treated as the referencing catalog. When several peers match in the same step, the one listed or registered first wins; catalog authors SHOULD write references that match exactly one peer, for example by using the peer's full `$id`.
-
-Inside the inherited content, the peer's own local references (`#/...`) resolve against the peer document, and its cross-catalog references resolve against the same set of peers. A catalog with a cross-catalog `$ref` that resolves to no peer the implementation holds is a catalog error. Implementations MUST NOT silently ignore such a reference or treat it as accepting any value; they report the error when the catalog is loaded or linked, or at the latest when a payload is validated against the affected component or function. The referencing catalog's own references MUST keep using local pointers (`#/components/...`) or `catalog.json`.
-
-Catalog documents keep cross-catalog references as authored, for example in prompts and in `inlineCatalogs`. A renderer or agent that receives such a catalog MUST already hold its peers, or bundle them before validating.
 
 #### Deprecating Catalog Properties
 
@@ -1041,7 +1049,7 @@ _Update a specific field:_
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "path": "/user/firstName",
@@ -1054,7 +1062,7 @@ _Remove a field:_
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "path": "/user/tempData",
@@ -1067,7 +1075,7 @@ _Replace the entire data model:_
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "updateDataModel": {
     "surfaceId": "surface_123",
     "value": {
@@ -1398,7 +1406,7 @@ This message is sent when a user interacts with a component that has an agent ac
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "action": {
     "name": "submitForm",
     "surfaceId": "contact_form_1",
@@ -1435,7 +1443,7 @@ When the renderer evaluates a `FunctionCall` (from an action handler, validation
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "callAgentFunction": {
     "surfaceId": "contact_form_1",
     "functionCallId": "verify_provider_99",
@@ -1466,7 +1474,7 @@ The payload MUST include either `value` or `error`.
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
     "value": [1920, 1080]
@@ -1478,7 +1486,7 @@ The payload MUST include either `value` or `error`.
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
     "error": {
@@ -1504,7 +1512,7 @@ This message is sent by the renderer to report surface-level validation/integrit
 
 ```json
 {
-  "version": "v1.0",
+  "version": "1.0",
   "error": {
     "code": "INVALID_FUNCTION_CALL",
     "message": "Malformed callRendererFunction payload.",
@@ -1555,7 +1563,7 @@ An agent advertises its capabilities using the [`agent_capabilities.json`] schem
 
 **Properties:**
 
-- `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
+- `1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
   - `supportedCatalogIds` (array of strings, required): An array of strings identifying the Catalog Definition Schemas the agent can generate.
   - `acceptsInlineCatalogs` (boolean, optional, default `false`): Indicates if the agent can accept custom inline component/function catalogs in the renderer's capabilities metadata.
 
@@ -1567,7 +1575,7 @@ If `a2uiRendererCapabilities` is carried on message metadata (eg, in A2A), it sh
 
 **Properties:**
 
-- `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
+- `1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
   - `supportedCatalogIds` (array of strings, required): The string identifiers of supported component and function catalogs.
   - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the renderer. Functions defined within inline catalogs support declaring authorized callers (`allowedCallers: "rendererOnly" | "agentOnly" | "rendererOrAgent"`) to statically specify remote invocation safety.
 
@@ -1577,7 +1585,7 @@ When `sendDataModel` is enabled for a surface, the renderer includes the `a2uiRe
 
 **Properties:**
 
-- `version` (string, required): Must be the constant `"v1.0"`.
+- `version` (string, required): Must be the constant `"1.0"`.
 - `surfaces` (object, required): A map of surface IDs to their current local data models.
 
 ### Extensions
@@ -1596,8 +1604,9 @@ In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects 
 
 #### Wire Containers
 
-A2UI defines optional `metadata.extensions` containers across four scopes:
+A2UI defines optional `metadata.extensions` containers across five scopes:
 
+- **Catalog Scope** (`metadata.extensions` in [`catalog_definition.json`]): Attach catalog-wide styling tokens, design system metadata, or configuration directly at the catalog root.
 - **Surface Scope** (`createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
 - **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
 - **Catalog Component Definition Scope** (`ComponentDefinition.metadata.extensions` in [`catalog_definition.json`]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.

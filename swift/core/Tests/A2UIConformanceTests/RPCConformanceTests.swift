@@ -95,21 +95,21 @@ struct RPCConformanceTests {
 
       let catalog = Catalog(
         id: "basic",
-        protocolVersion: "v1.0",
+        protocolVersion: "1.0",
         components: [AnyComponentAPI](),
         functions: functions
       ).eraseToAnyCatalog()
 
       let mediaCatalog = Catalog(
         id: "media_catalog",
-        protocolVersion: "v1.0",
+        protocolVersion: "1.0",
         components: [AnyComponentAPI](),
         functions: functions
       ).eraseToAnyCatalog()
 
       let systemCatalog = Catalog(
         id: "system_catalog",
-        protocolVersion: "v1.0",
+        protocolVersion: "1.0",
         components: [AnyComponentAPI](),
         functions: functions
       ).eraseToAnyCatalog()
@@ -120,7 +120,7 @@ struct RPCConformanceTests {
         "system_catalog": systemCatalog,
       ]
       if let extraCatID = testCase.args?["catalogId"]?.stringValue {
-        let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "v1.0"
+        let extraCatVersion = testCase.args?["catalogVersion"]?.stringValue ?? "1.0"
         catalogs[extraCatID] = Catalog(
           id: extraCatID,
           protocolVersion: extraCatVersion,
@@ -133,39 +133,44 @@ struct RPCConformanceTests {
 
       // Inbound call
       if let messageJSON = testCase.args?["message"] {
-        let data = try JSONEncoder().encode(messageJSON)
+        let expectedErr = testCase.expect?["error"]?.objectValue
+        let message: AgentToRendererMessage?
         do {
-          let message = try JSONDecoder().decode(AgentToRendererMessage.self, from: data)
-          if case .callRendererFunction(let callMsg) = message {
-            let response = await rpcHandler.handleIncomingCall(
-              callMsg,
-              catalogs: catalogs,
-              userActivationPresent: userActivation
-            )
-
-            if let expectedResp = testCase.expect?["response"]?["rendererFunctionResponse"] {
-              let expectedCallID = expectedResp["functionCallId"]?.stringValue
-              #expect(response.functionCallID == expectedCallID)
-
-              if let expectedValue = expectedResp["value"] {
-                #expect(response.value == expectedValue)
-              }
-
-              if let expectedErr = expectedResp["error"] {
-                let expectedCode = expectedErr["code"]?.stringValue
-                let expectedMsg = expectedErr["message"]?.stringValue
-                #expect(response.error?.code == expectedCode)
-                if let expectedMsg {
-                  #expect(response.error?.message.contains(expectedMsg) == true)
-                }
-              }
-            }
-          }
+          // parseAll runs the version adapter's schema checks, which a bare
+          // JSONDecoder skips (e.g. a missing callFunction.catalogId).
+          message = try AgentToRendererMessage.parseAll(messageJSON).first
+          #expect(expectedErr == nil, "\(testCase.name): expected a validation error")
         } catch {
           // If schema validation rejected invalid payload (e.g. missing callFunction)
-          if let expectedErr = testCase.expect?["error"]?.objectValue {
-            let msgSub = expectedErr["message"]?.stringValue ?? ""
+          #expect(expectedErr != nil, "\(testCase.name): unexpected error \(error)")
+          if let msgSub = expectedErr?["message"]?.stringValue {
             #expect("\(error)".contains(msgSub))
+          }
+          message = nil
+        }
+        if case .callRendererFunction(let callMsg)? = message {
+          let response = await rpcHandler.handleIncomingCall(
+            callMsg,
+            catalogs: catalogs,
+            userActivationPresent: userActivation
+          )
+
+          if let expectedResp = testCase.expect?["response"]?["rendererFunctionResponse"] {
+            let expectedCallID = expectedResp["functionCallId"]?.stringValue
+            #expect(response.functionCallID == expectedCallID)
+
+            if let expectedValue = expectedResp["value"] {
+              #expect(response.value == expectedValue)
+            }
+
+            if let expectedErr = expectedResp["error"] {
+              let expectedCode = expectedErr["code"]?.stringValue
+              let expectedMsg = expectedErr["message"]?.stringValue
+              #expect(response.error?.code == expectedCode)
+              if let expectedMsg {
+                #expect(response.error?.message.contains(expectedMsg) == true)
+              }
+            }
           }
         }
       }
@@ -176,22 +181,44 @@ struct RPCConformanceTests {
       {
         let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
         let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
-        let call = outboundCall["callFunction"]?["call"]?.stringValue ?? ""
-        let catID = outboundCall["callFunction"]?["catalogId"]?.stringValue
-
-        let callTask = Task {
-          try await rpcHandler.callAgentFunction(
-            surfaceID: surfaceID,
-            functionName: call,
-            catalogID: catID,
-            functionCallID: fnCallID,
-            version: .v10,
-            timeoutSeconds: 5.0,
-            sendOutbound: { _ in }
-          )
+        let expectedCallFunction = try #require(outboundCall["callFunction"]?.objectValue)
+        let call = try #require(expectedCallFunction["@call"]?.stringValue)
+        let catID = expectedCallFunction["catalogId"]?.stringValue
+        let args: [String: JSONValue]? = expectedCallFunction["args"]?.objectValue.map {
+          Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
         }
 
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // `callAgentFunction` registers the pending call before it sends the outbound
+        // message, so once the message arrives the response can be routed.
+        var callTask: Task<JSONValue, any Error>?
+        let outbound = await withCheckedContinuation { continuation in
+          callTask = Task {
+            try await rpcHandler.callAgentFunction(
+              surfaceID: surfaceID,
+              functionName: call,
+              catalogID: catID,
+              functionCallID: fnCallID,
+              args: args,
+              version: .v10,
+              timeoutSeconds: 5.0,
+              sendOutbound: { continuation.resume(returning: $0) }
+            )
+          }
+        }
+
+        // The outbound message must be the v1.0 callAgentFunction the case describes.
+        let outboundJSON = try JSONDecoder().decode(
+          JSONValue.self, from: JSONEncoder().encode(outbound))
+        let sentCall = try #require(outboundJSON["callAgentFunction"])
+        #expect(sentCall["surfaceId"]?.stringValue == surfaceID)
+        #expect(
+          sentCall["functionCallId"]?.stringValue
+            == testCase.expect?["correlatedCallId"]?.stringValue)
+        let sentCallFunction = try #require(sentCall["callFunction"]?.objectValue)
+        #expect(Set(sentCallFunction.keys) == Set(expectedCallFunction.keys))
+        for (key, value) in expectedCallFunction {
+          #expect(sentCallFunction[key] == value, "callFunction.\(key)")
+        }
 
         // Parse inbound response and route
         let respData = try JSONEncoder().encode(inboundResponse)
@@ -200,7 +227,7 @@ struct RPCConformanceTests {
           rpcHandler.handleAgentResponse(agentResp)
         }
 
-        let result = try await callTask.value
+        let result = try await #require(callTask).value
         let expectedResult = testCase.expect?["result"]
         #expect(result == expectedResult)
       }

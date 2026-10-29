@@ -19,12 +19,12 @@ import {describe, it} from 'node:test';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {z} from 'zod';
+import {A2uiCatalogError} from '../errors.js';
 import {Catalog} from './types.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
-import {A2uiCatalogError} from '../errors.js';
 
 describe('Catalog.fromJson & schema_loader', () => {
   const basicCatalogPath = resolve(
@@ -142,7 +142,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     // v1.0 catalogs spell the same reference without the absolute URL prefix.
     const catalog = Catalog.fromJson({
       catalogId: 'test_relative_checkable',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Input: {
           type: 'object',
@@ -198,10 +198,9 @@ describe('Catalog.fromJson & schema_loader', () => {
     }
   });
 
-  it('rejects an external reference that names no canonical protocol type or peer', () => {
+  it('ignores an external reference that names no canonical protocol type in a v0.9 catalog', () => {
     const catalog = Catalog.fromJson({
       catalogId: 'test_unknown_external_ref',
-      protocolVersion: 'v1.0',
       components: {
         Widget: {
           type: 'object',
@@ -213,15 +212,153 @@ describe('Catalog.fromJson & schema_loader', () => {
       },
     } as any);
 
+    assert.strictEqual(catalog.protocolVersion, '0.9');
     const widget = catalog.components.get('Widget');
     assert.ok(widget);
-    // An unresolvable cross-catalog reference is a catalog error, never silently dropped.
-    assert.throws(
-      () => widget.schema,
-      (err: Error) =>
-        err instanceof A2uiCatalogError &&
-        err.message.includes("'other_document.json#/$defs/NotAProtocolType'"),
-    );
+    const shape = (widget.schema as z.ZodObject<any>).shape;
+    assert.deepStrictEqual(Object.keys(shape), ['label']);
+  });
+
+  describe('v1.0 external $ref targets', () => {
+    const rejects = (catalog: Record<string, unknown>, ref: string, pointer: string) =>
+      assert.throws(
+        () =>
+          Catalog.fromJson({catalogId: 'test_external_ref', protocolVersion: '1.0', ...catalog}),
+        (err: unknown) =>
+          err instanceof A2uiCatalogError &&
+          err.message ===
+            `Unsupported external $ref '${ref}' at ${pointer}: a v1.0 catalog may only ` +
+              'reference its own components and functions (#/...) or common_types.json.',
+      );
+
+    it('rejects a relative reference to a component of another catalog', () => {
+      rejects(
+        {
+          components: {
+            FancyText: {
+              type: 'object',
+              allOf: [{$ref: 'basic_catalog.json#/components/Text'}],
+              properties: {component: {const: 'FancyText'}},
+              required: ['component'],
+            },
+          },
+        },
+        'basic_catalog.json#/components/Text',
+        '/components/FancyText/allOf/0/$ref',
+      );
+    });
+
+    it('rejects an absolute URI reference to another catalog', () => {
+      const ref =
+        'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json#/components/Button';
+      rejects(
+        {
+          components: {
+            FancyButton: {
+              type: 'object',
+              properties: {component: {const: 'FancyButton'}, action: {$ref: ref}},
+            },
+          },
+        },
+        ref,
+        '/components/FancyButton/properties/action/$ref',
+      );
+    });
+
+    it('rejects a catalog.json reference that is not the bare envelope placeholder', () => {
+      rejects(
+        {
+          components: {
+            Widget: {
+              type: 'object',
+              properties: {component: {const: 'Widget'}, child: {$ref: 'foo/catalog.json#/x'}},
+            },
+          },
+        },
+        'foo/catalog.json#/x',
+        '/components/Widget/properties/child/$ref',
+      );
+    });
+
+    it('rejects an external reference nested in function arguments', () => {
+      rejects(
+        {
+          functions: {
+            formatBadge: {
+              type: 'object',
+              returnType: 'string',
+              properties: {
+                '@call': {const: 'formatBadge'},
+                args: {
+                  type: 'object',
+                  properties: {value: {$ref: 'other_catalog.json#/functions/formatString'}},
+                },
+              },
+            },
+          },
+        },
+        'other_catalog.json#/functions/formatString',
+        '/functions/formatBadge/properties/args/properties/value/$ref',
+      );
+    });
+
+    it('rejects an external reference in $defs and escapes the pointer', () => {
+      rejects(
+        {
+          $defs: {'a/b~c': {anyOf: [{$ref: 'other_catalog.json#/$defs/Thing'}]}},
+        },
+        'other_catalog.json#/$defs/Thing',
+        '/$defs/a~1b~0c/anyOf/0/$ref',
+      );
+    });
+
+    it('accepts local, catalog.json and common_types.json references', () => {
+      const catalog = Catalog.fromJson({
+        catalogId: 'test_allowed_refs',
+        protocolVersion: '1.0',
+        components: {
+          Label: {
+            type: 'object',
+            allOf: [{$ref: 'common_types.json#/$defs/Checkable'}],
+            properties: {
+              component: {const: 'Label'},
+              text: {$ref: 'common_types.json#/$defs/DynamicString'},
+              caption: {
+                $ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString',
+              },
+              child: {$ref: 'catalog.json#/$defs/anyComponent'},
+            },
+          },
+          Wrapper: {
+            type: 'object',
+            allOf: [{$ref: '#/components/Label'}],
+            properties: {component: {const: 'Wrapper'}},
+          },
+        },
+      });
+
+      assert.deepStrictEqual([...catalog.components.keys()], ['Label', 'Wrapper']);
+    });
+
+    it('does not apply to a v0.9 catalog', () => {
+      const catalog = Catalog.fromJson(
+        {
+          catalogId: 'test_v09_external_ref',
+          components: {
+            FancyText: {
+              type: 'object',
+              allOf: [
+                {$ref: 'basic_catalog.json#/components/Text'},
+                {type: 'object', properties: {badge: {type: 'string'}}},
+              ],
+            },
+          },
+        },
+        '0.9',
+      );
+
+      assert.ok(catalog.components.get('FancyText'));
+    });
   });
 
   it('is catalog-agnostic and does not inject weight into custom catalogs lacking weight in $defs', () => {
@@ -620,7 +757,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       () =>
         Catalog.fromJson({
           catalogId: 'https://example.com/test.json',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           functions: {
             customFunc: {
               parameters: {
@@ -634,7 +771,7 @@ describe('Catalog.fromJson & schema_loader', () => {
 
     const catalog = Catalog.fromJson({
       catalogId: 'https://example.com/test.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       functions: {
         customFunc: {
           parameters: {
@@ -649,7 +786,7 @@ describe('Catalog.fromJson & schema_loader', () => {
   it('accepts parameters defined with $ref or combiners without treating them as shorthand maps', () => {
     const catalog = Catalog.fromJson({
       catalogId: 'https://example.com/test-ref.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       $defs: {
         MyArgs: {
           type: 'object',
@@ -742,7 +879,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       () =>
         Catalog.fromJson({
           catalogId: 'https://example.com/test-bad-allof.json',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           functions: {
             badFunc: {
               parameters: {
@@ -758,7 +895,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       () =>
         Catalog.fromJson({
           catalogId: 'https://example.com/test-bad-ref.json',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           $defs: {
             BadDefs: {
               type: 'object',

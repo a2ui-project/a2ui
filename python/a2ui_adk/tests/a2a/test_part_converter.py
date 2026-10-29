@@ -15,7 +15,7 @@
 """Tests for the A2uiPartConverter class."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from a2a import types as a2a_types
 from google.genai import types as genai_types
@@ -24,9 +24,12 @@ from a2ui.a2a import create_a2ui_part
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
-from a2ui.core import Catalog
+from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.processor import A2uiRequestProcessor
+from a2ui.utils import RendererState
 
 
 # A v0.8 response must begin rendering the surfaces it updates. The renderer
@@ -34,11 +37,23 @@ from a2ui.core.schema import ProtocolVersion
 _BEGIN_MAIN = {"beginRendering": {"surfaceId": "main", "root": "t"}}
 
 
-def test_converter_class_convert_valid_tool_response():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
+def _converter(
+    catalog: CatalogApi | None = None,
+    *,
+    state: RendererState | None = None,
+    fallback_text: str | None = None,
+) -> A2uiPartConverter:
+    """A converter for one catalog, reading the Direct JSON these tests write."""
+    processor = A2uiRequestProcessor(
+        [catalog if catalog is not None else BasicCatalog(ProtocolVersion.V0_9)],
+        format_factory=DirectJsonFormatFactory(),
+        state=state,
     )
-    converter = A2uiPartConverter([catalog_mock])
+    return A2uiPartConverter(processor, fallback_text=fallback_text)
+
+
+def test_converter_class_convert_valid_tool_response():
+    converter = _converter()
 
     valid_a2ui = {"type": "Text", "text": "Hello"}
     function_response = genai_types.FunctionResponse(
@@ -53,16 +68,16 @@ def test_converter_class_convert_valid_tool_response():
 
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
-    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V0_8)
+    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V0_9)
 
 
 def test_converter_class_convert_valid_tool_response_v0_9_1():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    converter = A2uiPartConverter([catalog_mock], version=ProtocolVersion.V0_9_1)
+    converter = _converter(BasicCatalog(ProtocolVersion.V0_9_1))
 
-    valid_a2ui = {"type": "Text", "text": "Hello"}
+    valid_a2ui = {
+        "version": "v0.9.1",
+        "createSurface": {"surfaceId": "main", "catalogId": "c"},
+    }
     function_response = genai_types.FunctionResponse(
         name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
         response={
@@ -78,31 +93,28 @@ def test_converter_class_convert_valid_tool_response_v0_9_1():
     assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V0_9_1)
 
 
-def test_converter_class_convert_tool_error_response():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    converter = A2uiPartConverter([catalog_mock])
+def test_converter_class_convert_tool_error_response(caplog):
+    converter = _converter()
 
     function_response = genai_types.FunctionResponse(
         name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
         response={
             SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_ERROR_KEY: (
-                "Some error"
+                "Some error quoting the payload"
             )
         },
     )
     part = genai_types.Part(function_response=function_response)
 
-    a2a_parts = converter.convert(part)
+    with caplog.at_level("WARNING"):
+        a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 0
+    assert "A2UI tool call failed" in caplog.text
+    assert "quoting the payload" not in caplog.text
 
 
 def test_converter_class_convert_tool_response_no_result():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    converter = A2uiPartConverter([catalog_mock])
+    converter = _converter()
 
     function_response = genai_types.FunctionResponse(
         name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
@@ -115,15 +127,14 @@ def test_converter_class_convert_tool_response_no_result():
 
 
 def test_converter_class_convert_function_call_ignores():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    converter = A2uiPartConverter([catalog_mock])
+    converter = _converter()
 
     function_call = genai_types.FunctionCall(
         name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
         args={
-            SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: "{}"
+            SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_PAYLOAD_ARG_NAME: (
+                "{}"
+            )
         },
     )
     part = genai_types.Part(function_call=function_call)
@@ -133,7 +144,7 @@ def test_converter_class_convert_function_call_ignores():
 
 
 def test_converter_class_convert_text_with_a2ui():
-    converter = A2uiPartConverter([BasicCatalog(ProtocolVersion.V0_8)])
+    converter = _converter(BasicCatalog(ProtocolVersion.V0_8))
     valid_a2ui = [
         {
             "surfaceUpdate": {
@@ -161,11 +172,14 @@ def test_converter_class_convert_text_with_a2ui():
 
 def test_converter_class_convert_text_with_a2ui_v0_9_1():
     catalog = BasicCatalog(ProtocolVersion.V0_9_1)
-    converter = A2uiPartConverter([catalog], version=ProtocolVersion.V0_9_1)
+    converter = _converter(catalog)
     valid_a2ui = [
         {
             "version": "v0.9.1",
-            "createSurface": {"surfaceId": "main", "catalogId": catalog.catalog_id},
+            "createSurface": {
+                "surfaceId": "main",
+                "catalogId": catalog.catalog_id,
+            },
         },
         {
             "version": "v0.9.1",
@@ -191,7 +205,7 @@ def test_converter_class_convert_text_with_a2ui_v0_9_1():
 
 
 def test_converter_class_convert_text_empty_leading():
-    converter = A2uiPartConverter([BasicCatalog(ProtocolVersion.V0_8)])
+    converter = _converter(BasicCatalog(ProtocolVersion.V0_8))
     ui = [
         {
             "surfaceUpdate": {
@@ -214,7 +228,7 @@ def test_converter_class_convert_text_empty_leading():
 
 
 def test_converter_class_convert_text_markdown_wrapped():
-    converter = A2uiPartConverter([BasicCatalog(ProtocolVersion.V0_8)])
+    converter = _converter(BasicCatalog(ProtocolVersion.V0_8))
     ui = [
         {
             "surfaceUpdate": {
@@ -240,10 +254,7 @@ def test_converter_class_convert_text_markdown_wrapped():
 
 
 def test_converter_class_convert_text_with_invalid_a2ui():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    converter = A2uiPartConverter([catalog_mock])
+    converter = _converter()
 
     text = f"Here is the UI:\n{A2UI_OPEN_TAG}\ninvalid_json\n{A2UI_CLOSE_TAG}"
     part = genai_types.Part(text=text)
@@ -254,8 +265,8 @@ def test_converter_class_convert_text_with_invalid_a2ui():
 
 def test_converter_class_convert_text_with_a2ui_that_fails_validation():
     custom_fallback = "Could not build interface."
-    converter = A2uiPartConverter(
-        [BasicCatalog(ProtocolVersion.V0_8)], fallback_text=custom_fallback
+    converter = _converter(
+        BasicCatalog(ProtocolVersion.V0_8), fallback_text=custom_fallback
     )
     ui = [{
         "surfaceUpdate": {
@@ -272,10 +283,7 @@ def test_converter_class_convert_text_with_a2ui_that_fails_validation():
 
 
 def test_converter_class_convert_other_part():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    converter = A2uiPartConverter([catalog_mock])
+    converter = _converter()
 
     part = genai_types.Part(
         inline_data=genai_types.Blob(mime_type="image/png", data=b"abc")
@@ -294,7 +302,7 @@ def test_converter_class_convert_other_part():
 
 
 def test_converter_class_convert_tool_response_with_result_containing_a2ui():
-    converter = A2uiPartConverter([BasicCatalog(ProtocolVersion.V0_8)])
+    converter = _converter(BasicCatalog(ProtocolVersion.V0_8))
     valid_a2ui = [
         {
             "surfaceUpdate": {
@@ -326,11 +334,8 @@ def test_converter_class_convert_tool_response_with_result_containing_a2ui():
 
 
 def test_converter_class_convert_text_with_invalid_a2ui_and_custom_fallback():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
     custom_fallback = "Could not build interface."
-    converter = A2uiPartConverter([catalog_mock], fallback_text=custom_fallback)
+    converter = _converter(fallback_text=custom_fallback)
 
     text = f"Here is the UI:\n{A2UI_OPEN_TAG}\ninvalid_json\n{A2UI_CLOSE_TAG}"
     part = genai_types.Part(text=text)
@@ -341,10 +346,7 @@ def test_converter_class_convert_text_with_invalid_a2ui_and_custom_fallback():
 
 
 def test_converter_class_convert_tool_response_with_result_containing_invalid_a2ui_and_default_fallback():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
-    converter = A2uiPartConverter([catalog_mock])
+    converter = _converter()
 
     result_text = (
         f"Here is the result:\n{A2UI_OPEN_TAG}\ninvalid_json\n{A2UI_CLOSE_TAG}"
@@ -360,11 +362,8 @@ def test_converter_class_convert_tool_response_with_result_containing_invalid_a2
 
 
 def test_converter_class_convert_tool_response_with_result_containing_invalid_a2ui_and_custom_fallback():
-    catalog_mock = MagicMock(
-        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
-    )
     custom_fallback = "Could not load the custom tool UI."
-    converter = A2uiPartConverter([catalog_mock], fallback_text=custom_fallback)
+    converter = _converter(fallback_text=custom_fallback)
 
     result_text = (
         f"Here is the result:\n{A2UI_OPEN_TAG}\ninvalid_json\n{A2UI_CLOSE_TAG}"
@@ -380,25 +379,112 @@ def test_converter_class_convert_tool_response_with_result_containing_invalid_a2
     assert a2a_parts[0].root.text == custom_fallback
 
 
-def test_converter_uses_direct_json_parser_by_default(monkeypatch):
-    monkeypatch.setenv("A2UI_VERSION_1_0", "true")
-    catalog = Catalog.from_json(
+def test_converter_reads_text_in_the_processors_format():
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
+    converter = A2uiPartConverter(A2uiRequestProcessor([catalog]))  # Express
+    text = '<a2ui>\nsurface("main")\nroot = Text("Hello")\n</a2ui>'
+
+    a2a_parts = converter.convert(genai_types.Part(text=text))
+
+    assert a2a_parts == [
+        create_a2ui_part(
+            {
+                "version": "v0.9",
+                "createSurface": {
+                    "surfaceId": "main",
+                    "catalogId": catalog.catalog_id,
+                },
+            },
+            version=ProtocolVersion.V0_9,
+        ),
+        create_a2ui_part(
+            {
+                "version": "v0.9",
+                "updateComponents": {
+                    "surfaceId": "main",
+                    "components": [
+                        {"id": "root", "component": "Text", "text": "Hello"}
+                    ],
+                },
+            },
+            version=ProtocolVersion.V0_9,
+        ),
+    ]
+
+
+def test_converter_labels_each_part_with_its_messages_version():
+    catalog = BasicCatalog(ProtocolVersion.V1_0)
+    converter = _converter(catalog)
+
+    valid_a2ui = {
+        "version": "1.0",
+        "createSurface": {"surfaceId": "main", "catalogId": catalog.catalog_id},
+    }
+    function_response = genai_types.FunctionResponse(
+        name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
+        response={
+            SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: [
+                valid_a2ui
+            ]
+        },
+    )
+    part = genai_types.Part(function_response=function_response)
+
+    a2a_parts = converter.convert(part)
+    assert len(a2a_parts) == 1
+    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V1_0)
+
+
+def test_converter_checks_text_against_the_processors_bound_state():
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
+    state = RendererState([catalog])
+    converter = _converter(catalog, state=state)
+
+    turn1 = [
         {
-            "catalogId": "https://a2ui.org/test_catalog",
-            "components": {
-                "Text": {
-                    "properties": {"text": {"type": "string", "positionalIndex": 0}}
-                }
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": "main",
+                "catalogId": catalog.catalog_id,
             },
         },
-        protocol_version="v0.9",
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [{"id": "root", "component": "Text", "text": "Turn 1"}],
+            },
+        },
+    ]
+    parts1 = converter.convert(
+        genai_types.Part(text=f"{A2UI_OPEN_TAG}\n{json.dumps(turn1)}\n{A2UI_CLOSE_TAG}")
     )
-    json_converter = A2uiPartConverter(catalogs=[catalog])
-    part_json = genai_types.Part(
-        text=(
-            '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
-            ' "catalogId": "https://a2ui.org/test_catalog"}}]</a2ui-json>'
-        )
+    assert len(parts1) == 2
+
+    # Turn 2 updates the surface created in Turn 1 via the shared Canvas state
+    turn2 = [{
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "main",
+            "components": [{"id": "root", "component": "Text", "text": "Turn 2"}],
+        },
+    }]
+    parts2 = converter.convert(
+        genai_types.Part(text=f"{A2UI_OPEN_TAG}\n{json.dumps(turn2)}\n{A2UI_CLOSE_TAG}")
     )
-    parts_json = json_converter.convert(part_json)
-    assert len(parts_json) == 1
+    assert len(parts2) == 1
+    assert parts2[0] == create_a2ui_part(turn2[0], version=ProtocolVersion.V0_9)
+
+
+def test_converter_leaves_thought_parts_to_adk():
+    converter = _converter()
+    part = genai_types.Part(
+        text=f"Thinking about {A2UI_OPEN_TAG}\ninvalid_json\n{A2UI_CLOSE_TAG}",
+        thought=True,
+    )
+
+    a2a_parts = converter.convert(part)
+
+    assert len(a2a_parts) == 1
+    assert isinstance(a2a_parts[0].root, a2a_types.TextPart)
+    assert a2a_parts[0].root.metadata == {"adk_thought": True}

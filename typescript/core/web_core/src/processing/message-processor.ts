@@ -16,7 +16,7 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
-import {Catalog, ComponentApi, linkCatalogs} from '../catalog/types.js';
+import {Catalog, ComponentApi} from '../catalog/types.js';
 import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
@@ -45,6 +45,7 @@ import {
 import {
   isCatalogVersionCompatible,
   ProtocolVersion,
+  VersionAdapter,
   VersionAdapterResolver,
 } from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
@@ -108,14 +109,32 @@ export {STRICT_VALIDATION, RELAXED_VALIDATION, A2uiRpcError, RpcErrorCode};
 export interface ExecutionContext {
   /** Whether execution occurs in an active user gesture context. */
   isUserActivated?: boolean;
+  /**
+   * The validation rules for this call, in place of the processor's own. The
+   * rules the config leaves out default to the strict ones, as for
+   * `MessageProcessorOptions.validationConfig`. An agent that checks its
+   * messages against a renderer's processor passes the rules it checks by,
+   * whatever rules the renderer was created with.
+   */
+  validationConfig?: ValidationConfig;
 }
 
 /**
  * Options for generating renderer capabilities.
  */
 export interface CapabilitiesOptions {
-  /** Protocol versions to generate capabilities for. Required; must contain at least one version. */
-  versions: ProtocolVersion[];
+  /**
+   * Protocol versions to generate capabilities for. `getRendererCapabilities`
+   * requires at least one; `getClientCapabilities` defaults to `['v0.9']`.
+   */
+  versions?: ProtocolVersion[];
+  /**
+   * Single protocol version to generate capabilities for.
+   *
+   * @deprecated Use `versions`. Kept for callers of the pre-1.0
+   *   `getClientCapabilities({version})` signature.
+   */
+  version?: ProtocolVersion;
   /** Whether full definitions of all catalogs will be included inline. */
   includeInlineCatalogs?: boolean;
   /**
@@ -160,8 +179,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
-  private readonly validationConfig?: ValidationConfig;
-  private readonly catalogs: Catalog<any>[];
+  private readonly registeredCatalogs: Catalog<any>[];
+  /** The processor's own rules, or the rules of the call in progress. */
+  private validationConfig?: ValidationConfig;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -172,10 +192,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /**
    * Initializes a new `MessageProcessor` instance.
    *
-   * The processor works with copies of `catalogs` linked to each other, so
-   * that cross-catalog `$ref`s resolve (see `linkCatalogs`); the catalogs
-   * passed in are not changed.
-   *
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
@@ -185,28 +201,25 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
-    this.catalogs = linkCatalogs(catalogs);
+    this.registeredCatalogs = catalogs;
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.rpc = new RpcHandler({
-      catalogs: this.catalogs,
+      catalogs: this.registeredCatalogs,
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
     });
-    if (options?.validationConfig) {
-      this.validationConfig = {
-        allowOrphanComponents: false,
-        allowDanglingReferences: false,
-        allowMissingRoot: false,
-        allowUnknownElements: false,
-        ...options.validationConfig,
-      };
-    } else {
-      this.validationConfig = undefined;
-    }
+    this.validationConfig = options?.validationConfig
+      ? withStrictDefaults(options.validationConfig)
+      : undefined;
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
+  }
+
+  /** The catalogs the processor was created with, in priority order. */
+  get catalogs(): Catalog<T>[] {
+    return [...this.registeredCatalogs];
   }
 
   /**
@@ -239,21 +252,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @returns The capabilities object.
    */
   getRendererCapabilities(options: CapabilitiesOptions): RendererCapabilities {
-    if (!options?.versions || options.versions.length === 0) {
+    const versions = options?.versions ?? (options?.version ? [options.version] : undefined);
+    if (!versions || versions.length === 0) {
       throw new A2uiValidationError(
         'At least one protocol version must be provided in CapabilitiesOptions to generate renderer capabilities.',
       );
     }
-    const versions = options.versions;
     const result: Record<string, any> = {};
 
     for (const ver of versions) {
       const versionCaps: Record<string, any> = {
-        supportedCatalogIds: this.catalogs.map(c => c.id),
+        supportedCatalogIds: this.registeredCatalogs.map(c => c.id),
       };
 
       const inlineCatalogs = options?.includeInlineCatalogs
-        ? this.catalogs.map(c => {
+        ? this.registeredCatalogs.map(c => {
             if (compareSemVer(ver, '1.0') >= 0) {
               return this.generateInlineCatalog(c);
             }
@@ -278,11 +291,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Generates the client/renderer capabilities object for the current processor.
    *
    * @deprecated Use `getRendererCapabilities` instead.
-   * @param options Configuration for capability generation.
+   * @param options Configuration for capability generation. Defaults to
+   *   `{versions: ['v0.9']}`, the only version the pre-1.0 method knew.
    * @returns The capabilities object.
    */
-  getClientCapabilities(options: CapabilitiesOptions): RendererCapabilities {
-    return this.getRendererCapabilities(options);
+  getClientCapabilities(options?: CapabilitiesOptions): RendererCapabilities {
+    const versions =
+      options?.versions && options.versions.length > 0
+        ? options.versions
+        : [options?.version ?? 'v0.9'];
+    return this.getRendererCapabilities({...options, versions});
   }
 
   /**
@@ -426,7 +444,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (surface.protocolVersion) {
         const canonical = toCanonicalVersion(surface.protocolVersion);
         const canonicalVer = (
-          canonical ? `v${canonical}` : surface.protocolVersion
+          canonical
+            ? compareSemVer(canonical, '1.0') >= 0
+              ? canonical
+              : `v${canonical}`
+            : surface.protocolVersion
         ) as ProtocolVersion;
         versionsSet.add(canonicalVer);
       }
@@ -440,7 +462,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const verStr =
-      versionsSet.size === 1 ? (versionsSet.values().next().value as ProtocolVersion) : 'v1.0';
+      versionsSet.size === 1 ? (versionsSet.values().next().value as ProtocolVersion) : '1.0';
     const surfaces: Record<string, unknown> = {};
     for (const surface of enabledSurfaces) {
       surfaces[surface.id] = surface.dataModel.get('/');
@@ -520,10 +542,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param context Contextual execution options.
    */
   processMessages(messages: ProcessableMessagePayload, context?: ExecutionContext): void {
-    const operations = this.prepareOperations(messages);
-    for (const op of operations) {
-      this.processOperation(op, context);
-    }
+    this.withValidationConfig(context, () => {
+      const operations = this.prepareOperations(messages);
+      for (const op of operations) {
+        this.processOperation(op, context);
+      }
+    });
   }
 
   /**
@@ -537,7 +561,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     messages: ProcessableMessagePayload,
     context?: ExecutionContext,
   ): Promise<RendererFunctionResponseMessage[]> {
-    const operations = this.prepareOperations(messages);
+    const operations = this.withValidationConfig(context, () => this.prepareOperations(messages));
     const responses: RendererFunctionResponseMessage[] = [];
     for (const op of operations) {
       const resp = await this.processOperationAsync(op, context);
@@ -546,6 +570,25 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     }
     return responses;
+  }
+
+  /**
+   * Runs `fn` under the validation config of `context`, if it has one.
+   *
+   * `fn` must be synchronous: the config of a call is in effect only until
+   * `fn` returns, so an asynchronous call applies it around each synchronous
+   * step.
+   */
+  private withValidationConfig<R>(context: ExecutionContext | undefined, fn: () => R): R {
+    const config = context?.validationConfig;
+    if (!config) return fn();
+    const own = this.validationConfig;
+    this.validationConfig = withStrictDefaults(config);
+    try {
+      return fn();
+    } finally {
+      this.validationConfig = own;
+    }
   }
 
   private prepareOperations(messages: ProcessableMessagePayload): InternalOperation[] {
@@ -563,8 +606,53 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return [messages];
     }
 
-    const adapter = this.adapterRegistry.resolveFromPayload(messages);
+    let adapter: VersionAdapter;
+    try {
+      adapter = this.adapterRegistry.resolveFromPayload(messages);
+    } catch (err) {
+      if (this.isImplicitV09Payload(messages)) {
+        const hasV091 = this.catalogs.some(
+          c => c.protocolVersion === '0.9.1' || c.protocolVersion === 'v0.9.1',
+        );
+        adapter = this.adapterRegistry.getAdapter(hasV091 ? 'v0.9.1' : 'v0.9');
+      } else {
+        throw err;
+      }
+    }
     return adapter.extractOperations(messages);
+  }
+
+  /**
+   * Whether `messages` is a v0.9 payload that omits its `version`.
+   *
+   * Pre-1.0 renderers accepted such payloads, and agents written against them
+   * still send them. The fallback applies only when every registered catalog
+   * is pre-1.0 and validation is off, so a processor that handles v1.0
+   * traffic keeps rejecting unversioned messages.
+   */
+  private isImplicitV09Payload(messages: unknown): boolean {
+    if (
+      this.validationConfig ||
+      this.catalogs.length === 0 ||
+      this.catalogs.some(c => isAtLeastVersion(c.protocolVersion, '1.0'))
+    ) {
+      return false;
+    }
+    let item = Array.isArray(messages) ? messages[0] : messages;
+    if (
+      typeof item === 'object' &&
+      item !== null &&
+      'messages' in item &&
+      Array.isArray((item as {messages?: unknown}).messages)
+    ) {
+      item = (item as {messages: unknown[]}).messages[0];
+    }
+    if (typeof item !== 'object' || item === null || 'version' in item) {
+      return false;
+    }
+    return ['createSurface', 'updateComponents', 'updateDataModel', 'deleteSurface'].some(
+      key => key in item,
+    );
   }
 
   private validateTargetVersion(messages: ProcessableMessagePayload): void {
@@ -620,7 +708,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         break;
       case 'agentFunctionResponse':
         this.rpc.handleAgentFunctionResponse({
-          version: (op.version ?? 'v1.0') as 'v1.0',
+          version: (op.version ?? '1.0') as '1.0',
           agentFunctionResponse: {
             functionCallId: op.functionCallId,
             value: op.value,
@@ -648,13 +736,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const surface = this.model.surfacesMap.get(op.surfaceId);
       return surface ? new DataContext(surface, '/') : undefined;
     }
-    const targetCatalog = op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined;
+    const targetCatalog = op.catalogId
+      ? this.registeredCatalogs.find(c => c.id === op.catalogId)
+      : undefined;
     if (!targetCatalog) {
       return undefined;
     }
     const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
     const availableCatalogs = new Map<string, Catalog<T>>();
-    for (const cat of this.catalogs) {
+    for (const cat of this.registeredCatalogs) {
       if (
         targetCatalog?.protocolVersion &&
         cat.protocolVersion &&
@@ -683,12 +773,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version ?? 'v1.0') as 'v1.0',
+        version: (op.version ?? '1.0') as '1.0',
         callRendererFunction: {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
-            call: op.call,
+            '@call': op.call,
             catalogId: op.catalogId,
             args: op.args,
           },
@@ -700,7 +790,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return;
     }
 
-    this.applyStateOperation(op);
+    this.withValidationConfig(context, () => this.applyStateOperation(op));
   }
 
   private async processOperationAsync(
@@ -711,12 +801,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version ?? 'v1.0') as 'v1.0',
+        version: (op.version ?? '1.0') as '1.0',
         callRendererFunction: {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
-            call: op.call,
+            '@call': op.call,
             catalogId: op.catalogId,
             args: op.args,
           },
@@ -725,7 +815,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return await this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
     }
 
-    this.applyStateOperation(op);
+    this.withValidationConfig(context, () => this.applyStateOperation(op));
     return null;
   }
 
@@ -739,7 +829,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       catalogId === undefined && msgVersion !== undefined && isAtLeastVersion(msgVersion, '1.0');
     const catalog = noDefaultCatalog
       ? undefined
-      : resolveSurfaceDefaultCatalog(this.catalogs, catalogId, msgVersion);
+      : resolveSurfaceDefaultCatalog(this.registeredCatalogs, catalogId, msgVersion);
     if (!catalog && !noDefaultCatalog) {
       if (catalogId !== undefined) {
         throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
@@ -785,7 +875,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     // those speaking a compatible protocol version can be resolved against this
     // surface, so filter once here rather than at every lookup.
     const availableCatalogs = new Map<string, Catalog<T>>(
-      this.catalogs
+      this.registeredCatalogs
         .filter(c => isCatalogVersionCompatible(c.protocolVersion, surfaceVersion))
         .map(c => [c.id, c] as const),
     );
@@ -840,10 +930,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     // A partial update names no component type; the existing model supplies it.
     const existing = surface.componentsModel.get(id);
+    // Pre-1.0 renderers checked nested calls only when validation was turned
+    // on, so a pre-1.0 surface without a `validationConfig` keeps that
+    // behavior and resolves unknown functions at evaluation time instead.
+    const skipNestedFunctions =
+      !this.validationConfig && !isAtLeastVersion(surface.protocolVersion, '1.0');
     new PayloadValidator(targetCatalog, this.validationConfig).validateComponent(
       this.componentPayloadForValidation(comp, surface, targetCatalog),
       existing?.type,
+      {skipNestedFunctions},
     );
+    if (skipNestedFunctions) return;
     // `validateComponent` walks the nested calls, even in a component type
     // the catalog doesn't define, and checks those that run in the
     // component's catalog; the pass below checks the rest.
@@ -1024,7 +1121,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     subject: string,
   ): Catalog<T> {
     if (catalogId !== undefined && !surface.availableCatalogs.has(catalogId)) {
-      const known = this.catalogs.find(c => c.id === catalogId);
+      const known = this.registeredCatalogs.find(c => c.id === catalogId);
       if (known) {
         throw new A2uiCatalogError(
           `${subject} names catalog '${catalogId}', whose specification version (${known.protocolVersion}) does not match surface '${surface.id}' version (${surface.protocolVersion}).`,
@@ -1139,4 +1236,15 @@ function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
       msgVersion ? isCatalogVersionCompatible(c.protocolVersion, msgVersion) : true,
     ) ?? catalogs[0]
   );
+}
+
+/** A config with the checks it leaves out set to the strict ones. */
+function withStrictDefaults(config: ValidationConfig): ValidationConfig {
+  return {
+    allowOrphanComponents: false,
+    allowDanglingReferences: false,
+    allowMissingRoot: false,
+    allowUnknownElements: false,
+    ...config,
+  };
 }

@@ -17,7 +17,8 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/basic_catalog.dart' as v1_0;
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart' as v0_9;
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,12 +72,13 @@ final List<ComponentImplementation> _customComponents = [
 
 /// One spec example: its messages and the custom components it names.
 class _Example {
-  _Example(File file)
+  _Example(File file, this._basicCatalog)
     : name = file.uri.pathSegments.last,
       _document = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
 
   final String name;
   final Map<String, Object?> _document;
+  final CatalogImplementation Function() _basicCatalog;
 
   List<Map<String, Object?>> get messages => [
     for (final Object? message in _document['messages']! as List)
@@ -88,7 +90,7 @@ class _Example {
     final Set<String> custom = {
       ...?(_document['customComponents'] as List?)?.cast<String>(),
     };
-    final CatalogImplementation basic = basicCatalog();
+    final CatalogImplementation basic = _basicCatalog();
     if (custom.isEmpty) return basic;
     return basic.copyWith(
       components: [
@@ -105,7 +107,7 @@ class _Example {
 /// Each message is checked on its own, so the graph checks a surface built
 /// across several messages cannot pass yet are relaxed: a missing root,
 /// references to components a later message adds, and components left
-/// unreachable, since v0.9 cannot remove a component. Fails on any other
+/// unreachable, since a message cannot remove a component. Fails on any other
 /// processing error, an exception while rendering or an error the surface
 /// reports.
 Future<void> _render(WidgetTester tester, _Example example) async {
@@ -122,31 +124,49 @@ Future<void> _render(WidgetTester tester, _Example example) async {
   await settleImages(tester);
 
   expect(tester.takeException(), isNull);
-  expect(harness.errors, isEmpty);
+  expect(harness.errorCodes, isEmpty);
   expect(
     find.descendant(of: find.byType(A2uiSurface), matching: find.byType(Text)),
     findsWidgets,
   );
 }
 
+/// The examples in [directory], relative to the package, each rendered with
+/// [basicCatalog].
+List<_Example> _examplesIn(
+  String directory,
+  CatalogImplementation Function() basicCatalog,
+) => [
+  for (final File file in Directory(
+    directory,
+  ).listSync().whereType<File>().where((f) => f.path.endsWith('.json')))
+    _Example(file, basicCatalog),
+]..sort((a, b) => a.name.compareTo(b.name));
+
 void main() {
-  final List<_Example> examples = [
-    for (final File file in Directory(
+  final Map<String, List<_Example>> examplesByVersion = {
+    'v0.9': _examplesIn(
       '../../specification/v0_9/catalogs/basic/examples',
-    ).listSync().whereType<File>().where((f) => f.path.endsWith('.json')))
-      _Example(file),
-  ]..sort((a, b) => a.name.compareTo(b.name));
+      v0_9.basicCatalog,
+    ),
+    '1.0': _examplesIn('../../catalogs/basic/v1/examples', v1_0.basicCatalog),
+  };
 
   setUp(() => FakeVideoPlayerPlatform().install());
 
-  test('finds the examples', () => expect(examples, isNotEmpty));
+  for (final MapEntry(key: version, value: examples)
+      in examplesByVersion.entries) {
+    group(version, () {
+      test('finds the examples', () => expect(examples, isNotEmpty));
 
-  for (final example in examples) {
-    testWidgets('renders ${example.name}', (tester) async {
-      await withImageServer(
-        ImageServer({}, fallback: widePng),
-        () => _render(tester, example),
-      );
+      for (final example in examples) {
+        testWidgets('renders ${example.name}', (tester) async {
+          await withImageServer(
+            ImageServer({}, fallback: widePng),
+            () => _render(tester, example),
+          );
+        });
+      }
     });
   }
 }

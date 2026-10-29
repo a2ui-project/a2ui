@@ -199,11 +199,11 @@ def test_runner_rejects_version_that_conflicts_with_catalog() -> None:
 def test_parse_and_validate_direct_json_v10() -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {"surfaceId": "main", "catalogId": V10_CATALOG_ID},
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "main",
                 "components": [
@@ -220,7 +220,7 @@ def test_parse_and_validate_direct_json_v10() -> None:
         completion=f"<a2ui-json>{json.dumps(messages)}</a2ui-json>",
         require_complete_tags=True,
     )
-    assert [m["version"] for m in res["compiled_jsons"]] == ["v1.0", "v1.0"]
+    assert [m["version"] for m in res["compiled_jsons"]] == ["1.0", "1.0"]
 
 
 def test_parse_and_validate_express_v10() -> None:
@@ -233,7 +233,7 @@ def test_parse_and_validate_express_v10() -> None:
         require_complete_tags=True,
     )
     assert res["compiled_jsons"]
-    assert {m["version"] for m in res["compiled_jsons"]} == {"v1.0"}
+    assert {m["version"] for m in res["compiled_jsons"]} == {"1.0"}
 
 
 def test_require_complete_tags_express() -> None:

@@ -81,13 +81,13 @@ function createProcessor(
     validationConfig: config,
   });
   processor.processMessages([
-    {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'custom'}},
+    {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'custom'}},
   ]);
   return processor;
 }
 
 function update(processor: MessageProcessor, ...components: Array<Record<string, unknown>>) {
-  processor.processMessages([{version: 'v1.0', updateComponents: {surfaceId: 's', components}}]);
+  processor.processMessages([{version: '1.0', updateComponents: {surfaceId: 's', components}}]);
 }
 
 /** The surface's components as plain objects, keyed by id. */
@@ -446,7 +446,7 @@ class Pair {
         validationConfig: config,
       });
       processor.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'custom'}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'custom'}},
       ]);
       return processor;
     };

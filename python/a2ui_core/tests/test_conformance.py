@@ -79,6 +79,20 @@ SKIP_TEST_NAMES: set[str] = {
     # surface holds, which the TypeScript and Kotlin cores do not.
     "test_v08_topology_plain_string_property_not_treated_as_child_ref",
     "test_v08_topology_plain_string_property_does_not_close_cycle",
+    # Catalog.derive and the per-call validation config of
+    # ExecutionContext are not ported to Python yet:
+    # https://github.com/a2ui-project/a2ui/issues/3699
+    "test_v10_catalog_derive_keeps_named_entries",
+    "test_v10_catalog_derive_adds_and_replaces_entries",
+    "test_v10_catalog_derive_keeps_every_entry_of_an_omitted_list",
+    "test_v10_catalog_derive_drops_fields_that_describe_the_source",
+    "test_v10_catalog_derive_sets_instructions",
+    "test_v10_catalog_derive_unknown_component_error",
+    "test_v10_catalog_derive_unknown_function_error",
+    "test_v09_catalog_derive_keeps_protocol_version",
+    "test_v10_call_validation_config_relaxes_strict_processor",
+    "test_v10_call_validation_config_tightens_permissive_processor",
+    "test_v10_call_validation_config_leaves_out_rules_as_strict",
 }
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
@@ -163,7 +177,7 @@ def resolve_protocol_version(case: dict[str, Any]) -> str | None:
     if "v09" in cat_id or "v0_9" in cat_id:
         return "v0.9"
     if "v10" in cat_id or "v1_0" in cat_id or "v1.0" in cat_id:
-        return "v1.0"
+        return "1.0"
     return "v0.9"
 
 
@@ -246,17 +260,17 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
     version = resolve_protocol_version(case) or "v0.9"
     cur_basic = (
         v10_catalog
-        if version == "v1.0"
+        if version in ("1.0", "v1.0")
         else (v08_catalog if version == "v0.8" else v09_catalog)
     )
     v10_basic_alias = Catalog(
         catalog_id="basic",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=list(v10_catalog.components.values()),
         functions=list(v10_catalog.functions.values()),
     )
 
-    if version == "v1.0":
+    if version in ("1.0", "v1.0"):
         catalogs_map["basic"] = v10_basic_alias
 
     def add_catalog_id(cat_id: str, ver: str | None = None):
@@ -647,7 +661,9 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         )
 
 
-def _timed_processing(case: dict[str, Any]) -> Callable[[str], Callable[[], object]]:
+def _timed_processing(
+    case: dict[str, Any],
+) -> Callable[[str], Callable[[], object]]:
     """Returns how a `process_messages` timing case prepares a timed run.
 
     The catalogs are built and the payload decoded before the timing starts.
@@ -1152,9 +1168,7 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
         with assert_raises(expect_err):
             Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
     else:
-        cat = _with_case_peers(
-            Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver), case
-        )
+        cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
         expected = case.get("expect", {})
         unknown_keys = set(expected) - _FROM_JSON_EXPECT_KEYS
         assert (
@@ -1223,27 +1237,6 @@ def sdk_catalog(catalog_id: Any) -> CatalogApi | None:
     return None
 
 
-def _with_case_peers(catalog: CatalogApi, case: dict[str, Any]) -> CatalogApi:
-    """Links the catalogs that a case lists in `peerCatalogPaths` to `catalog`.
-
-    Returns the catalog that `with_peer_catalogs` returns, which resolves
-    cross-catalog references into the peers.
-    """
-    paths = case.get("peerCatalogPaths")
-    if not paths:
-        return catalog
-    peers: list[CatalogApi] = []
-    for path in paths:
-        full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", path))
-        with open(full_p, "r", encoding="utf-8") as f:
-            peers.append(
-                Catalog.from_json(
-                    json.load(f), protocol_version=catalog.protocol_version
-                )
-            )
-    return catalog.with_peer_catalogs(peers)
-
-
 def _load_case_catalog(case: dict[str, Any]) -> tuple[Any, str | None]:
     """Returns the catalog document of a case and the path it was read from."""
     c_path = case.get("catalogPath") or case.get("catalogFile")
@@ -1280,9 +1273,7 @@ def validate_validation_schema_case(case: dict[str, Any]) -> None:
                 c_schema, catalog_id=c_id, protocol_version=p_ver
             ).validation_schema
         return
-    cat = _with_case_peers(
-        Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver), case
-    )
+    cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
 
     expect_file = case.get("expectFile")
     assert expect_file, "validation_schema cases require expectFile or expectError"
@@ -1400,7 +1391,12 @@ def validate_common_type_case(case: dict[str, Any]) -> None:
 
     from a2ui.core.schema import v0_9 as schema_v0_9, v1_0 as schema_v1_0
 
-    schema_packages = {"v0.9": schema_v0_9, "v0.9.1": schema_v0_9, "v1.0": schema_v1_0}
+    schema_packages = {
+        "v0.9": schema_v0_9,
+        "v0.9.1": schema_v0_9,
+        "1.0": schema_v1_0,
+        "v1.0": schema_v1_0,
+    }
     p_ver = resolve_protocol_version(case)
     assert (
         p_ver in schema_packages
@@ -1645,7 +1641,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             "protocolVersion"
         )
         or case.get("protocolVersion")
-        or "v1.0"
+        or "1.0"
     )
 
     cat = Catalog(
@@ -1724,7 +1720,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             ),
             options=CallOptions(
                 function_call_id=outbound_call["functionCallId"],
-                version="v1.0",
+                version="1.0",
             ),
         )
         processor.process_messages(inbound_response)
@@ -1754,7 +1750,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
                 ),
                 options=CallOptions(
                     function_call_id=spec["functionCallId"],
-                    version="v1.0",
+                    version="1.0",
                     timeout_ms=spec.get("timeoutMs"),
                 ),
             )
@@ -1797,7 +1793,7 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
     catalogs_dict: dict[str, CatalogApi] = {}
     if "catalogs" in args and isinstance(args["catalogs"], dict):
         for cat_id, cat_def in args["catalogs"].items():
-            p_ver = cat_def.get("protocolVersion", "v1.0")
+            p_ver = cat_def.get("protocolVersion", "1.0")
             catalogs_dict[cat_id] = Catalog(
                 catalog_id=cat_id,
                 protocol_version=p_ver,
@@ -1806,12 +1802,12 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
         for cat_id in surface_args.get("supportedCatalogIds", [default_cat_id]):
             catalogs_dict[cat_id] = Catalog(
                 catalog_id=cat_id,
-                protocol_version="v1.0",
+                protocol_version="1.0",
             )
 
     default_cat = catalogs_dict.get(
         default_cat_id,
-        Catalog(catalog_id=default_cat_id, protocol_version="v1.0"),
+        Catalog(catalog_id=default_cat_id, protocol_version="1.0"),
     )
     surface = SurfaceModel(
         surface_id=s_id,

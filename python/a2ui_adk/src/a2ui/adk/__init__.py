@@ -14,7 +14,7 @@
 
 """A2UI extension for the Agent Development Kit (ADK).
 
-`SendA2uiToClientToolset` and `GenAIFileResolver` only need ADK. The ADK-to-A2A
+`SendA2uiToClientToolset` and `A2uiProcessorStore` only need ADK. The ADK-to-A2A
 converters (`A2uiPartConverter`, `A2uiEventConverter`, the `a2a` subpackage) and
 the A2A subagent orchestration helpers (`A2uiSubagentMap`,
 `SurfaceIdAlreadyExistsError`, the `orchestration` subpackage) need the `a2a`
@@ -30,11 +30,10 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING, Any
 
-from .genai_file_resolver import GenAIFileResolver
+from .processor_store import A2uiProcessorStore
 from .send_a2ui_to_client_toolset import (
-    A2uiCatalogsProvider,
     A2uiEnabledProvider,
-    A2uiExamplesProvider,
+    A2uiProcessorProvider,
     SendA2uiToClientToolset,
 )
 
@@ -53,7 +52,10 @@ _A2A_EXPORTS: dict[str, tuple[str, str | None]] = {
     "A2uiEventConverter": (".a2a", "A2uiEventConverter"),
     "A2uiPartConverter": (".a2a", "A2uiPartConverter"),
     "A2uiSubagentMap": (".orchestration", "A2uiSubagentMap"),
-    "SurfaceIdAlreadyExistsError": (".orchestration", "SurfaceIdAlreadyExistsError"),
+    "SurfaceIdAlreadyExistsError": (
+        ".orchestration",
+        "SurfaceIdAlreadyExistsError",
+    ),
 }
 
 
@@ -93,13 +95,12 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = [
-    "A2uiCatalogsProvider",
     "A2uiEnabledProvider",
     "A2uiEventConverter",
-    "A2uiExamplesProvider",
     "A2uiPartConverter",
+    "A2uiProcessorProvider",
+    "A2uiProcessorStore",
     "A2uiSubagentMap",
-    "GenAIFileResolver",
     "SendA2uiToClientToolset",
     "SurfaceIdAlreadyExistsError",
     "a2a",

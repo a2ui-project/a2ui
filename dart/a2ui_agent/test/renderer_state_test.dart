@@ -322,13 +322,13 @@ void main() {
 
       expect(
         () => state.apply([
-          _update([_text('a')], version: 'v1.0'),
+          _update([_text('a')], version: '1.0'),
         ]),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
             'message',
-            contains("states version 'v1.0'"),
+            contains("states version '1.0'"),
           ),
         ),
       );
@@ -717,12 +717,12 @@ void main() {
             _catalog('urn:extra', ['Badge'], version: '1.0'),
           ])..apply([
             CreateSurfaceMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               catalogId: 'urn:primary',
             ),
             UpdateComponentsMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               components: [
                 {'id': 'root', 'component': 'Panel', 'text': 'Hi'},
@@ -740,13 +740,13 @@ void main() {
 
       expect(
         () => state.transaction(() {
-          state.apply([DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's')]);
+          state.apply([DeleteSurfaceMessage(version: '1.0', surfaceId: 's')]);
           state.apply([
-            DeleteSurfaceMessage(version: 'v1.0', surfaceId: 'missing'),
+            DeleteSurfaceMessage(version: '1.0', surfaceId: 'missing'),
           ]);
           state.apply([
             UpdateComponentsMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               components: [
                 {'id': 'root', 'component': 'Panel'},
@@ -937,12 +937,12 @@ void main() {
             }),
           ])..apply([
             CreateSurfaceMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               catalogId: 'urn:primary',
             ),
             UpdateComponentsMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               components: [
                 {'id': 'root', 'component': 'Panel', 'text': 'hi'},
@@ -967,7 +967,7 @@ void main() {
         () => state.transaction(() {
           state.apply([
             UpdateComponentsMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               components: [
                 {
@@ -988,7 +988,7 @@ void main() {
       // Under urn:c, Box.link is a reference, so y -> x closes x -> y -> x,
       // as it does on a state that was never rolled back.
       final cycle = UpdateComponentsMessage(
-        version: 'v1.0',
+        version: '1.0',
         surfaceId: 's',
         components: [
           {'id': 'y', 'component': 'Box', 'catalogId': 'urn:c', 'link': 'x'},
@@ -1039,7 +1039,7 @@ void main() {
       final ref = {r'$ref': r'common_types.json#/$defs/ComponentId'};
       UpdateComponentsMessage update(List<Map<String, Object?>> components) =>
           UpdateComponentsMessage(
-            version: 'v1.0',
+            version: '1.0',
             surfaceId: 's',
             components: components,
           );
@@ -1062,7 +1062,7 @@ void main() {
             ])
             ..apply([
               CreateSurfaceMessage(
-                version: 'v1.0',
+                version: '1.0',
                 surfaceId: 's',
                 catalogId: 'urn:p',
               ),
@@ -1093,7 +1093,7 @@ void main() {
                 {'id': 'a', 'component': 'Panel', 'text': 'p'},
               ]),
               UpdateDataModelMessage(
-                version: 'v1.0',
+                version: '1.0',
                 surfaceId: 's',
                 path: '/k',
                 value: 1,
@@ -1104,7 +1104,7 @@ void main() {
 
       expect(
         () => state.transaction(() {
-          state.apply([DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's')]);
+          state.apply([DeleteSurfaceMessage(version: '1.0', surfaceId: 's')]);
           throw StateError('a later message failed');
         }),
         throwsStateError,
@@ -1151,11 +1151,11 @@ void main() {
           RendererState([_refCatalog('urn:p', box), _refCatalog('urn:c', box)])
             ..apply([
               CreateSurfaceMessage(
-                version: 'v1.0',
+                version: '1.0',
                 surfaceId: 's',
                 catalogId: 'urn:p',
               ),
-              _update(version: 'v1.0', [
+              _update(version: '1.0', [
                 {'id': 'root', 'component': 'Box', 'text': 'r'},
                 {
                   'id': 'x',
@@ -1172,7 +1172,7 @@ void main() {
           // Naming the type without catalogId moves x to urn:p, which
           // recreates it at the end.
           state.apply([
-            _update(version: 'v1.0', [
+            _update(version: '1.0', [
               {'id': 'x', 'component': 'Box', 'text': 'x2'},
             ]),
           ]);
@@ -1188,7 +1188,7 @@ void main() {
       final state = RendererState([BasicCatalog.v1_0()])
         ..apply([
           CreateSurfaceMessage(
-            version: 'v1.0',
+            version: '1.0',
             surfaceId: 's',
             catalogId: BasicCatalog.v1_0Id,
             metadata: {
@@ -1199,7 +1199,7 @@ void main() {
 
       expect(
         () => state.transaction(() {
-          state.apply([DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's')]);
+          state.apply([DeleteSurfaceMessage(version: '1.0', surfaceId: 's')]);
           throw StateError('a later message failed');
         }),
         throwsStateError,
@@ -1212,7 +1212,7 @@ void main() {
     test('a rollback restores a component whose properties hold a map with '
         'non-string keys', () {
       UpdateComponentsMessage update(String text) => UpdateComponentsMessage(
-        version: 'v1.0',
+        version: '1.0',
         surfaceId: 's',
         components: [
           {
@@ -1233,7 +1233,7 @@ void main() {
             }),
           ])..apply([
             CreateSurfaceMessage(
-              version: 'v1.0',
+              version: '1.0',
               surfaceId: 's',
               catalogId: 'urn:p',
             ),
@@ -1307,12 +1307,12 @@ void main() {
             ])
             ..apply([
               CreateSurfaceMessage(
-                version: 'v1.0',
+                version: '1.0',
                 surfaceId: 's',
                 catalogId: 'urn:p',
               ),
               // urn:d's Box comes first, so a's link is a string.
-              _update(version: 'v1.0', [
+              _update(version: '1.0', [
                 {'id': 'root', 'component': 'Panel', 'child': 'a'},
                 {
                   'id': 'a',
@@ -1326,10 +1326,10 @@ void main() {
       // With a moved off urn:d, urn:c's Box comes first, and Box.link
       // becomes a reference.
       void change(RendererState state) => state.apply([
-        _update(version: 'v1.0', [
+        _update(version: '1.0', [
           {'id': 'a', 'component': 'Panel', 'text': 'p'},
         ]),
-        _update(version: 'v1.0', [
+        _update(version: '1.0', [
           {'id': 'x', 'component': 'Box', 'catalogId': 'urn:c', 'link': 'a'},
         ]),
       ]);
@@ -1337,7 +1337,7 @@ void main() {
       void expectStringLink(RendererState state) => state.checkTopology(
         state.apply([
           UpdateDataModelMessage(
-            version: 'v1.0',
+            version: '1.0',
             surfaceId: 's',
             path: '/k',
             value: 1,
@@ -1395,9 +1395,7 @@ void main() {
         expect(
           () => state.transaction(() {
             change(state);
-            state.apply([
-              DeleteSurfaceMessage(version: 'v1.0', surfaceId: 's'),
-            ]);
+            state.apply([DeleteSurfaceMessage(version: '1.0', surfaceId: 's')]);
             throw StateError('a later message failed');
           }),
           throwsStateError,
@@ -1437,7 +1435,7 @@ void main() {
 
       _turn(state, [
         CreateSurfaceMessage(
-          version: 'v1.0',
+          version: '1.0',
           surfaceId: 's',
           catalogId: BasicCatalog.v1_0Id,
           components: [_text('root')],

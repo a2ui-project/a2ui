@@ -23,12 +23,14 @@
       {"$ref": "#/$defs/DecompileTest"},
       {"$ref": "#/$defs/ParseResponseTest"},
       {"$ref": "#/$defs/ParseChunkTest"},
+      {"$ref": "#/$defs/StreamAnswerTest"},
       {"$ref": "#/$defs/MeasureGrowthTest"},
       {"$ref": "#/$defs/MeasureOverheadTest"},
       {"$ref": "#/$defs/CreateFormatTest"},
       {"$ref": "#/$defs/CreateProcessorTest"},
       {"$ref": "#/$defs/EvaluateFunctionTest"},
-      {"$ref": "#/$defs/DispatchActionTest"}
+      {"$ref": "#/$defs/DispatchActionTest"},
+      {"$ref": "#/$defs/DeriveTest"}
     ]
   },
   "$defs": {
@@ -89,6 +91,7 @@
             "select_catalog",
             "select_newest",
             "skill_set",
+            "stream_answer",
             "to_json",
             "transform_catalog",
             "try_activate",
@@ -113,11 +116,6 @@
         "catalog": {
           "$ref": "#/$defs/Catalog",
           "description": "Inlined catalog definition object."
-        },
-        "peerCatalogPaths": {
-          "type": "array",
-          "items": {"type": "string"},
-          "description": "Repository-relative paths of peer catalogs. The harness loads each with fromJson and links them to the case's catalog with withPeerCatalogs, in the listed order, before checking the catalog that call returns."
         },
         "catalogs": {
           "type": "array",
@@ -288,6 +286,151 @@
       ],
       "additionalProperties": false
     },
+    "DeriveTest": {
+      "type": "object",
+      "description": "Deriving a catalog with `Catalog.derive`: the case loads `catalog` with `fromJson`, derives a catalog from it with `args`, and checks `expect` against the derived catalog, or `expectError` against what `derive` raises.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "action": {
+          "const": "derive"
+        },
+        "catalog": {
+          "type": "object",
+          "description": "The source catalog document, loaded with fromJson."
+        },
+        "catalogPath": {
+          "type": "string",
+          "description": "Repository-relative path to the source catalog document, loaded with fromJson."
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogId": {
+              "type": "string",
+              "description": "The ID of the derived catalog."
+            },
+            "components": {
+              "$ref": "#/$defs/DeriveEntries"
+            },
+            "functions": {
+              "$ref": "#/$defs/DeriveEntries"
+            },
+            "instructions": {
+              "type": "string"
+            }
+          },
+          "required": ["catalogId"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "$ref": "#/$defs/DeriveExpect"
+        },
+        "expectError": {
+          "$ref": "#/$defs/ExpectError"
+        }
+      },
+      "required": ["name", "action", "args"],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": ["catalog"]
+            },
+            {
+              "required": ["catalogPath"]
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "required": ["expect"]
+            },
+            {
+              "required": ["expectError"]
+            }
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "DeriveEntries": {
+      "type": "array",
+      "description": "The entries of one kind in the derived catalog. A name keeps the source catalog's entry of that name. A map with one key is a new entry, the key its name and the value its definition as a catalog document writes it; it replaces the source's entry of the same name. Leaving the list out keeps all of the source's entries of that kind.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 1
+          }
+        ]
+      }
+    },
+    "DeriveExpect": {
+      "type": "object",
+      "description": "Expected derived catalog. Every key is optional. Definitions are compared with the derived catalog's toJson() document, ignoring key order and the order of enum values and required names.",
+      "properties": {
+        "catalogId": {
+          "type": "string"
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "components": {
+          "description": "The exact set of components the derived catalog defines, as a list of names or a map from name to definition.",
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "functions": {
+          "description": "The exact set of functions the derived catalog defines, as a list of names or a map from name to definition.",
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "theme": {
+          "type": "object",
+          "description": "The theme the derived catalog's toJson() document carries."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "The instructions the derived catalog's toJson() document carries."
+        },
+        "absentKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Top-level keys the derived catalog's toJson() document does not carry."
+        }
+      },
+      "additionalProperties": false
+    },
     "FromJsonExpect": {
       "type": "object",
       "description": "Expected outcome of a from_json case. Every key is optional, and a harness fails a case that sets a key not listed here.",
@@ -335,7 +478,7 @@
     },
     "ProtocolVersion": {
       "type": "string",
-      "enum": ["v0.8", "v0.9", "v0.9.1", "v1.0"],
+      "enum": ["v0.8", "v0.9", "v0.9.1", "1.0"],
       "description": "Supported A2UI protocol versions."
     },
     "Catalog": {
@@ -361,12 +504,16 @@
           "type": "string",
           "description": "Markdown design guidelines for the catalog."
         },
+        "metadata": {
+          "type": "object",
+          "description": "Catalog metadata object."
+        },
         "catalogId": {
           "type": "string",
           "description": "Identifier of the catalog."
         },
         "protocolVersion": {
-          "description": "Protocol version supported by this catalog, written either as the conformance enum spells it (for example `v1.0`) or as the catalog definition schema requires (for example `1.0`).",
+          "description": "Protocol version supported by this catalog, written either as the conformance enum spells it (for example `1.0` or `v0.9`) or as a semver string.",
           "anyOf": [
             {"$ref": "#/$defs/ProtocolVersion"},
             {
@@ -506,6 +653,25 @@
             "type": "string"
           },
           "description": "Watched paths whose observers fired for this step, one entry per observer that fired."
+        },
+        "validationConfig": {
+          "type": "object",
+          "description": "For process_messages steps, the validation rules for this call only (`ExecutionContext.validationConfig`), in place of the rules the processor was created with. A rule left out is strict.",
+          "properties": {
+            "allowOrphanComponents": {
+              "type": "boolean"
+            },
+            "allowDanglingReferences": {
+              "type": "boolean"
+            },
+            "allowMissingRoot": {
+              "type": "boolean"
+            },
+            "allowUnknownElements": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -975,7 +1141,7 @@
         "catalog_id": {"type": "string"},
         "protocol_version": {
           "type": "string",
-          "description": "The protocol version the catalog reports, written as the enum spells it, such as `v1.0`."
+          "description": "The protocol version the catalog reports, written as the enum spells it, such as `1.0`."
         },
         "components": {"type": "array", "items": {"type": "string"}},
         "functions": {"type": "array", "items": {"type": "string"}}
@@ -1013,6 +1179,28 @@
       },
       "oneOf": [{"required": ["text"]}, {"required": ["a2ui"]}],
       "additionalProperties": false
+    },
+    "StreamPart": {
+      "description": "One part a response stream returns: a `ResponsePart`, or, from a stream that reads past rejected blocks, an error part in place of a rejected block.",
+      "oneOf": [
+        {"$ref": "#/$defs/ResponsePart"},
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "category": {"$ref": "#/$defs/ExpectError/oneOf/1/properties/category"}
+              },
+              "required": ["category"],
+              "additionalProperties": false,
+              "description": "The error the block was rejected with, by its category."
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
     },
     "TransformCatalogTest": {
       "type": "object",
@@ -1352,7 +1540,12 @@
               "items": {"type": "string"},
               "description": "Overrides the parser's default set of string keys that may be closed early while a value is still arriving."
             },
-            "wrapped": {"type": "boolean", "default": true}
+            "wrapped": {"type": "boolean", "default": true},
+            "after_rejected_block": {
+              "enum": ["end", "continue"],
+              "default": "end",
+              "description": "What the stream does once it rejects a block: `end` raises, and `continue` returns an error part in place of the block and reads on."
+            }
           },
           "required": ["format"],
           "additionalProperties": false
@@ -1365,14 +1558,29 @@
               "input": {"type": "string", "description": "The chunk handed to the parser."},
               "expect": {
                 "type": "array",
-                "items": {"$ref": "#/$defs/ResponsePart"},
+                "items": {"$ref": "#/$defs/StreamPart"},
                 "description": "The parts this chunk yields, which is the delta since the previous chunk and is empty when the parser is still buffering."
               },
-              "expect_error": {"$ref": "#/$defs/ExpectError"}
+              "expect_error": {"$ref": "#/$defs/ExpectError"},
+              "expect_partial_results": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/ResponsePart"},
+                "description": "With `expect_error`, the parts the chunk made ready before the error, which the error carries as its partial results."
+              },
+              "expect_in_block": {
+                "type": "boolean",
+                "description": "Whether the response read so far ends inside a block, after this step."
+              }
             },
             "required": ["input"],
-            "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}]
+            "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+            "dependentRequired": {"expect_partial_results": ["expect_error"]}
           }
+        },
+        "expect_close": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/StreamPart"},
+          "description": "The parts closing the stream returns after the last step."
         },
         "expect_matches_single_shot": {
           "type": "boolean",
@@ -1380,6 +1588,81 @@
         }
       },
       "required": ["action", "args", "steps"]
+    },
+    "AnswerPart": {
+      "description": "One part of a streamed answer: text, a surface the answer created, by its id, or an error part in place of a rejected block.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {"text": {"type": "string"}},
+          "required": ["text"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "surface": {
+              "type": "string",
+              "description": "The id of the surface, which is the surface of that id the renderer holds."
+            }
+          },
+          "required": ["surface"],
+          "additionalProperties": false
+        },
+        {"$ref": "#/$defs/StreamPart/oneOf/1"}
+      ]
+    },
+    "StreamAnswerTest": {
+      "type": "object",
+      "description": "Reading a streamed answer into a renderer's message processor, for an app that is both the agent and the renderer. Each step states the answer's parts after the chunk, as a whole.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "stream_answer"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "format": {"$ref": "#/$defs/InferenceFormatName"},
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "renderer_catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentCatalogRef"},
+              "description": "The catalogs of the renderer's processor, when they are not the request processor's."
+            }
+          },
+          "required": ["format", "catalog"],
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input": {"type": "string", "description": "The chunk handed to the answer."},
+              "expect_parts": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/AnswerPart"},
+                "description": "The answer's parts after this chunk."
+              },
+              "expect_in_block": {
+                "type": "boolean",
+                "description": "Whether the answer read so far ends inside a block, after this step."
+              }
+            },
+            "required": ["input", "expect_parts"],
+            "additionalProperties": false
+          }
+        },
+        "expect_close": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/AnswerPart"},
+          "description": "The answer's parts after it is closed."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["steps"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
     },
     "PayloadTemplate": {
       "type": "array",

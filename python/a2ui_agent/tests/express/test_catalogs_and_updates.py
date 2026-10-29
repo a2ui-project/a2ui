@@ -58,12 +58,16 @@ def _fn(*props: str, types: dict[str, str] | None = None) -> dict[str, Any]:
 
 def _catalog(catalog_id: str, components: dict, functions: dict, version: str):
     return Catalog.from_json(
-        {"catalogId": catalog_id, "components": components, "functions": functions},
+        {
+            "catalogId": catalog_id,
+            "components": components,
+            "functions": functions,
+        },
         protocol_version=version,
     )
 
 
-def _primary(version: str = "v1.0") -> Catalog:
+def _primary(version: str = "1.0") -> Catalog:
     return _catalog(
         PRIMARY,
         {
@@ -76,7 +80,12 @@ def _primary(version: str = "v1.0") -> Catalog:
             "Input": {
                 "allOf": [
                     _CHECKABLE,
-                    {"properties": {"value": _DYNAMIC_STRING, "action": {}}},
+                    {
+                        "properties": {
+                            "value": _DYNAMIC_STRING,
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
+                        }
+                    },
                 ]
             },
         },
@@ -88,7 +97,7 @@ def _primary(version: str = "v1.0") -> Catalog:
     )
 
 
-def _secondary(version: str = "v1.0") -> Catalog:
+def _secondary(version: str = "1.0") -> Catalog:
     return _catalog(
         SECONDARY,
         {
@@ -99,7 +108,7 @@ def _secondary(version: str = "v1.0") -> Catalog:
                         "properties": {
                             "headline": _DYNAMIC_STRING,
                             "content": {"$ref": "common_types.json#/$defs/ComponentId"},
-                            "action": {},
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
                         }
                     },
                 ]
@@ -210,7 +219,9 @@ def test_unannotated_name_defined_in_several_catalogs_fails(
         parser.compile(dsl)
 
 
-def test_unannotated_name_defined_in_no_catalog_fails(parser: ExpressParser) -> None:
+def test_unannotated_name_defined_in_no_catalog_fails(
+    parser: ExpressParser,
+) -> None:
     with pytest.raises(
         A2uiCompilationValidationError,
         match="Unknown component 'Bogus' not defined in any catalog",
@@ -223,7 +234,9 @@ def test_unannotated_name_defined_in_no_catalog_fails(parser: ExpressParser) -> 
         parser.compile("root = Text(bogusFn(1))")
 
 
-def test_explicit_catalog_id_wins_over_lookup_by_name(parser: ExpressParser) -> None:
+def test_explicit_catalog_id_wins_over_lookup_by_name(
+    parser: ExpressParser,
+) -> None:
     with pytest.raises(
         A2uiCompilationValidationError,
         match="Unknown function 'secOnly' not defined in catalog 'test/primary'",
@@ -250,7 +263,7 @@ def test_decompile_reads_unannotated_check_against_its_surface_catalog(
 ) -> None:
     # Input messages may still name a surface catalog, for example in history.
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": PRIMARY,
@@ -330,7 +343,7 @@ def test_decompile_reads_bare_call_check_as_its_condition(
     # The basic catalog's prompt example writes a check without the
     # `condition` wrapper; it is read as the condition itself.
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": PRIMARY,
@@ -353,7 +366,10 @@ def test_single_catalog_surface_line_may_name_its_catalog() -> None:
     compiler = ExpressCompiler([_primary()])
     with pytest.raises(ExpressValidationError, match="Unknown catalog 'bogus'"):
         compiler.compile('surface("s", "bogus")\nroot = Text("x")')
-    for dsl in ('surface("s", "test/primary")\nroot = Text("x")', 'root = Text("x")'):
+    for dsl in (
+        'surface("s", "test/primary")\nroot = Text("x")',
+        'root = Text("x")',
+    ):
         msgs = to_message_dicts(compiler.compile(dsl))
         assert msgs[0]["createSurface"]["catalogId"] == PRIMARY
         assert "catalogId" not in msgs[0]["createSurface"]["components"][0]
@@ -406,7 +422,9 @@ def test_compile_emits_the_catalog_actually_used() -> None:
         'root = Input("x", ?sharedFn("a", "b", {catalogId: "test/primary"}))',
     ],
 )
-def test_v0_9_rejects_per_component_and_per_function_catalog_ids(dsl: str) -> None:
+def test_v0_9_rejects_per_component_and_per_function_catalog_ids(
+    dsl: str,
+) -> None:
     compiler = ExpressCompiler([_primary("v0.9")], version="v0.9")
     with pytest.raises(ExpressValidationError, match="catalogId"):
         compiler.compile(dsl)
@@ -417,15 +435,15 @@ def test_v0_9_rejects_per_component_and_per_function_catalog_ids(dsl: str) -> No
     [
         (
             (
-                'root = Input("x", ?sharedFn("a", "b", {catalogId: "test/primary",'
-                " extra: 1}))"
+                'root = Input("x", ?sharedFn("a", "b", {catalogId:'
+                ' "test/primary", extra: 1}))'
             ),
             "Unsupported key",
         ),
         (
             (
-                'root = Input("x", ?sharedFn("a", "b", {catalogId: "test/primary"},'
-                ' {catalogId: "test/secondary"}))'
+                'root = Input("x", ?sharedFn("a", "b", {catalogId:'
+                ' "test/primary"}, {catalogId: "test/secondary"}))'
             ),
             "conflicting catalogId",
         ),
@@ -481,7 +499,7 @@ def test_update_components_on_non_default_surface_round_trips(
 ) -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s2",
                 "components": [{
@@ -493,7 +511,7 @@ def test_update_components_on_non_default_surface_round_trips(
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
@@ -515,7 +533,7 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
 ) -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s2",
                 "catalogId": PRIMARY,
@@ -523,7 +541,7 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s2",
                 "components": [{
@@ -551,7 +569,7 @@ def test_decompile_component_with_no_catalog_on_unknown_surface_fails(
     parser: ExpressParser,
 ) -> None:
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{"id": "greeting", "component": "Text", "text": "New"}],
@@ -565,7 +583,7 @@ def test_update_components_round_trips_with_surface_directive(
     parser: ExpressParser,
 ) -> None:
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{
@@ -580,7 +598,9 @@ def test_update_components_round_trips_with_surface_directive(
     assert dsl.splitlines()[0] == 'surface("s1")'
 
 
-def test_update_surface_components_carry_their_catalog(parser: ExpressParser) -> None:
+def test_update_surface_components_carry_their_catalog(
+    parser: ExpressParser,
+) -> None:
     messages = _compile(
         parser,
         """
@@ -591,7 +611,7 @@ root = Panel("B")
 """,
     )
     assert messages[1] == {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "s2",
             "components": [{
@@ -609,21 +629,21 @@ root = Panel("B")
     [
         ("/user", {"name": "Ada"}, '$/user = {name: "Ada"}'),
         ("/count", 5, "$/count = 5"),
-        ("/", {"a": 3}, "$/a = 3"),
+        ("/", {"a": 3}, "$/ = {a: 3}"),
     ],
 )
-def test_update_data_model_decompiled_as_leaf_assignments(
+def test_update_data_model_decompiled_at_assigned_path(
     parser: ExpressParser, path: str, value: Any, expected_line: str
 ) -> None:
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {"surfaceId": "s1", "path": path, "value": value},
     }]
     dsl = parser.decompile(to_message_models(messages))
     assert dsl.splitlines() == ['surface("s1")', expected_line]
 
 
-def test_update_surface_compiles_data_paths_into_nested_data_model() -> None:
+def test_update_surface_compiles_data_paths_into_targeted_updates() -> None:
     compiler = ExpressCompiler([_primary("v0.9")], version="v0.9")
     msgs = to_message_dicts(compiler.compile('surface("s1")\n$/a/b = 1\n$/c = "x"'))
     assert msgs == [
@@ -631,16 +651,67 @@ def test_update_surface_compiles_data_paths_into_nested_data_model() -> None:
             "version": "v0.9",
             "updateDataModel": {
                 "surfaceId": "s1",
-                "path": "/",
-                "value": {"a": {"b": 1}, "c": "x"},
+                "path": "/a/b",
+                "value": 1,
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": "s1",
+                "path": "/c",
+                "value": "x",
             },
         },
     ]
 
 
-def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> None:
+def test_update_surface_root_assignment_emits_root_path() -> None:
+    compiler = ExpressCompiler([_primary("1.0")], version="1.0")
+    msgs = to_message_dicts(compiler.compile('surface("s1")\n$/ = {a: 3}'))
+    assert msgs == [
+        {
+            "version": "1.0",
+            "updateDataModel": {
+                "surfaceId": "s1",
+                "path": "/",
+                "value": {"a": 3},
+            },
+        },
+    ]
+
+
+def test_create_surface_array_override_and_autovivification() -> None:
+    compiler = ExpressCompiler([_primary("1.0")], version="1.0")
+    msgs = to_message_dicts(
+        compiler.compile(
+            '$/items = [{id: "w1", state: "Draft"}, {id: "w2", state: "Open"}]\n'
+            '$/items/0/state = "Ready"\n'
+            '$/auto/1 = "second"\n'
+            'root = Text("ok")'
+        )
+    )
+    assert msgs[0]["createSurface"]["dataModel"] == {
+        "items": [{"id": "w1", "state": "Ready"}, {"id": "w2", "state": "Open"}],
+        "auto": [None, "second"],
+    }
+
+
+def test_create_surface_invalid_path_traversal_raises() -> None:
+    compiler = ExpressCompiler([_primary("1.0")], version="1.0")
+    with pytest.raises(ExpressValidationError, match="non-numeric segment"):
+        compiler.compile('$/items = ["a"]\n$/items/foo = "b"\nroot = Text("ok")')
+    with pytest.raises(ExpressValidationError, match="primitive value"):
+        compiler.compile('$/user = "Ada"\n$/user/name = "Bob"\nroot = Text("ok")')
+    with pytest.raises(ExpressValidationError, match="exceeds maximum"):
+        compiler.compile('$/items/10001 = "x"\nroot = Text("ok")')
+
+
+def test_root_update_after_create_replaces_data_model(
+    parser: ExpressParser,
+) -> None:
     create = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "components": [{
@@ -653,7 +724,7 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
         },
     }
     update = {
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {"surfaceId": "s1", "path": "/", "value": {"a": 3}},
     }
     dsl = parser.decompile(to_message_models([create, update]))
@@ -662,10 +733,10 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
     recompiled = _compile(parser, dsl)
     assert recompiled[0]["createSurface"]["dataModel"] == {"a": 3}
 
-    # Once the create is closed by another message, the root update is kept
-    # as an explicit update rather than folded in.
+    # Once the create is closed by another message, the data update is emitted
+    # as a separate scope rather than folded into createSurface.
     call = {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "call_1",
             "callFunction": {
@@ -675,15 +746,19 @@ def test_root_update_after_create_replaces_data_model(parser: ExpressParser) -> 
             },
         },
     }
-    dsl = _round_trip(parser, [create, call, update])
-    assert 'surface("s1")\n$/a = 3' in dsl
+    dsl = parser.decompile(to_message_models([create, call, update]))
+    assert 'surface("s1")\n$/ = {a: 3}' in dsl
     assert 'sharedFn("p", catalogId="test/primary")' in dsl
+    assert _compile(parser, dsl)[2] == {
+        "version": "1.0",
+        "updateDataModel": {"surfaceId": "s1", "path": "/", "value": {"a": 3}},
+    }
 
 
 def test_create_then_delete_round_trips(parser: ExpressParser) -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s1",
                 "components": [{
@@ -694,7 +769,7 @@ def test_create_then_delete_round_trips(parser: ExpressParser) -> None:
                 }],
             },
         },
-        {"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}},
+        {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}},
     ]
     _round_trip(parser, messages)
 
@@ -702,7 +777,7 @@ def test_create_then_delete_round_trips(parser: ExpressParser) -> None:
 def test_decompile_escapes_surface_ids(parser: ExpressParser) -> None:
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": 'a"b',
                 "components": [{
@@ -713,7 +788,7 @@ def test_decompile_escapes_surface_ids(parser: ExpressParser) -> None:
                 }],
             },
         },
-        {"version": "v1.0", "deleteSurface": {"surfaceId": 'a"b'}},
+        {"version": "1.0", "deleteSurface": {"surfaceId": 'a"b'}},
     ]
     dsl = _round_trip(parser, messages)
     assert 'deleteSurface("a\\"b")' in dsl
@@ -722,7 +797,9 @@ def test_decompile_escapes_surface_ids(parser: ExpressParser) -> None:
 # --- Multi-statement compilation ---
 
 
-def test_compile_returns_every_statement_in_order(parser: ExpressParser) -> None:
+def test_compile_returns_every_statement_in_order(
+    parser: ExpressParser,
+) -> None:
     messages = _compile(
         parser,
         """
@@ -763,7 +840,11 @@ sharedFn("p", "q", catalogId="test/secondary")
 def test_standalone_call_resolves_by_name(parser: ExpressParser) -> None:
     messages = _compile(parser, 'surface("b")\nroot = Text("B")\nsecOnly(2)')
     call = messages[1]["callRendererFunction"]["callFunction"]
-    assert call == {"catalogId": SECONDARY, "@call": "secOnly", "args": {"limit": 2}}
+    assert call == {
+        "catalogId": SECONDARY,
+        "@call": "secOnly",
+        "args": {"limit": 2},
+    }
 
 
 # --- Prompt rules ---

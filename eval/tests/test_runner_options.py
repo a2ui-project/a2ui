@@ -57,11 +57,11 @@ EXAMPLE_PAYLOAD: list[dict[str, Any]] = [
 # A complete renderer state: one surface holding a single Text.
 INITIAL_STATE: tuple[dict[str, Any], ...] = (
     {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {"surfaceId": "main", "catalogId": V10_CATALOG_ID},
     },
     {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "main",
             "components": [{"id": "root", "component": "Text", "text": "hi"}],
@@ -72,7 +72,7 @@ INITIAL_STATE: tuple[dict[str, Any], ...] = (
 
 def _update_data_model_completion(surface_id: str = "main") -> str:
     message = {
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {"surfaceId": surface_id, "path": "/x", "value": 1},
     }
     return f"<a2ui-json>{json.dumps([message])}</a2ui-json>"
@@ -177,7 +177,10 @@ def test_multi_catalog_prompt_names_both_catalogs() -> None:
         "1.0",
         V10_CATALOG,
         options=RunnerOptions(
-            catalogs=(CatalogSpec(path=V10_CATALOG), CatalogSpec(path=MCP_CATALOG))
+            catalogs=(
+                CatalogSpec(path=V10_CATALOG),
+                CatalogSpec(path=MCP_CATALOG),
+            )
         ),
     )
     assert V10_CATALOG_ID in prompt
@@ -348,7 +351,7 @@ def test_worker_round_trip_applies_pruning() -> None:
     button_turn = [
         INITIAL_STATE[0],
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "main",
                 "components": [

@@ -60,6 +60,7 @@ import type {
 } from './react_component_implementation';
 import {WebComponentNode} from './web_component_node';
 import {HostOwner, HostRegistry} from './host_registry';
+import {HostedMarkdown} from './markdown_hosts';
 
 /** The context of a node a host renders. */
 function contextOf(node: ComponentNode): ComponentContext {
@@ -295,9 +296,12 @@ export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogCompo
     // A React implementation: its host is React's own element, so its content
     // is simply the element's children.
     return (
-      <WebComponentNode node={node} owner={owner}>
-        <NodeContent node={node} />
-      </WebComponentNode>
+      <>
+        <WebComponentNode node={node} owner={owner}>
+          <NodeContent node={node} />
+        </WebComponentNode>
+        <HostedMarkdown owner={owner} />
+      </>
     );
   }
   // A Web Component renders its own children, among them React hosts that
@@ -309,6 +313,7 @@ export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogCompo
     <>
       <WebComponentNode node={node} owner={owner} />
       <HostedChildren surface={surface} owner={owner} />
+      <HostedMarkdown owner={owner} />
     </>
   );
 });

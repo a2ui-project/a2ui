@@ -1,7 +1,8 @@
 # A2UI Flutter
 
-Flutter renderer for [A2UI](https://a2ui.org/) protocol v0.9. It renders the
-surfaces of an `a2ui_core` `MessageProcessor` as widget trees, following the
+Flutter renderer for [A2UI](https://a2ui.org/) protocol v1.0 and v0.9. It
+renders the surfaces of an `a2ui_core` `MessageProcessor` as widget trees,
+following the
 [framework adapter blueprint](../../blueprints/modules/a2ui_framework_adapter.blueprint.md).
 
 The basic catalog is included. A custom component pairs a schema with a
@@ -15,7 +16,7 @@ same commit, and keep the override:
 
 ```yaml
 dependencies:
-  a2ui_core: ^0.3.0
+  a2ui_core: ^0.4.0
   a2ui_flutter:
     git:
       url: https://github.com/a2ui-project/a2ui.git
@@ -34,22 +35,25 @@ dependency_overrides:
 ## Quick Start
 
 The app owns a `MessageProcessor`, feeds it the agent's messages, and renders
-each surface the processor creates in an `A2uiSurface`. Actions and errors on
-a surface go back to the agent.
+each surface the processor creates in an `A2uiSurface`. Actions and errors
+on a surface go back to the agent, and so do the function calls and answers
+the processor makes.
 
 ```dart
-final processor = MessageProcessor<ComponentImplementation>(
-  catalogs: [basicCatalog()],
-  defaultVersion: A2uiProtocolVersion.v0_9,
-);
-final String version = A2uiProtocolVersion.v0_9.jsonValue;
+late final MessageProcessor<ComponentImplementation> processor;
+final String version = A2uiProtocolVersion.v1_0.jsonValue;
 final surfaces = ValueNotifier<List<SurfaceModel<ComponentImplementation>>>(
   const [],
 );
 
 void sendToAgent(RendererToAgentMessage message) => send(
   RendererToAgentMessagePayload.of(message).toJson(),
-  metadata: {'a2uiClientDataModel': ?processor.getRendererDataModel()},
+  metadata: {'a2uiRendererDataModel': ?processor.getRendererDataModel()},
+);
+
+processor = MessageProcessor<ComponentImplementation>(
+  catalogs: [basicCatalog()],
+  outboundListener: sendToAgent,
 );
 
 processor.model.onAction.subscribe(
@@ -70,12 +74,7 @@ processor.model.onSurfaceDeleted.subscribe((id) {
 
 void onAgentMessages(Object? json) {
   try {
-    processor.processMessages(
-      AgentToRendererMessagePayload.fromJson(
-        json,
-        protocolVersion: A2uiProtocolVersion.v0_9,
-      ),
-    );
+    processor.processMessages(json);
   } on A2uiError catch (error) {
     log('${error.code}: ${error.message}');
   }
@@ -93,17 +92,21 @@ ValueListenableBuilder(
 );
 
 // On shutdown:
-processor.model.dispose();
+processor.dispose();
 ```
 
 - The basic components are Material widgets. Render surfaces under a
   `MaterialApp` and inside a `Material`, such as a `Scaffold` body.
-- Send `processor.getRendererDataModel()` as `a2uiClientDataModel` in the
+- Advertise the catalogs by sending
+  `processor.getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v1_0])).toJson()`
+  as `a2uiRendererCapabilities` in the transport metadata.
+- Send `processor.getRendererDataModel()` as `a2uiRendererDataModel` in the
   transport metadata of each message to the agent, when it is not null.
+- `outboundListener` receives the `rendererFunctionResponse` answering each
+  `callRendererFunction`, and each `callAgentFunction` the processor makes.
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
-- An `onError` listener can run while an `A2uiSurface` builds, so a
-  `setState` it causes must wait for the next frame.
+- Error listeners may call `setState` directly.
 - On macOS, network images and media need the
   `com.apple.security.network.client` entitlement.
 
@@ -118,22 +121,25 @@ A2uiMarkdown(
 );
 ```
 
+A Text that no `A2uiMarkdown` renders, which includes every heading and
+caption Text, shows its text without common Markdown markers. A body Text
+that is one heading line, such as `## Summary`, also takes the style of that
+heading level.
+
 ## Defining Custom Components
 
-A v0.9 surface has one catalog, so list your components next to the basic
-components and functions you need, under your own catalog id:
+A v1.0 surface draws on several catalogs, so put your components in a catalog
+of their own and register it next to the basic catalog. The agent names it in
+each component's `catalogId`:
 
 ```dart
 final rating = ComponentImplementation(
   name: 'Rating',
   schema: Schema.object(
     properties: {
-      'label': CommonSchemas.dynamicString,
-      'value': Schema.fromMap({
-        r'$ref':
-            'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/DynamicNumber',
-      }),
-      'onChanged': CommonSchemas.action,
+      'label': CommonSchemasV1.dynamicString,
+      'value': CommonSchemasV1.dynamicNumber,
+      'onChanged': Schema.fromMap({r'$ref': r'common_types.json#/$defs/Action'}),
     },
     required: ['value'],
   ),
@@ -158,18 +164,20 @@ final rating = ComponentImplementation(
 
 final demoCatalog = CatalogImplementation(
   id: 'https://example.com/demo/catalog.json',
-  components: [...BasicComponents.all, rating],
-  functions: BasicCatalog.v0_9().functions.values.toList(),
-  themeSchema: BasicComponents.api.themeSchema,
-  definitions: BasicComponents.api.definitions,
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: [rating],
+);
+
+final processor = MessageProcessor<ComponentImplementation>(
+  catalogs: [basicCatalog(), demoCatalog],
 );
 ```
 
-Declare dynamic values with `CommonSchemas`, or with a `$ref` to a type in
-`common_types.json` such as `DynamicNumber` above. Declare child references
+Declare dynamic values with `CommonSchemasV1`, and other shared types, such
+as `Action` above, with a `$ref` to `common_types.json`. Declare child references
 (`ComponentId`, `ChildList`) as top-level properties. Advertise the catalog by
 its id. An agent that does not use `a2ui_core` can be given its document,
-`jsonEncode(demoCatalog.catalogSchema)`.
+`jsonEncode(demoCatalog.toJson())`.
 
 ### Writing a builder
 
@@ -181,8 +189,14 @@ a `ChildWidgetBuilder`:
 - Write a value back through `props.writable(key)`, which is null unless the
   property is bound to a data path. Its `set` throws `A2uiDataError` for a
   path the data model cannot write.
-- Run an action with `props.action(key)`. Enable a control only while its
-  checks pass, with `props.isValid`, and show `props.validationErrors`.
+- Run an action with `props.action(key)`. Each call runs as a user
+  activation, which a function such as `openUrl` needs, so call it only from
+  a gesture handler, synchronously.
+- Enable a control only while its checks pass, with `props.isValid`, and
+  show `props.validationErrors`. `props.validationResults` also holds the
+  failing checks of `warning` and `info` severity, which leave the control
+  valid. Its `ValidationResult` is `a2ui_core`'s, so hide
+  `json_schema_builder`'s type of the same name.
 - Render children with `buildChild`. A builder that wraps each child puts
   `KeyedSubtree(key: NodeKey(child.instanceId), ...)` outermost, so children
   keep their state when the list changes.
@@ -192,18 +206,22 @@ a `ChildWidgetBuilder`:
 ## Basic Catalog Components
 
 `package:a2ui_flutter/basic_catalog.dart` implements the
-[v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
-with Material widgets. `basicCatalog()` builds all of it, and
-`BasicComponents` holds each component for a catalog of your own.
+[v1.0 basic catalog](../../catalogs/basic/v1/catalog.json) with Material
+widgets. `basicCatalog()` builds all of it, and `BasicComponents` holds each
+component for a catalog of your own.
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
   `DateTimeInput`
 
-The components take the surface theme's `primaryColor` as the Material
-theme's primary color. The functions format for the `locale` passed to
-`basicCatalog()`, `en-US` by default.
+The functions format for the `locale` passed to `basicCatalog()`, `en-US` by
+default. Inputs other than Button show a failing check of `warning` or `info`
+severity as a hint under them. A component with an `accessibility.live` of
+`polite` or `assertive` is a live region, which announces changes to its own
+label: a Text's text, a TextField's label, a Slider's label and value, or
+the check message under a CheckBox, ChoicePicker or Slider, but not a
+Button's child text, a CheckBox's label or a TextField's value.
 
 Not supported yet:
 
@@ -214,6 +232,10 @@ Not supported yet:
   `Dialog`.
 - Leaving `video_player` out of an app. Video and AudioPlayer play through
   it.
+- An explicit `accessibility.label` in place of the label a control takes
+  from its own text. On a Button, CheckBox or Slider the `accessibility`
+  attributes go on a node around the control, and on a TextField or Text an
+  explicit label is joined to the widget's own label.
 
 ## Security
 
@@ -224,12 +246,53 @@ Not supported yet:
 > degrade the app.
 
 `openUrl` fails unless the app passes a callback, such as `url_launcher`'s
-`launchUrl`: `basicCatalog(openUrl: launchUrl)`. A bound `openUrl` call runs
-whenever it resolves, not only on a tap, so with a callback the agent can open
-an `http`, `https`, `mailto` or `tel` URL without the user acting. Pass one
-only for an agent you trust.
+`launchUrl`: `basicCatalog(openUrl: launchUrl)`. On v1.0 it runs only from an
+action, which the basic components run only from a tap, such as a Button's.
+On v0.9 a bound `openUrl` call runs
+whenever it resolves, so with a callback the agent can open an `http`,
+`https`, `mailto` or `tel` URL without the user acting. Pass one only for an
+agent you trust.
+
+## Protocol v0.9
+
+`package:a2ui_flutter/v0_9/basic_catalog.dart` implements the
+[v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
+under the same names, with the v0.9 differences: Text has the `h1` to `h5`
+variants, TextField checks `validationRegexp`, and the components take the
+surface theme's `primaryColor` as the Material theme's primary color.
+
+A v0.9 surface has one catalog, so a custom v0.9 component goes in a catalog
+with the basic components and functions it needs, under your own id:
+
+```dart
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart' as v0_9;
+
+final demoCatalogV0_9 = CatalogImplementation(
+  id: 'https://example.com/demo/v0_9/catalog.json',
+  // ratingV0_9 is a component whose schema uses the v0.9 types.
+  components: [...v0_9.BasicComponents.all, ratingV0_9],
+  functions: BasicCatalog.v0_9().functions.values.toList(),
+  themeSchema: v0_9.BasicComponents.api.themeSchema,
+  definitions: v0_9.BasicComponents.api.definitions,
+);
+```
+
+Declare a v0.9 component's dynamic values with `CommonSchemas`.
+
+To serve both versions, register a catalog of each with one processor, which
+routes each message by its `version`. Messages to the agent then follow the
+version of the surface they concern, its `protocolVersion`. A v0.9 surface's
+actions and errors go in `v0.9` envelopes. A v0.9 agent reads
+`processor.getRendererDataModel(version: A2uiProtocolVersion.v0_9)` as
+`a2uiClientDataModel`, and
+`processor.getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v0_9])).toJson()`
+as `a2uiClientCapabilities`. Each version's capabilities list every
+registered catalog, whatever its protocol version. Once surfaces of both
+versions send their data model, `getRendererDataModel()` needs a version,
+so a v1.0 agent reads it with `version: A2uiProtocolVersion.v1_0`.
 
 ## Tests
 
 `test/catalog/basic/examples_test.dart` renders every
-[v0.9 basic catalog example](../../specification/v0_9/catalogs/basic/examples).
+[v1.0 basic catalog example](../../catalogs/basic/v1/examples) and every
+[v0.9 one](../../specification/v0_9/catalogs/basic/examples).
