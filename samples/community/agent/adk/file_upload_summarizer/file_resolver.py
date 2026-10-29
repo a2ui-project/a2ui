@@ -12,27 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI File Resolver with Security Guardrails and GenAI Helpers.
+"""File resolver for the File Upload Summarizer sample.
 
-This module provides a unified interface for securely resolving abstract file pointers
-(such as inline data URIs, remote HTTP URLs, or custom schemes) into raw bytes.
+Resolves the file pointers that the sample's file upload component sends
+(inline data URIs, HTTP URLs, or custom schemes such as `mockdrive://`) into
+raw bytes, and converts them into `google.genai.types.Part` objects for the
+model.
 
-Security Guardrails:
-- Prevents out-of-memory (OOM) vulnerabilities via strict, configurable file size limits (halting streams or decoding early).
-- Mitigates MIME-spoofing attacks by inspecting file "magic byte" headers to verify the true content type against the claimed type.
-- Enforces strict developer-configured MIME type allowlists.
-- Mitigates SSRF risks by enforcing strict developer-configured host allowlists for remote HTTP/HTTPS downloads.
+This is reference code for the sample, not part of an A2UI SDK. It limits file
+sizes, checks MIME types and hosts against allowlists, and compares a file's
+first bytes with the type it claims for a few common formats. Those checks are
+not a complete security boundary; an app that accepts uploads should apply its
+own policy.
 
 Tool Helpers:
 - `resolve_all` concurrently resolves a list of file pointers, optionally converting each
   `(bytes, mime_type)` pair with a caller-supplied converter.
-- `as_tool_decorator` wraps agent tools so that incoming A2UI file pointer dictionaries are
+- `as_tool_decorator` wraps agent tools so that incoming file pointer dictionaries are
   automatically downloaded, verified, converted, and injected into the tool call, while
   gracefully handling UI error payloads.
-
-This module does not depend on any agent framework or model SDK. Framework extensions
-supply converters to their own content types (for example, `a2ui.adk.GenAIFileResolver`
-converts resolved files into `google.genai.types.Part` objects).
+- `GenAIFileResolver` resolves file pointers into GenAI Parts.
 """
 
 from collections.abc import Mapping, Sequence
@@ -56,6 +55,7 @@ from typing import (
 )
 import urllib.parse
 
+from google.genai import types as genai_types
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -452,3 +452,48 @@ class FileResolver:
             return wrapper
 
         return decorator
+
+
+def _genai_part_from_bytes(raw_bytes: bytes, mime_type: str) -> genai_types.Part:
+    """Converts resolved file bytes and their verified MIME type into a GenAI Part."""
+    return genai_types.Part.from_bytes(data=raw_bytes, mime_type=mime_type)
+
+
+class GenAIFileResolver(FileResolver):
+    """Resolves file pointers into ready-to-use GenAI Parts."""
+
+    async def to_genai_part(
+        self, file_info: dict[str, Any], session: Any | None = None
+    ) -> genai_types.Part:
+        """Resolves a pointer and constructs a ready-to-use GenAI Part."""
+        raw_bytes, verified_mime = await self.resolve_bytes(file_info, session)
+        return _genai_part_from_bytes(raw_bytes, verified_mime)
+
+    async def resolve_all_to_genai_parts(
+        self, files: Sequence[dict[str, Any]], session: Any | None = None
+    ) -> list[genai_types.Part]:
+        """Concurrently resolves a list of file attachments into GenAI Parts."""
+        return await self.resolve_all(files, session, _genai_part_from_bytes)
+
+    def as_tool_decorator(
+        self,
+        arg_name: str = "files",
+        inject_name: str = "genai_parts",
+        on_error: Callable[[Exception], Any] | None = None,
+        preprocess: (
+            Callable[[dict[str, Any], tuple[Any, ...], dict[str, Any]], None] | None
+        ) = None,
+        convert: ResolvedFileConverter | None = _genai_part_from_bytes,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Creates a tool decorator that resolves file pointers into GenAI Parts.
+
+        Same as `FileResolver.as_tool_decorator`, but injects GenAI Parts into
+        `genai_parts` by default.
+        """
+        return super().as_tool_decorator(
+            arg_name=arg_name,
+            inject_name=inject_name,
+            on_error=on_error,
+            preprocess=preprocess,
+            convert=convert,
+        )

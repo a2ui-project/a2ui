@@ -14,9 +14,9 @@
 
 """A2UI extension for the Agent Development Kit (ADK).
 
-`SendA2uiToClientToolset`, `A2uiProcessorStore` and `GenAIFileResolver` only
-need ADK. The ADK-to-A2A converters (`A2uiPartConverter`, `A2uiEventConverter`,
-the `a2a` subpackage) and the A2A subagent orchestration helpers (`A2uiSubagentMap`,
+`SendA2uiToClientToolset` and `A2uiProcessorStore` only need ADK. The ADK-to-A2A
+converters (`A2uiPartConverter`, `A2uiEventConverter`, the `a2a` subpackage) and
+the A2A subagent orchestration helpers (`A2uiSubagentMap`,
 `SurfaceIdAlreadyExistsError`, the `orchestration` subpackage) need the `a2a`
 extra:
 
@@ -30,7 +30,6 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING, Any
 
-from .genai_file_resolver import GenAIFileResolver
 from .processor_store import A2uiProcessorStore
 from .send_a2ui_to_client_toolset import (
     A2uiEnabledProvider,
@@ -102,7 +101,6 @@ __all__ = [
     "A2uiProcessorProvider",
     "A2uiProcessorStore",
     "A2uiSubagentMap",
-    "GenAIFileResolver",
     "SendA2uiToClientToolset",
     "SurfaceIdAlreadyExistsError",
     "a2a",
