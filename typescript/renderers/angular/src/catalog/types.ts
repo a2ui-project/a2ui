@@ -64,19 +64,60 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {
   constructor(
     id: string,
     protocolVersion: string,
-    components: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation> = [],
+    components?: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>,
     functions?: FunctionImplementation[],
     themeSchema?: z.ZodTypeAny,
     instructions?: string,
+  );
+  /**
+   * Initializes a new v0.9 `AngularCatalog` with the pre-1.0 argument order.
+   *
+   * @deprecated Pass the protocol version as the second argument instead.
+   *   Kept so catalogs written against `@a2ui/angular` 0.9.x keep
+   *   constructing without a `protocolVersion`.
+   */
+  constructor(
+    id: string,
+    components?: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>,
+    functions?: FunctionImplementation[],
+    themeSchema?: z.ZodTypeAny,
+    instructions?: string,
+  );
+  constructor(
+    id: string,
+    protocolVersionOrComponents?:
+      | string
+      | ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>,
+    componentsOrFunctions?:
+      | ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>
+      | FunctionImplementation[],
+    functionsOrThemeSchema?: FunctionImplementation[] | z.ZodTypeAny,
+    themeSchemaOrInstructions?: z.ZodTypeAny | string,
+    instructions?: string,
   ) {
-    super(
-      id,
-      protocolVersion,
-      components.map(toAngularComponentImplementation),
-      functions,
-      themeSchema,
-      instructions,
-    );
+    if (typeof protocolVersionOrComponents !== 'string') {
+      // Legacy v0.9 signature: `new AngularCatalog(id, components, functions, ...)`.
+      super(
+        id,
+        '0.9',
+        (protocolVersionOrComponents ?? []).map(toAngularComponentImplementation),
+        componentsOrFunctions as FunctionImplementation[] | undefined,
+        functionsOrThemeSchema as z.ZodTypeAny | undefined,
+        themeSchemaOrInstructions as string | undefined,
+      );
+    } else {
+      const components = (componentsOrFunctions ?? []) as ReadonlyArray<
+        AngularComponentImplementation | WebComponentImplementation
+      >;
+      super(
+        id,
+        protocolVersionOrComponents,
+        components.map(toAngularComponentImplementation),
+        functionsOrThemeSchema as FunctionImplementation[] | undefined,
+        themeSchemaOrInstructions as z.ZodTypeAny | undefined,
+        instructions,
+      );
+    }
   }
 }
 

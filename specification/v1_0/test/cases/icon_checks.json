@@ -5,7 +5,7 @@
       "description": "Icon: Valid standard icon string",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -22,7 +22,7 @@
       "description": "Icon: Valid custom SVG icon with literal svgPath string",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -41,7 +41,7 @@
       "description": "Icon: Valid custom SVG icon with data bound svgPath path",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -62,7 +62,7 @@
       "description": "Icon: Valid data bound Icon.name",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -81,7 +81,7 @@
       "description": "Icon: Invalid custom SVG icon with type mismatch on svgPath (should fail)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -100,7 +100,7 @@
       "description": "Icon: Invalid custom SVG icon with extra fields in svgPath binding (should fail)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [

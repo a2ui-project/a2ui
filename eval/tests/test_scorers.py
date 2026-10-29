@@ -443,7 +443,11 @@ _STAGE2_MESSAGES: list[dict[str, Any]] = [
         "updateComponents": {
             "surfaceId": "main",
             "components": [
-                {"id": "root", "component": "Column", "children": ["date", "go"]},
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "children": ["date", "go"],
+                },
                 {
                     "id": "date",
                     "component": "DateTimeInput",
@@ -465,7 +469,11 @@ _STAGE2_MESSAGES: list[dict[str, Any]] = [
     },
     {
         "version": "v0.9",
-        "updateDataModel": {"surfaceId": "main", "path": "/booking", "value": {}},
+        "updateDataModel": {
+            "surfaceId": "main",
+            "path": "/booking",
+            "value": {},
+        },
     },
 ]
 
@@ -533,7 +541,7 @@ def test_stage2_reports_every_failed_field() -> None:
 
 def test_stage2_recognises_alternative_shapes() -> None:
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "main",
             "components": [{
@@ -687,7 +695,7 @@ async def test_no_judge_mode_never_calls_model(
 def test_stage2_written_data_paths_count_as_bindings() -> None:
     """Data written inline or via updateDataModel satisfies required_bindings."""
     folded = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": "cat",
@@ -698,7 +706,7 @@ def test_stage2_written_data_paths_count_as_bindings() -> None:
         },
     }]
     written = [{
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {
             "surfaceId": "main",
             "path": "/user",

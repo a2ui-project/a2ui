@@ -40,22 +40,54 @@ part of 'parser.dart';
 /// `updateDataModel` is checked for the lists and maps its value gained and
 /// applied again once it closes.
 ///
-/// The stream ends when [close] returns or when [feed] or [close] throws:
-/// the response cannot be read further once part of it is rejected. The
-/// messages already emitted stay in [state], since the renderer holds them,
-/// and the components they added are marked checked
+/// The stream ends when [close] returns or when [feed] or [close] throws. A
+/// stream from [DirectJsonParser.openStream] throws at the first rejected
+/// block; one from [DirectJsonParser.openContinuingStream] returns an
+/// [ErrorPart] in its place, skips the rest of the block, and reads on.
+/// Either way the messages the block emitted stay in [state], since the
+/// renderer holds them, and the components they added are marked checked
 /// ([RendererState.markChecked]), so a later turn on the surface is not
 /// required to make them reachable.
-class DirectJsonResponseStream extends ResponseStream {
+class DirectJsonResponseStream extends _DirectJsonStream<ResponsePart> {
   DirectJsonResponseStream._(
+    super.parser, {
+    required super.wrapped,
+    required super.state,
+  }) : super(continues: false);
+}
+
+/// Reads one streamed direct JSON response, reading past a rejected block.
+///
+/// Obtained from [DirectJsonParser.openContinuingStream]. Reads as
+/// [DirectJsonResponseStream] does, except that a rejected block is returned
+/// as an [ErrorPart], its messages not emitted yet are dropped, and the text
+/// and blocks after it are read as usual.
+class DirectJsonContinuingResponseStream extends _DirectJsonStream<StreamPart> {
+  DirectJsonContinuingResponseStream._(
+    super.parser, {
+    required super.wrapped,
+    required super.state,
+  }) : super(continues: true);
+}
+
+/// What the direct JSON streams share. [P] is the type of the parts they
+/// return.
+abstract class _DirectJsonStream<P extends StreamPart>
+    extends ResponseReader<P> {
+  _DirectJsonStream(
     this._parser, {
     required bool wrapped,
     required this.state,
+    required bool continues,
   }) : _wrapped = wrapped,
+       _continues = continues,
        _inBlock = !wrapped;
 
   final DirectJsonParser _parser;
   final bool _wrapped;
+
+  /// Whether the stream reads past a rejected block.
+  final bool _continues;
 
   @override
   final RendererState state;
@@ -71,6 +103,9 @@ class DirectJsonResponseStream extends ResponseStream {
 
   // The open block.
   bool _inBlock;
+
+  /// Whether the open block was rejected, so the rest of it is skipped.
+  bool _rejected = false;
   String _block = '';
 
   /// Finds the close tag of the open block as its text arrives.
@@ -102,40 +137,54 @@ class DirectJsonResponseStream extends ResponseStream {
   /// [A2uiCatalogError] for catalogs of different versions, as soon as a
   /// block holds part of a message.
   @override
-  List<ResponsePart> feed(String chunk) {
+  bool get isInBlock => !_closed && _inBlock;
+
+  /// Throws as [ResponseStream.feed] describes. A thrown error carries the
+  /// parts the chunk made ready before the failure, which stay applied to
+  /// [state].
+  @override
+  List<P> feed(String chunk) {
     if (_closed) throw StateError('The response stream is closed.');
-    // The surfaces of the messages already emitted in the open block, which
-    // the state still holds if the chunk fails.
-    final Set<String> emitted = {..._touched};
+    final parts = <StreamPart>[];
     try {
-      // A chunk may apply messages and then fail, for example in a second
-      // block, before its parts are returned. The transaction undoes them, so
-      // the state holds only what was emitted.
-      return state.transaction(() => _feed(chunk));
-    } catch (_) {
-      _fail(emitted);
+      _feed(chunk, parts);
+    } catch (e) {
+      _fail();
+      attachPartialResults(e, parts.whereType<ResponsePart>().toList());
       rethrow;
     }
+    // Only a stream that reads past rejected blocks, whose parts are
+    // [StreamPart]s, holds an [ErrorPart].
+    return List<P>.from(parts);
   }
 
   @override
-  List<ResponsePart> close() {
+  List<P> close() {
     if (_closed) return [];
     _closed = true;
-    final parts = <ResponsePart>[];
+    final parts = <StreamPart>[];
     try {
       if (!_wrapped) {
-        _finishBlock(parts, _block.length);
-        return parts;
+        if (!_rejected) {
+          _readBlock(parts, () => _finishBlock(parts, _block.length));
+        }
+        return List<P>.from(parts);
       }
       if (_inBlock) {
-        throw A2uiParseError(
-          'The response ended inside an $openTagText block, before its '
-          '$closeTagText tag.',
-        );
+        if (!_rejected) {
+          _readBlock(
+            parts,
+            () => throw A2uiParseError(
+              'The response ended inside an $openTagText block, before its '
+              '$closeTagText tag.',
+            ),
+          );
+        }
+        return List<P>.from(parts);
       }
-    } catch (_) {
-      _fail(_touched);
+    } catch (e) {
+      _fail();
+      attachPartialResults(e, parts.whereType<ResponsePart>().toList());
       rethrow;
     }
     if (_heldBackticks.isNotEmpty) {
@@ -145,26 +194,40 @@ class DirectJsonResponseStream extends ResponseStream {
       _emitText(parts, _held);
       _held = '';
     }
-    return parts;
+    return List<P>.from(parts);
   }
 
   /// Ends the stream after a failure, keeping what it emitted.
   ///
-  /// The renderer holds the messages already emitted, which touched
-  /// [surfaceIds], and so does the state. No message removes a component, so
-  /// the components they added are marked checked: a later turn is not
-  /// required to make them reachable.
-  void _fail(Iterable<String> surfaceIds) {
+  /// The renderer holds the messages already emitted, and so does the state.
+  /// No message removes a component, so the components they added are marked
+  /// checked: a later turn is not required to make them reachable.
+  void _fail() {
     _closed = true;
-    state.markChecked(surfaceIds);
+    state.markChecked(_touched);
   }
 
-  List<ResponsePart> _feed(String chunk) {
-    final parts = <ResponsePart>[];
+  /// Runs [step], which reads the open block. If the block is rejected and
+  /// the stream reads past rejected blocks, adds an [ErrorPart] for it and
+  /// skips the rest of it; otherwise the error propagates.
+  void _readBlock(List<StreamPart> parts, void Function() step) {
+    try {
+      step();
+    } on A2uiError catch (e) {
+      if (!_continues) rethrow;
+      parts.add(ErrorPart(e));
+      state.markChecked(_touched);
+      _rejected = true;
+    }
+  }
+
+  void _feed(String chunk, List<StreamPart> parts) {
     if (!_wrapped) {
       _block += chunk;
-      _emitReady(parts, _block.length);
-      return parts;
+      if (!_rejected) {
+        _readBlock(parts, () => _emitReady(parts, _block.length));
+      }
+      return;
     }
     String input = _held + chunk;
     _held = '';
@@ -197,7 +260,9 @@ class DirectJsonResponseStream extends ResponseStream {
         final BlockScan scan = _scanner.scan(_block);
         final int? closeStart = scan.closeStart;
         if (closeStart == null) {
-          _emitReady(parts, scan.readableEnd);
+          if (!_rejected) {
+            _readBlock(parts, () => _emitReady(parts, scan.readableEnd));
+          }
           break;
         }
         input = _block.substring(
@@ -208,7 +273,10 @@ class DirectJsonResponseStream extends ResponseStream {
         } else if (input.isEmpty) {
           _stripCloseBackticks = true;
         }
-        _finishBlock(parts, closeStart);
+        if (!_rejected) {
+          _readBlock(parts, () => _finishBlock(parts, closeStart));
+        }
+        _resetBlock();
         continue;
       }
       final Match? open = openTag.firstMatch(input);
@@ -246,12 +314,11 @@ class DirectJsonResponseStream extends ResponseStream {
       }
       _emitText(parts, textToEmit);
     }
-    return parts;
   }
 
   /// Emits the text of a run, less leading whitespace at the start of the
   /// run and trailing whitespace, which is held until more text arrives.
-  void _emitText(List<ResponsePart> parts, String text) {
+  void _emitText(List<StreamPart> parts, String text) {
     final String body = (_runStarted ? text : text.trimLeft()).trimRight();
     if (body.isEmpty) {
       if (_runStarted && body.isEmpty) _heldSpace += text;
@@ -290,13 +357,29 @@ class DirectJsonResponseStream extends ResponseStream {
 
   /// Emits the messages of the open block, up to [end], that read and are
   /// new or changed.
-  void _emitReady(List<ResponsePart> parts, int end) {
+  void _emitReady(List<StreamPart> parts, int end) {
     final List<PartialMessage>? items = _read(end);
     if (items == null || items.isEmpty) return;
     // Read outside the loop, so that catalogs it cannot read throw rather
     // than pass for a message that has not arrived in full.
     final MessageReader reader = _parser._readerFor();
     final ready = <AgentToRendererMessage>[];
+    // The messages applied before a rejected one are emitted with the error,
+    // since the state holds them.
+    try {
+      _emitReadyInto(ready, items, reader);
+    } finally {
+      if (ready.isNotEmpty) parts.add(A2uiPart(ready));
+    }
+  }
+
+  /// Applies the messages of [items] from the first not done, adding each
+  /// to [ready] as it is applied.
+  void _emitReadyInto(
+    List<AgentToRendererMessage> ready,
+    List<PartialMessage> items,
+    MessageReader reader,
+  ) {
     for (int index = _done; !_stalled && index < items.length; index++) {
       final (:Object? message, :bool closed) = items[index];
       if (message is! Map<String, Object?>) break;
@@ -323,7 +406,6 @@ class DirectJsonResponseStream extends ResponseStream {
       _done = index + 1;
       _growing = null;
     }
-    if (ready.isNotEmpty) parts.add(A2uiPart(ready));
   }
 
   /// Applies the rest of the closed block that ends at [end] and checks the
@@ -336,7 +418,7 @@ class DirectJsonResponseStream extends ResponseStream {
   ///
   /// The messages not emitted yet are emitted only if the checks pass, so a
   /// failed block leaves the state holding what was emitted.
-  void _finishBlock(List<ResponsePart> parts, int end) {
+  void _finishBlock(List<StreamPart> parts, int end) {
     // Compiled so that a block that is not JSON, or holds a message that does
     // not read, throws as compile does.
     final List<AgentToRendererMessage> messages = _parser.compile(
@@ -372,7 +454,12 @@ class DirectJsonResponseStream extends ResponseStream {
       return ready;
     });
     if (ready.isNotEmpty) parts.add(A2uiPart(ready));
+  }
+
+  /// Forgets the block that closed, whether it was read or rejected.
+  void _resetBlock() {
     _inBlock = !_wrapped;
+    _rejected = false;
     _block = '';
     _scanner = BlockScanner(0);
     _readCache = PartialReadCache();
