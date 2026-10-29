@@ -80,9 +80,12 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedA
     const fit = FIT_MAP[rawFit] ?? rawFit;
     const safeUrl = sanitizeMediaUrl(props.url);
 
+    const altText = props.accessibility?.label ?? props.description ?? '';
+
     return html`<img
       src=${safeUrl ?? nothing}
-      alt=${props.description || ''}
+      alt=${altText}
+      aria-description=${this.getAccessibilityDescription(props.accessibility)}
       style=${styleMap({objectFit: fit})}
       class="a2ui-image a2ui-image-${variant}"
     />`;

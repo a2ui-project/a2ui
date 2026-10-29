@@ -170,16 +170,44 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
       }
     };
 
+    const isInvalid = props.isValid === false;
+    const isCombined = enableDate && enableTime;
+    const labelId = `${this.domId}-label`;
+    const dateInputId = `${this.domId}-date`;
+    const timeInputId = `${this.domId}-time`;
+    const primaryInputId = enableDate ? dateInputId : timeInputId;
+    const hasVisibleLabel = this.hasAttributeValue(props.label);
+    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
+    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+    const errorId = this.getValidationErrorId(props);
+
     return html`
       <div class="a2ui-date-time-container">
-        ${props.label ? html`<label class="a2ui-date-time-label">${props.label}</label>` : nothing}
-        <div class="a2ui-date-time-inputs">
+        ${hasVisibleLabel
+          ? html`<label id=${labelId} class="a2ui-date-time-label" for=${primaryInputId}
+              >${props.label}</label
+            >`
+          : nothing}
+        <div
+          class="a2ui-date-time-inputs"
+          role=${isCombined ? 'group' : nothing}
+          aria-label=${isCombined ? a11yLabel : nothing}
+          aria-labelledby=${isCombined && a11yLabel === nothing && hasVisibleLabel
+            ? labelId
+            : nothing}
+          aria-description=${isCombined ? a11yDescription : nothing}
+        >
           ${enableDate
             ? html`
                 <input
+                  id=${dateInputId}
                   type="date"
                   min=${minDate || nothing}
                   max=${maxDate || nothing}
+                  aria-label=${a11yLabel}
+                  aria-description=${!isCombined ? a11yDescription : nothing}
+                  aria-invalid=${isInvalid ? 'true' : nothing}
+                  aria-describedby=${errorId}
                   .value=${dateValue}
                   @change=${handleDateChange}
                   class="a2ui-date-time-input"
@@ -189,9 +217,17 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
           ${enableTime
             ? html`
                 <input
+                  id=${timeInputId}
                   type="time"
                   min=${minTime || nothing}
                   max=${maxTime || nothing}
+                  aria-label=${a11yLabel}
+                  aria-labelledby=${isCombined && a11yLabel === nothing && hasVisibleLabel
+                    ? labelId
+                    : nothing}
+                  aria-description=${!isCombined ? a11yDescription : nothing}
+                  aria-invalid=${isInvalid ? 'true' : nothing}
+                  aria-describedby=${errorId}
                   .value=${timeValue}
                   @change=${handleTimeChange}
                   class="a2ui-date-time-input"

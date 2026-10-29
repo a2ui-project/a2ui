@@ -173,10 +173,18 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
     const componentId = this.context?.componentModel?.id || 'choice-picker';
     const dataPath = this.context?.dataContext?.path || '/';
     const sanitizedPath = dataPath.replace(/[^a-zA-Z0-9-]/g, '_');
-    const groupName = `a2ui-choice-${surfaceId}-${componentId}-${sanitizedPath}`;
+    const groupName = this.context
+      ? `a2ui-choice-${surfaceId}-${componentId}-${sanitizedPath}`
+      : `${this.domId}-choices`;
+    const labelId = `${this.domId}-label`;
+    const hasVisibleLabel = this.hasAttributeValue(props.label);
+    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
+    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+    const isInvalid = props.isValid === false;
+    const errorId = this.getValidationErrorId(props);
 
     return html`
-      ${props.label ? html`<label>${props.label}</label>` : nothing}
+      ${hasVisibleLabel ? html`<label id=${labelId}>${props.label}</label>` : nothing}
       ${props.filterable
         ? html`
             <input
@@ -190,6 +198,12 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
           `
         : nothing}
       <div
+        role=${!isChips && !isMulti ? 'radiogroup' : 'group'}
+        aria-label=${a11yLabel}
+        aria-labelledby=${a11yLabel === nothing && hasVisibleLabel ? labelId : nothing}
+        aria-description=${a11yDescription}
+        aria-invalid=${isInvalid ? 'true' : nothing}
+        aria-describedby=${errorId}
         class=${classMap({
           'a2ui-choice-picker': true,
           'a2ui-options-group': !isChips,

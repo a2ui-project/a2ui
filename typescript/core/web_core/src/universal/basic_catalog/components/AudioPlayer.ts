@@ -50,13 +50,24 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlay
     if (!props) return nothing;
 
     const safeUrl = sanitizeMediaUrl(props.url);
+    const descId = `${this.domId}-desc`;
+    const hasVisibleDescription = this.hasAttributeValue(props.description);
+    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
+    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
 
     return html`
       <div class="a2ui-audio-player">
-        ${props.description
-          ? html`<div class="a2ui-audio-description">${props.description}</div>`
+        ${hasVisibleDescription
+          ? html`<div id=${descId} class="a2ui-audio-description">${props.description}</div>`
           : nothing}
-        <audio src=${safeUrl ?? nothing} controls class="a2ui-audio">
+        <audio
+          src=${safeUrl ?? nothing}
+          controls
+          class="a2ui-audio"
+          aria-label=${a11yLabel}
+          aria-labelledby=${a11yLabel === nothing && hasVisibleDescription ? descId : nothing}
+          aria-description=${a11yDescription}
+        >
           Your browser does not support the audio tag.
         </audio>
       </div>

@@ -254,4 +254,91 @@ describe('ChoicePicker Component', () => {
 
     document.body.removeChild(el);
   });
+
+  it('assigns radiogroup vs group roles, label associations, and validation ARIA attributes', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'cp_radio_invalid',
+              component: 'ChoicePicker',
+              label: 'Cuisine',
+              options: [{label: 'Sichuan', value: 'sichuan'}],
+              value: [],
+              filterable: true,
+              accessibility: {
+                description: 'Choose one cuisine',
+              },
+              checks: [
+                {
+                  condition: false,
+                  message: 'Please choose a cuisine',
+                },
+              ],
+            },
+            {
+              id: 'cp_override',
+              component: 'ChoicePicker',
+              label: 'Dietary',
+              options: [{label: 'Vegan', value: 'vegan'}],
+              value: [],
+              variant: 'multipleSelection',
+              accessibility: {
+                label: 'Select dietary preferences',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const radioEl = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
+    document.body.appendChild(radioEl);
+    await asyncUpdate(radioEl, e => {
+      e.context = new ComponentContext(surface, 'cp_radio_invalid');
+    });
+
+    assert.strictEqual(radioEl.hasAttribute('aria-label'), false);
+    const labelEl = radioEl.querySelector('label');
+    assert.ok(labelEl?.id);
+    const filterInput = radioEl.querySelector('input.a2ui-filter-input');
+    assert.strictEqual(filterInput?.getAttribute('aria-label'), 'Filter options');
+
+    const radioGroup = radioEl.querySelector('.a2ui-choice-picker');
+    const errorAlert = radioEl.querySelector('.a2ui-validation-errors');
+    assert.strictEqual(radioGroup?.getAttribute('role'), 'radiogroup');
+    assert.strictEqual(radioGroup?.getAttribute('aria-labelledby'), labelEl?.id);
+    assert.strictEqual(radioGroup?.hasAttribute('aria-label'), false);
+    assert.strictEqual(radioGroup?.getAttribute('aria-description'), 'Choose one cuisine');
+    assert.strictEqual(radioGroup?.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
+    assert.strictEqual(radioGroup?.getAttribute('aria-describedby'), errorAlert?.id);
+    document.body.removeChild(radioEl);
+
+    const multiEl = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
+    document.body.appendChild(multiEl);
+    await asyncUpdate(multiEl, e => {
+      e.context = new ComponentContext(surface, 'cp_override');
+    });
+
+    const multiGroup = multiEl.querySelector('.a2ui-choice-picker');
+    assert.strictEqual(multiGroup?.getAttribute('role'), 'group');
+    assert.strictEqual(multiGroup?.getAttribute('aria-label'), 'Select dietary preferences');
+    assert.strictEqual(multiGroup?.hasAttribute('aria-labelledby'), false);
+    assert.strictEqual(multiGroup?.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(multiGroup?.hasAttribute('aria-describedby'), false);
+    document.body.removeChild(multiEl);
+
+    const chipsEl = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
+    document.body.appendChild(chipsEl);
+    await asyncUpdate(chipsEl, e => {
+      e.context = new ComponentContext(surface, 'choice_picker_chips');
+    });
+    const chipsGroup = chipsEl.querySelector('.a2ui-choice-picker');
+    assert.strictEqual(chipsGroup?.getAttribute('role'), 'group');
+    document.body.removeChild(chipsEl);
+  });
 });

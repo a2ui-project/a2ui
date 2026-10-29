@@ -395,4 +395,97 @@ describe('DateTimeInput Component', () => {
     assert.strictEqual(timeInput.getAttribute('min'), '09:00');
     assert.strictEqual(timeInput.getAttribute('max'), '17:00');
   });
+
+  it('associates labels, group semantics, and validation ARIA across date, time, and combined modes', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'dt_time_a11y',
+              component: 'DateTimeInput',
+              label: 'Check-in Time',
+              value: '15:00',
+              enableDate: false,
+              enableTime: true,
+              accessibility: {
+                description: 'Hotel local time',
+              },
+            },
+            {
+              id: 'dt_combined_invalid',
+              component: 'DateTimeInput',
+              label: 'Reservation',
+              value: '',
+              enableDate: true,
+              enableTime: true,
+              checks: [
+                {
+                  condition: false,
+                  message: 'Reservation date and time required',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+
+    const dateOnlyEl = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    dateOnlyEl.context = new ComponentContext(surface, 'comp1');
+    document.body.appendChild(dateOnlyEl);
+    await asyncUpdate(dateOnlyEl);
+
+    const timeOnlyEl = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    timeOnlyEl.context = new ComponentContext(surface, 'dt_time_a11y');
+    document.body.appendChild(timeOnlyEl);
+    await asyncUpdate(timeOnlyEl);
+
+    const combinedEl = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    combinedEl.context = new ComponentContext(surface, 'dt_combined_invalid');
+    document.body.appendChild(combinedEl);
+    await asyncUpdate(combinedEl);
+
+    // Date-only mode links <label for> to <input type="date"> and omits group role
+    const dateOnlyLabel = dateOnlyEl.querySelector('label');
+    const dateOnlyInput = dateOnlyEl.querySelector('input[type="date"]');
+    assert.ok(dateOnlyInput?.id);
+    assert.strictEqual(dateOnlyLabel?.getAttribute('for'), dateOnlyInput?.id);
+    assert.strictEqual(
+      dateOnlyEl.querySelector('.a2ui-date-time-inputs')?.hasAttribute('role'),
+      false,
+    );
+
+    // Time-only mode links <label for> to <input type="time"> with distinct ID
+    const timeOnlyLabel = timeOnlyEl.querySelector('label');
+    const timeOnlyInput = timeOnlyEl.querySelector('input[type="time"]');
+    assert.ok(timeOnlyInput?.id);
+    assert.notStrictEqual(timeOnlyInput?.id, dateOnlyInput?.id);
+    assert.strictEqual(timeOnlyLabel?.getAttribute('for'), timeOnlyInput?.id);
+    assert.strictEqual(timeOnlyInput?.getAttribute('aria-description'), 'Hotel local time');
+
+    // Combined mode wraps both inputs in role="group", labels both inputs, and wires validation alert
+    const combinedLabel = combinedEl.querySelector('label');
+    const combinedGroup = combinedEl.querySelector('.a2ui-date-time-inputs');
+    const combinedDate = combinedEl.querySelector('input[type="date"]');
+    const combinedTime = combinedEl.querySelector('input[type="time"]');
+    const errorAlert = combinedEl.querySelector('.a2ui-validation-errors');
+
+    assert.ok(combinedLabel?.id);
+    assert.strictEqual(combinedLabel?.getAttribute('for'), combinedDate?.id);
+    assert.strictEqual(combinedGroup?.getAttribute('role'), 'group');
+    assert.strictEqual(combinedGroup?.getAttribute('aria-labelledby'), combinedLabel?.id);
+    assert.strictEqual(combinedTime?.getAttribute('aria-labelledby'), combinedLabel?.id);
+    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
+    assert.strictEqual(combinedDate?.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(combinedDate?.getAttribute('aria-describedby'), errorAlert?.id);
+    assert.strictEqual(combinedTime?.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(combinedTime?.getAttribute('aria-describedby'), errorAlert?.id);
+
+    dateOnlyEl.remove();
+    timeOnlyEl.remove();
+    combinedEl.remove();
+  });
 });

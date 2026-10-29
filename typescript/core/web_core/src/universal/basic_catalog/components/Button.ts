@@ -102,6 +102,8 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<ButtonSup
       <button
         type="button"
         class=${classMap(classes)}
+        aria-label=${this.getAccessibilityLabel(props.accessibility)}
+        aria-description=${this.getAccessibilityDescription(props.accessibility)}
         @click=${() => {
           if (isDisabled) return;
           props.action?.();

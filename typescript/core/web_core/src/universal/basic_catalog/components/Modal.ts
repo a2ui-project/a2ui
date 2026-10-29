@@ -109,6 +109,8 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
                   class="a2ui-modal-content"
                   role="dialog"
                   aria-modal="true"
+                  aria-label=${this.getAccessibilityLabel(props.accessibility)}
+                  aria-description=${this.getAccessibilityDescription(props.accessibility)}
                   @click=${(e: Event) => e.stopPropagation()}
                 >
                   <button

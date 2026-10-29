@@ -92,6 +92,10 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
             type="checkbox"
             class=${classMap(inputClasses)}
             .checked=${props.value || false}
+            aria-label=${this.getAccessibilityLabel(props.accessibility)}
+            aria-description=${this.getAccessibilityDescription(props.accessibility)}
+            aria-invalid=${isInvalid ? 'true' : nothing}
+            aria-describedby=${this.getValidationErrorId(props)}
             @change=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).checked)}
           />
           <span class="a2ui-check-box-text">${props.label}</span>

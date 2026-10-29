@@ -73,17 +73,27 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
     const stepVal =
       typeof steps === 'number' && steps > 0 && max > min ? (max - min) / steps : nothing;
 
+    const inputId = `${this.domId}-input`;
+    const isInvalid = props.isValid === false;
+
     return html`
       <div class="a2ui-slider-container">
         <div class="a2ui-slider-header">
-          <span class="a2ui-slider-label">${props.label}</span>
+          ${this.hasAttributeValue(props.label)
+            ? html`<label class="a2ui-slider-label" for=${inputId}>${props.label}</label>`
+            : html`<span class="a2ui-slider-label"></span>`}
           <span class="a2ui-slider-value">${props.value}</span>
         </div>
         <input
+          id=${inputId}
           type="range"
           min=${min}
           max=${max}
           step=${stepVal}
+          aria-label=${this.getAccessibilityLabel(props.accessibility)}
+          aria-description=${this.getAccessibilityDescription(props.accessibility)}
+          aria-invalid=${isInvalid ? 'true' : nothing}
+          aria-describedby=${this.getValidationErrorId(props)}
           .value=${props.value?.toString() || '0'}
           @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
           class="a2ui-slider"

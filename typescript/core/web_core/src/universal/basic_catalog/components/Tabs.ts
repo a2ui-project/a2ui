@@ -81,12 +81,25 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
     const props = this.controller?.props;
     if (!props || !props.tabs) return nothing;
 
+    const tabPanelId = `${this.domId}-tabpanel`;
+    const activeTab = props.tabs[this.activeIndex];
+
     return html`
       <div class="a2ui-tabs">
-        <div class="a2ui-tab-bar">
+        <div
+          class="a2ui-tab-bar"
+          role="tablist"
+          aria-label=${this.getAccessibilityLabel(props.accessibility)}
+          aria-description=${this.getAccessibilityDescription(props.accessibility)}
+        >
           ${props.tabs?.map(
             (tab, i) => html`
               <button
+                type="button"
+                role="tab"
+                id="${this.domId}-tab-${i}"
+                aria-selected=${i === this.activeIndex ? 'true' : 'false'}
+                aria-controls=${tabPanelId}
                 class=${classMap({
                   'a2ui-tab-button': true,
                   'a2ui-tab-button-active': i === this.activeIndex,
@@ -98,10 +111,13 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
             `,
           )}
         </div>
-        <div class="a2ui-tab-content">
-          ${props.tabs[this.activeIndex]
-            ? html`${this.renderNode(props.tabs[this.activeIndex].child)}`
-            : nothing}
+        <div
+          class="a2ui-tab-content"
+          role="tabpanel"
+          id=${tabPanelId}
+          aria-labelledby=${activeTab ? `${this.domId}-tab-${this.activeIndex}` : nothing}
+        >
+          ${activeTab ? html`${this.renderNode(activeTab.child)}` : nothing}
         </div>
       </div>
     `;

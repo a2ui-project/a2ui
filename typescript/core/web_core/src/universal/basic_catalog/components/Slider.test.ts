@@ -185,4 +185,74 @@ describe('Slider Component', () => {
       }
     });
   });
+
+  it('links <label for> to range input and wires accessibility and validation attributes', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'slider_invalid',
+              component: 'Slider',
+              label: 'Party Size',
+              min: 1,
+              max: 12,
+              value: 1,
+              accessibility: {
+                description: 'Use arrow keys to adjust guests',
+              },
+              checks: [
+                {
+                  condition: false,
+                  message: 'Minimum 2 guests required',
+                },
+              ],
+            },
+            {
+              id: 'slider_unlabeled',
+              component: 'Slider',
+              min: 0,
+              max: 10,
+              value: 5,
+              accessibility: {
+                label: 'Brightness',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-slider') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'slider_invalid');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    const label = el.querySelector('label.a2ui-slider-label');
+    const input = el.querySelector('input[type="range"]');
+    const errorAlert = el.querySelector('.a2ui-validation-errors');
+    assert.notStrictEqual(label, null);
+    assert.ok(input?.id);
+    assert.strictEqual(label?.getAttribute('for'), input?.id);
+    assert.strictEqual(input?.getAttribute('aria-description'), 'Use arrow keys to adjust guests');
+    assert.strictEqual(input?.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
+    assert.strictEqual(input?.getAttribute('aria-describedby'), errorAlert?.id);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'slider_unlabeled');
+    });
+
+    assert.strictEqual(el.querySelector('label.a2ui-slider-label'), null);
+    assert.notStrictEqual(el.querySelector('span.a2ui-slider-label'), null);
+    const unlabeledInput = el.querySelector('input[type="range"]');
+    assert.strictEqual(unlabeledInput?.getAttribute('aria-label'), 'Brightness');
+    assert.strictEqual(unlabeledInput?.hasAttribute('aria-invalid'), false);
+  });
 });

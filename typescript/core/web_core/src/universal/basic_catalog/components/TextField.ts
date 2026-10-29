@@ -94,19 +94,34 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
     // `placeholder` is new in v1.0.
     const placeholder = ('placeholder' in props && props.placeholder) || nothing;
 
+    const inputId = `${this.domId}-input`;
+    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
+    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+    const errorId = this.getValidationErrorId(props);
+
     return html`
-      ${props.label ? html`<label>${props.label}</label>` : nothing}
+      ${props.label ? html`<label for=${inputId}>${props.label}</label>` : nothing}
       ${props.variant === 'longText'
         ? html`<textarea
+            id=${inputId}
             class=${classMap(classes)}
             placeholder=${placeholder}
+            aria-label=${a11yLabel}
+            aria-description=${a11yDescription}
+            aria-invalid=${isInvalid ? 'true' : nothing}
+            aria-describedby=${errorId}
             .value=${props.value || ''}
             @input=${onInput}
           ></textarea>`
         : html`<input
+            id=${inputId}
             type=${type}
             class=${classMap(classes)}
             placeholder=${placeholder}
+            aria-label=${a11yLabel}
+            aria-description=${a11yDescription}
+            aria-invalid=${isInvalid ? 'true' : nothing}
+            aria-describedby=${errorId}
             .value=${props.value || ''}
             @input=${onInput}
           />`}

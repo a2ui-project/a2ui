@@ -80,6 +80,7 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<RowSupported
         this.style.removeProperty('align-items');
       }
     }
+    this.applyContainerAccessibilityAttributes(props?.accessibility);
   }
 
   override render() {

@@ -57,6 +57,8 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<VideoSupportedA
           poster=${safePosterUrl ?? nothing}
           controls
           class="a2ui-video"
+          aria-label=${this.getAccessibilityLabel(props.accessibility)}
+          aria-description=${this.getAccessibilityDescription(props.accessibility)}
         >
           Your browser does not support the video tag.
         </video>

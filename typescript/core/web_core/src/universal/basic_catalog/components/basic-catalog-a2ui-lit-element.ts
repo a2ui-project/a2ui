@@ -15,18 +15,19 @@
  */
 
 import {html, nothing} from 'lit';
-import type {z} from 'zod';
 import {ComponentApi, type InferredComponentApiSchemaType} from '../../../catalog/types.js';
 import type {ResolveA2uiProps} from '../../../resolution/generic-binder.js';
-import type {AccessibilityAttributesSchema} from '../../../types/common-types.js';
 import {A2uiLitElement} from '../../index.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
 import {isValidCssColor} from '../theme.js';
 
-/** Resolved accessibility attributes, as rendered onto the element. */
-type ResolvedAccessibilityAttributes = ResolveA2uiProps<
-  z.infer<typeof AccessibilityAttributesSchema>
->;
+/** Resolved accessibility attributes across supported protocol versions. */
+export interface ResolvedAccessibilityAttributes {
+  label?: string;
+  description?: string;
+  live?: 'off' | 'polite' | 'assertive';
+  hidden?: boolean;
+}
 
 /**
  * The resolved props this base class reads. Not every protocol version
@@ -38,10 +39,12 @@ interface CommonResolvedProps {
 }
 
 /** Props that the binder adds to components with validation checks. */
-interface CheckableResolvedProps {
+export interface CheckableResolvedProps {
   isValid?: boolean;
   validationErrors?: string[];
 }
+
+let nextBasicElementDomId = 0;
 
 /**
  * Internal base class for the built-in Basic Catalog components.
@@ -57,6 +60,11 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   Api,
   ResolveA2uiProps<InferredComponentApiSchemaType<Api>>
 > {
+  /**
+   * Document-unique ID prefix for associating internal labels, controls, and error messages.
+   */
+  protected readonly domId = `a2ui-bc-${++nextBasicElementDomId}`;
+
   /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
    */
@@ -116,19 +124,47 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
     this.applyAccessibilityAttributes(props?.accessibility);
   }
 
+  protected getAccessibilityLabel(a11y?: ResolvedAccessibilityAttributes): string | typeof nothing {
+    return this.hasAttributeValue(a11y?.label) ? String(a11y?.label) : nothing;
+  }
+
+  protected getAccessibilityDescription(
+    a11y?: ResolvedAccessibilityAttributes,
+  ): string | typeof nothing {
+    return this.hasAttributeValue(a11y?.description) ? String(a11y?.description) : nothing;
+  }
+
+  protected hasValidationErrors(props?: CheckableResolvedProps): boolean {
+    return props?.isValid === false && Boolean(props.validationErrors?.length);
+  }
+
+  protected getValidationErrorId(props?: CheckableResolvedProps): string | typeof nothing {
+    return this.hasValidationErrors(props) ? `${this.domId}-error` : nothing;
+  }
+
   protected renderValidationErrors(props?: CheckableResolvedProps) {
-    if (props?.isValid === false && props.validationErrors?.length) {
-      return props.validationErrors.map(
-        (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
-      );
+    if (this.hasValidationErrors(props)) {
+      return html`
+        <div id="${this.domId}-error" class="a2ui-validation-errors" role="alert">
+          ${props!.validationErrors!.map(
+            (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
+          )}
+        </div>
+      `;
     }
     return nothing;
   }
 
-  private applyAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
+  /**
+   * Applies group-level `role`, `aria-label`, and `aria-description` directly onto
+   * wrapperless layout host elements (`Column` and `Row`) only when explicitly set.
+   */
+  protected applyContainerAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
     if (this.hasAttributeValue(a11y?.label)) {
+      this.setAttribute('role', 'group');
       this.setAttribute('aria-label', String(a11y?.label));
     } else {
+      this.removeAttribute('role');
       this.removeAttribute('aria-label');
     }
     if (this.hasAttributeValue(a11y?.description)) {
@@ -136,6 +172,9 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
     } else {
       this.removeAttribute('aria-description');
     }
+  }
+
+  private applyAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
     if (this.hasAttributeValue(a11y?.live)) {
       this.setAttribute('aria-live', String(a11y?.live));
     } else {
@@ -148,7 +187,7 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
     }
   }
 
-  private hasAttributeValue(value: unknown): boolean {
+  protected hasAttributeValue(value: unknown): boolean {
     return value !== undefined && value !== null && value !== '';
   }
 }

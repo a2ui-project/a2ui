@@ -82,6 +82,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<ColumnSup
         this.style.removeProperty('align-items');
       }
     }
+    this.applyContainerAccessibilityAttributes(props?.accessibility);
   }
 
   override render() {

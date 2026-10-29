@@ -52,8 +52,18 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<CardSupportedApi
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
+    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+
     return html`
-      <div class="a2ui-card">${props.child ? this.renderNode(props.child) : nothing}</div>
+      <div
+        class="a2ui-card"
+        role=${a11yLabel !== nothing ? 'region' : nothing}
+        aria-label=${a11yLabel}
+        aria-description=${a11yDescription}
+      >
+        ${props.child ? this.renderNode(props.child) : nothing}
+      </div>
     `;
   }
 }

@@ -72,9 +72,17 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
     const alignItems = props.align ? (ALIGN_MAP[props.align] ?? 'stretch') : undefined;
     const listInlineStyle = alignItems ? styleMap({alignItems}) : nothing;
 
+    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
+    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+
     if (listStyle === 'ordered') {
       return html`
-        <ol class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
+        <ol
+          class="a2ui-list a2ui-list-${direction}"
+          style=${listInlineStyle}
+          aria-label=${a11yLabel}
+          aria-description=${a11yDescription}
+        >
           ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
         </ol>
       `;
@@ -82,18 +90,30 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
 
     if (listStyle === 'unordered') {
       return html`
-        <ul class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
+        <ul
+          class="a2ui-list a2ui-list-${direction}"
+          style=${listInlineStyle}
+          aria-label=${a11yLabel}
+          aria-description=${a11yDescription}
+        >
           ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
         </ul>
       `;
     }
 
     return html`
-      <div class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
+      <div
+        class="a2ui-list a2ui-list-${direction}"
+        style=${listInlineStyle}
+        role="list"
+        aria-label=${a11yLabel}
+        aria-description=${a11yDescription}
+      >
         ${repeat(
           children,
           getChildKey,
-          child => html`<div class="a2ui-list-item-none">${this.renderNode(child)}</div>`,
+          child =>
+            html`<div class="a2ui-list-item-none" role="listitem">${this.renderNode(child)}</div>`,
         )}
       </div>
     `;

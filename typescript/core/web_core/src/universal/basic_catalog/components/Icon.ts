@@ -80,17 +80,35 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<IconSupportedApi
 
     const name = props.name;
     const isSvgPath = typeof name === 'object' && name !== null && 'svgPath' in name;
+    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
+    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+    const hasLabel = a11yLabel !== nothing;
+    const isDecorative = !hasLabel && a11yDescription === nothing;
 
     if (isSvgPath) {
       const svgPath = (name as {svgPath: string}).svgPath;
       return html`
-        <svg class="a2ui-icon a2ui-icon-svg" viewBox="0 0 24 24">
+        <svg
+          class="a2ui-icon a2ui-icon-svg"
+          viewBox="0 0 24 24"
+          role=${hasLabel ? 'img' : nothing}
+          aria-label=${a11yLabel}
+          aria-description=${a11yDescription}
+          aria-hidden=${isDecorative ? 'true' : nothing}
+        >
           <path d=${svgPath}></path>
         </svg>
       `;
     }
 
     const iconName = typeof name === 'string' ? toMaterialIconName(name) : '';
-    return html`<i class="material-icons a2ui-icon">${iconName}</i>`;
+    return html`<i
+      class="material-icons a2ui-icon"
+      role=${hasLabel ? 'img' : nothing}
+      aria-label=${a11yLabel}
+      aria-description=${a11yDescription}
+      aria-hidden=${isDecorative ? 'true' : nothing}
+      >${iconName}</i
+    >`;
   }
 }

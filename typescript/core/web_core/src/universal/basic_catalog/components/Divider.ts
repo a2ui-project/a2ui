@@ -63,6 +63,11 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSuppor
       ['a2ui-divider-' + axis]: true,
     };
 
-    return html`<hr class=${classMap(classes)} />`;
+    return html`<hr
+      class=${classMap(classes)}
+      aria-orientation=${axis === 'vertical' ? 'vertical' : nothing}
+      aria-label=${this.getAccessibilityLabel(props.accessibility)}
+      aria-description=${this.getAccessibilityDescription(props.accessibility)}
+    />`;
   }
 }

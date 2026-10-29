@@ -40,6 +40,14 @@ describe('BasicCatalogA2uiLitElement', () => {
     const TestComponentSchema = z.object({
       text: z.string().optional(),
       weight: z.number().optional(),
+      accessibility: z
+        .object({
+          label: z.string().optional(),
+          description: z.string().optional(),
+          live: z.enum(['off', 'polite', 'assertive']).optional(),
+          hidden: z.boolean().optional(),
+        })
+        .optional(),
     });
 
     const TestComponentApi: ComponentApi<typeof TestComponentSchema> = {
@@ -335,5 +343,62 @@ describe('BasicCatalogA2uiLitElement', () => {
 
     assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary'), 'rgb(255, 0, 0)');
     assert.ok(element.style.getPropertyValue('--a2ui-color-primary-light').length > 0);
+  });
+
+  it('applies only aria-live and aria-hidden on host by default and clears them when unset', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp-a11y',
+              component: 'TestComponent',
+              text: 'Live announcement',
+              accessibility: {
+                label: 'Inner label only',
+                description: 'Inner description only',
+                live: 'assertive',
+                hidden: false,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    element = document.createElement('a2ui-test-basic-element');
+    document.body.appendChild(element);
+
+    await asyncUpdate(element, (e: HTMLElement & {context?: ComponentContext}) => {
+      e.context = new ComponentContext(surface, 'comp-a11y');
+    });
+
+    assert.strictEqual(element.hasAttribute('aria-label'), false);
+    assert.strictEqual(element.hasAttribute('aria-description'), false);
+    assert.strictEqual(element.getAttribute('aria-live'), 'assertive');
+    assert.strictEqual(element.getAttribute('aria-hidden'), 'false');
+
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp-a11y',
+              component: 'TestComponent',
+              text: 'Cleared',
+              accessibility: undefined,
+            },
+          ],
+        },
+      },
+    ]);
+
+    await asyncUpdate(element, () => {});
+    assert.strictEqual(element.hasAttribute('aria-live'), false);
+    assert.strictEqual(element.hasAttribute('aria-hidden'), false);
   });
 });

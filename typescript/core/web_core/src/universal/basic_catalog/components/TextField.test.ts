@@ -174,5 +174,61 @@ describe('TextField Component', () => {
     const input = el.querySelector('input');
     assert.notStrictEqual(input, null);
     assert.strictEqual(input?.classList.contains('a2ui-invalid'), true);
+    const errorAlert = el.querySelector('.a2ui-validation-errors');
+    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
+    assert.strictEqual(input?.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(input?.getAttribute('aria-describedby'), errorAlert?.id);
+  });
+
+  it('associates <label for> with <input> and <textarea> using distinct IDs and applies accessibility props', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'field_a11y',
+              component: 'TextField',
+              label: 'Phone',
+              value: '',
+              accessibility: {
+                label: 'Contact phone number',
+                description: 'Include country code',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const firstEl = document.createElement('a2ui-basic-textfield') as A2uiWebComponentElement;
+    firstEl.context = new ComponentContext(surface, 'field_a11y');
+    document.body.appendChild(firstEl);
+    await asyncUpdate(firstEl);
+
+    const secondEl = document.createElement('a2ui-basic-textfield') as A2uiWebComponentElement;
+    secondEl.context = new ComponentContext(surface, 'field_long');
+    document.body.appendChild(secondEl);
+    await asyncUpdate(secondEl);
+
+    assert.strictEqual(firstEl.hasAttribute('aria-label'), false);
+    const firstLabel = firstEl.querySelector('label');
+    const firstInput = firstEl.querySelector('input');
+    assert.ok(firstInput?.id);
+    assert.strictEqual(firstLabel?.getAttribute('for'), firstInput?.id);
+    assert.strictEqual(firstInput?.getAttribute('aria-label'), 'Contact phone number');
+    assert.strictEqual(firstInput?.getAttribute('aria-description'), 'Include country code');
+    assert.strictEqual(firstInput?.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(firstInput?.hasAttribute('aria-describedby'), false);
+
+    const secondLabel = secondEl.querySelector('label');
+    const secondTextarea = secondEl.querySelector('textarea');
+    assert.ok(secondTextarea?.id);
+    assert.notStrictEqual(secondTextarea?.id, firstInput?.id);
+    assert.strictEqual(secondLabel?.getAttribute('for'), secondTextarea?.id);
+
+    firstEl.remove();
+    secondEl.remove();
   });
 });
