@@ -591,14 +591,8 @@ class ExpressDecompiler:
             )
         else:
             raw_path = body.get("path") or "/"
-            value = body.get("value")
-            if raw_path == "/" and isinstance(value, dict) and value:
-                for rel_path, val in sorted(_flatten_data_model(value)):
-                    val_str = self._decompile_value(val, {}, False, catalog_id)
-                    dsl_lines.append(f"${rel_path} = {val_str}")
-            else:
-                val_str = self._decompile_value(value, {}, False, catalog_id)
-                dsl_lines.append(f"{_decompile_path(raw_path)} = {val_str}")
+            val_str = self._decompile_value(body.get("value"), {}, False, catalog_id)
+            dsl_lines.append(f"{_decompile_path(raw_path)} = {val_str}")
         return "\n".join(dsl_lines)
 
     def _decompile_renderer_call(
@@ -839,19 +833,28 @@ class ExpressDecompiler:
             if isinstance(bound_path, str) and len(val) == 1:
                 return _decompile_path(bound_path)
 
-            if isinstance(val.get("event"), dict):
+            # Before v1.0 an event has no userMessage, and the compiler rejects
+            # `userMessage=`, so such an object is written as a map literal that
+            # compiles back as written.
+            if isinstance(val.get("event"), dict) and (
+                self._v1 or val["event"].get("userMessage") is None
+            ):
                 evt = val["event"]
-                name = _decompile_string(evt.get("name", ""))
-                ctx = evt.get("context", {})
-                ctx_reprs = [
-                    f"{_decompile_key(k)}:"
-                    f" {self._decompile_value(v, var_names, False, surface_cat_id)}"
-                    for k, v in ctx.items()
-                ]
+                event_args = [_decompile_string(evt.get("name", ""))]
                 # An empty context is written out so that it compiles back.
                 if "context" in evt:
-                    return f"Event({name}, {{{', '.join(ctx_reprs)}}})"
-                return f"Event({name})"
+                    ctx_reprs = [
+                        f"{_decompile_key(k)}:"
+                        f" {self._decompile_value(v, var_names, False, surface_cat_id)}"
+                        for k, v in evt.get("context", {}).items()
+                    ]
+                    event_args.append(f"{{{', '.join(ctx_reprs)}}}")
+                if evt.get("userMessage") is not None:
+                    user_message = self._decompile_value(
+                        evt["userMessage"], var_names, False, surface_cat_id
+                    )
+                    event_args.append(f"userMessage={user_message}")
+                return f"Event({', '.join(event_args)})"
 
             if isinstance(val.get("functionCall"), dict):
                 return self._decompile_call(

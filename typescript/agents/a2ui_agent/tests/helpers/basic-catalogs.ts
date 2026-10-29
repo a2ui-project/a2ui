@@ -35,7 +35,7 @@ export const REPO_ROOT = path.resolve(
 /** Published basic catalog ids, by protocol version. */
 export const BASIC_CATALOG_IDS = {
   'v0.9': 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-  'v1.0': 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+  '1.0': 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
 } as const;
 
 /**
@@ -44,7 +44,7 @@ export const BASIC_CATALOG_IDS = {
  * The v0.9 and v0.9.1 documents state no `protocolVersion`, so it is passed to the
  * provider along with the id. Both documents share the v0.9 catalog id.
  */
-export function loadBasicCatalog(version: 'v0.9' | 'v0.9.1' | 'v1.0'): CatalogApi {
+export function loadBasicCatalog(version: 'v0.9' | 'v0.9.1' | '1.0'): CatalogApi {
   if (version === 'v0.9' || version === 'v0.9.1') {
     const dir = version === 'v0.9' ? 'v0_9' : 'v0_9_1';
     return new FileSystemCatalogProvider(

@@ -126,7 +126,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("Hello")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -145,7 +145,7 @@
     root = Column([größe])
     größe = Text("x")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -167,7 +167,7 @@
     root = Card(body)
     body = Text("Hello")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -187,7 +187,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Card(Text("Hello"))'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -207,7 +207,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("Hello", variant="caption")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -225,7 +225,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email", _, "you@example.com")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -243,7 +243,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text(r"C:\temp\notes")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -260,7 +260,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("Line 1\nLine 2")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -280,7 +280,7 @@
     greeting = Text("Hello")
     farewell = Text("Goodbye")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -305,7 +305,7 @@
     root = Column(_template($/items, itemRow))
     itemRow = Text($label)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -328,7 +328,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: "root = Text($/user/name)"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -346,7 +346,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text(formatString("Hello, ${/user/name}"))'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -366,7 +366,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email", $/email, _, [?required("Email is required")])'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -392,7 +392,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Zip", $/zip, _, [?regex(r"^[0-9]{5}$", "Must be five digits")])'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -421,7 +421,7 @@
     root = Button(label, Event("submit"))
     label = Text("Submit")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -446,7 +446,7 @@
     root = Button(label, Event("submit", {itemId: "42"}))
     label = Text("Submit")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -463,6 +463,252 @@
             component: "Text"
             text: "Submit"
 
+- name: test_compile_express_event_user_message
+  description: A userMessage keyword argument on an Event compiles to the v1.0 event.userMessage field beside the name.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", userMessage="Replying now"))
+    label = Text("Reply")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "reply"
+                userMessage: "Replying now"
+          - id: "label"
+            component: "Text"
+            text: "Reply"
+
+- name: test_compile_express_event_user_message_binding_with_context
+  description: A userMessage given as a data binding compiles to a path beside a positional context map.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", {threadId: "t1"}, userMessage=$/draft/message))
+    label = Text("Reply")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "reply"
+                userMessage:
+                  "@path": "/draft/message"
+                context:
+                  threadId: "t1"
+          - id: "label"
+            component: "Text"
+            text: "Reply"
+
+- name: test_compile_express_event_user_message_function_call
+  description: A userMessage given as a function call compiles to a function call, since the v1.0 field is a DynamicString, which a string, a data binding or a function call satisfies.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", userMessage=formatString("Replying to ${/thread/title}")))
+    label = Text("Reply")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "reply"
+                userMessage:
+                  "@call": "formatString"
+                  args:
+                    value: "Replying to ${/thread/title}"
+          - id: "label"
+            component: "Text"
+            text: "Reply"
+
+- name: test_compile_express_event_user_message_that_is_not_a_dynamic_string_is_a_validation_error
+  description: A userMessage that is none of a string, a data binding or a function call, such as a number or a map literal, is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", userMessage={text: "Replying now"}))
+    label = Text("Reply")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_event_context_keyword
+  description: The context map of an Event can be given by keyword as well as positionally.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("submit", context={itemId: "42"}))
+    label = Text("Submit")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "submit"
+                context:
+                  itemId: "42"
+          - id: "label"
+            component: "Text"
+            text: "Submit"
+
+- name: test_compile_express_event_context_keeps_a_function_call_a_plain_call
+  description: The entries of an Event's context are DynamicValues, not actions, so a function call among them compiles to a plain function call even though the Event itself sits in an action slot.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("go", {greeting: formatString("Hi ${/name}")}))
+    label = Text("Go")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Button"
+            child: "label"
+            action:
+              event:
+                name: "go"
+                context:
+                  greeting:
+                    "@call": "formatString"
+                    args:
+                      value: "Hi ${/name}"
+          - id: "label"
+            component: "Text"
+            text: "Go"
+
+- name: test_compile_express_event_unknown_keyword_is_a_validation_error
+  description: A keyword argument that Event does not define is a validation error rather than being dropped from the compiled action.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("reply", message="Replying now"))
+    label = Text("Reply")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_event_duplicate_context_is_a_validation_error
+  description: Giving the Event context both positionally and by keyword is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Button(label, Event("submit", {a: 1}, context={b: 2}))
+    label = Text("Submit")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_event_user_message_before_v1_is_a_validation_error
+  description: Before v1.0 the protocol's Action has no userMessage field, so an Event carrying one is a validation error instead of a silently dropped argument.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/list_item_action_catalog_v09.json"
+  input: |-
+    root = Links([{label: "Reply", action: Event("reply", userMessage="Replying now")}])
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_function_call_in_list_item_action_slot
+  description: A function call in an action slot nested inside a list item compiles to a functionCall action, the same as in a top-level action property, rather than to a bare function call the processor rejects.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/list_item_action_catalog_v1_0.json"
+  input: |-
+    root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label: "Go", action: Event("go")}], primary=openUrl("https://a2ui.org/start"))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/list_item_action"
+        components:
+          - id: "root"
+            component: "Links"
+            items:
+              - label: "Docs"
+                action:
+                  functionCall:
+                    "@call": "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+              - label: "Go"
+                action:
+                  event:
+                    name: "go"
+            primary:
+              functionCall:
+                "@call": "openUrl"
+                args:
+                  url: "https://a2ui.org/start"
+
+- name: test_compile_express_function_call_in_list_item_action_slot_through_variable
+  description: The nested action slot is found when the list item is reached through a variable, since the variable's value is compiled against the slot's schema.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/list_item_action_catalog_v1_0.json"
+  input: |-
+    docs = {label: "Docs", action: openUrl("https://a2ui.org")}
+    root = Links([docs])
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/list_item_action"
+        components:
+          - id: "root"
+            component: "Links"
+            items:
+              - label: "Docs"
+                action:
+                  functionCall:
+                    "@call": "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+
 - name: test_compile_express_data_model_assignment
   description: A data path assignment beside a root fills the surface's initial data model.
   action: compile
@@ -473,7 +719,7 @@
     $/title = "Hello"
     root = Text($/title)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -486,7 +732,7 @@
           title: "Hello"
 
 - name: test_compile_express_data_model_only_block
-  description: A block of nothing but data path assignments updates the data model rather than creating a surface.
+  description: A block of nothing but data path assignments updates each assigned path in the data model rather than creating a surface or replacing the root data model.
   action: compile
   args:
     format: express
@@ -495,13 +741,105 @@
     $/icon = "check"
     $/title = "Enable notifications"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "default_surface"
+        path: "/icon"
+        value: "check"
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "default_surface"
+        path: "/title"
+        value: "Enable notifications"
+
+- name: test_compile_express_root_data_model_replacement
+  description: Assigning a map literal directly to $/ in a non-create block emits an updateDataModel targeting path "/" to replace the entire root data model.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    $/ = {icon: "check", title: "Enable notifications"}
+  expect:
+    - version: "1.0"
       updateDataModel:
         surfaceId: "default_surface"
         path: "/"
         value:
           icon: "check"
           title: "Enable notifications"
+
+- name: test_compile_express_data_model_update_array_element_paths
+  description: A non-create scope with multiple data path assignments, including an array element sub-path, emits one updateDataModel per assigned path in statement order.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("board")
+    $/subtitle = "Wave 2"
+    $/items/0/state = "Ready"
+  expect:
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "board"
+        path: "/subtitle"
+        value: "Wave 2"
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "board"
+        path: "/items/0/state"
+        value: "Ready"
+
+- name: test_compile_express_create_surface_array_override_in_scope
+  description: In a createSurface scope, assigning a sub-path under an already-assigned array mutates that array element in place rather than overwriting the array with a map.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    $/items = [{id: "w1", state: "Draft"}, {id: "w2", state: "Open"}]
+    $/items/0/state = "Ready"
+    root = Text($/items/0/state)
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/items/0/state"
+        dataModel:
+          items:
+            - id: "w1"
+              state: "Ready"
+            - id: "w2"
+              state: "Open"
+
+- name: test_compile_express_create_surface_numeric_path_autovivifies_list
+  description: In a createSurface scope, a numeric segment in a data path assignment auto-vivifies a list when the parent key is not yet defined.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    $/items/0/name = "Ada"
+    root = Text($/items/0/name)
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@path": "/items/0/name"
+        dataModel:
+          items:
+            - name: "Ada"
 
 - name: test_compile_express_surface_targeting
   description: A surface line names the surface the block is for, in place of the default id.
@@ -513,7 +851,7 @@
     surface("dashboard")
     root = Text("Hello")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "dashboard"
         catalogId: "conformance/simplified"
@@ -534,7 +872,7 @@
     surface("dashboard")
     root = Gauge(0.5)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "dashboard"
         components:
@@ -551,7 +889,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'deleteSurface("dashboard")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "dashboard"
 
@@ -563,7 +901,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'deleteSurface(surfaceId="dashboard")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "dashboard"
 
@@ -579,7 +917,7 @@
     surface("second")
     root = Text("Two")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "first"
         catalogId: "conformance/simplified"
@@ -587,7 +925,7 @@
           - id: "root"
             component: "Text"
             text: "One"
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "second"
         catalogId: "conformance/simplified"
@@ -604,7 +942,7 @@
     catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
   input: 'notify("Saved")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
@@ -623,7 +961,7 @@
     root = Button(label, openUrl("https://example.com"))
     label = Text("Open the docs")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -651,7 +989,7 @@
     root = Button(label, Event("submit", ctx))
     label = Text("Submit")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -682,7 +1020,7 @@
     saveLabel = Text("Save")
     sendLabel = Text("Send")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -717,7 +1055,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -734,7 +1072,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("width=100")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -756,7 +1094,7 @@
     /* Nothing follows, but a block
        comment spanning lines still ends the block cleanly. */
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -773,7 +1111,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Column([first, second,]); first = Text("One"); second = Text("Two")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -800,7 +1138,7 @@
     )
     body = Text("Hello")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -822,7 +1160,7 @@
     root = Column(_template($/names, nameRow))
     nameRow = Text($)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -845,7 +1183,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Zip", $/zip, _, [?required("Zip is required"), ?regex(r"^[0-9]{5}$", "Must be five digits")])'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -878,7 +1216,7 @@
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email", $/email, _, [?required])'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/forms"
@@ -1017,7 +1355,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: 'root = Chart([10, 20, 30], "Sales")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -1035,7 +1373,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: "root = Gauge(2.5e-7)"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -1052,7 +1390,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: 'root = Chart([.5, -.25, 1e2, 1E-2, +3, 1.], "Mixed")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -1070,7 +1408,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: 'root = Chart([9007199254740991, -9007199254740991], "Limits")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -1152,7 +1490,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'some_var = Text("Hi")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "default_surface"
         components:
@@ -1238,7 +1576,7 @@
     Hello -- world
     ")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1262,7 +1600,7 @@
       label
     )
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1291,7 +1629,7 @@
     month""")
     root = Column([c1, c2, c3])
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1334,7 +1672,7 @@
     t = Text("Hello", 2)
     root = Column([t], 1)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/weighted"
@@ -1380,7 +1718,7 @@
     data = $/user/
     root = Text("hi")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1400,7 +1738,7 @@
       child = Text("Hello")
     )
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1421,7 +1759,7 @@
   input: |-
     root = Slider(50)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/weighted"
@@ -1473,7 +1811,7 @@
     // comment with -- dash
     root = Text("""Value -- with dashes""")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1504,7 +1842,7 @@
   input: |-
     root = Meter("CPU", 75)
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/weighted"
@@ -1535,7 +1873,7 @@
     root = Text("Hello
     World")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -1553,7 +1891,7 @@
   input: |-
     root = Probe({variable: "m", path: "p", call: "c", check: "k", skipped: true, kind: "map", count: 6})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1578,7 +1916,7 @@
   input: |-
     root = Probe({variable: "m"})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1597,7 +1935,7 @@
   input: |-
     root = Probe({"variable": "m", "path": "p", "count": 6})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1619,7 +1957,7 @@
     m = "replacement"
     root = Probe({variable: "m", count: 6})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1640,7 +1978,7 @@
     label = "hi"
     root = Probe({variable: label, title: label})
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1660,7 +1998,7 @@
   input: |-
     root = Probe(series(count=6, variable="m", item={variable: "inner", nested: {path: "deep", call: "c"}}))
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/literal_map"
@@ -1730,5 +2068,17 @@
     format: express
     catalog: "test_data/catalogs/forms_catalog_v1_0.json"
   input: 'root = TextField("Email", $/email, _, [?required({catalogId: null})])'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_update_scope_root_non_map_is_validation_error
+  description: Assigning a non-map value to the root data path ($/) in an update scope is a validation error, just as in a surface-creating scope.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("s1")
+    $/ = 5
   expect_error:
     category: "ValidationError"

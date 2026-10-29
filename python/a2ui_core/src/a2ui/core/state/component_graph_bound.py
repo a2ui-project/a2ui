@@ -28,7 +28,7 @@ from ..exceptions import A2uiValidationError
 from .component_model import ComponentModel
 from .validation_helpers import (
     check_allowed_children,
-    check_allowed_parent,
+    check_allowed_parents,
     composition_api,
 )
 
@@ -97,15 +97,14 @@ class ComponentGraphBound:
 
     The bound describes a graph that passed the composition and topology
     checks. It holds the children and parents of each component, for the
-    composition check and for the topology check, the position of each
-    component on the surface, and for each component an upper bound on the
-    number of references in the longest chain below it.
+    composition check and for the topology check, and for each component an
+    upper bound on the number of references in the longest chain below it.
 
     The bound lets a batch be checked without walking the whole graph. A
     cycle the batch makes passes through one of its components, and only the
     chains through its components grow, so only those components and the ones
     above them are revisited. The composition constraints of a component
-    depend on its type, its children, their types and its parent, so only the
+    depend on its type, its children, their types and its parents, so only the
     batch, the children it adds or drops, and the components referencing it
     are checked again.
     """
@@ -122,14 +121,10 @@ class ComponentGraphBound:
         # longest chain below it, and at least the largest of these.
         self._heights: dict[str, int] = {}
         self._max_height: float = 0
-        # The position of each component on the surface, which decides the
-        # parent `validate_composition_constraints` picks.
-        self._order: dict[str, int] = {}
-        self._next_order = 0
 
     @classmethod
     def of(cls, components: Mapping[str, ComponentModel]) -> ComponentGraphBound:
-        """Returns the bound of a graph that passed the checks, in surface order.
+        """Returns the bound of a graph that passed the checks.
 
         A graph with a cycle among components the topology check does not
         reach can pass it. Its bound does not hold, so `admits` refuses every
@@ -137,8 +132,6 @@ class ComponentGraphBound:
         """
         bound = cls()
         for comp_id, model in components.items():
-            bound._order[comp_id] = bound._next_order
-            bound._next_order += 1
             bound._set_children(comp_id, possible_children(model))
             bound._set_declared(comp_id, declared_children(model))
         bound._compute_heights(components.keys())
@@ -190,15 +183,17 @@ class ComponentGraphBound:
         self,
         batch: Mapping[str, ComponentModel],
         held: Mapping[str, ComponentModel],
+        root_id: str,
     ) -> bool:
         """Whether the composition constraints hold on what the batch changes.
 
         `held` is the surface before the batch, which passed the check when
-        this bound was made. A component whose type, children, children's
-        types and parent are unchanged still passes, so only the others are
-        checked. False means one of them fails; the caller then checks the
-        whole surface with `validate_composition_constraints`, which raises
-        the error it reports for the first component that fails.
+        this bound was made, and `root_id` is the surface's root component. A
+        component whose type, children, children's types and parents are
+        unchanged still passes, so only the others are checked. False means
+        one of them fails; the caller then checks the whole surface with
+        `validate_composition_constraints`, which raises the error it reports
+        for the first component that fails.
         """
 
         def model_of(comp_id: str) -> ComponentModel | None:
@@ -209,27 +204,19 @@ class ComponentGraphBound:
             model = model_of(comp_id)
             return model.type if model is not None else None
 
-        new_order = {
-            comp_id: self._next_order + position
-            for position, comp_id in enumerate(c for c in batch if c not in held)
-        }
-
-        def order_of(comp_id: str) -> int:
-            return self._order[comp_id] if comp_id in held else new_order[comp_id]
-
         declared = {comp_id: declared_children(m) for comp_id, m in batch.items()}
         batch_parents: dict[str, set[str]] = {}
         for comp_id, children in declared.items():
             for child in children:
                 batch_parents.setdefault(child, set()).add(comp_id)
 
-        def parent_of(comp_id: str) -> str | None:
-            """The last component on the surface that references `comp_id`."""
+        def parents_of(comp_id: str) -> list[tuple[str, str]]:
+            """The `(id, type)` of every component that references `comp_id`."""
             parents = {
                 p for p in self._declared_parents.get(comp_id, ()) if p not in batch
             }
             parents.update(batch_parents.get(comp_id, ()))
-            return max(parents, key=order_of) if parents else None
+            return [(p, type_of(p) or "Unknown") for p in sorted(parents)]
 
         # Components outside the batch whose parent may have changed, and
         # those that reference a component of the batch, which may now be of a
@@ -252,13 +239,12 @@ class ComponentGraphBound:
                 if component_api is None:
                     continue
                 if comp_id in batch or comp_id in moved:
-                    parent_id = parent_of(comp_id)
-                    check_allowed_parent(
+                    check_allowed_parents(
                         comp_id,
                         model,
                         component_api,
-                        parent_id,
-                        type_of(parent_id) if parent_id is not None else None,
+                        parents_of(comp_id),
+                        is_root=comp_id == root_id,
                     )
                 if comp_id in batch:
                     check_allowed_children(
@@ -319,16 +305,7 @@ class ComponentGraphBound:
                     rising.append(parent)
         return True
 
-    def record_batch(
-        self, batch: Mapping[str, ComponentModel], held: Mapping[str, ComponentModel]
-    ) -> None:
-        """Records the composition references and positions of an admitted batch.
-
-        A new component takes the next position, as it is added at the end of
-        the surface.
-        """
+    def record_batch(self, batch: Mapping[str, ComponentModel]) -> None:
+        """Records the composition references of an admitted batch."""
         for comp_id, model in batch.items():
             self._set_declared(comp_id, declared_children(model))
-            if comp_id not in held:
-                self._order[comp_id] = self._next_order
-                self._next_order += 1

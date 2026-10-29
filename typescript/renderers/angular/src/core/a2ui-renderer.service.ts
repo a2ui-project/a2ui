@@ -23,6 +23,7 @@ import {
   EnvironmentProviders,
   Injector,
   makeEnvironmentProviders,
+  provideEnvironmentInitializer,
 } from '@angular/core';
 import {
   MessageProcessor,
@@ -90,6 +91,9 @@ export function provideA2Ui(
         ? {useFactory: configOrFactory}
         : {useValue: configOrFactory}),
     },
+    // Switch web_core to Angular signals before any `MessageProcessor` or `NodeResolver`
+    // exists, so every signal they create is tracked by Angular `computed` and `effect`.
+    provideEnvironmentInitializer(() => initializeAngularReactivity(inject(EnvironmentInjector))),
   ]);
 }
 

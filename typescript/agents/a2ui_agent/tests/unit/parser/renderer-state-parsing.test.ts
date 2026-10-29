@@ -319,7 +319,7 @@ describe('ResponseStream', () => {
 
   it.each([
     ['an unknown component', update({id: 'root', component: 'Unknown'})],
-    ['a wrong version', {...update(text('root')), version: 'v1.0'}],
+    ['a wrong version', {...update(text('root')), version: '1.0'}],
     ['a duplicate id', update(text('root'), text('root'))],
   ])('checks a block that arrives whole when it closes: %s', (_name, message) => {
     // Messages that never streamed in parts are checked as the block closes.

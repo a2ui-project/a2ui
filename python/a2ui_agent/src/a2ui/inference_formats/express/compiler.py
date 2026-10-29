@@ -23,6 +23,7 @@ The grammar for A2UI Express is defined in Express.g4.
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+import json
 import re
 from typing import Any, Literal
 
@@ -37,6 +38,7 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     catalogs_protocol_version,
     check_mixed_catalogs,
+    is_action_slot,
     surface_catalog_id,
     to_message_models,
 )
@@ -69,6 +71,41 @@ _ID_KEY = "id"
 _FUNCTION_CALL_ID_KEY = "functionCallId"
 _SEND_DATA_MODEL_KEY = "sendDataModel"
 _UPDATE_KEY = "update"
+
+# Keyword arguments accepted by the reserved `Event(...)` signature.
+_EVENT_KEYWORDS = ("userMessage", "context")
+
+
+@dataclass(frozen=True)
+class _ValueSlot:
+    """The catalog schema declared at a value's position, with the helper that owns it."""
+
+    schema: dict[str, Any]
+    helper: CatalogSchemaHelper
+
+
+def _item_slot(slot: _ValueSlot | None) -> _ValueSlot | None:
+    """Descends a value slot into the items of an array.
+
+    Returns:
+        The item slot, or None when the schema is unknown at that position.
+    """
+    if slot is None:
+        return None
+    schema = slot.helper.resolve_item_schema(slot.schema)
+    return _ValueSlot(schema, slot.helper) if schema else None
+
+
+def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
+    """Descends a value slot into a property of an object, whatever its name.
+
+    Returns:
+        The property's slot, or None when the schema is unknown at that position.
+    """
+    if slot is None:
+        return None
+    schema = slot.helper.resolve_property_schema(slot.schema, name)
+    return _ValueSlot(schema, slot.helper) if schema else None
 
 
 def _component_id(var_name: str, ast: Any, *, at_least_v10: bool = False) -> str:
@@ -113,25 +150,90 @@ def _to_json_pointer(path_str: str) -> str:
     return "/" + _strip_path_prefix(path_str)
 
 
+_ARRAY_INDEX_RE = re.compile(r"^(?:0|[1-9][0-9]*)$")
+_MAX_ARRAY_INDEX = 10_000
+
+
+def _parse_array_index(segment: str, path_str: str) -> int:
+    """Parses a canonical non-negative array index segment within bounds."""
+    if not _ARRAY_INDEX_RE.match(segment):
+        raise ExpressValidationError(
+            f"Cannot use non-numeric segment {segment!r} on an array in path"
+            f" {path_str!r}."
+        )
+    idx = int(segment)
+    if idx > _MAX_ARRAY_INDEX:
+        raise ExpressValidationError(
+            f"Cannot set path {path_str!r}: array index {segment!r} exceeds"
+            f" maximum supported index ({_MAX_ARRAY_INDEX})."
+        )
+    return idx
+
+
+def _step_path_container(
+    current: dict[str, Any] | list[Any],
+    segment: str,
+    next_segment: str,
+    path_str: str,
+) -> dict[str, Any] | list[Any]:
+    """Advances one path segment through a dict or list, auto-vivifying if needed."""
+    is_next_index = bool(_ARRAY_INDEX_RE.match(next_segment))
+    if isinstance(current, dict):
+        existing = current.get(segment)
+        if existing is None:
+            child: dict[str, Any] | list[Any] = [] if is_next_index else {}
+            current[segment] = child
+            return child
+        if isinstance(existing, (dict, list)):
+            return existing
+        raise ExpressValidationError(
+            f"Cannot set path {path_str!r}: segment {segment!r} is a primitive value."
+        )
+    idx = _parse_array_index(segment, path_str)
+    while len(current) <= idx:
+        current.append(None)
+    existing = current[idx]
+    if existing is None:
+        child = [] if is_next_index else {}
+        current[idx] = child
+        return child
+    if isinstance(existing, (dict, list)):
+        return existing
+    raise ExpressValidationError(
+        f"Cannot set path {path_str!r}: segment {segment!r} is a primitive value."
+    )
+
+
 def _set_nested_path(d: dict[str, Any], path_str: str, val: Any) -> None:
-    """Populates a nested dictionary path from a JSON pointer-like string.
+    """Populates a nested dictionary or list path from an Express data path.
 
     Args:
         d: The target dictionary to mutate.
-        path_str: The data path string (e.g. "$/user/name").
+        path_str: The data path string (e.g. "$/user/name" or "$/items/0/state").
         val: The value to set at the specified path.
     """
     clean_path = _strip_path_prefix(path_str)
     if not clean_path:
+        if not isinstance(val, dict):
+            raise ExpressValidationError(
+                f"Cannot set root data model {path_str!r} to a non-map value."
+            )
+        d.clear()
+        d.update(val)
         return
 
     keys = clean_path.split("/")
-    current = d
-    for key in keys[:-1]:
-        if key not in current or not isinstance(current[key], dict):
-            current[key] = {}
-        current = current[key]
-    current[keys[-1]] = val
+    current: dict[str, Any] | list[Any] = d
+    for i, key in enumerate(keys[:-1]):
+        current = _step_path_container(current, key, keys[i + 1], path_str)
+    last_key = keys[-1]
+    if isinstance(current, dict):
+        current[last_key] = val
+        return
+    idx = _parse_array_index(last_key, path_str)
+    while len(current) <= idx:
+        current.append(None)
+    current[idx] = val
 
 
 def _schema_allows_databinding(schema: Any) -> bool:
@@ -163,6 +265,38 @@ def _schema_allows_databinding(schema: Any) -> bool:
                 if _schema_allows_databinding(sub):
                     return True
     return False
+
+
+def _describe_express_value(val: Any) -> str:
+    """Names a parsed value for an error message in the terms the model wrote it in.
+
+    Returns:
+        A short phrase such as `a map literal` or `the number 42`, rather than
+        the node's repr.
+    """
+    if isinstance(val, CallNode):
+        return f"a call to {val.name}(...)"
+    if isinstance(val, CheckNode):
+        return f"a check (?{val.name})"
+    if isinstance(val, VariableNode):
+        return f"the variable {val.name}"
+    if isinstance(val, PathNode):
+        return f"the data binding ${val.path}"
+    if isinstance(val, SkippedNode):
+        return "'_'"
+    if isinstance(val, dict):
+        return "a map literal"
+    if isinstance(val, list):
+        return "a list"
+    if val is None:
+        return "null"
+    if isinstance(val, bool):
+        return f"the boolean {str(val).lower()}"
+    if isinstance(val, (int, float)):
+        return f"the number {json.dumps(val)}"
+    if isinstance(val, str):
+        return f"the string {json.dumps(val)}"
+    return f"a {type(val).__name__}"
 
 
 def _binding_path(v: Any, path_key: str) -> str | None:
@@ -773,6 +907,7 @@ class ExpressCompiler:
                     current_scope = _SurfaceScope(surface_id=surface_id)
                     units.append(current_scope)
                 if var_name.startswith("$"):
+                    current_scope.data_path_assignments.pop(var_name, None)
                     current_scope.data_path_assignments[var_name] = parsed_val
                 else:
                     current_scope.raw_symbols[var_name] = parsed_val
@@ -871,66 +1006,51 @@ class ExpressCompiler:
         self, scope: _SurfaceScope, ctx: _CompileContext
     ) -> list[dict[str, Any]]:
         """Compiles a `surface(...)` scope, or the implicit default scope."""
-        data_model: dict[str, Any] = {}
-        for path_name, ast_val in scope.data_path_assignments.items():
-            compiled_val = self._compile_data_value(scope, ast_val, ctx)
-            if not _strip_path_prefix(path_name) and isinstance(compiled_val, dict):
-                data_model.update(compiled_val)
-            else:
-                _set_nested_path(data_model, path_name, compiled_val)
-
         compiled_components = self._compile_components(scope, ctx)
         surf_id = scope.surface_id
-        if len(scope.data_path_assignments) == 1:
-            only_path, only_ast = next(iter(scope.data_path_assignments.items()))
-            pointer = _to_json_pointer(only_path)
-            if pointer.count("/") > 1 or pointer == "/":
-                data_update = {
+        is_create = not scope.is_update and any(
+            c.get("id") == "root" for c in compiled_components
+        )
+
+        if not is_create:
+            data_updates = []
+            for path_name, ast_val in scope.data_path_assignments.items():
+                pointer = _to_json_pointer(path_name)
+                compiled_val = self._compile_data_value(scope, ast_val, ctx)
+                if pointer == "/" and not isinstance(compiled_val, dict):
+                    raise ExpressValidationError(
+                        "Cannot assign a non-map value to the root data path"
+                        f" '$/' (got {type(compiled_val).__name__})."
+                    )
+                data_updates.append({
                     "version": ctx.version,
                     SurfaceOperation.UPDATE_DATA: {
                         "surfaceId": surf_id,
                         "path": pointer,
-                        "value": self._compile_data_value(scope, only_ast, ctx),
+                        "value": compiled_val,
                     },
-                }
-            else:
-                data_update = {
-                    "version": ctx.version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surf_id,
-                        "path": "/",
-                        "value": data_model,
-                    },
-                }
-        else:
-            data_update = {
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_DATA: {
-                    "surfaceId": surf_id,
-                    "path": "/",
-                    "value": data_model,
-                },
-            }
-
-        if scope.is_update or not any(
-            c.get("id") == "root" for c in compiled_components
-        ):
+                })
             if not compiled_components:
-                if scope.data_path_assignments:
-                    return [data_update]
+                if data_updates:
+                    return data_updates
                 raise ExpressUndefinedRootError("root")
             if not scope.has_surface_directive:
                 raise ExpressUndefinedRootError("root")
-            messages = [{
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_COMPONENTS: {
-                    "surfaceId": surf_id,
-                    "components": compiled_components,
+            return [
+                {
+                    "version": ctx.version,
+                    SurfaceOperation.UPDATE_COMPONENTS: {
+                        "surfaceId": surf_id,
+                        "components": compiled_components,
+                    },
                 },
-            }]
-            if data_model:
-                messages.append(data_update)
-            return messages
+                *data_updates,
+            ]
+
+        data_model: dict[str, Any] = {}
+        for path_name, ast_val in scope.data_path_assignments.items():
+            compiled_val = self._compile_data_value(scope, ast_val, ctx)
+            _set_nested_path(data_model, path_name, compiled_val)
 
         create: dict[str, Any] = {"surfaceId": surf_id}
         cat_id = surface_catalog_id(self._catalogs)
@@ -955,7 +1075,14 @@ class ExpressCompiler:
             },
         ]
         if data_model:
-            messages.append(data_update)
+            messages.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_DATA: {
+                    "surfaceId": surf_id,
+                    "path": "/",
+                    "value": data_model,
+                },
+            })
         return messages
 
     def _compile_standalone_call(
@@ -1158,15 +1285,16 @@ class ExpressCompiler:
                 comp_dict[prop_name] = None
                 continue
 
+            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             mapped_val = self._compile_value(
                 arg,
                 raw_symbols,
                 ctx,
-                is_action=(prop_name in ["action", "submitAction"]),
+                is_action=is_action_slot(prop_schema),
                 parent_id=comp_id,
                 parent_prop=prop_name,
+                slot=_ValueSlot(prop_schema, comp_helper) if prop_schema else None,
             )
-            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             if prop_schema and not _schema_allows_databinding(prop_schema):
                 if _has_databinding(arg, raw_symbols):
                     raise ExpressForbiddenDatabindingError(comp_name, prop_name)
@@ -1310,6 +1438,91 @@ class ExpressCompiler:
         condition["args"] = compiled_args
         return condition, message_val
 
+    def _compile_event_call(
+        self,
+        val: CallNode,
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+    ) -> dict[str, Any]:
+        """Compiles the reserved `Event(name, context?, userMessage=?, context=?)` signature.
+
+        `userMessage` is a v1.0 Action field. It is rejected when targeting an
+        earlier protocol version, and so is any other keyword the signature does
+        not define, rather than being dropped from the compiled action.
+
+        The event's name, message and context entries are `DynamicValue`s, not
+        actions, so a function call among them stays a plain call whatever slot
+        the event itself sits in.
+
+        Raises:
+            ExpressValidationError: If there are more than two positional
+                arguments, `userMessage` is used before v1.0, or `userMessage`
+                is neither a string nor a `$path` data binding.
+            ExpressInvalidParamError: If a keyword other than `userMessage` or
+                `context` is given.
+            ExpressDuplicateParamError: If the context is given both
+                positionally and by keyword.
+        """
+        fn_args = val.args
+        fn_kwargs = val.kwargs
+
+        if len(fn_args) > 2:
+            raise ExpressValidationError(
+                "Event accepts at most 2 positional arguments (name, context),"
+                f" got {len(fn_args)}."
+            )
+        for key in fn_kwargs:
+            if key not in _EVENT_KEYWORDS:
+                raise ExpressInvalidParamError("Event", key, list(_EVENT_KEYWORDS))
+        if len(fn_args) == 2 and "context" in fn_kwargs:
+            raise ExpressDuplicateParamError("Event", "context")
+
+        compiled_event_name = (
+            self._compile_value(fn_args[0], raw_symbols, ctx) if fn_args else ""
+        )
+        event_dict: dict[str, Any] = {"name": compiled_event_name}
+
+        if "userMessage" in fn_kwargs:
+            if not ctx.at_least_v10:
+                raise ExpressValidationError(
+                    "Event userMessage requires protocol v1.0 or later; the"
+                    f" target version {ctx.version} has no userMessage field."
+                )
+            # `userMessage` is a DynamicString: a string, a data binding or a
+            # function call.
+            user_message = self._compile_value(
+                fn_kwargs["userMessage"], raw_symbols, ctx
+            )
+            is_binding_or_call = isinstance(user_message, dict) and (
+                ctx.path_key in user_message or ctx.call_key in user_message
+            )
+            if not isinstance(user_message, str) and not is_binding_or_call:
+                raise ExpressValidationError(
+                    "Event userMessage must be a string, a $path data binding or"
+                    " a function call, got"
+                    f" {_describe_express_value(fn_kwargs['userMessage'])}."
+                )
+            event_dict["userMessage"] = user_message
+
+        if len(fn_args) == 2:
+            context_node = fn_args[1]
+        elif "context" in fn_kwargs:
+            context_node = fn_kwargs["context"]
+        else:
+            return {"event": event_dict}
+
+        raw_context = self._compile_value(context_node, raw_symbols, ctx)
+        # A context written in the DSL is kept even when it is empty.
+        compiled_context: dict[str, Any] = {}
+        if isinstance(raw_context, dict):
+            compiled_context.update(raw_context)
+        elif isinstance(raw_context, list):
+            for item in raw_context:
+                if isinstance(item, dict):
+                    compiled_context.update(item)
+        event_dict["context"] = compiled_context
+        return {"event": event_dict}
+
     def _compile_value(
         self,
         val: Any,
@@ -1319,6 +1532,7 @@ class ExpressCompiler:
         parent_id: str | None = None,
         parent_prop: str | None = None,
         list_index: int | None = None,
+        slot: _ValueSlot | None = None,
     ) -> Any:
         """Compiles an individual AST node value into valid A2UI equivalents.
 
@@ -1330,6 +1544,10 @@ class ExpressCompiler:
             parent_id: The parent component ID if compiling a component property.
             parent_prop: The parent component property name.
             list_index: The index within an array property if applicable.
+            slot: The catalog schema declared at this position, when known.
+                Array items and map entries resolve their own sub-schema from
+                it, so an `Action` slot nested inside a list item (e.g.
+                `items: [{label, action}]`) is compiled as an action too.
 
         Returns:
             The semantically correct A2UI JSON structure.
@@ -1362,6 +1580,7 @@ class ExpressCompiler:
                     raw_symbols,
                     ctx,
                     is_action,
+                    slot=slot,
                 )
             finally:
                 ctx.resolving.discard(ref_name)
@@ -1383,21 +1602,33 @@ class ExpressCompiler:
 
         # A dict is always a map literal, whatever its keys are.
         if isinstance(val, dict):
-            return {
-                k: self._compile_value(v, raw_symbols, ctx, is_action)
-                for k, v in val.items()
-            }
+            dict_res: dict[str, Any] = {}
+            for k, v in val.items():
+                entry_slot = _property_slot(slot, k)
+                entry_is_action = is_action or (
+                    entry_slot is not None and is_action_slot(entry_slot.schema)
+                )
+                dict_res[k] = self._compile_value(
+                    v, raw_symbols, ctx, entry_is_action, slot=entry_slot
+                )
+            return dict_res
 
         if isinstance(val, list):
+            # Resolved once for the list, since every item shares the schema.
+            item_slot = _item_slot(slot)
+            item_is_action = is_action or (
+                item_slot is not None and is_action_slot(item_slot.schema)
+            )
             return [
                 self._compile_value(
                     item,
                     raw_symbols,
                     ctx,
-                    is_action,
+                    item_is_action,
                     parent_id=parent_id,
                     parent_prop=parent_prop,
                     list_index=idx,
+                    slot=item_slot,
                 )
                 for idx, item in enumerate(val)
             ]
@@ -1437,38 +1668,7 @@ class ExpressCompiler:
             return {"path": template_path, "componentId": comp_id_val}
 
         if fn_name == "Event":
-            compiled_event_name = (
-                self._compile_value(
-                    fn_args[0],
-                    raw_symbols,
-                    ctx,
-                    is_action,
-                )
-                if len(fn_args) > 0
-                else ""
-            )
-            raw_context = (
-                self._compile_value(
-                    fn_args[1],
-                    raw_symbols,
-                    ctx,
-                    is_action,
-                )
-                if len(fn_args) > 1
-                else {}
-            )
-            compiled_context = {}
-            if isinstance(raw_context, dict):
-                compiled_context.update(raw_context)
-            elif isinstance(raw_context, list):
-                for item in raw_context:
-                    if isinstance(item, dict):
-                        compiled_context.update(item)
-            event_dict: dict[str, Any] = {"name": compiled_event_name}
-            # A context written in the DSL is kept even when it is empty.
-            if compiled_context or len(fn_args) > 1:
-                event_dict["context"] = compiled_context
-            return {"event": event_dict}
+            return self._compile_event_call(val, raw_symbols, ctx)
 
         call_cat_id = raw_kwargs.pop("catalogId", None)
         if self._defines_component(fn_name, call_cat_id):

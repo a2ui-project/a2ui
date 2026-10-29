@@ -31,6 +31,7 @@ export * from './expressions/index.js';
 export * from './errors.js';
 export * from './common/events.js';
 export * from './common/markdown.js';
+export * from './common/sanitize_media_url.js';
 export * from './common/semver.js';
 export * from './common/uax31.js';
 export * from './spec_versions.js';
