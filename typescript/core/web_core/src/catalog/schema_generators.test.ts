@@ -561,12 +561,12 @@ describe('generate-catalog-schemas.mjs', () => {
       },
     };
 
-    const compFile = generateComponentsFile('v1.0', catalogJson, {});
+    const compFile = generateComponentsFile('1.0', catalogJson, {});
     assert.ok(compFile.includes('export const CardApi = {'));
     assert.ok(compFile.includes('satisfies ComponentApi;'));
     assert.ok(compFile.includes('BASIC_COMPONENTS: ComponentApi[]'));
 
-    const funcFile = generateFunctionsFile('v1.0', catalogJson, {});
+    const funcFile = generateFunctionsFile('1.0', catalogJson, {});
     assert.ok(funcFile.includes('export const FormatCurrencyApi = {'));
     assert.ok(funcFile.includes("name: 'formatCurrency' as const"));
     assert.ok(funcFile.includes("returnType: 'string' as const"));

@@ -33,20 +33,20 @@ struct SelectionAccessibilityTests {
     let processor = MessageProcessor(catalogs: [V10BasicCatalog.catalog])
     var messages: [[String: Any]] = [
       [
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": [
           "surfaceId": "selection",
           "catalogId": V10BasicCatalog.catalogURI,
         ],
       ],
       [
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": ["surfaceId": "selection", "components": components],
       ],
     ]
     if let dataModel {
       messages.append([
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": ["surfaceId": "selection", "value": dataModel],
       ])
     }
@@ -130,7 +130,7 @@ struct SelectionAccessibilityTests {
     try process(
       [
         [
-          "version": "v1.0",
+          "version": "1.0",
           "updateDataModel": ["surfaceId": "selection", "path": "/agree", "value": false],
         ]
       ],

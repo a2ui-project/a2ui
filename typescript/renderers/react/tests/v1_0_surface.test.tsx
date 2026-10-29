@@ -34,14 +34,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: V1_0_CATALOG_ID,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's1',
           path: '/greeting',
@@ -49,7 +49,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -78,7 +78,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     await act(async () => {
       processor.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 's1',
             path: '/greeting',
@@ -96,14 +96,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: V1_0_CATALOG_ID,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's1',
           path: '/form',
@@ -114,7 +114,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -202,14 +202,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: V1_0_CATALOG_ID,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -264,14 +264,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: V1_0_CATALOG_ID,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's1',
           path: '/items',
@@ -279,7 +279,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -374,14 +374,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([mixedCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: 'https://example.com/mixed_v1_0.json',
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -444,9 +444,9 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
   it('renders a v1.0 surface with no default catalog whose root names its catalog', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
-      {version: 'v1.0', createSurface: {surfaceId: 'no-default'}},
+      {version: '1.0', createSurface: {surfaceId: 'no-default'}},
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'no-default',
           components: [
@@ -477,7 +477,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
       undefined,
       undefined,
       undefined,
-      'v1.0',
+      '1.0',
     );
     const emptyCatalog = new Catalog('empty', '1.0', []);
     surface.componentsModel.addComponent(

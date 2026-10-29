@@ -49,3 +49,6 @@ jobs:
 
       - name: Run Blueprint Validator
         run: python3 blueprints/validate_blueprints.py
+
+      - name: Run Blueprint Compliance Script Unit Tests
+        run: python3 -m unittest blueprints/skills/a2ui-blueprint-compliance/scripts/test_check_compliance.py

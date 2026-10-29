@@ -127,6 +127,24 @@ def _classify_combiners(
                         BehaviorType.DYNAMIC,
                     ):
                         return node
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        merged_shape: dict[str, BehaviorNode] = {}
+        found_object = False
+        for branch in all_of:
+            if isinstance(branch, dict):
+                node = classify_schema_behavior(branch, defs)
+                if node.type == BehaviorType.OBJECT and node.shape is not None:
+                    found_object = True
+                    merged_shape.update(node.shape)
+        props = schema.get("properties")
+        if isinstance(props, dict):
+            found_object = True
+            for k, v in props.items():
+                if isinstance(v, dict):
+                    merged_shape[k] = classify_schema_behavior(v, defs)
+        if found_object:
+            return BehaviorNode(BehaviorType.OBJECT, shape=merged_shape)
     return None
 
 
@@ -289,14 +307,15 @@ class GenericBinder:
 
         resolved_schema = schema
         cat = context.component_model.catalog
-        if (
-            resolved_schema is None
-            and cat is not None
-            and hasattr(cat, "get_component")
-        ):
-            comp_api = cat.get_component(context.component_model.type)
-            if comp_api is not None:
-                resolved_schema = getattr(comp_api, "schema", None)
+        if resolved_schema is None and cat is not None:
+            if hasattr(cat, "resolved_component_schema"):
+                resolved_schema = cat.resolved_component_schema(
+                    context.component_model.type
+                )
+            if resolved_schema is None and hasattr(cat, "get_component"):
+                comp_api = cat.get_component(context.component_model.type)
+                if comp_api is not None:
+                    resolved_schema = getattr(comp_api, "schema", None)
 
         self.behavior_tree = (
             classify_schema_behavior(

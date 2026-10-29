@@ -105,6 +105,33 @@ describe('AngularCatalog & Catalog Types', () => {
     expect(catalog.functions.size).toBe(0);
   });
 
+  it('defaults to v0.9 when constructed with the pre-1.0 argument order', () => {
+    const themeSchema = z.object({primaryColor: z.string()});
+    const catalog = new AngularCatalog(
+      'legacy-catalog',
+      [{name: 'CustomTest', schema: z.object({}), component: TestCustomComponent}],
+      [],
+      themeSchema,
+      'Use it',
+    );
+    expect(catalog.protocolVersion).toBe('0.9');
+    expect(catalog.components.get('CustomTest')?.component).toBe(TestCustomComponent);
+    expect(catalog.themeSchema).toBe(themeSchema);
+    expect(catalog.instructions).toBe('Use it');
+
+    const bare = new AngularCatalog('bare-catalog');
+    expect(bare.protocolVersion).toBe('0.9');
+    expect(bare.components.size).toBe(0);
+
+    const undefComp = new AngularCatalog('undef-catalog', undefined, [], themeSchema, 'Use it');
+    expect(undefComp.protocolVersion).toBe('0.9');
+    expect(undefComp.components.size).toBe(0);
+
+    const v10 = new AngularCatalog('v10-catalog', '1.0');
+    expect(v10.protocolVersion).toBe('1.0');
+    expect(v10.components.size).toBe(0);
+  });
+
   it('instantiates AngularCatalog with components as a pure registry without injection context', () => {
     const catalog = new AngularCatalog('test-catalog', '0.9', [
       {

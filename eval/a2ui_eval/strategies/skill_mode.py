@@ -102,11 +102,11 @@ def _skill_index_prompt(
         "## A2UI Skills",
         (
             f"You answer UI requests in the A2UI `{format_name}` format (protocol"
-            f" version {version}). The format rules and component catalogs are not"
-            " in this prompt. Before writing any UI, call `read_a2ui_skill` with"
-            f" the name of each skill you need, starting with `{CORE_SKILL_NAME}`,"
-            " and follow the loaded instructions exactly. Then reply with the UI"
-            f" enclosed in {tag}."
+            f" version {version}). The format rules and component catalogs are"
+            " not in this prompt. Before writing any UI, call `read_a2ui_skill`"
+            " with the name of each skill you need, starting with"
+            f" `{CORE_SKILL_NAME}`, and follow the loaded instructions exactly."
+            f" Then reply with the UI enclosed in {tag}."
         ),
         "",
         "Available skills:",
@@ -147,7 +147,11 @@ def skill_mode_system_prompt(format_name: str, version: str) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         resolved_catalog_path = str(GIT_ROOT / state.metadata["catalog"])
         skills = await asyncio.to_thread(
-            build_skills, format_name, version, state.metadata, resolved_catalog_path
+            build_skills,
+            format_name,
+            version,
+            state.metadata,
+            resolved_catalog_path,
         )
         state.store.set(
             SKILLS_STORE_KEY, {name: text for name, (_, text) in skills.items()}

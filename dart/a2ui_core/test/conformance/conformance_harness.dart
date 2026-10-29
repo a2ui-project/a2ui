@@ -327,7 +327,7 @@ Catalog<ComponentApi, FunctionImplementation> basicCatalogFor(
   String? asCatalogId,
 }) {
   final Catalog<ComponentApi, FunctionImplementation> basic =
-      compareVersions(version, 'v1.0') >= 0
+      compareVersions(version, '1.0') >= 0
           ? BasicCatalog.v1_0()
           : BasicCatalog.v0_9();
   if (asCatalogId == null || asCatalogId == basic.id) return basic;
@@ -340,5 +340,6 @@ Catalog<ComponentApi, FunctionImplementation> basicCatalogFor(
     title: basic.title,
     description: basic.description,
     protocolVersion: basic.protocolVersion,
+    definitions: basic.definitions,
   );
 }

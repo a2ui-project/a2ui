@@ -29,6 +29,8 @@ import {CatalogApi} from '../../src/internal/web-core.js';
 import {
   A2uiCatalogError,
   A2uiCompilationError,
+  A2uiCompilationParseError,
+  A2uiCompilationValidationError,
   A2uiError,
   A2uiValidationError,
   AgentToRendererMessage,
@@ -57,6 +59,18 @@ export interface CatalogRegistration {
 }
 
 /** Resolves a path the suites give relative to `conformance/`. */
+/** The suite's category for an error, or the error's class name if it has none. */
+export function categoryOf(error: unknown): string {
+  if (error instanceof ParseError || error instanceof A2uiCompilationParseError) {
+    return 'ParseError';
+  }
+  if (error instanceof A2uiValidationError || error instanceof A2uiCompilationValidationError) {
+    return 'ValidationError';
+  }
+  if (error instanceof A2uiCatalogError) return 'CatalogError';
+  return (error as Error).constructor.name;
+}
+
 export function conformancePath(relative: string): string {
   return path.resolve(CONFORMANCE_ROOT, relative);
 }

@@ -71,7 +71,9 @@ def test_ref_to_a_remote_document_is_an_error_without_network(
     assert no_network == []
 
 
-def test_meta_schema_ref_resolves_without_network(no_network: list[str]) -> None:
+def test_meta_schema_ref_resolves_without_network(
+    no_network: list[str],
+) -> None:
     """The bundled JSON Schema meta-schemas stay resolvable without the network."""
     validator = SchemaValidator(
         {"$ref": "https://json-schema.org/draft/2020-12/schema"}
