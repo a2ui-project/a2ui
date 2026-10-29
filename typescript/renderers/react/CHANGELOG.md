@@ -1,7 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `A2uiSurface` no longer renders debug placeholders. A component that has not arrived, has an unknown type, or repeats one of its ancestors renders nothing, as does the surface until its root arrives (previously `[Loading id...]` or red text). An unresolved child reference also renders nothing and is still reported through the surface's `onError`. Apps that showed users the old placeholder should render their own loading state until the fallback API from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands. [#3723](https://github.com/a2ui-project/a2ui/pull/3723)
 - Add `MarkdownComponentContext` and `MarkdownComponentProps`. `A2uiSurface` renders the Markdown of the basic catalog's `Text` through the React component the context holds, inside the app's React tree, so the component reads the app's context. It takes precedence over `MarkdownContext`. [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
-- **Breaking (rendering default):** `A2uiSurface` no longer renders debug placeholders. A component that has not arrived, has an unknown type, or repeats one of its ancestors renders nothing, as does the surface until its root arrives (previously `[Loading id...]` or red text). An unresolved child reference also renders nothing; it is still reported through the surface's error channel and now also logged with `console.warn` ([#2013](https://github.com/a2ui-project/a2ui/issues/2013)).
 
 ## 0.14.0
 

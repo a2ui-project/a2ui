@@ -76,10 +76,10 @@ const reportedUnresolved = new WeakMap<SurfaceModel<ReactCatalogComponent>, Set<
 /**
  * Stands in for a child reference the resolver built no node for. It renders
  * nothing, like the other unresolved states, and reports the reference
- * through the surface's error channel and the console once per (id, path),
- * matching how the resolver reports unknown types and cycles. The report runs
- * in an effect: dispatching during render would invoke onError subscribers
- * while React is rendering, and a subscriber that sets state would then warn.
+ * through the surface's error channel once per (id, path), as the resolver
+ * does for unknown types and cycles. The report runs in an effect:
+ * dispatching during render would invoke onError subscribers while React is
+ * rendering, and a subscriber that sets state would then warn.
  */
 export const UnresolvedChildReference: React.FC<{
   surface: SurfaceModel<ReactCatalogComponent>;
@@ -97,7 +97,6 @@ export const UnresolvedChildReference: React.FC<{
     const key = JSON.stringify([id, requestedPath]);
     if (!seen.has(key)) {
       seen.add(key);
-      console.warn(message);
       void surface.dispatchError({code: 'UNRESOLVED_CHILD_REFERENCE', message});
     }
   }, [surface, id, requestedPath, message]);

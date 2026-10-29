@@ -353,6 +353,22 @@ describe('A2uiSurface', () => {
     expect(codes).toEqual(['UNKNOWN_COMPONENT_TYPE']);
   });
 
+  it('renders nothing for a cyclic reference and leaves the report to the resolver', () => {
+    const surface = setup();
+    const codes: string[] = [];
+    surface.onError.subscribe(e => {
+      codes.push((e as {code: string}).code);
+    });
+    add(surface, 'root', 'Column', {children: ['a']});
+    add(surface, 'a', 'Column', {children: ['b']});
+    add(surface, 'b', 'Column', {children: ['a']});
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    expect(container.textContent).toBe('');
+    expect(codes).toEqual(['CYCLIC_REFERENCE']);
+  });
+
   it('renders template children and keeps existing items mounted on append', () => {
     const surface = setup();
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);

@@ -18,12 +18,12 @@ import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, beforeEach, after, before} from 'node:test';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
-import {MessageProcessor, isComponentNode} from '@a2ui/web_core/v0_9';
+import {ComponentModel, MessageProcessor, isComponentNode} from '@a2ui/web_core/v0_9';
 
 /**
  * These tests verify that the surface element:
  * - Renders nothing when no surface model is provided.
- * - Renders a loading state when the surface exists but the root component is missing.
+ * - Renders nothing while the root component is missing or cannot resolve.
  * - Renders the actual root component once it becomes available in the data model.
  * - Re-renders when the root component's model is replaced.
  */
@@ -77,7 +77,29 @@ describe('A2uiSurface', () => {
       e.surface = surfaceModel;
     });
 
-    assert.strictEqual((el.renderRoot as HTMLElement).innerHTML, '<!---->');
+    assert.strictEqual((el.renderRoot as HTMLElement).textContent, '');
+    assert.strictEqual(el.renderRoot.children.length, 0);
+
+    document.body.removeChild(el);
+  });
+
+  it('should render nothing when the root component has an unknown type', async () => {
+    const codes: string[] = [];
+    surfaceModel.onError.subscribe((e: {code: string}) => codes.push(e.code));
+    surfaceModel.componentsModel.addComponent(
+      new ComponentModel('root', 'Bogus', {}, basicCatalog),
+    );
+    const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.surface = surfaceModel;
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual((el.renderRoot as HTMLElement).textContent, '');
+    assert.strictEqual(el.renderRoot.children.length, 0);
+    assert.ok(codes.includes('UNKNOWN_COMPONENT_TYPE'), 'reported: ' + codes.join(','));
 
     document.body.removeChild(el);
   });
@@ -90,7 +112,8 @@ describe('A2uiSurface', () => {
       e.surface = surfaceModel;
     });
 
-    assert.strictEqual((el.renderRoot as HTMLElement).innerHTML, '<!---->');
+    assert.strictEqual((el.renderRoot as HTMLElement).textContent, '');
+    assert.strictEqual(el.renderRoot.children.length, 0);
 
     // Add root component
     await asyncUpdate(el, () => {
@@ -172,7 +195,9 @@ describe('A2uiSurface', () => {
     await asyncUpdate(el, e => {
       e.surface = partialSurface as any;
     });
-    assert.ok((el.renderRoot as HTMLElement).innerHTML?.includes('Loading surface'));
+    // Subscribing didn't throw, and with no root there is nothing to show.
+    assert.strictEqual((el.renderRoot as HTMLElement).textContent, '');
+    assert.strictEqual(el.renderRoot.children.length, 0);
 
     await asyncUpdate(el, e => {
       e.surface = undefined;
