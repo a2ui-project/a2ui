@@ -245,6 +245,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Disposes the MessageProcessor, tearing down active surfaces and rejecting pending RPC calls.
    */
   dispose(): void {
+    this.model.dispose();
     this.rpc.dispose();
   }
 
@@ -922,6 +923,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private processDeleteSurfaceOp(op: InternalDeleteSurfaceOp): void {
     if (!op.surfaceId) return;
     this.model.deleteSurface(op.surfaceId);
+    this.rpc.cancelSurfaceCalls(op.surfaceId);
   }
 
   private validateComponentProperties(

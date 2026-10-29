@@ -336,10 +336,14 @@ class DataContext {
   /// bindings or calls is returned as-is rather than copied.
   Object? resolveDynamicValue(Object? value) => _resolveDynamicValue(value, 0);
 
-  Object? _resolveDynamicValue(Object? value, int depth) {
+  Object? _resolveDynamicValue(
+    Object? value,
+    int depth, {
+    bool keepFailed = false,
+  }) {
     if (depth > maxDynamicValueDepth) {
       _reportDepthExceeded();
-      return null;
+      return keepFailed ? _failedArg : null;
     }
     if (atLeastV10) {
       if (value is Map && value.containsKey('@path')) {
@@ -349,15 +353,26 @@ class DataContext {
       if (value is Map && value.containsKey('@call')) {
         if (_systemCallNamingCatalog(value)
             case final A2uiExpressionError error) {
-          return _reportSync(error);
+          _reportSync(error);
+          return keepFailed ? _failedArg : null;
         }
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
-          args[entry.key] = _resolveDynamicValue(entry.value, depth + 1);
+          args[entry.key] = _resolveDynamicValue(
+            entry.value,
+            depth + 1,
+            keepFailed: true,
+          );
         }
-        if (_awaitsAgentArgument(call)) return null;
-        final Object? result = _evaluateFunction(call, args);
+        if (_containsFailedArg(args) || _awaitsAgentArgument(call)) {
+          return keepFailed ? _failedArg : null;
+        }
+        final Object? result = _evaluateFunction(
+          call,
+          args,
+          keepFailed: keepFailed,
+        );
         if (result is ReadonlySignal) {
           return result.value;
         }
@@ -372,7 +387,11 @@ class DataContext {
           final String keyStr = entry.key;
           final String unescapedKey =
               keyStr.startsWith('@@') ? keyStr.substring(1) : keyStr;
-          result[unescapedKey] = _resolveDynamicValue(entry.value, depth + 1);
+          result[unescapedKey] = _resolveDynamicValue(
+            entry.value,
+            depth + 1,
+            keepFailed: keepFailed,
+          );
         }
         return result;
       }
@@ -407,7 +426,10 @@ class DataContext {
       if (!_containsDynamicValue(value, depth)) {
         return value;
       }
-      return [for (final item in value) _resolveDynamicValue(item, depth + 1)];
+      return [
+        for (final item in value)
+          _resolveDynamicValue(item, depth + 1, keepFailed: keepFailed),
+      ];
     }
     return value;
   }
@@ -442,10 +464,14 @@ class DataContext {
   ReadonlySignal<Object?> resolveSignal(Object? value) =>
       _resolveSignal(value, 0);
 
-  ReadonlySignal<Object?> _resolveSignal(Object? value, int depth) {
+  ReadonlySignal<Object?> _resolveSignal(
+    Object? value,
+    int depth, {
+    bool keepFailed = false,
+  }) {
     if (depth > maxDynamicValueDepth) {
       _reportDepthExceeded();
-      return signal(null);
+      return signal(keepFailed ? _failedArg : null);
     }
     if (atLeastV10) {
       if (value is Map && value.containsKey('@path')) {
@@ -455,12 +481,19 @@ class DataContext {
       if (value is Map && value.containsKey('@call')) {
         if (_systemCallNamingCatalog(value)
             case final A2uiExpressionError error) {
-          return computed(() => _reportSync(error));
+          return computed(() {
+            _reportSync(error);
+            return keepFailed ? _failedArg : null;
+          });
         }
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final Map<String, ReadonlySignal<Object?>> argSignals = {
           for (final MapEntry<String, dynamic> entry in call.args.entries)
-            entry.key: _resolveSignal(entry.value, depth + 1),
+            entry.key: _resolveSignal(
+              entry.value,
+              depth + 1,
+              keepFailed: true,
+            ),
         };
         return computed(() {
           final args = <String, dynamic>{
@@ -468,8 +501,15 @@ class DataContext {
                 in argSignals.entries)
               entry.key: entry.value.value,
           };
-          if (_awaitsAgentArgument(call, track: true)) return null;
-          final Object? result = _evaluateFunction(call, args);
+          if (_containsFailedArg(args) ||
+              _awaitsAgentArgument(call, track: true)) {
+            return keepFailed ? _failedArg : null;
+          }
+          final Object? result = _evaluateFunction(
+            call,
+            args,
+            keepFailed: keepFailed,
+          );
           if (result is ReadonlySignal) {
             return result.value;
           }
@@ -485,7 +525,7 @@ class DataContext {
         final entries = <String, ReadonlySignal<Object?>>{
           for (final MapEntry<String, dynamic> e in stringMap.entries)
             (e.key.startsWith('@@') ? e.key.substring(1) : e.key):
-                _resolveSignal(e.value, depth + 1),
+                _resolveSignal(e.value, depth + 1, keepFailed: keepFailed),
         };
         return computed(() => {
               for (final e in entries.entries) e.key: e.value.value,
@@ -538,7 +578,8 @@ class DataContext {
         return signal(value);
       }
       final List<ReadonlySignal<Object?>> items = [
-        for (final item in value) _resolveSignal(item, depth + 1),
+        for (final item in value)
+          _resolveSignal(item, depth + 1, keepFailed: keepFailed),
       ];
       return computed(() => [for (final item in items) item.value]);
     }
@@ -595,7 +636,11 @@ class DataContext {
   /// may be fine, and the function may exist in a catalog the surface does
   /// not have. Every other failure, including a function missing from the
   /// catalog the call resolved to, carries `EXPRESSION_ERROR`.
-  Object? _evaluateFunction(FunctionCall call, Map<String, dynamic> args) {
+  Object? _evaluateFunction(
+    FunctionCall call,
+    Map<String, dynamic> args, {
+    bool keepFailed = false,
+  }) {
     final String name = call.call;
     try {
       if (atLeastV10 && name.startsWith('@') && name != _indexFunctionName) {
@@ -618,7 +663,7 @@ class DataContext {
     } catch (error) {
       if (_onError == null) rethrow;
       _report(error, call.call);
-      return null;
+      return keepFailed ? _failedArg : null;
     }
   }
 
@@ -965,8 +1010,16 @@ class DataContext {
     final call = FunctionCall.fromJson(_asStringKeyedMap(functionCall));
     final args = <String, dynamic>{
       for (final MapEntry<String, dynamic> entry in call.args.entries)
-        entry.key: resolveDynamicValue(entry.value),
+        entry.key: _resolveDynamicValue(
+          entry.value,
+          1,
+          keepFailed: atLeastV10,
+        ),
     };
+    if (atLeastV10 &&
+        (_containsFailedArg(args) || _awaitsAgentArgument(call))) {
+      return null;
+    }
     Object? result;
     AgentFunctionCaller? agentCaller;
     String? agentCatalogId;
@@ -1089,6 +1142,17 @@ class DataContext {
     }
     return result;
   }
+}
+
+/// Sentinel marking a function argument whose synchronous evaluation failed and
+/// was already reported on the surface.
+const Object _failedArg = Object();
+
+bool _containsFailedArg(Object? value) {
+  if (identical(value, _failedArg)) return true;
+  if (value is List) return value.any(_containsFailedArg);
+  if (value is Map) return value.values.any(_containsFailedArg);
+  return false;
 }
 
 /// One function call sent to the agent on a context's behalf.

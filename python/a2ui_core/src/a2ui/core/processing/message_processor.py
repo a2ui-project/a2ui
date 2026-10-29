@@ -509,6 +509,7 @@ class MessageProcessor:
             self._process_create_surface_op(op)
         elif isinstance(op, InternalDeleteSurfaceOp):
             self.model.delete_surface(op.surface_id)
+            self.rpc.cancel_surface_calls(op.surface_id)
         elif isinstance(op, InternalUpdateComponentsOp):
             self._process_update_components_op(op)
         elif isinstance(op, InternalUpdateDataModelOp):
@@ -984,3 +985,8 @@ class MessageProcessor:
         path = op.path or "/"
         value = op.value
         surface.data_model.set(path, value)
+
+    def dispose(self) -> None:
+        """Disposes of all active surfaces and cancels pending RPC calls."""
+        self.model.dispose()
+        self.rpc.dispose()
