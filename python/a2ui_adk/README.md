@@ -30,10 +30,6 @@ Available with the base install:
   processor's prompt to the model's instructions, compiles each tool call with
   the processor's parser, and validates the resulting A2UI JSON messages
   before they are sent.
-- `GenAIFileResolver` is a
-  [`FileResolver`](../a2ui_agent/src/a2ui/extensions/file_resolve) that
-  returns `google.genai.types.Part` objects. Its `as_tool_decorator` injects
-  the parts into a tool's `genai_parts` argument by default.
 
 Available with the `a2a` extra:
 

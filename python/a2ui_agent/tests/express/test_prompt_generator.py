@@ -79,7 +79,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         from a2ui.inference_formats import to_message_models
 
         example_payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "welcome",
                 "catalogId": self.catalog.catalog_id,
@@ -116,7 +116,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
 
         # Write a valid standard A2UI JSON example file
         example_payload = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "welcome",
                 "catalogId": self.catalog.catalog_id,
@@ -237,7 +237,8 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertEqual(helper.get_property_type("Button", "child"), "Child")
         self.assertEqual(helper.get_property_type("Card", "content"), "ChildList")
         self.assertEqual(
-            helper.get_function_property_schema("openUrl", "url"), {"type": "string"}
+            helper.get_function_property_schema("openUrl", "url"),
+            {"type": "string"},
         )
 
 

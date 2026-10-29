@@ -142,7 +142,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     // v1.0 catalogs spell the same reference without the absolute URL prefix.
     const catalog = Catalog.fromJson({
       catalogId: 'test_relative_checkable',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Input: {
           type: 'object',
@@ -223,7 +223,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     const rejects = (catalog: Record<string, unknown>, ref: string, pointer: string) =>
       assert.throws(
         () =>
-          Catalog.fromJson({catalogId: 'test_external_ref', protocolVersion: 'v1.0', ...catalog}),
+          Catalog.fromJson({catalogId: 'test_external_ref', protocolVersion: '1.0', ...catalog}),
         (err: unknown) =>
           err instanceof A2uiCatalogError &&
           err.message ===
@@ -315,7 +315,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     it('accepts local, catalog.json and common_types.json references', () => {
       const catalog = Catalog.fromJson({
         catalogId: 'test_allowed_refs',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {
           Label: {
             type: 'object',
@@ -757,7 +757,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       () =>
         Catalog.fromJson({
           catalogId: 'https://example.com/test.json',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           functions: {
             customFunc: {
               parameters: {
@@ -771,7 +771,7 @@ describe('Catalog.fromJson & schema_loader', () => {
 
     const catalog = Catalog.fromJson({
       catalogId: 'https://example.com/test.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       functions: {
         customFunc: {
           parameters: {
@@ -786,7 +786,7 @@ describe('Catalog.fromJson & schema_loader', () => {
   it('accepts parameters defined with $ref or combiners without treating them as shorthand maps', () => {
     const catalog = Catalog.fromJson({
       catalogId: 'https://example.com/test-ref.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       $defs: {
         MyArgs: {
           type: 'object',
@@ -879,7 +879,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       () =>
         Catalog.fromJson({
           catalogId: 'https://example.com/test-bad-allof.json',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           functions: {
             badFunc: {
               parameters: {
@@ -895,7 +895,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       () =>
         Catalog.fromJson({
           catalogId: 'https://example.com/test-bad-ref.json',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           $defs: {
             BadDefs: {
               type: 'object',

@@ -95,7 +95,7 @@ def _round_trip(compiler, decompiler, messages):
 
 def _create(components, **extra):
     return {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": SURFACE,
             "catalogId": BasicCatalog("1.0").catalog_id,
@@ -107,14 +107,14 @@ def _create(components, **extra):
 
 def _update(components):
     return {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {"surfaceId": SURFACE, "components": components},
     }
 
 
 def _renderer_call(function_call_id, url):
     return {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": function_call_id,
             "callFunction": {

@@ -72,7 +72,7 @@ public final class VersionAdapterFactory: @unchecked Sendable {
     }
   }
 
-  /// Resolves the version adapter for the specified version string (e.g. `"v1.0"` or `"v0.9.1"`).
+  /// Resolves the version adapter for the specified version string (e.g. `"1.0"` or `"v0.9.1"`).
   public func getAdapter(for version: String) throws -> any VersionAdapter {
     let key = canonicalizeVersionString(version)
     lock.lock()
@@ -83,7 +83,10 @@ public final class VersionAdapterFactory: @unchecked Sendable {
     guard let adapter = found else {
       let supported =
         supportedKeys
-        .map { $0.hasPrefix("v") ? $0 : "v\($0)" }
+        .map {
+          $0.compare("1.0", options: .numeric) != .orderedAscending || $0.hasPrefix("v")
+            ? $0 : "v\($0)"
+        }
         .sorted()
         .joined(separator: ", ")
       throw A2UIValidationError(
