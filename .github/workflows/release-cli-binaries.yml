@@ -17,19 +17,19 @@ name: Release CLI Binaries
 on:
   push:
     tags:
-      - 'cli-v*'
+      - "cli-v*"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g. 0.1.0). If empty, inferred from dart/a2ui_cli/pubspec.yaml'
+        description: "Version to release (e.g. 0.1.0). If empty, inferred from dart/a2ui_cli/pubspec.yaml"
         required: false
-        default: ''
+        default: ""
       dry_run:
-        description: 'Dry run (build, test, verify checksums without creating a GitHub release)'
+        description: "Dry run (build, test, verify checksums without creating a GitHub release)"
         type: boolean
         default: false
       draft:
-        description: 'Publish release as draft'
+        description: "Publish release as draft"
         type: boolean
         default: false
 
@@ -312,7 +312,7 @@ jobs:
         if: needs.preflight.outputs.is_dry_run != 'true'
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.2.3
         with:
-          subject-path: 'release-assets/*'
+          subject-path: "release-assets/*"
 
       - name: Extract Release Notes from CHANGELOG
         id: release_notes
@@ -341,6 +341,7 @@ jobs:
           VERSION: ${{ needs.preflight.outputs.version }}
           TITLE: "A2UI CLI v${{ needs.preflight.outputs.version }}"
           DRAFT_FLAG: ${{ needs.preflight.outputs.is_draft == 'true' && '--draft' || '' }}
+          TARGET_COMMIT: ${{ github.sha }}
         run: |
           PRERELEASE_FLAG=""
           if [[ "$VERSION" == *"-"* ]]; then
@@ -350,18 +351,21 @@ jobs:
           gh release create "$TAG" release-assets/* \
             --title "$TITLE" \
             --notes-file release_notes.md \
-            --target "${{ github.sha }}" \
+            --target "$TARGET_COMMIT" \
             $DRAFT_FLAG \
             $PRERELEASE_FLAG
 
       - name: Dry Run Summary
         if: needs.preflight.outputs.is_dry_run == 'true'
+        env:
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           echo "=========================================="
           echo "   A2UI CLI RELEASE DRY RUN SUCCESSFUL    "
           echo "=========================================="
-          echo "Tag:     ${{ needs.preflight.outputs.tag }}"
-          echo "Version: ${{ needs.preflight.outputs.version }}"
+          echo "Tag:     $TAG"
+          echo "Version: $VERSION"
           echo ""
           echo "Artifacts prepared:"
           ls -la release-assets/
