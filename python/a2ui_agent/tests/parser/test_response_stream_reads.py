@@ -98,9 +98,9 @@ def _texts(version: str, ids: list[str]) -> dict[str, Any]:
 def test_each_message_that_closed_is_applied_once():
     ids = [f"t{i}" for i in range(20)]
     payload = [
-        _create(_V10, "v1.0"),
+        _create(_V10, "1.0"),
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s",
                 "components": [{"id": "root", "component": "Column", "children": ids}],
@@ -108,7 +108,7 @@ def test_each_message_that_closed_is_applied_once():
         },
         *(
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "updateComponents": {
                     "surfaceId": "s",
                     "components": [{"id": i, "component": "Text", "text": i}],
@@ -126,7 +126,7 @@ def test_each_message_that_closed_is_applied_once():
 def test_a_growing_message_applies_only_the_components_it_gains():
     ids = [f"t{i}" for i in range(20)]
 
-    state, emitted = _stream(_V10, [_create(_V10, "v1.0"), _texts("v1.0", ids)])
+    state, emitted = _stream(_V10, [_create(_V10, "1.0"), _texts("1.0", ids)])
 
     # Each component is applied once, though the message is emitted again as
     # it grows, each time with every component it holds so far.
@@ -139,7 +139,9 @@ def test_a_healed_component_is_applied_again_only_while_it_grows():
     ids = ["a", "b"]
 
     state, emitted = _stream(
-        _V09, [_create(_V09, "v0.9"), _texts("v0.9", ids)], progressive_keys=["text"]
+        _V09,
+        [_create(_V09, "v0.9"), _texts("v0.9", ids)],
+        progressive_keys=["text"],
     )
 
     applied = _components(state.applied)
@@ -157,8 +159,8 @@ def test_a_healed_component_is_applied_again_only_while_it_grows():
 def test_a_data_model_update_is_emitted_as_it_grows_and_applied_once_it_closes():
     value = {"items": [{"name": f"Item {i}"} for i in range(10)]}
     payload = [
-        _create(_V10, "v1.0"),
-        {"version": "v1.0", "updateDataModel": {"surfaceId": "s", "value": value}},
+        _create(_V10, "1.0"),
+        {"version": "1.0", "updateDataModel": {"surfaceId": "s", "value": value}},
     ]
 
     state, emitted = _stream(_V10, payload)
@@ -175,9 +177,9 @@ def test_a_data_model_update_is_emitted_as_it_grows_and_applied_once_it_closes()
 
 def test_a_function_call_is_held_until_its_object_closes():
     payload = [
-        _create(_V10, "v1.0"),
+        _create(_V10, "1.0"),
         {
-            "version": "v1.0",
+            "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": "c1",
                 "callFunction": {
@@ -199,9 +201,9 @@ def test_a_function_call_is_held_until_its_object_closes():
 
 def test_a_component_id_repeated_in_a_growing_message_is_rejected():
     payload = [
-        _create(_V10, "v1.0"),
+        _create(_V10, "1.0"),
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s",
                 "components": [
@@ -221,9 +223,9 @@ def test_a_component_id_repeated_in_a_growing_message_is_rejected():
 def test_a_close_tag_in_a_string_does_not_end_the_block_however_it_is_cut(size):
     text = 'A \\" quote and a </a2ui-json> tag'
     payload = [
-        _create(_V10, "v1.0"),
+        _create(_V10, "1.0"),
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s",
                 "components": [{"id": "root", "component": "Text", "text": text}],

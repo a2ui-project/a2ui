@@ -58,7 +58,7 @@ def _function(args: dict[str, Any], required: list[str] | None = None):
     }
 
 
-def _primary(version: str = "v1.0") -> CatalogApi:
+def _primary(version: str = "1.0") -> CatalogApi:
     return Catalog.from_json(
         {
             "catalogId": PRI,
@@ -77,7 +77,7 @@ def _primary(version: str = "v1.0") -> CatalogApi:
     )
 
 
-def _secondary(version: str = "v1.0") -> CatalogApi:
+def _secondary(version: str = "1.0") -> CatalogApi:
     return Catalog.from_json(
         {
             "catalogId": SEC,
@@ -155,7 +155,9 @@ def _by_id(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _round_trip(
-    compiler: AtomCompiler, decompiler: AtomDecompiler, messages: list[dict[str, Any]]
+    compiler: AtomCompiler,
+    decompiler: AtomDecompiler,
+    messages: list[dict[str, Any]],
 ) -> str:
     """Decompiles messages, recompiles the text, and checks nothing changed."""
     text = decompiler.decompile(to_message_models(messages))
@@ -200,7 +202,10 @@ def test_compile_notification_card(compiler: AtomCompiler) -> None:
       (Button :action (Event "accept") (Text "Yes")))))"""
     message = _compile_one(compiler, text)
     surface = message["createSurface"]
-    assert surface["dataModel"] == {"icon": "check", "title": "Enable notification"}
+    assert surface["dataModel"] == {
+        "icon": "check",
+        "title": "Enable notification",
+    }
     comps = _components(message)
     assert comps["root"]["component"] == "Card"
     column = comps[comps["root"]["child"]]
@@ -250,8 +255,8 @@ def test_compile_primitives_and_bindings(compiler: AtomCompiler) -> None:
     comps = _components(
         _compile_one(
             compiler,
-            '(Column (Text $/user/name) (Text (@path "relative/x")) (Slider :value'
-            " $/v :min 0 :max 2.5))",
+            '(Column (Text $/user/name) (Text (@path "relative/x")) (Slider'
+            " :value $/v :min 0 :max 2.5))",
         )
     )
     first, second, slider = (comps[cid] for cid in comps["root"]["children"])
@@ -295,7 +300,9 @@ def test_tagged_children_list_and_id_references(compiler: AtomCompiler) -> None:
     assert children[1] == "existing_id"
 
 
-def test_invalid_enum_falls_back_to_schema_default(compiler: AtomCompiler) -> None:
+def test_invalid_enum_falls_back_to_schema_default(
+    compiler: AtomCompiler,
+) -> None:
     comps = _components(
         _compile_one(
             compiler,
@@ -392,7 +399,7 @@ def test_explicit_surface_without_components_still_creates_it(
 def test_delete_surface(compiler: AtomCompiler, decompiler: AtomDecompiler) -> None:
     message = _compile_one(compiler, '(deleteSurface "dashboard-1")')
     assert message == {
-        "version": "v1.0",
+        "version": "1.0",
         "deleteSurface": {"surfaceId": "dashboard-1"},
     }
     assert (
@@ -509,7 +516,7 @@ def test_escaping_round_trip(
     compiler: AtomCompiler, decompiler: AtomDecompiler
 ) -> None:
     message = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": compiler.catalogs[0].catalog_id,
@@ -581,7 +588,8 @@ def test_check_without_component_value_maps_positionally(
     # Without a component value nothing is bound implicitly, so the first
     # positional argument fills `value`, as for any function call.
     message = _compile_one(
-        compiler, '(TextField :label "x" :checks (regex $/other "^a$" "Must be a"))'
+        compiler,
+        '(TextField :label "x" :checks (regex $/other "^a$" "Must be a"))',
     )
     rule = _components(message)["root"]["checks"][0]
     assert rule == {
@@ -619,7 +627,7 @@ def test_checks_round_trip(compiler: AtomCompiler, decompiler: AtomDecompiler) -
 def test_raw_json_input_is_accepted(compiler: AtomCompiler) -> None:
     message = _compile_one(
         compiler,
-        '<a2ui-json>{"version": "v1.0", "deleteSurface": {"surfaceId": "j"}}'
+        '<a2ui-json>{"version": "1.0", "deleteSurface": {"surfaceId": "j"}}'
         "</a2ui-json>",
     )
     assert message["deleteSurface"]["surfaceId"] == "j"
@@ -647,7 +655,7 @@ def _tertiary() -> CatalogApi:
                 "check": _function({"pattern": {"type": "string"}}, ["pattern"]),
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
 
@@ -684,7 +692,11 @@ def test_names_resolve_by_unique_lookup_across_catalogs() -> None:
     assert comps["root"]["catalogId"] == PRI
     first, second = (comps[cid] for cid in comps["root"]["children"])
     assert first["catalogId"] == SEC
-    assert first["body"] == {"@call": "check", "catalogId": PRI, "args": {"value": "v"}}
+    assert first["body"] == {
+        "@call": "check",
+        "catalogId": PRI,
+        "args": {"value": "v"},
+    }
     assert second["body"] == {
         "@call": "secOnly",
         "catalogId": SEC,
@@ -751,7 +763,8 @@ def test_header_catalog_allowed_with_a_single_catalog() -> None:
 def test_update_components_carry_catalog_ids_with_several_catalogs() -> None:
     compiler = AtomCompiler([_primary(), _secondary()])
     message = _compile_one(
-        compiler, '(updateComponents "s")\n(Note :id "n" "x")\n(Label :id "l" "y")'
+        compiler,
+        '(updateComponents "s")\n(Note :id "n" "x")\n(Label :id "l" "y")',
     )
     assert {c["id"]: c["catalogId"] for c in _components(message).values()} == {
         "n": SEC,
@@ -789,7 +802,7 @@ def test_decompile_several_catalogs_names_only_ambiguous_catalogs() -> None:
     compiler, decompiler = AtomCompiler(catalogs), AtomDecompiler(catalogs)
     # Input with a createSurface catalog, as examples or history may have.
     messages = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": PRI,
@@ -912,7 +925,7 @@ def test_v0_9_prompt_rules_forbid_call_function() -> None:
     assert "callFunction" not in rules_v09
 
     cat_v10 = Catalog.from_json(
-        {"catalogId": PRI, "components": {}}, protocol_version="v1.0"
+        {"catalogId": PRI, "components": {}}, protocol_version="1.0"
     )
     generator_v10 = AtomFormat([cat_v10]).prompt_generator
     rules_v10 = generator_v10.generate_base_rules()
@@ -928,7 +941,7 @@ def test_catalogs_property_returns_a_copy() -> None:
 
 def test_prompt_examples_are_decompiled(basic: CatalogApi) -> None:
     payload = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "main",
             "catalogId": basic.catalog_id,

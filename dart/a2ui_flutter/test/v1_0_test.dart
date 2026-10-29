@@ -30,7 +30,7 @@ Map<String, Object?> _createSurface(
   List<Map<String, Object?>> components, {
   Map<String, Object?>? dataModel,
 }) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'createSurface': {
     'surfaceId': testSurfaceId,
     'catalogId': BasicCatalog.v1_0Id,

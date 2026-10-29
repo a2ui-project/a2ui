@@ -102,7 +102,7 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
       (testCase['catalog'] as Map<String, Object?>?)?['protocolVersion']
           as String? ??
       testCase['protocolVersion'] as String? ??
-      'v1.0';
+      '1.0';
 
   final catalog = Catalog<ComponentApi, FunctionImplementation>(
     id: catalogId,

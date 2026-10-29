@@ -272,7 +272,7 @@ void main() {
       expect(
         () => SurfaceModel<ComponentApi>(
           's1',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           defaultCatalog:
               catalogNamed('basic', protocolVersion: A2uiProtocolVersion.v1_0),
           availableCatalogs: [
@@ -282,7 +282,7 @@ void main() {
         throwsA(
           catalogError(
             "Protocol version mismatch: cannot mix catalog 'old' (v0.9) with "
-            'surface version v1.0.',
+            'surface version 1.0.',
             catalogId: 'old',
           ),
         ),
@@ -319,7 +319,7 @@ void main() {
       expect(
         () => SurfaceModel<ComponentApi>(
           's1',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           defaultCatalog:
               catalogNamed('basic', protocolVersion: A2uiProtocolVersion.v1_0),
           availableCatalogs: [catalogNamed('legacy')],
@@ -327,7 +327,7 @@ void main() {
         throwsA(
           catalogError(
             'Protocol version mismatch: cannot mix unversioned catalog '
-            "'legacy' with surface version v1.0.",
+            "'legacy' with surface version 1.0.",
             catalogId: 'legacy',
           ),
         ),
@@ -335,13 +335,13 @@ void main() {
       expect(
         () => SurfaceModel<ComponentApi>(
           's1',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           defaultCatalog: catalogNamed('legacy'),
         ),
         throwsA(
           catalogError(
             'Protocol version mismatch: cannot mix unversioned catalog '
-            "'legacy' with surface version v1.0.",
+            "'legacy' with surface version 1.0.",
             catalogId: 'legacy',
           ),
         ),

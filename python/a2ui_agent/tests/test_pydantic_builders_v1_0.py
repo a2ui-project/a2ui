@@ -248,7 +248,12 @@ def test_v1_0_components_specific_to_v1_0() -> None:
     dumped_tf = tf.model_dump(by_alias=True, exclude_none=True)
     assert dumped_tf["placeholder"] == "Enter your username"
     assert dumped_tf["checks"] == [
-        {"condition": {"@call": "required", "args": {"value": {"@path": "/username"}}}},
+        {
+            "condition": {
+                "@call": "required",
+                "args": {"value": {"@path": "/username"}},
+            }
+        },
         {
             "condition": {
                 "@call": "length",
@@ -432,7 +437,7 @@ def test_v1_0_end_to_end_flatten_and_wire_validation() -> None:
 
     # Test 1: Direct bundling in v1.0 CreateSurfaceMessage
     create_msg = CreateSurfaceMessage.model_validate({
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "settings_surface",
             "catalogId": (
@@ -447,7 +452,7 @@ def test_v1_0_end_to_end_flatten_and_wire_validation() -> None:
 
     # Test 2: Incremental update in v1.0 UpdateComponentsMessage
     update_msg = UpdateComponentsMessage.model_validate({
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "settings_surface",
             "components": flat,

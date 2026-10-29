@@ -107,9 +107,9 @@ _RendererCatalog _catalogOf(
 /// the case's protocol version, and `surface.catalogId` names its default.
 /// The case-level `catalogId` is the one the call names.
 Object? _evaluateOnSurface(Map<String, Object?> testCase) {
-  final version = 'v${caseVersion(testCase)!}';
   final A2uiProtocolVersion protocolVersion =
-      A2uiProtocolVersion.fromJson(version);
+      A2uiProtocolVersion.tryParseSemVer(caseVersion(testCase)!)!;
+  final String version = protocolVersion.jsonValue;
   final bool atLeastV1 = protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0);
   final List<_RendererCatalog> available = [
     for (final Object? path in testCase['catalogPaths']! as List<Object?>)

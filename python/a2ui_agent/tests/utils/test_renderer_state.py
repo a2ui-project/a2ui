@@ -41,7 +41,10 @@ _DELETE = {"version": "v0.9", "deleteSurface": {"surfaceId": "s"}}
 def _update(*components: dict[str, Any], surface_id: str = "s") -> dict[str, Any]:
     return {
         "version": "v0.9",
-        "updateComponents": {"surfaceId": surface_id, "components": list(components)},
+        "updateComponents": {
+            "surfaceId": surface_id,
+            "components": list(components),
+        },
     }
 
 
@@ -427,7 +430,10 @@ def test_a_rollback_restores_a_component_replaced_by_another_type():
 
 def test_a_rollback_restores_a_surface_deleted_and_created_again():
     state = _canvas()
-    data = {"version": "v0.9", "updateDataModel": {"surfaceId": "s", "value": {"n": 1}}}
+    data = {
+        "version": "v0.9",
+        "updateDataModel": {"surfaceId": "s", "value": {"n": 1}},
+    }
     _turn(state, data)
     before = _snapshot(state)
 
@@ -447,7 +453,10 @@ def test_a_rollback_restores_the_data_model():
         state,
         {
             "version": "v0.9",
-            "updateDataModel": {"surfaceId": "s", "value": {"a": {"b": 1}, "l": [1]}},
+            "updateDataModel": {
+                "surfaceId": "s",
+                "value": {"a": {"b": 1}, "l": [1]},
+            },
         },
     )
     before = _snapshot(state)
@@ -520,18 +529,18 @@ def test_a_rollback_restores_each_components_own_catalog_on_a_deleted_surface():
                 }
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
         catalog_id="items",
     )
     state = RendererState([basic, items])
     _turn(
         state,
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {"surfaceId": "s", "catalogId": basic.catalog_id},
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s",
                 "components": [
@@ -544,7 +553,7 @@ def test_a_rollback_restores_each_components_own_catalog_on_a_deleted_surface():
 
     with pytest.raises(A2uiValidationError):
         with state.transaction():
-            state.apply({"version": "v1.0", "deleteSurface": {"surfaceId": "s"}})
+            state.apply({"version": "1.0", "deleteSurface": {"surfaceId": "s"}})
             state.apply(_update(_text("a")))
 
     surface = state.get_surface("s")
@@ -599,13 +608,13 @@ _PARENTS_CATALOG = Catalog.from_json(
         },
     },
     catalog_id="custom",
-    protocol_version="v1.0",
+    protocol_version="1.0",
 )
 
 
 def _parents_update(*components: dict[str, Any]) -> dict[str, Any]:
     return {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {"surfaceId": "s", "components": list(components)},
     }
 
@@ -613,9 +622,10 @@ def _parents_update(*components: dict[str, Any]) -> dict[str, Any]:
 def _parents_canvas() -> RendererState:
     """A state where 'h' is the child of 'card' and then of 'box'."""
     state = RendererState([_PARENTS_CATALOG])
-    state.apply(
-        {"version": "v1.0", "createSurface": {"surfaceId": "s", "catalogId": "custom"}}
-    )
+    state.apply({
+        "version": "1.0",
+        "createSurface": {"surfaceId": "s", "catalogId": "custom"},
+    })
     state.apply(_parents_update({"id": "card", "component": "Card", "child": "h"}))
     state.apply(_parents_update({"id": "box", "component": "Box", "children": ["h"]}))
     state.apply(_parents_update({"id": "h", "component": "Header"}))
@@ -641,11 +651,14 @@ _OTHER_TEXT = Catalog.from_json(
     {
         "catalogId": "other",
         "components": {
-            "Text": {"type": "object", "properties": {"text": {"type": "string"}}}
+            "Text": {
+                "type": "object",
+                "properties": {"text": {"type": "string"}},
+            }
         },
     },
     catalog_id="other",
-    protocol_version="v1.0",
+    protocol_version="1.0",
 )
 
 
@@ -664,12 +677,12 @@ def test_a_rollback_keeps_the_position_of_a_component_moved_to_another_catalog(
 
     def update(*components):
         return {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {"surfaceId": "s", "components": list(components)},
         }
 
     state.apply({
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {"surfaceId": "s", "catalogId": _BASIC_V10.catalog_id},
     })
     state.apply(update({"id": "a", "component": "Text", "text": "1", **first}))

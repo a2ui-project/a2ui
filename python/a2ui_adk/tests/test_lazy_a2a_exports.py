@@ -64,7 +64,7 @@ def test_all_lists_every_export() -> None:
 
 def test_base_exports_work_without_a2a(adk_without_a2a) -> None:
     assert adk_without_a2a.SendA2uiToClientToolset is not None
-    assert adk_without_a2a.GenAIFileResolver is not None
+    assert adk_without_a2a.A2uiProcessorStore is not None
 
 
 @pytest.mark.parametrize("name", A2A_EXPORTS)

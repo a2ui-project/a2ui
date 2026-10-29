@@ -1,8 +1,10 @@
 ---
 codebase_path: typescript/renderers/angular
 associated_module: a2ui_framework_adapter
-module_blueprint_commit: null
-implemented_features: []
+module_blueprint_commit: b1dd650750c6072b4a42f95b03420273d099965e
+implemented_features:
+  node_resolution: b161f9bdc9395732b305b0adddfd182a36382f09
+  universal_custom_elements: b1dd650750c6072b4a42f95b03420273d099965e
 local_development:
   test_command: 'yarn test'
   lint_command: 'yarn lint'
@@ -13,14 +15,15 @@ local_development:
 
 ## **Architecture & Ecosystem Map**
 
-The Angular-native adapter rendering visual components dynamically.
+The Angular-native adapter (`@a2ui/angular`) rendering visual components and universal W3C Custom Elements dynamically.
 
-- **Reactivity**: Maps multi-cast Observables and BehaviorSubjects directly into native Angular Signals.
-- **Context Nesting**: Uses Angular's hierarchical Dependency Injection (DI) system to propagate context scopes and relative pointer paths seamlessly.
+- **Native Signal Reactivity (`initializeAngularReactivity`, `ComponentBinder`)**: Plugs Angular's `signal`, `computed`, and `effect` primitives into `@a2ui/web_core` via `setSignalImplementation`, and binds resolved `ComponentNode.props` (`binder.bindNode(node)`) or standalone `ComponentContext` properties (`binder.bind(context)`) into `BoundProperty<T>` signals.
+- **Surface & Host Resolution (`SurfaceComponent`, `ComponentHostComponent`)**: `SurfaceComponent` mounts a root `ComponentHostComponent`, which resolves `ComponentNode` instances through a per-surface `NodeResolver` and mounts either native Angular components (`NgComponentOutlet`) or universal Custom Elements.
+- **Universal Custom Elements (`AngularWcHost`, `toWebComponent`)**: Wraps Angular catalog components into W3C Custom Elements (`AngularWcHost`) that accept `el.node` and `el.context` so Angular components and Lit Web Components can be hosted interchangeably.
 
 ## **Local Technical Decisions & Overrides**
 
-- **Zone-Free Execution**: Decouples A2UI's intense state updates from Angular's global change detection cycles for performance optimization.
+- **OnPush & Signal-Driven Change Detection**: Uses `ChangeDetectionStrategy.OnPush` and Angular Signals across all host and catalog components.
 
 ## **Validation & Execution Recipes**
 
