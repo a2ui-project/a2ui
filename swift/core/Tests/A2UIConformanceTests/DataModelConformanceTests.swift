@@ -178,7 +178,7 @@ struct DataModelConformanceTests {
     for testCase in testCases {
       let processor = MessageProcessor(
         catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
-        validationConfig: ValidationConfig(targetVersion: "v1.0")
+        validationConfig: ValidationConfig(targetVersion: "1.0")
       )
 
       for step in testCase.steps {

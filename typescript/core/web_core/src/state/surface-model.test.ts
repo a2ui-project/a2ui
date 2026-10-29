@@ -80,7 +80,7 @@ describe('SurfaceModel', () => {
   });
 
   it('takes its protocol version from the default catalog unless one is given', () => {
-    assert.strictEqual(surface.protocolVersion, 'v1.0');
+    assert.strictEqual(surface.protocolVersion, '1.0');
     const noDefault = new SurfaceModel<ComponentApi>(
       'surface-no-default',
       undefined,
@@ -90,10 +90,10 @@ describe('SurfaceModel', () => {
       undefined,
       undefined,
       undefined,
-      'v1.0',
+      '1.0',
     );
     assert.strictEqual(noDefault.defaultCatalog, undefined);
-    assert.strictEqual(noDefault.protocolVersion, 'v1.0');
+    assert.strictEqual(noDefault.protocolVersion, '1.0');
     assert.strictEqual(noDefault.availableCatalogs.get(catalog.id), catalog);
   });
 
@@ -111,8 +111,8 @@ describe('SurfaceModel', () => {
       '1.0.0',
     );
     assert.strictEqual(catalog.protocolVersion, '1.0');
-    assert.strictEqual(fromCatalog.protocolVersion, 'v1.0');
-    assert.strictEqual(fromArgument.protocolVersion, 'v1.0');
+    assert.strictEqual(fromCatalog.protocolVersion, '1.0');
+    assert.strictEqual(fromArgument.protocolVersion, '1.0');
   });
 
   it('exposes the catalogs it was constructed with', () => {
@@ -226,11 +226,30 @@ describe('SurfaceModel', () => {
     assert.strictEqual(actions[3].userMessage, undefined);
   });
 
-  it('throws TypeError if 3rd argument is not a Map or undefined/null', () => {
-    assert.throws(() => new SurfaceModel('surface-err', catalog, {primaryColor: 'red'} as any), {
-      name: 'TypeError',
-      message: /availableCatalogs.*3rd argument.*theme.*4th argument/i,
-    });
+  it('takes a plain object in the 3rd argument as the theme of a pre-1.0 caller', () => {
+    const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
+    const legacy = new SurfaceModel('surface-legacy', v09Catalog, {primaryColor: 'red'});
+    assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
+    assert.strictEqual(legacy.sendDataModel, false);
+    assert.strictEqual(legacy.availableCatalogs.get(v09Catalog.id), v09Catalog);
+  });
+
+  it('shifts sendDataModel and dataModel along with the pre-1.0 theme', () => {
+    const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
+    const customData = new DataModel({custom: 'data'});
+    const legacy = new SurfaceModel(
+      'surface-legacy',
+      v09Catalog,
+      {primaryColor: 'red'},
+      true,
+      customData,
+    );
+    assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
+    assert.strictEqual(legacy.sendDataModel, true);
+    assert.strictEqual(legacy.dataModel, customData);
+  });
+
+  it('throws TypeError if 3rd argument is neither a Map, a theme object, nor undefined/null', () => {
     assert.throws(() => new SurfaceModel('surface-err', catalog, [catalog] as any), {
       name: 'TypeError',
       message: /availableCatalogs.*3rd argument.*theme.*4th argument/i,

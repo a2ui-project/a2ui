@@ -265,7 +265,7 @@ struct RendererToAgentMessageTests {
     let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
     let json = try #require(String(data: data, encoding: .utf8))
-    #expect(json.contains("\"version\":\"v1.0\""))
+    #expect(json.contains("\"version\":\"1.0\""))
   }
 
   @Test func encodeProducesFlatActionPayload() throws {
@@ -340,7 +340,7 @@ struct RendererToAgentMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "surfaceId": "main",
           "functionCallId": "call_1",
@@ -384,7 +384,7 @@ struct RendererToAgentMessageTests {
     #expect(
       json == """
         {"callAgentFunction":{"callFunction":{"@call":"fetchData","args":{"query":"weather"},\
-        "catalogId":"custom"},"functionCallId":"call_1","surfaceId":"main"},"version":"v1.0"}
+        "catalogId":"custom"},"functionCallId":"call_1","surfaceId":"main"},"version":"1.0"}
         """
     )
     let decoded = try JSONDecoder().decode(RendererToAgentMessage.self, from: Data(json.utf8))
@@ -399,7 +399,7 @@ struct RendererToAgentMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "call_2",
           "value": "ok"

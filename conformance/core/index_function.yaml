@@ -15,11 +15,11 @@
 - name: test_index_function_in_collection_loop
   description: Verifies built-in @index function evaluation during collection template iteration.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: main
             catalogId: basic
@@ -66,11 +66,11 @@
 - name: test_index_function_with_offset
   description: Verifies built-in @index function with offset argument (@index(1) for 1-based indexing).
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: main
             catalogId: basic
@@ -100,11 +100,11 @@
 - name: test_index_function_nested_path
   description: Verifies built-in @index function evaluation inside a deeply nested child property path of a template list.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: main
             catalogId: basic
@@ -143,11 +143,11 @@
 - name: test_index_function_outside_loop_error
   description: Verifies error thrown when @index function is called outside a collection iteration scope.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"

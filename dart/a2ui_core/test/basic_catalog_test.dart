@@ -161,7 +161,7 @@ void main() {
 
     for (final (String label, _RendererCatalog catalog, String path) in [
       ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
-      ('v1.0', v10, 'catalogs/basic/v1/catalog.json'),
+      ('1.0', v10, 'catalogs/basic/v1/catalog.json'),
     ]) {
       test('$label implements every published function, and no other', () {
         final Map<String, Object?> document = published(path);

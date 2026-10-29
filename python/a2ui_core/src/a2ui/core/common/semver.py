@@ -124,7 +124,9 @@ def to_semver(v: ProtocolVersion | str | SemVer | None) -> Optional[SemVer]:
 _to_semver = to_semver
 
 
-def to_protocol_version(version: ProtocolVersion | str | SemVer) -> ProtocolVersion:
+def to_protocol_version(
+    version: ProtocolVersion | str | SemVer,
+) -> ProtocolVersion:
     """Returns the ProtocolVersion member that a version designates.
 
     The major, minor and patch numbers must match a member; pre-release and
