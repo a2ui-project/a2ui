@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import contextlib
 import glob
 import json
@@ -23,7 +24,7 @@ from typing import Any
 import pytest
 import yaml
 
-from a2ui.core.catalog import Catalog, CatalogApi
+from a2ui.core.catalog import Catalog, CatalogApi, FunctionApi
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.common import to_canonical_version
 from a2ui.core.schema import ProtocolVersion
@@ -654,6 +655,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_evaluate_function_case(case)
     elif action == "dispatch_action":
         validate_dispatch_action_case(case)
+    elif action == "route_agent_function":
+        validate_route_agent_function_case(case)
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."
@@ -2100,3 +2103,142 @@ def validate_evaluate_function_case(case: dict[str, Any]) -> None:
         result = _invoke()
         expected = case.get("expect")
         assert result == expected
+
+
+def _routing_catalogs(case: dict[str, Any], version: str) -> list[Catalog]:
+    """Builds the catalogs of a `route_agent_function` case.
+
+    `localFunctions` take the SDK's basic catalog implementations for the
+    case's protocol version. `agentFunctions` are declared with their argument
+    schema and no implementation, so they are schema-only.
+    """
+    basic = v10_catalog if _normalize_version(version) == "1.0" else v09_catalog
+    catalogs = []
+    for spec in case.get("catalogs") or []:
+        functions: list[Any] = [
+            basic.functions[name] for name in spec.get("localFunctions") or []
+        ]
+        for name, declaration in (spec.get("agentFunctions") or {}).items():
+            functions.append(
+                FunctionApi(
+                    name=name,
+                    schema=declaration["args"],
+                    requires_user_activation=declaration.get(
+                        "requiresUserActivation", False
+                    ),
+                )
+            )
+        catalogs.append(Catalog(spec["catalogId"], version, [], functions))
+    return catalogs
+
+
+async def _flush_async_work() -> None:
+    """Lets the callbacks of settled futures, and those they schedule, run."""
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+
+async def _run_route_agent_function_case(case: dict[str, Any]) -> None:
+    version = _normalize_version(case["protocolVersion"])
+    wire_version = "1.0" if version == "1.0" else f"v{version}"
+    surface_spec = case.get("surface") or {}
+    outbound: list[dict[str, Any]] = []
+    processor = MessageProcessor(
+        _routing_catalogs(case, version),
+        options=MessageProcessorOptions(
+            outbound_listener=(
+                None
+                if surface_spec.get("outboundListener") is False
+                else outbound.append
+            ),
+        ),
+    )
+    create_surface: dict[str, Any] = {"surfaceId": "main"}
+    if "catalogId" in surface_spec:
+        create_surface["catalogId"] = surface_spec["catalogId"]
+    processor.process_messages(
+        [{"version": wire_version, "createSurface": create_surface}]
+    )
+    surface = processor.model.get_surface("main")
+    assert surface is not None
+    if case.get("dataModel") is not None:
+        surface.data_model.set("/", case["dataModel"])
+
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+    context = DataContext(surface, "/")
+    # Current values of the binding and check evaluations, in order.
+    values: list[Any] = []
+    subscriptions: list[Any] = []
+    outbound_seen = 0
+    errors_seen = 0
+    try:
+        for index, step in enumerate(case.get("steps") or []):
+            label = f"step {index}"
+            if "evaluate" in step:
+                kind = step.get("as", "binding")
+                if kind == "action":
+                    context.resolve_action({"functionCall": step["evaluate"]})
+                else:
+                    slot = len(values)
+                    values.append(None)
+
+                    def _on_change(value: Any, slot: int = slot) -> None:
+                        values[slot] = value
+
+                    sub = context.subscribe_dynamic_value(step["evaluate"], _on_change)
+                    values[slot] = sub.value
+                    subscriptions.append(sub)
+            elif "respond" in step:
+                response = dict(step["respond"])
+                call_index = response.pop("call")
+                calls = [m for m in outbound if "callAgentFunction" in m]
+                call_id = calls[call_index]["callAgentFunction"]["functionCallId"]
+                processor.process_messages([{
+                    "version": "1.0",
+                    "agentFunctionResponse": {"functionCallId": call_id, **response},
+                }])
+            else:
+                pytest.fail(f"{label}: a step needs 'evaluate' or 'respond'.")
+            await _flush_async_work()
+
+            sent = outbound[outbound_seen:]
+            outbound_seen = len(outbound)
+            for message in sent:
+                assert "callAgentFunction" in message, f"{label}: unexpected {message}"
+                assert message["callAgentFunction"]["surfaceId"] == "main", label
+            assert [m["callAgentFunction"]["callFunction"] for m in sent] == step.get(
+                "expectOutbound", []
+            ), f"{label}: outbound callFunction payloads"
+
+            reported = errors[errors_seen:]
+            errors_seen = len(errors)
+            expected_errors = step.get("expectErrors", [])
+            assert len(reported) == len(
+                expected_errors
+            ), f"{label}: reported {reported}"
+            for actual, expected in zip(reported, expected_errors):
+                assert actual["code"] == expected["code"], f"{label}: {actual}"
+                if "message" in expected:
+                    assert (
+                        expected["message"] in actual["message"]
+                    ), f"{label}: {actual}"
+
+            if "expectValues" in step:
+                assert values == step["expectValues"], f"{label}: values"
+    finally:
+        for sub in subscriptions:
+            sub.unsubscribe()
+
+
+def validate_route_agent_function_case(case: dict[str, Any]) -> None:
+    """Runs a `route_agent_function` case.
+
+    Function calls are evaluated on surface `main`, created through a
+    `MessageProcessor`, and the `callAgentFunction` messages it sends are
+    answered with `agentFunctionResponse`. A `binding` subscribes to the call
+    as a dynamic value, as a component binding does; a `check` subscribes to it
+    as the condition of a check rule, as the generic binder does; an `action`
+    resolves it as the `functionCall` of an action, within a user activation.
+    """
+    asyncio.run(_run_route_agent_function_case(case))

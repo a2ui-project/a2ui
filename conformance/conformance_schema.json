@@ -30,6 +30,7 @@
       {"$ref": "#/$defs/CreateProcessorTest"},
       {"$ref": "#/$defs/EvaluateFunctionTest"},
       {"$ref": "#/$defs/DispatchActionTest"},
+      {"$ref": "#/$defs/RouteAgentFunctionTest"},
       {"$ref": "#/$defs/DeriveTest"}
     ]
   },
@@ -818,6 +819,181 @@
         }
       },
       "required": ["name", "action", "actionPayload"],
+      "additionalProperties": false
+    },
+    "RouteAgentFunctionTest": {
+      "type": "object",
+      "description": "Evaluates function calls on surface `main`, created through a message processor, and answers the `callAgentFunction` messages the processor sends, to check the fallback routing of calls to the agent. After each step the harness lets pending asynchronous work run, then checks the step's expectations.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "action": {
+          "const": "route_agent_function"
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "catalogs": {
+          "type": "array",
+          "description": "The catalogs the processor holds, each built for protocolVersion.",
+          "items": {
+            "$ref": "#/$defs/RoutingCatalog"
+          },
+          "minItems": 1
+        },
+        "surface": {
+          "type": "object",
+          "properties": {
+            "catalogId": {
+              "type": "string",
+              "description": "The surface default catalog, one of `catalogs`. Omit it for a surface without a default catalog."
+            },
+            "outboundListener": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether the processor has a way to send outbound messages. Without one, no call is routed."
+            }
+          },
+          "additionalProperties": false
+        },
+        "dataModel": {
+          "type": "object",
+          "description": "Initial data model of the surface."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RoutingStep"
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["name", "action", "protocolVersion", "catalogs", "surface", "steps"],
+      "additionalProperties": false
+    },
+    "RoutingCatalog": {
+      "type": "object",
+      "properties": {
+        "catalogId": {
+          "type": "string"
+        },
+        "localFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Functions the catalog implements, taken from the SDK's basic catalog for protocolVersion."
+        },
+        "agentFunctions": {
+          "type": "object",
+          "description": "Functions the catalog declares without an implementation (schema-only), by name. An SDK that cannot declare such a function lists the cases that use them as known divergences.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "args": {
+                "type": "object",
+                "description": "JSON Schema of the function's args."
+              },
+              "requiresUserActivation": {
+                "type": "boolean"
+              }
+            },
+            "required": ["args"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["catalogId"],
+      "additionalProperties": false
+    },
+    "RoutingStep": {
+      "type": "object",
+      "description": "One operation, `evaluate` or `respond`, and what must hold once it has settled. Omitting expectOutbound or expectErrors means the step sends no callAgentFunction or reports no error.",
+      "properties": {
+        "evaluate": {
+          "type": "object",
+          "description": "A FunctionCall to evaluate on the surface's root data context."
+        },
+        "as": {
+          "enum": ["binding", "check", "action"],
+          "default": "binding",
+          "description": "How the call is evaluated: as a component binding, as the condition of a check rule, or as the functionCall of an action that runs with user activation."
+        },
+        "respond": {
+          "type": "object",
+          "description": "An agentFunctionResponse to the callAgentFunction at index `call` among those the case has sent, with a `value` or an `error`.",
+          "properties": {
+            "call": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["call"],
+          "oneOf": [
+            {
+              "required": ["value"]
+            },
+            {
+              "required": ["error"]
+            }
+          ],
+          "additionalProperties": false
+        },
+        "expectOutbound": {
+          "type": "array",
+          "description": "The callFunction payloads of the callAgentFunction messages the step sent, in order. Every message names surface `main`; functionCallId is not compared.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "expectErrors": {
+          "type": "array",
+          "description": "The errors the surface reported during the step, in order. `message` is a substring of the reported message.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code"],
+            "additionalProperties": false
+          }
+        },
+        "expectValues": {
+          "type": "array",
+          "description": "The current value of every binding and check evaluated so far, in order, with null for a pending value. A check's value is whether its rule passes."
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["evaluate"]
+        },
+        {
+          "required": ["respond"]
+        }
+      ],
       "additionalProperties": false
     },
     "NodeResolutionFixture": {

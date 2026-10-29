@@ -130,7 +130,17 @@ const SKIP_TEST_NAMES = new Set();
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const KNOWN_DIVERGENCES = new Map();
+const KNOWN_DIVERGENCES = new Map([
+  [
+    'core/agent_function_routing.yaml',
+    new Map([
+      [
+        'test_agent_routing_agent_result_feeds_local_function',
+        'a binding runs a function while an asynchronous argument is still pending, with that argument undefined, instead of waiting for it to settle',
+      ],
+    ]),
+  ],
+]);
 
 /**
  * The `expect` keys a `from_json` case may use (`FromJsonExpect` in
@@ -432,6 +442,9 @@ async function runConformanceHarness() {
             break;
           case 'dispatch_action':
             validateDispatchActionTestCase(testCase);
+            break;
+          case 'route_agent_function':
+            await validateRouteAgentFunctionTestCase(testCase);
             break;
           default:
             throw new Error(`Unhandled action type in conformance harness: '${action}'`);
@@ -2650,6 +2663,168 @@ function validateEvaluateFunctionTestCase(testCase) {
     } else {
       globalThis.window = originalWindow;
     }
+  }
+}
+
+/** Lets pending promise callbacks and timers that are already due run. */
+const flushAsyncWork = async () => {
+  for (let i = 0; i < 3; i++) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+};
+
+/**
+ * Builds the catalogs of a `route_agent_function` case.
+ *
+ * `localFunctions` take web_core's basic catalog implementations for the
+ * case's protocol version. `agentFunctions` are declared without an
+ * implementation, as a catalog document loaded with `Catalog.fromJson`
+ * declares them, so they are schema-only.
+ */
+function buildRoutingCatalogs(testCase, version) {
+  const basicFunctions =
+    toCanonicalVersion(version) === '1.0' ? V1_0_BASIC_FUNCTIONS : V0_9_BASIC_FUNCTIONS;
+  return (testCase.catalogs ?? []).map(spec => {
+    const functions = (spec.localFunctions ?? []).map(name => {
+      const fn = basicFunctions.find(candidate => candidate.name === name);
+      if (!fn) throw new Error(`web_core's basic catalog has no function '${name}'.`);
+      return fn;
+    });
+    const agentFunctions = Object.entries(spec.agentFunctions ?? {});
+    if (agentFunctions.length > 0) {
+      const document = Catalog.fromJson({
+        catalogId: spec.catalogId,
+        protocolVersion: version,
+        components: {},
+        functions: Object.fromEntries(
+          agentFunctions.map(([name, declaration]) => [
+            name,
+            {
+              type: 'object',
+              ...(declaration.requiresUserActivation ? {requiresUserActivation: true} : {}),
+              properties: {'@call': {const: name}, args: declaration.args},
+              required: ['@call', 'args'],
+            },
+          ]),
+        ),
+      });
+      functions.push(...document.functions.values());
+    }
+    return new Catalog(spec.catalogId, version, [], functions);
+  });
+}
+
+/**
+ * Runs a `route_agent_function` case: evaluates function calls on a surface
+ * created through a `MessageProcessor`, answers the `callAgentFunction`
+ * messages the processor sends, and checks the values and reported errors.
+ *
+ * A `binding` subscribes to the call as a dynamic value, as a component
+ * binding does; a `check` subscribes to it as the condition of a check rule,
+ * as the generic binder does; an `action` resolves it as the `functionCall` of
+ * an action, which runs it within a user activation.
+ */
+async function validateRouteAgentFunctionTestCase(testCase) {
+  const version = resolveProtocolVersion(testCase);
+  const wireVersion =
+    toCanonicalVersion(version) === '1.0' ? '1.0' : `v${toCanonicalVersion(version)}`;
+  const surfaceSpec = testCase.surface ?? {};
+  const outbound = [];
+  const processor = new MessageProcessor(buildRoutingCatalogs(testCase, version), undefined, {
+    outboundListener:
+      surfaceSpec.outboundListener === false ? undefined : message => outbound.push(message),
+  });
+  const createSurface = {surfaceId: 'main'};
+  if (surfaceSpec.catalogId !== undefined) createSurface.catalogId = surfaceSpec.catalogId;
+  processor.processMessages([{version: wireVersion, createSurface}]);
+  const surface = processor.getSurface('main');
+  if (testCase.dataModel !== undefined) surface.dataModel.set('/', testCase.dataModel);
+
+  const errors = [];
+  const errorSubscription = surface.onError.subscribe(err => errors.push(err));
+  const ctx = new DataContext(surface, '/');
+  /** Current values of the binding and check evaluations, in order. */
+  const values = [];
+  const subscriptions = [];
+  let outboundSeen = 0;
+  let errorsSeen = 0;
+
+  try {
+    for (const [index, step] of (testCase.steps ?? []).entries()) {
+      const label = `step ${index}`;
+      if (step.evaluate !== undefined) {
+        const as = step.as ?? 'binding';
+        if (as === 'action') {
+          const result = ctx.resolveAction({functionCall: step.evaluate});
+          // The action's own outcome is reported on the surface.
+          Promise.resolve(result).catch(() => {});
+        } else {
+          const slot = values.length;
+          values.push(undefined);
+          const bound = ctx.subscribeDynamicValue(step.evaluate, value => {
+            values[slot] = value;
+          });
+          values[slot] = bound.value;
+          subscriptions.push(bound);
+        }
+      } else if (step.respond !== undefined) {
+        const {call, ...response} = step.respond;
+        const message = outbound.filter(m => m.callAgentFunction)[call];
+        assert.ok(message, `${label}: no callAgentFunction at index ${call}`);
+        processor.processMessages([
+          {
+            version: '1.0',
+            agentFunctionResponse: {
+              functionCallId: message.callAgentFunction.functionCallId,
+              ...response,
+            },
+          },
+        ]);
+      } else {
+        throw new Error(`${label}: a step needs 'evaluate' or 'respond'.`);
+      }
+      await flushAsyncWork();
+
+      const sent = outbound.slice(outboundSeen);
+      outboundSeen = outbound.length;
+      for (const message of sent) {
+        assert.ok(message.callAgentFunction, `${label}: unexpected outbound message`);
+        assert.strictEqual(message.callAgentFunction.surfaceId, 'main', `${label}: surfaceId`);
+      }
+      assert.deepStrictEqual(
+        sent.map(message => message.callAgentFunction.callFunction),
+        step.expectOutbound ?? [],
+        `${label}: outbound callFunction payloads`,
+      );
+
+      const reported = errors.slice(errorsSeen);
+      errorsSeen = errors.length;
+      const expectedErrors = step.expectErrors ?? [];
+      assert.strictEqual(
+        reported.length,
+        expectedErrors.length,
+        `${label}: reported errors ${JSON.stringify(reported)}`,
+      );
+      expectedErrors.forEach((expected, i) => {
+        assert.strictEqual(reported[i].code, expected.code, `${label}: error code`);
+        if (expected.message !== undefined) {
+          assert.ok(
+            reported[i].message.includes(expected.message),
+            `${label}: error message '${reported[i].message}' lacks '${expected.message}'`,
+          );
+        }
+      });
+
+      if (step.expectValues !== undefined) {
+        const actual = values.map(value =>
+          value === undefined ? null : JSON.parse(JSON.stringify(value)),
+        );
+        assert.deepStrictEqual(actual, step.expectValues, `${label}: values`);
+      }
+    }
+  } finally {
+    subscriptions.forEach(bound => bound.unsubscribe());
+    errorSubscription.unsubscribe();
   }
 }
 

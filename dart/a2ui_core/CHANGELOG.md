@@ -18,6 +18,11 @@
     only when the surface is v1.0 and the processor has an
     `outboundListener`. Without one, a call to a missing function stays a
     local `EXPRESSION_ERROR` instead of failing with `NO_LISTENER`.
+  - **Breaking:** An agent error or timeout (`A2uiRpcError`) in a dynamic
+    value, a `checks` rule or a `functionCall` action is reported on
+    `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of
+    `EXECUTION_ERROR`, as the other SDKs report it. The error still names the
+    `functionCallId`, and carries the agent's message.
 - A function call naming a `catalogId` on a `DataContext` created without
   `invokerForCatalog` is now reported as a `CATALOG_ERROR` rather than an
   `EXPRESSION_ERROR`.

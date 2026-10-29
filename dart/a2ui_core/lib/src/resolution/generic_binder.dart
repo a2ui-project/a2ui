@@ -633,11 +633,11 @@ class GenericBinder {
   ///
   /// On a v1.0 surface a function no catalog implements is sent to the agent
   /// and awaited. Synchronous lookup, argument, and execution errors are
-  /// reported through the context's error reporter; a function that returns a
-  /// failing `Future` or an agent call that fails is reported through
-  /// `SurfaceModel.dispatchError` as `EXECUTION_ERROR`, naming the
-  /// `functionCallId` when there is one, so the error does not escape a
-  /// renderer callback that doesn't await the action.
+  /// reported through the context's error reporter. A function that returns
+  /// a failing `Future` is reported through `SurfaceModel.dispatchError` as
+  /// `EXECUTION_ERROR`, and an agent call that fails or times out as
+  /// `EXPRESSION_ERROR` naming its `functionCallId`, so the error does not
+  /// escape a renderer callback that doesn't await the action.
   Future<void> _runLocalFunction(Map<String, dynamic> functionCall) async {
     try {
       await context.dataContext
@@ -649,7 +649,7 @@ class GenericBinder {
           e is A2uiRpcError ? e.functionCallId : null;
       await context.surface.dispatchError(
         A2uiRendererError(
-          code: 'EXECUTION_ERROR',
+          code: e is A2uiRpcError ? 'EXPRESSION_ERROR' : 'EXECUTION_ERROR',
           surfaceId: functionCallId == null ? context.surface.id : null,
           functionCallId: functionCallId,
           message: "Function '$fnName' failed in component "

@@ -188,7 +188,7 @@ void main() {
       await _flush();
       expect(value.value, isNull);
       expect(clientErrors, hasLength(1));
-      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.functionCallId, 'fc-9');
       expect(clientErrors.single.message, contains('agent said no'));
@@ -247,7 +247,7 @@ void main() {
       expect(clientErrors, hasLength(1));
     });
 
-    test('NodeResolver reports agent RPC failure with EXECUTION_ERROR and id',
+    test('NodeResolver reports agent RPC failure with EXPRESSION_ERROR and id',
         () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final resolver = NodeResolver<ComponentApi>(surface);
@@ -268,7 +268,7 @@ void main() {
       );
       await _flush();
       expect(clientErrors, hasLength(1));
-      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.functionCallId, 'fc-node');
       expect(clientErrors.single.message, contains('node rpc fail'));
@@ -644,7 +644,7 @@ void main() {
       expect(binder.resolvedProps.value['validationPending'], isFalse);
       expect(binder.resolvedProps.value['isValid'], isFalse);
       expect(binder.resolvedProps.value['validationErrors'], ['Remote rule']);
-      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.functionCallId, 'fc-2');
     });
 
@@ -695,7 +695,7 @@ void main() {
       expect(clientErrors, isEmpty);
     });
 
-    test('an agent failure dispatches EXECUTION_ERROR with the call id',
+    test('an agent failure dispatches EXPRESSION_ERROR with the call id',
         () async {
       final Future<void> done = invokeAction({
         'functionCall': {'@call': 'remoteAction', 'args': <String, Object?>{}},
@@ -707,7 +707,7 @@ void main() {
       );
       await done;
       expect(clientErrors, hasLength(1));
-      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.functionCallId, 'fc-7');
       expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.message, contains('refused'));
