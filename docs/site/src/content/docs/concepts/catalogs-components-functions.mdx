@@ -25,119 +25,6 @@ A single catalog document serves both sides of the runtime:
 - **On the Agent Server**: The Agent SDK (`@a2ui/agent`, `a2ui-agent-sdk`, `a2ui_agent`) reads the catalog's component schemas, function signatures, and markdown `instructions` to synthesize the LLM system prompt and validate outgoing messages as they stream.
 - **On the Client Renderer**: The Core SDK (`@a2ui/web_core`, `a2ui_core`, `A2UICore`) pairs the catalog's schemas with native widget implementations (Flutter widgets, React components, Angular components, Lit elements, SwiftUI views, or Jetpack Compose composables) and executable function implementations.
 
-#### Capability Negotiation & Catalog Resolution
-
-At the start of a session or turn, the client advertises the catalogs it can render inside `a2uiRendererCapabilities`:
-
-```json
-{
-  "version": "1.0",
-  "a2uiRendererCapabilities": {
-    "supportedCatalogIds": [
-      "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-      "https://example.com/catalogs/travel/v1/catalog.json"
-    ]
-  }
-}
-```
-
-When the agent creates a surface or renders a component, the client resolves the target catalog using a strict **three-step resolution order**:
-
-1. **Component or Function Override (`catalogId`)**: In v1.0, an individual component object or `@call` expression can specify its own `catalogId` property to pull a component or function from a secondary catalog on the same surface.
-2. **Surface Default (`createSurface.catalogId`)**: If the component or function omits `catalogId`, it inherits the `catalogId` declared on the enclosing `createSurface` message.
-3. **Resolution Error (`CATALOG_ERROR`)**: If neither the component/function nor `createSurface` specifies a `catalogId` (or if the requested `catalogId` is not registered on the renderer), the processor raises a catalog resolution error. It never guesses or falls back to an arbitrary entry in `supportedCatalogIds`.
-
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-```json
-[
-  {
-    "version": "1.0",
-    "createSurface": {
-      "surfaceId": "itinerary_panel",
-      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-      "components": [
-        {
-          "id": "root",
-          "component": "Column",
-          "children": ["header_text", "flight_card"]
-        },
-        {
-          "id": "header_text",
-          "component": "Text",
-          "text": "Upcoming Trip to Tokyo"
-        },
-        {
-          "id": "flight_card",
-          "component": "FlightStatusCard",
-          "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
-          "flightNumber": "NH 105",
-          "fareAmount": {
-            "@path": "/trip/fare"
-          }
-        }
-      ],
-      "dataModel": {
-        "trip": {
-          "fare": 1240.5
-        }
-      }
-    }
-  }
-]
-```
-  </TabItem>
-  <TabItem label="v0.9.1 (Current)">
-```json
-[
-  {
-    "version": "v0.9",
-    "createSurface": {
-      "surfaceId": "itinerary_panel",
-      "catalogId": "https://example.com/catalogs/travel/v1/catalog.json"
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "itinerary_panel",
-      "components": [
-        {
-          "id": "root",
-          "component": "Column",
-          "children": ["header_text", "flight_card"]
-        },
-        {
-          "id": "header_text",
-          "component": "Text",
-          "text": "Upcoming Trip to Tokyo"
-        },
-        {
-          "id": "flight_card",
-          "component": "FlightStatusCard",
-          "flightNumber": "NH 105",
-          "fareAmount": {
-            "path": "/trip/fare"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "itinerary_panel",
-      "path": "/trip",
-      "value": {
-        "fare": 1240.5
-      }
-    }
-  }
-]
-```
-  </TabItem>
-</Tabs>
-
 ---
 
 ### 2. Components
@@ -518,27 +405,136 @@ let travelCatalog = Catalog(
   </TabItem>
   <TabItem label="Jetpack Compose">
 ```kotlin
-// Jetpack Compose renderer integration (planned — tracked in A2UI Roadmap)
-// Compose catalogs follow the same Spec-Driven Development (SDD) contract:
-// mapping each ComponentApi name to a @Composable builder function.
+// [TODO]: Add Jetpack Compose catalog registration example.
+// The Jetpack Compose A2UI renderer maps each ComponentApi name to a @Composable builder function.
 ```
   </TabItem>
 </Tabs>
 
 ---
 
-## The Basic Catalog & Hybrid Composition
+## The Basic Catalog
 
-A2UI ships with an official **Basic Catalog** ([`catalogs/basic/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/basic/v1/catalog.json) for v1.0, and [`specification/v0_9_1/json/basic_catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9_1/json/basic_catalog.json) for v0.9.1) containing 18 general-purpose UI components and 14 standard functions:
+A2UI provides an official **Basic Catalog** ([`catalogs/basic/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/basic/v1/catalog.json) for v1.0, and [`specification/v0_9_1/json/basic_catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9_1/json/basic_catalog.json) for v0.9.1) containing 18 general-purpose UI components and 14 standard functions:
 
 - **Layout & Containers**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Display & Media**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
 - **Interactive Inputs**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 - **Formatting, Validation & Logic Functions**: `formatString`, `formatNumber`, `formatCurrency`, `formatDate`, `pluralize`, `required`, `regex`, `length`, `numeric`, `email`, `openUrl`, `and`, `or`, `not`
 
-The Basic Catalog is a **styleable reference catalog**, not a rigid constraint. Teams typically adopt one of four patterns:
+The Basic Catalog serves as a styleable reference catalog for common layouts and input controls. Teams can use its schema directly for general user journeys, or map its components to internal design system components on client renderers.
 
-1. **Use the Basic Catalog Out of the Box**: Ideal for prototyping, chat assistants, and dynamic forms where standard layouts and inputs cover the user journey.
-2. **Re-skin or Re-implement the Basic Catalog**: Keep the canonical Basic Catalog JSON schema so agents require zero prompt changes, but map `Button`, `Card`, and `TextField` to your organization's internal design system components on the client.
-3. **Derive a Hybrid Catalog (`Catalog.derive`)**: Combine structural primitives from the Basic Catalog (`Row`, `Column`, `Text`, `formatCurrency`) with high-value domain components (`FlightStatusCard`, `SeatMapPicker`) under your own versioned `catalogId`.
-4. **Mix Multiple Catalogs on One Surface**: In v1.0, set the Basic Catalog as the surface default in `createSurface.catalogId` and override `catalogId` on individual domain components where specialized widgets are needed.
+---
+
+## Capability Negotiation & Catalog Resolution
+
+At the start of a session or turn, the client advertises the catalogs it can render inside `a2uiRendererCapabilities`:
+
+```json
+{
+  "version": "1.0",
+  "a2uiRendererCapabilities": {
+    "supportedCatalogIds": [
+      "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "https://example.com/catalogs/travel/v1/catalog.json"
+    ]
+  }
+}
+```
+
+When the agent creates a surface or renders a component, the client resolves the target catalog using a strict **three-step resolution order**:
+
+1. **Component or Function Override (`catalogId`)**: In v1.0, an individual component object or `@call` expression can specify its own `catalogId` property to pull a component or function from a secondary catalog on the same surface.
+2. **Surface Default (`createSurface.catalogId`)**: If the component or function omits `catalogId`, it inherits the `catalogId` declared on the enclosing `createSurface` message.
+3. **Resolution Error (`CATALOG_ERROR`)**: If neither the component/function nor `createSurface` specifies a `catalogId` (or if the requested `catalogId` is not registered on the renderer), the processor raises a catalog resolution error. It never guesses or falls back to an arbitrary entry in `supportedCatalogIds`.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+```json
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "itinerary_panel",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["header_text", "flight_card"]
+        },
+        {
+          "id": "header_text",
+          "component": "Text",
+          "text": "Upcoming Trip to Tokyo"
+        },
+        {
+          "id": "flight_card",
+          "component": "FlightStatusCard",
+          "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
+          "flightNumber": "NH 105",
+          "fareAmount": {
+            "@path": "/trip/fare"
+          }
+        }
+      ],
+      "dataModel": {
+        "trip": {
+          "fare": 1240.5
+        }
+      }
+    }
+  }
+]
+```
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+```json
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "itinerary_panel",
+      "catalogId": "https://example.com/catalogs/travel/v1/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "itinerary_panel",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["header_text", "flight_card"]
+        },
+        {
+          "id": "header_text",
+          "component": "Text",
+          "text": "Upcoming Trip to Tokyo"
+        },
+        {
+          "id": "flight_card",
+          "component": "FlightStatusCard",
+          "flightNumber": "NH 105",
+          "fareAmount": {
+            "path": "/trip/fare"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "itinerary_panel",
+      "path": "/trip",
+      "value": {
+        "fare": 1240.5
+      }
+    }
+  }
+]
+```
+  </TabItem>
+</Tabs>

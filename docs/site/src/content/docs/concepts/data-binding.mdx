@@ -15,15 +15,7 @@ Components bind their properties to locations inside the `DataModel` using [RFC 
 
 ---
 
-## Why Decouple the Data Model from the Component Tree?
-
-Separating the component topology (`updateComponents`) from the state tree (`updateDataModel`) solves three problems common in generative UI:
-
-1. **Incremental State Streaming without Layout Flicker**: An agent can stream the component structure once, then push lightweight `updateDataModel` patches as tool calls complete or prices update—without resending or remounting the widget tree.
-2. **Deterministic + Generative Population**: While an LLM can generate initial `dataModel` values in `createSurface`, your backend can also pipe deterministic API responses, database rows, or live telemetry directly into `updateDataModel` messages without passing large JSON arrays through the LLM context window.
-3. **Zero-Latency Local Interactivity**: User input controls (`TextField`, `Slider`, `CheckBox`, `ChoicePicker`, `DateTimeInput`) read and write directly to the local `DataModel` at 60fps. Other components bound to those same paths update immediately on the client without waiting for a server round-trip.
-
-### Upsert and Deletion Semantics (`updateDataModel`)
+## Upsert and Deletion Semantics (`updateDataModel`)
 
 When the client receives an `updateDataModel` message, it applies **upsert semantics** at the target JSON Pointer `path`:
 
