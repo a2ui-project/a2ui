@@ -34,7 +34,7 @@ import React, {
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {prepareCatalogs} from './catalog/prepare_catalogs';
-import {ChildElement, HostedChildren, LoadingPlaceholder} from './node-view';
+import {ChildElement, HostedChildren} from './node-view';
 import type {ReactCatalogComponent} from './react_component_implementation';
 import {MarkdownComponentContext, useMarkdownRenderer} from './markdown-context';
 import {registerMarkdownHostRenderer} from './markdown_hosts';
@@ -98,8 +98,9 @@ export const A2uiSurface: React.FC<{
   );
   const root = useSyncExternalStore(subscribe, getSnapshot);
 
+  // Nothing to show until the root component arrives.
   if (!root) {
-    return <LoadingPlaceholder componentId="root" />;
+    return null;
   }
   // A React host of this surface with no React-rendered element above it
   // (one created outside the surface's tree) gets its content from here.
