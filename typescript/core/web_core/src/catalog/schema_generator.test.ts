@@ -407,7 +407,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
 
     const loaded = Catalog.fromJson({
       catalogId: 'https://example.com/v10-loaded.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Open: {type: 'object', properties: {component: {const: 'Open'}}},
         Closed: {
@@ -650,7 +650,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
 
     const published = Catalog.fromJson({
       catalogId: 'https://example.com/published.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Label: {
           type: 'object',
@@ -728,7 +728,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('excludes system functions and follows the source order of a loaded catalog', () => {
     const loaded = Catalog.fromJson({
       catalogId: 'https://example.com/order.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Zeta: {type: 'object', properties: {component: {const: 'Zeta'}}},
         Alpha: {type: 'object', properties: {component: {const: 'Alpha'}}},
@@ -770,7 +770,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
       title: 'Described',
       description: 'Document description.',
       catalogId: 'https://example.com/described',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Profile: {
           type: 'object',

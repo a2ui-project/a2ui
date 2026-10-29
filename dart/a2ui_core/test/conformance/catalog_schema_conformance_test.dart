@@ -22,8 +22,8 @@ import 'package:test/test.dart';
 import 'conformance_harness.dart';
 
 /// Runs the shared catalog suite `conformance/core/catalog.yaml` against
-/// [Catalog]: its `from_json`, `to_json`, `round_trip` and
-/// `validation_schema` cases, for every protocol version.
+/// [Catalog]: its `from_json`, `to_json`, `round_trip`, `validation_schema`
+/// and `derive` cases, for every protocol version.
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'core/catalog.yaml',
@@ -78,6 +78,8 @@ void _runCase(Map<String, Object?> testCase) {
       _runRoundTripCase(testCase);
     case 'to_json':
       _runToJsonCase(testCase);
+    case 'derive':
+      _runDeriveCase(testCase);
     default:
       throw StateError('Unsupported catalog conformance action: $action');
   }
@@ -491,6 +493,137 @@ void _runToJsonCase(Map<String, Object?> testCase) {
       '$name: toJson differs from ${testCase['expectFile']}:\n'
       '${differences.join('\n')}',
     );
+  }
+}
+
+/// The keys a `DeriveExpect` may set.
+const Set<String> _deriveExpectKeys = {
+  'absentKeys',
+  'catalogId',
+  'components',
+  'functions',
+  'instructions',
+  'protocolVersion',
+  'theme',
+};
+
+/// Runs a `derive` case: loads the source catalog with [Catalog.fromJson],
+/// derives a catalog from it, and checks the derived catalog and its
+/// `toJson()` document.
+///
+/// A case lists the names to keep and the new entries together, and
+/// [Catalog.derive] takes them apart: a name goes to `components` or
+/// `functions`, and a map with one key, loaded into a catalog of the
+/// source's version, to `addComponents` or `addFunctions`.
+void _runDeriveCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final CatalogApi source = _load(
+    testCase,
+    _document(testCase['catalog'] ?? testCase['catalogPath']),
+  );
+  final Map<String, Object?> args =
+      (testCase['args']! as Map).cast<String, Object?>();
+
+  /// The new entries of the kind [section] in [list], keyed by name.
+  Map<String, Object?> added(String section, List<Object?>? list) {
+    final definitions = <String, Object?>{
+      for (final Object? item in list ?? const [])
+        if (item is Map) ...item.cast<String, Object?>(),
+    };
+    if (definitions.isEmpty) return const {};
+    final CatalogApi holder = Catalog.fromJson({
+      'catalogId': 'conformance:derive-entries',
+      'protocolVersion': source.protocolVersion!.jsonValue,
+      section: definitions,
+    });
+    return section == 'components' ? holder.components : holder.functions;
+  }
+
+  List<String>? kept(List<Object?>? list) => list == null
+      ? null
+      : [
+          for (final item in list)
+            if (item is String) item
+        ];
+
+  final components = args['components'] as List<Object?>?;
+  final functions = args['functions'] as List<Object?>?;
+  CatalogApi derive() => source.derive(
+        catalogId: args['catalogId']! as String,
+        components: kept(components),
+        addComponents:
+            added('components', components).values.cast<ComponentApi>(),
+        functions: kept(functions),
+        addFunctions: added('functions', functions).values.cast<FunctionApi>(),
+        instructions: args['instructions'] as String?,
+      );
+
+  if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    expect(
+      derive,
+      throwsA(
+        isA<A2uiCatalogError>().having(
+          (error) => error.message,
+          'message',
+          contains(expectError['message'] as String? ?? ''),
+        ),
+      ),
+      reason: name,
+    );
+    return;
+  }
+
+  final Map<String, Object?> expected =
+      (testCase['expect']! as Map).cast<String, Object?>();
+  final Set<String> unknown = expected.keys.toSet().difference(
+        _deriveExpectKeys,
+      );
+  if (unknown.isNotEmpty) {
+    fail('$name: unsupported derive expectations $unknown');
+  }
+  final CatalogApi derived = derive();
+  final Map<String, Object?> document = derived.toJson();
+  if (expected['catalogId'] case final String id) {
+    expect(derived.id, id, reason: '$name: catalogId');
+  }
+  if (expected['protocolVersion'] case final String version) {
+    expect(
+      derived.protocolVersion,
+      A2uiProtocolVersion.tryParseSemVer(version),
+      reason: '$name: protocolVersion',
+    );
+  }
+  for (final (String section, Iterable<String> names) in [
+    ('components', derived.components.keys),
+    ('functions', derived.functions.keys),
+  ]) {
+    final Object? listed = expected[section];
+    if (listed == null) continue;
+    expect(names, unorderedEquals(_names(listed)), reason: '$name: $section');
+    if (listed is Map) {
+      final Map<Object?, Object?> written = document[section]! as Map;
+      for (final MapEntry<Object?, Object?> entry in listed.entries) {
+        expect(
+          _differences(written[entry.key], entry.value),
+          isEmpty,
+          reason: '$name: $section ${entry.key}',
+        );
+      }
+    }
+  }
+  if (expected['theme'] case final Object theme) {
+    expect(_differences(document['theme'], theme), isEmpty,
+        reason: '$name: theme');
+  }
+  if (expected.containsKey('instructions')) {
+    expect(
+      document['instructions'],
+      expected['instructions'],
+      reason: '$name: instructions',
+    );
+  }
+  for (final Object? key in _list(expected['absentKeys'])) {
+    expect(document, isNot(contains(key)), reason: '$name: $key');
   }
 }
 

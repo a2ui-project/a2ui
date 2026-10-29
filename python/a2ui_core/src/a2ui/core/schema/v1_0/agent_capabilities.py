@@ -25,18 +25,18 @@ class V10AgentCapabilities(StrictBaseModel):
         default=None,
         alias="supportedCatalogIds",
         description=(
-            "An array of strings, where each is an ID identifying a Catalog for which"
-            " the agent can generate content. This is not a resolvable URI. Multiple"
-            " catalogs can be mixed in a single surface."
+            "An array of strings, where each is an ID identifying a Catalog for"
+            " which the agent can generate content. This is not a resolvable URI."
+            " Multiple catalogs can be mixed in a single surface."
         ),
     )
     accepts_inline_catalogs: bool | None = Field(
         default=None,
         alias="acceptsInlineCatalogs",
         description=(
-            "A boolean indicating if the agent can accept an 'inlineCatalogs' array in"
-            " the renderer's a2uiRendererCapabilities. If omitted, this defaults to"
-            " false."
+            "A boolean indicating if the agent can accept an 'inlineCatalogs'"
+            " array in the renderer's a2uiRendererCapabilities. If omitted, this"
+            " defaults to false."
         ),
     )
 

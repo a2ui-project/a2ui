@@ -101,14 +101,20 @@ export class ButtonComponent extends BasicCatalogComponent<typeof ButtonApi> {
   readonly action = computed(() => this.props()['action']?.value());
 
   handleClick() {
-    const action = this.action();
-    if (action) {
-      const surface = this.surface();
-      if (surface) {
-        const dataContext = new DataContext(surface, this.dataContextPath());
-        const resolvedAction = dataContext.resolveAction(action);
-        surface.dispatchAction(resolvedAction, this.componentId());
-      }
+    const action: unknown = this.action();
+    if (!action) return;
+    // Hosts bound from a resolved `ComponentNode` deliver actions as ready-to-call closures.
+    if (typeof action === 'function') {
+      void (action as () => unknown)();
+      return;
+    }
+    const surface = this.surface();
+    if (surface) {
+      const dataContext = new DataContext(surface, this.dataContextPath());
+      const resolvedAction = dataContext.resolveAction(
+        action as Parameters<DataContext['resolveAction']>[0],
+      );
+      surface.dispatchAction(resolvedAction, this.componentId());
     }
   }
 }

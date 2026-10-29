@@ -43,7 +43,11 @@ def test_component_model_lifecycle():
     comp.on_updated.subscribe(lambda c: events.append(c))
 
     assert comp.properties == {"label": "Click"}
-    assert comp.component_tree == {"id": "c1", "component": "Button", "label": "Click"}
+    assert comp.component_tree == {
+        "id": "c1",
+        "component": "Button",
+        "label": "Click",
+    }
 
     comp.properties = {"label": "Submit", "disabled": True}
     assert len(events) == 1
@@ -107,7 +111,7 @@ def test_component_model_get_child_references_with_custom_schema():
 
     custom_cat = Catalog(
         catalog_id="https://a2ui.org/custom-slots",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[
             ComponentApi(
                 name="SplitPane",
@@ -550,7 +554,7 @@ def test_surface_model_resolve_catalog_without_default():
         "s1",
         default_catalog=None,
         available_catalogs={cat.id: cat},
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
     assert surface.resolve_catalog(cat.id) is cat
@@ -685,6 +689,21 @@ def test_surface_components_model_child_references():
 
     assert scm.get_child_references("c1") == []
     assert scm.get_child_ids("c1") == []
+
+
+@pytest.mark.parametrize("version", ["0.9", "1.0"])
+def test_surface_components_model_leaf_prop_naming_a_component_is_not_a_child(
+    version,
+):
+    # From v0.9 the catalog declares every child with a $ref; Icon declares none.
+    cat = BasicCatalog(version)
+    scm = SurfaceComponentsModel(default_catalog=cat)
+    scm.add_component(ComponentModel("root", "Row", cat, {"children": ["mail"]}))
+    scm.add_component(ComponentModel("mail", "Row", cat, {"children": ["mail_icon"]}))
+    scm.add_component(ComponentModel("mail_icon", "Icon", cat, {"name": "mail"}))
+
+    assert scm.get_child_references("mail_icon") == []
+    scm.validate_topology()
 
 
 def test_surface_components_model_cycle_detection_ignores_orphans():

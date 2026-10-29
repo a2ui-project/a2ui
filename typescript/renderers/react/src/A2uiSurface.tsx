@@ -24,13 +24,20 @@
  * implementation and child reference resolution, lives in `node-view.tsx`.
  */
 
-import React, {useCallback, useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {prepareCatalogs} from './catalog/prepare_catalogs';
 import {ChildElement, HostedChildren, LoadingPlaceholder} from './node-view';
 import type {ReactCatalogComponent} from './react_component_implementation';
-import {useMarkdownRenderer} from './markdown-context';
+import {MarkdownComponentContext, useMarkdownRenderer} from './markdown-context';
+import {registerMarkdownHostRenderer} from './markdown_hosts';
 
 export const A2uiSurface: React.FC<{
   surface: SurfaceModel<ReactCatalogComponent>;
@@ -38,13 +45,21 @@ export const A2uiSurface: React.FC<{
   // web_core's basic catalog reads its markdown renderer from a module-level
   // slot. A layout effect sets it during commit, so it is in place before any
   // Lit element in the surface updates. A surface without a renderer leaves
-  // the slot alone, so one the host registered itself stays in effect.
+  // the slot alone, so one the host registered itself stays in effect. A
+  // Markdown component takes precedence: its renderer returns hosts that the
+  // surface's elements portal the component into (see `markdown_hosts.tsx`).
+  // That renderer leaves the slot when the last surface using it unmounts.
   const markdownRenderer = useMarkdownRenderer();
+  const hasMarkdownComponent = useContext(MarkdownComponentContext) !== undefined;
   useLayoutEffect(() => {
+    if (hasMarkdownComponent) {
+      return registerMarkdownHostRenderer();
+    }
     if (markdownRenderer) {
       setMarkdownRenderer(markdownRenderer);
     }
-  }, [markdownRenderer]);
+    return undefined;
+  }, [markdownRenderer, hasMarkdownComponent]);
 
   // The resolver is created inside subscribe, which React calls only for
   // committed renders: a render that is discarded (concurrent mode,

@@ -78,7 +78,7 @@ class InternalAgentFunctionResponseOp:
     """Internal operation representing a response to a renderer-to-agent function call."""
 
     function_call_id: str
-    version: str = "v1.0"
+    version: str = "1.0"
     value: Any | None = None
     error: dict[str, Any] | None = None
     type: str = MSG_TYPE_AGENT_FUNCTION_RESPONSE

@@ -41,7 +41,7 @@ class _Fn extends FunctionImplementation {
 typedef _AgentCall = ({FunctionCall call, Completer<Object?> completer});
 
 Catalog<ComponentApi, FunctionImplementation> _catalog({
-  String? protocolVersion = 'v1.0',
+  String? protocolVersion = '1.0',
 }) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'cat',
@@ -68,7 +68,7 @@ void main() {
   }
 
   SurfaceModel<ComponentApi> makeSurface({
-    String? protocolVersion = 'v1.0',
+    String? protocolVersion = '1.0',
     bool withCaller = true,
   }) {
     final surface = SurfaceModel<ComponentApi>(
@@ -193,7 +193,7 @@ void main() {
       expect(clientErrors.single.functionCallId, 'fc-9');
       expect(clientErrors.single.message, contains('agent said no'));
       final Map<String, dynamic> wire =
-          ErrorMessage(version: 'v1.0', error: clientErrors.single).toJson();
+          ErrorMessage(version: '1.0', error: clientErrors.single).toJson();
       expect(RendererToAgentMessage.fromJson(wire), isA<ErrorMessage>());
 
       // A failed call is evicted so a later retry invokes the agent again.
@@ -422,7 +422,7 @@ void main() {
       final syncThrowSurface = SurfaceModel<ComponentApi>(
         'surf-sync-throw',
         defaultCatalog: _catalog(),
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         callAgentFunction: (_) =>
             throw A2uiRpcError('sync fail', RpcErrorCode.noListener),
       );
@@ -594,7 +594,7 @@ void main() {
       expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.message, contains('refused'));
       final Map<String, dynamic> wire =
-          ErrorMessage(version: 'v1.0', error: clientErrors.single).toJson();
+          ErrorMessage(version: '1.0', error: clientErrors.single).toJson();
       expect(RendererToAgentMessage.fromJson(wire), isA<ErrorMessage>());
     });
 

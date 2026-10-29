@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
-import {Component, Input, ChangeDetectionStrategy} from '@angular/core';
+import {Component, EnvironmentInjector, Input, ChangeDetectionStrategy, Type} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {SurfaceComponent} from './surface.component';
 import {ComponentHostComponent} from './component-host.component';
 import {By} from '@angular/platform-browser';
 import {A2uiRendererService} from './a2ui-renderer.service';
-import {ComponentBinder} from './component-binder.service';
-import {ComponentModel, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
+import {SurfaceNodeResolver} from './surface-node-resolver.service';
+import {initializeAngularReactivity} from './reactivity';
+import {CatalogComponentInstance} from './catalog_component_instance';
+import {AngularCatalog, createComponentImplementation} from '../catalog/types';
+import {ComponentModel, DynamicStringSchema, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
 @Component({
   selector: 'test-text',
@@ -40,37 +44,32 @@ describe('SurfaceComponent', () => {
   let component: SurfaceComponent;
   let fixture: ComponentFixture<SurfaceComponent>;
   let mockRendererService: any;
-  let mockBinder: any;
+  let surface: SurfaceModel<any>;
 
   beforeEach(async () => {
-    const mockCatalog = {
-      id: 'mock-catalog',
-      components: new Map([['Text', {type: 'Text', component: TestTextComponent}]]),
-    } as any;
+    await TestBed.configureTestingModule({
+      imports: [SurfaceComponent],
+      providers: [{provide: A2uiRendererService, useFactory: () => mockRendererService}],
+    }).compileComponents();
+    initializeAngularReactivity(TestBed.inject(EnvironmentInjector));
 
-    const componentsModel = new SurfaceComponentsModel();
-    componentsModel.addComponent(
-      new ComponentModel('root', 'Text', {text: {value: 'Hello'}}, mockCatalog),
+    const catalog = new AngularCatalog('test-catalog', '0.9', [
+      createComponentImplementation(
+        {name: 'Text', schema: z.object({text: DynamicStringSchema})},
+        TestTextComponent as unknown as Type<CatalogComponentInstance>,
+      ),
+    ]);
+    surface = new SurfaceModel('test-surface', catalog);
+    surface.componentsModel.addComponent(
+      new ComponentModel('root', 'Text', {text: 'Hello'}, catalog),
     );
 
     mockRendererService = {
       surfaceGroup: {
-        getSurface: jasmine.createSpy('getSurface').and.returnValue({
-          componentsModel,
-          defaultCatalog: mockCatalog,
-          availableCatalogs: new Map(),
-        }),
+        getSurface: jasmine.createSpy('getSurface').and.returnValue(surface),
       },
+      useUniversalComponents: false,
     };
-    mockBinder = jasmine.createSpyObj('ComponentBinder', ['bind']);
-
-    await TestBed.configureTestingModule({
-      imports: [SurfaceComponent],
-      providers: [
-        {provide: A2uiRendererService, useValue: mockRendererService},
-        {provide: ComponentBinder, useValue: mockBinder},
-      ],
-    }).compileComponents();
 
     fixture = TestBed.createComponent(SurfaceComponent);
     component = fixture.componentInstance;
@@ -99,5 +98,16 @@ describe('SurfaceComponent', () => {
 
     const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
     expect(host.componentInstance.componentKey()).toEqual({id: 'root', basePath: '/'});
+  });
+
+  it('should render the root node through the surface-owned NodeResolver', () => {
+    fixture.componentRef.setInput('surfaceId', 'test-surface');
+    fixture.detectChanges();
+
+    const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
+    const resolver = host.injector.get(SurfaceNodeResolver);
+    expect(resolver).toBeTruthy();
+    expect(resolver.resolverFor(surface)).toBe(resolver.resolverFor(surface));
+    expect(fixture.nativeElement.textContent).toContain('Hello');
   });
 });
