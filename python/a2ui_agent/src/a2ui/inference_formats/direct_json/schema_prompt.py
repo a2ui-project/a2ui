@@ -163,6 +163,8 @@ def _catalog_schema_sections(catalogs: Sequence[CatalogApi]) -> list[str]:
 
 def _schema_block(sections: Sequence[str]) -> str:
     """Wraps sections between the schema block start and end lines."""
-    return "\n\n".join(
-        [constants.A2UI_SCHEMA_BLOCK_START, *sections, constants.A2UI_SCHEMA_BLOCK_END]
-    )
+    return "\n\n".join([
+        constants.A2UI_SCHEMA_BLOCK_START,
+        *sections,
+        constants.A2UI_SCHEMA_BLOCK_END,
+    ])

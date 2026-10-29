@@ -31,7 +31,7 @@ from typing import Any
 SURFACE_ID = "kanban"
 BASIC_CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
 MCP_CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"
-PROTOCOL_VERSION = "v1.0"
+PROTOCOL_VERSION = "1.0"
 
 BOARD_PATH = "/kanban/board"
 

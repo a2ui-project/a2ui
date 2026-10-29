@@ -33,20 +33,20 @@ struct AccessibilityModifierTests {
     let processor = MessageProcessor(catalogs: [V10BasicCatalog.catalog])
     var messages: [[String: Any]] = [
       [
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": [
           "surfaceId": "a11y",
           "catalogId": V10BasicCatalog.catalogURI,
         ],
       ],
       [
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": ["surfaceId": "a11y", "components": components],
       ],
     ]
     if let dataModel {
       messages.append([
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": ["surfaceId": "a11y", "value": dataModel],
       ])
     }
@@ -125,7 +125,7 @@ struct AccessibilityModifierTests {
     try process(
       [
         [
-          "version": "v1.0",
+          "version": "1.0",
           "updateDataModel": [
             "surfaceId": "a11y", "path": "/unreadLabel", "value": "Four unread messages",
           ],
@@ -211,7 +211,7 @@ struct AccessibilityModifierTests {
     try process(
       [
         [
-          "version": "v1.0",
+          "version": "1.0",
           "updateDataModel": ["surfaceId": "a11y", "path": "/status", "value": "Connected"],
         ]
       ],

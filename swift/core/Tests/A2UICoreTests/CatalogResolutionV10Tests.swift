@@ -145,7 +145,7 @@ struct CatalogResolutionV10Tests {
     try processor.processMessages(
       try JSONValue.parse(
         """
-        { "version": "v1.0", "createSurface": { "surfaceId": "s" } }
+        { "version": "1.0", "createSurface": { "surfaceId": "s" } }
         """
       )
     )
@@ -158,7 +158,7 @@ struct CatalogResolutionV10Tests {
         try JSONValue.parse(
           """
           {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
               "surfaceId": "s",
               "components": [{ "id": "root", "component": "Text" }]
@@ -172,7 +172,7 @@ struct CatalogResolutionV10Tests {
       try JSONValue.parse(
         """
         {
-          "version": "v1.0",
+          "version": "1.0",
           "updateComponents": {
             "surfaceId": "s",
             "components": [{ "id": "root", "component": "Text", "catalogId": "a" }]
@@ -310,9 +310,9 @@ struct CatalogResolutionV10Tests {
       try JSONValue.parse(
         """
         [
-          { "version": "v1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } },
+          { "version": "1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } },
           {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
               "surfaceId": "s",
               "components": [{ "id": "root", "component": "Text", "catalogId": "a" }]

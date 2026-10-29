@@ -27,7 +27,8 @@ from pydantic import TypeAdapter, ValidationError
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_SCRIPT_PATH = os.path.abspath(
     os.path.join(
-        SCRIPT_DIR, "../../../.agents/skills/a2ui-generate-pydantic-models/scripts"
+        SCRIPT_DIR,
+        "../../../.agents/skills/a2ui-generate-pydantic-models/scripts",
     )
 )
 if SKILL_SCRIPT_PATH not in sys.path:
@@ -170,8 +171,8 @@ def test_compile_properties_to_pydantic():
     lines = codegen.compile_properties(props, [])
     assert len(lines) == 2
     assert (
-        '    num: int | None = Field(default=None, description="Defaults to 42 when'
-        ' absent.")'
+        '    num: int | None = Field(default=None, description="Defaults to 42'
+        ' when absent.")'
         in lines
     )
     assert (
@@ -216,7 +217,10 @@ def test_compile_object_def():
 def test_compile_union_def():
     codegen = codegen_pydantic.PydanticCodegen("v0.9")
     spec = {
-        "oneOf": [{"type": "string"}, {"$ref": "common_types.json#/$defs/DataBinding"}]
+        "oneOf": [
+            {"type": "string"},
+            {"$ref": "common_types.json#/$defs/DataBinding"},
+        ]
     }
     code = codegen.compile_union_def("StringOrBinding", spec)
     assert code == "StringOrBinding = str | DataBinding\n"
@@ -413,7 +417,10 @@ def test_generate_basic_catalog_styles():
             "theme": {
                 "type": "object",
                 "properties": {
-                    "primaryColor": {"type": "string", "description": "Test color."}
+                    "primaryColor": {
+                        "type": "string",
+                        "description": "Test color.",
+                    }
                 },
                 "additionalProperties": True,
             }
@@ -511,7 +518,7 @@ def test_generate_renderer_capabilities():
 def test_generate_agent_capabilities():
     mock_agent_caps_data = {
         "properties": {
-            "v1.0": {
+            "1.0": {
                 "properties": {
                     "supportedCatalogIds": {
                         "type": "array",
@@ -524,7 +531,7 @@ def test_generate_agent_capabilities():
                 },
             }
         },
-        "required": ["v1.0"],
+        "required": ["1.0"],
     }
     code = codegen_pydantic.generate_agent_capabilities("v1.0", mock_agent_caps_data)
     assert "class V10AgentCapabilities(StrictBaseModel):" in code
@@ -541,7 +548,10 @@ def test_generate_catalog_definition():
             },
             "ComponentDefinition": {
                 "properties": {
-                    "allowedParents": {"type": "array", "items": {"type": "string"}},
+                    "allowedParents": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
                 },
             },
             "FunctionDefinition": {
@@ -651,7 +661,8 @@ def test_default_annotations_do_not_set_model_defaults(version):
 
     assert (
         '    display_name: str | None = Field(default=None, alias="displayName",'
-        ' description="Name shown in the UI. Defaults to \\"Guest\\" when absent.")'
+        ' description="Name shown in the UI. Defaults to \\"Guest\\" when'
+        ' absent.")'
         in lines
     )
     assert '    kind: Literal["email"] = Field("email")' in lines
@@ -1008,7 +1019,8 @@ def test_model_docstring_keeps_quotes_and_backslashes():
     codegen = codegen_pydantic.PydanticCodegen("v1.0")
 
     code = codegen.compile_object_def(
-        "Doc", {"description": description, "properties": {"a": {"type": "string"}}}
+        "Doc",
+        {"description": description, "properties": {"a": {"type": "string"}}},
     )
 
     class_def = ast.parse(code).body[0]
@@ -1046,9 +1058,18 @@ def _object(properties: dict, **keywords) -> dict:
             },
             "collides",
         ),
-        ({"Foo": _object({"a": {"type": "string"}}, required=["b"])}, "undeclared"),
-        ({"Foo": _object({"a": {"type": "string"}}, minProperties=1)}, "minProperties"),
-        ({"Foo": _object({"a": {"$ref": "#/$defs/Missing"}})}, "Unsupported schema"),
+        (
+            {"Foo": _object({"a": {"type": "string"}}, required=["b"])},
+            "undeclared",
+        ),
+        (
+            {"Foo": _object({"a": {"type": "string"}}, minProperties=1)},
+            "minProperties",
+        ),
+        (
+            {"Foo": _object({"a": {"$ref": "#/$defs/Missing"}})},
+            "Unsupported schema",
+        ),
         (
             {"Foo": _object({"a": {"$ref": "#/$defs/Foo", "minLength": 1}})},
             "Unsupported schema",
@@ -1064,7 +1085,12 @@ def _object(properties: dict, **keywords) -> dict:
         ),
         ({"Foo": {"oneOf": []}}, "Unsupported union def"),
         (
-            {"Foo": {"oneOf": [{"type": "string"}], "anyOf": [{"type": "number"}]}},
+            {
+                "Foo": {
+                    "oneOf": [{"type": "string"}],
+                    "anyOf": [{"type": "number"}],
+                }
+            },
             "Unsupported union def",
         ),
     ],
@@ -1082,7 +1108,10 @@ def test_common_types_generation_fails_on_unenforced_schema(defs, message):
         {
             "allOf": [
                 {"$ref": "#/$defs/FunctionCall"},
-                {"properties": {"returnType": {"const": "string"}}, "required": []},
+                {
+                    "properties": {"returnType": {"const": "string"}},
+                    "required": [],
+                },
             ]
         },
         {
@@ -1190,7 +1219,11 @@ def test_catalog_components_reject_null_for_their_own_optional_fields():
     "payload",
     [
         {"functionCallId": "c1"},
-        {"functionCallId": "c1", "value": 1, "error": {"code": "E", "message": "m"}},
+        {
+            "functionCallId": "c1",
+            "value": 1,
+            "error": {"code": "E", "message": "m"},
+        },
     ],
 )
 def test_declared_required_one_of_is_validated(payload):

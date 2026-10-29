@@ -495,9 +495,26 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
     computedDefs.set(defName, defModel);
   }
 
+  const functions = new Map<string, JsonSchemaObject | undefined>();
+  const rawFunctions = new Map<string, FunctionApi>();
+  for (const [name, fn] of catalog.functions) {
+    if (!loadedDefinition(fn) && isSpecFunctionSchema(fn.schema)) {
+      rawFunctions.set(name, fn);
+      // Pre-scan function schema for any referenced catalog $defs models.
+      shaper.toJson(fn.schema, computedDefs);
+    }
+  }
+
   const defs: JsonObject = {...catalog.defs};
-  for (const [defName, defModel] of computedDefs) {
-    if (!(defName in defs)) defs[defName] = shaper.defSchema(defModel);
+  const serializedDefs = new Set<string>();
+  while (
+    [...computedDefs.keys()].some(defName => !serializedDefs.has(defName) && !(defName in defs))
+  ) {
+    for (const [defName, defModel] of [...computedDefs]) {
+      if (serializedDefs.has(defName) || defName in defs) continue;
+      serializedDefs.add(defName);
+      defs[defName] = shaper.defSchema(defModel, computedDefs);
+    }
   }
   const extensionFields: JsonObject = {...catalog.extensionFields};
   if (catalog.themeLocation === 'styles' && catalog.themeSchema && !hasAuthoredTheme(catalog)) {
@@ -509,14 +526,13 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
   for (const [name, comp] of catalog.components) {
     components.set(name, shapedComponents.get(name) ?? entryDefinition(comp, defs));
   }
-  const functions = new Map<string, JsonSchemaObject | undefined>();
   for (const [name, fn] of catalog.functions) {
     const loaded = entryDefinition(fn, defs);
     functions.set(
       name,
       loaded ??
-        (!loadedDefinition(fn) && isSpecFunctionSchema(fn.schema)
-          ? deepFreeze(shaper.functionSchema(name, fn, defs))
+        (rawFunctions.has(name)
+          ? deepFreeze(shaper.functionSchema(name, fn, defs, computedDefs))
           : undefined),
     );
   }

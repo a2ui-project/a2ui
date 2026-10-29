@@ -336,6 +336,60 @@ class TestApplyTriage(unittest.TestCase):
             "P2,status: first-line-handled",
         ])
 
+    @patch("argparse.ArgumentParser.parse_args")
+    @patch("apply_triage.run_cmd")
+    @patch("os.path.exists")
+    def test_apply_triage_milestone_handling(
+        self, mock_exists, mock_run, mock_parse_args
+    ):
+        mock_args = MagicMock()
+        mock_args.decisions_file = "/mock/triage_decisions.json"
+        mock_parse_args.return_value = mock_args
+        mock_exists.return_value = True
+
+        mock_decisions_data = {
+            "decisions": [
+                {
+                    "id": 301,
+                    "approved": True,
+                    "priority": "P1",
+                    "assignee": "",
+                    "action": "investigate",
+                    "milestone": "November Launch (P<=1 blocking)",
+                    "labels": [],
+                    "reply": "",
+                },
+                {
+                    "id": 302,
+                    "approved": True,
+                    "priority": "P2",
+                    "assignee": "",
+                    "action": "investigate",
+                    "milestone": "",
+                    "remove_milestone": True,
+                    "labels": [],
+                    "reply": "",
+                },
+            ]
+        }
+
+        mock_run.return_value = "{}"
+        m_open = mock_open(read_data=json.dumps(mock_decisions_data))
+        with patch("apply_triage.open", m_open):
+            with self.assertRaises(SystemExit) as cm:
+                apply_triage.main()
+
+        self.assertEqual(cm.exception.code, 0)
+        mock_run.assert_any_call([
+            "gh",
+            "issue",
+            "edit",
+            "301",
+            "--milestone",
+            "November Launch (P<=1 blocking)",
+        ])
+        mock_run.assert_any_call(["gh", "issue", "edit", "302", "--remove-milestone"])
+
 
 if __name__ == "__main__":
     unittest.main()

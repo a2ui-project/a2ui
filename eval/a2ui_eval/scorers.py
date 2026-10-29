@@ -179,7 +179,9 @@ def _walk_mapping(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
         _walk_payload(child, facts)
 
 
-def collect_payload_facts(messages: Iterable[Mapping[str, Any]]) -> PayloadFacts:
+def collect_payload_facts(
+    messages: Iterable[Mapping[str, Any]],
+) -> PayloadFacts:
     """Collects component types, bindings, actions, message types and catalogs.
 
     The top-level keys of each message other than `version` are its message
@@ -267,7 +269,10 @@ def evaluate_stage2_assertions(
     facts = _collect_payload_facts(messages)
     results = [
         _check_assertion_set(
-            "components", checks.required_components, facts.component_types, "required"
+            "components",
+            checks.required_components,
+            facts.component_types,
+            "required",
         ),
         _check_assertion_set(
             "components",
