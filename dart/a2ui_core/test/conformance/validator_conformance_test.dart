@@ -108,7 +108,11 @@ void _runCase(Map<String, Object?> testCase) {
   final bool strict = (testCase['strictMode'] as bool?) ?? true;
   final emittedErrors = <ErrorMessage>[];
   final processor = MessageProcessor<ComponentApi>(
-    catalogs: _catalogsFor(_documentsFor(testCase), allPayloads, version),
+    catalogs: _catalogsFor(
+      _documentsFor(testCase),
+      allPayloads,
+      version,
+    ),
     validationConfig:
         strict ? ValidationConfig.strict : ValidationConfig.relaxed,
     outboundListener: (RendererToAgentMessage msg) {
@@ -129,7 +133,9 @@ void _runCase(Map<String, Object?> testCase) {
   }
 }
 
-List<Map<String, Object?>> _collectPayloads(List<Map<String, Object?>> steps) =>
+List<Map<String, Object?>> _collectPayloads(
+  List<Map<String, Object?>> steps,
+) =>
     [
       for (final Map<String, Object?> step in steps)
         if (step['messages'] ?? step['payload'] case final List<Object?> raw)
@@ -146,9 +152,8 @@ void _runValidatorStep(
   required List<ErrorMessage> emittedErrors,
 }) {
   if (!step.containsKey('messages') && !step.containsKey('payload')) return;
-  final Object? normalizedPayload = _normalizeStepPayload(
-    step['messages'] ?? step['payload'],
-  );
+  final Object? normalizedPayload =
+      _normalizeStepPayload(step['messages'] ?? step['payload']);
   final Object? expectError = step['expectError'] ??
       step['expect_error'] ??
       (isLastStep
@@ -201,16 +206,14 @@ void _assertExpectedSurfaces(
   final Object? surfaces = expectBlock['surfaces'];
   if (surfaces is! Map<String, Object?>) return;
   for (final MapEntry<String, Object?> entry in surfaces.entries) {
-    final SurfaceModel<ComponentApi>? surface = processor.model.getSurface(
-      entry.key,
-    );
+    final SurfaceModel<ComponentApi>? surface =
+        processor.model.getSurface(entry.key);
     expect(surface, isNotNull, reason: 'Surface ${entry.key} should exist');
     final resolver = NodeResolver<ComponentApi>(surface!);
     addTearDown(resolver.dispose);
 
-    final Map<String, ComponentNode<ComponentApi>> nodes = _collectSurfaceNodes(
-      resolver.rootNode.peek(),
-    );
+    final Map<String, ComponentNode<ComponentApi>> nodes =
+        _collectSurfaceNodes(resolver.rootNode.peek());
     final expectedSurface = entry.value as Map<String, Object?>?;
     final Object? expectedComponents = expectedSurface?['components'];
     if (expectedComponents is Map<String, Object?>) {

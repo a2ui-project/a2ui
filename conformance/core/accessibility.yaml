@@ -447,7 +447,10 @@
       - "aria-hidden-focus"
     accessibilityTree:
       dynamic_btn:
-        label: "Mute Audio"
-        hidden: false
+        label:
+          path: "/buttonLabel"
+        hidden:
+          path: "/isButtonHidden"
       dynamic_status:
-        hidden: true
+        hidden:
+          path: "/isStatusHidden"

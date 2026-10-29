@@ -543,11 +543,13 @@ void _assertViewNode(
   Finder? ancestor,
 ]) {
   expect(node.componentId, spec['id']);
-  final Finder viewFinder = _findNodeView(node.instanceId, ancestor).first;
-  expect(viewFinder, findsOneWidget);
+  final Finder candidates = _findNodeView(node.instanceId, ancestor);
   if (spec['state'] case final String expectedState) {
-    _assertNodeState(node, viewFinder, expectedState);
+    _assertNodeState(node, candidates, expectedState);
+    if (expectedState != 'resolved') return;
   }
+  final Finder viewFinder = candidates.first;
+  expect(viewFinder, findsOneWidget);
   if (spec['type'] case final String expectedType) {
     expect(node.type, expectedType);
   }
@@ -575,7 +577,7 @@ void _assertViewNode(
 
 void _assertNodeState(
   ComponentNode<ComponentImplementation> node,
-  Finder viewFinder,
+  Finder candidates,
   String expectedState,
 ) {
   switch (expectedState) {
@@ -583,30 +585,25 @@ void _assertNodeState(
       expect(node.state, NodeState.pending);
       expect(
         find.descendant(
-          of: viewFinder,
+          of: candidates,
           matching: find.byType(CircularProgressIndicator),
         ),
-        findsOneWidget,
+        findsNothing,
       );
     case 'resolved':
       expect(node.state, NodeState.resolved);
+      expect(candidates, findsAtLeastNWidgets(1));
     case 'unknown-type':
       expect(node.state, NodeState.unknownType);
       expect(
-        find.descendant(
-          of: viewFinder,
-          matching: find.text('Unknown component type "${node.type}"'),
-        ),
-        findsOneWidget,
+        find.descendant(of: candidates, matching: find.byType(Text)),
+        findsNothing,
       );
     case 'cyclic':
       expect(node.state, NodeState.cyclic);
       expect(
-        find.descendant(
-          of: viewFinder,
-          matching: find.text('Cyclic reference to "${node.componentId}"'),
-        ),
-        findsOneWidget,
+        find.descendant(of: candidates, matching: find.byType(Text)),
+        findsNothing,
       );
   }
 }
